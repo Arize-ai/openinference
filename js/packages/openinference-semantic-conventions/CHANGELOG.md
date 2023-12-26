@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.0.7
+
+### Patch Changes
+
+- esm, esnext support
+
 ## 0.0.6
 
 ### Patch Changes
