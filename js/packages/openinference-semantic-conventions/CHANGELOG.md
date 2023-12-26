@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.0.5
+
+### Patch Changes
+
+- Change build to export dist correctly
+
 ## 0.0.4
 
 ### Patch Changes
