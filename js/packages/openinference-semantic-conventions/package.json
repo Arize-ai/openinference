@@ -13,7 +13,7 @@
     ],
     "keywords": [],
     "author": "mikyo@arize.com",
-    "license": "UNLICENSED",
+    "license": "MIT",
     "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-semantic-conventions",
     "repository": {
         "type": "git",
