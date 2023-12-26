@@ -1,6 +1,7 @@
 {
     "name": "@arizeai/openinference",
     "version": "0.0.0",
+    "private": true,
     "description": "",
     "main": "index.js",
     "scripts": {
@@ -11,5 +12,9 @@
     "license": "UNLICENSED",
     "devDependencies": {
         "typescript": "^5.3.3"
+    },
+    "engines": {
+        "node": ">=10",
+        "pnpm": ">=3"
     }
 }
