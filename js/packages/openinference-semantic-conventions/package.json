@@ -2,11 +2,14 @@
     "name": "@arizeai/openinference-semantic-conventions",
     "version": "0.0.6",
     "private": false,
+    "main": "dist/src/index.js",
+    "module": "dist/esm/index.js",
+    "esnext": "dist/esnext/index.js",
+    "types": "dist/src/index.d.ts",
     "description": "This package provides OpenInference semantic conventions for tracing of LLM Applications.",
     "scripts": {
         "prebuild": "rimraf dist",
-        "build": "tsc --build tsconfig.json",
-        "clean": "tsc --build --clean tsconfig.json",
+        "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "files": [
@@ -23,6 +26,5 @@
     },
     "bugs": {
         "url": "https://github.com/Arize-ai/openinference/issues"
-    },
-    "main": "index.js"
+    }
 }
