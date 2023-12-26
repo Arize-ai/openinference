@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.0.6
+
+### Patch Changes
+
+- Fix package.json structure
+
 ## 0.0.5
 
 ### Patch Changes
