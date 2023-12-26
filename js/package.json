@@ -1,0 +1,16 @@
+{
+    "name": "openinference.js",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "mikyo@arize.com",
+    "license": "UNLICENSED",
+    "devDependencies": {
+        "i": "^0.3.7",
+        "typescript": "^5.3.3"
+    }
+}
