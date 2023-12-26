@@ -2,9 +2,7 @@
     "name": "@arizeai/openinference",
     "version": "0.0.0",
     "private": true,
-    "description": "",
-    "main": "dist/src/index.js",
-    "types": "dist/src/index.d.ts",
+    "description": "Monorepo for OpenInference Javascript Tooling",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"
     },
