@@ -11,6 +11,7 @@
     "author": "mikyo@arize.com",
     "license": "UNLICENSED",
     "devDependencies": {
+        "@changesets/cli": "^2.27.1",
         "typescript": "^5.3.3"
     },
     "engines": {
