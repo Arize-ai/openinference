@@ -4,18 +4,14 @@ importers:
 
   .:
     specifiers:
-      i: ^0.3.7
       typescript: ^5.3.3
     devDependencies:
-      i: 0.3.7
       typescript: 5.3.3
 
-packages:
+  packages/openinference-semantic-conventions:
+    specifiers: {}
 
-  /i/0.3.7:
-    resolution: {integrity: sha512-FYz4wlXgkQwIPqhzC5TdNMLSE5+GS1IIDJZY/1ZiEPCT2S3COUVZeT5OW4BmW4r5LHLQuOosSwsvnroG9GR59Q==}
-    engines: {node: '>=0.4'}
-    dev: true
+packages:
 
   /typescript/5.3.3:
     resolution: {integrity: sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==}
