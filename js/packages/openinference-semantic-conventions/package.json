@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-semantic-conventions",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": false,
   "description": "This package provides OpenInference semantic conventions for tracing of LLM Applications.",
   "scripts": {
