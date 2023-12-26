@@ -8,7 +8,8 @@
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "files": [
-        "dist"
+        "dist",
+        "src"
     ],
     "keywords": [],
     "author": "mikyo@arize.com",
