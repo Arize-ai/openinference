@@ -1,6 +1,7 @@
 {
     "name": "@arizeai/openinference-semantic-conventions",
     "version": "0.0.1",
+    "private": false,
     "description": "This package provides OpenInference semantic conventions for tracing of LLM Applications.",
     "main": "index.js",
     "scripts": {
@@ -13,7 +14,7 @@
     ],
     "keywords": [],
     "author": "mikyo@arize.com",
-    "license": "MIT",
+    "license": "UNLICENSED",
     "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-semantic-conventions",
     "repository": {
         "type": "git",
