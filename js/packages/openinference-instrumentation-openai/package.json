@@ -1,6 +1,6 @@
 {
     "name": "@arizeai/openinference-instrumentation-openai",
-    "version": "0.0.1-rc3",
+    "version": "0.0.1-rc4",
     "description": "OpenInference instrumentation for OpenAI",
     "private": false,
     "main": "dist/src/index.js",
@@ -16,10 +16,13 @@
     "dependencies": {
         "@arizeai/openinference-semantic-conventions": "workspace:*",
         "@opentelemetry/api": "^1.7.0",
-        "@opentelemetry/instrumentation": "^0.46.0",
-        "openinference-instrumentation-openai": "link:"
+        "@opentelemetry/instrumentation": "^0.46.0"
     },
     "keywords": [],
+    "files": [
+        "dist",
+        "src"
+    ],
     "author": "oss-devs@arize.com",
     "license": "Apache-2.0",
     "devDependencies": {
