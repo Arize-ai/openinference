@@ -36,6 +36,7 @@ describe("OpenAIInstrumentation", () => {
         openai = new OpenAI.OpenAI({
             apiKey: process.env.OPENAI_API_KEY,
         });
+        memoryExporter.reset();
     });
     it("is patched", () => {
         expect((OpenAI as any).openInferencePatched).toBe(true);
@@ -45,6 +46,7 @@ describe("OpenAIInstrumentation", () => {
             messages: [{ role: "user", content: "Say this is a test" }],
             model: "gpt-3.5-turbo",
         });
-        expect(memoryExporter.getFinishedSpans().length).toBe(1);
+        const spans = memoryExporter.getFinishedSpans();
+        expect(spans.length).toBe(1);
     });
 });

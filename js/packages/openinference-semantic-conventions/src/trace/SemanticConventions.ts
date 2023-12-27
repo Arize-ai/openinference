@@ -91,6 +91,11 @@ export const LLM_OUTPUT_MESSAGES =
     `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.output_messages}` as const;
 
 /**
+ * The name of the LLM model
+ */
+export const LLM_MODEL_NAME =
+    `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.model_name}` as const;
+/**
  * The role that the LLM assumes the message is from
  * during the LLM invocation
  */
@@ -167,6 +172,7 @@ export const EMBEDDING_MODEL_NAME =
 export const SemanticConventions = {
     LLM_INPUT_MESSAGES,
     LLM_OUTPUT_MESSAGES,
+    LLM_MODEL_NAME,
     MESSAGE_ROLE,
     MESSAGE_NAME,
     MESSAGE_TOOL_CALLS,
