@@ -3,6 +3,8 @@
  */
 
 export const SemanticAttributePrefixes = {
+    input: "input",
+    output: "output",
     llm: "llm",
     retrieval: "retrieval",
     reranker: "reranker",
@@ -17,6 +19,7 @@ export const SemanticAttributePrefixes = {
 
 export const LLMAttributePostfixes = {
     model_name: "model_name",
+    token_count: "token_count",
     input_messages: "input_messages",
     output_messages: "output_messages",
     invocation_parameters: "invocation_parameters",
@@ -75,12 +78,31 @@ export const DocumentAttributePostfixes = {
 } as const;
 
 /**
+ * The input to any span
+ */
+export const INPUT_VALUE = `${SemanticAttributePrefixes.input}.value` as const;
+export const INPUT_MIME_TYPE =
+    `${SemanticAttributePrefixes.input}.mime_type` as const;
+/**
+ * The output of any span
+ */
+export const OUTPUT_VALUE =
+    `${SemanticAttributePrefixes.output}.value` as const;
+export const OUTPUT_MIME_TYPE =
+    `${SemanticAttributePrefixes.output}.mime_type` as const;
+/**
  * The messages sent to the LLM for completions
  * Typically seen in openAI chat completions
  * @see https://beta.openai.com/docs/api-reference/completions/create
  */
 export const LLM_INPUT_MESSAGES =
     `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.input_messages}` as const;
+
+/**
+ * The JSON representation of the parameters passed to the LLM
+ */
+export const LLM_INVOCATION_PARAMETERS =
+    `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.invocation_parameters}` as const;
 
 /**
  * The messages received from the LLM for completions
@@ -95,6 +117,18 @@ export const LLM_OUTPUT_MESSAGES =
  */
 export const LLM_MODEL_NAME =
     `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.model_name}` as const;
+
+/** Token count for the completion by the llm */
+export const LLM_TOKEN_COUNT_COMPLETION =
+    `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.completion` as const;
+
+/** Token count for the prompt to the llm */
+export const LLM_TOKEN_COUNT_PROMPT =
+    `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt` as const;
+
+/** Token count for the entire transaction with the llm */
+export const LLM_TOKEN_COUNT_TOTAL =
+    `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.total` as const;
 /**
  * The role that the LLM assumes the message is from
  * during the LLM invocation
@@ -170,9 +204,14 @@ export const EMBEDDING_MODEL_NAME =
     `${SemanticAttributePrefixes.embedding}.${EmbeddingAttributePostfixes.model_name}` as const;
 
 export const SemanticConventions = {
+    INPUT_VALUE,
+    INPUT_MIME_TYPE,
+    OUTPUT_VALUE,
+    OUTPUT_MIME_TYPE,
     LLM_INPUT_MESSAGES,
     LLM_OUTPUT_MESSAGES,
     LLM_MODEL_NAME,
+    LLM_INVOCATION_PARAMETERS,
     MESSAGE_ROLE,
     MESSAGE_NAME,
     MESSAGE_TOOL_CALLS,
@@ -200,4 +239,9 @@ export enum OpenInferenceSpanKind {
     RERANKER = "reranker",
     EMBEDDING = "embedding",
     AGENT = "agent",
+}
+
+export enum MimeType {
+    TEXT = "text/plain",
+    JSON = "application/json",
 }

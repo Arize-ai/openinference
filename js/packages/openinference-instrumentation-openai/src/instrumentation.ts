@@ -14,6 +14,7 @@ import {
     Span,
     SpanKind,
     Attributes,
+    SpanStatusCode,
 } from "@opentelemetry/api";
 import { VERSION } from "./version";
 import {
@@ -46,7 +47,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         module: typeof openai & { openInferencePatched?: boolean },
         moduleVersion?: string
     ) {
-        console.log(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
+        diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
         const plugin = this;
         if (module?.openInferencePatched) {
             return module;
@@ -54,6 +55,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         const instrumentation: OpenAIInstrumentation = this;
         type CompletionCreateType =
             typeof module.OpenAI.Chat.Completions.prototype.create;
+
+        // Patch create chat completions
         this._wrap(
             module.OpenAI.Chat.Completions.prototype,
             "create",
@@ -86,11 +89,18 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                             });
                         },
                         (error) => {
-                            // TODO handler the error
+                            // Push the error to the span
+                            if (error) {
+                                span.recordException(error);
+                            }
                         }
                     );
                     const wrappedPromise = execPromise.then((result) => {
-                        // TODO set span attributes
+                        if (result) {
+                            // Record the results
+                            span.setAttributes({});
+                        }
+                        span.setStatus({ code: SpanStatusCode.OK });
                         span.end();
                         return result;
                     });
@@ -122,4 +132,11 @@ function getLLMInputMessagesAttributes(
         );
         return acc;
     }, {} as Attributes);
+}
+
+/**
+ * Get Usage attributes
+ */
+function getUsageAttributes(usage: {}) {
+    return {};
 }
