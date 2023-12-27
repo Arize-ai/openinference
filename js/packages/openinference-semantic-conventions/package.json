@@ -17,8 +17,8 @@
         "src"
     ],
     "keywords": [],
-    "author": "mikyo@arize.com",
-    "license": "MIT",
+    "author": "oss-devs@arize.com",
+    "license": "Apache-2.0",
     "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-semantic-conventions",
     "repository": {
         "type": "git",

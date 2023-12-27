@@ -1,0 +1,32 @@
+{
+    "name": "@arizeai/openinference-instrumentation-openai",
+    "version": "0.0.1-rc3",
+    "description": "OpenInference instrumentation for OpenAI",
+    "private": false,
+    "main": "dist/src/index.js",
+    "module": "dist/esm/index.js",
+    "esnext": "dist/esnext/index.js",
+    "types": "dist/src/index.d.ts",
+    "scripts": {
+        "prebuild": "rimraf dist & pnpm run version:update",
+        "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
+        "version:update": "../../scripts/version-update.js",
+        "test": "jest ."
+    },
+    "dependencies": {
+        "@arizeai/openinference-semantic-conventions": "workspace:*",
+        "@opentelemetry/api": "^1.7.0",
+        "@opentelemetry/instrumentation": "^0.46.0",
+        "openinference-instrumentation-openai": "link:"
+    },
+    "keywords": [],
+    "author": "oss-devs@arize.com",
+    "license": "Apache-2.0",
+    "devDependencies": {
+        "@opentelemetry/resources": "^1.19.0",
+        "@opentelemetry/sdk-trace-base": "^1.19.0",
+        "@opentelemetry/sdk-trace-node": "^1.19.0",
+        "@opentelemetry/semantic-conventions": "^1.19.0",
+        "openai": "^4.24.1"
+    }
+}
