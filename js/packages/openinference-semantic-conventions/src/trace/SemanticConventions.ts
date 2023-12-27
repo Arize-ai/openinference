@@ -12,6 +12,7 @@ export const SemanticAttributePrefixes = {
     embedding: "embedding",
     tool: "tool",
     tool_call: "tool_call",
+    openinference: "openinference",
 } as const;
 
 export const LLMAttributePostfixes = {
@@ -180,4 +181,17 @@ export const SemanticConventions = {
     DOCUMENT_METADATA,
     EMBEDDING_TEXT,
     EMBEDDING_MODEL_NAME,
+
+    // OpenInference steps
+    OPENINFERENCE_SPAN_KIND: `${SemanticAttributePrefixes.openinference}.span.kind`,
 } as const;
+
+export enum OpenInferenceSpanKind {
+    LLM = "llm",
+    CHAIN = "chain",
+    TOOL = "tool",
+    RETRIEVER = "retriever",
+    RERANKER = "reranker",
+    EMBEDDING = "embedding",
+    AGENT = "agent",
+}

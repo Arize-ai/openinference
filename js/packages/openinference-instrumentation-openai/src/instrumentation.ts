@@ -11,8 +11,13 @@ import {
     trace,
     isSpanContextValid,
     Span,
+    SpanKind,
 } from "@opentelemetry/api";
 import { VERSION } from "./version";
+import {
+    SemanticConventions,
+    OpenInferenceSpanKind,
+} from "@arizeai/openinference-semantic-conventions";
 
 const MODULE_NAME = "openai";
 
@@ -43,15 +48,29 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         if (module?.openInferencePatched) {
             return module;
         }
+        const instrumentation: OpenAIInstrumentation = this;
         this._wrap(
             module.OpenAI.Chat.Completions.prototype,
             "create",
-            (original: Function) => {
-                console.log("wrapped");
+            (
+                original: typeof module.OpenAI.Chat.Completions.prototype.create
+            ) => {
                 return function patchedCreate(
                     this: unknown,
-                    ...args: unknown[]
+                    ...args: Parameters<
+                        typeof module.OpenAI.Chat.Completions.prototype.create
+                    >
                 ) {
+                    instrumentation.tracer.startSpan(
+                        `OpenAI Chat Completions`,
+                        {
+                            kind: SpanKind.CLIENT,
+                            attributes: {
+                                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                                    OpenInferenceSpanKind.LLM,
+                            },
+                        }
+                    );
                     return original.apply(this, args);
                 };
             }
