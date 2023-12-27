@@ -43,14 +43,16 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         if (module?.openInferencePatched) {
             return module;
         }
-        console.log("wrapping");
         this._wrap(
             module.OpenAI.Chat.Completions.prototype,
             "create",
             (original: Function) => {
                 console.log("wrapped");
-                return function patchedCreate(...args) {
-                    return original.apply(plugin, args);
+                return function patchedCreate(
+                    this: unknown,
+                    ...args: unknown[]
+                ) {
+                    return original.apply(this, args);
                 };
             }
         );
