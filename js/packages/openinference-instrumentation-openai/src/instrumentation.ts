@@ -5,8 +5,16 @@ import {
     InstrumentationModuleDefinition,
     InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
-import { context, trace, isSpanContextValid, Span } from "@opentelemetry/api";
+import {
+    diag,
+    context,
+    trace,
+    isSpanContextValid,
+    Span,
+} from "@opentelemetry/api";
 import { VERSION } from "./version";
+
+const MODULE_NAME = "openai";
 
 export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     constructor(config?: InstrumentationConfig) {
@@ -20,7 +28,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     protected init(): InstrumentationModuleDefinition<typeof openai> {
         const module = new InstrumentationNodeModuleDefinition<typeof openai>(
             "openai",
-            [">=4.24.1<5"],
+            ["^4.0.0"],
             this.patch.bind(this),
             this.unpatch.bind(this)
         );
@@ -28,9 +36,9 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     }
     private patch(
         module: typeof openai & { openInferencePatched?: boolean },
-        moduleVersion: string | undefined
+        moduleVersion?: string
     ) {
-        console.log("patching...");
+        console.log(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
         const plugin = this;
         if (module?.openInferencePatched) {
             return module;
@@ -49,5 +57,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         module.openInferencePatched = true;
         return module;
     }
-    private unpatch(moduleExports: typeof openai) {}
+    private unpatch(moduleExports: typeof openai, moduleVersion?: string) {
+        diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
+    }
 }
