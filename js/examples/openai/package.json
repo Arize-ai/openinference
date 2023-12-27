@@ -1,14 +1,17 @@
 {
-  "name": "openai-example",
-  "version": "0.0.0",
-  "description": "\"Example OpenAI integration with OpenInference\"",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "mikeldking",
-  "license": "Apache-2.0",
-  "dependencies": {
-    "openai": "^4.24.1"
-  }
+    "name": "openai-example",
+    "version": "0.0.0",
+    "description": "\"Example OpenAI integration with OpenInference\"",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "mikyo@arize.com",
+    "license": "Apache-2.0",
+    "dependencies": {
+        "@arizeai/openinference-instrumentation-openai": "^0.0.1-rc4",
+        "@opentelemetry/resources": "^1.19.0",
+        "@opentelemetry/sdk-trace-node": "^1.19.0",
+        "openai": "^4.24.1"
+    }
 }
