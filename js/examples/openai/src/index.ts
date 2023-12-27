@@ -1,6 +1,6 @@
 require("./tracer");
 
-const OpenAI = require("openai");
+import { OpenAI } from "openai";
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -11,5 +11,7 @@ const openai = new OpenAI({
         messages: [{ role: "user", content: "Say this is a test" }],
         model: "gpt-3.5-turbo",
     });
-    console.log(chatCompletion);
+    chatCompletion.choices.forEach((choice) => {
+        console.log(choice.message);
+    });
 })();
