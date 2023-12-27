@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.0.8
+
+### Patch Changes
+
+- 49c3e71: Add OpenInference spanKinds
+
 ## 0.0.7
 
 ### Patch Changes
