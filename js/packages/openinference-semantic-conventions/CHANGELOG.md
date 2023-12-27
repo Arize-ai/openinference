@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.0.9
+
+### Patch Changes
+
+- Add more semantic conventions
+
 ## 0.0.8
 
 ### Patch Changes
