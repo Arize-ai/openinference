@@ -10,8 +10,6 @@ import {
     diag,
     context,
     trace,
-    isSpanContextValid,
-    Span,
     SpanKind,
     Attributes,
     SpanStatusCode,
@@ -49,6 +47,9 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         );
         return module;
     }
+    /**
+     * Patches the OpenAI module
+     */
     private patch(
         module: typeof openai & { openInferencePatched?: boolean },
         moduleVersion?: string
@@ -132,8 +133,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         module.openInferencePatched = true;
         return module;
     }
+    /**
+     * Un-patches the OpenAI module's chat completions API
+     */
     private unpatch(moduleExports: typeof openai, moduleVersion?: string) {
         diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
+        this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
     }
 }
 
