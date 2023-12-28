@@ -75,7 +75,7 @@ describe("OpenAIInstrumentation", () => {
       // @ts-expect-error
       async (): Promise<any> => {
         return response;
-      }
+      },
     );
     const chatCompletion = await openai.chat.completions.create({
       messages: [{ role: "user", content: "Say this is a test" }],
