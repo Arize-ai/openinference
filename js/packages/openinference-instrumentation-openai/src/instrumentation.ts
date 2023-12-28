@@ -20,6 +20,7 @@ import { VERSION } from "./version";
 import {
     SemanticConventions,
     OpenInferenceSpanKind,
+    MimeType,
 } from "@arizeai/openinference-semantic-conventions";
 import { ChatCompletionCreateParamsBase } from "openai/resources/chat/completions";
 
@@ -48,7 +49,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         moduleVersion?: string
     ) {
         diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
-        const plugin = this;
         if (module?.openInferencePatched) {
             return module;
         }
@@ -68,6 +68,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                     >
                 ) {
                     const body = args[0];
+                    const { messages, ...invocationParameters } = body;
                     const span = instrumentation.tracer.startSpan(
                         `OpenAI Chat Completions`,
                         {
@@ -75,6 +76,14 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                             attributes: {
                                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
                                     OpenInferenceSpanKind.LLM,
+                                [SemanticConventions.LLM_MODEL_NAME]:
+                                    body.model,
+                                [SemanticConventions.INPUT_VALUE]:
+                                    JSON.stringify(body),
+                                [SemanticConventions.INPUT_MIME_TYPE]:
+                                    MimeType.JSON,
+                                [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+                                    JSON.stringify(invocationParameters),
                                 ...getLLMInputMessagesAttributes(body),
                             },
                         }
