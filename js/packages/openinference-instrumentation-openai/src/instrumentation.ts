@@ -138,7 +138,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
 }
 
 /**
- * Converts the body input
+ * Converts the body of the request to LLM input messages
  */
 function getLLMInputMessagesAttributes(
     body: ChatCompletionCreateParamsBase
