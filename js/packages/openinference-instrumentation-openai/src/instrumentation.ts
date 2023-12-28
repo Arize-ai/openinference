@@ -163,7 +163,7 @@ function getUsageAttributes(
 ) {
     if (response.hasOwnProperty("usage")) {
         const completion = response as ChatCompletion;
-        // TODO fill this out
+        // TODO fill this out with the usage attributes
         return {};
     }
     return {};
