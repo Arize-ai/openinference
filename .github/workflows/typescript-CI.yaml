@@ -31,6 +31,9 @@ jobs:
                   run_install: |
                       - recursive: true
                       - args: [--frozen-lockfile]
+            - name: Install Dependencies
+              working-directory: ./js
+              run: pnpm install --frozen-lockfile
             - name: Formatting
               working-directory: ./js
               run: |
