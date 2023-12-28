@@ -1,30 +1,30 @@
 {
-    "name": "@arizeai/openinference-semantic-conventions",
-    "version": "0.0.11",
-    "private": false,
-    "main": "dist/src/index.js",
-    "module": "dist/esm/index.js",
-    "esnext": "dist/esnext/index.js",
-    "types": "dist/src/index.d.ts",
-    "description": "This package provides OpenInference semantic conventions for tracing of LLM Applications.",
-    "scripts": {
-        "prebuild": "rimraf dist",
-        "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
-        "test": "echo \"Error: no test specified\" && exit 1"
-    },
-    "files": [
-        "dist",
-        "src"
-    ],
-    "keywords": [],
-    "author": "oss-devs@arize.com",
-    "license": "Apache-2.0",
-    "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-semantic-conventions",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/Arize-ai/openinference.git"
-    },
-    "bugs": {
-        "url": "https://github.com/Arize-ai/openinference/issues"
-    }
+  "name": "@arizeai/openinference-semantic-conventions",
+  "version": "0.0.11",
+  "private": false,
+  "main": "dist/src/index.js",
+  "module": "dist/esm/index.js",
+  "esnext": "dist/esnext/index.js",
+  "types": "dist/src/index.d.ts",
+  "description": "This package provides OpenInference semantic conventions for tracing of LLM Applications.",
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [],
+  "author": "oss-devs@arize.com",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-semantic-conventions",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arize-ai/openinference.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Arize-ai/openinference/issues"
+  }
 }
