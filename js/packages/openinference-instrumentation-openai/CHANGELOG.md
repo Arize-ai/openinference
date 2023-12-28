@@ -1,5 +1,15 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 0.0.2
+
+### Patch Changes
+
+- Token count support for OpenAI
+- OpenAI instrumentation
+- Updated dependencies
+- Updated dependencies
+  - @arizeai/openinference-semantic-conventions@0.0.11
+
 ## 0.0.1
 
 ### Patch Changes

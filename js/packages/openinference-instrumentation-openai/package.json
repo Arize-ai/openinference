@@ -1,6 +1,6 @@
 {
     "name": "@arizeai/openinference-instrumentation-openai",
-    "version": "0.0.1-rc10",
+    "version": "0.0.2",
     "description": "OpenInference instrumentation for OpenAI",
     "private": false,
     "main": "dist/src/index.js",
@@ -14,7 +14,7 @@
         "test": "jest ."
     },
     "dependencies": {
-        "@arizeai/openinference-semantic-conventions": "workspace:../openinference-semantic-conventions",
+        "@arizeai/openinference-semantic-conventions": "workspace:*",
         "@opentelemetry/api": "^1.7.0",
         "@opentelemetry/instrumentation": "^0.46.0"
     },
