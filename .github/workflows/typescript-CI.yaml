@@ -28,9 +28,6 @@ jobs:
               uses: pnpm/action-setup@v2
               with:
                   version: 8
-                  run_install: |
-                      - recursive: true
-                      - args: [--frozen-lockfile]
             - name: Install Dependencies
               working-directory: ./js
               run: pnpm install --frozen-lockfile
