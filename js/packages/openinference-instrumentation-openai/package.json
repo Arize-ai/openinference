@@ -14,7 +14,7 @@
         "test": "jest ."
     },
     "dependencies": {
-        "@arizeai/openinference-semantic-conventions": "workspace:*",
+        "@arizeai/openinference-semantic-conventions": "workspace:../openinference-semantic-conventions",
         "@opentelemetry/api": "^1.7.0",
         "@opentelemetry/instrumentation": "^0.46.0"
     },

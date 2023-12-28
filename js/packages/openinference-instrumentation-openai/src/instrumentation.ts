@@ -168,14 +168,16 @@ function getUsageAttributes(
 ) {
     if (response.hasOwnProperty("usage")) {
         const completion = response as ChatCompletion;
-        return {
-            [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
-                completion.usage.completion_tokens,
-            [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
-                completion.usage.prompt_tokens,
-            [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
-                completion.usage.total_tokens,
-        };
+        if (completion.usage) {
+            return {
+                [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
+                    completion.usage.completion_tokens,
+                [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
+                    completion.usage.prompt_tokens,
+                [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
+                    completion.usage.total_tokens,
+            };
+        }
     }
     return {};
 }
