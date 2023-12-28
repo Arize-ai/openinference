@@ -30,7 +30,7 @@ jobs:
                   version: 8
                   run_install: |
                       - recursive: true
-                      args: [--frozen-lockfile]
+                      - args: [--frozen-lockfile]
             - name: Formatting
               working-directory: ./js
               run: |
