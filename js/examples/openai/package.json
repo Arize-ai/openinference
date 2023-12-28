@@ -12,7 +12,7 @@
     "author": "mikyo@arize.com",
     "license": "Apache-2.0",
     "dependencies": {
-        "@arizeai/openinference-instrumentation-openai": "^0.0.1-rc9",
+        "@arizeai/openinference-instrumentation-openai": "^0.0.1-rc10",
         "@opentelemetry/exporter-trace-otlp-http": "^0.46.0",
         "@opentelemetry/exporter-trace-otlp-proto": "^0.46.0",
         "@opentelemetry/resources": "^1.19.0",

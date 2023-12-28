@@ -22,7 +22,12 @@ import {
     OpenInferenceSpanKind,
     MimeType,
 } from "@arizeai/openinference-semantic-conventions";
-import { ChatCompletionCreateParamsBase } from "openai/resources/chat/completions";
+import {
+    ChatCompletion,
+    ChatCompletionChunk,
+    ChatCompletionCreateParamsBase,
+} from "openai/resources/chat/completions";
+import { Stream } from "openai/streaming";
 
 const MODULE_NAME = "openai";
 
@@ -107,7 +112,14 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                     const wrappedPromise = execPromise.then((result) => {
                         if (result) {
                             // Record the results
-                            span.setAttributes({});
+                            span.setAttributes({
+                                [SemanticConventions.OUTPUT_VALUE]:
+                                    JSON.stringify(result),
+                                [SemanticConventions.OUTPUT_MIME_TYPE]:
+                                    MimeType.JSON,
+                                ...getLLMOutputMessagesAttributes(result),
+                                ...getUsageAttributes(result),
+                            });
                         }
                         span.setStatus({ code: SpanStatusCode.OK });
                         span.end();
@@ -146,6 +158,39 @@ function getLLMInputMessagesAttributes(
 /**
  * Get Usage attributes
  */
-function getUsageAttributes(usage: {}) {
+function getUsageAttributes(
+    response: Stream<ChatCompletionChunk> | ChatCompletion
+) {
+    if (response.hasOwnProperty("usage")) {
+        const completion = response as ChatCompletion;
+        // TODO fill this out
+        return {};
+    }
+    return {};
+}
+
+/**
+ * Converts the result to LLM output attributes
+ */
+function getLLMOutputMessagesAttributes(
+    response: Stream<ChatCompletionChunk> | ChatCompletion
+): Attributes {
+    // Handle chat completion
+    if (response.hasOwnProperty("choices")) {
+        const completion = response as ChatCompletion;
+        // Right now support just the first choice
+        const choice = completion.choices[0];
+        if (!choice) {
+            return {};
+        }
+        return [choice.message].reduce((acc, message, index) => {
+            const index_prefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}`;
+            acc[`${index_prefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+                String(message.content);
+            acc[`${index_prefix}.${SemanticConventions.MESSAGE_ROLE}`] =
+                message.role;
+            return acc;
+        }, {} as Attributes);
+    }
     return {};
 }
