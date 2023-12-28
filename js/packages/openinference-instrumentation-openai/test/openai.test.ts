@@ -18,6 +18,8 @@ const instrumentation = new OpenAIInstrumentation();
 instrumentation.disable();
 
 import * as OpenAI from "openai";
+import { ChatCompletion } from "openai/resources";
+import { ChatCompletionCreateParamsBase } from "openai/resources/chat/completions";
 
 describe("OpenAIInstrumentation", () => {
     let openai: OpenAI.OpenAI;
@@ -34,19 +36,69 @@ describe("OpenAIInstrumentation", () => {
         instrumentation._modules[0].moduleExports = OpenAI;
         instrumentation.enable();
         openai = new OpenAI.OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
+            apiKey: `fake-api-key`,
         });
         memoryExporter.reset();
+    });
+    afterEach(() => {
+        instrumentation.disable();
+        jest.clearAllMocks();
     });
     it("is patched", () => {
         expect((OpenAI as any).openInferencePatched).toBe(true);
     });
     it("creates a span for chat completions", async () => {
+        const response = {
+            id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
+            object: "chat.completion",
+            created: 1703743645,
+            model: "gpt-3.5-turbo-0613",
+            choices: [
+                {
+                    index: 0,
+                    message: {
+                        role: "assistant",
+                        content: "This is a test.",
+                    },
+                    logprobs: null,
+                    finish_reason: "stop",
+                },
+            ],
+            usage: {
+                prompt_tokens: 12,
+                completion_tokens: 5,
+                total_tokens: 17,
+            },
+        };
+        // Mock out the chat completions endpoint
+        jest.spyOn(openai, "post").mockImplementation(
+            // @ts-expect-error
+            async (): Promise<any> => {
+                return response;
+            }
+        );
         const chatCompletion = await openai.chat.completions.create({
             messages: [{ role: "user", content: "Say this is a test" }],
             model: "gpt-3.5-turbo",
         });
         const spans = memoryExporter.getFinishedSpans();
         expect(spans.length).toBe(1);
+        const span = spans[0];
+        expect(span.name).toBe("OpenAI Chat Completions");
+        expect(span.attributes).toMatchInlineSnapshot(`
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"messages":[{"role":"user","content":"Say this is a test"}],"model":"gpt-3.5-turbo"}",
+        "llm.input_messages.0.message.content": "Say this is a test",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo"}",
+        "llm.model_name": "gpt-3.5-turbo",
+        "llm.output_messages.0.message.content": "This is a test.",
+        "llm.output_messages.0.message.role": "assistant",
+        "openinference.span.kind": "llm",
+        "output.mime_type": "application/json",
+        "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+      }
+    `);
     });
 });

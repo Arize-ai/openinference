@@ -168,8 +168,14 @@ function getUsageAttributes(
 ) {
     if (response.hasOwnProperty("usage")) {
         const completion = response as ChatCompletion;
-        // TODO fill this out with the usage attributes
-        return {};
+        return {
+            [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
+                completion.usage.completion_tokens,
+            [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
+                completion.usage.prompt_tokens,
+            [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
+                completion.usage.total_tokens,
+        };
     }
     return {};
 }
