@@ -11,6 +11,7 @@
     "prebuild": "rimraf dist & pnpm run version:update",
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
     "version:update": "../../scripts/version-update.js",
+    "type:check": "tsc --noEmit",
     "test": "jest ."
   },
   "dependencies": {

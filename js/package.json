@@ -5,7 +5,8 @@
   "description": "Monorepo for OpenInference Javascript Tooling",
   "scripts": {
     "prettier:check": "prettier --check .",
-    "prettier:write": "prettier --write ."
+    "prettier:write": "prettier --write .",
+    "type:check": "pnpm run -r type:check"
   },
   "keywords": [
     "telemetry",

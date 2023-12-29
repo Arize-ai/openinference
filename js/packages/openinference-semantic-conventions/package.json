@@ -10,6 +10,7 @@
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
+    "type:check": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
