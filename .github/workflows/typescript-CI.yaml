@@ -35,3 +35,8 @@ jobs:
               working-directory: ./js
               run: |
                   pnpm run prettier:check
+            - name: Type Checking
+            working-directory: ./js
+            run: |
+                pnpm run type:check
+          
