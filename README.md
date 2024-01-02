@@ -18,6 +18,12 @@ The OpenInference specification is edited in markdown files found in the [spec d
 
 OpenInference provides a set of instrumentations for popular machine learning SDKs and frameworks in a variety of languages.
 
+## Python
+
+| Package                                                                                       | Description                                   |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md) | Semantic conventions for tracing of LLM Apps. |
+
 ## JavaScript
 
 | Package                                                                                                         | Description                                   |
