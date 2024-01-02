@@ -4,29 +4,20 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { Resource } from "@opentelemetry/resources";
-import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.register();
-const memoryExporter = new InMemorySpanExporter();
-const tracer = tracerProvider.getTracer("default");
-const resource = new Resource({
-  [SemanticResourceAttributes.SERVICE_NAME]: "test-instrumentation-openai",
-});
 
 const instrumentation = new OpenAIInstrumentation();
 instrumentation.disable();
 
 import * as OpenAI from "openai";
-import { ChatCompletion } from "openai/resources";
-import { ChatCompletionCreateParamsBase } from "openai/resources/chat/completions";
 
 describe("OpenAIInstrumentation", () => {
   let openai: OpenAI.OpenAI;
 
   const memoryExporter = new InMemorySpanExporter();
   const provider = new NodeTracerProvider();
-  const tracer = provider.getTracer("default");
+  provider.getTracer("default");
 
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
@@ -45,7 +36,9 @@ describe("OpenAIInstrumentation", () => {
     jest.clearAllMocks();
   });
   it("is patched", () => {
-    expect((OpenAI as any).openInferencePatched).toBe(true);
+    expect(
+      (OpenAI as { openInferencePatched?: boolean }).openInferencePatched,
+    ).toBe(true);
   });
   it("creates a span for chat completions", async () => {
     const response = {
@@ -72,12 +65,12 @@ describe("OpenAIInstrumentation", () => {
     };
     // Mock out the chat completions endpoint
     jest.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error
-      async (): Promise<any> => {
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
         return response;
       },
     );
-    const chatCompletion = await openai.chat.completions.create({
+    await openai.chat.completions.create({
       messages: [{ role: "user", content: "Say this is a test" }],
       model: "gpt-3.5-turbo",
     });

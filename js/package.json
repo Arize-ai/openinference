@@ -6,7 +6,8 @@
   "scripts": {
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
-    "type:check": "pnpm run -r type:check"
+    "type:check": "pnpm run -r type:check",
+    "lint": "eslint . --ext .ts"
   },
   "keywords": [
     "telemetry",
@@ -17,6 +18,9 @@
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
     "@types/jest": "^29.5.11",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "eslint": "^8.56.0",
     "jest": "^29.7.0",
     "prettier": "^3.1.1",
     "rimraf": "^5.0.5",

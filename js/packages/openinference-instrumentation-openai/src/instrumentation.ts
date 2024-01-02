@@ -58,6 +58,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     if (module?.openInferencePatched) {
       return module;
     }
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: OpenAIInstrumentation = this;
     type CompletionCreateType =
       typeof module.OpenAI.Chat.Completions.prototype.create;
@@ -66,6 +67,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     this._wrap(
       module.OpenAI.Chat.Completions.prototype,
       "create",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (original: CompletionCreateType): any => {
         return function patchedCreate(
           this: unknown,
@@ -74,7 +76,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           >
         ) {
           const body = args[0];
-          const { messages, ...invocationParameters } = body;
+          const { messages: _messages, ...invocationParameters } = body;
           const span = instrumentation.tracer.startSpan(
             `OpenAI Chat Completions`,
             {
@@ -161,7 +163,7 @@ function getLLMInputMessagesAttributes(
 function getUsageAttributes(
   response: Stream<ChatCompletionChunk> | ChatCompletion,
 ) {
-  if (response.hasOwnProperty("usage")) {
+  if (Object.prototype.hasOwnProperty.call(response, "usage")) {
     const completion = response as ChatCompletion;
     if (completion.usage) {
       return {
@@ -184,7 +186,7 @@ function getLLMOutputMessagesAttributes(
   response: Stream<ChatCompletionChunk> | ChatCompletion,
 ): Attributes {
   // Handle chat completion
-  if (response.hasOwnProperty("choices")) {
+  if (Object.prototype.hasOwnProperty.call(response, "choices")) {
     const completion = response as ChatCompletion;
     // Right now support just the first choice
     const choice = completion.choices[0];
