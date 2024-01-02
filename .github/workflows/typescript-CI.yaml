@@ -30,13 +30,22 @@ jobs:
                   version: 8
             - name: Install Dependencies
               working-directory: ./js
-              run: pnpm install --frozen-lockfile
+              run: pnpm install --frozen-lockfile -r
+            - name: Pre-Build
+              working-directory: ./js
+              run: pnpm run -r prebuild
+            - name: Build
+              working-directory: ./js
+              run: pnpm run -r build
             - name: Formatting
               working-directory: ./js
               run: |
                   pnpm run prettier:check
             - name: Type Checking
-            working-directory: ./js
-            run: |
-                pnpm run type:check
-          
+              working-directory: ./js
+              run: |
+                  pnpm run type:check
+            - name: Linting
+              working-directory: ./js
+              run: |
+                  pnpm run lint

@@ -3,7 +3,6 @@ import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-op
 import {
   ConsoleSpanExporter,
   SimpleSpanProcessor,
-  BatchSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
