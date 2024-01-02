@@ -8,7 +8,7 @@
     </a>
 </p>
 
-OpenInference is a set of conventions and plugins that is complimentary to [OpenTelemetry](https://opentelemetry.io/) to enable tracing of machine AI applications. OpenInference is natively supported by [arize-phoenix](https://github.com/Arize-ai/phoenix), but can be used with any OpenTelemetry-compatible backend as well.
+OpenInference is a set of conventions and plugins that is complimentary to [OpenTelemetry](https://opentelemetry.io/) to enable tracing of AI applications. OpenInference is natively supported by [arize-phoenix](https://github.com/Arize-ai/phoenix), but can be used with any OpenTelemetry-compatible backend as well.
 
 ## Specification
 
