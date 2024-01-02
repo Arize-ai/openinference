@@ -15,5 +15,5 @@ sdist
 *.hdf
 *.hdf5
 
-# Un-supported files
-pnpm-lock.yaml
+# version.ts file is automatically generated at compile time
+version.ts
