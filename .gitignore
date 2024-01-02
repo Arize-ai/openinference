@@ -1,10 +1,19 @@
+# Generated dirs
 .vscode
-
-# build files
-dist
-
-# dependencies
+.idea
 node_modules
+dist
+sdist
+*__pycache__*
+**/.pytest_cache
+**/.ipynb_checkpoints/
+**/.DS_Store
+
+# Data files
+*.csv
+*.parquet
+*.hdf
+*.hdf5
 
 # version.ts file is automatically generated at compile time
-version.ts 
+version.ts
