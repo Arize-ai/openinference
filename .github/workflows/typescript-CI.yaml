@@ -30,7 +30,7 @@ jobs:
                   version: 8
             - name: Install Dependencies
               working-directory: ./js
-              run: pnpm install --frozen-lockfile
+              run: pnpm install --frozen-lockfile -r
             - name: Run Prebuild
               working-directory: ./js
               run: pnpm run -r prebuild
