@@ -7,7 +7,8 @@
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
     "type:check": "pnpm run -r type:check",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "ci:publish": "pnpm publish -r"
   },
   "keywords": [
     "telemetry",
