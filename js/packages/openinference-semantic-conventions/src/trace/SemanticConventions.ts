@@ -48,6 +48,7 @@ export const EmbeddingAttributePostfixes = {
   embeddings: "embeddings",
   text: "text",
   model_name: "model_name",
+  vector: "vector",
 } as const;
 
 export const ToolAttributePostfixes = {
@@ -203,6 +204,12 @@ export const EMBEDDING_TEXT =
 export const EMBEDDING_MODEL_NAME =
   `${SemanticAttributePrefixes.embedding}.${EmbeddingAttributePostfixes.model_name}` as const;
 
+/**
+ * The embedding vector. Typically a high dimensional vector of floats or ints
+ */
+export const EMBEDDING_VECTOR =
+  `${SemanticAttributePrefixes.embedding}.${EmbeddingAttributePostfixes.vector}` as const;
+
 export const SemanticConventions = {
   INPUT_VALUE,
   INPUT_MIME_TYPE,
@@ -229,7 +236,7 @@ export const SemanticConventions = {
   DOCUMENT_METADATA,
   EMBEDDING_TEXT,
   EMBEDDING_MODEL_NAME,
-
+  EMBEDDING_VECTOR,
   // OpenInference steps
   OPENINFERENCE_SPAN_KIND: `${SemanticAttributePrefixes.openinference}.span.kind`,
 } as const;

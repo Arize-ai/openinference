@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.0.12
+
+### Patch Changes
+
+- Add embededing vector semantic convention
+
 ## 0.0.11
 
 ### Patch Changes
