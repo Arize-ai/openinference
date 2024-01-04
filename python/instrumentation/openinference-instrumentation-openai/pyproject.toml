@@ -3,12 +3,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-semantic-conventions"
+name = "openinference-instrumentation-openai"
 dynamic = ["version"]
-description = "OpenInference Semantic Conventions"
-readme = "README.md"
+description = "OpenInference OpenAI instrumentation"
+readme = "README.rst"
 license = "Apache-2.0"
-requires-python = ">=3.7"
+requires-python = ">=3.8, <3.12"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,21 +18,29 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
 ]
+dependencies = [
+  "opentelemetry-api",
+  "opentelemetry-instrumentation",
+  "opentelemetry-semantic-conventions",
+  "openinference-semantic-conventions",
+  "wrapt",
+]
 
 [project.optional-dependencies]
-test = []
+test = [
+  "openai == 1.0.0",
+]
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/openinference-semantic-conventions"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openai"
 
 [tool.hatch.version]
-path = "src/openinference/semconv/version.py"
+path = "src/openinference/instrumentation/openai/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
