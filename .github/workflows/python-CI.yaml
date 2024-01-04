@@ -13,6 +13,10 @@ concurrency:
   group: test-python-${{ github.head_ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    working-directory: ./python
+    
 jobs:
   ci:
     name: CI Python
