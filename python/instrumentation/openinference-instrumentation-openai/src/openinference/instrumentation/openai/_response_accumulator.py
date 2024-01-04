@@ -25,7 +25,6 @@ from openinference.instrumentation.openai._utils import (
     _ValueAndType,
 )
 from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeAlias
 
 from openai.types import Completion
 from openai.types.chat import (
@@ -37,8 +36,6 @@ __all__ = (
     "_CompletionAccumulator",
     "_ChatCompletionAccumulator",
 )
-
-_ChoiceIndex: TypeAlias = int
 
 
 class _ChatCompletionAccumulator:
