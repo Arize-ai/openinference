@@ -204,6 +204,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   private unpatch(moduleExports: typeof openai, moduleVersion?: string) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
     this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
+    this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
   }
 }
 
