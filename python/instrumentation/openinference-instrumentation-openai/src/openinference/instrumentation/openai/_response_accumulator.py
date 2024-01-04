@@ -50,7 +50,7 @@ class _ChatCompletionAccumulator:
 
     def __init__(self) -> None:
         self._is_null = True
-        self._cached_result: Optional[Mapping[str, Any]] = None
+        self._cached_result: Optional[Dict[str, Any]] = None
         self._values = _ValuesAccumulator(
             choices=_IndexedAccumulator(
                 lambda: _ValuesAccumulator(
@@ -81,11 +81,11 @@ class _ChatCompletionAccumulator:
                 choice["message"] = delta
         self._values += values
 
-    def _result(self) -> Optional[Mapping[str, Any]]:
+    def _result(self) -> Optional[Dict[str, Any]]:
         if self._is_null:
             return None
         if not self._cached_result:
-            self._cached_result = MappingProxyType(dict(self._values))
+            self._cached_result = dict(self._values)
         return self._cached_result
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
@@ -115,7 +115,7 @@ class _CompletionAccumulator:
 
     def __init__(self) -> None:
         self._is_null = True
-        self._cached_result: Optional[Mapping[str, Any]] = None
+        self._cached_result: Optional[Dict[str, Any]] = None
         self._values = _ValuesAccumulator(
             choices=_IndexedAccumulator(lambda: _ValuesAccumulator(text=_StringAccumulator())),
         )
@@ -131,11 +131,11 @@ class _CompletionAccumulator:
             values = chunk.model_dump(exclude_unset=True)
         self._values += values
 
-    def _result(self) -> Optional[Mapping[str, Any]]:
+    def _result(self) -> Optional[Dict[str, Any]]:
         if self._is_null:
             return None
         if not self._cached_result:
-            self._cached_result = MappingProxyType(dict(self._values))
+            self._cached_result = dict(self._values)
         return self._cached_result
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
