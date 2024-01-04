@@ -53,8 +53,8 @@ _OPENAI_VERSION = tuple(map(int, version("openai").split(".")[:3]))
 N = 3  # iteration i = 0 results in intentional BadRequestError
 HAIKU = "Write a haiku."
 HAIKU_TOKENS = [8144, 264, 6520, 39342, 13]
-RESUME = "Write a resume."
-RESUME_TOKENS = [8144, 264, 6520, 39342, 13]
+RESUME = "Write a résumé."
+RESUME_TOKENS = [8144, 264, 9517, 1264, 978, 13]
 CHAT_KWARGS = {
     "model": "gpt-3.5-turbo",
     "messages": [{"role": "user", "content": HAIKU}],
@@ -206,4 +206,3 @@ if __name__ == "__main__":
     mark = "✅" if _EXPECTED_SPAN_COUNT == actual else "❌"
     print(f"\n{mark} expected {_EXPECTED_SPAN_COUNT}; actual {actual};")
     assert _EXPECTED_SPAN_COUNT == actual
-    sleep(1)  # (if applicable) let the old exporter finish sending traces

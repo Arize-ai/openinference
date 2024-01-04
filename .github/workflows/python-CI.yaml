@@ -16,7 +16,7 @@ concurrency:
 defaults:
   run:
     working-directory: ./python
-    
+
 jobs:
   ci:
     name: CI Python
@@ -40,5 +40,3 @@ jobs:
       - name: Run tests
         run: |
           tox run -e test-openai
-      
-      

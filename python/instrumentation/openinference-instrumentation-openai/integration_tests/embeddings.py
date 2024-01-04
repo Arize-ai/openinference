@@ -6,7 +6,6 @@ import inspect
 import logging
 from contextlib import suppress
 from itertools import chain
-from time import sleep
 
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -139,4 +138,3 @@ if __name__ == "__main__":
     mark = "✅" if _EXPECTED_SPAN_COUNT == actual else "❌"
     print(f"\n{mark} expected {_EXPECTED_SPAN_COUNT}; actual {actual};")
     assert _EXPECTED_SPAN_COUNT == actual
-    sleep(1)  # (if applicable) let the old exporter finish sending traces
