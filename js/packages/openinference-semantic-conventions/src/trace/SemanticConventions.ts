@@ -210,6 +210,12 @@ export const EMBEDDING_MODEL_NAME =
 export const EMBEDDING_VECTOR =
   `${SemanticAttributePrefixes.embedding}.${EmbeddingAttributePostfixes.vector}` as const;
 
+/**
+ * The embedding list root
+ */
+export const EMBEDDING_EMBEDDINGS =
+  `${SemanticAttributePrefixes.embedding}.${EmbeddingAttributePostfixes.embeddings}` as const;
+
 export const SemanticConventions = {
   INPUT_VALUE,
   INPUT_MIME_TYPE,
@@ -234,6 +240,7 @@ export const SemanticConventions = {
   DOCUMENT_CONTENT,
   DOCUMENT_SCORE,
   DOCUMENT_METADATA,
+  EMBEDDING_EMBEDDINGS,
   EMBEDDING_TEXT,
   EMBEDDING_MODEL_NAME,
   EMBEDDING_VECTOR,

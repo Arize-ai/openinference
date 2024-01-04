@@ -26,6 +26,10 @@ import {
   ChatCompletionCreateParamsBase,
 } from "openai/resources/chat/completions";
 import { Stream } from "openai/streaming";
+import {
+  CreateEmbeddingResponse,
+  EmbeddingCreateParams,
+} from "openai/resources";
 
 const MODULE_NAME = "openai";
 
@@ -127,6 +131,70 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         };
       },
     );
+
+    // Patch embeddings
+    type EmbeddingsCreateType =
+      typeof module.OpenAI.Embeddings.prototype.create;
+    this._wrap(
+      module.OpenAI.Embeddings.prototype,
+      "create",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (original: EmbeddingsCreateType): any => {
+        return function patchedEmbeddingCreate(
+          this: unknown,
+          ...args: Parameters<typeof module.OpenAI.Embeddings.prototype.create>
+        ) {
+          const body = args[0];
+          const { input } = body;
+          const isStringInput = typeof input == "string";
+          const span = instrumentation.tracer.startSpan(`OpenAI Embeddings`, {
+            kind: SpanKind.CLIENT,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.EMBEDDING,
+              [SemanticConventions.EMBEDDING_MODEL_NAME]: body.model,
+              [SemanticConventions.INPUT_VALUE]: isStringInput
+                ? input
+                : JSON.stringify(input),
+              [SemanticConventions.INPUT_MIME_TYPE]: isStringInput
+                ? MimeType.TEXT
+                : MimeType.JSON,
+              ...getEmbeddingTextAttributes(body),
+            },
+          });
+          const execContext = trace.setSpan(context.active(), span);
+          const execPromise = safeExecuteInTheMiddle<
+            ReturnType<EmbeddingsCreateType>
+          >(
+            () => {
+              return context.with(execContext, () => {
+                return original.apply(this, args);
+              });
+            },
+            (error) => {
+              // Push the error to the span
+              if (error) {
+                span.recordException(error);
+              }
+            },
+          );
+          const wrappedPromise = execPromise.then((result) => {
+            if (result) {
+              // Record the results
+              span.setAttributes({
+                // Do not record the output data as it can be large
+                ...getEmbeddingEmbeddingsAttributes(result),
+              });
+            }
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.end();
+            return result;
+          });
+          return context.bind(execContext, wrappedPromise);
+        };
+      },
+    );
+
     module.openInferencePatched = true;
     return module;
   }
@@ -203,4 +271,44 @@ function getLLMOutputMessagesAttributes(
     }, {} as Attributes);
   }
   return {};
+}
+
+/**
+ * Converts the embedding result payload to embedding attributes
+ */
+function getEmbeddingTextAttributes(
+  request: EmbeddingCreateParams,
+): Attributes {
+  if (typeof request.input == "string") {
+    return {
+      [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
+        request.input,
+    };
+  } else if (
+    Array.isArray(request.input) &&
+    request.input.length > 0 &&
+    typeof request.input[0] == "string"
+  ) {
+    return request.input.reduce((acc, input, index) => {
+      const index_prefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}`;
+      acc[`${index_prefix}.${SemanticConventions.EMBEDDING_TEXT}`] = input;
+      return acc;
+    }, {} as Attributes);
+  }
+  // Ignore other cases where input is a number or an array of numbers
+  return {};
+}
+
+/**
+ * Converts the embedding result payload to embedding attributes
+ */
+function getEmbeddingEmbeddingsAttributes(
+  response: CreateEmbeddingResponse,
+): Attributes {
+  return response.data.reduce((acc, embedding, index) => {
+    const index_prefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}`;
+    acc[`${index_prefix}.${SemanticConventions.EMBEDDING_VECTOR}`] =
+      embedding.embedding;
+    return acc;
+  }, {} as Attributes);
 }

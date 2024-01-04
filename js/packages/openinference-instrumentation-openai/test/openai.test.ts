@@ -97,4 +97,39 @@ describe("OpenAIInstrumentation", () => {
       }
     `);
   });
+  it("creates a span for embedding create", async () => {
+    const response = {
+      object: "list",
+      data: [{ object: "embedding", index: 0, embedding: [1, 2, 3] }],
+    };
+    // Mock out the embedding create endpoint
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+    await openai.embeddings.create({
+      input: "A happy moment",
+      model: "text-embedding-ada-002",
+    });
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Embeddings");
+    expect(span.attributes).toMatchInlineSnapshot(`
+      {
+        "embedding.embeddings.0.embedding.text": "A happy moment",
+        "embedding.embeddings.0.embedding.vector": [
+          1,
+          2,
+          3,
+        ],
+        "embedding.model_name": "text-embedding-ada-002",
+        "input.mime_type": "text/plain",
+        "input.value": "A happy moment",
+        "openinference.span.kind": "embedding",
+      }
+    `);
+  });
 });
