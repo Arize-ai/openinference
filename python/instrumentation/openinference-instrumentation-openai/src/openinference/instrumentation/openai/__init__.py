@@ -18,14 +18,9 @@ _MODULE = "openai"
 
 
 class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
-    """An instrumentor for openai.OpenAI.request and
-    openai.AsyncOpenAI.request
     """
-
-    __slots__ = (
-        "_original_request",
-        "_original_async_request",
-    )
+    An instrumentor for openai.OpenAI.request and openai.AsyncOpenAI.request
+    """
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments

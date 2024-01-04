@@ -1,3 +1,4 @@
+import json
 import warnings
 from collections import defaultdict
 from copy import deepcopy
@@ -7,6 +8,7 @@ from typing import (
     Callable,
     DefaultDict,
     Dict,
+    Iterable,
     Iterator,
     List,
     Mapping,
@@ -43,12 +45,12 @@ class _ChatCompletionAccumulator:
     __slots__ = (
         "_is_null",
         "_values",
-        "_cached",
+        "_cached_result",
     )
 
     def __init__(self) -> None:
         self._is_null = True
-        self._cached: Optional[ChatCompletion] = None
+        self._cached_result: Optional[Mapping[str, Any]] = None
         self._values = _ValuesAccumulator(
             choices=_IndexedAccumulator(
                 lambda: _ValuesAccumulator(
@@ -69,7 +71,7 @@ class _ChatCompletionAccumulator:
         if not isinstance(chunk, ChatCompletionChunk):
             return
         self._is_null = False
-        self._cached = None
+        self._cached_result = None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             # `warnings=False` in `model_dump()` is only supported in Pydantic v2
@@ -79,30 +81,27 @@ class _ChatCompletionAccumulator:
                 choice["message"] = delta
         self._values += values
 
-    def _construct(self) -> Optional[ChatCompletion]:
+    def _result(self) -> Optional[Mapping[str, Any]]:
         if self._is_null:
             return None
-        if not self._cached:
-            self._cached = ChatCompletion.construct(**dict(self._values))
-        return self._cached
+        if not self._cached_result:
+            self._cached_result = MappingProxyType(dict(self._values))
+        return self._cached_result
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if not (chat_completion := self._construct()):
+        if not (result := self._result()):
             return
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            # `warnings=False` in `model_dump_json()` is only supported in Pydantic v2
-            json_string = chat_completion.model_dump_json(exclude_unset=True)
+        json_string = json.dumps(result)
         yield from _as_output_attributes(_ValueAndType(json_string, _MimeType.application_json))
 
     def get_extra_attributes(
         self,
         request_options: Mapping[str, Any] = MappingProxyType({}),
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if not (chat_completion := self._construct()):
+        if not (result := self._result()):
             return
         yield from _get_extra_attributes_from_response(
-            chat_completion.model_copy(),
+            ChatCompletion.construct(**result),
             request_options,
         )
 
@@ -111,12 +110,12 @@ class _CompletionAccumulator:
     __slots__ = (
         "_is_null",
         "_values",
-        "_cached",
+        "_cached_result",
     )
 
     def __init__(self) -> None:
         self._is_null = True
-        self._cached: Optional[Completion] = None
+        self._cached_result: Optional[Mapping[str, Any]] = None
         self._values = _ValuesAccumulator(
             choices=_IndexedAccumulator(lambda: _ValuesAccumulator(text=_StringAccumulator())),
         )
@@ -125,37 +124,34 @@ class _CompletionAccumulator:
         if not isinstance(chunk, Completion):
             return
         self._is_null = False
-        self._cached = None
+        self._cached_result = None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             # `warnings=False` in `model_dump()` is only supported in Pydantic v2
             values = chunk.model_dump(exclude_unset=True)
         self._values += values
 
-    def _construct(self) -> Optional[Completion]:
+    def _result(self) -> Optional[Mapping[str, Any]]:
         if self._is_null:
             return None
-        if not self._cached:
-            self._cached = Completion.construct(**dict(self._values))
-        return self._cached
+        if not self._cached_result:
+            self._cached_result = MappingProxyType(dict(self._values))
+        return self._cached_result
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if not (completion := self._construct()):
+        if not (result := self._result()):
             return
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            # `warnings=False` in `model_dump_json()` is only supported in Pydantic v2
-            json_string = completion.model_dump_json(exclude_unset=True)
+        json_string = json.dumps(result)
         yield from _as_output_attributes(_ValueAndType(json_string, _MimeType.application_json))
 
     def get_extra_attributes(
         self,
         request_options: Mapping[str, Any] = MappingProxyType({}),
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if not (completion := self._construct()):
+        if not (result := self._result()):
             return
         yield from _get_extra_attributes_from_response(
-            completion.model_copy(),
+            Completion.construct(**result),
             request_options,
         )
 
@@ -196,12 +192,12 @@ class _ValuesAccumulator:
                 if isinstance(value, str):
                     self_value += value
             elif isinstance(self_value, _IndexedAccumulator):
-                if isinstance(value, List):
+                if isinstance(value, Iterable):
                     for v in value:
                         self_value += v
                 else:
                     self_value += value
-            elif isinstance(self_value, List) and isinstance(value, List):
+            elif isinstance(self_value, List) and isinstance(value, Iterable):
                 self_value.extend(value)
             else:
                 self._values[key] = value  # replacement

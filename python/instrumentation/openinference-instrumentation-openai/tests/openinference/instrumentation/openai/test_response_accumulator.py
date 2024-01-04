@@ -1,52 +1,48 @@
 import pytest
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat import ChatCompletionChunk
 from openinference.instrumentation.openai._response_accumulator import (
     _ChatCompletionAccumulator,
 )
 
 
-def test_chat_completion_accumulator(chat_completion_chunks, desired_chat_completion):
+def test_chat_completion_accumulator(chat_completion_chunks, desired_chat_completion_result):
     accumulator = _ChatCompletionAccumulator()
     for chunk in chat_completion_chunks:
         accumulator.process_chunk(chunk)
-    assert accumulator._construct().model_dump(
-        exclude_unset=True
-    ) == desired_chat_completion.model_dump(exclude_unset=True)
+    assert accumulator._result() == desired_chat_completion_result
 
 
 @pytest.fixture
-def desired_chat_completion():
-    return ChatCompletion.construct(
-        **{
-            "id": "xyz",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": "length",
-                    "message": {"content": "A1", "role": "assistant"},
+def desired_chat_completion_result():
+    return {
+        "id": "xyz",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "length",
+                "message": {"content": "A1", "role": "assistant"},
+            },
+            {
+                "index": 1,
+                "finish_reason": "stop",
+                "message": {"content": "B2", "role": "assistant"},
+            },
+            {
+                "index": 2,
+            },
+            {
+                "index": 3,
+                "message": {
+                    "tool_calls": [
+                        {"index": 0, "function": {"arguments": "C3"}},
+                        {"index": 1, "function": {"arguments": "D4"}},
+                    ]
                 },
-                {
-                    "index": 1,
-                    "finish_reason": "stop",
-                    "message": {"content": "B2", "role": "assistant"},
-                },
-                {
-                    "index": 2,
-                },
-                {
-                    "index": 3,
-                    "message": {
-                        "tool_calls": [
-                            {"index": 0, "function": {"arguments": "C3"}},
-                            {"index": 1, "function": {"arguments": "D4"}},
-                        ]
-                    },
-                },
-            ],
-            "created": 123,
-            "model": "ultra-turbo",
-        }
-    )
+            },
+        ],
+        "created": 123,
+        "model": "ultra-turbo",
+    }
 
 
 @pytest.fixture

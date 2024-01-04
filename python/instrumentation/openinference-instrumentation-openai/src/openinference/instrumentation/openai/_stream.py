@@ -9,9 +9,7 @@ from typing import (
     Union,
 )
 
-from openinference.instrumentation.openai._utils import (
-    _finish_tracing,
-)
+from openinference.instrumentation.openai._utils import _finish_tracing
 from openinference.instrumentation.openai._with_span import _WithSpan
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
