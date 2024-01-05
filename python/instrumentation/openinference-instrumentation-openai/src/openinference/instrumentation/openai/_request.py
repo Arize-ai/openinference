@@ -82,21 +82,12 @@ class _WithTracer(ABC):
         span_kind = _EMBEDDING_SPAN_KIND if cast_to is CreateEmbeddingResponse else _LLM_SPAN_KIND
         attributes: Dict[str, AttributeValue] = {SpanAttributes.OPENINFERENCE_SPAN_KIND: span_kind}
         try:
-<<<<<<< Updated upstream
-            input_attributes = _as_input_attributes(_io_value_and_type(request_options))
-=======
             attributes.update(_as_input_attributes(_io_value_and_type(request_options)))
->>>>>>> Stashed changes
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request options of "
                 f"type {type(request_options)}"
             )
-<<<<<<< Updated upstream
-        else:
-            attributes.update(input_attributes)
-=======
->>>>>>> Stashed changes
         # Secondary attributes should be added after input and output to ensure
         # that input and output are not dropped if there are too many attributes.
         try:
@@ -227,11 +218,7 @@ def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]
     # serializes correctly in an HTTP request body. For example, Enum values may be present if a
     # third-party library puts them there. Enums can turn into their intended string values via
     # `json.dumps` when the final HTTP request body is serialized, but can pose problems when we
-<<<<<<< Updated upstream
-    # try to extract attributes. However, this round-trip seems expensive, so wa opted to treat
-=======
     # try to extract attributes. However, this round-trip seems expensive, so we opted to treat
->>>>>>> Stashed changes
     # only the Enums that we know about: e.g. message role sometimes can be an Enum, so we will
     # convert it only when it's encountered.
     # try:
