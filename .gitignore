@@ -1,6 +1,7 @@
 # Generated dirs
 .vscode
 .idea
+.tox
 node_modules
 dist
 sdist
