@@ -21,18 +21,22 @@ describe("OpenAIInstrumentation", () => {
 
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+  instrumentation._modules[0].moduleExports = OpenAI;
 
-  beforeEach(() => {
-    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-    instrumentation._modules[0].moduleExports = OpenAI;
+  beforeAll(() => {
     instrumentation.enable();
     openai = new OpenAI.OpenAI({
       apiKey: `fake-api-key`,
     });
+  });
+  afterAll(() => {
+    instrumentation.disable();
+  });
+  beforeEach(() => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    instrumentation.disable();
     jest.clearAllMocks();
   });
   it("is patched", () => {
@@ -85,7 +89,7 @@ describe("OpenAIInstrumentation", () => {
         "llm.input_messages.0.message.content": "Say this is a test",
         "llm.input_messages.0.message.role": "user",
         "llm.invocation_parameters": "{"model":"gpt-3.5-turbo"}",
-        "llm.model_name": "gpt-3.5-turbo",
+        "llm.model_name": "gpt-3.5-turbo-0613",
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
         "llm.token_count.completion": 5,

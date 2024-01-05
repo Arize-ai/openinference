@@ -84,7 +84,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           const span = instrumentation.tracer.startSpan(
             `OpenAI Chat Completions`,
             {
-              kind: SpanKind.CLIENT,
+              kind: SpanKind.INTERNAL,
               attributes: {
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
                   OpenInferenceSpanKind.LLM,
@@ -110,6 +110,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               // Push the error to the span
               if (error) {
                 span.recordException(error);
+                span.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: error.message,
+                });
+                span.end();
               }
             },
           );
@@ -119,6 +124,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               span.setAttributes({
                 [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                // Override the model from the value sent by the server
+                [SemanticConventions.LLM_MODEL_NAME]: isChatCompletionResponse(
+                  result,
+                )
+                  ? result.model
+                  : body.model,
                 ...getLLMOutputMessagesAttributes(result),
                 ...getUsageAttributes(result),
               });
@@ -148,7 +159,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           const { input } = body;
           const isStringInput = typeof input == "string";
           const span = instrumentation.tracer.startSpan(`OpenAI Embeddings`, {
-            kind: SpanKind.CLIENT,
+            kind: SpanKind.INTERNAL,
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
                 OpenInferenceSpanKind.EMBEDDING,
@@ -175,6 +186,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               // Push the error to the span
               if (error) {
                 span.recordException(error);
+                span.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: error.message,
+                });
+                span.end();
               }
             },
           );
@@ -206,6 +222,15 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
   }
+}
+
+/**
+ * type-guard that checks if the response is a chat completion response
+ */
+function isChatCompletionResponse(
+  response: Stream<ChatCompletionChunk> | ChatCompletion,
+): response is ChatCompletion {
+  return "choices" in response;
 }
 
 /**
