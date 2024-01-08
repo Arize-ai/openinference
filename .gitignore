@@ -9,6 +9,7 @@ sdist
 **/.pytest_cache
 **/.ipynb_checkpoints/
 **/.DS_Store
+.pnpm-store
 
 # Data files
 *.csv
