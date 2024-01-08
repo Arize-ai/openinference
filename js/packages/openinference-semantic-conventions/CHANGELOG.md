@@ -1,11 +1,5 @@
 # @arizeai/openinference-semantic-conventions
 
-## 0.0.13
-
-### Patch Changes
-
-- 709d833: Add OpenAI Embeddings sementic attributes and instrumentation
-
 ## 0.0.12
 
 ### Patch Changes
