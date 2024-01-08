@@ -8,8 +8,10 @@
     "prettier:write": "prettier --write .",
     "type:check": "pnpm run -r type:check",
     "lint": "eslint . --ext .ts",
+    "prebuild": "pnpm run -r prebuild",
+    "build": "pnpm run -r build",
     "ci:version": "pnpm changeset version",
-    "ci:publish": "pnpm publish -r"
+    "ci:publish": "pnpm run prebuild && pnpm run build && pnpm publish -r"
   },
   "keywords": [
     "telemetry",
