@@ -11,7 +11,7 @@
     "prebuild": "pnpm run -r prebuild",
     "build": "pnpm run -r build",
     "ci:version": "pnpm changeset version",
-    "ci:publish": "pnpm run prebuild && pnpm run build && publish -r"
+    "ci:publish": "pnpm run prebuild && pnpm run build && pnpm publish -r"
   },
   "keywords": [
     "telemetry",
