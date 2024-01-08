@@ -9,7 +9,7 @@
     "type:check": "pnpm run -r type:check",
     "lint": "eslint . --ext .ts",
     "ci:version": "pnpm changeset version",
-    "ci:publish": "pnpm run -r prebuild && pnpm run -r build && pnpm publish -r"
+    "ci:publish": "pnpm run -r prebuild && pnpm run -r build && pnpm publish -r --no-git-checks"
   },
   "keywords": [
     "telemetry",
