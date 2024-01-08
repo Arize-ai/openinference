@@ -6,14 +6,6 @@
   "separate-pull-requests": true,
   "sequential-calls": true,
   "packages": {
-    "js/packages/openinference-semantic-conventions": {
-      "package-name": "openinference-semantic-conventions",
-      "release-type": "node"
-    },
-    "js/packages/openinference-instrumentation-openai": {
-      "package-name": "openinference-instrumentation-openai",
-      "release-type": "node"
-    },
     "python/openinference-semantic-conventions": {
       "package-name": "openinference-semantic-conventions",
       "release-type": "python"
