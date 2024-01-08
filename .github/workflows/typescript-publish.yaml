@@ -34,8 +34,8 @@ jobs:
               uses: changesets/action@v1
               with:
                   version: pnpm ci:version
-                  commit: "chore: update versions"
-                  title: "chore: update versions"
+                  commit: "chore(js): update versions"
+                  title: "chore(js): update versions"
                   publish: pnpm ci:publish
                   cwd: "./js"
               env:
