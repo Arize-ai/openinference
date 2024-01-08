@@ -1,13 +1,5 @@
 # @arizeai/openinference-instrumentation-openai
 
-## 0.0.4
-
-### Patch Changes
-
-- fdb3913: Add OpenAI Embeddings sementic attributes and instrumentation
-- Updated dependencies [fdb3913]
-  - @arizeai/openinference-semantic-conventions@0.0.13
-
 ## 0.0.3
 
 ### Patch Changes
