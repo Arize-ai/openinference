@@ -37,6 +37,9 @@ jobs:
             - name: Build
               working-directory: ./js
               run: pnpm run -r build
+            - name: Test
+              working-directory: ./js
+              run: pnpm run -r test
             - name: Formatting
               working-directory: ./js
               run: |
