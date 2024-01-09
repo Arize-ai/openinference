@@ -31,6 +31,13 @@ jobs:
             - name: Install Dependencies
               working-directory: ./js
               run: pnpm install --frozen-lockfile
+            - name: Creating .npmrc
+              run: |
+                  cat << EOF > "$HOME/.npmrc"
+                    //registry.npmjs.org/:_authToken=$NPM_TOKEN
+                  EOF
+              env:
+                  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
             - name: create and publish versions
               uses: changesets/action@v1
               with:
