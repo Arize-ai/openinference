@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "description": "Monorepo for OpenInference Javascript Tooling",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arize-ai/openinference.git"
+  },
   "scripts": {
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",

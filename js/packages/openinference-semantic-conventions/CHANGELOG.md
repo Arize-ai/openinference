@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- 015eca8: Add OpenAI Embeddings sementic attributes and instrumentation
+- 9b3bc4a: Add OpenAI Embeddings sementic attributes and instrumentation
 
 ## 0.0.12
 
