@@ -31,9 +31,6 @@ jobs:
             - name: Install Dependencies
               working-directory: ./js
               run: pnpm install --frozen-lockfile
-            - name: Setup npmrc
-              working-directory: ./js
-              run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
             - name: create and publish versions
               uses: changesets/action@v1
               with:
@@ -44,3 +41,4 @@ jobs:
                   cwd: "./js"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
