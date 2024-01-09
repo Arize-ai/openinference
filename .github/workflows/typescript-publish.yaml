@@ -21,7 +21,6 @@ jobs:
                   node-version: 20
                   registry-url: https://registry.npmjs.org/
                   scope: "@arizeai"
-                  always-auth: true
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
             - name: Setup PNPM
