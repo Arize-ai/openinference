@@ -1,0 +1,18 @@
+{
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "prerelease-type": "beta",
+  "prerelease": true,
+  "separate-pull-requests": true,
+  "sequential-calls": true,
+  "packages": {
+    "python/openinference-semantic-conventions": {
+      "package-name": "openinference-semantic-conventions",
+      "release-type": "python"
+    },
+    "python/instrumentation/openinference-instrumentation-openai": {
+      "package-name": "openinference-instrumentation-openai",
+      "release-type": "python"
+    }
+  }
+}
