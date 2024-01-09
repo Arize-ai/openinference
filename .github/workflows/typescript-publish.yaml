@@ -22,7 +22,7 @@ jobs:
                   registry-url: "https://registry.npmjs.org"
                   scope: "@arizeai"
             - name: Echo npmrc
-              run: cat ~/.npmrc
+              run: cat $NPM_CONFIG_USERCONFIG
             - name: Setup PNPM
               uses: pnpm/action-setup@v2
               with:
