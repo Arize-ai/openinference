@@ -6,12 +6,6 @@ on:
   pull_request:
     paths:
       - "python/**"
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-concurrency:
-  group: test-python-${{ github.head_ref }}
-  cancel-in-progress: true
 
 defaults:
   run:
@@ -22,10 +16,8 @@ jobs:
     name: CI Python
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.8"
       - name: Install tox
