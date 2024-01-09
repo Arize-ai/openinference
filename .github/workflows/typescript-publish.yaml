@@ -19,13 +19,14 @@ jobs:
               uses: actions/setup-node@v3
               with:
                   node-version: 16
+                  registry-url: "https://registry.npmjs.org"
             - name: Setup PNPM
               uses: pnpm/action-setup@v2
               with:
                   version: 8
-            - name: Setup npmrc
+            - name: NPM login
               working-directory: ./js
-              run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+              run: pnpm login
             - name: setup pnpm config
               run: pnpm config set store-dir $PNPM_CACHE_FOLDER
             - name: Install Dependencies
@@ -41,3 +42,4 @@ jobs:
                   cwd: "./js"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
