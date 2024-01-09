@@ -25,7 +25,7 @@ def desired_chat_completion_result():
             {
                 "index": 1,
                 "finish_reason": "stop",
-                "message": {"content": "B2", "role": "assistant"},
+                "message": {"content": "B22", "role": "assistant"},
             },
             {
                 "index": 2,
