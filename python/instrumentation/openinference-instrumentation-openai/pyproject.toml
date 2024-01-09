@@ -10,7 +10,7 @@ readme = "README.rst"
 license = "Apache-2.0"
 requires-python = ">=3.8, <3.12"
 authors = [
-    { name = "OpenInference Authors", email = "oss@arize.com" },
+  { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
