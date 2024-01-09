@@ -32,6 +32,11 @@ jobs:
             - name: Install Dependencies
               working-directory: ./js
               run: pnpm install --frozen-lockfile
+            - name: Setup PNPM auth
+              working-directory: ./js
+              run: pnpm config set '//registry.npmjs.org/:_authToken=${NPM_TOKEN}'
+              env:
+                  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
             - name: create and publish versions
               uses: changesets/action@v1
               with:
