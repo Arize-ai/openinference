@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 class SpanAttributes:
     OUTPUT_VALUE = "output.value"
     OUTPUT_MIME_TYPE = "output.mime_type"
@@ -207,3 +210,14 @@ class ToolCallAttributes:
     The JSON string representing the arguments passed to the function
     during a tool call.
     """
+
+
+class OpenInferenceSpanKindValues(Enum):
+    TOOL = "TOOL"
+    CHAIN = "CHAIN"
+    LLM = "LLM"
+    RETRIEVER = "RETRIEVER"
+    EMBEDDING = "EMBEDDING"
+    AGENT = "AGENT"
+    RERANKER = "RERANKER"
+    UNKNOWN = "UNKNOWN"
