@@ -35,7 +35,7 @@ from openinference.instrumentation.openai._utils import (
     _io_value_and_type,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
-from openinference.semconv.trace import SpanAttributes, OpenInferenceSpanKindValues
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -53,6 +53,7 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
 
 class _WithTracer(ABC):
     __slots__ = (
@@ -75,7 +76,11 @@ class _WithTracer(ABC):
         cast_to: type,
         request_options: Mapping[str, Any],
     ) -> Iterator[_WithSpan]:
-        span_kind = OpenInferenceSpanKindValues.EMBEDDING if cast_to is CreateEmbeddingResponse else OpenInferenceSpanKindValues.LLM
+        span_kind = (
+            OpenInferenceSpanKindValues.EMBEDDING
+            if cast_to is CreateEmbeddingResponse
+            else OpenInferenceSpanKindValues.LLM
+        )
         attributes: Dict[str, AttributeValue] = {SpanAttributes.OPENINFERENCE_SPAN_KIND: span_kind}
         try:
             attributes.update(_as_input_attributes(_io_value_and_type(request_options)))

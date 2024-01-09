@@ -30,13 +30,5 @@ jobs:
           python-version: "3.8"
       - name: Install tox
         run: pip install tox==4.11.4
-      - name: Check style
-        run: |
-          tox run -e ruff
-          git diff --exit-code
-      - name: Run mypy
-        run: |
-          tox run -e mypy-openai
-      - name: Run tests
-        run: |
-          tox run -e test-openai
+      - name: Run tox
+        run: tox run-parallel
