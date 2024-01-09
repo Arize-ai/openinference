@@ -21,6 +21,8 @@ jobs:
                   node-version: 16
                   registry-url: "https://registry.npmjs.org"
                   scope: "@arizeai"
+            - name: Echo npmrc
+              run: cat $HOME/.npmrc
             - name: Setup PNPM
               uses: pnpm/action-setup@v2
               with:
