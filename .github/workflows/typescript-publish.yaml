@@ -31,9 +31,6 @@ jobs:
             - name: Install Dependencies
               working-directory: ./js
               run: pnpm install --frozen-lockfile
-            - name: NPM login
-              working-directory: ./js
-              run: pnpm login --registry=https://registry.npmjs.org/ --scope=@arizeai --always-auth
             - name: create and publish versions
               uses: changesets/action@v1
               with:
@@ -44,4 +41,5 @@ jobs:
                   cwd: "./js"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
                   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
