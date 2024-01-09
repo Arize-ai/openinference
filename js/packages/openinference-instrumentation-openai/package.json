@@ -7,6 +7,10 @@
   "module": "dist/esm/index.js",
   "esnext": "dist/esnext/index.js",
   "types": "dist/src/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arize-ai/openinference.git"
+  },
   "scripts": {
     "prebuild": "rimraf dist & pnpm run version:update",
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
