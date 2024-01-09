@@ -78,7 +78,8 @@ class _WithTracer(ABC):
     ) -> Iterator[_WithSpan]:
         span_kind = (
             OpenInferenceSpanKindValues.EMBEDDING
-            if cast_to is CreateEmbeddingResponse else OpenInferenceSpanKindValues.LLM
+            if cast_to is CreateEmbeddingResponse
+            else OpenInferenceSpanKindValues.LLM
         )
         attributes: Dict[str, AttributeValue] = {SpanAttributes.OPENINFERENCE_SPAN_KIND: span_kind}
         try:
