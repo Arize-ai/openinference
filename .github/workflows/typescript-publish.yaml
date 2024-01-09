@@ -24,9 +24,6 @@ jobs:
               uses: pnpm/action-setup@v2
               with:
                   version: 8
-            - name: NPM login
-              working-directory: ./js
-              run: pnpm login
             - name: setup pnpm config
               run: pnpm config set store-dir $PNPM_CACHE_FOLDER
             - name: Install Dependencies
