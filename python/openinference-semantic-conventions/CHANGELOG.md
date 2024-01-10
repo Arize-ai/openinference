@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.0...python-openinference-semantic-conventions-v0.1.1) (2024-01-10)
+
+
+### Features
+
+* add mime type values enum to semantic conventions ([#88](https://github.com/Arize-ai/openinference/issues/88)) ([579efcd](https://github.com/Arize-ai/openinference/commit/579efcd074404d30d547b2d5598493a1a9a708eb))
+
 ## 0.1.0 (2024-01-09)
 
 
