@@ -13,6 +13,7 @@ import {
   SpanKind,
   Attributes,
   SpanStatusCode,
+  Span,
 } from "@opentelemetry/api";
 import { VERSION } from "./version";
 import {
@@ -119,23 +120,27 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             },
           );
           const wrappedPromise = execPromise.then((result) => {
-            if (result) {
+            if (isChatCompletionResponse(result)) {
               // Record the results
               span.setAttributes({
                 [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                 // Override the model from the value sent by the server
-                [SemanticConventions.LLM_MODEL_NAME]: isChatCompletionResponse(
-                  result,
-                )
-                  ? result.model
-                  : body.model,
+                [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getLLMOutputMessagesAttributes(result),
                 ...getUsageAttributes(result),
               });
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+            } else {
+              // This is a streaming response
+              // handle the chunks and add them to the span
+              // First split the stream via tee
+              const [leftStream, rightStream] = result.tee();
+              consumeChatCompletionStreamChunks(rightStream, span);
+              result = leftStream;
             }
-            span.setStatus({ code: SpanStatusCode.OK });
-            span.end();
+
             return result;
           });
           return context.bind(execContext, wrappedPromise);
@@ -254,21 +259,16 @@ function getLLMInputMessagesAttributes(
 /**
  * Get Usage attributes
  */
-function getUsageAttributes(
-  response: Stream<ChatCompletionChunk> | ChatCompletion,
-) {
-  if (Object.prototype.hasOwnProperty.call(response, "usage")) {
-    const completion = response as ChatCompletion;
-    if (completion.usage) {
-      return {
-        [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
-          completion.usage.completion_tokens,
-        [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
-          completion.usage.prompt_tokens,
-        [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
-          completion.usage.total_tokens,
-      };
-    }
+function getUsageAttributes(completion: ChatCompletion): Attributes {
+  if (completion.usage) {
+    return {
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
+        completion.usage.completion_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
+        completion.usage.prompt_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
+        completion.usage.total_tokens,
+    };
   }
   return {};
 }
@@ -277,26 +277,21 @@ function getUsageAttributes(
  * Converts the result to LLM output attributes
  */
 function getLLMOutputMessagesAttributes(
-  response: Stream<ChatCompletionChunk> | ChatCompletion,
+  completion: ChatCompletion,
 ): Attributes {
-  // Handle chat completion
-  if (Object.prototype.hasOwnProperty.call(response, "choices")) {
-    const completion = response as ChatCompletion;
-    // Right now support just the first choice
-    const choice = completion.choices[0];
-    if (!choice) {
-      return {};
-    }
-    return [choice.message].reduce((acc, message, index) => {
-      const index_prefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}`;
-      acc[`${index_prefix}.${SemanticConventions.MESSAGE_CONTENT}`] = String(
-        message.content,
-      );
-      acc[`${index_prefix}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
-      return acc;
-    }, {} as Attributes);
+  // Right now support just the first choice
+  const choice = completion.choices[0];
+  if (!choice) {
+    return {};
   }
-  return {};
+  return [choice.message].reduce((acc, message, index) => {
+    const index_prefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}`;
+    acc[`${index_prefix}.${SemanticConventions.MESSAGE_CONTENT}`] = String(
+      message.content,
+    );
+    acc[`${index_prefix}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
+    return acc;
+  }, {} as Attributes);
 }
 
 /**
@@ -337,4 +332,28 @@ function getEmbeddingEmbeddingsAttributes(
       embedding.embedding;
     return acc;
   }, {} as Attributes);
+}
+
+/**
+ * Consumes the stream chunks and adds them to the span
+ */
+async function consumeChatCompletionStreamChunks(
+  stream: Stream<ChatCompletionChunk>,
+  span: Span,
+) {
+  let streamResponse = "";
+  for await (const chunk of stream) {
+    if (chunk.choices.length > 0 && chunk.choices[0].delta.content) {
+      streamResponse += chunk.choices[0].delta.content;
+    }
+  }
+  span.setAttributes({
+    [SemanticConventions.OUTPUT_VALUE]: streamResponse,
+    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
+    [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+      streamResponse,
+    [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+      "assistant",
+  });
+  span.end();
 }
