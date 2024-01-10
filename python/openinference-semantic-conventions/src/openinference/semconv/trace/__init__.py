@@ -221,3 +221,8 @@ class OpenInferenceSpanKindValues(Enum):
     AGENT = "AGENT"
     RERANKER = "RERANKER"
     UNKNOWN = "UNKNOWN"
+
+
+class OpenInferenceMimeTypeValues(Enum):
+    TEXT = "text/plain"
+    JSON = "application/json"
