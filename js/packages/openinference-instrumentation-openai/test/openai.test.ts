@@ -11,6 +11,7 @@ const instrumentation = new OpenAIInstrumentation();
 instrumentation.disable();
 
 import * as OpenAI from "openai";
+import { Stream } from "openai/streaming";
 
 describe("OpenAIInstrumentation", () => {
   let openai: OpenAI.OpenAI;
@@ -27,7 +28,7 @@ describe("OpenAIInstrumentation", () => {
   beforeAll(() => {
     instrumentation.enable();
     openai = new OpenAI.OpenAI({
-      apiKey: `fake-api-key`,
+      apiKey: "fake-api-key",
     });
   });
   afterAll(() => {
@@ -133,6 +134,53 @@ describe("OpenAIInstrumentation", () => {
         "input.mime_type": "text/plain",
         "input.value": "A happy moment",
         "openinference.span.kind": "embedding",
+      }
+    `);
+  });
+  it("can handle streaming responses", async () => {
+    // Mock out the embedding create endpoint
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        const iterator = () =>
+          (async function* () {
+            yield { choices: [{ delta: { content: "This is " } }] };
+            yield { choices: [{ delta: { content: "a test." } }] };
+            yield { choices: [{ delta: { finish_reason: "stop" } }] };
+          })();
+        const controller = new AbortController();
+        return new Stream(iterator, controller);
+      },
+    );
+    const stream = await openai.chat.completions.create({
+      messages: [{ role: "user", content: "Say this is a test" }],
+      model: "gpt-3.5-turbo",
+      stream: true,
+    });
+
+    let response = "";
+    for await (const chunk of stream) {
+      if (chunk.choices[0].delta.content)
+        response += chunk.choices[0].delta.content;
+    }
+    expect(response).toBe("This is a test.");
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"messages":[{"role":"user","content":"Say this is a test"}],"model":"gpt-3.5-turbo","stream":true}",
+        "llm.input_messages.0.message.content": "Say this is a test",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","stream":true}",
+        "llm.model_name": "gpt-3.5-turbo",
+        "llm.output_messages.0.message.content": "This is a test.",
+        "llm.output_messages.0.message.role": "assistant",
+        "openinference.span.kind": "llm",
+        "output.mime_type": "text/plain",
+        "output.value": "This is a test.",
       }
     `);
   });
