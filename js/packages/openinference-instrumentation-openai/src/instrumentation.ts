@@ -348,7 +348,9 @@ function getLLMInputMessagesAttributes(
 /**
  * Converts the body of a completions request to input attributes
  */
-function getCompletionInputValueAndMimeType(body: CompletionCreateParamsBase): Attributes {
+function getCompletionInputValueAndMimeType(
+  body: CompletionCreateParamsBase,
+): Attributes {
   if (typeof body.prompt === "string") {
     return {
       [SemanticConventions.INPUT_VALUE]: body.prompt,
@@ -411,7 +413,9 @@ function getChatCompletionLLMOutputMessagesAttributes(
 /**
  * Converts the completion result to output attributes
  */
-function getCompletionOutputValueAndMimeType(completion: Completion): Attributes {
+function getCompletionOutputValueAndMimeType(
+  completion: Completion,
+): Attributes {
   // Right now support just the first choice
   const choice = completion.choices[0];
   if (!choice) {
