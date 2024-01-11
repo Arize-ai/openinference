@@ -19,6 +19,10 @@ class SpanAttributes:
     """
     A list of objects containing embedding data, including the vector and represented piece of text.
     """
+    EMBEDDING_MODEL_NAME = "embedding.model_name"
+    """
+    The name of the embedding model.
+    """
 
     LLM_FUNCTION_CALL = "llm.function_call"
     """
@@ -178,14 +182,6 @@ class EmbeddingAttributes:
     Attributes for an embedding
     """
 
-    EMBEDDING_EMBEDDINGS = "embedding.embeddings"
-    """
-    A list of objects containing embedding data, including the vector and represented piece of text.
-    """
-    EMBEDDING_MODEL_NAME = "embedding.model_name"
-    """
-    The name of the embedding model.
-    """
     EMBEDDING_TEXT = "embedding.text"
     """
     The text represented by the embedding.
