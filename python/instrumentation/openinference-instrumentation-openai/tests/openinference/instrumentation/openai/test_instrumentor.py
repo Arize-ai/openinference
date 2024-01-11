@@ -167,7 +167,7 @@ def test_chat_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-    assert attributes == {}  # this test accounts for all the attributes after popping them
+    assert attributes == {}  # this test should account for all the attributes after popping them
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -267,7 +267,7 @@ def test_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-    assert attributes == {}  # this test accounts for all the attributes after popping them
+    assert attributes == {}  # this test should account for all the attributes after popping them
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -361,7 +361,7 @@ def test_embeddings(
                 attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}", None)
                 == embedding[1]
             )
-    assert attributes == {}  # this test accounts for all the attributes after popping them
+    assert attributes == {}  # this test should account for all the attributes after popping them
 
 
 @pytest.fixture(scope="function")
