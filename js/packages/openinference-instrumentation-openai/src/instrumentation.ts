@@ -252,6 +252,13 @@ function getLLMInputMessagesAttributes(
     acc[`${index_prefix}.${SemanticConventions.MESSAGE_ROLE}`] = String(
       message.role,
     );
+    if (message.role == "tool") {
+      acc[`${index_prefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+        message.tool_call_id;
+    } else if (message.role === "function") {
+      acc[`${index_prefix}.${SemanticConventions.MESSAGE_FUNCTION_CALL_NAME}`] =
+        message.name;
+    }
     return acc;
   }, {} as Attributes);
 }
