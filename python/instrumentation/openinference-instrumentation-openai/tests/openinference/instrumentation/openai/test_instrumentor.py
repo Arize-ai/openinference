@@ -1,7 +1,9 @@
 import asyncio
 import json
+import logging
 import random
 from contextlib import suppress
+from importlib import import_module
 from importlib.metadata import version
 from itertools import count
 from typing import (
@@ -19,7 +21,6 @@ from typing import (
     cast,
 )
 
-import openai
 import pytest
 from httpx import AsyncByteStream, Response
 from openinference.instrumentation.openai import OpenAIInstrumentor
@@ -31,6 +32,8 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan
@@ -38,6 +41,12 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
+
+for name, logger in logging.root.manager.loggerDict.items():
+    if name.startswith("openinference.") and isinstance(logger, logging.Logger):
+        logger.setLevel(logging.DEBUG)
+        logger.handlers.clear()
+        logger.addHandler(logging.StreamHandler())
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -47,17 +56,17 @@ from respx import MockRouter
 def test_chat_completions(
     is_async: bool,
     is_raw: bool,
-    is_stream,
+    is_stream: bool,
     status_code: int,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
     model_name: str,
-    tool_calls_mock_stream,
+    chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
 ) -> None:
     input_messages: List[Dict[str, Any]] = get_messages()
     output_messages: List[Dict[str, Any]] = (
-        tool_calls_mock_stream[1] if is_stream else get_messages()
+        chat_completion_mock_stream[1] if is_stream else get_messages()
     )
     invocation_parameters = {
         "stream": is_stream,
@@ -66,9 +75,9 @@ def test_chat_completions(
         "n": len(output_messages),
     }
     url = "https://api.openai.com/v1/chat/completions"
-    respx_kwargs = {
+    respx_kwargs: Dict[str, Any] = {
         **(
-            {"stream": MockAsyncByteStream(tool_calls_mock_stream[0])}
+            {"stream": MockAsyncByteStream(chat_completion_mock_stream[0])}
             if is_stream
             else {
                 "json": {
@@ -84,6 +93,7 @@ def test_chat_completions(
     }
     respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
     create_kwargs = {"messages": input_messages, **invocation_parameters}
+    openai = import_module("openai")
     completions = (
         openai.AsyncOpenAI(api_key="sk-").chat.completions
         if is_async
@@ -108,8 +118,8 @@ def test_chat_completions(
                 for _ in response:
                     pass
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span: ReadableSpan = spans[0]
+    assert len(spans) == 2  # first span should be from the httpx instrumentor
+    span: ReadableSpan = spans[1]
     if status_code == 200:
         assert span.status.is_ok
     elif status_code == 400:
@@ -167,7 +177,7 @@ def test_chat_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-    assert attributes == {}  # this test should account for all the attributes after popping them
+    assert attributes == {}  # test should account for all span attributes
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -183,10 +193,10 @@ def test_completions(
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
     model_name: str,
-    completions_mock_stream,
+    completion_mock_stream: Tuple[List[bytes], List[str]],
 ) -> None:
     prompt: List[str] = get_texts()
-    output_texts: List[str] = completions_mock_stream[1] if is_stream else get_texts()
+    output_texts: List[str] = completion_mock_stream[1] if is_stream else get_texts()
     invocation_parameters = {
         "stream": is_stream,
         "model": randstr(),
@@ -194,9 +204,9 @@ def test_completions(
         "n": len(output_texts),
     }
     url = "https://api.openai.com/v1/completions"
-    respx_kwargs = {
+    respx_kwargs: Dict[str, Any] = {
         **(
-            {"stream": MockAsyncByteStream(completions_mock_stream[0])}
+            {"stream": MockAsyncByteStream(completion_mock_stream[0])}
             if is_stream
             else {
                 "json": {
@@ -212,6 +222,7 @@ def test_completions(
     }
     respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
     create_kwargs = {"prompt": prompt, **invocation_parameters}
+    openai = import_module("openai")
     completions = (
         openai.AsyncOpenAI(api_key="sk-").completions
         if is_async
@@ -236,8 +247,8 @@ def test_completions(
                 for _ in response:
                     pass
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span: ReadableSpan = spans[0]
+    assert len(spans) == 2  # first span should be from the httpx instrumentor
+    span: ReadableSpan = spans[1]
     if status_code == 200:
         assert span.status.is_ok
     elif status_code == 400:
@@ -267,7 +278,7 @@ def test_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-    assert attributes == {}  # this test should account for all the attributes after popping them
+    assert attributes == {}  # test should account for all span attributes
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -311,6 +322,7 @@ def test_embeddings(
         )
     )
     create_kwargs = {"input": input_text, **invocation_parameters}
+    openai = import_module("openai")
     completions = (
         openai.AsyncOpenAI(api_key="sk-").embeddings
         if is_async
@@ -329,8 +341,8 @@ def test_embeddings(
             response = create(**create_kwargs)
             _ = response.parse() if is_raw else response
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span: ReadableSpan = spans[0]
+    assert len(spans) == 2  # first span should be from the httpx instrumentor
+    span: ReadableSpan = spans[1]
     if status_code == 200:
         assert span.status.is_ok
     elif status_code == 400:
@@ -361,40 +373,46 @@ def test_embeddings(
                 attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}", None)
                 == embedding[1]
             )
-    assert attributes == {}  # this test should account for all the attributes after popping them
+    assert attributes == {}  # test should account for all span attributes
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
 
-@pytest.fixture(autouse=True)
-def instrument(in_memory_span_exporter: InMemorySpanExporter) -> Generator[None, None, None]:
-    """
-    Instruments OpenAI before each test to ensure that the patch is applied
-    before any tests are run.
-    """
+@pytest.fixture(scope="module")
+def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
     resource = Resource(attributes={})
     tracer_provider = trace_sdk.TracerProvider(resource=resource)
     span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
     tracer_provider.add_span_processor(span_processor=span_processor)
+    HTTPXClientInstrumentor().instrument(tracer_provider=tracer_provider)
+    return tracer_provider
+
+
+@pytest.fixture(autouse=True)
+def instrument(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> Generator[None, None, None]:
     OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     OpenAIInstrumentor().uninstrument()
+    in_memory_span_exporter.clear()
 
 
 @pytest.fixture(scope="module")
 def seed() -> Iterator[int]:
     """
-    Use rolling seeds to make debugging easier, because the rolling pseudo-random
-    values allow conditional breakpoints to be hit precisely (and repeatably).
+    Use rolling seeds to help debugging, because the rolling pseudo-random values
+    allow conditional breakpoints to be hit precisely (and repeatably).
     """
     return count()
 
 
 @pytest.fixture(autouse=True)
-def set_seed(seed: Iterator[int]) -> None:
+def set_seed(seed: Iterator[int]) -> Iterator[None]:
     random.seed(next(seed))
     yield
 
@@ -421,7 +439,7 @@ def input_messages() -> List[Dict[str, Any]]:
 
 
 @pytest.fixture
-def tool_calls_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
+def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
     return (
         [
             b'data: {"choices": [{"delta": {"role": "assistant"}, "index": 0}]}\n\n',
@@ -508,7 +526,7 @@ def tool_calls_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
 
 
 @pytest.fixture
-def completions_mock_stream() -> Tuple[List[bytes], List[str]]:
+def completion_mock_stream() -> Tuple[List[bytes], List[str]]:
     return (
         [
             b'data: {"choices": [{"text": "", "index": 0}]}\n\n',
@@ -547,7 +565,7 @@ class MockAsyncByteStream(AsyncByteStream):
     def __init__(self, byte_stream: Iterable[bytes]):
         self._byte_stream = byte_stream
 
-    def __iter__(self) -> AsyncIterator[bytes]:
+    def __iter__(self) -> Iterator[bytes]:
         for byte_string in self._byte_stream:
             yield byte_string
 

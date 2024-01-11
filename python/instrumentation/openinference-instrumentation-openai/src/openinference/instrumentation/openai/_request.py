@@ -1,28 +1,29 @@
 import logging
 from abc import ABC
 from contextlib import contextmanager
-from types import MappingProxyType
+from types import ModuleType
 from typing import (
     Any,
     Awaitable,
     Callable,
-    Dict,
+    Iterable,
     Iterator,
     Mapping,
     Tuple,
 )
 
-from openinference.instrumentation.openai._extra_attributes_from_request import (
-    _get_extra_attributes_from_request,
-)
-from openinference.instrumentation.openai._extra_attributes_from_response import (
-    _get_extra_attributes_from_response,
+from openinference.instrumentation.openai._request_attributes_extractor import (
+    _RequestAttributesExtractor,
 )
 from openinference.instrumentation.openai._response_accumulator import (
     _ChatCompletionAccumulator,
     _CompletionAccumulator,
 )
+from openinference.instrumentation.openai._response_attributes_extractor import (
+    _ResponseAttributesExtractor,
+)
 from openinference.instrumentation.openai._stream import (
+    _ResponseAccumulator,
     _Stream,
 )
 from openinference.instrumentation.openai._utils import (
@@ -38,10 +39,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
-
-from openai import AsyncStream, Stream
-from openai.types import Completion, CreateEmbeddingResponse
-from openai.types.chat import ChatCompletion
+from typing_extensions import TypeAlias
 
 __all__ = (
     "_Request",
@@ -53,43 +51,22 @@ logger.addHandler(logging.NullHandler())
 
 
 class _WithTracer(ABC):
-    __slots__ = ("_tracer",)
-
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
         self._tracer = tracer
 
     @contextmanager
     def _start_as_current_span(
         self,
         span_name: str,
-        cast_to: type,
-        request_parameters: Mapping[str, Any],
+        attributes: Iterable[Tuple[str, AttributeValue]],
+        extra_attributes: Iterable[Tuple[str, AttributeValue]],
     ) -> Iterator[_WithSpan]:
-        span_kind = (
-            OpenInferenceSpanKindValues.EMBEDDING.value
-            if cast_to is CreateEmbeddingResponse
-            else OpenInferenceSpanKindValues.LLM.value
-        )
-        attributes: Dict[str, AttributeValue] = {SpanAttributes.OPENINFERENCE_SPAN_KIND: span_kind}
+        # Because OTEL has a default limit of 128 attributes, we split our attributes into
+        # two tiers, where the addition of "extra_attributes" is deferred until the end
+        # and only after the "attributes" are added.
         try:
-            attributes.update(_as_input_attributes(_io_value_and_type(request_parameters)))
-        except Exception:
-            logger.exception(
-                f"Failed to get input attributes from request parameters of "
-                f"type {type(request_parameters)}"
-            )
-        # Secondary attributes should be added after input and output to ensure
-        # that input and output are not dropped if there are too many attributes.
-        try:
-            extra_attributes = dict(_get_extra_attributes_from_request(cast_to, request_parameters))
-        except Exception:
-            logger.exception(
-                f"Failed to get extra attributes from request options of "
-                f"type {type(request_parameters)}"
-            )
-            extra_attributes = {}
-        try:
-            span = self._tracer.start_span(span_name, attributes=attributes)
+            span = self._tracer.start_span(name=span_name, attributes=dict(attributes))
         except Exception:
             logger.exception("Failed to start span")
             span = INVALID_SPAN
@@ -99,10 +76,155 @@ class _WithTracer(ABC):
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            yield _WithSpan(span, extra_attributes)
+            yield _WithSpan(span=span, extra_attributes=dict(extra_attributes))
 
 
-class _Request(_WithTracer):
+_RequestParameters: TypeAlias = Mapping[str, Any]
+
+
+class _WithOpenAI(ABC):
+    __slots__ = (
+        "_openai",
+        "_stream_types",
+        "_request_attributes_extractor",
+        "_response_attributes_extractor",
+        "_response_accumulator_factories",
+    )
+
+    def __init__(self, openai: ModuleType, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._openai = openai
+        self._stream_types = (openai.Stream, openai.AsyncStream)
+        self._request_attributes_extractor = _RequestAttributesExtractor(openai=openai)
+        self._response_attributes_extractor = _ResponseAttributesExtractor(openai=openai)
+        self._response_accumulator_factories: Mapping[
+            type, Callable[[_RequestParameters], _ResponseAccumulator]
+        ] = {
+            openai.types.Completion: lambda request_parameters: _CompletionAccumulator(
+                request_parameters=request_parameters,
+                completion_type=openai.types.Completion,
+                response_attributes_extractor=self._response_attributes_extractor,
+            ),
+            openai.types.chat.ChatCompletion: lambda request_parameters: _ChatCompletionAccumulator(
+                request_parameters=request_parameters,
+                chat_completion_type=openai.types.chat.ChatCompletion,
+                response_attributes_extractor=self._response_attributes_extractor,
+            ),
+        }
+
+    def _get_span_kind(self, cast_to: type) -> str:
+        return (
+            OpenInferenceSpanKindValues.EMBEDDING.value
+            if cast_to is self._openai.types.CreateEmbeddingResponse
+            else OpenInferenceSpanKindValues.LLM.value
+        )
+
+    def _get_attributes_from_request(
+        self,
+        cast_to: type,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
+        try:
+            yield from _as_input_attributes(_io_value_and_type(request_parameters))
+        except Exception:
+            logger.exception(
+                f"Failed to get input attributes from request parameters of "
+                f"type {type(request_parameters)}"
+            )
+
+    def _get_extra_attributes_from_request(
+        self,
+        cast_to: type,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        # Secondary attributes should be added after input and output to ensure
+        # that input and output are not dropped if there are too many attributes.
+        try:
+            yield from self._request_attributes_extractor.get_attributes_from_request(
+                cast_to=cast_to,
+                request_parameters=request_parameters,
+            )
+        except Exception:
+            logger.exception(
+                f"Failed to get extra attributes from request options of "
+                f"type {type(request_parameters)}"
+            )
+
+    def _is_streaming(self, response: Any) -> bool:
+        return isinstance(response, self._stream_types)
+
+    def _finalize_response(
+        self,
+        response: Any,
+        with_span: _WithSpan,
+        cast_to: type,
+        request_parameters: Mapping[str, Any],
+    ) -> Any:
+        """
+        Monkey-patch the response object to trace the stream, or finish tracing if the response is
+        not a stream.
+        """
+
+        if hasattr(response, "parse") and callable(response.parse):
+            # `.request()` may be called under `.with_raw_response` and it's necessary to call
+            # `.parse()` to get back the usual response types.
+            # E.g. see https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_base_client.py#L518  # noqa: E501
+            try:
+                response.parse()
+            except Exception:
+                logger.exception(f"Failed to parse response of type {type(response)}")
+        if (
+            self._is_streaming(response)
+            or hasattr(
+                # FIXME: Ideally we should not rely on a private attribute (but it may be impossible).
+                # The assumption here is that calling `.parse()` stores the stream object in `._parsed`
+                # and calling `.parse()` again will not overwrite the monkey-patched version.
+                # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_response.py#L65  # noqa: E501
+                response,
+                "_parsed",
+            )
+            # Note that we must have called `.parse()` beforehand, otherwise `._parsed` is None.
+            and self._is_streaming(response._parsed)
+        ):
+            # For streaming, we need an (optional) accumulator to process each chunk iteration.
+            try:
+                response_accumulator_factory = self._response_accumulator_factories.get(cast_to)
+                response_accumulator = (
+                    response_accumulator_factory(request_parameters)
+                    if response_accumulator_factory
+                    else None
+                )
+            except Exception:
+                # Note that cast_to may not be hashable.
+                logger.exception(f"Failed to get response accumulator for {cast_to}")
+                response_accumulator = None
+            if hasattr(response, "_parsed") and self._is_streaming(parsed := response._parsed):
+                # Monkey-patch a private attribute assumed to be caching the output of `.parse()`.
+                response._parsed = _Stream(
+                    stream=parsed,
+                    with_span=with_span,
+                    response_accumulator=response_accumulator,
+                )
+                return response
+            return _Stream(
+                stream=response,
+                with_span=with_span,
+                response_accumulator=response_accumulator,
+            )
+        _finish_tracing(
+            status_code=trace_api.StatusCode.OK,
+            with_span=with_span,
+            has_attributes=_ResponseAttributes(
+                request_parameters=request_parameters,
+                response=response,
+                response_attributes_extractor=self._response_attributes_extractor,
+            ),
+        )
+        return response
+
+
+class _Request(_WithTracer, _WithOpenAI):
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -121,8 +243,14 @@ class _Request(_WithTracer):
             return wrapped(*args, **kwargs)
         with self._start_as_current_span(
             span_name=span_name,
-            cast_to=cast_to,
-            request_parameters=request_parameters,
+            attributes=self._get_attributes_from_request(
+                cast_to=cast_to,
+                request_parameters=request_parameters,
+            ),
+            extra_attributes=self._get_extra_attributes_from_request(
+                cast_to=cast_to,
+                request_parameters=request_parameters,
+            ),
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -132,7 +260,7 @@ class _Request(_WithTracer):
                 with_span.finish_tracing(status_code=status_code)
                 raise
             try:
-                response = _finalize_response(
+                response = self._finalize_response(
                     response=response,
                     with_span=with_span,
                     cast_to=cast_to,
@@ -144,7 +272,7 @@ class _Request(_WithTracer):
         return response
 
 
-class _AsyncRequest(_WithTracer):
+class _AsyncRequest(_WithTracer, _WithOpenAI):
     async def __call__(
         self,
         wrapped: Callable[..., Awaitable[Any]],
@@ -163,8 +291,14 @@ class _AsyncRequest(_WithTracer):
             return await wrapped(*args, **kwargs)
         with self._start_as_current_span(
             span_name=span_name,
-            cast_to=cast_to,
-            request_parameters=request_parameters,
+            attributes=self._get_attributes_from_request(
+                cast_to=cast_to,
+                request_parameters=request_parameters,
+            ),
+            extra_attributes=self._get_extra_attributes_from_request(
+                cast_to=cast_to,
+                request_parameters=request_parameters,
+            ),
         ) as with_span:
             try:
                 response = await wrapped(*args, **kwargs)
@@ -174,7 +308,7 @@ class _AsyncRequest(_WithTracer):
                 with_span.finish_tracing(status_code=status_code)
                 raise
             try:
-                response = _finalize_response(
+                response = self._finalize_response(
                     response=response,
                     with_span=with_span,
                     cast_to=cast_to,
@@ -212,92 +346,18 @@ def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]
     return cast_to, request_parameters
 
 
-_RESPONSE_ACCUMULATOR_FACTORIES: Mapping[type, type] = MappingProxyType(
-    {
-        ChatCompletion: _ChatCompletionAccumulator,
-        Completion: _CompletionAccumulator,
-    }
-)
-
-
-def _finalize_response(
-    response: Any,
-    with_span: _WithSpan,
-    cast_to: type,
-    request_parameters: Mapping[str, Any],
-) -> Any:
-    """Monkey-patch the response object to trace the stream, or finish tracing if the response is
-    not a stream.
-    """
-    if hasattr(response, "parse") and callable(response.parse):
-        # `.request()` may be called under `.with_raw_response` and it's necessary to call
-        # `.parse()` to get back the usual response types.
-        # E.g. see https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_base_client.py#L518  # noqa: E501
-        try:
-            response.parse()
-        except Exception:
-            logger.exception(f"Failed to parse response of type {type(response)}")
-    if (
-        isinstance(response, (Stream, AsyncStream))
-        or hasattr(
-            # FIXME: Ideally we should not rely on a private attribute (but it may be impossible).
-            # The assumption here is that calling `.parse()` stores the stream object in `._parsed`
-            # and calling `.parse()` again will not overwrite the monkey-patched version.
-            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_response.py#L65  # noqa: E501
-            response,
-            "_parsed",
-        )
-        # Note that we must have called `.parse()` beforehand, otherwise `._parsed` is None.
-        and isinstance(response._parsed, (Stream, AsyncStream))
-    ):
-        # For streaming, we need an (optional) accumulator to process each chunk iteration.
-        try:
-            response_accumulator_factory = _RESPONSE_ACCUMULATOR_FACTORIES.get(cast_to)
-            response_accumulator = (
-                response_accumulator_factory(request_parameters)
-                if response_accumulator_factory
-                else None
-            )
-        except Exception:
-            # E.g. cast_to may not be hashable
-            logger.exception(f"Failed to get response accumulator for {cast_to}")
-            response_accumulator = None
-        if hasattr(response, "_parsed") and isinstance(
-            parsed := response._parsed, (Stream, AsyncStream)
-        ):
-            # Monkey-patch a private attribute assumed to be caching the output of `.parse()`.
-            response._parsed = _Stream(
-                stream=parsed,
-                with_span=with_span,
-                response_accumulator=response_accumulator,
-            )
-            return response
-        return _Stream(
-            stream=response,
-            with_span=with_span,
-            response_accumulator=response_accumulator,
-        )
-    _finish_tracing(
-        status_code=trace_api.StatusCode.OK,
-        with_span=with_span,
-        has_attributes=_ResponseAttributes(
-            request_parameters=request_parameters,
-            response=response,
-        ),
-    )
-    return response
-
-
 class _ResponseAttributes:
     __slots__ = (
         "_response",
         "_request_parameters",
+        "_response_attributes_extractor",
     )
 
     def __init__(
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
+        response_attributes_extractor: _ResponseAttributesExtractor,
     ) -> None:
         if hasattr(response, "parse") and callable(response.parse):
             # E.g. see https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_base_client.py#L518  # noqa: E501
@@ -307,12 +367,13 @@ class _ResponseAttributes:
                 logger.exception(f"Failed to parse response of type {type(response)}")
         self._request_parameters = request_parameters
         self._response = response
+        self._response_attributes_extractor = response_attributes_extractor
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from _as_output_attributes(_io_value_and_type(self._response))
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        yield from _get_extra_attributes_from_response(
-            self._response,
+        yield from self._response_attributes_extractor.get_attributes_from_response(
+            response=self._response,
             request_parameters=self._request_parameters,
         )

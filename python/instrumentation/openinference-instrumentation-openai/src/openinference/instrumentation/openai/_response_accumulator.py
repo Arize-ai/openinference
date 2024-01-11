@@ -3,6 +3,7 @@ import warnings
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     DefaultDict,
@@ -12,12 +13,11 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Protocol,
     Tuple,
+    Type,
 )
 
-from openinference.instrumentation.openai._extra_attributes_from_response import (
-    _get_extra_attributes_from_response,
-)
 from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
     _ValueAndType,
@@ -25,16 +25,23 @@ from openinference.instrumentation.openai._utils import (
 from openinference.semconv.trace import OpenInferenceMimeTypeValues
 from opentelemetry.util.types import AttributeValue
 
-from openai.types import Completion
-from openai.types.chat import (
-    ChatCompletion,
-    ChatCompletionChunk,
-)
+if TYPE_CHECKING:
+    from openai.types import Completion
+    from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 __all__ = (
     "_CompletionAccumulator",
     "_ChatCompletionAccumulator",
 )
+
+
+class _CanGetAttributesFromResponse(Protocol):
+    def get_attributes_from_response(
+        self,
+        response: Any,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        ...
 
 
 class _ChatCompletionAccumulator:
@@ -43,10 +50,19 @@ class _ChatCompletionAccumulator:
         "_values",
         "_cached_result",
         "_request_parameters",
+        "_response_attributes_extractor",
+        "_chat_completion_type",
     )
 
-    def __init__(self, request_parameters: Mapping[str, Any]) -> None:
+    def __init__(
+        self,
+        request_parameters: Mapping[str, Any],
+        chat_completion_type: Type["ChatCompletion"],
+        response_attributes_extractor: Optional[_CanGetAttributesFromResponse] = None,
+    ) -> None:
+        self._chat_completion_type = chat_completion_type
         self._request_parameters = request_parameters
+        self._response_attributes_extractor = response_attributes_extractor
         self._is_null = True
         self._cached_result: Optional[Dict[str, Any]] = None
         self._values = _ValuesAccumulator(
@@ -65,9 +81,7 @@ class _ChatCompletionAccumulator:
             ),
         )
 
-    def process_chunk(self, chunk: ChatCompletionChunk) -> None:
-        if not isinstance(chunk, ChatCompletionChunk):
-            return
+    def process_chunk(self, chunk: "ChatCompletionChunk") -> None:
         self._is_null = False
         self._cached_result = None
         with warnings.catch_warnings():
@@ -94,15 +108,14 @@ class _ChatCompletionAccumulator:
             _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
         )
 
-    def get_extra_attributes(
-        self,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if not (result := self._result()):
             return
-        yield from _get_extra_attributes_from_response(
-            ChatCompletion.construct(**result),
-            self._request_parameters,
-        )
+        if self._response_attributes_extractor:
+            yield from self._response_attributes_extractor.get_attributes_from_response(
+                self._chat_completion_type.construct(**result),
+                self._request_parameters,
+            )
 
 
 class _CompletionAccumulator:
@@ -111,19 +124,26 @@ class _CompletionAccumulator:
         "_values",
         "_cached_result",
         "_request_parameters",
+        "_response_attributes_extractor",
+        "_completion_type",
     )
 
-    def __init__(self, request_parameters: Mapping[str, Any]) -> None:
+    def __init__(
+        self,
+        request_parameters: Mapping[str, Any],
+        completion_type: Type["Completion"],
+        response_attributes_extractor: Optional[_CanGetAttributesFromResponse] = None,
+    ) -> None:
+        self._completion_type = completion_type
         self._request_parameters = request_parameters
+        self._response_attributes_extractor = response_attributes_extractor
         self._is_null = True
         self._cached_result: Optional[Dict[str, Any]] = None
         self._values = _ValuesAccumulator(
             choices=_IndexedAccumulator(lambda: _ValuesAccumulator(text=_StringAccumulator())),
         )
 
-    def process_chunk(self, chunk: Completion) -> None:
-        if not isinstance(chunk, Completion):
-            return
+    def process_chunk(self, chunk: "Completion") -> None:
         self._is_null = False
         self._cached_result = None
         with warnings.catch_warnings():
@@ -150,10 +170,11 @@ class _CompletionAccumulator:
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if not (result := self._result()):
             return
-        yield from _get_extra_attributes_from_response(
-            Completion.construct(**result),
-            self._request_parameters,
-        )
+        if self._response_attributes_extractor:
+            yield from self._response_attributes_extractor.get_attributes_from_response(
+                self._completion_type.construct(**result),
+                self._request_parameters,
+            )
 
 
 class _ValuesAccumulator:

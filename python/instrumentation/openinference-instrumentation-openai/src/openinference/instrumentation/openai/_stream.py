@@ -1,5 +1,6 @@
 import logging
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Iterator,
@@ -15,7 +16,8 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
-from openai import AsyncStream, Stream
+if TYPE_CHECKING:
+    from openai import AsyncStream, Stream
 
 __all__ = (
     "_Stream",
@@ -47,7 +49,7 @@ class _Stream(ObjectProxy):  # type: ignore
 
     def __init__(
         self,
-        stream: Union[Stream[Any], AsyncStream[Any]],
+        stream: Union["Stream[Any]", "AsyncStream[Any]"],
         with_span: _WithSpan,
         response_accumulator: Optional[_ResponseAccumulator] = None,
     ) -> None:

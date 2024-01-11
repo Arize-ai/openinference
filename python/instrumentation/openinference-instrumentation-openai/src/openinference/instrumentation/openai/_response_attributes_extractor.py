@@ -1,9 +1,9 @@
 import base64
 import logging
-from functools import singledispatch
 from importlib import import_module
 from types import ModuleType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Iterable,
     Iterator,
@@ -11,6 +11,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Type,
 )
 
 from openinference.instrumentation.openai._utils import (
@@ -25,10 +26,11 @@ from openinference.semconv.trace import (
 )
 from opentelemetry.util.types import AttributeValue
 
-from openai.types import Completion, CreateEmbeddingResponse
-from openai.types.chat import ChatCompletion
+if TYPE_CHECKING:
+    from openai.types import Completion, CreateEmbeddingResponse
+    from openai.types.chat import ChatCompletion
 
-__all__ = ("_get_extra_attributes_from_response",)
+__all__ = ("_ResponseAttributesExtractor",)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -40,18 +42,48 @@ except ImportError:
     _NUMPY = None
 
 
-@singledispatch
-def _get_extra_attributes_from_response(
-    response: Any,
-    request_parameters: Mapping[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    # this is a fallback for @singledispatch
-    yield from ()
+class _ResponseAttributesExtractor:
+    __slots__ = (
+        "_openai",
+        "_chat_completion_type",
+        "_completion_type",
+        "_create_embedding_response_type",
+    )
+
+    def __init__(self, openai: ModuleType) -> None:
+        self._openai = openai
+        self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
+        self._completion_type: Type["Completion"] = openai.types.Completion
+        self._create_embedding_response_type: Type[
+            "CreateEmbeddingResponse"
+        ] = openai.types.CreateEmbeddingResponse
+
+    def get_attributes_from_response(
+        self,
+        response: Any,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if isinstance(response, self._chat_completion_type):
+            yield from _get_attributes_from_chat_completion(
+                completion=response,
+                request_parameters=request_parameters,
+            )
+        elif isinstance(response, self._create_embedding_response_type):
+            yield from _get_attributes_from_create_embedding_response(
+                response=response,
+                request_parameters=request_parameters,
+            )
+        elif isinstance(response, self._completion_type):
+            yield from _get_attributes_from_completion(
+                completion=response,
+                request_parameters=request_parameters,
+            )
+        else:
+            yield from ()
 
 
-@_get_extra_attributes_from_response.register
-def _(
-    completion: ChatCompletion,
+def _get_attributes_from_chat_completion(
+    completion: "ChatCompletion",
     request_parameters: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion.py#L40  # noqa: E501
@@ -68,9 +100,8 @@ def _(
                     yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
 
 
-@_get_extra_attributes_from_response.register
-def _(
-    completion: Completion,
+def _get_attributes_from_completion(
+    completion: "Completion",
     request_parameters: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion.py#L13  # noqa: E501
@@ -79,6 +110,7 @@ def _(
     if usage := getattr(completion, "usage", None):
         yield from _get_attributes_from_completion_usage(usage)
     if model_prompt := request_parameters.get("prompt"):
+        # FIXME: this step should move to request attributes extractor if decoding is not necessary.
         # prompt: Required[Union[str, List[str], List[int], List[List[int]], None]]
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_create_params.py#L38  # noqa: E501
         # FIXME: tokens (List[int], List[List[int]]) can't be decoded reliably because model
@@ -87,9 +119,8 @@ def _(
             yield SpanAttributes.LLM_PROMPTS, prompts
 
 
-@_get_extra_attributes_from_response.register
-def _(
-    response: CreateEmbeddingResponse,
+def _get_attributes_from_create_embedding_response(
+    response: "CreateEmbeddingResponse",
     request_parameters: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/create_embedding_response.py#L20  # noqa: E501
@@ -106,6 +137,7 @@ def _(
                 yield f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{key}", value
     embedding_input = request_parameters.get("input")
     for index, text in enumerate(_get_texts(embedding_input, model)):
+        # FIXME: this step should move to request attributes extractor if decoding is not necessary.
         # input: Required[Union[str, List[str], List[int], List[List[int]]]]
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/embedding_create_params.py#L12  # noqa: E501
         # FIXME: tokens (List[int], List[List[int]]) can't be decoded reliably because model
@@ -130,6 +162,7 @@ def _get_attributes_from_embedding(
         vector = list(_vector)
         yield f"{EmbeddingAttributes.EMBEDDING_VECTOR}", vector
     elif isinstance(_vector, str) and _vector and _NUMPY:
+        # FIXME: this step should be removed if decoding is not necessary.
         try:
             # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/resources/embeddings.py#L100  # noqa: E501
             vector = _NUMPY.frombuffer(base64.b64decode(_vector), dtype="float32").tolist()

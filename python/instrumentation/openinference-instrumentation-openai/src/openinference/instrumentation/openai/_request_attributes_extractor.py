@@ -1,45 +1,66 @@
 import json
 import logging
 from enum import Enum
+from types import ModuleType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Iterable,
     Iterator,
     List,
     Mapping,
     Tuple,
+    Type,
 )
 
 from openinference.instrumentation.openai._utils import _OPENAI_VERSION
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 from opentelemetry.util.types import AttributeValue
 
-from openai.types import Completion, CreateEmbeddingResponse
-from openai.types.chat import ChatCompletion
+if TYPE_CHECKING:
+    from openai.types import Completion, CreateEmbeddingResponse
+    from openai.types.chat import ChatCompletion
 
-__all__ = ("_get_extra_attributes_from_request",)
+__all__ = ("_RequestAttributesExtractor",)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def _get_extra_attributes_from_request(
-    cast_to: type,
-    request_parameters: Mapping[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    if not isinstance(request_parameters, Mapping):
-        return
-    if cast_to is ChatCompletion:
-        yield from _get_attributes_from_chat_completion_create_param(request_parameters)
-    elif cast_to is CreateEmbeddingResponse:
-        yield from _get_attributes_from_embedding_create_param(request_parameters)
-    elif cast_to is Completion:
-        yield from _get_attributes_from_completion_create_param(request_parameters)
-    else:
-        try:
-            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(request_parameters)
-        except Exception:
-            logger.exception("Failed to serialize request options")
+class _RequestAttributesExtractor:
+    __slots__ = (
+        "_openai",
+        "_chat_completion_type",
+        "_completion_type",
+        "_create_embedding_response_type",
+    )
+
+    def __init__(self, openai: ModuleType) -> None:
+        self._openai = openai
+        self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
+        self._completion_type: Type["Completion"] = openai.types.Completion
+        self._create_embedding_response_type: Type[
+            "CreateEmbeddingResponse"
+        ] = openai.types.CreateEmbeddingResponse
+
+    def get_attributes_from_request(
+        self,
+        cast_to: type,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if not isinstance(request_parameters, Mapping):
+            return
+        if cast_to is self._chat_completion_type:
+            yield from _get_attributes_from_chat_completion_create_param(request_parameters)
+        elif cast_to is self._create_embedding_response_type:
+            yield from _get_attributes_from_embedding_create_param(request_parameters)
+        elif cast_to is self._completion_type:
+            yield from _get_attributes_from_completion_create_param(request_parameters)
+        else:
+            try:
+                yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(request_parameters)
+            except Exception:
+                logger.exception("Failed to serialize request options")
 
 
 def _get_attributes_from_chat_completion_create_param(

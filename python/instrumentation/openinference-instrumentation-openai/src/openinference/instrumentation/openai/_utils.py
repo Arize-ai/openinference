@@ -60,7 +60,7 @@ def _as_input_attributes(
     if not value_and_type:
         return
     yield SpanAttributes.INPUT_VALUE, value_and_type.value
-    # it's TEXT by default, so we can skip to save one attribute
+    # It's assumed to be TEXT by default, so we can skip to save one attribute.
     if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
         yield SpanAttributes.INPUT_MIME_TYPE, value_and_type.type.value
 
@@ -71,7 +71,7 @@ def _as_output_attributes(
     if not value_and_type:
         return
     yield SpanAttributes.OUTPUT_VALUE, value_and_type.value
-    # it's TEXT by default, so we can skip to save one attribute
+    # It's assumed to be TEXT by default, so we can skip to save one attribute.
     if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
         yield SpanAttributes.OUTPUT_MIME_TYPE, value_and_type.type.value
 
@@ -92,7 +92,7 @@ def _finish_tracing(
     try:
         attributes: Attributes = dict(has_attributes.get_attributes())
     except Exception:
-        logger.exception("Failed to get output value")
+        logger.exception("Failed to get attributes")
         attributes = None
     try:
         extra_attributes: Attributes = dict(has_attributes.get_extra_attributes())
