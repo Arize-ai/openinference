@@ -20,9 +20,10 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 
 ## Python
 
-| Package                                                                                       | Description                                   |
-| --------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md) | Semantic conventions for tracing of LLM Apps. |
+| Package                                                                                                            | Description                                   |
+|--------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
+| [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md)                      | Semantic conventions for tracing of LLM Apps. |
+| [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai/README.rst) | OpenInference Instrumentation for OpenAI SDK. |
 
 ## JavaScript
 
