@@ -42,7 +42,6 @@ class _Stream(ObjectProxy):  # type: ignore
         "_self_with_span",
         "_self_iteration_count",
         "_self_is_finished",
-        "_self_include_extra_attributes",
         "_self_response_accumulator",
     )
 
@@ -51,13 +50,11 @@ class _Stream(ObjectProxy):  # type: ignore
         stream: Union[Stream[Any], AsyncStream[Any]],
         with_span: _WithSpan,
         response_accumulator: Optional[_ResponseAccumulator] = None,
-        include_extra_attributes: bool = True,
     ) -> None:
         super().__init__(stream)
         self._self_with_span = with_span
         self._self_iteration_count = 0
         self._self_is_finished = with_span.is_finished
-        self._self_include_extra_attributes = include_extra_attributes
         self._self_response_accumulator = response_accumulator
 
     def __iter__(self) -> Iterator[Any]:
@@ -143,5 +140,5 @@ class _Stream(ObjectProxy):  # type: ignore
             yield from self._self_response_accumulator.get_attributes()
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if self._self_include_extra_attributes and self._self_response_accumulator is not None:
+        if self._self_response_accumulator is not None:
             yield from self._self_response_accumulator.get_extra_attributes()

@@ -2,7 +2,6 @@ import json
 import warnings
 from collections import defaultdict
 from copy import deepcopy
-from types import MappingProxyType
 from typing import (
     Any,
     Callable,
@@ -21,9 +20,9 @@ from openinference.instrumentation.openai._extra_attributes_from_response import
 )
 from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
-    _MimeType,
     _ValueAndType,
 )
+from openinference.semconv.trace import OpenInferenceMimeTypeValues
 from opentelemetry.util.types import AttributeValue
 
 from openai.types import Completion
@@ -43,9 +42,11 @@ class _ChatCompletionAccumulator:
         "_is_null",
         "_values",
         "_cached_result",
+        "_request_parameters",
     )
 
-    def __init__(self) -> None:
+    def __init__(self, request_parameters: Mapping[str, Any]) -> None:
+        self._request_parameters = request_parameters
         self._is_null = True
         self._cached_result: Optional[Dict[str, Any]] = None
         self._values = _ValuesAccumulator(
@@ -89,17 +90,18 @@ class _ChatCompletionAccumulator:
         if not (result := self._result()):
             return
         json_string = json.dumps(result)
-        yield from _as_output_attributes(_ValueAndType(json_string, _MimeType.application_json))
+        yield from _as_output_attributes(
+            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
+        )
 
     def get_extra_attributes(
         self,
-        request_options: Mapping[str, Any] = MappingProxyType({}),
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not (result := self._result()):
             return
         yield from _get_extra_attributes_from_response(
             ChatCompletion.construct(**result),
-            request_options,
+            self._request_parameters,
         )
 
 
@@ -108,9 +110,11 @@ class _CompletionAccumulator:
         "_is_null",
         "_values",
         "_cached_result",
+        "_request_parameters",
     )
 
-    def __init__(self) -> None:
+    def __init__(self, request_parameters: Mapping[str, Any]) -> None:
+        self._request_parameters = request_parameters
         self._is_null = True
         self._cached_result: Optional[Dict[str, Any]] = None
         self._values = _ValuesAccumulator(
@@ -139,17 +143,16 @@ class _CompletionAccumulator:
         if not (result := self._result()):
             return
         json_string = json.dumps(result)
-        yield from _as_output_attributes(_ValueAndType(json_string, _MimeType.application_json))
+        yield from _as_output_attributes(
+            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
+        )
 
-    def get_extra_attributes(
-        self,
-        request_options: Mapping[str, Any] = MappingProxyType({}),
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if not (result := self._result()):
             return
         yield from _get_extra_attributes_from_response(
             Completion.construct(**result),
-            request_options,
+            self._request_parameters,
         )
 
 

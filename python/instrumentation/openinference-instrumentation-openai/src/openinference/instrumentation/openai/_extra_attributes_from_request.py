@@ -25,19 +25,19 @@ logger.addHandler(logging.NullHandler())
 
 def _get_extra_attributes_from_request(
     cast_to: type,
-    request_options: Mapping[str, Any],
+    request_parameters: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    if not isinstance(request_options, Mapping):
+    if not isinstance(request_parameters, Mapping):
         return
     if cast_to is ChatCompletion:
-        yield from _get_attributes_from_chat_completion_create_param(request_options)
+        yield from _get_attributes_from_chat_completion_create_param(request_parameters)
     elif cast_to is CreateEmbeddingResponse:
-        yield from _get_attributes_from_embedding_create_param(request_options)
+        yield from _get_attributes_from_embedding_create_param(request_parameters)
     elif cast_to is Completion:
-        yield from _get_attributes_from_completion_create_param(request_options)
+        yield from _get_attributes_from_completion_create_param(request_parameters)
     else:
         try:
-            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(request_options)
+            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(request_parameters)
         except Exception:
             logger.exception("Failed to serialize request options")
 
@@ -55,7 +55,9 @@ def _get_attributes_from_chat_completion_create_param(
     invocation_params.pop("tools", None)
     yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_params)
     if (input_messages := params.get("messages")) and isinstance(input_messages, Iterable):
-        for index, input_message in enumerate(input_messages):
+        # Use reversed() to get the last message first. This is because OTEL has a default limit of
+        # 128 attributes per span, and flattening increases the number of attributes very quickly.
+        for index, input_message in reversed(list(enumerate(input_messages))):
             for key, value in _get_attributes_from_message_param(input_message):
                 yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
 

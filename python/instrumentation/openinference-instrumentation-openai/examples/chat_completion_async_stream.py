@@ -1,6 +1,3 @@
-"""
-Phoenix collector should be running in the background.
-"""
 import asyncio
 
 import openai

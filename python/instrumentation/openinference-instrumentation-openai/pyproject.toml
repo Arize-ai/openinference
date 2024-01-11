@@ -32,8 +32,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+instruments = [
+  "openai >= 1.0.0",
+]
 test = [
   "openai == 1.0.0",
+  "opentelemetry-sdk",
+  "respx",
 ]
 
 [project.urls]

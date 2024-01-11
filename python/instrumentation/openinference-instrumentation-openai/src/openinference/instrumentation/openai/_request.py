@@ -7,10 +7,8 @@ from typing import (
     Awaitable,
     Callable,
     Dict,
-    Hashable,
     Iterator,
     Mapping,
-    Optional,
     Tuple,
 )
 
@@ -25,7 +23,6 @@ from openinference.instrumentation.openai._response_accumulator import (
     _CompletionAccumulator,
 )
 from openinference.instrumentation.openai._stream import (
-    _ResponseAccumulator,
     _Stream,
 )
 from openinference.instrumentation.openai._utils import (
@@ -56,25 +53,17 @@ logger.addHandler(logging.NullHandler())
 
 
 class _WithTracer(ABC):
-    __slots__ = (
-        "_tracer",
-        "_include_extra_attributes",
-    )
+    __slots__ = ("_tracer",)
 
-    def __init__(
-        self,
-        tracer: trace_api.Tracer,
-        include_extra_attributes: bool = True,
-    ) -> None:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
-        self._include_extra_attributes = include_extra_attributes
 
     @contextmanager
     def _start_as_current_span(
         self,
         span_name: str,
         cast_to: type,
-        request_options: Mapping[str, Any],
+        request_parameters: Mapping[str, Any],
     ) -> Iterator[_WithSpan]:
         span_kind = (
             OpenInferenceSpanKindValues.EMBEDDING.value
@@ -83,24 +72,20 @@ class _WithTracer(ABC):
         )
         attributes: Dict[str, AttributeValue] = {SpanAttributes.OPENINFERENCE_SPAN_KIND: span_kind}
         try:
-            attributes.update(_as_input_attributes(_io_value_and_type(request_options)))
+            attributes.update(_as_input_attributes(_io_value_and_type(request_parameters)))
         except Exception:
             logger.exception(
-                f"Failed to get input attributes from request options of "
-                f"type {type(request_options)}"
+                f"Failed to get input attributes from request parameters of "
+                f"type {type(request_parameters)}"
             )
         # Secondary attributes should be added after input and output to ensure
         # that input and output are not dropped if there are too many attributes.
         try:
-            extra_attributes = (
-                dict(_get_extra_attributes_from_request(cast_to, request_options))
-                if self._include_extra_attributes
-                else {}
-            )
+            extra_attributes = dict(_get_extra_attributes_from_request(cast_to, request_parameters))
         except Exception:
             logger.exception(
                 f"Failed to get extra attributes from request options of "
-                f"type {type(request_options)}"
+                f"type {type(request_parameters)}"
             )
             extra_attributes = {}
         try:
@@ -128,7 +113,7 @@ class _Request(_WithTracer):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         try:
-            cast_to, request_options = _parse_request_args(args)
+            cast_to, request_parameters = _parse_request_args(args)
             # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
             span_name: str = cast_to.__name__.split(".")[-1]
         except Exception:
@@ -137,7 +122,7 @@ class _Request(_WithTracer):
         with self._start_as_current_span(
             span_name=span_name,
             cast_to=cast_to,
-            request_options=request_options,
+            request_parameters=request_parameters,
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -151,8 +136,7 @@ class _Request(_WithTracer):
                     response=response,
                     with_span=with_span,
                     cast_to=cast_to,
-                    request_options=request_options,
-                    include_extra_attributes=self._include_extra_attributes,
+                    request_parameters=request_parameters,
                 )
             except Exception:
                 logger.exception(f"Failed to finalize response of type {type(response)}")
@@ -171,7 +155,7 @@ class _AsyncRequest(_WithTracer):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
         try:
-            cast_to, request_options = _parse_request_args(args)
+            cast_to, request_parameters = _parse_request_args(args)
             # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
             span_name: str = cast_to.__name__.split(".")[-1]
         except Exception:
@@ -180,7 +164,7 @@ class _AsyncRequest(_WithTracer):
         with self._start_as_current_span(
             span_name=span_name,
             cast_to=cast_to,
-            request_options=request_options,
+            request_parameters=request_parameters,
         ) as with_span:
             try:
                 response = await wrapped(*args, **kwargs)
@@ -194,8 +178,7 @@ class _AsyncRequest(_WithTracer):
                     response=response,
                     with_span=with_span,
                     cast_to=cast_to,
-                    request_options=request_options,
-                    include_extra_attributes=self._include_extra_attributes,
+                    request_parameters=request_parameters,
                 )
             except Exception:
                 logger.exception(f"Failed to finalize response of type {type(response)}")
@@ -209,13 +192,13 @@ def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]
     # The targeted signature of `request` is here:
     # https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_base_client.py#L846-L847  # noqa: E501
     cast_to: type = args[0]
-    options: Mapping[str, Any] = (
+    request_parameters: Mapping[str, Any] = (
         json_data
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_models.py#L427  # noqa: E501
         if hasattr(args[1], "json_data") and isinstance(json_data := args[1].json_data, Mapping)
         else {}
     )
-    # FIXME: Because request options is just a Mapping, it can contain any value as long as it
+    # FIXME: Because request parameters is just a Mapping, it can contain any value as long as it
     # serializes correctly in an HTTP request body. For example, Enum values may be present if a
     # third-party library puts them there. Enums can turn into their intended string values via
     # `json.dumps` when the final HTTP request body is serialized, but can pose problems when we
@@ -223,18 +206,25 @@ def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]
     # only the Enums that we know about: e.g. message role sometimes can be an Enum, so we will
     # convert it only when it's encountered.
     # try:
-    #     options = json.loads(json.dumps(options))
+    #     request_parameters = json.loads(json.dumps(request_parameters))
     # except Exception:
     #     pass
-    return cast_to, options
+    return cast_to, request_parameters
+
+
+_RESPONSE_ACCUMULATOR_FACTORIES: Mapping[type, type] = MappingProxyType(
+    {
+        ChatCompletion: _ChatCompletionAccumulator,
+        Completion: _CompletionAccumulator,
+    }
+)
 
 
 def _finalize_response(
     response: Any,
     with_span: _WithSpan,
     cast_to: type,
-    request_options: Mapping[str, Any],
-    include_extra_attributes: bool = True,
+    request_parameters: Mapping[str, Any],
 ) -> Any:
     """Monkey-patch the response object to trace the stream, or finish tracing if the response is
     not a stream.
@@ -260,8 +250,18 @@ def _finalize_response(
         # Note that we must have called `.parse()` beforehand, otherwise `._parsed` is None.
         and isinstance(response._parsed, (Stream, AsyncStream))
     ):
-        # For streaming, we need (optional) accumulators to process each chunk iteration.
-        response_accumulator = _ResponseAccumulators.find(cast_to)
+        # For streaming, we need an (optional) accumulator to process each chunk iteration.
+        try:
+            response_accumulator_factory = _RESPONSE_ACCUMULATOR_FACTORIES.get(cast_to)
+            response_accumulator = (
+                response_accumulator_factory(request_parameters)
+                if response_accumulator_factory
+                else None
+            )
+        except Exception:
+            # E.g. cast_to may not be hashable
+            logger.exception(f"Failed to get response accumulator for {cast_to}")
+            response_accumulator = None
         if hasattr(response, "_parsed") and isinstance(
             parsed := response._parsed, (Stream, AsyncStream)
         ):
@@ -270,22 +270,19 @@ def _finalize_response(
                 stream=parsed,
                 with_span=with_span,
                 response_accumulator=response_accumulator,
-                include_extra_attributes=include_extra_attributes,
             )
             return response
         return _Stream(
             stream=response,
             with_span=with_span,
             response_accumulator=response_accumulator,
-            include_extra_attributes=include_extra_attributes,
         )
     _finish_tracing(
         status_code=trace_api.StatusCode.OK,
         with_span=with_span,
         has_attributes=_ResponseAttributes(
+            request_parameters=request_parameters,
             response=response,
-            request_options=request_options,
-            include_extra_attributes=include_extra_attributes,
         ),
     )
     return response
@@ -293,16 +290,14 @@ def _finalize_response(
 
 class _ResponseAttributes:
     __slots__ = (
-        "_request_options",
         "_response",
-        "_include_extra_attributes",
+        "_request_parameters",
     )
 
     def __init__(
         self,
         response: Any,
-        request_options: Mapping[str, Any],
-        include_extra_attributes: bool = True,
+        request_parameters: Mapping[str, Any],
     ) -> None:
         if hasattr(response, "parse") and callable(response.parse):
             # E.g. see https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_base_client.py#L518  # noqa: E501
@@ -310,50 +305,14 @@ class _ResponseAttributes:
                 response = response.parse()
             except Exception:
                 logger.exception(f"Failed to parse response of type {type(response)}")
-        self._request_options = request_options
+        self._request_parameters = request_parameters
         self._response = response
-        self._include_extra_attributes = include_extra_attributes
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from _as_output_attributes(_io_value_and_type(self._response))
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if self._include_extra_attributes:
-            yield from _get_extra_attributes_from_response(
-                self._response,
-                self._request_options,
-            )
-
-
-class _Accumulators(ABC):
-    _mapping: Mapping[type, type]
-
-    def __init_subclass__(cls, mapping: Mapping[type, type], **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        cls._mapping = mapping
-
-    @classmethod
-    def find(cls, cast_to: type) -> Optional[_ResponseAccumulator]:
-        if not isinstance(cast_to, Hashable):
-            # `cast_to` may not be hashable
-            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_response.py#L172  # noqa: E501
-            return None
-        try:
-            factory = cls._mapping.get(cast_to)
-        except Exception:
-            logger.exception(f"Failed to get factory for {cast_to}")
-            return None
-        return factory() if factory else None
-
-
-class _ResponseAccumulators(
-    _Accumulators,
-    ABC,
-    mapping=MappingProxyType(
-        {
-            ChatCompletion: _ChatCompletionAccumulator,
-            Completion: _CompletionAccumulator,
-        }
-    ),
-):
-    ...
+        yield from _get_extra_attributes_from_response(
+            self._response,
+            request_parameters=self._request_parameters,
+        )

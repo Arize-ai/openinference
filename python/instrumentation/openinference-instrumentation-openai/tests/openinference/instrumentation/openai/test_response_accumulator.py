@@ -6,7 +6,7 @@ from openinference.instrumentation.openai._response_accumulator import (
 
 
 def test_chat_completion_accumulator(chat_completion_chunks, desired_chat_completion_result):
-    accumulator = _ChatCompletionAccumulator()
+    accumulator = _ChatCompletionAccumulator({})
     for chunk in chat_completion_chunks:
         accumulator.process_chunk(chunk)
     assert accumulator._result() == desired_chat_completion_result

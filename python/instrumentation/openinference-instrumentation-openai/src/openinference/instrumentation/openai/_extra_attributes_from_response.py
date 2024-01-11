@@ -2,7 +2,7 @@ import base64
 import logging
 from functools import singledispatch
 from importlib import import_module
-from types import MappingProxyType, ModuleType
+from types import ModuleType
 from typing import (
     Any,
     Iterable,
@@ -43,16 +43,16 @@ except ImportError:
 @singledispatch
 def _get_extra_attributes_from_response(
     response: Any,
-    request_options: Mapping[str, Any] = MappingProxyType({}),
+    request_parameters: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    # this is a fallback (for singledispatch)
+    # this is a fallback for @singledispatch
     yield from ()
 
 
 @_get_extra_attributes_from_response.register
 def _(
     completion: ChatCompletion,
-    request_options: Mapping[str, Any] = MappingProxyType({}),
+    request_parameters: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion.py#L40  # noqa: E501
     if model := getattr(completion, "model", None):
@@ -71,14 +71,14 @@ def _(
 @_get_extra_attributes_from_response.register
 def _(
     completion: Completion,
-    request_options: Mapping[str, Any] = MappingProxyType({}),
+    request_parameters: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion.py#L13  # noqa: E501
     if model := getattr(completion, "model", None):
         yield SpanAttributes.LLM_MODEL_NAME, model
     if usage := getattr(completion, "usage", None):
         yield from _get_attributes_from_completion_usage(usage)
-    if model_prompt := request_options.get("prompt"):
+    if model_prompt := request_parameters.get("prompt"):
         # prompt: Required[Union[str, List[str], List[int], List[List[int]], None]]
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_create_params.py#L38  # noqa: E501
         # FIXME: tokens (List[int], List[List[int]]) can't be decoded reliably because model
@@ -90,7 +90,7 @@ def _(
 @_get_extra_attributes_from_response.register
 def _(
     response: CreateEmbeddingResponse,
-    request_options: Mapping[str, Any] = MappingProxyType({}),
+    request_parameters: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/create_embedding_response.py#L20  # noqa: E501
     if usage := getattr(response, "usage", None):
@@ -104,7 +104,7 @@ def _(
                 continue
             for key, value in _get_attributes_from_embedding(embedding):
                 yield f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{key}", value
-    embedding_input = request_options.get("input")
+    embedding_input = request_parameters.get("input")
     for index, text in enumerate(_get_texts(embedding_input, model)):
         # input: Required[Union[str, List[str], List[int], List[List[int]]]]
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/embedding_create_params.py#L12  # noqa: E501

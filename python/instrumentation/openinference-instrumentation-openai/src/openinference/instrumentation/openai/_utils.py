@@ -1,7 +1,6 @@
 import json
 import logging
 import warnings
-from enum import Enum
 from importlib.metadata import version
 from typing import (
     Any,
@@ -18,7 +17,7 @@ from typing import (
 )
 
 from openinference.instrumentation.openai._with_span import _WithSpan
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import Attributes, AttributeValue
 
@@ -28,14 +27,9 @@ logger.addHandler(logging.NullHandler())
 _OPENAI_VERSION = tuple(map(int, version("openai").split(".")[:3]))
 
 
-class _MimeType(Enum):
-    text_plain = "text/plain"
-    application_json = "application/json"
-
-
 class _ValueAndType(NamedTuple):
     value: str
-    type: _MimeType
+    type: OpenInferenceMimeTypeValues
 
 
 def _io_value_and_type(obj: Any) -> _ValueAndType:
@@ -49,15 +43,15 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
         except Exception:
             logger.exception("Failed to get model dump json")
         else:
-            return _ValueAndType(value, _MimeType.application_json)
+            return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
     if not isinstance(obj, str) and isinstance(obj, (Sequence, Mapping)):
         try:
             value = json.dumps(obj)
         except Exception:
             logger.exception("Failed to dump json")
         else:
-            return _ValueAndType(value, _MimeType.application_json)
-    return _ValueAndType(str(obj), _MimeType.text_plain)
+            return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
+    return _ValueAndType(str(obj), OpenInferenceMimeTypeValues.TEXT)
 
 
 def _as_input_attributes(
@@ -66,7 +60,9 @@ def _as_input_attributes(
     if not value_and_type:
         return
     yield SpanAttributes.INPUT_VALUE, value_and_type.value
-    yield SpanAttributes.INPUT_MIME_TYPE, value_and_type.type.value
+    # it's TEXT by default, so we can skip to save one attribute
+    if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
+        yield SpanAttributes.INPUT_MIME_TYPE, value_and_type.type.value
 
 
 def _as_output_attributes(
@@ -75,7 +71,9 @@ def _as_output_attributes(
     if not value_and_type:
         return
     yield SpanAttributes.OUTPUT_VALUE, value_and_type.value
-    yield SpanAttributes.OUTPUT_MIME_TYPE, value_and_type.type.value
+    # it's TEXT by default, so we can skip to save one attribute
+    if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
+        yield SpanAttributes.OUTPUT_MIME_TYPE, value_and_type.type.value
 
 
 class _HasAttributes(Protocol):
