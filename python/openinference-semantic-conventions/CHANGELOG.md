@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.1...python-openinference-semantic-conventions-v0.1.2) (2024-01-11)
+
+
+### Bug Fixes
+
+* embedding model name should be span attribute ([#95](https://github.com/Arize-ai/openinference/issues/95)) ([bf6579b](https://github.com/Arize-ai/openinference/commit/bf6579b0543b247c181e1c0d57b91818bfc78b3c))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.0...python-openinference-semantic-conventions-v0.1.1) (2024-01-10)
 
 
