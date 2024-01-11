@@ -15,6 +15,7 @@ from typing import (
     Mapping,
     Sequence,
     Tuple,
+    Union,
     cast,
 )
 
@@ -23,6 +24,7 @@ import pytest
 from httpx import AsyncByteStream, Response
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
+    EmbeddingAttributes,
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -170,7 +172,7 @@ def test_chat_completions(
 
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_raw", [False, True])
-@pytest.mark.parametrize("is_stream", [True])
+@pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
 def test_completions(
     is_async: bool,
@@ -268,6 +270,100 @@ def test_completions(
     assert attributes == {}  # this test accounts for all the attributes after popping them
 
 
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_raw", [False, True])
+@pytest.mark.parametrize("status_code", [200, 400])
+@pytest.mark.parametrize("encoding_format", ["float", "base64"])
+@pytest.mark.parametrize("input_text", ["hello", ["hello", "world"]])
+def test_embeddings(
+    is_async: bool,
+    is_raw: bool,
+    encoding_format: str,
+    input_text: Union[str, List[str]],
+    status_code: int,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    model_name: str,
+) -> None:
+    invocation_parameters = {
+        "model": randstr(),
+        "encoding_format": encoding_format,
+    }
+    embedding_model_name = randstr()
+    embedding_usage = {
+        "prompt_tokens": random.randint(10, 100),
+        "total_tokens": random.randint(10, 100),
+    }
+    output_embeddings = [("AACAPwAAAEA=", (1.0, 2.0)), ((2.0, 3.0), (2.0, 3.0))]
+    url = "https://api.openai.com/v1/embeddings"
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=status_code,
+            json={
+                "object": "list",
+                "data": [
+                    {"object": "embedding", "index": i, "embedding": embedding[0]}
+                    for i, embedding in enumerate(output_embeddings)
+                ],
+                "model": embedding_model_name,
+                "usage": embedding_usage,
+            },
+        )
+    )
+    create_kwargs = {"input": input_text, **invocation_parameters}
+    completions = (
+        openai.AsyncOpenAI(api_key="sk-").embeddings
+        if is_async
+        else openai.OpenAI(api_key="sk-").embeddings
+    )
+    create = completions.with_raw_response.create if is_raw else completions.create
+    with suppress(openai.BadRequestError):
+        if is_async:
+
+            async def task() -> None:
+                response = await create(**create_kwargs)
+                _ = response.parse() if is_raw else response
+
+            asyncio.run(task())
+        else:
+            response = create(**create_kwargs)
+            _ = response.parse() if is_raw else response
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span: ReadableSpan = spans[0]
+    if status_code == 200:
+        assert span.status.is_ok
+    elif status_code == 400:
+        assert not span.status.is_ok and not span.status.is_unset
+        assert len(span.events) == 1
+        event = span.events[0]
+        assert event.name == "exception"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert (
+        attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
+    assert (
+        json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+        == invocation_parameters
+    )
+    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+    assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
+    if status_code == 200:
+        assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
+        assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
+        assert attributes.pop(EMBEDDING_MODEL_NAME, None) == embedding_model_name
+        assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == embedding_usage["total_tokens"]
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == embedding_usage["prompt_tokens"]
+        for i, text in enumerate(input_text if isinstance(input_text, list) else [input_text]):
+            assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}", None) == text
+        for i, embedding in enumerate(output_embeddings):
+            assert (
+                attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}", None)
+                == embedding[1]
+            )
+    assert attributes == {}  # this test accounts for all the attributes after popping them
+
+
 @pytest.fixture(scope="function")
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
@@ -286,6 +382,42 @@ def instrument(in_memory_span_exporter: InMemorySpanExporter) -> Generator[None,
     OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     OpenAIInstrumentor().uninstrument()
+
+
+@pytest.fixture(scope="module")
+def seed() -> Iterator[int]:
+    """
+    Use rolling seeds to make debugging easier, because the rolling pseudo-random
+    values allow conditional breakpoints to be hit precisely (and repeatably).
+    """
+    return count()
+
+
+@pytest.fixture(autouse=True)
+def set_seed(seed: Iterator[int]) -> None:
+    random.seed(next(seed))
+    yield
+
+
+@pytest.fixture
+def completion_usage() -> Dict[str, Any]:
+    prompt_tokens = random.randint(1, 1000)
+    completion_tokens = random.randint(1, 1000)
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
+
+
+@pytest.fixture
+def model_name() -> str:
+    return randstr()
+
+
+@pytest.fixture
+def input_messages() -> List[Dict[str, Any]]:
+    return [{"role": randstr(), "content": randstr()} for _ in range(2)]
 
 
 @pytest.fixture
@@ -411,40 +543,17 @@ def completions_mock_stream() -> Tuple[List[bytes], List[str]]:
     )
 
 
-@pytest.fixture
-def completion_usage() -> Dict[str, Any]:
-    prompt_tokens = random.randint(1, 1000)
-    completion_tokens = random.randint(1, 1000)
-    return {
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": prompt_tokens + completion_tokens,
-    }
+class MockAsyncByteStream(AsyncByteStream):
+    def __init__(self, byte_stream: Iterable[bytes]):
+        self._byte_stream = byte_stream
 
+    def __iter__(self) -> AsyncIterator[bytes]:
+        for byte_string in self._byte_stream:
+            yield byte_string
 
-@pytest.fixture
-def model_name() -> str:
-    return randstr()
-
-
-@pytest.fixture
-def input_messages() -> List[Dict[str, Any]]:
-    return [{"role": randstr(), "content": randstr()} for _ in range(2)]
-
-
-@pytest.fixture(scope="module")
-def seed() -> Iterator[int]:
-    """
-    Use rolling seeds to make debugging easier, because the rolling pseudo-random
-    values allow conditional breakpoints to be hit precisely (and repeatably).
-    """
-    return count()
-
-
-@pytest.fixture(autouse=True)
-def set_seed(seed: Iterator[int]) -> None:
-    random.seed(next(seed))
-    yield
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        for byte_string in self._byte_stream:
+            yield byte_string
 
 
 def randstr() -> str:
@@ -508,19 +617,6 @@ def tool_call_function_arguments(prefix: str, i: int, j: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
 
-class MockAsyncByteStream(AsyncByteStream):
-    def __init__(self, byte_stream: Iterable[bytes]):
-        self._byte_stream = byte_stream
-
-    def __iter__(self) -> AsyncIterator[bytes]:
-        for byte_string in self._byte_stream:
-            yield byte_string
-
-    async def __aiter__(self) -> AsyncIterator[bytes]:
-        for byte_string in self._byte_stream:
-            yield byte_string
-
-
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
@@ -541,3 +637,7 @@ MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_A
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
+EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
+EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT

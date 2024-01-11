@@ -39,6 +39,7 @@ test = [
   "openai == 1.0.0",
   "opentelemetry-sdk",
   "respx",
+  "numpy",
 ]
 
 [project.urls]

@@ -85,7 +85,8 @@ async def embeddings(**kwargs):
 async def embeddings_with_raw_response(**kwargs):
     try:
         with suppress(openai.BadRequestError):
-            await CLIENT.embeddings.with_raw_response.create(**{**KWARGS, **kwargs})
+            response = await CLIENT.embeddings.with_raw_response.create(**{**KWARGS, **kwargs})
+            response
     except Exception:
         logger.exception(f"{inspect.stack()[0][3]}({kwargs})")
     finally:
@@ -99,18 +100,18 @@ async def main(*tasks):
 if __name__ == "__main__":
     asyncio.run(
         main(
-            embeddings(input="hello world"),
-            embeddings(input="hello world", encoding_format="float"),
-            embeddings(input="hello world", encoding_format="base64"),
-            embeddings(input=["hello", "world"]),
-            embeddings(input=["hello", "world"], encoding_format="float"),
-            embeddings(input=["hello", "world"], encoding_format="base64"),
-            embeddings(input=[15339, 1917]),
-            embeddings(input=[15339, 1917], encoding_format="float"),
-            embeddings(input=[15339, 1917], encoding_format="base64"),
-            embeddings(input=[[15339], [14957]]),
-            embeddings(input=[[15339], [14957]], encoding_format="float"),
-            embeddings(input=[[15339], [14957]], encoding_format="base64"),
+            # embeddings(input="hello world"),
+            # embeddings(input="hello world", encoding_format="float"),
+            # embeddings(input="hello world", encoding_format="base64"),
+            # embeddings(input=["hello", "world"]),
+            # embeddings(input=["hello", "world"], encoding_format="float"),
+            # embeddings(input=["hello", "world"], encoding_format="base64"),
+            # embeddings(input=[15339, 1917]),
+            # embeddings(input=[15339, 1917], encoding_format="float"),
+            # embeddings(input=[15339, 1917], encoding_format="base64"),
+            # embeddings(input=[[15339], [14957]]),
+            # embeddings(input=[[15339], [14957]], encoding_format="float"),
+            # embeddings(input=[[15339], [14957]], encoding_format="base64"),
             embeddings_with_raw_response(input="hello world"),
             embeddings_with_raw_response(input="hello world", encoding_format="float"),
             embeddings_with_raw_response(input="hello world", encoding_format="base64"),

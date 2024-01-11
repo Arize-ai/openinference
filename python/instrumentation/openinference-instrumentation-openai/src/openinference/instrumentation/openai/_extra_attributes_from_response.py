@@ -97,7 +97,7 @@ def _(
         yield from _get_attributes_from_embedding_usage(usage)
     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/embedding_create_params.py#L23  # noqa: E501
     if model := getattr(response, "model"):
-        yield f"{EmbeddingAttributes.EMBEDDING_MODEL_NAME}", model
+        yield f"{SpanAttributes.EMBEDDING_MODEL_NAME}", model
     if (data := getattr(response, "data", None)) and isinstance(data, Iterable):
         for embedding in data:
             if (index := getattr(embedding, "index", None)) is None:
