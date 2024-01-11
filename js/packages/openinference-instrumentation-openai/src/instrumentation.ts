@@ -82,7 +82,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           ...args: Parameters<ChatCompletionCreateType>
         ) {
           const body = args[0];
-          const { messages: _, ...invocationParameters } = body;
+          const { messages: _messages, ...invocationParameters } = body;
           const span = instrumentation.tracer.startSpan(
             `OpenAI Chat Completions`,
             {
@@ -163,23 +163,20 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           ...args: Parameters<CompletionsCreateType>
         ) {
           const body = args[0];
-          const { prompt: _, ...invocationParameters } = body;
-          const span = instrumentation.tracer.startSpan(
-            `OpenAI Completions`,
-            {
-              kind: SpanKind.INTERNAL,
-              attributes: {
-                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                  OpenInferenceSpanKind.LLM,
-                [SemanticConventions.LLM_MODEL_NAME]: body.model,
-                [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
-                [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-                [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
-                  JSON.stringify(invocationParameters),
-                ...getLLMPromptAttributes(body),
-              },
+          const { prompt: _prompt, ...invocationParameters } = body;
+          const span = instrumentation.tracer.startSpan(`OpenAI Completions`, {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.LLM,
+              [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
+              [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+              [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+                JSON.stringify(invocationParameters),
+              ...getLLMPromptAttributes(body),
             },
-          );
+          });
           const execContext = trace.setSpan(context.active(), span);
           const execPromise = safeExecuteInTheMiddle<
             ReturnType<CompletionsCreateType>
@@ -324,7 +321,7 @@ function isCompletionResponse(
 /**
  * type-guard that checks if completion prompt attribute is an array of strings
  */
-function isStringArray(
+function isPromptStringArray(
   prompt: CompletionCreateParamsBase["prompt"],
 ): prompt is Array<string> {
   return (
@@ -358,7 +355,7 @@ function getLLMPromptAttributes(body: CompletionCreateParamsBase): Attributes {
     return {
       [SemanticConventions.LLM_PROMPTS]: [body.prompt],
     };
-  } else if (isStringArray(body.prompt)) {
+  } else if (isPromptStringArray(body.prompt)) {
     return {
       [SemanticConventions.LLM_PROMPTS]: body.prompt,
     };
@@ -419,10 +416,10 @@ function getCompletionLLMMessageAttributes(completion: Completion): Attributes {
   const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
   return {
     [`${indexPrefix}.${SemanticConventions.MESSAGE_CONTENT}`]: String(
-      choice.text
+      choice.text,
     ),
     [`${indexPrefix}.${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
-  }
+  };
 }
 
 /**
