@@ -26,8 +26,10 @@ import {
   ChatCompletionChunk,
   ChatCompletionCreateParamsBase,
 } from "openai/resources/chat/completions";
+import { CompletionCreateParamsBase } from "openai/resources/completions";
 import { Stream } from "openai/streaming";
 import {
+  Completion,
   CreateEmbeddingResponse,
   EmbeddingCreateParams,
 } from "openai/resources";
@@ -65,7 +67,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     }
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: OpenAIInstrumentation = this;
-    type CompletionCreateType =
+
+    type ChatCompletionCreateType =
       typeof module.OpenAI.Chat.Completions.prototype.create;
 
     // Patch create chat completions
@@ -73,15 +76,13 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       module.OpenAI.Chat.Completions.prototype,
       "create",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (original: CompletionCreateType): any => {
+      (original: ChatCompletionCreateType): any => {
         return function patchedCreate(
           this: unknown,
-          ...args: Parameters<
-            typeof module.OpenAI.Chat.Completions.prototype.create
-          >
+          ...args: Parameters<ChatCompletionCreateType>
         ) {
           const body = args[0];
-          const { messages: _messages, ...invocationParameters } = body;
+          const { messages: _, ...invocationParameters } = body;
           const span = instrumentation.tracer.startSpan(
             `OpenAI Chat Completions`,
             {
@@ -100,7 +101,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           );
           const execContext = trace.setSpan(context.active(), span);
           const execPromise = safeExecuteInTheMiddle<
-            ReturnType<CompletionCreateType>
+            ReturnType<ChatCompletionCreateType>
           >(
             () => {
               return context.with(execContext, () => {
@@ -127,7 +128,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
-                ...getLLMOutputMessagesAttributes(result),
+                ...getChatCompletionLLMOutputMessagesAttributes(result),
                 ...getUsageAttributes(result),
               });
               span.setStatus({ code: SpanStatusCode.OK });
@@ -148,6 +149,79 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       },
     );
 
+    // Patch create completions
+    type CompletionsCreateType =
+      typeof module.OpenAI.Completions.prototype.create;
+
+    this._wrap(
+      module.OpenAI.Completions.prototype,
+      "create",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (original: CompletionsCreateType): any => {
+        return function patchedCreate(
+          this: unknown,
+          ...args: Parameters<CompletionsCreateType>
+        ) {
+          const body = args[0];
+          const { prompt: _, ...invocationParameters } = body;
+          const span = instrumentation.tracer.startSpan(
+            `OpenAI Completions`,
+            {
+              kind: SpanKind.INTERNAL,
+              attributes: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+                [SemanticConventions.LLM_MODEL_NAME]: body.model,
+                [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
+                [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+                [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+                  JSON.stringify(invocationParameters),
+                ...getLLMPromptAttributes(body),
+              },
+            },
+          );
+          const execContext = trace.setSpan(context.active(), span);
+          const execPromise = safeExecuteInTheMiddle<
+            ReturnType<CompletionsCreateType>
+          >(
+            () => {
+              return context.with(execContext, () => {
+                return original.apply(this, args);
+              });
+            },
+            (error) => {
+              // Push the error to the span
+              if (error) {
+                span.recordException(error);
+                span.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: error.message,
+                });
+                span.end();
+              }
+            },
+          );
+          const wrappedPromise = execPromise.then((result) => {
+            if (isCompletionResponse(result)) {
+              // Record the results
+              span.setAttributes({
+                [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
+                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                // Override the model from the value sent by the server
+                [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                ...getCompletionLLMMessageAttributes(result),
+                ...getUsageAttributes(result),
+              });
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+            }
+            return result;
+          });
+          return context.bind(execContext, wrappedPromise);
+        };
+      },
+    );
+
     // Patch embeddings
     type EmbeddingsCreateType =
       typeof module.OpenAI.Embeddings.prototype.create;
@@ -158,11 +232,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       (original: EmbeddingsCreateType): any => {
         return function patchedEmbeddingCreate(
           this: unknown,
-          ...args: Parameters<typeof module.OpenAI.Embeddings.prototype.create>
+          ...args: Parameters<EmbeddingsCreateType>
         ) {
           const body = args[0];
           const { input } = body;
-          const isStringInput = typeof input == "string";
+          const isStringInput = typeof input === "string";
           const span = instrumentation.tracer.startSpan(`OpenAI Embeddings`, {
             kind: SpanKind.INTERNAL,
             attributes: {
@@ -239,7 +313,27 @@ function isChatCompletionResponse(
 }
 
 /**
- * Converts the body of the request to LLM input messages
+ * type-guard that checks if the response is a completion response
+ */
+function isCompletionResponse(
+  response: Stream<Completion> | Completion,
+): response is Completion {
+  return "choices" in response;
+}
+
+/**
+ * type-guard that checks if completion prompt attribute is an array of strings
+ */
+function isStringArray(
+  prompt: CompletionCreateParamsBase["prompt"],
+): prompt is Array<string> {
+  return (
+    Array.isArray(prompt) && prompt.every((item) => typeof item === "string")
+  );
+}
+
+/**
+ * Converts the body of a chat completions request to LLM input messages
  */
 function getLLMInputMessagesAttributes(
   body: ChatCompletionCreateParamsBase,
@@ -257,9 +351,28 @@ function getLLMInputMessagesAttributes(
 }
 
 /**
- * Get Usage attributes
+ * Converts the body of a completions request to LLM input messages
  */
-function getUsageAttributes(completion: ChatCompletion): Attributes {
+function getLLMPromptAttributes(body: CompletionCreateParamsBase): Attributes {
+  if (typeof body.prompt === "string") {
+    return {
+      [SemanticConventions.LLM_PROMPTS]: [body.prompt],
+    };
+  } else if (isStringArray(body.prompt)) {
+    return {
+      [SemanticConventions.LLM_PROMPTS]: body.prompt,
+    };
+  }
+  // Other cases in which the prompt is a token or array of tokens are currently unsupported
+  return {};
+}
+
+/**
+ * Get usage attributes
+ */
+function getUsageAttributes(
+  completion: ChatCompletion | Completion,
+): Attributes {
   if (completion.usage) {
     return {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
@@ -274,24 +387,42 @@ function getUsageAttributes(completion: ChatCompletion): Attributes {
 }
 
 /**
- * Converts the result to LLM output attributes
+ * Converts the chat completion result to LLM output attributes
  */
-function getLLMOutputMessagesAttributes(
-  completion: ChatCompletion,
+function getChatCompletionLLMOutputMessagesAttributes(
+  chatCompletion: ChatCompletion,
 ): Attributes {
+  // Right now support just the first choice
+  const choice = chatCompletion.choices[0];
+  if (!choice) {
+    return {};
+  }
+  return [choice.message].reduce((acc, message, index) => {
+    const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}`;
+    acc[`${indexPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] = String(
+      message.content,
+    );
+    acc[`${indexPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
+    return acc;
+  }, {} as Attributes);
+}
+
+/**
+ * Converts the completion result to LLM output attributes
+ */
+function getCompletionLLMMessageAttributes(completion: Completion): Attributes {
   // Right now support just the first choice
   const choice = completion.choices[0];
   if (!choice) {
     return {};
   }
-  return [choice.message].reduce((acc, message, index) => {
-    const index_prefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}`;
-    acc[`${index_prefix}.${SemanticConventions.MESSAGE_CONTENT}`] = String(
-      message.content,
-    );
-    acc[`${index_prefix}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
-    return acc;
-  }, {} as Attributes);
+  const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
+  return {
+    [`${indexPrefix}.${SemanticConventions.MESSAGE_CONTENT}`]: String(
+      choice.text
+    ),
+    [`${indexPrefix}.${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
+  }
 }
 
 /**
@@ -300,7 +431,7 @@ function getLLMOutputMessagesAttributes(
 function getEmbeddingTextAttributes(
   request: EmbeddingCreateParams,
 ): Attributes {
-  if (typeof request.input == "string") {
+  if (typeof request.input === "string") {
     return {
       [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
         request.input,
@@ -308,7 +439,7 @@ function getEmbeddingTextAttributes(
   } else if (
     Array.isArray(request.input) &&
     request.input.length > 0 &&
-    typeof request.input[0] == "string"
+    typeof request.input[0] === "string"
   ) {
     return request.input.reduce((acc, input, index) => {
       const index_prefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}`;
