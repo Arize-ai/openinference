@@ -170,11 +170,9 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
                 OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_MODEL_NAME]: body.model,
-              [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
-              [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                 JSON.stringify(invocationParameters),
-              ...getLLMPromptAttributes(body),
+              ...getCompletionInputValueAndMimeType(body),
             },
           });
           const execContext = trace.setSpan(context.active(), span);
@@ -206,7 +204,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
-                ...getCompletionLLMMessageAttributes(result),
+                ...getCompletionOutputValueAndMimeType(result),
                 ...getUsageAttributes(result),
               });
               span.setStatus({ code: SpanStatusCode.OK });
@@ -348,16 +346,22 @@ function getLLMInputMessagesAttributes(
 }
 
 /**
- * Converts the body of a completions request to LLM input messages
+ * Converts the body of a completions request to input attributes
  */
-function getLLMPromptAttributes(body: CompletionCreateParamsBase): Attributes {
+function getCompletionInputValueAndMimeType(body: CompletionCreateParamsBase): Attributes {
   if (typeof body.prompt === "string") {
     return {
-      [SemanticConventions.LLM_PROMPTS]: [body.prompt],
+      [SemanticConventions.INPUT_VALUE]: body.prompt,
+      [SemanticConventions.INPUT_MIME_TYPE]: MimeType.TEXT,
     };
   } else if (isPromptStringArray(body.prompt)) {
+    const prompt = body.prompt[0]; // Only single prompts are currently supported
+    if (prompt === undefined) {
+      return {};
+    }
     return {
-      [SemanticConventions.LLM_PROMPTS]: body.prompt,
+      [SemanticConventions.INPUT_VALUE]: prompt,
+      [SemanticConventions.INPUT_MIME_TYPE]: MimeType.TEXT,
     };
   }
   // Other cases in which the prompt is a token or array of tokens are currently unsupported
@@ -405,20 +409,17 @@ function getChatCompletionLLMOutputMessagesAttributes(
 }
 
 /**
- * Converts the completion result to LLM output attributes
+ * Converts the completion result to output attributes
  */
-function getCompletionLLMMessageAttributes(completion: Completion): Attributes {
+function getCompletionOutputValueAndMimeType(completion: Completion): Attributes {
   // Right now support just the first choice
   const choice = completion.choices[0];
   if (!choice) {
     return {};
   }
-  const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
   return {
-    [`${indexPrefix}.${SemanticConventions.MESSAGE_CONTENT}`]: String(
-      choice.text,
-    ),
-    [`${indexPrefix}.${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
+    [SemanticConventions.OUTPUT_VALUE]: String(choice.text),
+    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
   };
 }
 

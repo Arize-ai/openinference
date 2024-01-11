@@ -135,21 +135,16 @@ describe("OpenAIInstrumentation", () => {
     expect(span.name).toBe("OpenAI Completions");
     expect(span.attributes).toMatchInlineSnapshot(`
       {
-        "input.mime_type": "application/json",
-        "input.value": "{"prompt":"Say this is a test","model":"gpt-3.5-turbo-instruct"}",
+        "input.mime_type": "text/plain",
+        "input.value": "Say this is a test",
         "llm.invocation_parameters": "{"model":"gpt-3.5-turbo-instruct"}",
         "llm.model_name": "gpt-3.5-turbo-instruct",
-        "llm.output_messages.0.message.content": "This is a test",
-        "llm.output_messages.0.message.role": "assistant",
-        "llm.prompts": [
-          "Say this is a test",
-        ],
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
         "llm.token_count.total": 17,
         "openinference.span.kind": "llm",
-        "output.mime_type": "application/json",
-        "output.value": "{"id":"cmpl-8fZu1H3VijJUWev9asnxaYyQvJTC9","object":"text_completion","created":1704920149,"model":"gpt-3.5-turbo-instruct","choices":[{"text":"This is a test","index":0,"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+        "output.mime_type": "text/plain",
+        "output.value": "This is a test",
       }
     `);
   });
