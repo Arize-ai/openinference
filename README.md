@@ -20,14 +20,16 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 
 ## Python
 
-| Package                                                                                                            | Description                                   |
-|--------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
-| [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md)                      | Semantic conventions for tracing of LLM Apps. |
-| [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai/README.rst) | OpenInference Instrumentation for OpenAI SDK. |
+Table of packages
+
+| Package                                                                                                            | Description                                   | Version                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md)                      | Semantic conventions for tracing of LLM Apps. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)      |
+| [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai/README.rst) | OpenInference Instrumentation for OpenAI SDK. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai.) |
 
 ## JavaScript
 
-| Package                                                                                                         | Description                                   |
-| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| [`@arizeai/openinference-semantic-conventions`](./js/packages/openinference-semantic-conventions/README.md)     | Semantic conventions for tracing of LLM Apps. |
-| [`@arizeai/openinference-instrumentation-openai`](./js/packages/openinference-instrumentation-openai/README.md) | OpenInference Instrumentation for OpenAI SDK. |
+| Package                                                                                                         | Description                                   | Version                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@arizeai/openinference-semantic-conventions`](./js/packages/openinference-semantic-conventions/README.md)     | Semantic conventions for tracing of LLM Apps. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-semantic-conventions.svg)](https://www.npmjs.com/package/@arizeai/openinference-semantic-conventions) |
+| [`@arizeai/openinference-instrumentation-openai`](./js/packages/openinference-instrumentation-openai/README.md) | OpenInference Instrumentation for OpenAI SDK. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-openai)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-openai) |
