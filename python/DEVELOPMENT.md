@@ -24,6 +24,7 @@ instrumentation package.
 `semconv`.
 - `-e` specifies the environment string(s), which is a hyphen-delimited list of "factors" defined in `tox.ini`.
 Multiple environment strings can be specified by separating them with commas, e.g. `-e ruff-openai,ruff-semconv`.
+- Without `-e`, `tox` runs all the environments defined under `envlist=` in `tox.ini`.
 
 ## Introduction to `tox`
 
