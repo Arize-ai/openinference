@@ -10,30 +10,37 @@ readme = "README.rst"
 license = "Apache-2.0"
 requires-python = ">=3.8, <3.12"
 authors = [
-    { name = "OpenInference Authors", email = "oss@arize.com" },
+  { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-    "opentelemetry-api",
-    "opentelemetry-instrumentation",
-    "opentelemetry-semantic-conventions",
-    "openinference-semantic-conventions",
-    "wrapt",
+  "opentelemetry-api",
+  "opentelemetry-instrumentation",
+  "opentelemetry-semantic-conventions",
+  "openinference-semantic-conventions",
+  "wrapt",
 ]
 
 [project.optional-dependencies]
+instruments = [
+  "openai >= 1.0.0",
+]
 test = [
-    "openai == 1.0.0",
+  "openai == 1.0.0",
+  "opentelemetry-sdk",
+  "opentelemetry-instrumentation-httpx",
+  "respx",
+  "numpy",
 ]
 
 [project.urls]
@@ -44,8 +51,8 @@ path = "src/openinference/instrumentation/openai/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/src",
-    "/tests",
+  "/src",
+  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]

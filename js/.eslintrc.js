@@ -29,5 +29,6 @@ module.exports = {
         varsIgnorePattern: "^_",
       },
     ], // ignore unused variables starting with underscore
+    eqeqeq: ["error", "always"],
   },
 };

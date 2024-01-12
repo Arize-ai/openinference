@@ -1,0 +1,12 @@
+line-length = 100
+exclude = [
+    ".git",
+    ".tox",
+    "dist",
+]
+ignore-init-module-imports = true
+select = ["E", "F", "W", "I"]
+target-version = "py38"
+
+[lint.isort]
+force-single-line = false
