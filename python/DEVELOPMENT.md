@@ -2,7 +2,7 @@
 
 This project uses [ruff](https://github.com/astral-sh/ruff) for formatting and linting, 
 [mypy](https://github.com/python/mypy) for type checking, and [tox](https://github.com/tox-dev/tox) for 
-automation. To install these tools, run:
+automation. To start, run:
 
 ```console
 $ pip install tox
