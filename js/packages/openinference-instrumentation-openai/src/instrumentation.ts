@@ -25,12 +25,14 @@ import {
   ChatCompletion,
   ChatCompletionChunk,
   ChatCompletionCreateParamsBase,
+  ChatCompletionMessageParam,
 } from "openai/resources/chat/completions";
 import { Stream } from "openai/streaming";
 import {
   CreateEmbeddingResponse,
   EmbeddingCreateParams,
 } from "openai/resources";
+import { assertUnreachable } from "./typeUtils";
 
 const MODULE_NAME = "openai";
 
@@ -245,22 +247,62 @@ function getLLMInputMessagesAttributes(
   body: ChatCompletionCreateParamsBase,
 ): Attributes {
   return body.messages.reduce((acc, message, index) => {
+    const messageAttributes = getChatCompletionInputMessageAttributes(message);
     const index_prefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}`;
-    acc[`${index_prefix}.${SemanticConventions.MESSAGE_CONTENT}`] = String(
-      message.content,
-    );
-    acc[`${index_prefix}.${SemanticConventions.MESSAGE_ROLE}`] = String(
-      message.role,
-    );
-    if (message.role == "tool") {
-      acc[`${index_prefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-        message.tool_call_id;
-    } else if (message.role === "function") {
-      acc[`${index_prefix}.${SemanticConventions.MESSAGE_FUNCTION_CALL_NAME}`] =
-        message.name;
+    // Flatten the attributes on the index prefix
+    for (const [key, value] of Object.entries(messageAttributes)) {
+      acc[`${index_prefix}.${key}`] = value;
     }
     return acc;
   }, {} as Attributes);
+}
+
+function getChatCompletionInputMessageAttributes(
+  message: ChatCompletionMessageParam,
+): Attributes {
+  const role = message.role;
+  const attributes: Attributes = {
+    [SemanticConventions.MESSAGE_ROLE]: role,
+  };
+  switch (role) {
+    case "user":
+      // Add the content only if it is a string
+      if (typeof message.content == "string")
+        attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+      break;
+    case "assistant":
+      if (message.tool_calls) {
+        message.tool_calls.forEach((toolCall, index) => {
+          const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}`;
+          attributes[
+            toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
+          ] = toolCall.function.name;
+          attributes[
+            toolCallIndexPrefix +
+              SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+          ] = JSON.stringify(toolCall.function.arguments);
+        });
+      }
+      break;
+    case "function":
+      // Add the content only if it is a string
+      if (typeof message.content == "string")
+        attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+      attributes[SemanticConventions.MESSAGE_FUNCTION_CALL_NAME] = message.name;
+      break;
+    case "tool":
+      if (typeof message.content == "string")
+        attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+      break;
+    case "system":
+      if (typeof message.content == "string")
+        attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+      break;
+    default:
+      assertUnreachable(role);
+      break;
+  }
+  return attributes;
 }
 
 /**
