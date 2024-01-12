@@ -20,9 +20,10 @@ instrumentation package.
 
 ### Notes
 - When you run these commands, `tox` will print out all the steps it is taking in the command line.
-- `-e` specifies the environment string(s), which is a hyphen-delimited list of "factors" defined in `tox.ini`.
 - The `openai` substring in the commands above can be replaced by other package names defined in `tox.ini`, e.g.
 `semconv`.
+- `-e` specifies the environment string(s), which is a hyphen-delimited list of "factors" defined in `tox.ini`.
+Multiple environment strings can be specified by separating them with commas, e.g. `-e ruff-openai,ruff-semconv`.
 
 ## Introduction to `tox`
 
