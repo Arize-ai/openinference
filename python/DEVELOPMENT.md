@@ -5,6 +5,7 @@ This project uses [ruff](https://github.com/astral-sh/ruff) for formatting and l
 automation. To install these tools, run:
 
 ```console
+$ pip install tox
 $ pip install -r dev-requirements.txt
 ```
 
