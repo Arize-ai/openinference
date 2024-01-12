@@ -93,11 +93,19 @@ export const OUTPUT_MIME_TYPE =
   `${SemanticAttributePrefixes.output}.mime_type` as const;
 /**
  * The messages sent to the LLM for completions
- * Typically seen in openAI chat completions
+ * Typically seen in OpenAI chat completions
  * @see https://beta.openai.com/docs/api-reference/completions/create
  */
 export const LLM_INPUT_MESSAGES =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.input_messages}` as const;
+
+/**
+ * The prompts sent to the LLM for completions
+ * Typically seen in OpenAI legacy completions
+ * @see https://beta.openai.com/docs/api-reference/completions/create
+ */
+export const LLM_PROMPTS =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.prompts}` as const;
 
 /**
  * The JSON representation of the parameters passed to the LLM
@@ -107,7 +115,7 @@ export const LLM_INVOCATION_PARAMETERS =
 
 /**
  * The messages received from the LLM for completions
- * Typically seen in openAI chat completions
+ * Typically seen in OpenAI chat completions
  * @see https://platform.openai.com/docs/api-reference/chat/object#choices-message
  */
 export const LLM_OUTPUT_MESSAGES =
@@ -224,6 +232,7 @@ export const SemanticConventions = {
   LLM_INPUT_MESSAGES,
   LLM_OUTPUT_MESSAGES,
   LLM_MODEL_NAME,
+  LLM_PROMPTS,
   LLM_INVOCATION_PARAMETERS,
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_PROMPT,

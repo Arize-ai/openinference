@@ -177,9 +177,10 @@ class _WithOpenAI(ABC):
         if (
             self._is_streaming(response)
             or hasattr(
-                # FIXME: Ideally we should not rely on a private attribute (but it may be impossible).
-                # The assumption here is that calling `.parse()` stores the stream object in `._parsed`
-                # and calling `.parse()` again will not overwrite the monkey-patched version.
+                # FIXME: Ideally we shouldn't rely on a private attribute (but it may be
+                # impossible). The assumption here is that calling `.parse()` stores the
+                # stream object in `._parsed` and calling `.parse()` again will not
+                # overwrite the monkey-patched version.
                 # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_response.py#L65  # noqa: E501
                 response,
                 "_parsed",
