@@ -28,7 +28,7 @@ describe("OpenAIInstrumentation", () => {
   beforeAll(() => {
     instrumentation.enable();
     openai = new OpenAI.OpenAI({
-      apiKey: "fake-api-key",
+      apiKey: process.env["OPENAI_API_KEY"] || "fake-api-key",
     });
   });
   afterAll(() => {
@@ -183,5 +183,52 @@ describe("OpenAIInstrumentation", () => {
         "output.value": "This is a test.",
       }
     `);
+  });
+  it("should capture tool calls", async () => {
+    async function getCurrentLocation() {
+      return "Boston"; // Simulate lookup
+    }
+
+    async function getWeather(_args: { location: string }) {
+      return { temperature: 52, precipitation: "rainy" };
+    }
+
+    const messages = [];
+    const runner = openai.beta.chat.completions
+      .runTools({
+        model: "gpt-3.5-turbo",
+        messages: [{ role: "user", content: "How is the weather this week?" }],
+        tools: [
+          {
+            type: "function",
+            function: {
+              function: getCurrentLocation,
+              parameters: { type: "object", properties: {} },
+              description: "Get the current location of the user.",
+            },
+          },
+          {
+            type: "function",
+            function: {
+              function: getWeather,
+              parse: JSON.parse, // or use a validation library like zod for typesafe parsing.
+              description: "Get the weather for a location.",
+              parameters: {
+                type: "object",
+                properties: {
+                  location: { type: "string" },
+                },
+              },
+            },
+          },
+        ],
+      })
+      .on("message", (message) => messages.push(message));
+
+    const finalContent = await runner.finalContent();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Embeddings");
   });
 });
