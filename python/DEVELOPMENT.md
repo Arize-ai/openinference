@@ -6,7 +6,6 @@ automation. To install these tools, run:
 
 ```console
 $ pip install tox
-$ pip install -r dev-requirements.txt
 ```
 
 ## Example commands
