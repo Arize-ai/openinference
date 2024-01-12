@@ -12,6 +12,7 @@ $ pip install -r dev-requirements.txt
 
 - `tox run-parallel` to run all CI checks in parallel, including unit tests for all packages
 under multiple Python versions.
+  - This runs all the environments defined under `envlist=` in `tox.ini`.
 - `tox run -e ruff-openai` to run formatting and linting the openai instrumentation package.
 - `tox run -e mypy-openai` to run type checking on the openai instrumentation package.
 - `tox run -e test-openai` to run type testing on the openai instrumentation package.
