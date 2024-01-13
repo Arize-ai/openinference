@@ -25,6 +25,7 @@ import {
   ChatCompletion,
   ChatCompletionChunk,
   ChatCompletionCreateParamsBase,
+  ChatCompletionMessage,
   ChatCompletionMessageParam,
 } from "openai/resources/chat/completions";
 import { CompletionCreateParamsBase } from "openai/resources/completions";
@@ -356,7 +357,7 @@ function getChatCompletionInputMessageAttributes(
   switch (role) {
     case "user":
       // Add the content only if it is a string
-      if (typeof message.content == "string")
+      if (typeof message.content === "string")
         attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
       break;
     case "assistant":
@@ -375,16 +376,16 @@ function getChatCompletionInputMessageAttributes(
       break;
     case "function":
       // Add the content only if it is a string
-      if (typeof message.content == "string")
+      if (typeof message.content === "string")
         attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
       attributes[SemanticConventions.MESSAGE_FUNCTION_CALL_NAME] = message.name;
       break;
     case "tool":
-      if (typeof message.content == "string")
+      if (typeof message.content === "string")
         attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
       break;
     case "system":
-      if (typeof message.content == "string")
+      if (typeof message.content === "string")
         attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
       break;
     default:
@@ -451,12 +452,19 @@ function getChatCompletionLLMOutputMessagesAttributes(
   }
   return [choice.message].reduce((acc, message, index) => {
     const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}`;
-    acc[`${indexPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] = String(
-      message.content,
-    );
-    acc[`${indexPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
+    const messageAttributes = getChatCompletionOutputMessageAttributes(message);
+    // Flatten the attributes on the index prefix
+    for (const [key, value] of Object.entries(messageAttributes)) {
+      acc[`${indexPrefix}.${key}`] = value;
+    }
     return acc;
   }, {} as Attributes);
+}
+
+function getChatCompletionOutputMessageAttributes(
+  _message: ChatCompletionMessage,
+): Attributes {
+  return {};
 }
 
 /**
