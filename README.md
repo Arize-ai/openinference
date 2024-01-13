@@ -1,5 +1,5 @@
-<p >
-    <img alt="OpenInfence" src="https://raw.githubusercontent.com/Arize-ai/phoenix-assets/main/logos/OpenInference/Full%20color/OI-full-horiz.svg" width="100%" height="100%" />
+<p align="center">
+    <img alt="OpenInfence" src="https://raw.githubusercontent.com/Arize-ai/phoenix-assets/main/logos/OpenInference/Full%20color/OI-full-horiz.svg" width="80%" height="100%" />
     <p>
     </p>
     <a href="https://arize-ai.github.io/openinference/">
