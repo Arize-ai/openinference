@@ -1,5 +1,16 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 1.0.0 (2024-01-13)
+
+
+### Features
+
+* **instrumentaiton:** openai instrumentation ([#3](https://github.com/Arize-ai/openinference/issues/3)) ([8027345](https://github.com/Arize-ai/openinference/commit/80273456566da8047ff70e3b0441c89bde2f636d))
+* **js:** opanai chat completion streaming support ([#87](https://github.com/Arize-ai/openinference/issues/87)) ([82c5d83](https://github.com/Arize-ai/openinference/commit/82c5d83e0c50d58d0cddfc19841a984c3682dbb6))
+* **js:** openai completions ([#94](https://github.com/Arize-ai/openinference/issues/94)) ([1925aad](https://github.com/Arize-ai/openinference/commit/1925aad95befefb190c119ef070068e448dfd630))
+* **js:** OpenAI embeddings Instrumentation ([#34](https://github.com/Arize-ai/openinference/issues/34)) ([18a7df2](https://github.com/Arize-ai/openinference/commit/18a7df2b4d5c2d5ff19b158bf580226b872b7663))
+* **js:** semantic conventions for embedding vector ([#26](https://github.com/Arize-ai/openinference/issues/26)) ([9abced1](https://github.com/Arize-ai/openinference/commit/9abced1c604d465f4c506e740bd2b3d10cc8bc7e))
+
 ## 0.0.4
 
 ### Patch Changes
