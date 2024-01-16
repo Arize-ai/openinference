@@ -28,7 +28,7 @@ describe("OpenAIInstrumentation", () => {
   beforeAll(() => {
     instrumentation.enable();
     openai = new OpenAI.OpenAI({
-      apiKey: process.env["OPENAI_API_KEY"] || "fake-api-key",
+      apiKey: "fake-api-key",
     });
   });
   afterAll(() => {
