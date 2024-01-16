@@ -373,7 +373,7 @@ function getChatCompletionInputMessageAttributes(
             attributes[
               toolCallIndexPrefix +
                 SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
-            ] = JSON.stringify(toolCall.function.arguments);
+            ] = toolCall.function.arguments;
           }
         });
       }
