@@ -363,7 +363,7 @@ function getChatCompletionInputMessageAttributes(
     case "assistant":
       if (message.tool_calls) {
         message.tool_calls.forEach((toolCall, index) => {
-          const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}`;
+          const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
           attributes[
             toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
           ] = toolCall.function.name;
@@ -451,20 +451,39 @@ function getChatCompletionLLMOutputMessagesAttributes(
     return {};
   }
   return [choice.message].reduce((acc, message, index) => {
-    const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}`;
+    const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}.`;
     const messageAttributes = getChatCompletionOutputMessageAttributes(message);
     // Flatten the attributes on the index prefix
     for (const [key, value] of Object.entries(messageAttributes)) {
-      acc[`${indexPrefix}.${key}`] = value;
+      acc[`${indexPrefix}${key}`] = value;
     }
     return acc;
   }, {} as Attributes);
 }
 
 function getChatCompletionOutputMessageAttributes(
-  _message: ChatCompletionMessage,
+  message: ChatCompletionMessage,
 ): Attributes {
-  return {};
+  const role = message.role;
+  const attributes: Attributes = {
+    [SemanticConventions.MESSAGE_ROLE]: role,
+  };
+  if (message.content) {
+    attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+  }
+  if (message.tool_calls) {
+    message.tool_calls.forEach((toolCall, index) => {
+      const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
+      attributes[
+        toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
+      ] = toolCall.function.name;
+      attributes[
+        toolCallIndexPrefix +
+          SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+      ] = JSON.stringify(toolCall.function.arguments);
+    });
+  }
+  return attributes;
 }
 
 /**
@@ -501,8 +520,8 @@ function getEmbeddingTextAttributes(
     typeof request.input[0] === "string"
   ) {
     return request.input.reduce((acc, input, index) => {
-      const index_prefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}`;
-      acc[`${index_prefix}.${SemanticConventions.EMBEDDING_TEXT}`] = input;
+      const indexPrefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}.`;
+      acc[`${indexPrefix}${SemanticConventions.EMBEDDING_TEXT}`] = input;
       return acc;
     }, {} as Attributes);
   }
@@ -517,8 +536,8 @@ function getEmbeddingEmbeddingsAttributes(
   response: CreateEmbeddingResponse,
 ): Attributes {
   return response.data.reduce((acc, embedding, index) => {
-    const index_prefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}`;
-    acc[`${index_prefix}.${SemanticConventions.EMBEDDING_VECTOR}`] =
+    const indexPrefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}.`;
+    acc[`${indexPrefix}${SemanticConventions.EMBEDDING_VECTOR}`] =
       embedding.embedding;
     return acc;
   }, {} as Attributes);
