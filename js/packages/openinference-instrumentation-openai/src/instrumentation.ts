@@ -379,18 +379,14 @@ function getChatCompletionInputMessageAttributes(
       }
       break;
     case "function":
-      // Add the content only if it is a string
-      if (typeof message.content === "string")
-        attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
       attributes[SemanticConventions.MESSAGE_FUNCTION_CALL_NAME] = message.name;
       break;
     case "tool":
-      if (typeof message.content === "string")
-        attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+      // There's nothing to add for the tool. There is a tool_id, but there are no
+      // semantic conventions for it
       break;
     case "system":
-      if (typeof message.content === "string")
-        attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+      // There's nothing to add for the system. Content is captured above
       break;
     default:
       assertUnreachable(role);
