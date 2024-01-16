@@ -354,23 +354,27 @@ function getChatCompletionInputMessageAttributes(
   const attributes: Attributes = {
     [SemanticConventions.MESSAGE_ROLE]: role,
   };
+  // Add the content only if it is a string
+  if (typeof message.content === "string")
+    attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
   switch (role) {
     case "user":
-      // Add the content only if it is a string
-      if (typeof message.content === "string")
-        attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+      // There's nothing to add for the user
       break;
     case "assistant":
       if (message.tool_calls) {
         message.tool_calls.forEach((toolCall, index) => {
-          const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
-          attributes[
-            toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
-          ] = toolCall.function.name;
-          attributes[
-            toolCallIndexPrefix +
-              SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
-          ] = JSON.stringify(toolCall.function.arguments);
+          // Make sure the tool call has a function
+          if (toolCall.function) {
+            const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
+            attributes[
+              toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
+            ] = toolCall.function.name;
+            attributes[
+              toolCallIndexPrefix +
+                SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+            ] = JSON.stringify(toolCall.function.arguments);
+          }
         });
       }
       break;
@@ -474,14 +478,24 @@ function getChatCompletionOutputMessageAttributes(
   if (message.tool_calls) {
     message.tool_calls.forEach((toolCall, index) => {
       const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
-      attributes[
-        toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
-      ] = toolCall.function.name;
-      attributes[
-        toolCallIndexPrefix +
-          SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
-      ] = JSON.stringify(toolCall.function.arguments);
+      // Double check that the tool call has a function
+      // NB: OpenAI only supports tool calls with functions right now but this may change
+      if (toolCall.function) {
+        attributes[
+          toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
+        ] = toolCall.function.name;
+        attributes[
+          toolCallIndexPrefix +
+            SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+        ] = toolCall.function.arguments;
+      }
     });
+  }
+  if (message.function_call) {
+    attributes[SemanticConventions.MESSAGE_FUNCTION_CALL_NAME] =
+      message.function_call.name;
+    attributes[SemanticConventions.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON] =
+      message.function_call.arguments;
   }
   return attributes;
 }
