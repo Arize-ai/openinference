@@ -24,7 +24,7 @@ nvm use 20
 Next, you will need to install [pnpm](https://pnpm.io/installation). pnpm is a package manager that is similar to npm, but is much faster and is optimized for workspaces with multiple packages. Once PNPM is installed, you can install the packages in this repo via:
 
 ```shell
-pnpm install --from-lock-file -r
+pnpm install --frozen-lockfile -r
 ```
 
 This will install all the packages in the repo and their dependencies.
