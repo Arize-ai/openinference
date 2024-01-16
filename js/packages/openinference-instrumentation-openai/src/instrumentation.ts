@@ -338,10 +338,10 @@ function getLLMInputMessagesAttributes(
 ): Attributes {
   return body.messages.reduce((acc, message, index) => {
     const messageAttributes = getChatCompletionInputMessageAttributes(message);
-    const index_prefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}`;
+    const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
     // Flatten the attributes on the index prefix
     for (const [key, value] of Object.entries(messageAttributes)) {
-      acc[`${index_prefix}.${key}`] = value;
+      acc[`${indexPrefix}${key}`] = value;
     }
     return acc;
   }, {} as Attributes);
