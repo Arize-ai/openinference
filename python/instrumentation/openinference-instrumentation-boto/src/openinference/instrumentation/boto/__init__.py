@@ -1,6 +1,7 @@
 import io
 import json
 from functools import wraps
+from importlib import import_module
 from inspect import signature
 from typing import Any, Collection
 
@@ -19,7 +20,7 @@ __version__ = "0.1.0"
 _instruments = ("boto3 >= 1.28.57",)
 
 
-def _set_span_attribute(span, name, value):
+def _set_span_attribute(span, name: str, value):
     if value is not None:
         if value != "":
             span.set_attribute(name, value)
@@ -119,6 +120,8 @@ def _model_invocation_wrapper(tracer):
 
 
 class BotoInstrumentor(BaseInstrumentor):
+    __slots__ = (_original_client_creator,)
+
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
@@ -127,6 +130,9 @@ class BotoInstrumentor(BaseInstrumentor):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
 
+        boto = import_module(_MODULE)
+        self._original_client_creator = boto.ClientCreator.create_client
+
         wrap_function_wrapper(
             module=_MODULE,
             name="ClientCreator.create_client",
@@ -134,4 +140,5 @@ class BotoInstrumentor(BaseInstrumentor):
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        pass
+        boto = import_module(_MODULE)
+        boto.ClientCreator.create_client = self._original_client_creator
