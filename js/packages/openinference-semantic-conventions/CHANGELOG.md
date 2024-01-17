@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.1.0
+
+### Minor Changes
+
+- 1925aad: add llm.prompts semantic convention
+
 ## 0.0.13
 
 ### Patch Changes
