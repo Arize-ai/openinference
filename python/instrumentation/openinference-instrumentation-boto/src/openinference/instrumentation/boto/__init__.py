@@ -73,7 +73,7 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[CallableType], Callabl
 
         return create_instrumented_client(*args, **kwargs)
 
-    return _client_wrapper
+    return _client_wrapper  # type: ignore
 
 
 def _model_invocation_wrapper(tracer: Tracer) -> Callable[[CallableType], CallableType]:
@@ -87,7 +87,8 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[CallableType], Callab
                 response["body"] = BufferedStreamingBody(
                     response["body"]._raw_stream, response["body"]._content_length
                 )
-                request_body = json.loads(kwargs.get("body"))
+                if raw_request_body := kwargs.get("body"):
+                    request_body = json.loads(raw_request_body)
                 response_body = json.loads(response.get("body").read())
                 response["body"].reset()
 
@@ -99,31 +100,33 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[CallableType], Callab
                     span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
                 )
 
-                model_id = kwargs.get("modelId")
-                (vendor, model) = model_id.split(".")
-                _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
+                if model_id := kwargs.get("modelId"):
+                    _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
 
-                if vendor == "ai21":
-                    content = str(response_body.get("completions"))
-                    _set_span_attribute(
-                        span,
-                        MessageAttributes.MESSAGE_CONTENT,
-                        content,
-                    )
-                elif vendor == "anthropic":
-                    content = str(response_body.get("completion"))
-                    _set_span_attribute(span, MessageAttributes.MESSAGE_CONTENT, content)
-                elif vendor == "cohere":
-                    content = str(response_body.get("generations"))
-                    _set_span_attribute(
-                        span,
-                        MessageAttributes.MESSAGE_CONTENT,
-                        content,
-                    )
+                    if isinstance(model_id, str):
+                        (vendor, _) = model_id.split(".")
+
+                    if vendor == "ai21":
+                        content = str(response_body.get("completions"))
+                        _set_span_attribute(
+                            span,
+                            MessageAttributes.MESSAGE_CONTENT,
+                            content,
+                        )
+                    elif vendor == "anthropic":
+                        content = str(response_body.get("completion"))
+                        _set_span_attribute(span, MessageAttributes.MESSAGE_CONTENT, content)
+                    elif vendor == "cohere":
+                        content = str(response_body.get("generations"))
+                        _set_span_attribute(
+                            span,
+                            MessageAttributes.MESSAGE_CONTENT,
+                            content,
+                        )
 
                 return response
 
-        return instrumented_response
+        return instrumented_response  # type: ignore
 
     return _invocation_wrapper
 
