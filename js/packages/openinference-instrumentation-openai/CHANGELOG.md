@@ -1,5 +1,17 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 0.1.0
+
+### Minor Changes
+
+- 1925aad: add support for legacy completions api
+- 82c5d83: Add streaming instrumentation for OpenAI Chat completion
+
+### Patch Changes
+
+- Updated dependencies [1925aad]
+  - @arizeai/openinference-semantic-conventions@0.1.0
+
 ## 0.0.4
 
 ### Patch Changes
