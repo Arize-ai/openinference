@@ -12,7 +12,6 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from opentelemetry.instrumentation.utils import (
     _SUPPRESS_INSTRUMENTATION_KEY,
 )
-from opentelemetry.trace import SpanKind
 from wrapt import wrap_function_wrapper
 
 _MODULE = "botocore.client"
@@ -73,7 +72,7 @@ def _model_invocation_wrapper(tracer):
 
         @wraps(wrapped)
         def instrumented_response(*args, **kwargs):
-            with tracer.start_as_current_span("bedrock.completion", kind=SpanKind.CLIENT) as span:
+            with tracer.start_as_current_span("bedrock.invoke_model") as span:
                 response = wrapped(*args, **kwargs)
                 response["body"] = BufferedStreamingBody(
                     response["body"]._raw_stream, response["body"]._content_length
