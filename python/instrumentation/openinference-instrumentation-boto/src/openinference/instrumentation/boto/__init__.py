@@ -90,7 +90,6 @@ def _model_invocation_wrapper(tracer):
                     span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
                 )
 
-                print(prompt, invocation_parameters)
                 model_id = kwargs.get("modelId")
                 (vendor, model) = model_id.split(".")
                 _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
@@ -112,7 +111,6 @@ def _model_invocation_wrapper(tracer):
                         MessageAttributes.MESSAGE_CONTENT,
                         content,
                     )
-                print(content)
 
                 return response
 
