@@ -3,7 +3,7 @@ import json
 from functools import wraps
 from importlib import import_module
 from inspect import signature
-from typing import Any, Collection
+from typing import Any, Callable, Collection, Dict, Optional, Tuple, TypeVar
 
 from botocore.response import StreamingBody
 from openinference.semconv.trace import MessageAttributes, SpanAttributes
@@ -13,14 +13,18 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from opentelemetry.instrumentation.utils import (
     _SUPPRESS_INSTRUMENTATION_KEY,
 )
+from opentelemetry.trace import Tracer
+from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
+
+CallableType = TypeVar("CallableType", bound=Callable[..., Any])
 
 _MODULE = "botocore.client"
 __version__ = "0.1.0"
 _instruments = ("boto3 >= 1.28.57",)
 
 
-def _set_span_attribute(span, name: str, value):
+def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
     if value is not None:
         if value != "":
             span.set_attribute(name, value)
@@ -28,26 +32,31 @@ def _set_span_attribute(span, name: str, value):
 
 
 class BufferedStreamingBody(StreamingBody):
-    def __init__(self, raw_stream, content_length):
+    def __init__(self, raw_stream: io.IOBase, content_length: int) -> None:
         super().__init__(raw_stream, content_length)
-        self._buffer = None
+        self._buffer: Optional[io.IOBase] = None
 
-    def read(self, amt=None):
+    def read(self, amt: Optional[int] = None) -> bytes:
         if self._buffer is None:
             self._buffer = io.BytesIO(self._raw_stream.read())
 
         return self._buffer.read(amt)
 
-    def reset(self):
+    def reset(self) -> None:
         # Reset the buffer to enable reading the stream again
         if self._buffer is not None:
             self._buffer.seek(0)
 
 
-def _client_creation_wrapper(tracer):
-    def _client_wrapper(wrapped, instance, args, kwargs):
+def _client_creation_wrapper(tracer: Tracer) -> Callable[[CallableType], CallableType]:
+    def _client_wrapper(
+        wrapped: CallableType,
+        instance: Optional[Any],
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> CallableType:
         @wraps(wrapped)
-        def create_instrumented_client(*args, **kwargs):
+        def create_instrumented_client(*args: Any, **kwargs: Any) -> Any:
             """Instruments and calls every function defined in TO_WRAP."""
             client = wrapped(*args, **kwargs)
             if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -67,12 +76,12 @@ def _client_creation_wrapper(tracer):
     return _client_wrapper
 
 
-def _model_invocation_wrapper(tracer):
-    def _invocation_wrapper(wrapped):
+def _model_invocation_wrapper(tracer: Tracer) -> Callable[[CallableType], CallableType]:
+    def _invocation_wrapper(wrapped: CallableType) -> CallableType:
         """Instruments a bedrock client's `invoke_model` method."""
 
         @wraps(wrapped)
-        def instrumented_response(*args, **kwargs):
+        def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
             with tracer.start_as_current_span("bedrock.invoke_model") as span:
                 response = wrapped(*args, **kwargs)
                 response["body"] = BufferedStreamingBody(
@@ -120,7 +129,7 @@ def _model_invocation_wrapper(tracer):
 
 
 class BotoInstrumentor(BaseInstrumentor):
-    __slots__ = (_original_client_creator,)
+    __slots__ = ("_original_client_creator",)
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
