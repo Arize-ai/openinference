@@ -35,7 +35,7 @@ import {
   CreateEmbeddingResponse,
   EmbeddingCreateParams,
 } from "openai/resources";
-import { assertUnreachable } from "./typeUtils";
+import { assertUnreachable, isString } from "./typeUtils";
 
 const MODULE_NAME = "openai";
 
@@ -561,18 +561,83 @@ async function consumeChatCompletionStreamChunks(
   span: Span,
 ) {
   let streamResponse = "";
+  // Tool and function call attributes can also arrive in the stream
+  // NB: the tools and function calls arrive in partial diffs
+  // So the final tool and function calls need to be aggregated
+  // across chunks
+  const toolAndFunctionCallAttributes: Attributes = {};
+  // The first message is for the assistant response so we start at 1
   for await (const chunk of stream) {
-    if (chunk.choices.length > 0 && chunk.choices[0].delta.content) {
-      streamResponse += chunk.choices[0].delta.content;
+    if (chunk.choices.length <= 0) {
+      continue;
+    }
+    const choice = chunk.choices[0];
+    if (choice.delta.content) {
+      streamResponse += choice.delta.content;
+    }
+    // Accumulate the tool and function call attributes
+    const toolAndFunctionCallAttributeDiff =
+      getToolAndFunctionCallAttributesFromStreamChunk(chunk);
+    for (const [key, value] of Object.entries(
+      toolAndFunctionCallAttributeDiff,
+    )) {
+      if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
+        toolAndFunctionCallAttributes[key] += value;
+      } else if (isString(value)) {
+        toolAndFunctionCallAttributes[key] = value;
+      }
     }
   }
-  span.setAttributes({
+  const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
+
+  // Append the attributes to the span as a message
+  const attributes: Attributes = {
     [SemanticConventions.OUTPUT_VALUE]: streamResponse,
     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
-    [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+    [`${messageIndexPrefix}${SemanticConventions.MESSAGE_CONTENT}`]:
       streamResponse,
-    [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
-      "assistant",
-  });
+    [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
+  };
+  // Add the tool and function call attributes
+  for (const [key, value] of Object.entries(toolAndFunctionCallAttributes)) {
+    attributes[`${messageIndexPrefix}${key}`] = value;
+  }
+  span.setAttributes(attributes);
   span.end();
+}
+
+/**
+ * Extracts the semantic attributes from the stream chunk for tool_calls and function_calls
+ */
+function getToolAndFunctionCallAttributesFromStreamChunk(
+  chunk: ChatCompletionChunk,
+): Attributes {
+  if (chunk.choices.length <= 0) {
+    return {};
+  }
+  const choice = chunk.choices[0];
+  const attributes: Attributes = {};
+  if (choice.delta.tool_calls) {
+    choice.delta.tool_calls.forEach((toolCall, index) => {
+      const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
+      // Double check that the tool call has a function
+      // NB: OpenAI only supports tool calls with functions right now but this may change
+      if (toolCall.function) {
+        attributes[
+          toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
+        ] = toolCall.function.name;
+        attributes[
+          toolCallIndexPrefix +
+            SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+        ] = toolCall.function.arguments;
+      }
+    });
+  }
+  if (choice.delta.function_call) {
+    attributes[SemanticConventions.MESSAGE_FUNCTION_CALL_NAME] =
+      choice.delta.function_call.name;
+    attributes[SemanticConventions.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON] =
+      choice.delta.function_call.arguments;
+  }
+  return attributes;
 }
