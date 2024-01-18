@@ -12,6 +12,7 @@ const openai = new OpenAI({
     model: "gpt-3.5-turbo",
   });
   chatCompletion.choices.forEach((choice) => {
+    // eslint-disable-next-line no-console
     console.log(choice.message);
   });
   chatCompletion = await openai.chat.completions.create({
@@ -19,6 +20,7 @@ const openai = new OpenAI({
     model: "gpt-3.5-turbo",
   });
   chatCompletion.choices.forEach((choice) => {
+    // eslint-disable-next-line no-console
     console.log(choice.message);
   });
 })();
