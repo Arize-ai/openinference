@@ -1,0 +1,5 @@
+openai >= 1.0.0
+openinference-instrumentation-openai
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation-httpx
