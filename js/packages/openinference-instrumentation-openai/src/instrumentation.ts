@@ -576,10 +576,10 @@ async function consumeChatCompletionStreamChunks(
       streamResponse += choice.delta.content;
     }
     // Accumulate the tool and function call attributes
-    const toolAndFunctionCallAttributeDiff =
+    const toolAndFunctionCallAttributesDiff =
       getToolAndFunctionCallAttributesFromStreamChunk(chunk);
     for (const [key, value] of Object.entries(
-      toolAndFunctionCallAttributeDiff,
+      toolAndFunctionCallAttributesDiff,
     )) {
       if (isString(toolAndFunctionCallAttributes[key]) && isString(value)) {
         toolAndFunctionCallAttributes[key] += value;
