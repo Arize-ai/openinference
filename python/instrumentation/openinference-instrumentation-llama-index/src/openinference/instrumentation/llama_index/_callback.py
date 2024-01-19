@@ -344,8 +344,8 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
 
 class _ContextApiTokenStack:
     """
-    Allows popping a token from the middle of the stack, whereby
-    all tokens above it are also popped.
+    Allows popping a token from the middle of the stack, whereby all tokens above
+    it are also popped. Popping a non-existent token is allowed and has no effect.
     """
 
     __slots__ = ("_stack", "_positions")
