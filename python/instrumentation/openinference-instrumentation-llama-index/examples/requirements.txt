@@ -1,0 +1,6 @@
+llama-index >= 0.9.14
+openinference-instrumentation-llama-index
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+openinference-instrumentation-openai
+chromadb
