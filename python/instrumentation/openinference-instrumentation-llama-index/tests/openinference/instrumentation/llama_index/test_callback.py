@@ -187,21 +187,14 @@ def test_callback_llm(
         assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
         assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) is not None
         assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}", None) is not None
-        if status_code == 200:
-            assert llm_span.status.status_code == trace_api.StatusCode.OK
-            assert llm_attributes.pop(OUTPUT_VALUE, None) == answer
-            if not is_stream:
-                # FIXME: currently we can't capture messages when streaming
-                assert (
-                    llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
-                    == "assistant"
-                )
-                assert (
-                    llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
-                )
-        elif status_code == 400 and not is_stream:
-            # FIXME: currently we can't capture errors when streaming
-            assert llm_span.status.status_code == trace_api.StatusCode.ERROR
+        assert llm_span.status.status_code == trace_api.StatusCode.OK
+        assert llm_attributes.pop(OUTPUT_VALUE, None) == answer
+        if not is_stream:
+            # FIXME: currently we can't capture messages when streaming
+            assert (
+                llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "assistant"
+            )
+            assert llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
         assert llm_attributes == {}
 
     # FIXME: maybe chunking spans should be discarded?
@@ -287,6 +280,10 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(scope="module")
 def seed() -> Iterator[int]:
+    """
+    Use rolling seeds to help debugging, because the rolling pseudo-random values
+    allow conditional breakpoints to be hit precisely (and repeatably).
+    """
     return count()
 
 
