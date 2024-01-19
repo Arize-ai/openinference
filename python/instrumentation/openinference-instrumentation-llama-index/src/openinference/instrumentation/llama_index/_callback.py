@@ -63,8 +63,8 @@ class _EventData:
     event_type: CBEventType
     attributes: Dict[str, Any]
     start_time: int
-    end_time: Optional[int] = field(default=None)
-    is_dispatched: bool = field(default=False)
+    end_time: Optional[int] = None
+    is_dispatched: bool = False
     """
     `is_dispatched` is True when some other process is responsible for ending the span.
     Normally the span is ended by calls to `on_trace_end`, but in the case of streaming,
