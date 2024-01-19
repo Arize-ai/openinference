@@ -1,7 +1,7 @@
 import json
 import logging
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from time import time_ns
 from types import MappingProxyType
@@ -253,6 +253,12 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         if event_data := self._event_data.get(event_id):
             is_straggler = False
         elif event_data := self._stragglers.get(event_id):
+            # Stragglers are events that have not ended before its trace has ended. When
+            # `on_trace_end` is called, any event without an end time is flagged as a
+            # straggler. An example straggler is the LLM event when streaming is true,
+            # in which case `on_event_end` for the LLM event is only called after the
+            # stream has been consumed, but `on_trace_end` will be called before the
+            # stream can be iterated on.
             is_straggler = True
         else:
             return
@@ -394,11 +400,15 @@ class _ResponseGen(ObjectProxy):  # type: ignore
                 status_code = trace_api.StatusCode.OK
             else:
                 status_code = trace_api.StatusCode.ERROR
-                self._self_event_data.span.record_exception(exception)
+            # Note that the user can still try to iterate on the stream even
+            # after it's consumed (or has errored out), but we don't need to
+            # end the span a second time.
             if not self._self_is_finished:
                 event_data = self._self_event_data
                 attributes = event_data.attributes
                 span = event_data.span
+                if status_code is trace_api.StatusCode.ERROR:
+                    span.record_exception(exception)
                 if output_value := "".join(self._self_tokens):
                     span.set_attribute(SpanAttributes.OUTPUT_VALUE, output_value)
                 try:
