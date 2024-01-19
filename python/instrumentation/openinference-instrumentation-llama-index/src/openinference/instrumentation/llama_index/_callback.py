@@ -67,7 +67,7 @@ class _EventData:
     is_dispatched: bool = field(default=False)
     """
     `is_dispatched` is True when some other process is responsible for ending the span.
-    Normally the span is ended by calls to `on_event_end`, but in the case of streaming,
+    Normally the span is ended by calls to `on_trace_end`, but in the case of streaming,
     the event data is attached to the stream object, which is responsible for ending
     the span when the stream is finished. The reason for doing this is to defer the
     addition of the output value attribute, which is only available when the stream is
@@ -208,8 +208,10 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         event_id = event_id or str(uuid4())
         parent_id = parent_id or BASE_TRACE_EVENT
 
-        if payload is not None:
-            payloads = [payload]
+        if payload is None:
+            payloads, exceptions, attributes = [], [], {}
+        else:
+            payloads = [payload.copy()]
             exceptions = (
                 [exception]
                 if isinstance((exception := payload.get(EventPayload.EXCEPTION)), Exception)
@@ -223,8 +225,6 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
                     f"event_type={event_type}, payload={payload}",
                 )
                 attributes = {}
-        else:
-            payloads, exceptions, attributes = [], [], {}
 
         start_time = time_ns()
         span: trace_api.Span = self._tracer.start_span(name=event_type.value, start_time=start_time)
@@ -261,7 +261,7 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         self._context_api_token_stack.pop(event_data.token)
 
         if payload is not None:
-            event_data.payloads.append(payload)
+            event_data.payloads.append(payload.copy())
             if isinstance((exception := payload.get(EventPayload.EXCEPTION)), Exception):
                 event_data.exceptions.append(exception)
             try:
