@@ -75,8 +75,6 @@ class _Stream(ObjectProxy):  # type: ignore
                 else:
                     status_code = trace_api.StatusCode.ERROR
                     self._self_with_span.record_exception(exception)
-                if status_code is trace_api.StatusCode.ERROR:
-                    self._self_with_span.record_exception(exception)
                 self._finish_tracing(status_code=status_code)
             raise
         else:
