@@ -34,7 +34,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `tool_call.function.arguments`         | JSON string     | `"{'city': 'London'}"`                                                     | The arguments for the function being invoked by a tool call      |
 | `llm.model_name`                       | String          | `"gpt-3.5-turbo"`                                                          | The name of the language model being utilized                    |
 | `llm.prompt_template.template`         | String          | `"Weather forecast for {city} on {date}"`                                  | Template used to generate prompts as Python f-strings            |
-| `llm.prompt_template.variables`        | List of strings | `["city", "date"]`                                                         | List of variables to be used in the prompt template              |
+| `llm.prompt_template.variables`        | JSON String     | `{ context: "<context from retrieval>", subject: "math" }`                 | JSON of key value pairs applied to the prompt template           |
 | `llm.prompt_template.version`          | String          | `"v1.0"`                                                                   | The version of the prompt template                               |
 | `llm.token_count.prompt`               | Integer         | `5`                                                                        | The number of tokens in the prompt                               |
 | `llm.token_count.completion`           | Integer         | `15`                                                                       | The number of tokens in the completion                           |
