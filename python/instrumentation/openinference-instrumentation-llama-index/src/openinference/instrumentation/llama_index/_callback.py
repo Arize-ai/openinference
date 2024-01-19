@@ -313,6 +313,10 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
             attributes = event_data.attributes
 
             if event_type is CBEventType.LLM:
+                # Need to update the template variables attribute by extracting their values
+                # from the template events, which are sibling events preceding the LLM event.
+                # Note that the stack should be sorted in chronological order, and we are
+                # going backwards in time on the stack.
                 while dfs_stack:
                     _, preceding_event_data = dfs_stack[-1]
                     if (
