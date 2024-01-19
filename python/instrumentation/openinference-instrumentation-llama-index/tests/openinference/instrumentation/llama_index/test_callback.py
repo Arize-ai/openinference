@@ -3,7 +3,7 @@ import logging
 import random
 from contextlib import suppress
 from itertools import count
-from typing import Any, AsyncIterator, Dict, Generator, Iterable, Iterator, List, Tuple
+from typing import Any, AsyncIterator, Dict, Generator, Iterable, Iterator, List, Tuple, cast
 
 import openai
 import pytest
@@ -11,6 +11,7 @@ from httpx import AsyncByteStream, Response, SyncByteStream
 from llama_index import ListIndex, ServiceContext
 from llama_index.callbacks import CallbackManager
 from llama_index.llms import OpenAI
+from llama_index.response.schema import StreamingResponse
 from llama_index.schema import Document, TextNode
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from openinference.instrumentation.openai import OpenAIInstrumentor
@@ -68,7 +69,7 @@ def test_callback_llm(
             callback_manager=callback_manager,
         ),
     )
-    respx_kwargs = (
+    respx_kwargs: Dict[str, Any] = (
         {
             "stream": MockAsyncByteStream(chat_completion_mock_stream[0])
             if is_async
@@ -104,7 +105,7 @@ def test_callback_llm(
         else:
             response = query_engine.query(question)
             if is_stream:
-                for _ in response.response_gen:
+                for _ in cast(StreamingResponse, response).response_gen:
                     pass
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -227,7 +228,7 @@ def test_callback_llm(
 @pytest.fixture
 def nodes() -> List[TextNode]:
     return [
-        Document(text=randstr(), metadata={"category": randstr()}),
+        Document(text=randstr(), metadata={"category": randstr()}),  # type: ignore
         TextNode(text=randstr()),
     ]
 

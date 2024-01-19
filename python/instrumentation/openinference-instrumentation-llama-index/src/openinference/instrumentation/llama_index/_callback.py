@@ -45,7 +45,6 @@ from llama_index.callbacks.schema import (
 from llama_index.llms.types import ChatMessage, ChatResponse
 from llama_index.response.schema import Response, StreamingResponse
 from llama_index.tools import ToolMetadata
-from llama_index.types import TokenGen
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -383,7 +382,7 @@ class _ResponseGen(ObjectProxy):  # type: ignore
         "_self_event_data",
     )
 
-    def __init__(self, token_gen: TokenGen, event_data: _EventData) -> None:
+    def __init__(self, token_gen: Any, event_data: _EventData) -> None:
         super().__init__(token_gen)
         self._self_tokens: List[str] = []
         self._self_is_finished = False
@@ -393,24 +392,26 @@ class _ResponseGen(ObjectProxy):  # type: ignore
         return self
 
     def __next__(self) -> str:
+        # pass through mistaken calls
+        if not hasattr(self.__wrapped__, "__next__"):
+            self.__wrapped__.__next__()
         try:
             value: str = self.__wrapped__.__next__()
         except Exception as exception:
-            if isinstance(exception, StopIteration):
-                status_code = trace_api.StatusCode.OK
-            else:
-                status_code = trace_api.StatusCode.ERROR
             # Note that the user can still try to iterate on the stream even
-            # after it's consumed (or has errored out), but we don't need to
-            # end the span a second time.
+            # after it's consumed (or has errored out), but we don't want to
+            # end the span more than once.
             if not self._self_is_finished:
                 event_data = self._self_event_data
-                attributes = event_data.attributes
                 span = event_data.span
-                if status_code is trace_api.StatusCode.ERROR:
+                if isinstance(exception, StopIteration):
+                    status_code = trace_api.StatusCode.OK
+                else:
+                    status_code = trace_api.StatusCode.ERROR
                     span.record_exception(exception)
                 if output_value := "".join(self._self_tokens):
                     span.set_attribute(SpanAttributes.OUTPUT_VALUE, output_value)
+                attributes = event_data.attributes
                 try:
                     flattened_attributes = dict(_flatten(attributes))
                 except Exception:
