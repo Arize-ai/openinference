@@ -304,15 +304,13 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
                 self._stragglers.pop(event_id)
 
     def end_trace(self, trace_id: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
-        dfs_stack, adjacency_list = _build_graph(self._event_data)
+        roots, adjacency_list = _build_graph(self._event_data)
         self._event_data.clear()
+        dfs_stack = roots.copy()
         while dfs_stack:
             event_id, event_data = dfs_stack.pop()
             event_type = event_data.event_type
             attributes = event_data.attributes
-            if not event_data.span:
-                # `on_event_start` was never called, so discard the event.
-                continue
 
             if event_type is CBEventType.LLM:
                 while dfs_stack:

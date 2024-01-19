@@ -10,9 +10,7 @@ import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
 from llama_index import ListIndex, ServiceContext
 from llama_index.callbacks import CallbackManager
-from llama_index.llms import (
-    OpenAI,
-)
+from llama_index.llms import OpenAI
 from llama_index.schema import Document, TextNode
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from openinference.instrumentation.openai import OpenAIInstrumentor
