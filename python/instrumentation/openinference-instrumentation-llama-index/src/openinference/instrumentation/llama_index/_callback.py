@@ -252,12 +252,12 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         if event_data := self._event_data.get(event_id):
             is_straggler = False
         elif event_data := self._stragglers.get(event_id):
-            # Stragglers are events that have not ended before its trace has ended. When
-            # `on_trace_end` is called, any event without an end time is flagged as a
-            # straggler. An example straggler is the LLM event when streaming is true,
-            # in which case `on_event_end` for the LLM event is only called after the
-            # stream has been consumed, but `on_trace_end` will be called before the
-            # stream can be iterated on.
+            # Stragglers are events that have not ended before their traces have ended.
+            # When `on_trace_end` is called, any event without an end time is flagged
+            # as a straggler. An example straggler is the LLM event when streaming is
+            # true, in which case `on_event_end` for the LLM event is only called after
+            # the stream has been consumed, but `on_trace_end` will be called before
+            # the stream can be iterated on.
             is_straggler = True
         else:
             return
