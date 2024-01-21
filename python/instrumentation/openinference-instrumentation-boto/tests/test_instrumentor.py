@@ -70,7 +70,7 @@ def test_invoke_client(in_memory_span_exporter: InMemorySpanExporter):
         body=b'{"prompt": "Human: hello there? Assistant:", "max_tokens_to_sample": 1024}',
     )
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans)  == 1
+    assert len(spans) == 1
     span = spans[0]
     assert span.status.is_ok
     attributes = dict(span.attributes)
