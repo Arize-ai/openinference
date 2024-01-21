@@ -39,7 +39,6 @@ test = [
   "boto3 == 1.28.57",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
-  "respx",
   "numpy",
 ]
 
@@ -56,4 +55,4 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/boto"]
+packages = ["src/openinference"]
