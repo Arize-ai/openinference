@@ -67,7 +67,8 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[CallableType], Callabl
             bound_arguments.apply_defaults()
 
             if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
-                client.invoke_model = _model_invocation_wrapper(tracer)(client.invoke_model)
+                client._unwrapped_invoke_model = client.invoke_model
+                client.invoke_model = _model_invocation_wrapper(tracer)(client)
                 return client
             return client
 
@@ -76,14 +77,14 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[CallableType], Callabl
     return _client_wrapper  # type: ignore
 
 
-def _model_invocation_wrapper(tracer: Tracer) -> Callable[[CallableType], CallableType]:
-    def _invocation_wrapper(wrapped: CallableType) -> CallableType:
+def _model_invocation_wrapper(tracer: Tracer) -> Callable[[Any], CallableType]:
+    def _invocation_wrapper(wrapped_client: Any) -> CallableType:
         """Instruments a bedrock client's `invoke_model` method."""
 
-        @wraps(wrapped)
+        @wraps(wrapped_client)
         def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
             with tracer.start_as_current_span("bedrock.invoke_model") as span:
-                response = wrapped(*args, **kwargs)
+                response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
                 response["body"] = BufferedStreamingBody(
                     response["body"]._raw_stream, response["body"]._content_length
                 )
