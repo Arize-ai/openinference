@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-llama-index"
+dynamic = ["version"]
+description = "OpenInference LlamaIndex Instrumentation"
+readme = "README.rst"
+license = "Apache-2.0"
+requires-python = ">=3.8, <3.12"
+authors = [
+  { name = "OpenInference Authors", email = "oss@arize.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+  "opentelemetry-api",
+  "opentelemetry-instrumentation",
+  "opentelemetry-semantic-conventions",
+  "openinference-semantic-conventions",
+  "wrapt",
+]
+
+[project.optional-dependencies]
+instruments = [
+  "llama-index >= 0.9.14",
+]
+test = [
+  "llama-index == 0.9.14",
+  "openai",
+  "opentelemetry-sdk",
+  "openinference-instrumentation-openai",
+  "respx",
+]
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-llama-index"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/llama_index/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
