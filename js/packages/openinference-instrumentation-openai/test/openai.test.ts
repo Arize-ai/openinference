@@ -13,6 +13,15 @@ instrumentation.disable();
 import * as OpenAI from "openai";
 import { Stream } from "openai/streaming";
 
+// Function tools
+async function getCurrentLocation() {
+  return "Boston"; // Simulate lookup
+}
+
+async function getWeather(_args: { location: string }) {
+  return { temperature: 52, precipitation: "rainy" };
+}
+
 describe("OpenAIInstrumentation", () => {
   let openai: OpenAI.OpenAI;
 
@@ -184,7 +193,7 @@ describe("OpenAIInstrumentation", () => {
     `);
   });
   it("can handle streaming responses", async () => {
-    // Mock out the embedding create endpoint
+    // Mock out the post endpoint to return a stream
     jest.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
@@ -327,14 +336,6 @@ describe("OpenAIInstrumentation", () => {
           return response3;
         },
       );
-    // Function tools
-    async function getCurrentLocation() {
-      return "Boston"; // Simulate lookup
-    }
-
-    async function getWeather(_args: { location: string }) {
-      return { temperature: 52, precipitation: "rainy" };
-    }
 
     const messages = [];
     const runner = openai.beta.chat.completions
@@ -421,34 +422,273 @@ describe("OpenAIInstrumentation", () => {
     `);
     expect(span3.name).toBe("OpenAI Chat Completions");
     expect(span3.attributes).toMatchInlineSnapshot(`
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}"}}]},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"name":"getWeather","arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}"}}]},{"role":"tool","tool_call_id":"call_0LCdYLkdRUt3rV3dawoIFHBf","content":"{\\"temperature\\":52,\\"precipitation\\":\\"rainy\\"}"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
+        "llm.input_messages.0.message.content": "How is the weather this week?",
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.1.message.role": "assistant",
+        "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{}",
+        "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "getCurrentLocation",
+        "llm.input_messages.2.message.content": "Boston",
+        "llm.input_messages.2.message.role": "tool",
+        "llm.input_messages.3.message.role": "assistant",
+        "llm.input_messages.3.message.tool_calls.0.tool_call.function.arguments": "{
+        "location": "Boston"
+      }",
+        "llm.input_messages.3.message.tool_calls.0.tool_call.function.name": "getWeather",
+        "llm.input_messages.4.message.content": "{"temperature":52,"precipitation":"rainy"}",
+        "llm.input_messages.4.message.role": "tool",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
+        "llm.model_name": "gpt-3.5-turbo-0613",
+        "llm.output_messages.0.message.content": "The weather in Boston this week is expected to be rainy with a temperature of 52 degrees.",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.token_count.completion": 20,
+        "llm.token_count.prompt": 121,
+        "llm.token_count.total": 141,
+        "openinference.span.kind": "llm",
+        "output.mime_type": "application/json",
+        "output.value": "{"id":"chatcmpl-8hhtfzSD33tsG7XJiBg4F9MqnXKDp","object":"chat.completion","created":1705427535,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"The weather in Boston this week is expected to be rainy with a temperature of 52 degrees."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":121,"completion_tokens":20,"total_tokens":141},"system_fingerprint":null}",
+      }
+    `);
+  });
+  it("should capture tool calls with streaming", async () => {
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        const iterator = () =>
+          (async function* () {
+            yield {
+              id: "chatcmpl-8iA39kCtuVHIVDr9AnBdJZjgSjNWL",
+              object: "chat.completion.chunk",
+              created: 1705535755,
+              model: "gpt-3.5-turbo-0613",
+              system_fingerprint: null,
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    role: "assistant",
+                    content: null,
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: "call_PGkcUg2u6vYrCpTn0e9ofykY",
+                        type: "function",
+                        function: { name: "getWeather", arguments: "" },
+                      },
+                    ],
+                  },
+                  logprobs: null,
+                  finish_reason: null,
+                },
+              ],
+            };
+            yield {
+              id: "chatcmpl-8iA39kCtuVHIVDr9AnBdJZjgSjNWL",
+              object: "chat.completion.chunk",
+              created: 1705535755,
+              model: "gpt-3.5-turbo-0613",
+              system_fingerprint: null,
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    tool_calls: [{ index: 0, function: { arguments: "{}" } }],
+                  },
+                  logprobs: null,
+                  finish_reason: null,
+                },
+              ],
+            };
+            yield {
+              id: "chatcmpl-8iA39kCtuVHIVDr9AnBdJZjgSjNWL",
+              object: "chat.completion.chunk",
+              created: 1705535755,
+              model: "gpt-3.5-turbo-0613",
+              system_fingerprint: null,
+              choices: [
+                {
+                  index: 0,
+                  delta: {},
+                  logprobs: null,
+                  finish_reason: "tool_calls",
+                },
+              ],
+            };
+          })();
+        const controller = new AbortController();
+        return new Stream(iterator, controller);
+      },
+    );
+    const stream = await openai.chat.completions.create({
+      messages: [{ role: "user", content: "What's the weather today?" }],
+      model: "gpt-3.5-turbo",
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "getCurrentLocation",
+            parameters: { type: "object", properties: {} },
+            description: "Get the current location of the user.",
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "getWeather",
+            description: "Get the weather for a location.",
+            parameters: {
+              type: "object",
+              properties: {
+                location: { type: "string" },
+              },
+            },
+          },
+        },
+      ],
+      stream: true,
+    });
+
+    let response = "";
+    for await (const chunk of stream) {
+      if (chunk.choices[0].delta.content)
+        response += chunk.choices[0].delta.content;
+    }
+    // When a tool is called, the content is empty
+    expect(response).toBe("");
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}"}}]},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"name":"getWeather","arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}"}}]},{"role":"tool","tool_call_id":"call_0LCdYLkdRUt3rV3dawoIFHBf","content":"{\\"temperature\\":52,\\"precipitation\\":\\"rainy\\"}"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
-  "llm.input_messages.0.message.content": "How is the weather this week?",
+  "input.value": "{"messages":[{"role":"user","content":"What's the weather today?"}],"model":"gpt-3.5-turbo","tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}}}],"stream":true}",
+  "llm.input_messages.0.message.content": "What's the weather today?",
   "llm.input_messages.0.message.role": "user",
-  "llm.input_messages.1.message.role": "assistant",
-  "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{}",
-  "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "getCurrentLocation",
-  "llm.input_messages.2.message.content": "Boston",
-  "llm.input_messages.2.message.role": "tool",
-  "llm.input_messages.3.message.role": "assistant",
-  "llm.input_messages.3.message.tool_calls.0.tool_call.function.arguments": "{
-  "location": "Boston"
-}",
-  "llm.input_messages.3.message.tool_calls.0.tool_call.function.name": "getWeather",
-  "llm.input_messages.4.message.content": "{"temperature":52,"precipitation":"rainy"}",
-  "llm.input_messages.4.message.role": "tool",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
-  "llm.model_name": "gpt-3.5-turbo-0613",
-  "llm.output_messages.0.message.content": "The weather in Boston this week is expected to be rainy with a temperature of 52 degrees.",
+  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}}}],"stream":true}",
+  "llm.model_name": "gpt-3.5-turbo",
+  "llm.output_messages.0.message.content": "",
   "llm.output_messages.0.message.role": "assistant",
-  "llm.token_count.completion": 20,
-  "llm.token_count.prompt": 121,
-  "llm.token_count.total": 141,
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "getWeather",
   "openinference.span.kind": "llm",
-  "output.mime_type": "application/json",
-  "output.value": "{"id":"chatcmpl-8hhtfzSD33tsG7XJiBg4F9MqnXKDp","object":"chat.completion","created":1705427535,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"The weather in Boston this week is expected to be rainy with a temperature of 52 degrees."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":121,"completion_tokens":20,"total_tokens":141},"system_fingerprint":null}",
+  "output.mime_type": "text/plain",
+  "output.value": "",
 }
 `);
+  });
+  it("should capture a function call with streaming", async () => {
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        const iterator = () =>
+          (async function* () {
+            yield {
+              id: "chatcmpl-8iA39kCtuVHIVDr9AnBdJZjgSjNWL",
+              object: "chat.completion.chunk",
+              created: 1705535755,
+              model: "gpt-3.5-turbo-0613",
+              system_fingerprint: null,
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    role: "assistant",
+                    content: null,
+                    function_call: { name: "getWeather", arguments: "" },
+                  },
+                  logprobs: null,
+                  finish_reason: null,
+                },
+              ],
+            };
+            yield {
+              id: "chatcmpl-8iA39kCtuVHIVDr9AnBdJZjgSjNWL",
+              object: "chat.completion.chunk",
+              created: 1705535755,
+              model: "gpt-3.5-turbo-0613",
+              system_fingerprint: null,
+              choices: [
+                {
+                  index: 0,
+                  delta: { function_call: { arguments: "{}" } },
+                  logprobs: null,
+                  finish_reason: null,
+                },
+              ],
+            };
+            yield {
+              id: "chatcmpl-8iA39kCtuVHIVDr9AnBdJZjgSjNWL",
+              object: "chat.completion.chunk",
+              created: 1705535755,
+              model: "gpt-3.5-turbo-0613",
+              system_fingerprint: null,
+              choices: [
+                {
+                  index: 0,
+                  delta: {},
+                  logprobs: null,
+                  finish_reason: "function_call",
+                },
+              ],
+            };
+          })();
+        const controller = new AbortController();
+        return new Stream(iterator, controller);
+      },
+    );
+    const stream = await openai.chat.completions.create({
+      messages: [{ role: "user", content: "What's the weather today?" }],
+      model: "gpt-3.5-turbo",
+      functions: [
+        {
+          name: "getWeather",
+          description: "Get the weather for a location.",
+          parameters: {
+            type: "object",
+            properties: {
+              location: { type: "string" },
+            },
+          },
+        },
+        {
+          name: "getCurrentLocation",
+          description: "Get the current location of the user.",
+          parameters: { type: "object", properties: {} },
+        },
+      ],
+      stream: true,
+    });
+
+    let response = "";
+    for await (const chunk of stream) {
+      if (chunk.choices[0].delta.content)
+        response += chunk.choices[0].delta.content;
+    }
+    // When a tool is called, the content is empty
+    expect(response).toBe("");
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"messages":[{"role":"user","content":"What's the weather today?"}],"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
+        "llm.input_messages.0.message.content": "What's the weather today?",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
+        "llm.model_name": "gpt-3.5-turbo",
+        "llm.output_messages.0.message.content": "",
+        "llm.output_messages.0.message.function_call_arguments_json": "{}",
+        "llm.output_messages.0.message.function_call_name": "getWeather",
+        "llm.output_messages.0.message.role": "assistant",
+        "openinference.span.kind": "llm",
+        "output.mime_type": "text/plain",
+        "output.value": "",
+      }
+  `);
   });
 });

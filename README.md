@@ -22,10 +22,11 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 
 ## Python
 
-| Package                                                                                                            | Description                                   | Version                                                                                                                                                      |
-| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md)                      | Semantic conventions for tracing of LLM Apps. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)     |
-| [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai/README.rst) | OpenInference Instrumentation for OpenAI SDK. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai) |
+| Package                                                                                                                      | Description                                       | Version                                                                                                                                                                |
+|------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md)                                | Semantic conventions for tracing of LLM Apps.     | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)               |
+| [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai/README.rst)           | OpenInference Instrumentation for OpenAI SDK.     | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai)           |
+| [`openinference-instrumentation-llama-index`](./python/instrumentation/openinference-instrumentation-llama-index/README.rst) | OpenInference Instrumentation for LlamaIndex. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-llama-index.svg)](https://pypi.python.org/pypi/openinference-instrumentation-llama-index) |
 
 ## JavaScript
 
