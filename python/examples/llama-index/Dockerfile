@@ -26,4 +26,4 @@ EXPOSE 3000
 EXPOSE 8000
 
 # Start the backend and frontend
-CMD ["./run.sh", "&", "sleep", "infinity"]
+CMD ["./run.sh"]
