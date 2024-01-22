@@ -20,3 +20,7 @@ sdist
 
 # version.ts file is automatically generated at compile time
 version.ts
+
+# Local caching and environment files
+.env
+.vercel
