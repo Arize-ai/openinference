@@ -36,5 +36,6 @@
   "engines": {
     "node": ">=10",
     "pnpm": ">=3"
-  }
+  },
+  "eslintIgnore": ["examples/**/*"]
 }
