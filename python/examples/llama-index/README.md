@@ -10,6 +10,22 @@ Second, run the development server of the frontend as described in the [frontend
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Running as a Docker Container
+
+Build the docker image:
+
+```shell
+docker build -t llama-index-openinference-example .
+```
+
+Run the docker container:
+
+```shell
+docker run -p 3000:3000 -p 8000:8000 llama-index-openinference-example
+```
+
+Access the UI at [http://localhost:3000](http://localhost:3000).
+
 ## Learn More
 
 To learn more about LlamaIndex, take a look at the following resources:
