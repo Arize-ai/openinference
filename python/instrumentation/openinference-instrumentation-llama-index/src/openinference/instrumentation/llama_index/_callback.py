@@ -390,10 +390,12 @@ class _Stragglers(OrderedDict[_EventId, _EventData]):
         if key not in self and len(self) >= self._capacity > 0:
             # pop the oldest straggler by insertion order
             _, event_data = self.popitem(last=False)
-            # FIXME: It's unclear whether we should call `_finish_tracing` here or just drop
-            # the event data, and if we call finish tracing, what status we should set it to?
-            # Note that calling `_finish_tracing` here sets the `end_time` to now because
-            # stragglers have no `end_time` (their `on_event_end` has not been called).
+            # FIXME: It's unclear whether we should call `_finish_tracing` here or simply drop
+            # the event data, and if we call finish tracing, what status we should set it to.
+            # Note that calling `_finish_tracing` here would set status_code to OK even though
+            # en error likely had prevented `on_event_end` from being called. The `end_time`
+            # would also be set to to now because stragglers have no `end_time` (because
+            # `on_event_end` has not been called).
             _finish_tracing(event_data)
         super().__setitem__(key, value)
 
