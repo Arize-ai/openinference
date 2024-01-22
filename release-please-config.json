@@ -13,6 +13,10 @@
     "python/instrumentation/openinference-instrumentation-openai": {
       "package-name": "python-openinference-instrumentation-openai",
       "release-type": "python"
+    },
+    "python/instrumentation/openinference-instrumentation-llama-index": {
+      "package-name": "python-openinference-instrumentation-llama-index",
+      "release-type": "python"
     }
   }
 }
