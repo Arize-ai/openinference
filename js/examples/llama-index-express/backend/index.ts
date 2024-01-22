@@ -12,7 +12,6 @@ const isDevelopment = !env || env === "development";
 const prodCorsOrigin = process.env["PROD_CORS_ORIGIN"];
 
 app.use(express.json());
-cd;
 
 if (isDevelopment) {
   console.warn("Running in development mode - allowing CORS for all origins");
