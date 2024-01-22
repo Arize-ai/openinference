@@ -21,15 +21,13 @@ const provider = new NodeTracerProvider({
 });
 
 provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
-// provider.addSpanProcessor(
-//   new SimpleSpanProcessor(
-//     new OTLPTraceExporter({
-//       url: "http://localhost:6006/v1/traces",
-//     }),
-//   ),
-// );
-
-debugger;
+provider.addSpanProcessor(
+  new SimpleSpanProcessor(
+    new OTLPTraceExporter({
+      url: "http://localhost:6006/v1/traces",
+    }),
+  ),
+);
 
 registerInstrumentations({
   instrumentations: [new OpenAIInstrumentation({})],

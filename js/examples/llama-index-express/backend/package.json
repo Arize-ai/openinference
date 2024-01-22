@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsup ./index.ts ./instrumentation.ts --format cjs --dts",
-    "start": "node --import ./dist/tracer.js ./dist/index.js",
+    "start": "node --import ./dist/instrumentation.cjs ./dist/index.cjs",
     "dev": "concurrently \"tsup ./index.ts ./instrumentation.ts --format cjs --dts --watch\" \"nodemon --inspect --import ./dist/instrumentation.cjs -q ./dist/index.cjs\"",
     "type:check": "tsc --noEmit"
   },
