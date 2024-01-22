@@ -14,6 +14,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    OrderedDict,
     Tuple,
     Union,
     cast,
@@ -192,9 +193,16 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         self._tracer = tracer
         self._context_api_token_stack = _ContextApiTokenStack()
         self._event_data: Dict[_EventId, _EventData] = {}
-        # An example of a straggler is the LLM event when streaming is true, in which case its
-        # `on_event_end` is only called after the trace has ended.
-        self._stragglers: Dict[_EventId, _EventData] = {}
+        self._stragglers: Dict[_EventId, _EventData] = _Stragglers(capacity=1000)
+        """
+        Stragglers are events that have not ended before their traces have ended. An example
+        of a straggler is the LLM event when streaming is true, in which case its `on_event_end`
+        is only called after the trace has ended. If an event is a straggler, then we are still
+        waiting for its `on_event_end` to be called after its trace has ended. However, this call
+        may never take place. Therefore, to prevent memory leak, this container is limited to a
+        certain capacity. When it exceeds that capacity, the oldest straggler by insertion order
+        is popped and are forced to finish tracing.
+        """
 
     def on_event_start(
         self,
@@ -294,19 +302,6 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
 
     def start_trace(self, trace_id: Optional[str] = None) -> None:
         self._event_data.clear()
-        # FIXME: Stragglers can be a memory leak if `on_event_end` is never called for any reason.
-        # One example is when the LLM raises an exception in the following code location,
-        # in which case the LLM event never ends and the straggler is never deleted.
-        # https://github.com/run-llama/llama_index/blob/dcef41ee67925cccf1ee7bb2dd386bcf0564ba29/llama_index/llms/base.py#L62  # noqa: E501
-        if len(self._stragglers) > (limit := 1000):  # arbitrary limit, half will be kept
-            sorted_stragglers = sorted(
-                self._stragglers.items(),
-                key=lambda x: x[1].start_time,
-                reverse=True,
-            )
-            for event_id, event_data in sorted_stragglers[limit // 2 :]:  # keep only half
-                _finish_tracing(event_data)
-                self._stragglers.pop(event_id)
 
     def end_trace(self, trace_id: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
         roots, adjacency_list = _build_graph(self._event_data)
@@ -373,6 +368,30 @@ class _ContextApiTokenStack:
             self._positions.pop(id(token))
             context_api.detach(token)
         self._stack = self._stack[:position]
+
+
+class _Stragglers(OrderedDict[_EventId, _EventData]):
+    """
+    Stragglers are events that have not ended before their traces have ended. If an event is in
+    this container, then we are still waiting for its `on_event_end` to be called after its trace
+    has ended. However, this call may never take place. One example is when the LLM raises an
+    exception in the following code location, in which case the LLM event never ends.
+    https://github.com/run-llama/llama_index/blob/dcef41ee67925cccf1ee7bb2dd386bcf0564ba29/llama_index/llms/base.py#L62
+    Therefore, to prevent memory leak, this container is limited to a certain capacity, and when it
+    exceeds that capacity, the oldest straggler by insertion order is popped and are forced to
+    finish tracing.
+    """  # noqa: E501
+
+    def __init__(self, capacity: int) -> None:
+        super().__init__()
+        self._capacity = capacity
+
+    def __setitem__(self, key: _EventId, value: _EventData) -> None:
+        if key not in self and len(self) >= self._capacity > 0:
+            # pop the oldest straggler by insertion order
+            _, event_data = self.popitem(last=False)
+            _finish_tracing(event_data)
+        super().__setitem__(key, value)
 
 
 class _ResponseGen(ObjectProxy):  # type: ignore
