@@ -1,4 +1,4 @@
-/* eslint-disable turbo/no-undeclared-env-vars */
+/* eslint-disable no-console */
 import cors from "cors";
 import "dotenv/config";
 import express, { Express, Request, Response } from "express";
@@ -12,6 +12,7 @@ const isDevelopment = !env || env === "development";
 const prodCorsOrigin = process.env["PROD_CORS_ORIGIN"];
 
 app.use(express.json());
+cd;
 
 if (isDevelopment) {
   console.warn("Running in development mode - allowing CORS for all origins");
