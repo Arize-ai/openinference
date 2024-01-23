@@ -1,0 +1,16 @@
+services:
+  backend:
+    build: backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
+  frontend:
+    build: frontend
+    ports:
+      - "3000:3000"
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    ports:
+      - "6006:6006"
