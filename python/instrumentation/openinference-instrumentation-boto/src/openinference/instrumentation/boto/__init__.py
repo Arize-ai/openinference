@@ -23,13 +23,6 @@ __version__ = "0.1.0"
 _instruments = ("boto3 >= 1.28.57",)
 
 
-def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
-    if value is not None:
-        if value != "":
-            span.set_attribute(name, value)
-    return
-
-
 class InstrumentedClient(BaseClient):  # type: ignore
     """
     Proxy class representing an instrumented boto client.
@@ -68,7 +61,7 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[CallableType], Callabl
     ) -> BaseClient:
         @wraps(wrapped)
         def create_instrumented_client(*args: Any, **kwargs: Any) -> BaseClient:
-            """Instruments and calls every function defined in TO_WRAP."""
+            """Instruments boto client creation."""
             client: BaseClient = wrapped(*args, **kwargs)
             if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
                 return client
@@ -167,3 +160,8 @@ class BotoInstrumentor(BaseInstrumentor):  # type: ignore
     def _uninstrument(self, **kwargs: Any) -> None:
         boto = import_module(_MODULE)
         boto.ClientCreator.create_client = self._original_client_creator
+
+
+def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
+    if value is not None and value != "":
+        span.set_attribute(name, value)

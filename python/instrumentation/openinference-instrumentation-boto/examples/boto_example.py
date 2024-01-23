@@ -8,7 +8,6 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-# TODO: consider switching to an in-memory exporter
 resource = Resource(attributes={})
 tracer_provider = trace_sdk.TracerProvider(resource=resource)
 span_exporter = OTLPSpanExporter(endpoint="http://127.0.0.1:6006/v1/traces")
