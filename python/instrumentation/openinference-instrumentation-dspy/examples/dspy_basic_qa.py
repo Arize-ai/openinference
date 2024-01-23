@@ -9,6 +9,7 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 resource = Resource(attributes={})
 tracer_provider = trace_sdk.TracerProvider(resource=resource)
 span_console_exporter = ConsoleSpanExporter()
+# Logs to the Phoenix Collector if running locally
 span_otlp_exporter = OTLPSpanExporter(endpoint="http://127.0.0.1:6006/v1/traces")
 tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_console_exporter))
 tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_otlp_exporter))
@@ -27,9 +28,8 @@ class BasicQA(dspy.Signature):
 
 if __name__ == "__main__":
     turbo = dspy.OpenAI(model='gpt-3.5-turbo')
-    colbertv2_wiki17_abstracts = dspy.ColBERTv2(url='http://20.102.90.50:2017/wiki17_abstracts')
 
-    dspy.settings.configure(lm=turbo, rm=colbertv2_wiki17_abstracts)
+    dspy.settings.configure(lm=turbo)
 
     # Define the predictor.
     generate_answer = dspy.Predict(BasicQA)

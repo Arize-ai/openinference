@@ -55,7 +55,8 @@ class DSPyInstrumentor(BaseInstrumentor):
 
         language_model_classes = LM.__subclasses__()
         for lm in language_model_classes:
-            lm.request = lm.request.__wrapped__
+            if hasattr(lm.request, "__wrapped__"):
+                lm.request = lm.request.__wrapped__
 
         # Restore DSPy constructs
         from dspy import Predict
@@ -90,27 +91,28 @@ class _LMBasicRequestWrapper(_WithTracer):
         prompt = args[0]
         kwargs = {**instance.kwargs, **kwargs}
         span_name = instance.__class__.__name__ + ".request"
-        span = self._tracer.start_span(span_name)
-        span.set_attributes(
-            {
+        with self._tracer.start_as_current_span(span_name, attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
                 SpanAttributes.LLM_MODEL_NAME: instance.kwargs.get("model"),
                 SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(kwargs),
-                SpanAttributes.INPUT_VALUE: prompt,
+                SpanAttributes.INPUT_VALUE: str(prompt),
                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
-            }
-        )
-        response = wrapped(*args, **kwargs)
-        # TODO: handle errors TODO: parse usage. Need to decide if this
-        # instrumentation should be used in conjunction model instrumentation
-        span.set_attributes(
-            {
-                SpanAttributes.OUTPUT_VALUE: json.dumps(response),
-                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-            }
-        )
-        span.set_status(trace_api.Status(trace_api.StatusCode.OK))
-        span.end()
+            }) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise exception
+            # TODO: parse usage. Need to decide if this
+            # instrumentation should be used in conjunction model instrumentation
+            span.set_attributes(
+                {
+                    SpanAttributes.OUTPUT_VALUE: json.dumps(response),
+                    SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                }
+            )
+            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
         return response
 
 
@@ -126,29 +128,28 @@ class _PredictForwardWrapper(_WithTracer):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> None:
-        print("Predict.forward")
         signature = kwargs.get("signature", instance.signature)
-        span_name = signature.__class__.__name__ + ".forward"
-        span = self._tracer.start_span(span_name)
-        span.set_attributes(
-            {
-                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-                SpanAttributes.INPUT_VALUE: json.dumps(kwargs),
-                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-            }
-        )
-        prediction = wrapped(*args, **kwargs)
-        # TODO: handle errors
-        span.set_attributes(
-            {
-                SpanAttributes.OUTPUT_VALUE: json.dumps(
-                    self._prediction_to_output_dict(prediction, signature)
-                ),
-                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-            }
-        )
-        span.set_status(trace_api.Status(trace_api.StatusCode.OK))
-        span.end()
+        span_name = signature.__name__ + ".forward"
+        with self._tracer.start_as_current_span(span_name, attributes={
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+                    SpanAttributes.INPUT_VALUE: json.dumps(kwargs),
+                    SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                }) as span:
+            try:
+                prediction = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise exception
+            span.set_attributes(
+                {
+                    SpanAttributes.OUTPUT_VALUE: json.dumps(
+                        self._prediction_to_output_dict(prediction, signature)
+                    ),
+                    SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                }
+            )
+            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
         return prediction
 
     def _prediction_to_output_dict(

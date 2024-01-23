@@ -3,10 +3,12 @@
     "language": "en",
     "words": [
         "arize",
+        "autouse",
         "chatbot",
         "dspy",
         "Instrumentor",
-        "otel"
+        "otel",
+        "uninstrument"
     ],
     "flagWords": [
         "hte"
