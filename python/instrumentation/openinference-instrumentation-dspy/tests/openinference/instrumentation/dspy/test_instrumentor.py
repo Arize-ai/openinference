@@ -48,12 +48,10 @@ def test_openai_lm(
         question = dspy.InputField()
         answer = dspy.OutputField(desc="often between 1 and 5 words")
 
-    turbo = dspy.OpenAI(model="gpt-3.5-turbo")
+    turbo = dspy.OpenAI(model="gpt-3.5-turbo", api_key="sk-fake-key")
     dspy.settings.configure(lm=turbo)
 
     # Mock out the OpenAI API.
-    # NB: DSPy has a built-in cache an right now that is being hit.
-    # TODO(mikeldking): find documentation on how to disable it
     url = "https://api.openai.com/v1/chat/completions"
     response = {
         "json": {
