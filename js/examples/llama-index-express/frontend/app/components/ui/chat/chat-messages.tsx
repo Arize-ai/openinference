@@ -11,8 +11,11 @@ export interface Message {
 
 export default function ChatMessages({
   messages,
+  // eslint-disable-next-line
   isLoading,
+  // eslint-disable-next-line
   reload,
+  // eslint-disable-next-line
   stop,
 }: {
   messages: Message[];
