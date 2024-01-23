@@ -66,7 +66,7 @@ def test_openai_lm(
     }
 
     with requests_mock.Mocker() as m:
-        m.get(url, json=response)
+        m.post(url, json=response)
         # Define the predictor.
         generate_answer = dspy.Predict(BasicQA)
 
