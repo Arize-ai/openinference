@@ -42,7 +42,7 @@ def instrument(
 def test_openai_lm(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    class BasicQA(dspy.Signature):
+    class BasicQA(dspy.Signature):  # type: ignore
         """Answer questions with short factoid answers."""
 
         question = dspy.InputField()
@@ -84,4 +84,4 @@ def test_openai_lm(
     chain_span = spans[1]
     assert chain_span.name == "BasicQA.forward"
     assert lm_span.name == "GPT3.request"
-    assert question in lm_span.attributes[SpanAttributes.INPUT_VALUE]
+    assert question in lm_span.attributes[SpanAttributes.INPUT_VALUE]  # type: ignore

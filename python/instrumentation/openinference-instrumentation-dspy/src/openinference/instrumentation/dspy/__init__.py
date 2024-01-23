@@ -1,6 +1,6 @@
 import json
 from abc import ABC
-from typing import Any, Callable, Collection, Dict, Mapping, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Mapping, Tuple
 
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
@@ -10,8 +10,11 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import wrap_function_wrapper
+
+if TYPE_CHECKING:
+    import dspy
 
 _DSPY_MODULE = "dspy"
 
@@ -19,7 +22,7 @@ _DSPY_MODULE = "dspy"
 _DSP_MODULE = "dsp"
 
 
-class DSPyInstrumentor(BaseInstrumentor):
+class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
     """
     OpenInference Instrumentor for DSPy
     """
@@ -27,7 +30,7 @@ class DSPyInstrumentor(BaseInstrumentor):
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
-    def _instrument(self, **kwargs):
+    def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
@@ -50,7 +53,7 @@ class DSPyInstrumentor(BaseInstrumentor):
             wrapper=_PredictForwardWrapper(tracer),
         )
 
-    def _uninstrument(self, **kwargs):
+    def _uninstrument(self, **kwargs: Any) -> None:
         from dsp.modules.lm import LM
 
         language_model_classes = LM.__subclasses__()
@@ -86,7 +89,7 @@ class _LMBasicRequestWrapper(_WithTracer):
         instance: Any,
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
-    ) -> None:
+    ) -> Any:
         print("LM.basic_request")
         prompt = args[0]
         kwargs = {**instance.kwargs, **kwargs}
@@ -130,7 +133,7 @@ class _PredictForwardWrapper(_WithTracer):
         instance: Any,
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
-    ) -> None:
+    ) -> Any:
         signature = kwargs.get("signature", instance.signature)
         span_name = signature.__name__ + ".forward"
         with self._tracer.start_as_current_span(
@@ -159,8 +162,8 @@ class _PredictForwardWrapper(_WithTracer):
         return prediction
 
     def _prediction_to_output_dict(
-        self, prediction, signature
-    ) -> Dict[str, Union[str, int, float, bool]]:
+        self, prediction: dspy.Prediction, signature: dspy.Signature
+    ) -> Dict[str, Any]:
         """
         Parse the prediction fields to get the input and output fields
         """
