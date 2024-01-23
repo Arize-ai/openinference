@@ -1,6 +1,6 @@
 import json
 from abc import ABC
-from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Mapping, Tuple
+from typing import Any, Callable, Collection, Dict, Mapping, Tuple
 
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
@@ -12,9 +12,6 @@ from openinference.semconv.trace import (
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import wrap_function_wrapper
-
-if TYPE_CHECKING:
-    import dspy
 
 _DSPY_MODULE = "dspy"
 
@@ -161,9 +158,7 @@ class _PredictForwardWrapper(_WithTracer):
             span.set_status(trace_api.Status(trace_api.StatusCode.OK))
         return prediction
 
-    def _prediction_to_output_dict(
-        self, prediction: dspy.Prediction, signature: dspy.Signature
-    ) -> Dict[str, Any]:
+    def _prediction_to_output_dict(self, prediction: Any, signature: Any) -> Dict[str, Any]:
         """
         Parse the prediction fields to get the input and output fields
         """
