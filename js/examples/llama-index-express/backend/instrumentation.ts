@@ -24,7 +24,7 @@ provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 provider.addSpanProcessor(
   new SimpleSpanProcessor(
     new OTLPTraceExporter({
-      url: "http://localhost:6006/v1/traces",
+      url: process.env.COLLECTOR_ENDPOINT || "http://localhost:6006/v1/traces",
     }),
   ),
 );
