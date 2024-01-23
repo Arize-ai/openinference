@@ -40,7 +40,7 @@ def instrument(
     in_memory_span_exporter.clear()
 
 
-def test_invoke_client(in_memory_span_exporter: InMemorySpanExporter):
+def test_invoke_client(in_memory_span_exporter: InMemorySpanExporter) -> None:
     output = b'{"completion":" Hello!","stop_reason":"stop_sequence","stop":"\\n\\nHuman:"}'
     streaming_body = StreamingBody(io.BytesIO(output), len(output))
     mock_response = {
@@ -73,7 +73,7 @@ def test_invoke_client(in_memory_span_exporter: InMemorySpanExporter):
     assert len(spans) == 1
     span = spans[0]
     assert span.status.is_ok
-    attributes = dict(span.attributes)
+    attributes = dict(span.attributes or dict())
     assert attributes["llm.model_name"] == "anthropic.claude-v2"
     assert attributes["llm.prompts"] == "Human: hello there? Assistant:"
     assert attributes["message.content"] == " Hello!"

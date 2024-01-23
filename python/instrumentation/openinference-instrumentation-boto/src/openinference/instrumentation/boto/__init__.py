@@ -137,14 +137,14 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                             content,
                         )
 
-                return response
+                return response  # type: ignore
 
         return instrumented_response
 
     return _invocation_wrapper
 
 
-class BotoInstrumentor(BaseInstrumentor):
+class BotoInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = ("_original_client_creator",)
 
     def instrumentation_dependencies(self) -> Collection[str]:
