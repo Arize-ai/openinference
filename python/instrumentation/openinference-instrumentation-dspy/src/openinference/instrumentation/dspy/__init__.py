@@ -91,13 +91,16 @@ class _LMBasicRequestWrapper(_WithTracer):
         prompt = args[0]
         kwargs = {**instance.kwargs, **kwargs}
         span_name = instance.__class__.__name__ + ".request"
-        with self._tracer.start_as_current_span(span_name, attributes={
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
                 SpanAttributes.LLM_MODEL_NAME: instance.kwargs.get("model"),
                 SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(kwargs),
                 SpanAttributes.INPUT_VALUE: str(prompt),
                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
-            }) as span:
+            },
+        ) as span:
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -130,11 +133,14 @@ class _PredictForwardWrapper(_WithTracer):
     ) -> None:
         signature = kwargs.get("signature", instance.signature)
         span_name = signature.__name__ + ".forward"
-        with self._tracer.start_as_current_span(span_name, attributes={
-                    SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-                    SpanAttributes.INPUT_VALUE: json.dumps(kwargs),
-                    SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-                }) as span:
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes={
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+                SpanAttributes.INPUT_VALUE: json.dumps(kwargs),
+                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+            },
+        ) as span:
             try:
                 prediction = wrapped(*args, **kwargs)
             except Exception as exception:

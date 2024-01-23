@@ -18,6 +18,7 @@ trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 
 DSPyInstrumentor().instrument()
 
+
 class BasicQA(dspy.Signature):
     """Answer questions with short factoid answers."""
 
@@ -25,9 +26,8 @@ class BasicQA(dspy.Signature):
     answer = dspy.OutputField(desc="often between 1 and 5 words")
 
 
-
 if __name__ == "__main__":
-    turbo = dspy.OpenAI(model='gpt-3.5-turbo')
+    turbo = dspy.OpenAI(model="gpt-3.5-turbo")
 
     dspy.settings.configure(lm=turbo)
 
@@ -35,5 +35,7 @@ if __name__ == "__main__":
     generate_answer = dspy.Predict(BasicQA)
 
     # Call the predictor on a particular input.
-    pred = generate_answer(question="What is the nationality of the chef and restaurateur featured in Restaurant: Impossible?")  # noqa: E501
+    pred = generate_answer(
+        question="What is the nationality of the chef and restaurateur featured in Restaurant: Impossible?"  # noqa: E501
+    )  # noqa: E501
     print(f"Predicted Answer: {pred.answer}")
