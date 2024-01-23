@@ -30,7 +30,7 @@ def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) 
     return
 
 
-class InstrumentedClient(BaseClient):
+class InstrumentedClient(BaseClient):  # type: ignore
     """
     Proxy class representing an instrumented boto client.
     """
@@ -39,7 +39,7 @@ class InstrumentedClient(BaseClient):
     _unwrapped_invoke_model: Callable[..., Any]
 
 
-class BufferedStreamingBody(StreamingBody):
+class BufferedStreamingBody(StreamingBody):  # type: ignore
     _raw_stream: IO[bytes]
 
     def __init__(self, raw_stream: IO[bytes], content_length: int) -> None:
