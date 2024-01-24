@@ -1,4 +1,5 @@
 import dspy
+import os
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -9,10 +10,13 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 resource = Resource(attributes={})
 tracer_provider = trace_sdk.TracerProvider(resource=resource)
 span_console_exporter = ConsoleSpanExporter()
-# Logs to the Phoenix Collector if running locally
-span_otlp_exporter = OTLPSpanExporter(endpoint="http://127.0.0.1:6006/v1/traces")
 tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_console_exporter))
-tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_otlp_exporter))
+# Logs to the Phoenix Collector if running locally
+if os.environ.get("PHOENIX_COLLECTOR_ENDPOINT"):
+    endpoint = os.environ["PHOENIX_COLLECTOR_ENDPOINT"] + "/v1/traces"
+    span_otlp_exporter = OTLPSpanExporter(endpoint=endpoint)
+    tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_otlp_exporter))
+
 trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 
 
@@ -36,6 +40,6 @@ if __name__ == "__main__":
 
     # Call the predictor on a particular input.
     pred = generate_answer(
-        question="What is the nationality of the chef and restaurateur featured in Restaurant: Impossible?"  # noqa: E501
+        question="What is the capital of the united states?"  # noqa: E501
     )  # noqa: E501
     print(f"Predicted Answer: {pred.answer}")

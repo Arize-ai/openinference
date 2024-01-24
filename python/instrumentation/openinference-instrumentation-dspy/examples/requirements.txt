@@ -1,3 +1,4 @@
 dspy-ai >= 2.1.0
 opentelemetry-sdk
 opentelemetry-exporter-otlp
+openinference-instrumentation-dspy
