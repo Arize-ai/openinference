@@ -146,7 +146,7 @@ class _PredictForwardWrapper(_WithTracer):
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
-                raise exception
+                raise
             span.set_attributes(
                 {
                     SpanAttributes.OUTPUT_VALUE: json.dumps(
