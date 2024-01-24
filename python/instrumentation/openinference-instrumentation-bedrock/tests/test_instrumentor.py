@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import boto3
 import pytest
 from botocore.response import StreamingBody
-from openinference.instrumentation.boto import BedrockInstrumentor
+from openinference.instrumentation.bedrock import BedrockInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
