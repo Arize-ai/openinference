@@ -48,21 +48,29 @@ def test_openai_lm(
         question = dspy.InputField()
         answer = dspy.OutputField(desc="often between 1 and 5 words")
 
-    turbo = dspy.OpenAI(model="gpt-3.5-turbo", api_key="sk-fake-key")
+    turbo = dspy.OpenAI(api_key="jk-fake-key", model_type="chat")
     dspy.settings.configure(lm=turbo)
 
     # Mock out the OpenAI API.
     url = "https://api.openai.com/v1/chat/completions"
     response = {
-        "json": {
-            "choices": [{"index": 0, "message": "American", "finish_reason": "stop"}],
-            "model": "gpt-35-turbo",
-            "usage": {
-                "completion": 50,
-                "prompt": 25,
-                "total": 75,
-            },
-        }
+        "id": "chatcmpl-8kKarJQUyeuFeRsj18o6TWrxoP2zs",
+        "object": "chat.completion",
+        "created": 1706052941,
+        "model": "gpt-3.5-turbo-0613",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "Washington DC",
+                },
+                "logprobs": None,
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 39, "completion_tokens": 396, "total_tokens": 435},
+        "system_fingerprint": None,
     }
 
     with requests_mock.Mocker() as m:
@@ -70,12 +78,17 @@ def test_openai_lm(
         # Define the predictor.
         generate_answer = dspy.Predict(BasicQA)
 
-    # Call the predictor on a particular input.
-    question = (
-        "What is the nationality of the chef and restaurateur featured in Restaurant: Impossible?"  # noqa: E501
-    )
-    pred = generate_answer(question=question)
-    assert pred.answer == "American"
+        # Call the predictor on a particular input.
+        question = "What's the capital of the United States?"  # noqa: E501
+        pred = generate_answer(question=question)
+
+    # generate_answer = dspy.Predict(BasicQA)
+
+    # # Call the predictor on a particular input.
+    # question = "What's the capital of the united states?"  # noqa: E501
+    # pred = generate_answer(question=question)
+
+    assert pred.answer == "Washington DC"
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2  # 1 for the wrapping Signature, 1 for the OpenAI call
     lm_span = spans[0]

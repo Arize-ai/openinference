@@ -87,7 +87,6 @@ class _LMBasicRequestWrapper(_WithTracer):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        print("LM.basic_request")
         prompt = args[0]
         kwargs = {**instance.kwargs, **kwargs}
         span_name = instance.__class__.__name__ + ".request"
