@@ -18,7 +18,7 @@ from opentelemetry.trace import Tracer
 from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
 
-CallableType = TypeVar("CallableType", bound=Callable[..., Any])
+ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
 
 _MODULE = "botocore.client"
 
@@ -52,9 +52,9 @@ class BufferedStreamingBody(StreamingBody):  # type: ignore
             self._buffer.seek(0)
 
 
-def _client_creation_wrapper(tracer: Tracer) -> Callable[[CallableType], CallableType]:
+def _client_creation_wrapper(tracer: Tracer) -> Callable[[ClientCreator], ClientCreator]:
     def _client_wrapper(
-        wrapped: CallableType,
+        wrapped: ClientCreator,
         instance: Optional[Any],
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
