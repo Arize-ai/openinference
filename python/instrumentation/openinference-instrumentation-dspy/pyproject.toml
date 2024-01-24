@@ -67,7 +67,7 @@ exclude = [
 ]
 
 [tool.ruff]
-exclude = [".git", "__pycache__", "docs/source/conf.py", "*_pb2.py*", "*.pyi"]
+exclude = [".git", "__pycache__", "*_pb2.py*", "*.pyi"]
 ignore-init-module-imports = true
 line-length = 100
 select = ["E", "F", "W", "I"]

@@ -82,12 +82,6 @@ def test_openai_lm(
         question = "What's the capital of the United States?"  # noqa: E501
         pred = generate_answer(question=question)
 
-    # generate_answer = dspy.Predict(BasicQA)
-
-    # # Call the predictor on a particular input.
-    # question = "What's the capital of the united states?"  # noqa: E501
-    # pred = generate_answer(question=question)
-
     assert pred.answer == "Washington DC"
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2  # 1 for the wrapping Signature, 1 for the OpenAI call
