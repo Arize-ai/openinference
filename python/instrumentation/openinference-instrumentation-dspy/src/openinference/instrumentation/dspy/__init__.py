@@ -114,7 +114,7 @@ class _LMBasicRequestWrapper(_WithTracer):
                     SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                 }
             )
-            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+            span.set_status(trace_api.StatusCode.OK)
         return response
 
 
