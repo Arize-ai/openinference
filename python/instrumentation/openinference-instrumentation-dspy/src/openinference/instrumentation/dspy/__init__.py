@@ -108,7 +108,7 @@ class _LMBasicRequestWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             # TODO: parse usage. Need to decide if this
-            # instrumentation should be used in conjunction model instrumentation
+            # instrumentation should be used in conjunction with model instrumentation
             span.set_attributes(
                 {
                     SpanAttributes.OUTPUT_VALUE: json.dumps(response),
