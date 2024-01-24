@@ -18,8 +18,8 @@
             "package-name": "python-openinference-instrumentation-llama-index",
             "release-type": "python"
         },
-        "python/instrumentation/openinference-instrumentation-llama-dspy": {
-            "package-name": "python-openinference-instrumentation-llama-dspy",
+        "python/instrumentation/openinference-instrumentation-dspy": {
+            "package-name": "python-openinference-instrumentation-dspy",
             "release-type": "python"
         }
     }
