@@ -24,3 +24,6 @@ version.ts
 # Local caching and environment files
 .env
 .vercel
+
+# DSPy produced files
+assertion.log
