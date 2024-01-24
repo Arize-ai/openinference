@@ -74,7 +74,6 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[CallableType], Callabl
                 client = cast(InstrumentedClient, client)
                 client._unwrapped_invoke_model = client.invoke_model
                 client.invoke_model = _model_invocation_wrapper(tracer)(client)
-                return client
             return client
 
         return create_instrumented_client(*args, **kwargs)
@@ -99,7 +98,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 response["body"].reset()
 
                 prompt = request_body.pop("prompt")
-                invocation_parameters = request_body
+                invocation_parameters = json.dumps(request_body)
 
                 _set_span_attribute(span, SpanAttributes.LLM_PROMPTS, prompt)
                 _set_span_attribute(
@@ -110,25 +109,19 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                     _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
 
                     if isinstance(model_id, str):
-                        (vendor, _) = model_id.split(".")
+                        (vendor, *_) = model_id.split(".")
 
                     if vendor == "ai21":
                         content = str(response_body.get("completions"))
-                        _set_span_attribute(
-                            span,
-                            MessageAttributes.MESSAGE_CONTENT,
-                            content,
-                        )
                     elif vendor == "anthropic":
                         content = str(response_body.get("completion"))
-                        _set_span_attribute(span, MessageAttributes.MESSAGE_CONTENT, content)
                     elif vendor == "cohere":
                         content = str(response_body.get("generations"))
-                        _set_span_attribute(
-                            span,
-                            MessageAttributes.MESSAGE_CONTENT,
-                            content,
-                        )
+                    else:
+                        content = ""
+
+                    if content:
+                        _set_span_attribute(span, MessageAttributes.MESSAGE_CONTENT, content)
 
                 return response  # type: ignore
 
@@ -160,6 +153,7 @@ class BotoInstrumentor(BaseInstrumentor):  # type: ignore
     def _uninstrument(self, **kwargs: Any) -> None:
         boto = import_module(_MODULE)
         boto.ClientCreator.create_client = self._original_client_creator
+        self._original_client_creator = None
 
 
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
