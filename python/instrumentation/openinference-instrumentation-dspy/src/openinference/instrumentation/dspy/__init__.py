@@ -106,7 +106,7 @@ class _LMBasicRequestWrapper(_WithTracer):
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
-                raise exception
+                raise
             # TODO: parse usage. Need to decide if this
             # instrumentation should be used in conjunction model instrumentation
             span.set_attributes(
