@@ -1,7 +1,7 @@
 import json
 
 import boto3
-from openinference.instrumentation.boto import BotoInstrumentor
+from openinference.instrumentation.boto import BedrockInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -16,7 +16,7 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_consol
 tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_otlp_exporter))
 trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 
-BotoInstrumentor().instrument()
+BedrockInstrumentor().instrument()
 
 session = boto3.session.Session()
 client = session.client("bedrock-runtime")

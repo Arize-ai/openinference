@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import boto3
 import pytest
 from botocore.response import StreamingBody
-from openinference.instrumentation.boto import BotoInstrumentor
+from openinference.instrumentation.boto import BedrockInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
@@ -34,9 +34,9 @@ def instrument(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
-    BotoInstrumentor().instrument(tracer_provider=tracer_provider)
+    BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
-    BotoInstrumentor().uninstrument()
+    BedrockInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
 
 

@@ -126,7 +126,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
     return _invocation_wrapper
 
 
-class BotoInstrumentor(BaseInstrumentor):  # type: ignore
+class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = ("_original_client_creator",)
 
     def instrumentation_dependencies(self) -> Collection[str]:
