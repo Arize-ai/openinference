@@ -61,7 +61,8 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         # Restore DSPy constructs
         from dspy import Predict
 
-        Predict.forward = Predict.forward.__wrapped__
+        if hasattr(Predict.forward, "__wrapped__"):
+            Predict.forward = Predict.forward.__wrapped__
 
 
 class _WithTracer(ABC):
