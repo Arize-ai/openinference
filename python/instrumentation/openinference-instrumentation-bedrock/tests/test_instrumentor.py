@@ -64,6 +64,9 @@ def test_invoke_client(in_memory_span_exporter: InMemorySpanExporter) -> None:
     }
     session = boto3.session.Session()
     client = session.client("bedrock-runtime", region_name="us-east-1")
+
+    # instead of mocking the HTTP response, we mock the boto client method directly to avoid
+    # complexities with mocking auth
     client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
     client.invoke_model(
         modelId="anthropic.claude-v2",
