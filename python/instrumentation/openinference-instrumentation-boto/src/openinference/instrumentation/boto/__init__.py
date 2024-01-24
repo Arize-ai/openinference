@@ -7,6 +7,8 @@ from typing import IO, Any, Callable, Collection, Dict, Optional, Tuple, TypeVar
 
 from botocore.client import BaseClient
 from botocore.response import StreamingBody
+from openinference.instrumentation.boto.package import _instruments
+from openinference.instrumentation.boto.version import __version__
 from openinference.semconv.trace import MessageAttributes, SpanAttributes
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -19,8 +21,6 @@ from wrapt import wrap_function_wrapper
 CallableType = TypeVar("CallableType", bound=Callable[..., Any])
 
 _MODULE = "botocore.client"
-__version__ = "0.1.0"
-_instruments = ("boto3 >= 1.28.57",)
 
 
 class InstrumentedClient(BaseClient):  # type: ignore
