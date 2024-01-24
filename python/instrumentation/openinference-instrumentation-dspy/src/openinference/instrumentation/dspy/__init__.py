@@ -89,14 +89,14 @@ class _LMBasicRequestWrapper(_WithTracer):
         kwargs: Mapping[str, Any],
     ) -> Any:
         prompt = args[0]
-        kwargs = {**instance.kwargs, **kwargs}
+        invocation_parameters = {**instance.kwargs, **kwargs}
         span_name = instance.__class__.__name__ + ".request"
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
                 SpanAttributes.LLM_MODEL_NAME: instance.kwargs.get("model"),
-                SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(kwargs),
+                SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(invocation_parameters),
                 SpanAttributes.INPUT_VALUE: str(prompt),
                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
             },
