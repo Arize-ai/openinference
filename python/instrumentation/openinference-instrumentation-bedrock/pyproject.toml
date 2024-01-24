@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-boto"
+name = "openinference-instrumentation-bedrock"
 dynamic = ["version"]
-description = "OpenInference Boto Instrumentation"
+description = "OpenInference Bedrock Instrumentation"
 readme = "README.rst"
 license = "Apache-2.0"
 requires-python = ">=3.8, <3.12"
@@ -42,10 +42,10 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-boto"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-bedrock"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/boto/version.py"
+path = "src/openinference/instrumentation/bedrock/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [

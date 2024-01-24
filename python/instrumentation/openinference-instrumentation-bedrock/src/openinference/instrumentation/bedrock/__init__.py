@@ -7,8 +7,8 @@ from typing import IO, Any, Callable, Collection, Dict, Optional, Tuple, TypeVar
 
 from botocore.client import BaseClient
 from botocore.response import StreamingBody
-from openinference.instrumentation.boto.package import _instruments
-from openinference.instrumentation.boto.version import __version__
+from openinference.instrumentation.bedrock.package import _instruments
+from openinference.instrumentation.bedrock.version import __version__
 from openinference.semconv.trace import MessageAttributes, SpanAttributes
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
