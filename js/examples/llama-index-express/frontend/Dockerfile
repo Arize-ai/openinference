@@ -1,3 +1,4 @@
+# Adapted from https://github.com/vercel/next.js/blob/fb2d2dd01a5f73ac62c4809b7b9c1490617f8705/examples/with-docker/Dockerfile
 FROM node:18-alpine AS base
 
 # Install dependencies only when needed
