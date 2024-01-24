@@ -60,7 +60,7 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[ClientCreator], Client
         kwargs: Dict[str, Any],
     ) -> BaseClient:
         """Instruments boto client creation."""
-        client: BaseClient = wrapped(*args, **kwargs)
+        client = wrapped(*args, **kwargs)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return client
 
