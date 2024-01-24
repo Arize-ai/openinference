@@ -59,24 +59,20 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[CallableType], Callabl
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
     ) -> BaseClient:
-        @wraps(wrapped)
-        def create_instrumented_client(*args: Any, **kwargs: Any) -> BaseClient:
-            """Instruments boto client creation."""
-            client: BaseClient = wrapped(*args, **kwargs)
-            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                return client
-
-            call_signature = signature(wrapped)
-            bound_arguments = call_signature.bind(*args, **kwargs)
-            bound_arguments.apply_defaults()
-
-            if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
-                client = cast(InstrumentedClient, client)
-                client._unwrapped_invoke_model = client.invoke_model
-                client.invoke_model = _model_invocation_wrapper(tracer)(client)
+        """Instruments boto client creation."""
+        client: BaseClient = wrapped(*args, **kwargs)
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return client
 
-        return create_instrumented_client(*args, **kwargs)
+        call_signature = signature(wrapped)
+        bound_arguments = call_signature.bind(*args, **kwargs)
+        bound_arguments.apply_defaults()
+
+        if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
+            client = cast(InstrumentedClient, client)
+            client._unwrapped_invoke_model = client.invoke_model
+            client.invoke_model = _model_invocation_wrapper(tracer)(client)
+        return client
 
     return _client_wrapper  # type: ignore
 
