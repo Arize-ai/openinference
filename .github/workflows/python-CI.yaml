@@ -24,4 +24,4 @@ jobs:
                       3.9
                       3.11
             - run: pip install tox==4.11.4
-            - run: tox run-parallel
+            - run: tox run-parallel --parallel-no-spinner
