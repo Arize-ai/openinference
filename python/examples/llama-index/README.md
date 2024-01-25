@@ -2,7 +2,7 @@
 
 This is a [LlamaIndex](https://www.llamaindex.ai/) project bootstrapped with [`create-llama`](https://github.com/run-llama/LlamaIndexTS/tree/main/packages/create-llama) and instrumented using OpenInference.
 
-## Getting Started
+## Getting Started with Local Development
 
 First, startup the backend as described in the [backend README](./backend/README.md).
 
@@ -10,21 +10,19 @@ Second, run the development server of the frontend as described in the [frontend
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Running as a Docker Container
+## Getting Started with Docker-Compose
 
-Build the docker image:
+Generate a Llama Index vector store index:
 
-```shell
-docker build -t llama-index-openinference-example .
+```
+cd ./backend
+python app/engine/generate.py
+cd ..
 ```
 
-Run the docker container:
+Ensure that Docker is installed and running. Run the command `docker compose up` to spin up services for the frontend, backend, and Phoenix. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface. When you're finished, run `docker compose down` to spin down the services.
 
-```shell
-docker run -p 3000:3000 -p 8000:8000 llama-index-openinference-example
-```
-
-Access the UI at [http://localhost:3000](http://localhost:3000).
+Traces can be viewed using the [Phoenix UI](http://localhost:6006).
 
 ## Learn More
 
