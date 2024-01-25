@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-dspy"
+dynamic = ["version"]
+description = "OpenInference DSPy Instrumentation"
+readme = "README.rst"
+license = "Apache-2.0"
+requires-python = ">=3.9, <3.12"
+authors = [
+  { name = "OpenInference Authors", email = "oss@arize.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+  "opentelemetry-api",
+  "opentelemetry-instrumentation",
+  "opentelemetry-semantic-conventions",
+  "openinference-semantic-conventions",
+  "wrapt",
+]
+
+[project.optional-dependencies]
+instruments = [
+  "dspy-ai >= 2.1.0",
+]
+test = [
+  "dspy-ai==2.1.0",
+  "opentelemetry-sdk",
+  "requests-mock",
+]
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-dspy"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/dspy/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.mypy]
+plugins = []
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs  = true
+strict = true
+exclude = [
+  "dist/",
+]
+
+[tool.ruff]
+exclude = [".git", "__pycache__", "*_pb2.py*", "*.pyi"]
+ignore-init-module-imports = true
+line-length = 100
+select = ["E", "F", "W", "I"]
+target-version = "py38"

@@ -21,5 +21,9 @@ sdist
 # version.ts file is automatically generated at compile time
 version.ts
 
-# Secrets
+# Local caching and environment files
 .env
+.vercel
+
+# DSPy produced files
+assertion.log
