@@ -3,7 +3,6 @@ import logging
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum
-from itertools import chain
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Tuple
 from uuid import UUID
 
@@ -34,6 +33,8 @@ class _Run(NamedTuple):
 
 
 class OpenInferenceTracer(BaseTracer):
+    __slots__ = ("_tracer", "_runs")
+
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
@@ -119,25 +120,50 @@ def _update_span(span: trace_api.Span, run: Dict[str, Any]) -> None:
         "inputs": (INPUT_VALUE, INPUT_MIME_TYPE),
         "outputs": (OUTPUT_VALUE, OUTPUT_MIME_TYPE),
     }.items():
-        span.set_attributes(dict(zip(io_attributes, _convert_io(run.get(io_key)))))
-    span.set_attributes(
-        dict(
-            _flatten(
-                chain(
-                    _prompts(run["inputs"]),
-                    _input_messages(run["inputs"]),
-                    _output_messages(run["outputs"]),
-                    _prompt_template(run["serialized"]),
-                    _invocation_parameters(run),
-                    _model_name(run["extra"]),
-                    _token_counts(run["outputs"]),
-                    _function_calls(run["outputs"]),
-                    _tools(run),
-                    _retrieval_documents(run),
-                )
-            )
-        )
-    )
+        try:
+            span.set_attributes(dict(zip(io_attributes, _convert_io(run.get(io_key)))))
+        except Exception:
+            logger.exception(f"Failed to set {io_key} attributes.")
+    try:
+        span.set_attributes(dict(_flatten(_prompts(run["inputs"]))))
+    except Exception:
+        logger.exception("Failed to set prompts.")
+    try:
+        span.set_attributes(dict(_flatten(_input_messages(run["inputs"]))))
+    except Exception:
+        logger.exception("Failed to set input_messages")
+    try:
+        span.set_attributes(dict(_flatten(_output_messages(run["outputs"]))))
+    except Exception:
+        logger.exception("Failed to set output_messages")
+    try:
+        span.set_attributes(dict(_flatten(_prompt_template(run["serialized"]))))
+    except Exception:
+        logger.exception("Failed to set prompt_template")
+    try:
+        span.set_attributes(dict(_flatten(_invocation_parameters(run))))
+    except Exception:
+        logger.exception("Failed to set invocation_parameters")
+    try:
+        span.set_attributes(dict(_flatten(_model_name(run["extra"]))))
+    except Exception:
+        logger.exception("Failed to set model_name")
+    try:
+        span.set_attributes(dict(_flatten(_token_counts(run["outputs"]))))
+    except Exception:
+        logger.exception("Failed to set token_counts")
+    try:
+        span.set_attributes(dict(_flatten(_function_calls(run["outputs"]))))
+    except Exception:
+        logger.exception("Failed to set function_calls")
+    try:
+        span.set_attributes(dict(_flatten(_tools(run))))
+    except Exception:
+        logger.exception("Failed to set tools")
+    try:
+        span.set_attributes(dict(_flatten(_retrieval_documents(run))))
+    except Exception:
+        logger.exception("Failed to set retrieval_documents")
 
 
 def _flatten(key_values: Iterable[Tuple[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
