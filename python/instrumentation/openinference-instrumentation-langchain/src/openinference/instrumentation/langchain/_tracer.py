@@ -55,12 +55,7 @@ class OpenInferenceTracer(BaseTracer):
             context_api.detach(event_data.token)
             span = event_data.span
             try:
-                # Note that this relies on pydantic for the serialization
-                # of objects like `langchain_core.documents.Document`.
-                if hasattr(run, "model_dump") and callable(run.model_dump):
-                    _update_span(span, run.model_dump())
-                else:
-                    _update_span(span, run.dict())
+                _update_span(span, run)
             except Exception:
                 logger.exception("Failed to update span with run data.")
             span.end()
@@ -105,39 +100,39 @@ def _record_exception(span: trace_api.Span, error: BaseException) -> None:
         )
 
 
-def _update_span(span: trace_api.Span, run: Dict[str, Any]) -> None:
-    if run["error"] is None:
+def _update_span(span: trace_api.Span, run: Run) -> None:
+    if run.error is None:
         span.set_status(trace_api.StatusCode.OK)
     else:
-        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, run["error"]))
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, run.error))
     span_kind = (
         OpenInferenceSpanKindValues.AGENT
-        if "agent" in run["name"].lower()
-        else _langchain_run_type_to_span_kind(run["run_type"])
+        if "agent" in run.name.lower()
+        else _langchain_run_type_to_span_kind(run.run_type)
     )
     span.set_attribute(OPENINFERENCE_SPAN_KIND, span_kind.value)
-    for io_key, io_attributes in {
-        "inputs": (INPUT_VALUE, INPUT_MIME_TYPE),
-        "outputs": (OUTPUT_VALUE, OUTPUT_MIME_TYPE),
-    }.items():
-        try:
-            span.set_attributes(dict(zip(io_attributes, _convert_io(run.get(io_key)))))
-        except Exception:
-            logger.exception(f"Failed to set {io_key} attributes.")
     try:
-        span.set_attributes(dict(_flatten(_prompts(run["inputs"]))))
+        span.set_attributes(dict(_as_input(_convert_io(run.inputs))))
+    except Exception:
+        logger.exception("Failed to set input_value.")
+    try:
+        span.set_attributes(dict(_as_output(_convert_io(run.outputs))))
+    except Exception:
+        logger.exception("Failed to set output_value.")
+    try:
+        span.set_attributes(dict(_flatten(_prompts(run.inputs))))
     except Exception:
         logger.exception("Failed to set prompts.")
     try:
-        span.set_attributes(dict(_flatten(_input_messages(run["inputs"]))))
+        span.set_attributes(dict(_flatten(_input_messages(run.inputs))))
     except Exception:
         logger.exception("Failed to set input_messages")
     try:
-        span.set_attributes(dict(_flatten(_output_messages(run["outputs"]))))
+        span.set_attributes(dict(_flatten(_output_messages(run.outputs))))
     except Exception:
         logger.exception("Failed to set output_messages")
     try:
-        span.set_attributes(dict(_flatten(_prompt_template(run["serialized"]))))
+        span.set_attributes(dict(_flatten(_prompt_template(run.serialized))))
     except Exception:
         logger.exception("Failed to set prompt_template")
     try:
@@ -145,15 +140,15 @@ def _update_span(span: trace_api.Span, run: Dict[str, Any]) -> None:
     except Exception:
         logger.exception("Failed to set invocation_parameters")
     try:
-        span.set_attributes(dict(_flatten(_model_name(run["extra"]))))
+        span.set_attributes(dict(_flatten(_model_name(run.extra))))
     except Exception:
         logger.exception("Failed to set model_name")
     try:
-        span.set_attributes(dict(_flatten(_token_counts(run["outputs"]))))
+        span.set_attributes(dict(_flatten(_token_counts(run.outputs))))
     except Exception:
         logger.exception("Failed to set token_counts")
     try:
-        span.set_attributes(dict(_flatten(_function_calls(run["outputs"]))))
+        span.set_attributes(dict(_flatten(_function_calls(run.outputs))))
     except Exception:
         logger.exception("Failed to set function_calls")
     try:
@@ -199,11 +194,18 @@ def _serialize_json(obj: Any) -> str:
     return str(obj)
 
 
+def _as_input(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
+    return zip((INPUT_VALUE, INPUT_MIME_TYPE), values)
+
+
+def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
+    return zip((OUTPUT_VALUE, OUTPUT_MIME_TYPE), values)
+
+
 def _convert_io(obj: Optional[Dict[str, Any]]) -> Iterator[str]:
     if not obj:
         return
-    if not isinstance(obj, dict):
-        raise ValueError(f"obj should be dict, but obj={obj}")
+    assert isinstance(obj, dict), f"obj should be dict, but obj={obj}"
     if len(obj) == 1 and isinstance(value := next(iter(obj.values())), str):
         yield value
     else:
@@ -219,8 +221,9 @@ def _prompts(run_inputs: Dict[str, Any]) -> Iterator[Tuple[str, List[str]]]:
 
 def _input_messages(run_inputs: Mapping[str, Any]) -> Iterator[Tuple[str, List[Message]]]:
     """Yields chat messages if present."""
-    if not hasattr(run_inputs, "get"):
+    if not run_inputs:
         return
+    assert hasattr(run_inputs, "get"), f"expected Mapping, found {type(run_inputs)}"
     # There may be more than one set of messages. We'll use just the first set.
     if not (multiple_messages := run_inputs.get("messages")):
         return
@@ -241,8 +244,9 @@ def _input_messages(run_inputs: Mapping[str, Any]) -> Iterator[Tuple[str, List[M
 
 def _output_messages(run_outputs: Mapping[str, Any]) -> Iterator[Tuple[str, List[Message]]]:
     """Yields chat messages if present."""
-    if not hasattr(run_outputs, "get"):
+    if not run_outputs:
         return
+    assert hasattr(run_outputs, "get"), f"expected Mapping, found {type(run_outputs)}"
     # There may be more than one set of generations. We'll use just the first set.
     if not (multiple_generations := run_outputs.get("generations")):
         return
@@ -347,11 +351,11 @@ def _prompt_template(run_serialized: Dict[str, Any]) -> Iterator[Tuple[str, Any]
             break
 
 
-def _invocation_parameters(run: Dict[str, Any]) -> Iterator[Tuple[str, str]]:
+def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
     """Yields invocation parameters if present."""
-    if run["run_type"] != "llm":
+    if run.run_type != "llm":
         return
-    run_extra = run["extra"]
+    run_extra = run.extra
     yield LLM_INVOCATION_PARAMETERS, json.dumps(run_extra.get("invocation_params", {}))
 
 
@@ -394,31 +398,30 @@ def _function_calls(run_outputs: Dict[str, Any]) -> Iterator[Tuple[str, str]]:
         pass
 
 
-def _tools(run: Dict[str, Any]) -> Iterator[Tuple[str, str]]:
+def _tools(run: Run) -> Iterator[Tuple[str, str]]:
     """Yields tool attributes if present."""
-    if run["run_type"] != "tool":
+    if run.run_type != "tool":
         return
-    run_serialized = run["serialized"]
+    run_serialized = run.serialized
     if "name" in run_serialized:
         yield TOOL_NAME, run_serialized["name"]
     if "description" in run_serialized:
         yield TOOL_DESCRIPTION, run_serialized["description"]
-    # TODO: tool parameters https://github.com/Arize-ai/phoenix/issues/1330
 
 
 def _retrieval_documents(
-    run: Dict[str, Any],
+    run: Run,
 ) -> Iterator[Tuple[str, List[Any]]]:
-    if run["run_type"] != "retriever":
+    if run.run_type != "retriever":
         return
     yield (
         RETRIEVAL_DOCUMENTS,
         [
             {
-                DOCUMENT_CONTENT: document.get("page_content"),
-                DOCUMENT_METADATA: document.get("metadata") or {},
+                DOCUMENT_CONTENT: document.page_content,
+                DOCUMENT_METADATA: document.metadata or {},
             }
-            for document in (run.get("outputs") or {}).get("documents") or []
+            for document in (run.outputs or {}).get("documents") or []
         ],
     )
 
