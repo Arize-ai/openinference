@@ -186,7 +186,7 @@ def test_callback_llm(
     assert oai_attributes == {}
 
     # The remaining span is from the openai instrumentor.
-    openai_span = spans_by_name.pop(next(iter(spans_by_name.keys())))
+    openai_span = spans_by_name.popitem()[1]
     assert openai_span.parent is not None
     if is_async:
         # FIXME: it's unclear why the context fails to propagate.

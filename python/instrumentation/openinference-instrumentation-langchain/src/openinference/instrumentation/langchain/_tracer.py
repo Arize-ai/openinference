@@ -30,7 +30,7 @@ logger.addHandler(logging.NullHandler())
 
 class _Run(NamedTuple):
     span: trace_api.Span
-    token: object  # token for context_api
+    token: object  # token for OTEL context API
 
 
 class OpenInferenceTracer(BaseTracer):
@@ -53,9 +53,12 @@ class OpenInferenceTracer(BaseTracer):
             context_api.detach(event_data.token)
             span = event_data.span
             try:
-                # Note that this relies on `.dict()` from pydantic for the
-                # serialization of objects like `langchain_core.documents.Document`.
-                _update_span(span, run.dict())
+                # Note that this relies on pydantic for the serialization
+                # of objects like `langchain_core.documents.Document`.
+                if hasattr(run, "model_dump") and callable(run.model_dump):
+                    _update_span(span, run.model_dump())
+                else:
+                    _update_span(span, run.dict())
             except Exception:
                 logger.exception("Failed to update span with run data.")
             span.end()
@@ -69,7 +72,7 @@ def _update_span(span: trace_api.Span, run: Dict[str, Any]) -> None:
     if run["error"] is None:
         span.set_status(trace_api.StatusCode.OK)
     else:
-        span.set_status(trace_api.StatusCode.ERROR)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, run["error"]))
     span_kind = (
         OpenInferenceSpanKindValues.AGENT
         if "agent" in run["name"].lower()
