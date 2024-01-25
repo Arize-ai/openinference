@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Opt
 from uuid import UUID
 
 from langchain_core.tracers.base import BaseTracer
+from langchain_core.tracers.schemas import Run
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -21,8 +22,6 @@ from openinference.semconv.trace import (
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-
-from langchain.callbacks.tracers.schemas import Run
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -74,6 +73,7 @@ def _update_span(span: trace_api.Span, run: Dict[str, Any]) -> None:
         span.set_status(trace_api.StatusCode.OK)
     else:
         span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, run["error"]))
+        # FIXME: capture exception event
     span_kind = (
         OpenInferenceSpanKindValues.AGENT
         if "agent" in run["name"].lower()

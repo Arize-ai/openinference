@@ -1,13 +1,16 @@
 import logging
-from typing import Any, Callable, Collection
+from typing import TYPE_CHECKING, Any, Callable, Collection
 
-from langchain_core.callbacks import BaseCallbackManager
-from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
-from openinference.instrumentation.langchain.package import _instruments
-from openinference.instrumentation.langchain.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import wrap_function_wrapper
+
+from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
+from openinference.instrumentation.langchain.package import _instruments
+from openinference.instrumentation.langchain.version import __version__
+
+if TYPE_CHECKING:
+    from langchain_core.callbacks import BaseCallbackManager
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -44,7 +47,7 @@ class _BaseCallbackManagerInit:
     def __call__(
         self,
         wrapped: Callable[..., None],
-        instance: BaseCallbackManager,
+        instance: "BaseCallbackManager",
         args: Any,
         kwargs: Any,
     ) -> None:

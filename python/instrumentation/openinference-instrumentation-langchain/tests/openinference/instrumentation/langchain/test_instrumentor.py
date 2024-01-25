@@ -99,6 +99,7 @@ def test_callback_llm(
         assert rqa_span.status.status_code == trace_api.StatusCode.OK
         assert rqa_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
     elif status_code == 400:
+        # FIXME: capture exception event
         assert rqa_span.status.status_code == trace_api.StatusCode.ERROR
     assert rqa_attributes == {}
 
@@ -114,6 +115,7 @@ def test_callback_llm(
         assert sd_span.status.status_code == trace_api.StatusCode.OK
         assert sd_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
     elif status_code == 400:
+        # FIXME: capture exception event
         assert sd_span.status.status_code == trace_api.StatusCode.ERROR
     assert sd_attributes == {}
 
@@ -143,6 +145,7 @@ def test_callback_llm(
     if status_code == 200:
         assert llm_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
     elif status_code == 400:
+        # FIXME: capture exception event
         assert llm_span.status.status_code == trace_api.StatusCode.ERROR
     assert llm_attributes == {}
 
@@ -182,6 +185,7 @@ def test_callback_llm(
                 == completion_usage["completion_tokens"]
             )
     elif status_code == 400:
+        # FIXME: capture exception event
         assert oai_span.status.status_code == trace_api.StatusCode.ERROR
     assert oai_attributes == {}
 
