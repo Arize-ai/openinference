@@ -1,13 +1,12 @@
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Collection
 
-from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import wrap_function_wrapper
-
 from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 from openinference.instrumentation.langchain.package import _instruments
 from openinference.instrumentation.langchain.version import __version__
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from wrapt import wrap_function_wrapper
 
 if TYPE_CHECKING:
     from langchain_core.callbacks import BaseCallbackManager
