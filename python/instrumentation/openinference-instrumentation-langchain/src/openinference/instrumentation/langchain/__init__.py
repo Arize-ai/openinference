@@ -28,9 +28,9 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
         wrap_function_wrapper(
-            "langchain_core.callbacks",
-            "BaseCallbackManager.__init__",
-            _BaseCallbackManagerInit(tracer=tracer),
+            module="langchain_core.callbacks",
+            name="BaseCallbackManager.__init__",
+            wrapper=_BaseCallbackManagerInit(tracer=tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

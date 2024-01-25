@@ -21,6 +21,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.util.types import AttributeValue
 
 logger = logging.getLogger(__name__)
@@ -67,13 +68,47 @@ class OpenInferenceTracer(BaseTracer):
     def _persist_run(self, run: Run) -> None:
         pass
 
+    def on_llm_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
+        if event_data := self._runs.get(run_id):
+            _record_exception(event_data.span, error)
+        return super().on_llm_error(error, *args, run_id=run_id, **kwargs)
+
+    def on_chain_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
+        if event_data := self._runs.get(run_id):
+            _record_exception(event_data.span, error)
+        return super().on_chain_error(error, *args, run_id=run_id, **kwargs)
+
+    def on_retriever_error(
+        self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any
+    ) -> Run:
+        if event_data := self._runs.get(run_id):
+            _record_exception(event_data.span, error)
+        return super().on_retriever_error(error, *args, run_id=run_id, **kwargs)
+
+    def on_tool_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
+        if event_data := self._runs.get(run_id):
+            _record_exception(event_data.span, error)
+        return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
+
+
+def _record_exception(span: trace_api.Span, error: BaseException) -> None:
+    if isinstance(error, Exception):
+        span.record_exception(error)
+    else:
+        span.add_event(
+            name="exception",
+            attributes={
+                OTELSpanAttributes.EXCEPTION_MESSAGE: str(error),
+                OTELSpanAttributes.EXCEPTION_TYPE: error.__class__.__name__,
+            },
+        )
+
 
 def _update_span(span: trace_api.Span, run: Dict[str, Any]) -> None:
     if run["error"] is None:
         span.set_status(trace_api.StatusCode.OK)
     else:
         span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, run["error"]))
-        # FIXME: capture exception event
     span_kind = (
         OpenInferenceSpanKindValues.AGENT
         if "agent" in run["name"].lower()

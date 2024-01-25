@@ -29,6 +29,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from respx import MockRouter
 
 for name, logger in logging.root.manager.loggerDict.items():
@@ -99,8 +100,11 @@ def test_callback_llm(
         assert rqa_span.status.status_code == trace_api.StatusCode.OK
         assert rqa_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
     elif status_code == 400:
-        # FIXME: capture exception event
         assert rqa_span.status.status_code == trace_api.StatusCode.ERROR
+        assert rqa_span.events[0].name == "exception"
+        assert (rqa_span.events[0].attributes or {}).get(
+            OTELSpanAttributes.EXCEPTION_TYPE
+        ) == "BadRequestError"
     assert rqa_attributes == {}
 
     assert (sd_span := spans_by_name.pop("StuffDocumentsChain")) is not None
@@ -115,8 +119,11 @@ def test_callback_llm(
         assert sd_span.status.status_code == trace_api.StatusCode.OK
         assert sd_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
     elif status_code == 400:
-        # FIXME: capture exception event
         assert sd_span.status.status_code == trace_api.StatusCode.ERROR
+        assert sd_span.events[0].name == "exception"
+        assert (sd_span.events[0].attributes or {}).get(
+            OTELSpanAttributes.EXCEPTION_TYPE
+        ) == "BadRequestError"
     assert sd_attributes == {}
 
     assert (retriever_span := spans_by_name.pop("Retriever")) is not None
@@ -145,8 +152,11 @@ def test_callback_llm(
     if status_code == 200:
         assert llm_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
     elif status_code == 400:
-        # FIXME: capture exception event
         assert llm_span.status.status_code == trace_api.StatusCode.ERROR
+        assert llm_span.events[0].name == "exception"
+        assert (llm_span.events[0].attributes or {}).get(
+            OTELSpanAttributes.EXCEPTION_TYPE
+        ) == "BadRequestError"
     assert llm_attributes == {}
 
     assert (oai_span := spans_by_name.pop("ChatOpenAI", None)) is not None
@@ -185,8 +195,11 @@ def test_callback_llm(
                 == completion_usage["completion_tokens"]
             )
     elif status_code == 400:
-        # FIXME: capture exception event
         assert oai_span.status.status_code == trace_api.StatusCode.ERROR
+        assert oai_span.events[0].name == "exception"
+        assert (oai_span.events[0].attributes or {}).get(
+            OTELSpanAttributes.EXCEPTION_TYPE
+        ) == "BadRequestError"
     assert oai_attributes == {}
 
     # The remaining span is from the openai instrumentor.
