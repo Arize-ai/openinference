@@ -28,7 +28,6 @@ dependencies = [
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
   "openinference-semantic-conventions",
-  "wrapt",
 ]
 
 [project.optional-dependencies]
