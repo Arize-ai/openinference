@@ -2,7 +2,7 @@
 name = "app"
 version = "0.1.0"
 description = ""
-authors = ["Marcus Schiesser <mail@marcusschiesser.de>"]
+authors = ["Arize OSS <oss@arize.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
