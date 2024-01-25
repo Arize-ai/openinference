@@ -44,6 +44,9 @@ test = [
   "openinference-instrumentation-openai",
   "respx",
 ]
+type-check = [
+  "langchain_core == 0.1.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-langchain"
