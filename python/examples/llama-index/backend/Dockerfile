@@ -1,6 +1,11 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim as builder
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install poetry
@@ -18,6 +23,8 @@ RUN poetry config virtualenvs.create false \
 
  # Copy the rest of your application's code
 COPY . /app/
+
+EXPOSE 8000
 
 # Run the main.py script when the container starts
 CMD ["python", "main.py"]
