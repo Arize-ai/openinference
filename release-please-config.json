@@ -21,6 +21,10 @@
         "python/instrumentation/openinference-instrumentation-dspy": {
             "package-name": "python-openinference-instrumentation-dspy",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-bedrock": {
+            "package-name": "python-openinference-instrumentation-bedrock",
+            "release-type": "python"
         }
     }
 }

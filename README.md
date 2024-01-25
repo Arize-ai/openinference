@@ -28,6 +28,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai/README.rst)           | OpenInference Instrumentation for OpenAI SDK. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai)           |
 | [`openinference-instrumentation-llama-index`](./python/instrumentation/openinference-instrumentation-llama-index/README.rst) | OpenInference Instrumentation for LlamaIndex. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-llama-index.svg)](https://pypi.python.org/pypi/openinference-instrumentation-llama-index) |
 | [`openinference-instrumentation-dspy`](./python/instrumentation/openinference-instrumentation-dspy/README.rst)               | OpenInference Instrumentation for DSPy.       | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-dspy.svg)](https://pypi.python.org/pypi/openinference-instrumentation-dspy)               |
+| [`openinference-instrumentation-bedrock`](./python/instrumentation/openinference-instrumentation-bedrock/README.rst)               | OpenInference Instrumentation for AWS Bedrock.       | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-bedrock.svg)](https://pypi.python.org/pypi/openinference-instrumentation-bedrock)               |
 
 ## JavaScript
 
