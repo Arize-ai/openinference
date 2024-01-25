@@ -52,7 +52,6 @@ class OpenInferenceTracer(BaseTracer):
         if event_data := self._runs.pop(run.id, None):
             context_api.detach(event_data.token)
             span = event_data.span
-            span.get_span_context()
             try:
                 # Note that this relies on `.dict()` from pydantic for the
                 # serialization of objects like `langchain_core.documents.Document`.
