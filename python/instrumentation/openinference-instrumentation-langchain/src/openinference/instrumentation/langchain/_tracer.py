@@ -43,10 +43,10 @@ class OpenInferenceTracer(BaseTracer):
         self.run_inline = True
 
     def _start_trace(self, run: Run) -> None:
+        super()._start_trace(run)
         span = self._tracer.start_span(run.name)
         token = context_api.attach(trace_api.set_span_in_context(span))
         self._runs[run.id] = _Run(span=span, token=token)
-        super()._start_trace(run)
 
     def _end_trace(self, run: Run) -> None:
         if event_data := self._runs.pop(run.id, None):
