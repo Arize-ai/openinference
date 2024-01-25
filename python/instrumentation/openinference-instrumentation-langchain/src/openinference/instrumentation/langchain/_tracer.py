@@ -65,9 +65,6 @@ class OpenInferenceTracer(BaseTracer):
     def _persist_run(self, run: Run) -> None:
         pass
 
-    def _on_chain_error(self, run: Run) -> None:
-        ...
-
 
 def _update_span(span: trace_api.Span, run: Dict[str, Any]) -> None:
     if run["error"] is None:
