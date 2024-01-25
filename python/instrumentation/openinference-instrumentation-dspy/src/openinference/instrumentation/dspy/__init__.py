@@ -50,6 +50,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_PredictForwardWrapper(tracer),
         )
 
+        wrap_function_wrapper(
+            module=_DSPY_MODULE,
+            name="Module.__call__",
+            wrapper=_ModuleForwardWrapper(tracer),
+        )
+
+
+
     def _uninstrument(self, **kwargs: Any) -> None:
         from dsp.modules.lm import LM
 
@@ -132,12 +140,12 @@ class _PredictForwardWrapper(_WithTracer):
         kwargs: Mapping[str, Any],
     ) -> Any:
         signature = kwargs.get("signature", instance.signature)
-        span_name = signature.__name__ + ".forward"
+        span_name = _get_signature_name(signature) + ".forward"
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-                SpanAttributes.INPUT_VALUE: json.dumps(kwargs),
+                SpanAttributes.INPUT_VALUE: json.dumps(kwargs, cls=CustomJSONEncoder),  # TODO: enhance custom encoder to handle templates
                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
             },
         ) as span:
@@ -167,3 +175,50 @@ class _PredictForwardWrapper(_WithTracer):
             if field.output_variable and field.output_variable in prediction:
                 output[field.output_variable] = prediction.get(field.output_variable)
         return output
+
+
+class _ModuleForwardWrapper(_WithTracer):
+    """
+    """
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        span_name = "Module"
+        with self._tracer.start_as_current_span(
+            span_name,
+        ) as span:
+            try:
+                prediction = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_attributes(
+                {
+                    SpanAttributes.OUTPUT_VALUE: json.dumps(instance, cls=CustomJSONEncoder),
+                    SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                }
+            )
+            span.set_status(trace_api.StatusCode.OK)
+        return prediction
+
+
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        try:
+            return super().default(obj)
+        except TypeError:
+            return repr(obj)
+
+
+def _get_signature_name(signature: Any) -> str:
+    if (signature_name := getattr(signature, "__name__", None)) is not None:
+        return signature_name
+    if (cls := getattr(signature, "__class__", None)) is not None and (class_name := getattr(cls, "__name__", None)) is not None:
+        return class_name
+    return "Signature"
