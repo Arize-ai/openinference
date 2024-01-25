@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 0.1.1
+
+### Patch Changes
+
+- 68c92d3: Support tool and function calls while streaming
+
 ## 0.1.0
 
 ### Minor Changes
