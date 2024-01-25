@@ -50,6 +50,7 @@ class OpenInferenceTracer(BaseTracer):
 
     def _end_trace(self, run: Run) -> None:
         if event_data := self._runs.pop(run.id, None):
+            # FIXME: find out why sometimes token fails to detach, e.g. when it's async
             context_api.detach(event_data.token)
             span = event_data.span
             try:
