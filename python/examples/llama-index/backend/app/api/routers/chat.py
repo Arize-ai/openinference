@@ -21,6 +21,12 @@ class _ChatData(BaseModel):
     messages: List[_Message]
 
 
+@r.head("/healthcheck")
+@r.get("/healthcheck")
+def healthcheck():
+    return "Hello world!"
+
+
 @r.post("")
 async def chat(
     request: Request,
