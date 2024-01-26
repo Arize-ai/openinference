@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim as builder
+FROM python:3.11-slim
 
 # install wget for healthchecks
 RUN apt-get update \
