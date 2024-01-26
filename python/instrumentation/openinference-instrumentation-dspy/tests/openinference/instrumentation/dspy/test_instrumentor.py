@@ -2,7 +2,7 @@ from typing import Generator
 
 import dspy
 import pytest
-import requests_mock
+import responses
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
     SpanAttributes,
@@ -39,6 +39,7 @@ def instrument(
     in_memory_span_exporter.clear()
 
 
+@responses.activate
 def test_openai_lm(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -72,15 +73,14 @@ def test_openai_lm(
         "usage": {"prompt_tokens": 39, "completion_tokens": 396, "total_tokens": 435},
         "system_fingerprint": None,
     }
+    responses.add(responses.POST, url, json=response, status=200)
 
-    with requests_mock.Mocker() as m:
-        m.post(url, json=response)
-        # Define the predictor.
-        generate_answer = dspy.Predict(BasicQA)
+    # Define the predictor.
+    generate_answer = dspy.Predict(BasicQA)
 
-        # Call the predictor on a particular input.
-        question = "What's the capital of the United States?"  # noqa: E501
-        pred = generate_answer(question=question)
+    # Call the predictor on a particular input.
+    question = "What's the capital of the United States?"  # noqa: E501
+    pred = generate_answer(question=question)
 
     assert pred.answer == "Washington DC"
     spans = in_memory_span_exporter.get_finished_spans()

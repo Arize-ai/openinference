@@ -39,6 +39,7 @@ test = [
   "opentelemetry-sdk",
   "pytest",
   "requests-mock",
+  "responses",
 ]
 
 [project.urls]
