@@ -4,7 +4,11 @@ services:
     ports:
       - "6006:6006"
   backend:
-    build: backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
     ports:
       - "8000:8000"
     environment:
