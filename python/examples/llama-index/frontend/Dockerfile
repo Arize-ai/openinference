@@ -1,39 +1,3 @@
-# # Build Stage
-# FROM node:20 AS build
-
-# # Set the working directory
-# WORKDIR /app
-
-# # Copy package.json and package-lock.json
-# COPY package*.json ./
-
-# # Install dependencies
-# RUN npm install
-
-# # Copy the rest of the code
-# COPY . .
-
-# # Build the application
-# ENV NEXT_PUBLIC_CHAT_API http://localhost:8000/api/chat
-# RUN npm run build 
-
-# # Production Stage
-# FROM node:20-slim
-
-# # Set the working directory
-# WORKDIR /app
-
-# # Copy the rest of your application's code
-# COPY . /app/
-
-# # Install production dependencies
-# COPY package*.json ./
-# RUN npm install --only=production
-
-# # The command to run when the container starts
-# CMD ["npm", "start"]
-
-
 # Adapted from https://github.com/vercel/next.js/blob/fb2d2dd01a5f73ac62c4809b7b9c1490617f8705/examples/with-docker/Dockerfile
 FROM node:18-alpine AS base
 
