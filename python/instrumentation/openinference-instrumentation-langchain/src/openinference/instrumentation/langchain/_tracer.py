@@ -3,8 +3,10 @@ import logging
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum
+from itertools import chain
 from typing import (
     Any,
+    Callable,
     Dict,
     Iterable,
     Iterator,
@@ -12,6 +14,7 @@ from typing import (
     Mapping,
     NamedTuple,
     Optional,
+    Sequence,
     Tuple,
 )
 from uuid import UUID
@@ -121,56 +124,54 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
         else _langchain_run_type_to_span_kind(run.run_type)
     )
     span.set_attribute(OPENINFERENCE_SPAN_KIND, span_kind.value)
-    try:
-        span.set_attributes(dict(_as_input(_convert_io(run.inputs))))
-    except Exception:
-        logger.exception("Failed to set input_value.")
-    try:
-        span.set_attributes(dict(_as_output(_convert_io(run.outputs))))
-    except Exception:
-        logger.exception("Failed to set output_value.")
-    try:
-        span.set_attributes(dict(_flatten(_prompts(run.inputs))))
-    except Exception:
-        logger.exception("Failed to set prompts.")
-    try:
-        span.set_attributes(dict(_flatten(_input_messages(run.inputs))))
-    except Exception:
-        logger.exception("Failed to set input_messages.")
-    try:
-        span.set_attributes(dict(_flatten(_output_messages(run.outputs))))
-    except Exception:
-        logger.exception("Failed to set output_messages.")
-    try:
-        span.set_attributes(dict(_flatten(_prompt_template(run.serialized))))
-    except Exception:
-        logger.exception("Failed to set prompt_template.")
-    try:
-        span.set_attributes(dict(_invocation_parameters(run)))
-    except Exception:
-        logger.exception("Failed to set invocation_parameters.")
-    try:
-        span.set_attributes(dict(_model_name(run.extra)))
-    except Exception:
-        logger.exception("Failed to set model_name.")
-    try:
-        span.set_attributes(dict(_token_counts(run.outputs)))
-    except Exception:
-        logger.exception("Failed to set token_counts.")
-    try:
-        span.set_attributes(dict(_function_calls(run.outputs)))
-    except Exception:
-        logger.exception("Failed to set function_calls.")
-    try:
-        span.set_attributes(dict(_tools(run)))
-    except Exception:
-        logger.exception("Failed to set tools.")
-    try:
-        span.set_attributes(dict(_flatten(_retrieval_documents(run))))
-    except Exception:
-        logger.exception("Failed to set retrieval_documents.")
+    span.set_attributes(
+        dict(
+            _flatten(
+                chain(
+                    _as_input(_convert_io(run.inputs)),
+                    _as_output(_convert_io(run.outputs)),
+                    _prompts(run.inputs),
+                    _input_messages(run.inputs),
+                    _output_messages(run.outputs),
+                    _prompt_template(run.serialized),
+                    _invocation_parameters(run),
+                    _model_name(run.extra),
+                    _token_counts(run.outputs),
+                    _function_calls(run.outputs),
+                    _tools(run),
+                    _retrieval_documents(run),
+                )
+            )
+        )
+    )
 
 
+def _langchain_run_type_to_span_kind(run_type: str) -> OpenInferenceSpanKindValues:
+    try:
+        return OpenInferenceSpanKindValues(run_type.upper())
+    except ValueError:
+        return OpenInferenceSpanKindValues.UNKNOWN
+
+
+def _serialize_json(obj: Any) -> str:
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
+
+
+def stop_on_exception(
+    wrapped: Callable[..., Iterator[Tuple[str, Any]]],
+) -> Callable[..., Iterator[Tuple[str, Any]]]:
+    def wrapper(*args: Any, **kwargs: Any) -> Iterator[Tuple[str, Any]]:
+        try:
+            yield from wrapped(*args, **kwargs)
+        except Exception:
+            logger.exception("Failed to get attribute.")
+
+    return wrapper
+
+
+@stop_on_exception
 def _flatten(key_values: Iterable[Tuple[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     for key, value in key_values:
         if value is None:
@@ -188,23 +189,12 @@ def _flatten(key_values: Iterable[Tuple[str, Any]]) -> Iterator[Tuple[str, Attri
             yield key, value
 
 
-def _langchain_run_type_to_span_kind(run_type: str) -> OpenInferenceSpanKindValues:
-    try:
-        return OpenInferenceSpanKindValues(run_type.upper())
-    except ValueError:
-        return OpenInferenceSpanKindValues.UNKNOWN
-
-
-def _serialize_json(obj: Any) -> str:
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    return str(obj)
-
-
+@stop_on_exception
 def _as_input(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
     return zip((INPUT_VALUE, INPUT_MIME_TYPE), values)
 
 
+@stop_on_exception
 def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
     return zip((OUTPUT_VALUE, OUTPUT_MIME_TYPE), values)
 
@@ -212,7 +202,7 @@ def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
 def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     if not obj:
         return
-    assert isinstance(obj, dict), f"obj should be dict, but obj={obj}"
+    assert isinstance(obj, dict), f"expected dict, found {type(obj)}"
     if len(obj) == 1 and isinstance(value := next(iter(obj.values())), str):
         yield value
     else:
@@ -220,24 +210,26 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
         yield OpenInferenceMimeTypeValues.JSON.value
 
 
-def _prompts(run_inputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, List[str]]]:
+@stop_on_exception
+def _prompts(inputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, List[str]]]:
     """Yields prompts if present."""
-    if not run_inputs:
+    if not inputs:
         return
-    assert hasattr(run_inputs, "get"), f"expected Mapping, found {type(run_inputs)}"
-    if prompts := run_inputs.get("prompts"):
+    assert hasattr(inputs, "get"), f"expected Mapping, found {type(inputs)}"
+    if prompts := inputs.get("prompts"):
         yield LLM_PROMPTS, prompts
 
 
+@stop_on_exception
 def _input_messages(
-    run_inputs: Optional[Mapping[str, Any]],
+    inputs: Optional[Mapping[str, Any]],
 ) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
     """Yields chat messages if present."""
-    if not run_inputs:
+    if not inputs:
         return
-    assert hasattr(run_inputs, "get"), f"expected Mapping, found {type(run_inputs)}"
+    assert hasattr(inputs, "get"), f"expected Mapping, found {type(inputs)}"
     # There may be more than one set of messages. We'll use just the first set.
-    if not (multiple_messages := run_inputs.get("messages")):
+    if not (multiple_messages := inputs.get("messages")):
         return
     assert isinstance(
         multiple_messages, Iterable
@@ -249,20 +241,21 @@ def _input_messages(
     parsed_messages = []
     for message_data in first_messages:
         assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
-        parsed_messages.append(_parse_message_data(message_data))
+        parsed_messages.append(dict(_parse_message_data(message_data)))
     if parsed_messages:
         yield LLM_INPUT_MESSAGES, parsed_messages
 
 
+@stop_on_exception
 def _output_messages(
-    run_outputs: Optional[Mapping[str, Any]],
+    outputs: Optional[Mapping[str, Any]],
 ) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
     """Yields chat messages if present."""
-    if not run_outputs:
+    if not outputs:
         return
-    assert hasattr(run_outputs, "get"), f"expected Mapping, found {type(run_outputs)}"
+    assert hasattr(outputs, "get"), f"expected Mapping, found {type(outputs)}"
     # There may be more than one set of generations. We'll use just the first set.
-    if not (multiple_generations := run_outputs.get("generations")):
+    if not (multiple_generations := outputs.get("generations")):
         return
     assert isinstance(
         multiple_generations, Iterable
@@ -278,15 +271,16 @@ def _output_messages(
         assert hasattr(generation, "get"), f"expected Mapping, found {type(generation)}"
         if message_data := generation.get("message"):
             assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
-            parsed_messages.append(_parse_message_data(message_data))
+            parsed_messages.append(dict(_parse_message_data(message_data)))
     if parsed_messages:
         yield LLM_OUTPUT_MESSAGES, parsed_messages
 
 
-def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+@stop_on_exception
+def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
     """Parses message data to grab message role, content, etc."""
     if not message_data:
-        return {}
+        return
     assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
     id_ = message_data.get("id")
     assert isinstance(id_, List), f"expected list, found {type(id_)}"
@@ -303,12 +297,12 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Dict[str, 
         role = message_data["kwargs"]["role"]
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
-    parsed_message_data: Dict[str, Any] = {MESSAGE_ROLE: role}
+    yield MESSAGE_ROLE, role
     if kwargs := message_data.get("kwargs"):
         assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
         if content := kwargs.get("content"):
-            assert isinstance(content, str), f"content must be str, found {type(content)}"
-            parsed_message_data[MESSAGE_CONTENT] = content
+            assert isinstance(content, str), f"expected str, found {type(content)}"
+            yield MESSAGE_CONTENT, content
         if additional_kwargs := kwargs.get("additional_kwargs"):
             assert hasattr(
                 additional_kwargs, "get"
@@ -318,26 +312,24 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Dict[str, 
                     function_call, "get"
                 ), f"expected Mapping, found {type(function_call)}"
                 if name := function_call.get("name"):
-                    assert isinstance(name, str), f"name must be str, found {type(name)}"
-                    parsed_message_data[MESSAGE_FUNCTION_CALL_NAME] = name
+                    assert isinstance(name, str), f"expected str, found {type(name)}"
+                    yield MESSAGE_FUNCTION_CALL_NAME, name
                 if arguments := function_call.get("arguments"):
-                    assert isinstance(
-                        arguments, str
-                    ), f"arguments must be str, found {type(arguments)}"
-                    parsed_message_data[MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON] = arguments
+                    assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
+                    yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
             if tool_calls := additional_kwargs.get("tool_calls"):
                 assert isinstance(
                     tool_calls, Iterable
-                ), f"tool_calls must be Iterable, found {type(tool_calls)}"
+                ), f"expected Iterable, found {type(tool_calls)}"
                 message_tool_calls = []
                 for tool_call in tool_calls:
                     if message_tool_call := dict(_get_tool_call(tool_call)):
                         message_tool_calls.append(message_tool_call)
                 if message_tool_calls:
-                    parsed_message_data[MESSAGE_TOOL_CALLS] = message_tool_calls
-    return parsed_message_data
+                    yield MESSAGE_TOOL_CALLS, message_tool_calls
 
 
+@stop_on_exception
 def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
     if not tool_call:
         return
@@ -345,56 +337,70 @@ def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str
     if function := tool_call.get("function"):
         assert hasattr(function, "get"), f"expected Mapping, found {type(function)}"
         if name := function.get("name"):
-            assert isinstance(name, str), f"name must be str, found {type(name)}"
+            assert isinstance(name, str), f"expected str, found {type(name)}"
             yield TOOL_CALL_FUNCTION_NAME, name
         if arguments := function.get("arguments"):
-            assert isinstance(arguments, str), f"arguments must be str, found {type(arguments)}"
+            assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
             yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
 
 
-def _prompt_template(run_serialized: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
+@stop_on_exception
+def _prompt_template(serialized: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
     """
     A best-effort attempt to locate the PromptTemplate object among the
     keyword arguments of a serialized object, e.g. an LLMChain object.
     """
-    if not run_serialized:
+    if not serialized:
         return
-    assert hasattr(run_serialized, "get"), f"expected Mapping, found {type(run_serialized)}"
-    if not (kwargs := run_serialized.get("kwargs")):
+    assert hasattr(serialized, "get"), f"expected Mapping, found {type(serialized)}"
+    if not (kwargs := serialized.get("kwargs")):
         return
     assert isinstance(kwargs, dict), f"expected dict, found {type(kwargs)}"
     for obj in kwargs.values():
-        if not isinstance(obj, dict) or "id" not in obj:
+        if not hasattr(obj, "get") or (id_ := obj.get("id")):
             continue
         # The `id` field of the object is a list indicating the path to the
         # object's class in the LangChain package, e.g. `PromptTemplate` in
         # the `langchain.prompts.prompt` module is represented as
         # ["langchain", "prompts", "prompt", "PromptTemplate"]
-        if obj["id"][-1].endswith("PromptTemplate"):
-            kwargs = obj.get("kwargs", {})
+        assert isinstance(id_, Sequence), f"expected list, found {type(id_)}"
+        if id_[-1].endswith("PromptTemplate"):
+            if not (kwargs := obj.get("kwargs")):
+                continue
+            assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
             if not (template := kwargs.get("template", "")):
                 continue
             yield LLM_PROMPT_TEMPLATE, template
-            yield LLM_PROMPT_TEMPLATE_VARIABLES, (kwargs.get("input_variables") or [])
+            if input_variables := kwargs.get("input_variables"):
+                assert isinstance(
+                    input_variables, list
+                ), f"expected list, found {type(input_variables)}"
+                yield LLM_PROMPT_TEMPLATE_VARIABLES, input_variables
             break
 
 
+@stop_on_exception
 def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
     """Yields invocation parameters if present."""
     if run.run_type.lower() != "llm":
         return
-    if not (run_extra := run.extra):
+    if not (extra := run.extra):
         return
-    assert hasattr(run_extra, "get"), f"expected Mapping, found {type(run_extra)}"
-    yield LLM_INVOCATION_PARAMETERS, json.dumps(run_extra.get("invocation_params") or {})
+    assert hasattr(extra, "get"), f"expected Mapping, found {type(extra)}"
+    if invocation_parameters := extra.get("invocation_params"):
+        assert isinstance(
+            invocation_parameters, Mapping
+        ), f"expected Mapping, found {type(invocation_parameters)}"
+        yield LLM_INVOCATION_PARAMETERS, json.dumps(invocation_parameters)
 
 
-def _model_name(run_extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+@stop_on_exception
+def _model_name(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
     """Yields model name if present."""
-    if not run_extra:
+    if not extra:
         return
-    assert hasattr(run_extra, "get"), f"expected Mapping, found {type(run_extra)}"
-    if not (invocation_params := run_extra.get("invocation_params")):
+    assert hasattr(extra, "get"), f"expected Mapping, found {type(extra)}"
+    if not (invocation_params := extra.get("invocation_params")):
         return
     for key in ["model_name", "model"]:
         if name := invocation_params.get(key):
@@ -402,12 +408,13 @@ def _model_name(run_extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, s
             return
 
 
-def _token_counts(run_outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, int]]:
+@stop_on_exception
+def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, int]]:
     """Yields token count information if present."""
-    if not run_outputs:
+    if not outputs:
         return
-    assert hasattr(run_outputs, "get"), f"expected Mapping, found {type(run_outputs)}"
-    if not (llm_output := run_outputs.get("llm_output")):
+    assert hasattr(outputs, "get"), f"expected Mapping, found {type(outputs)}"
+    if not (llm_output := outputs.get("llm_output")):
         return
     assert hasattr(llm_output, "get"), f"expected Mapping, found {type(llm_output)}"
     if not (token_usage := llm_output.get("token_usage")):
@@ -422,16 +429,15 @@ def _token_counts(run_outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[st
             yield attribute_name, token_count
 
 
-def _function_calls(run_outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+@stop_on_exception
+def _function_calls(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
     """Yields function call information if present."""
-    if not run_outputs:
+    if not outputs:
         return
-    assert hasattr(run_outputs, "get"), f"expected Mapping, found {type(run_outputs)}"
+    assert hasattr(outputs, "get"), f"expected Mapping, found {type(outputs)}"
     try:
         function_call_data = deepcopy(
-            run_outputs["generations"][0][0]["message"]["kwargs"]["additional_kwargs"][
-                "function_call"
-            ]
+            outputs["generations"][0][0]["message"]["kwargs"]["additional_kwargs"]["function_call"]
         )
         function_call_data["arguments"] = json.loads(function_call_data["arguments"])
         yield LLM_FUNCTION_CALL, json.dumps(function_call_data)
@@ -439,37 +445,40 @@ def _function_calls(run_outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[
         pass
 
 
+@stop_on_exception
 def _tools(run: Run) -> Iterator[Tuple[str, str]]:
     """Yields tool attributes if present."""
     if run.run_type.lower() != "tool":
         return
-    if not (run_serialized := run.serialized):
+    if not (serialized := run.serialized):
         return
-    assert hasattr(run_serialized, "get"), f"expected Mapping, found {type(run_serialized)}"
-    if name := run_serialized.get("name"):
+    assert hasattr(serialized, "get"), f"expected Mapping, found {type(serialized)}"
+    if name := serialized.get("name"):
         yield TOOL_NAME, name
-    if description := run_serialized.get("description"):
+    if description := serialized.get("description"):
         yield TOOL_DESCRIPTION, description
 
 
-def _retrieval_documents(
-    run: Run,
-) -> Iterator[Tuple[str, List[Any]]]:
+@stop_on_exception
+def _retrieval_documents(run: Run) -> Iterator[Tuple[str, List[Mapping[str, Any]]]]:
     if run.run_type.lower() != "retriever":
         return
-    if not (run_outputs := run.outputs):
+    if not (outputs := run.outputs):
         return
-    assert hasattr(run_outputs, "get"), f"expected Mapping, found {type(run_outputs)}"
-    yield (
-        RETRIEVAL_DOCUMENTS,
-        [
-            {
-                DOCUMENT_CONTENT: document.page_content,
-                DOCUMENT_METADATA: document.metadata or {},
-            }
-            for document in run_outputs.get("documents") or []
-        ],
-    )
+    assert hasattr(outputs, "get"), f"expected Mapping, found {type(outputs)}"
+    documents = outputs.get("documents")
+    assert isinstance(documents, Iterable), f"expected Iterable, found {type(documents)}"
+    yield RETRIEVAL_DOCUMENTS, [dict(_as_document(document)) for document in documents]
+
+
+@stop_on_exception
+def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
+    if page_content := getattr(document, "page_content", None):
+        assert isinstance(page_content, str), f"expected str, found {type(page_content)}"
+        yield DOCUMENT_CONTENT, page_content
+    if metadata := getattr(document, "metadata", None):
+        assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
+        yield DOCUMENT_METADATA, metadata
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
