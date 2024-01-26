@@ -14,7 +14,7 @@ pypdf = "^3.17.0"
 python-dotenv = "^1.0.0"
 openinference-semantic-conventions = "*"
 openinference-instrumentation-llama-index = "*"
-opentelemetry-exporter-otlp  = "^1.22.0"
+opentelemetry-exporter-otlp = "^1.22.0"
 
 
 [build-system]
