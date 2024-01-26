@@ -12,14 +12,6 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Getting Started with Docker-Compose
 
-Generate a Llama Index vector store index:
-
-```
-cd ./backend
-python app/engine/generate.py
-cd ..
-```
-
 Ensure that Docker is installed and running. Run the command `docker compose up` to spin up services for the frontend, backend, and Phoenix. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface. When you're finished, run `docker compose down` to spin down the services.
 
 Traces can be viewed using the [Phoenix UI](http://localhost:6006).
