@@ -1,6 +1,7 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim as builder
 
+# install wget for healthchecks
 RUN apt-get update \
     && apt-get install -y --no-install-recommends wget \
     && apt-get clean \
@@ -10,9 +11,6 @@ WORKDIR /app
 
 # Install poetry
 RUN pip install poetry
-RUN pip install openinference-semantic-conventions
-RUN pip install openinference-instrumentation-llama-index
-RUN pip install opentelemetry-exporter-otlp 
 
 # Copy the pyproject.toml (and possibly poetry.lock) file to the container
 COPY pyproject.toml poetry.lock* /app/
