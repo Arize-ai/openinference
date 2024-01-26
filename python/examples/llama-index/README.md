@@ -12,6 +12,10 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Getting Started with Docker-Compose
 
+If you'd like, add your own PDFs to `./backend/data` to build indexes over.
+
+Either create a `.env` file that contains an OpenAI API key or set the `OPENAI_API_KEY` env variable.
+
 Ensure that Docker is installed and running. Run the command `docker compose up` to spin up services for the frontend, backend, and Phoenix. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface. When you're finished, run `docker compose down` to spin down the services.
 
 Traces can be viewed using the [Phoenix UI](http://localhost:6006).
