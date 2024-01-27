@@ -58,6 +58,7 @@ class _EventData:
     span: trace_api.Span
     token: object
     parent_id: str
+    context: Optional[context_api.Context]
     payloads: List[Dict[str, Any]]
     exceptions: List[Exception]
     event_type: CBEventType
@@ -234,14 +235,28 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
                 attributes = {}
 
         start_time = time_ns()
-        span: trace_api.Span = self._tracer.start_span(name=event_type.value, start_time=start_time)
+        context = None
+        if parent_id != BASE_TRACE_EVENT:
+            if parent_event_data := self._event_data.get(parent_id):
+                context = parent_event_data.context
+        # Instead of relying on automatic context lookup, we set the context
+        # manually based on `parent_id``, because using the automatic context
+        # may produce a family tree that is different from what LlamaIndex has
+        # intended in their trace tree.
+        span: trace_api.Span = self._tracer.start_span(
+            name=event_type.value,
+            start_time=start_time,
+            context=context,
+        )
         span.set_attribute(OPENINFERENCE_SPAN_KIND, _get_span_kind(event_type).value)
-        token = context_api.attach(trace_api.set_span_in_context(span))
+        new_context = trace_api.set_span_in_context(span)
+        token = context_api.attach(new_context)
         self._context_api_token_stack.append(token)
         self._event_data[event_id] = _EventData(
             span=span,
             token=token,
             parent_id=parent_id,
+            context=new_context,
             start_time=start_time,
             event_type=event_type,
             payloads=payloads,
