@@ -239,6 +239,10 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         if parent_id != BASE_TRACE_EVENT:
             if parent_event_data := self._event_data.get(parent_id):
                 context = parent_event_data.context
+        # Instead of relying on automatic context lookup, we set the context
+        # manually based on `parent_id``, because using the automatic context
+        # may produce a family tree that is different from what LlamaIndex has
+        # intended in their trace tree.
         span: trace_api.Span = self._tracer.start_span(
             name=event_type.value,
             start_time=start_time,
