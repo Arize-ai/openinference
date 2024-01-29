@@ -478,8 +478,7 @@ def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
         yield DOCUMENT_CONTENT, page_content
     if metadata := getattr(document, "metadata", None):
         assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
-        if metadata:
-            yield DOCUMENT_METADATA, json.dumps(metadata)
+        yield DOCUMENT_METADATA, json.dumps(metadata)
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
