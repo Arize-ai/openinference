@@ -101,7 +101,11 @@ def payload_to_semantic_attributes(
                 DOCUMENT_ID: node_with_score.node.node_id,
                 DOCUMENT_SCORE: node_with_score.score,
                 DOCUMENT_CONTENT: node_with_score.node.text,
-                DOCUMENT_METADATA: node_with_score.node.metadata,
+                **(
+                    {DOCUMENT_METADATA: json.dumps(metadata)}
+                    if (metadata := node_with_score.node.metadata)
+                    else {}
+                ),
             }
             for node_with_score in payload[EventPayload.NODES]
         ]
@@ -144,7 +148,11 @@ def payload_to_semantic_attributes(
                     DOCUMENT_ID: node_with_score.node.node_id,
                     DOCUMENT_SCORE: node_with_score.score,
                     DOCUMENT_CONTENT: node_with_score.node.text,
-                    DOCUMENT_METADATA: node_with_score.node.metadata,
+                    **(
+                        {DOCUMENT_METADATA: json.dumps(metadata)}
+                        if (metadata := node_with_score.node.metadata)
+                        else {}
+                    ),
                 }
                 for node_with_score in nodes
             ]
@@ -152,7 +160,8 @@ def payload_to_semantic_attributes(
         tool_metadata = cast(ToolMetadata, payload.get(EventPayload.TOOL))
         attributes[TOOL_NAME] = tool_metadata.name
         attributes[TOOL_DESCRIPTION] = tool_metadata.description
-        attributes[TOOL_PARAMETERS] = tool_metadata.to_openai_tool()["function"]["parameters"]
+        if tool_parameters := tool_metadata.to_openai_tool()["function"]["parameters"]:
+            attributes[TOOL_PARAMETERS] = json.dumps(tool_parameters)
     if EventPayload.SERIALIZED in payload:
         serialized = payload[EventPayload.SERIALIZED]
         if event_type is CBEventType.EMBEDDING:
