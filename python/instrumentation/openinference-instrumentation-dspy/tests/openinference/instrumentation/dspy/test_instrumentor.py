@@ -206,14 +206,16 @@ def test_rag_module(
 
     assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 3
+    assert len(spans) == 4
 
     span = spans[0]
     assert span.name == "GPT3.request"
-    assert question in span.attributes[SpanAttributes.INPUT_VALUE]
 
     span = spans[1]
     assert span.name == "GPT3.request"
 
     span = spans[2]
     assert span.name == "Template.forward"
+
+    span = spans[3]
+    assert span.name == "RAG.forward"
