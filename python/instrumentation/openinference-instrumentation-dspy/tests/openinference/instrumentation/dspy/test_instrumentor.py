@@ -1,3 +1,4 @@
+import json
 from typing import Generator
 
 import dspy
@@ -6,6 +7,7 @@ import responses
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -242,3 +244,7 @@ def test_rag_module(
         span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
         == OpenInferenceSpanKindValues.CHAIN.value
     )
+    assert json.loads(span.attributes[SpanAttributes.INPUT_VALUE]) == {
+        "question": question,
+    }
+    assert span.attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value

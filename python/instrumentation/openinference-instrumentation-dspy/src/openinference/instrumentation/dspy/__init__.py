@@ -1,5 +1,6 @@
 import json
 from abc import ABC
+from inspect import signature
 from typing import Any, Callable, Collection, Dict, Mapping, Tuple
 
 from openinference.instrumentation.dspy.package import _instruments
@@ -183,6 +184,27 @@ class _PredictForwardWrapper(_WithTracer):
         return output
 
 
+def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
+    """
+    Parses a method call's inputs into a JSON string. Ensures a consistent
+    output regardless of whether the those inputs are passed as positional or
+    keyword arguments.
+    """
+    bound_arguments = signature(method).bind(
+        None,  # the value bound to the method's self argument is discarded below, so pass None
+        *args,
+        **kwargs,
+    )
+    return json.dumps(
+        {
+            argument_name: argument_value
+            for argument_name, argument_value in bound_arguments.arguments.items()
+            if argument_name != "self"
+        },
+        cls=CustomJSONEncoder,
+    )
+
+
 class _ModuleForwardWrapper(_WithTracer):
     def __call__(
         self,
@@ -196,6 +218,15 @@ class _ModuleForwardWrapper(_WithTracer):
             span_name,
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+                # At this time, dspy.Module does not have an abstract forward
+                # method, but assumes that user-defined subclasses implement the
+                # forward method.
+                SpanAttributes.INPUT_VALUE: (
+                    _get_input_value(forward_method, *args, **kwargs)
+                    if (forward_method := getattr(instance.__class__, "forward", None))
+                    else "{}"
+                ),
+                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
             },
         ) as span:
             try:
