@@ -52,6 +52,12 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         wrap_function_wrapper(
             module=_DSPY_MODULE,
+            name="Retrieve.__call__",
+            wrapper=_RetrieverForwardWrapper(tracer),
+        )
+
+        wrap_function_wrapper(
+            module=_DSPY_MODULE,
             name="Module.__call__",
             wrapper=_ModuleForwardWrapper(tracer),
         )
@@ -187,6 +193,35 @@ class _ModuleForwardWrapper(_WithTracer):
         kwargs: Mapping[str, Any],
     ) -> Any:
         span_name = instance.__class__.__name__ + ".forward"
+        with self._tracer.start_as_current_span(
+            span_name,
+        ) as span:
+            try:
+                prediction = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_attributes(
+                {
+                    SpanAttributes.OUTPUT_VALUE: json.dumps(instance, cls=CustomJSONEncoder),
+                    SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                }
+            )
+            span.set_status(trace_api.StatusCode.OK)
+        return prediction
+
+
+class _RetrieverForwardWrapper(_WithTracer):
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        span_name = instance.__class__.__name__ + ".request"
         with self._tracer.start_as_current_span(
             span_name,
         ) as span:
