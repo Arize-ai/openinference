@@ -248,3 +248,5 @@ def test_rag_module(
         "question": question,
     }
     assert span.attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+    assert "Washington, D.C." in span.attributes[SpanAttributes.OUTPUT_VALUE]
+    assert span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value

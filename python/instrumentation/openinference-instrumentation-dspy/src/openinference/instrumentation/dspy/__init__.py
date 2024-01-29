@@ -151,8 +151,8 @@ class _PredictForwardWrapper(_WithTracer):
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
                 SpanAttributes.INPUT_VALUE: json.dumps(
-                    kwargs, cls=CustomJSONEncoder
-                ),  # TODO: enhance custom encoder to handle templates
+                    kwargs, cls=DSPyJSONEncoder
+                ),
                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
             },
         ) as span:
@@ -201,7 +201,7 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
             for argument_name, argument_value in bound_arguments.arguments.items()
             if argument_name != "self"
         },
-        cls=CustomJSONEncoder,
+        cls=DSPyJSONEncoder,
     )
 
 
@@ -237,7 +237,7 @@ class _ModuleForwardWrapper(_WithTracer):
                 raise
             span.set_attributes(
                 {
-                    SpanAttributes.OUTPUT_VALUE: json.dumps(instance, cls=CustomJSONEncoder),
+                    SpanAttributes.OUTPUT_VALUE: json.dumps(prediction, cls=DSPyJSONEncoder),
                     SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                 }
             )
@@ -268,7 +268,7 @@ class _RetrieverForwardWrapper(_WithTracer):
                 raise
             span.set_attributes(
                 {
-                    SpanAttributes.OUTPUT_VALUE: json.dumps(instance, cls=CustomJSONEncoder),
+                    SpanAttributes.OUTPUT_VALUE: json.dumps(instance, cls=DSPyJSONEncoder),
                     SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                 }
             )
@@ -276,12 +276,21 @@ class _RetrieverForwardWrapper(_WithTracer):
         return prediction
 
 
-class CustomJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
+class DSPyJSONEncoder(json.JSONEncoder):
+    """
+    Provides support for non-JSON-serializable objects in DSPy.
+    """
+    def default(self, o: Any) -> Any:
         try:
-            return super().default(obj)
+            return super().default(o)
         except TypeError:
-            return repr(obj)
+            from dspy import Prediction
+            if isinstance(o, Prediction):
+                # At this time, Prediction context and outputs are stored in a
+                # private attribute that is also used to construct the repr of
+                # the Prediction.
+                return json.dumps(getattr(o, "_store", {}))
+            return repr(o)
 
 
 def _get_predict_span_name(instance: Any) -> str:
