@@ -144,7 +144,7 @@ class _PredictForwardWrapper(_WithTracer):
         kwargs: Mapping[str, Any],
     ) -> Any:
         signature = kwargs.get("signature", instance.signature)
-        span_name = _get_signature_name(signature) + ".forward"
+        span_name = _get_span_name(instance)
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
@@ -253,11 +253,10 @@ class CustomJSONEncoder(json.JSONEncoder):
             return repr(obj)
 
 
-def _get_signature_name(signature: Any) -> str:
-    if (signature_name := getattr(signature, "__name__", None)) is not None:
-        return signature_name
-    if (cls := getattr(signature, "__class__", None)) is not None and (
-        class_name := getattr(cls, "__name__", None)
-    ) is not None:
-        return class_name
-    return "Signature"
+def _get_span_name(instance: Any) -> str:
+    class_name = instance.__class__.__name__
+    if (signature := getattr(instance, "signature", None)) and (
+        signature_name := getattr(signature, "__name__", None)
+    ):
+        return f"{class_name} ∘ {signature_name}.forward"
+    return class_name

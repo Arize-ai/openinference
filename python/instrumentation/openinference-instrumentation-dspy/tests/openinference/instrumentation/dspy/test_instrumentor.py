@@ -103,7 +103,7 @@ def test_openai_lm(
     assert len(spans) == 2  # 1 for the wrapping Signature, 1 for the OpenAI call
     lm_span = spans[0]
     chain_span = spans[1]
-    assert chain_span.name == "BasicQA.forward"
+    assert chain_span.name == "Predict ∘ BasicQA.forward"
     assert lm_span.name == "GPT3.request"
     assert question in lm_span.attributes[SpanAttributes.INPUT_VALUE]  # type: ignore
 
@@ -126,7 +126,6 @@ def test_rag_module(
         def __init__(self, num_passages=3):
             super().__init__()
             self.retrieve = dspy.Retrieve(k=num_passages)
-            # self.generate_answer = BasicQA
             self.generate_answer = dspy.ChainOfThought(BasicQA)
 
         def forward(self, question):
@@ -231,7 +230,7 @@ def test_rag_module(
     )
 
     span = spans[3]
-    assert span.name == "Template.forward"
+    assert span.name == "ChainOfThought ∘ BasicQA.forward"
     assert (
         span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
         == OpenInferenceSpanKindValues.CHAIN.value
