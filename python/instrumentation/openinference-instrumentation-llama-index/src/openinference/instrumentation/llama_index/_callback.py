@@ -675,7 +675,7 @@ def _template_attributes(payload: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
     if template := payload.get(EventPayload.TEMPLATE):
         yield LLM_PROMPT_TEMPLATE, template
     if template_vars := payload.get(EventPayload.TEMPLATE_VARS):
-        yield LLM_PROMPT_TEMPLATE_VARIABLES, template_vars
+        yield LLM_PROMPT_TEMPLATE_VARIABLES, json.dumps(template_vars)
 
 
 def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
