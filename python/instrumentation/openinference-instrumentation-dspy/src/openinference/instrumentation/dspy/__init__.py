@@ -284,12 +284,11 @@ class DSPyJSONEncoder(json.JSONEncoder):
         try:
             return super().default(o)
         except TypeError:
-            from dspy import Prediction
-            if isinstance(o, Prediction):
-                # At this time, Prediction context and outputs are stored in a
-                # private attribute that is also used to construct the repr of
-                # the Prediction.
-                return json.dumps(getattr(o, "_store", {}))
+            from dspy.primitives.example import Example
+            if isinstance(o, Example):
+                # At this time, Example and its sub-classes store values in a
+                # private attribute.
+                return getattr(o, "_store", {})
             return repr(o)
 
 
