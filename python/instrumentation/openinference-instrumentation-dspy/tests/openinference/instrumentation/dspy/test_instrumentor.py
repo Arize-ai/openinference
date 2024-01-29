@@ -6,6 +6,7 @@ import responses
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 from opentelemetry import trace as trace_api
@@ -210,15 +211,35 @@ def test_rag_module(
 
     span = spans[0]
     assert span.name == "Retrieve.request"
+    assert (
+        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+        == OpenInferenceSpanKindValues.RETRIEVER.value
+    )
 
     span = spans[1]
     assert span.name == "GPT3.request"
+    assert (
+        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+        == OpenInferenceSpanKindValues.LLM.value
+    )
 
     span = spans[2]
     assert span.name == "GPT3.request"
+    assert (
+        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+        == OpenInferenceSpanKindValues.LLM.value
+    )
 
     span = spans[3]
     assert span.name == "Template.forward"
+    assert (
+        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+        == OpenInferenceSpanKindValues.CHAIN.value
+    )
 
     span = spans[4]
     assert span.name == "RAG.forward"
+    assert (
+        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+        == OpenInferenceSpanKindValues.CHAIN.value
+    )

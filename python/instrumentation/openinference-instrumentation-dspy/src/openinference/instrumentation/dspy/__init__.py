@@ -184,7 +184,6 @@ class _PredictForwardWrapper(_WithTracer):
 
 
 class _ModuleForwardWrapper(_WithTracer):
-
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -195,6 +194,9 @@ class _ModuleForwardWrapper(_WithTracer):
         span_name = instance.__class__.__name__ + ".forward"
         with self._tracer.start_as_current_span(
             span_name,
+            attributes={
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            },
         ) as span:
             try:
                 prediction = wrapped(*args, **kwargs)
@@ -213,7 +215,6 @@ class _ModuleForwardWrapper(_WithTracer):
 
 
 class _RetrieverForwardWrapper(_WithTracer):
-
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -224,6 +225,9 @@ class _RetrieverForwardWrapper(_WithTracer):
         span_name = instance.__class__.__name__ + ".request"
         with self._tracer.start_as_current_span(
             span_name,
+            attributes={
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.RETRIEVER.value,
+            },
         ) as span:
             try:
                 prediction = wrapped(*args, **kwargs)
