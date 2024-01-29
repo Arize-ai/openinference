@@ -222,7 +222,7 @@ class _RetrieverForwardWrapper(_WithTracer):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        span_name = instance.__class__.__name__ + ".request"
+        span_name = instance.__class__.__name__ + ".forward"
         with self._tracer.start_as_current_span(
             span_name,
             attributes={

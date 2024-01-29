@@ -210,7 +210,7 @@ def test_rag_module(
     assert len(spans) == 5
 
     span = spans[0]
-    assert span.name == "Retrieve.request"
+    assert span.name == "Retrieve.forward"
     assert (
         span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
         == OpenInferenceSpanKindValues.RETRIEVER.value
