@@ -37,8 +37,6 @@ instruments = [
 test = [
   "dspy-ai==2.1.0",
   "opentelemetry-sdk",
-  "pytest",
-  "requests-mock",
   "responses",
 ]
 
