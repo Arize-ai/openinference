@@ -18,9 +18,8 @@ span_console_exporter = ConsoleSpanExporter()
 tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_console_exporter))
 
 # Logs to the Phoenix Collector if running locally
-os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = "http://localhost:6006"
-if os.environ.get("PHOENIX_COLLECTOR_ENDPOINT"):
-    endpoint = os.environ["PHOENIX_COLLECTOR_ENDPOINT"] + "/v1/traces"
+if phoenix_collector_endpoint := os.environ.get("PHOENIX_COLLECTOR_ENDPOINT"):
+    endpoint = phoenix_collector_endpoint + "/v1/traces"
     span_otlp_exporter = OTLPSpanExporter(endpoint=endpoint)
     tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_otlp_exporter))
 
