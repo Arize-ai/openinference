@@ -53,12 +53,15 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         wrap_function_wrapper(
             module=_DSPY_MODULE,
-            name="Retrieve.__call__",
+            name="Retrieve.forward",
             wrapper=_RetrieverForwardWrapper(tracer),
         )
 
         wrap_function_wrapper(
             module=_DSPY_MODULE,
+            # At this time, dspy.Module does not have an abstract forward
+            # method, but assumes that user-defined subclasses implement the
+            # forward method and invokes that method using __call__.
             name="Module.__call__",
             wrapper=_ModuleForwardWrapper(tracer),
         )
@@ -150,9 +153,7 @@ class _PredictForwardWrapper(_WithTracer):
             span_name,
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-                SpanAttributes.INPUT_VALUE: json.dumps(
-                    kwargs, cls=DSPyJSONEncoder
-                ),
+                SpanAttributes.INPUT_VALUE: json.dumps(kwargs, cls=DSPyJSONEncoder),
                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
             },
         ) as span:
@@ -190,8 +191,19 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     output regardless of whether the those inputs are passed as positional or
     keyword arguments.
     """
-    bound_arguments = signature(method).bind(
-        None,  # the value bound to the method's self argument is discarded below, so pass None
+
+    # For typical class methods, the corresponding instance of inspect.Signature
+    # does not include the self parameter. However, the inspect.Signature
+    # instance for __call__ does include the self parameter.
+    method_signature = signature(method)
+    first_parameter_name = next(iter(method_signature.parameters), None)
+    signature_contains_self_parameter = first_parameter_name == "self"
+    bound_arguments = method_signature.bind(
+        *(
+            [None]  # the value bound to the method's self argument is discarded below, so pass None
+            if signature_contains_self_parameter
+            else []  # no self parameter, so no need to pass a value
+        ),
         *args,
         **kwargs,
     )
@@ -258,6 +270,8 @@ class _RetrieverForwardWrapper(_WithTracer):
             span_name,
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.RETRIEVER.value,
+                SpanAttributes.INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
+                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
             },
         ) as span:
             try:
@@ -280,11 +294,13 @@ class DSPyJSONEncoder(json.JSONEncoder):
     """
     Provides support for non-JSON-serializable objects in DSPy.
     """
+
     def default(self, o: Any) -> Any:
         try:
             return super().default(o)
         except TypeError:
             from dspy.primitives.example import Example
+
             if isinstance(o, Example):
                 # At this time, Example and its sub-classes store values in a
                 # private attribute.

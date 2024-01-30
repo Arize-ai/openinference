@@ -216,6 +216,10 @@ def test_rag_module(
         span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
         == OpenInferenceSpanKindValues.RETRIEVER.value
     )
+    assert json.loads(span.attributes[SpanAttributes.INPUT_VALUE]) == {
+        "query_or_queries": "What's the capital of the United States?"
+    }
+    assert span.attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
 
     span = spans[1]
     assert span.name == "GPT3.request"
@@ -249,4 +253,6 @@ def test_rag_module(
     }
     assert span.attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
     assert "Washington, D.C." in span.attributes[SpanAttributes.OUTPUT_VALUE]
-    assert span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+    assert (
+        span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+    )
