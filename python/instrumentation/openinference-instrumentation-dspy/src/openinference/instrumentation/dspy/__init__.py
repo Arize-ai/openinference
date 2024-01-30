@@ -157,7 +157,11 @@ class _PredictForwardWrapper(_WithTracer):
             span_name,
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-                SpanAttributes.INPUT_VALUE: json.dumps(kwargs, cls=DSPyJSONEncoder),
+                SpanAttributes.INPUT_VALUE: _get_input_value(
+                    wrapped,
+                    *args,
+                    **kwargs,
+                ),
                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
             },
         ) as span:
@@ -213,9 +217,12 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     )
     return json.dumps(
         {
-            argument_name: argument_value
-            for argument_name, argument_value in bound_arguments.arguments.items()
-            if argument_name != "self"
+            **{
+                argument_name: argument_value
+                for argument_name, argument_value in bound_arguments.arguments.items()
+                if argument_name not in ["self", "cls", "kwargs"]
+            },
+            **bound_arguments.arguments.get("kwargs", {}),
         },
         cls=DSPyJSONEncoder,
     )
