@@ -7,7 +7,7 @@ import responses
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
-    DocumentAttributes,
+    # DocumentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -267,6 +267,20 @@ def test_rag_module(
         span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
         == OpenInferenceSpanKindValues.CHAIN.value
     )
+    input_value = json.loads(span.attributes[SpanAttributes.INPUT_VALUE])
+    assert set(input_value.keys()) == {"signature", "context", "question"}
+    signature = input_value["signature"]
+    assert set(signature.keys()) == {"fields", "instructions"}
+    fields = signature["fields"]
+    assert all(
+        lambda field: {"name", "type", "description"}.issubset(set(field.keys()))
+        for field in fields
+    )
+    assert question == input_value["question"]
+    output_value = json.loads(span.attributes[SpanAttributes.OUTPUT_VALUE])
+    assert set(output_value.keys()) == {"answer", "rationale"}
+    assert output_value["answer"] == "Washington, D.C."
+    assert isinstance(output_value["rationale"], str)
 
     span = spans[4]
     assert span.name == "RAG.forward"

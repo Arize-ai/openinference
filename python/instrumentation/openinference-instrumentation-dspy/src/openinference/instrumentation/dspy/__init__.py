@@ -292,7 +292,7 @@ class _RetrieverForwardWrapper(_WithTracer):
                             DocumentAttributes.DOCUMENT_CONTENT: document_text,
                         }
                         for document_text in prediction.get("passages", [])
-                    ]
+                    ],
                 }
             )
             span.set_status(trace_api.StatusCode.OK)
@@ -308,12 +308,20 @@ class DSPyJSONEncoder(json.JSONEncoder):
         try:
             return super().default(o)
         except TypeError:
+            from dsp.templates.template_v3 import Template
+
             from dspy.primitives.example import Example
 
+            if hasattr(o, "_asdict"):
+                # convert namedtuples to dictionaries
+                return o._asdict()
             if isinstance(o, Example):
-                # At this time, Example and its sub-classes store values in a
-                # private attribute.
                 return getattr(o, "_store", {})
+            if isinstance(o, Template):
+                return {
+                    "fields": [self.default(field) for field in o.fields],
+                    "instructions": o.instructions,
+                }
             return repr(o)
 
 
