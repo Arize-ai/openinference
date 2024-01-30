@@ -7,6 +7,7 @@ import responses
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
+    DocumentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -230,6 +231,21 @@ def test_rag_module(
     assert (
         span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
     )
+    # TODO: investigate missing retrieved document attribute
+    # assert span.attributes[SpanAttributes.RETRIEVAL_DOCUMENTS] == [
+    #     {
+    #         DocumentAttributes.DOCUMENT_ID: ...,
+    #         DocumentAttributes.DOCUMENT_CONTENT: "first retrieved document text",
+    #     },
+    #     {
+    #         DocumentAttributes.DOCUMENT_ID: ...,
+    #         DocumentAttributes.DOCUMENT_CONTENT: "second retrieved document text",
+    #     },
+    #     {
+    #         DocumentAttributes.DOCUMENT_ID: ...,
+    #         DocumentAttributes.DOCUMENT_CONTENT: "third retrieved document text",
+    #     },
+    # ]
 
     span = spans[1]
     assert span.name == "GPT3.request"

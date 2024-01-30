@@ -2,10 +2,12 @@ import json
 from abc import ABC
 from inspect import signature
 from typing import Any, Callable, Collection, Dict, Mapping, Tuple
+from uuid import uuid4
 
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
 from openinference.semconv.trace import (
+    DocumentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -284,6 +286,13 @@ class _RetrieverForwardWrapper(_WithTracer):
                 {
                     SpanAttributes.OUTPUT_VALUE: json.dumps(prediction, cls=DSPyJSONEncoder),
                     SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                    SpanAttributes.RETRIEVAL_DOCUMENTS: [
+                        {
+                            DocumentAttributes.DOCUMENT_ID: str(uuid4()),
+                            DocumentAttributes.DOCUMENT_CONTENT: document_text,
+                        }
+                        for document_text in prediction.get("passages", [])
+                    ]
                 }
             )
             span.set_status(trace_api.StatusCode.OK)
