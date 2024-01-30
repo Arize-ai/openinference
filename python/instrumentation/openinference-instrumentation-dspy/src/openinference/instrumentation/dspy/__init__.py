@@ -1,7 +1,8 @@
 import json
 from abc import ABC
+from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Collection, Dict, Mapping, Tuple
+from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Tuple
 from uuid import uuid4
 
 from openinference.instrumentation.dspy.package import _instruments
@@ -14,6 +15,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
 
 _DSPY_MODULE = "dspy"
@@ -283,17 +285,23 @@ class _RetrieverForwardWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             span.set_attributes(
-                {
-                    SpanAttributes.OUTPUT_VALUE: json.dumps(prediction, cls=DSPyJSONEncoder),
-                    SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-                    SpanAttributes.RETRIEVAL_DOCUMENTS: [
+                dict(
+                    _flatten(
                         {
-                            DocumentAttributes.DOCUMENT_ID: str(uuid4()),
-                            DocumentAttributes.DOCUMENT_CONTENT: document_text,
+                            SpanAttributes.OUTPUT_VALUE: json.dumps(
+                                prediction, cls=DSPyJSONEncoder
+                            ),
+                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                            SpanAttributes.RETRIEVAL_DOCUMENTS: [
+                                {
+                                    DocumentAttributes.DOCUMENT_ID: str(uuid4()),
+                                    DocumentAttributes.DOCUMENT_CONTENT: document_text,
+                                }
+                                for document_text in prediction.get("passages", [])
+                            ],
                         }
-                        for document_text in prediction.get("passages", [])
-                    ],
-                }
+                    )
+                )
             )
             span.set_status(trace_api.StatusCode.OK)
         return prediction
@@ -332,3 +340,20 @@ def _get_predict_span_name(instance: Any) -> str:
     ):
         return f"{class_name}.{signature_name}.forward"
     return class_name
+
+
+def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+    for key, value in mapping.items():
+        if value is None:
+            continue
+        if isinstance(value, Mapping):
+            for sub_key, sub_value in _flatten(value):
+                yield f"{key}.{sub_key}", sub_value
+        elif isinstance(value, List) and any(isinstance(item, Mapping) for item in value):
+            for index, sub_mapping in enumerate(value):
+                for sub_key, sub_value in _flatten(sub_mapping):
+                    yield f"{key}.{index}.{sub_key}", sub_value
+        else:
+            if isinstance(value, Enum):
+                value = value.value
+            yield key, value
