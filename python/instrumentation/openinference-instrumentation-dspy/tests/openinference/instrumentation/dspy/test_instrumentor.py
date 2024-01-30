@@ -147,28 +147,28 @@ def test_rag_module(
         json={
             "topk": [
                 {
-                    "text": "United States capital (disambiguation) | The capital of the United States is Washington, D.C.",  # noqa: E501
+                    "text": "first retrieved document text",
                     "pid": 1918771,
                     "rank": 1,
                     "score": 26.81817626953125,
                     "prob": 0.7290767171685155,
-                    "long_text": "United States capital (disambiguation) | The capital of the United States is Washington, D.C.",  # noqa: E501
+                    "long_text": "first retrieved document long text",
                 },
                 {
-                    "text": "List of capitals in the United States | Washington, D.C. is the current federal capital city of the United States, as it has been since 1800. Each U.S. state has its own capital city, as do many of its Insular areas. Historically, most states have not changed their capital city since becoming a state, but the capital cities of their respective preceding colonies, territories, kingdoms, and republics typically changed multiple times. There have also been other governments within the current borders of the United States with their own capitals, such as the Republic of Texas, Native American nations, and other unrecognized governments.Siva",  # noqa: E501
+                    "text": "second retrieved document text",
                     "pid": 3377468,
                     "rank": 2,
                     "score": 25.304840087890625,
                     "prob": 0.16052389034616518,
-                    "long_text": "List of capitals in the United States | Washington, D.C. is the current federal capital city of the United States, as it has been since 1800. Each U.S. state has its own capital city, as do many of its Insular areas. Historically, most states have not changed their capital city since becoming a state, but the capital cities of their respective preceding colonies, territories, kingdoms, and republics typically changed multiple times. There have also been other governments within the current borders of the United States with their own capitals, such as the Republic of Texas, Native American nations, and other unrecognized governments.Siva",  # noqa: E501
+                    "long_text": "second retrieved document long text",
                 },
                 {
-                    "text": 'Washington, D.C. | Washington, D.C., formally the District of Columbia and commonly referred to as "Washington", "the District", or simply "D.C.", is the capital of the United States.',  # noqa: E501
+                    "text": "third retrieved document text",
                     "pid": 953799,
                     "rank": 3,
                     "score": 24.93050193786621,
                     "prob": 0.11039939248531924,
-                    "long_text": 'Washington, D.C. | Washington, D.C., formally the District of Columbia and commonly referred to as "Washington", "the District", or simply "D.C.", is the capital of the United States.',  # noqa: E501
+                    "long_text": "third retrieved document long text",
                 },
             ],
             "latency": 84.43140983581543,
@@ -220,6 +220,16 @@ def test_rag_module(
         "query_or_queries": "What's the capital of the United States?"
     }
     assert span.attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(span.attributes[SpanAttributes.OUTPUT_VALUE]) == {
+        "passages": [
+            "first retrieved document text",
+            "second retrieved document text",
+            "third retrieved document text",
+        ]
+    }
+    assert (
+        span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+    )
 
     span = spans[1]
     assert span.name == "GPT3.request"

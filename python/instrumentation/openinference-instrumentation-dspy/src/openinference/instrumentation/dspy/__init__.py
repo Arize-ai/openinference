@@ -282,7 +282,7 @@ class _RetrieverForwardWrapper(_WithTracer):
                 raise
             span.set_attributes(
                 {
-                    SpanAttributes.OUTPUT_VALUE: json.dumps(instance, cls=DSPyJSONEncoder),
+                    SpanAttributes.OUTPUT_VALUE: json.dumps(prediction, cls=DSPyJSONEncoder),
                     SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                 }
             )
