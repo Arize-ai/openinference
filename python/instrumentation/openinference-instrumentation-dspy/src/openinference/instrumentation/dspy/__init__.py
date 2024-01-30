@@ -205,7 +205,7 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     # instance for __call__ does include the self parameter.
     method_signature = signature(method)
     first_parameter_name = next(iter(method_signature.parameters), None)
-    signature_contains_self_parameter = first_parameter_name == "self"
+    signature_contains_self_parameter = first_parameter_name in ["self", "cls"]
     bound_arguments = method_signature.bind(
         *(
             [None]  # the value bound to the method's self argument is discarded below, so pass None
