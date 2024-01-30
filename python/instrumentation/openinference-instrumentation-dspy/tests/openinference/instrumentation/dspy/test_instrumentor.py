@@ -108,7 +108,7 @@ def test_openai_lm(
     chain_span = spans[1]
     assert chain_span.name == "Predict.BasicQA.forward"
     assert lm_span.name == "GPT3.request"
-    assert question in lm_span.attributes[SpanAttributes.INPUT_VALUE]  # type: ignore
+    assert question in lm_span.attributes[INPUT_VALUE]  # type: ignore
 
 
 @responses.activate
@@ -213,76 +213,56 @@ def test_rag_module(
 
     span = spans[0]
     assert span.name == "Retrieve.forward"
-    assert (
-        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
-        == OpenInferenceSpanKindValues.RETRIEVER.value
-    )
-    assert json.loads(span.attributes[SpanAttributes.INPUT_VALUE]) == {
+    assert span.attributes[OPENINFERENCE_SPAN_KIND] == RETRIEVER.value
+    assert json.loads(span.attributes[INPUT_VALUE]) == {
         "query_or_queries": "What's the capital of the United States?"
     }
-    assert span.attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
-    assert json.loads(span.attributes[SpanAttributes.OUTPUT_VALUE]) == {
+    assert span.attributes[INPUT_MIME_TYPE] == JSON.value
+    assert json.loads(span.attributes[OUTPUT_VALUE]) == {
         "passages": [
             "first retrieved document text",
             "second retrieved document text",
             "third retrieved document text",
         ]
     }
-    assert (
-        span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
-    )
+    assert span.attributes[OUTPUT_MIME_TYPE] == JSON.value
     assert isinstance(
-        span.attributes[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_ID}"],
+        span.attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_ID}"],
         str,
     )
     assert isinstance(
-        span.attributes[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.1.{DocumentAttributes.DOCUMENT_ID}"],
+        span.attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_ID}"],
         str,
     )
     assert isinstance(
-        span.attributes[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.2.{DocumentAttributes.DOCUMENT_ID}"],
+        span.attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_ID}"],
         str,
     )
     assert (
-        span.attributes[
-            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_CONTENT}"
-        ]
+        span.attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}"]
         == "first retrieved document text"
     )
     assert (
-        span.attributes[
-            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.1.{DocumentAttributes.DOCUMENT_CONTENT}"
-        ]
+        span.attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}"]
         == "second retrieved document text"
     )
     assert (
-        span.attributes[
-            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.2.{DocumentAttributes.DOCUMENT_CONTENT}"
-        ]
+        span.attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_CONTENT}"]
         == "third retrieved document text"
     )
 
     span = spans[1]
     assert span.name == "GPT3.request"
-    assert (
-        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
-        == OpenInferenceSpanKindValues.LLM.value
-    )
+    assert span.attributes[OPENINFERENCE_SPAN_KIND] == LLM.value
 
     span = spans[2]
     assert span.name == "GPT3.request"
-    assert (
-        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
-        == OpenInferenceSpanKindValues.LLM.value
-    )
+    assert span.attributes[OPENINFERENCE_SPAN_KIND] == LLM.value
 
     span = spans[3]
     assert span.name == "ChainOfThought.BasicQA.forward"
-    assert (
-        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
-        == OpenInferenceSpanKindValues.CHAIN.value
-    )
-    input_value = json.loads(span.attributes[SpanAttributes.INPUT_VALUE])
+    assert span.attributes[OPENINFERENCE_SPAN_KIND] == CHAIN.value
+    input_value = json.loads(span.attributes[INPUT_VALUE])
     assert set(input_value.keys()) == {"signature", "context", "question"}
     signature = input_value["signature"]
     assert set(signature.keys()) == {"fields", "instructions"}
@@ -292,22 +272,33 @@ def test_rag_module(
         for field in fields
     )
     assert question == input_value["question"]
-    output_value = json.loads(span.attributes[SpanAttributes.OUTPUT_VALUE])
+    output_value = json.loads(span.attributes[OUTPUT_VALUE])
     assert set(output_value.keys()) == {"answer", "rationale"}
     assert output_value["answer"] == "Washington, D.C."
     assert isinstance(output_value["rationale"], str)
 
     span = spans[4]
     assert span.name == "RAG.forward"
-    assert (
-        span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
-        == OpenInferenceSpanKindValues.CHAIN.value
-    )
-    assert json.loads(span.attributes[SpanAttributes.INPUT_VALUE]) == {
+    assert span.attributes[OPENINFERENCE_SPAN_KIND] == CHAIN.value
+    assert json.loads(span.attributes[INPUT_VALUE]) == {
         "question": question,
     }
-    assert span.attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
-    assert "Washington, D.C." in span.attributes[SpanAttributes.OUTPUT_VALUE]
-    assert (
-        span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
-    )
+    assert span.attributes[INPUT_MIME_TYPE] == JSON.value
+    assert "Washington, D.C." in span.attributes[OUTPUT_VALUE]
+    assert span.attributes[OUTPUT_MIME_TYPE] == JSON.value
+
+
+DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
+DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
+
+CHAIN = OpenInferenceSpanKindValues.CHAIN
+LLM = OpenInferenceSpanKindValues.LLM
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+
+JSON = OpenInferenceMimeTypeValues.JSON
