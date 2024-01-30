@@ -295,10 +295,6 @@ class _RetrieverForwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.OUTPUT_VALUE: json.dumps(
-                                prediction, cls=DSPyJSONEncoder
-                            ),
-                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                             SpanAttributes.RETRIEVAL_DOCUMENTS: [
                                 {
                                     DocumentAttributes.DOCUMENT_ID: str(uuid4()),

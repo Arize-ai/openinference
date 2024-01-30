@@ -218,14 +218,6 @@ def test_rag_module(
         "query_or_queries": "What's the capital of the United States?"
     }
     assert span.attributes[INPUT_MIME_TYPE] == JSON.value
-    assert json.loads(span.attributes[OUTPUT_VALUE]) == {
-        "passages": [
-            "first retrieved document text",
-            "second retrieved document text",
-            "third retrieved document text",
-        ]
-    }
-    assert span.attributes[OUTPUT_MIME_TYPE] == JSON.value
     assert isinstance(
         span.attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_ID}"],
         str,
