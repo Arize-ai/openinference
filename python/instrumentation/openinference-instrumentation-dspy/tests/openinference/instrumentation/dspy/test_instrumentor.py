@@ -19,12 +19,12 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
     resource = Resource(attributes={})
     tracer_provider = trace_sdk.TracerProvider(resource=resource)
