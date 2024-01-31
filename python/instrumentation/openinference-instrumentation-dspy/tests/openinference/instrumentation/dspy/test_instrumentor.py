@@ -48,7 +48,7 @@ def instrument(
 def clear_cache() -> None:
     """
     DSPy caches responses from retrieval and language models to disk. This
-    fixture clears the caches before each test case to ensure that our mocked
+    fixture clears the cache before each test case to ensure that our mocked
     responses are used.
     """
     CacheMemory.clear()
@@ -121,17 +121,17 @@ def test_rag_module(
         question = dspy.InputField()
         answer = dspy.OutputField(desc="often between 1 and 5 words")
 
-    class RAG(dspy.Module):
+    class RAG(dspy.Module):  # type: ignore
         """
         Performs RAG on a corpus of data.
         """
 
-        def __init__(self, num_passages=3):
+        def __init__(self, num_passages: int = 3) -> None:
             super().__init__()
             self.retrieve = dspy.Retrieve(k=num_passages)
             self.generate_answer = dspy.ChainOfThought(BasicQA)
 
-        def forward(self, question):
+        def forward(self, question: str) -> dspy.Prediction:
             context = self.retrieve(question).passages
             prediction = self.generate_answer(context=context, question=question)
             return dspy.Prediction(context=context, answer=prediction.answer)
@@ -212,97 +212,108 @@ def test_rag_module(
     assert len(spans) == 6
 
     span = spans[0]
+    assert (attributes := span.attributes) is not None
     assert span.name == "ColBERTv2.__call__"
-    assert span.attributes[OPENINFERENCE_SPAN_KIND] == RETRIEVER.value
-    assert json.loads(span.attributes[INPUT_VALUE]) == {
+    assert attributes[OPENINFERENCE_SPAN_KIND] == RETRIEVER.value
+    assert isinstance(input_value := attributes[INPUT_VALUE], str)
+    assert json.loads(input_value) == {
         "k": 3,
         "query": "What's the capital of the United States?",
     }
-    assert span.attributes[INPUT_MIME_TYPE] == JSON.value
+    assert attributes[INPUT_MIME_TYPE] == JSON.value
     assert isinstance(
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_ID}"],
+        attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_ID}"],
         int,
     )
     assert isinstance(
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_ID}"],
+        attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_ID}"],
         int,
     )
     assert isinstance(
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_ID}"],
+        attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_ID}"],
         int,
     )
     assert (
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}"]
+        attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}"]
         == "first retrieved document text"
     )
     assert (
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}"]
+        attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}"]
         == "second retrieved document text"
     )
     assert (
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_CONTENT}"]
+        attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_CONTENT}"]
         == "third retrieved document text"
     )
     assert isinstance(
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_SCORE}"],
+        attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_SCORE}"],
         float,
     )
     assert isinstance(
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_SCORE}"],
+        attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_SCORE}"],
         float,
     )
     assert isinstance(
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_SCORE}"],
+        attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_SCORE}"],
         float,
     )
 
     span = spans[1]
+    assert (attributes := span.attributes) is not None
     assert span.name == "Retrieve.forward"
-    assert span.attributes[OPENINFERENCE_SPAN_KIND] == RETRIEVER.value
-    assert json.loads(span.attributes[INPUT_VALUE]) == {
+    assert attributes[OPENINFERENCE_SPAN_KIND] == RETRIEVER.value
+    assert isinstance(input_value := attributes[INPUT_VALUE], str) and json.loads(input_value) == {
         "query_or_queries": "What's the capital of the United States?"
     }
-    assert span.attributes[INPUT_MIME_TYPE] == JSON.value
+    assert attributes[INPUT_MIME_TYPE] == JSON.value
     assert (
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}"]
+        attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}"]
         == "first retrieved document text"
     )
     assert (
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}"]
+        attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}"]
         == "second retrieved document text"
     )
     assert (
-        span.attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_CONTENT}"]
+        attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_CONTENT}"]
         == "third retrieved document text"
     )
 
     span = spans[2]
+    assert (attributes := span.attributes) is not None
     assert span.name == "GPT3.request"
-    assert span.attributes[OPENINFERENCE_SPAN_KIND] == LLM.value
+    assert attributes[OPENINFERENCE_SPAN_KIND] == LLM.value
 
     span = spans[3]
+    assert (attributes := span.attributes) is not None
     assert span.name == "GPT3.request"
-    assert span.attributes[OPENINFERENCE_SPAN_KIND] == LLM.value
+    assert attributes[OPENINFERENCE_SPAN_KIND] == LLM.value
 
     span = spans[4]
+    assert (attributes := span.attributes) is not None
     assert span.name == "ChainOfThought(BasicQA).forward"
-    assert span.attributes[OPENINFERENCE_SPAN_KIND] == CHAIN.value
-    input_value = json.loads(span.attributes[INPUT_VALUE])
-    assert set(input_value.keys()) == {"context", "question"}
-    assert question == input_value["question"]
-    output_value = json.loads(span.attributes[OUTPUT_VALUE])
-    assert set(output_value.keys()) == {"answer"}
-    assert output_value["answer"] == "Washington, D.C."
+    assert attributes[OPENINFERENCE_SPAN_KIND] == CHAIN.value
+    assert isinstance(input_value := attributes[INPUT_VALUE], str)
+    input_value_data = json.loads(input_value)
+    assert set(input_value_data.keys()) == {"context", "question"}
+    assert question == input_value_data["question"]
+    assert isinstance(output_value := attributes[OUTPUT_VALUE], str)
+    output_value_data = json.loads(output_value)
+    assert set(output_value_data.keys()) == {"answer"}
+    assert output_value_data["answer"] == "Washington, D.C."
 
     span = spans[5]
+    assert (attributes := span.attributes) is not None
     assert span.name == "RAG.forward"
-    assert span.attributes[OPENINFERENCE_SPAN_KIND] == CHAIN.value
-    assert json.loads(span.attributes[INPUT_VALUE]) == {
+    assert attributes[OPENINFERENCE_SPAN_KIND] == CHAIN.value
+    assert isinstance(input_value := attributes[INPUT_VALUE], str)
+    assert json.loads(input_value) == {
         "question": question,
     }
-    assert span.attributes[INPUT_MIME_TYPE] == JSON.value
-    assert "Washington, D.C." in span.attributes[OUTPUT_VALUE]
-    assert span.attributes[OUTPUT_MIME_TYPE] == JSON.value
+    assert attributes[INPUT_MIME_TYPE] == JSON.value
+    assert isinstance(output_value := attributes[OUTPUT_VALUE], str)
+    assert "Washington, D.C." in output_value
+    assert attributes[OUTPUT_MIME_TYPE] == JSON.value
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT

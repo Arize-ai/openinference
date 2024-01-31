@@ -437,7 +437,7 @@ class DSPyJSONEncoder(json.JSONEncoder):
 
 
 def _get_predict_span_name(instance: Any) -> str:
-    class_name = instance.__class__.__name__
+    class_name = str(instance.__class__.__name__)
     if (signature := getattr(instance, "signature", None)) and (
         signature_name := getattr(signature, "__name__", None)
     ):
