@@ -341,7 +341,7 @@ def _get_predict_span_name(instance: Any) -> str:
     if (signature := getattr(instance, "signature", None)) and (
         signature_name := getattr(signature, "__name__", None)
     ):
-        return f"{class_name}.{signature_name}.forward"
+        return f"{class_name}({signature_name}).forward"
     return class_name
 
 

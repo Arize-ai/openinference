@@ -106,7 +106,7 @@ def test_openai_lm(
     assert len(spans) == 2  # 1 for the wrapping Signature, 1 for the OpenAI call
     lm_span = spans[0]
     chain_span = spans[1]
-    assert chain_span.name == "Predict.BasicQA.forward"
+    assert chain_span.name == "Predict(BasicQA).forward"
     assert lm_span.name == "GPT3.request"
     assert question in lm_span.attributes[INPUT_VALUE]  # type: ignore
 
@@ -252,7 +252,7 @@ def test_rag_module(
     assert span.attributes[OPENINFERENCE_SPAN_KIND] == LLM.value
 
     span = spans[3]
-    assert span.name == "ChainOfThought.BasicQA.forward"
+    assert span.name == "ChainOfThought(BasicQA).forward"
     assert span.attributes[OPENINFERENCE_SPAN_KIND] == CHAIN.value
     input_value = json.loads(span.attributes[INPUT_VALUE])
     assert set(input_value.keys()) == {"signature", "context", "question"}
