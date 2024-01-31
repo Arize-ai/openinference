@@ -40,6 +40,8 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         # Instrument LM (language model) calls
         from dsp.modules.lm import LM
 
+        from dspy import Predict
+
         language_model_classes = LM.__subclasses__()
         for lm in language_model_classes:
             wrap_function_wrapper(
@@ -48,12 +50,24 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 wrapper=_LMBasicRequestWrapper(tracer),
             )
 
-        # Instrument DSPy constructs
+        # Predict is a concrete (non-abstract) class that may be invoked
+        # directly, but DSPy also has subclasses of Predict that override the
+        # forward method. We instrument all of these classes' forward methods
+        # and rely on the wrapper to detect whether the forward method is
+        # overridden.
         wrap_function_wrapper(
             module=_DSPY_MODULE,
             name="Predict.forward",
             wrapper=_PredictForwardWrapper(tracer),
         )
+
+        predict_subclasses = Predict.__subclasses__()
+        for predict_subclass in predict_subclasses:
+            wrap_function_wrapper(
+                module=_DSPY_MODULE,
+                name=predict_subclass.__name__ + ".forward",
+                wrapper=_PredictForwardWrapper(tracer),
+            )
 
         wrap_function_wrapper(
             module=_DSPY_MODULE,
@@ -155,6 +169,30 @@ class _PredictForwardWrapper(_WithTracer):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        from dspy import Predict
+
+        # At this time, subclasses of Predict override the base class' forward
+        # method and invoke the parent class' forward method from within the
+        # overridden method. To avoid creating duplicate spans for a single
+        # invocation, we don't create a span for the base class' forward method
+        # if the instance belongs to a proper subclass of Predict with an
+        # overridden forward method.
+        is_instance_of_predict_subclass = (
+            isinstance(instance, Predict) and (cls := instance.__class__) is not Predict
+        )
+        has_overridden_forward_method = getattr(cls, "forward", None) is not getattr(
+            Predict, "forward", None
+        )
+        wrapped_method_is_base_class_forward_method = (
+            wrapped.__qualname__ == Predict.forward.__qualname__
+        )
+        if (
+            is_instance_of_predict_subclass
+            and has_overridden_forward_method
+            and wrapped_method_is_base_class_forward_method
+        ):
+            return wrapped(*args, **kwargs)
+
         signature = kwargs.get("signature", instance.signature)
         span_name = _get_predict_span_name(instance)
         with self._tracer.start_as_current_span(

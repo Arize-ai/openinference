@@ -255,19 +255,11 @@ def test_rag_module(
     assert span.name == "ChainOfThought(BasicQA).forward"
     assert span.attributes[OPENINFERENCE_SPAN_KIND] == CHAIN.value
     input_value = json.loads(span.attributes[INPUT_VALUE])
-    assert set(input_value.keys()) == {"signature", "context", "question"}
-    signature = input_value["signature"]
-    assert set(signature.keys()) == {"fields", "instructions"}
-    fields = signature["fields"]
-    assert all(
-        lambda field: {"name", "type", "description"}.issubset(set(field.keys()))
-        for field in fields
-    )
+    assert set(input_value.keys()) == {"context", "question"}
     assert question == input_value["question"]
     output_value = json.loads(span.attributes[OUTPUT_VALUE])
-    assert set(output_value.keys()) == {"answer", "rationale"}
+    assert set(output_value.keys()) == {"answer"}
     assert output_value["answer"] == "Washington, D.C."
-    assert isinstance(output_value["rationale"], str)
 
     span = spans[4]
     assert span.name == "RAG.forward"
