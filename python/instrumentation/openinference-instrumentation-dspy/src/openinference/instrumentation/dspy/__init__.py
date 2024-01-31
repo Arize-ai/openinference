@@ -130,10 +130,14 @@ class _LMBasicRequestWrapper(_WithTracer):
             # TODO: parse usage. Need to decide if this
             # instrumentation should be used in conjunction with model instrumentation
             span.set_attributes(
-                {
-                    SpanAttributes.OUTPUT_VALUE: json.dumps(response),
-                    SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-                }
+                dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OUTPUT_VALUE: json.dumps(response),
+                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                        }
+                    )
+                )
             )
             span.set_status(trace_api.StatusCode.OK)
         return response
@@ -172,12 +176,16 @@ class _PredictForwardWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             span.set_attributes(
-                {
-                    SpanAttributes.OUTPUT_VALUE: json.dumps(
-                        self._prediction_to_output_dict(prediction, signature)
-                    ),
-                    SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-                }
+                dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OUTPUT_VALUE: json.dumps(
+                                self._prediction_to_output_dict(prediction, signature)
+                            ),
+                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                        }
+                    )
+                )
             )
             span.set_status(trace_api.StatusCode.OK)
         return prediction
@@ -259,10 +267,16 @@ class _ModuleForwardWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             span.set_attributes(
-                {
-                    SpanAttributes.OUTPUT_VALUE: json.dumps(prediction, cls=DSPyJSONEncoder),
-                    SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-                }
+                dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OUTPUT_VALUE: json.dumps(
+                                prediction, cls=DSPyJSONEncoder
+                            ),
+                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                        }
+                    )
+                )
             )
             span.set_status(trace_api.StatusCode.OK)
         return prediction
