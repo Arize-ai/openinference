@@ -357,7 +357,7 @@ def _prompt_template(serialized: Optional[Mapping[str, Any]]) -> Iterator[Tuple[
         return
     assert isinstance(kwargs, dict), f"expected dict, found {type(kwargs)}"
     for obj in kwargs.values():
-        if not hasattr(obj, "get") or (id_ := obj.get("id")):
+        if not hasattr(obj, "get") or (id_ := obj.get("id")) is None:
             continue
         # The `id` field of the object is a list indicating the path to the
         # object's class in the LangChain package, e.g. `PromptTemplate` in
