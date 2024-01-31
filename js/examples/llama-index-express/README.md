@@ -1,4 +1,8 @@
+# Overview
+
 This is a [LlamaIndex](https://www.llamaindex.ai/) project bootstrapped with [`create-llama`](https://github.com/run-llama/LlamaIndexTS/tree/main/packages/create-llama) and adapted to include OpenInference instrumentation for OpenAI calls.
+
+Our example will export spans data simultaneously on `Console` and [arize-phoenix](https://github.com/Arize-ai/phoenix), however you can run your code anywhere and can use any exporter that OpenTelemetry supports.
 
 ## Getting Started With Local Development
 
