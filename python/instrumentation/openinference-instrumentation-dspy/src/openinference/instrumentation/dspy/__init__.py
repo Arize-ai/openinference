@@ -3,7 +3,6 @@ from abc import ABC
 from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Tuple
-from uuid import uuid4
 
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
@@ -82,6 +81,12 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             # forward method and invokes that method using __call__.
             name="Module.__call__",
             wrapper=_ModuleForwardWrapper(tracer),
+        )
+
+        wrap_function_wrapper(
+            module=_DSP_MODULE,
+            name="ColBERTv2.__call__",
+            wrapper=_RetrieveModelCallWrapper(tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -349,7 +354,6 @@ class _RetrieverForwardWrapper(_WithTracer):
                         {
                             SpanAttributes.RETRIEVAL_DOCUMENTS: [
                                 {
-                                    DocumentAttributes.DOCUMENT_ID: str(uuid4()),
                                     DocumentAttributes.DOCUMENT_CONTENT: document_text,
                                 }
                                 for document_text in prediction.get("passages", [])
@@ -360,6 +364,50 @@ class _RetrieverForwardWrapper(_WithTracer):
             )
             span.set_status(trace_api.StatusCode.OK)
         return prediction
+
+
+class _RetrieveModelCallWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        class_name = instance.__class__.__name__
+        span_name = class_name + ".__call__"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes={
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.RETRIEVER.value,
+                SpanAttributes.INPUT_VALUE: (_get_input_value(wrapped, *args, **kwargs)),
+                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+            },
+        ) as span:
+            try:
+                retrieved_documents = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            SpanAttributes.RETRIEVAL_DOCUMENTS: [
+                                {
+                                    DocumentAttributes.DOCUMENT_ID: doc["pid"],
+                                    DocumentAttributes.DOCUMENT_CONTENT: doc["text"],
+                                    DocumentAttributes.DOCUMENT_SCORE: doc["score"],
+                                }
+                                for doc in retrieved_documents
+                            ],
+                        }
+                    )
+                )
+            )
+            span.set_status(trace_api.StatusCode.OK)
+        return retrieved_documents
 
 
 class DSPyJSONEncoder(json.JSONEncoder):
