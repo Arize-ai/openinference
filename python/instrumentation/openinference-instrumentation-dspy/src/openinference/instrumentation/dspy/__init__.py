@@ -184,10 +184,11 @@ class _PredictForwardWrapper(_WithTracer):
 
         # At this time, subclasses of Predict override the base class' forward
         # method and invoke the parent class' forward method from within the
-        # overridden method. To avoid creating duplicate spans for a single
-        # invocation, we don't create a span for the base class' forward method
-        # if the instance belongs to a proper subclass of Predict with an
-        # overridden forward method.
+        # overridden method. The forward method for both Predict and its
+        # subclasses have been instrumented. To avoid creating duplicate spans
+        # for a single invocation, we don't create a span for the base class'
+        # forward method if the instance belongs to a proper subclass of Predict
+        # with an overridden forward method.
         is_instance_of_predict_subclass = (
             isinstance(instance, Predict) and (cls := instance.__class__) is not Predict
         )
@@ -254,42 +255,14 @@ class _PredictForwardWrapper(_WithTracer):
         return output
 
 
-def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
-    """
-    Parses a method call's inputs into a JSON string. Ensures a consistent
-    output regardless of whether the those inputs are passed as positional or
-    keyword arguments.
-    """
-
-    # For typical class methods, the corresponding instance of inspect.Signature
-    # does not include the self parameter. However, the inspect.Signature
-    # instance for __call__ does include the self parameter.
-    method_signature = signature(method)
-    first_parameter_name = next(iter(method_signature.parameters), None)
-    signature_contains_self_parameter = first_parameter_name in ["self", "cls"]
-    bound_arguments = method_signature.bind(
-        *(
-            [None]  # the value bound to the method's self argument is discarded below, so pass None
-            if signature_contains_self_parameter
-            else []  # no self parameter, so no need to pass a value
-        ),
-        *args,
-        **kwargs,
-    )
-    return json.dumps(
-        {
-            **{
-                argument_name: argument_value
-                for argument_name, argument_value in bound_arguments.arguments.items()
-                if argument_name not in ["self", "cls", "kwargs"]
-            },
-            **bound_arguments.arguments.get("kwargs", {}),
-        },
-        cls=DSPyJSONEncoder,
-    )
-
-
 class _ModuleForwardWrapper(_WithTracer):
+    """
+    Instruments the __call__ method of dspy.Module. DSPy end users define custom
+    subclasses of Module implementing a forward method, loosely resembling the
+    ergonomics of torch.nn.Module. The __call__ method of dspy.Module invokes
+    the forward method of the user-defined subclass.
+    """
+
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -307,10 +280,10 @@ class _ModuleForwardWrapper(_WithTracer):
                         # At this time, dspy.Module does not have an abstract forward
                         # method, but assumes that user-defined subclasses implement the
                         # forward method.
-                        INPUT_VALUE: (
-                            _get_input_value(forward_method, *args, **kwargs)
+                        **(
+                            {INPUT_VALUE: _get_input_value(forward_method, *args, **kwargs)}
                             if (forward_method := getattr(instance.__class__, "forward", None))
-                            else "{}"
+                            else {}
                         ),
                         INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                     }
@@ -338,6 +311,14 @@ class _ModuleForwardWrapper(_WithTracer):
 
 
 class _RetrieverForwardWrapper(_WithTracer):
+    """
+    Instruments the forward method of dspy.Retrieve, which is a wrapper around
+    retriever models such as ColBERTv2. At this time, Retrieve does not contain
+    any additional information that cannot be gleaned from the underlying
+    retriever model sub-span. It is, however, a user-facing concept, so we have
+    decided to instrument it.
+    """
+
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -383,6 +364,10 @@ class _RetrieverForwardWrapper(_WithTracer):
 
 
 class _RetrieverModelCallWrapper(_WithTracer):
+    """
+    Instruments the __call__ method of retriever models such as ColBERTv2.
+    """
+
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -447,6 +432,7 @@ class DSPyJSONEncoder(json.JSONEncoder):
                 # convert namedtuples to dictionaries
                 return o._asdict()
             if isinstance(o, Example):
+                # handles Prediction objects and other sub-classes of Example
                 return getattr(o, "_store", {})
             if isinstance(o, Template):
                 return {
@@ -456,13 +442,53 @@ class DSPyJSONEncoder(json.JSONEncoder):
             return repr(o)
 
 
+def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
+    """
+    Parses a method call's inputs into a JSON string. Ensures a consistent
+    output regardless of whether the those inputs are passed as positional or
+    keyword arguments.
+    """
+
+    # For typical class methods, the corresponding instance of inspect.Signature
+    # does not include the self parameter. However, the inspect.Signature
+    # instance for __call__ does include the self parameter.
+    method_signature = signature(method)
+    first_parameter_name = next(iter(method_signature.parameters), None)
+    signature_contains_self_parameter = first_parameter_name in ["self"]
+    bound_arguments = method_signature.bind(
+        *(
+            [None]  # the value bound to the method's self argument is discarded below, so pass None
+            if signature_contains_self_parameter
+            else []  # no self parameter, so no need to pass a value
+        ),
+        *args,
+        **kwargs,
+    )
+    return json.dumps(
+        {
+            **{
+                argument_name: argument_value
+                for argument_name, argument_value in bound_arguments.arguments.items()
+                if argument_name not in ["self", "kwargs"]
+            },
+            **bound_arguments.arguments.get("kwargs", {}),
+        },
+        cls=DSPyJSONEncoder,
+    )
+
+
 def _get_predict_span_name(instance: Any) -> str:
+    """
+    Gets the name for the Predict span, which are the composition of a Predict
+    class or subclass and a user-defined signature. An example name would be
+    "Predict(UserDefinedSignature).forward".
+    """
     class_name = str(instance.__class__.__name__)
     if (signature := getattr(instance, "signature", None)) and (
         signature_name := getattr(signature, "__name__", None)
     ):
         return f"{class_name}({signature_name}).forward"
-    return class_name
+    return f"{class_name}.forward"
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
