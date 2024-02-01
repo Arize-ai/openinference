@@ -234,16 +234,14 @@ def test_rag_module(
         int,
     )
     assert (
-        attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}"]
-        == "first retrieved document text"
+        attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}"] == "first retrieved document text"
     )
     assert (
         attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}"]
         == "second retrieved document text"
     )
     assert (
-        attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_CONTENT}"]
-        == "third retrieved document text"
+        attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_CONTENT}"] == "third retrieved document text"
     )
     assert isinstance(
         attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_SCORE}"],
@@ -267,16 +265,14 @@ def test_rag_module(
     }
     assert attributes[INPUT_MIME_TYPE] == JSON.value
     assert (
-        attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}"]
-        == "first retrieved document text"
+        attributes[f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}"] == "first retrieved document text"
     )
     assert (
         attributes[f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}"]
         == "second retrieved document text"
     )
     assert (
-        attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_CONTENT}"]
-        == "third retrieved document text"
+        attributes[f"{RETRIEVAL_DOCUMENTS}.2.{DOCUMENT_CONTENT}"] == "third retrieved document text"
     )
 
     span = spans[2]

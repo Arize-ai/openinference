@@ -51,9 +51,8 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         # Predict is a concrete (non-abstract) class that may be invoked
         # directly, but DSPy also has subclasses of Predict that override the
-        # forward method. We instrument all of these classes' forward methods
-        # and rely on the wrapper to detect whether the forward method is
-        # overridden.
+        # forward method. We instrument both the forward methods of the base
+        # class and all subclasses.
         wrap_function_wrapper(
             module=_DSPY_MODULE,
             name="Predict.forward",
@@ -83,10 +82,13 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_ModuleForwardWrapper(tracer),
         )
 
+        # At this time, there is no common parent class for retriever models as
+        # there is for language models. We instrument the retriever models on a
+        # case-by-case basis.
         wrap_function_wrapper(
             module=_DSP_MODULE,
             name="ColBERTv2.__call__",
-            wrapper=_RetrieveModelCallWrapper(tracer),
+            wrapper=_RetrieverModelCallWrapper(tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -132,13 +134,17 @@ class _LMBasicRequestWrapper(_WithTracer):
         span_name = instance.__class__.__name__ + ".request"
         with self._tracer.start_as_current_span(
             span_name,
-            attributes={
-                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
-                SpanAttributes.LLM_MODEL_NAME: instance.kwargs.get("model"),
-                SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(invocation_parameters),
-                SpanAttributes.INPUT_VALUE: str(prompt),
-                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
-            },
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: LLM.value,
+                        LLM_MODEL_NAME: instance.kwargs.get("model"),
+                        LLM_INVOCATION_PARAMETERS: json.dumps(invocation_parameters),
+                        INPUT_VALUE: str(prompt),
+                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
+                    }
+                )
+            ),
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -152,8 +158,8 @@ class _LMBasicRequestWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.OUTPUT_VALUE: json.dumps(response),
-                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                            OUTPUT_VALUE: json.dumps(response),
+                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                         }
                     )
                 )
@@ -202,15 +208,19 @@ class _PredictForwardWrapper(_WithTracer):
         span_name = _get_predict_span_name(instance)
         with self._tracer.start_as_current_span(
             span_name,
-            attributes={
-                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-                SpanAttributes.INPUT_VALUE: _get_input_value(
-                    wrapped,
-                    *args,
-                    **kwargs,
-                ),
-                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-            },
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN.value,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                    }
+                )
+            ),
         ) as span:
             try:
                 prediction = wrapped(*args, **kwargs)
@@ -222,10 +232,10 @@ class _PredictForwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.OUTPUT_VALUE: json.dumps(
+                            OUTPUT_VALUE: json.dumps(
                                 self._prediction_to_output_dict(prediction, signature)
                             ),
-                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                         }
                     )
                 )
@@ -290,18 +300,22 @@ class _ModuleForwardWrapper(_WithTracer):
         span_name = instance.__class__.__name__ + ".forward"
         with self._tracer.start_as_current_span(
             span_name,
-            attributes={
-                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-                # At this time, dspy.Module does not have an abstract forward
-                # method, but assumes that user-defined subclasses implement the
-                # forward method.
-                SpanAttributes.INPUT_VALUE: (
-                    _get_input_value(forward_method, *args, **kwargs)
-                    if (forward_method := getattr(instance.__class__, "forward", None))
-                    else "{}"
-                ),
-                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-            },
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN.value,
+                        # At this time, dspy.Module does not have an abstract forward
+                        # method, but assumes that user-defined subclasses implement the
+                        # forward method.
+                        INPUT_VALUE: (
+                            _get_input_value(forward_method, *args, **kwargs)
+                            if (forward_method := getattr(instance.__class__, "forward", None))
+                            else "{}"
+                        ),
+                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                    }
+                )
+            ),
         ) as span:
             try:
                 prediction = wrapped(*args, **kwargs)
@@ -313,10 +327,8 @@ class _ModuleForwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.OUTPUT_VALUE: json.dumps(
-                                prediction, cls=DSPyJSONEncoder
-                            ),
-                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                            OUTPUT_VALUE: json.dumps(prediction, cls=DSPyJSONEncoder),
+                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                         }
                     )
                 )
@@ -336,11 +348,15 @@ class _RetrieverForwardWrapper(_WithTracer):
         span_name = instance.__class__.__name__ + ".forward"
         with self._tracer.start_as_current_span(
             span_name,
-            attributes={
-                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.RETRIEVER.value,
-                SpanAttributes.INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
-                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-            },
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: RETRIEVER.value,
+                        INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
+                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                    }
+                )
+            ),
         ) as span:
             try:
                 prediction = wrapped(*args, **kwargs)
@@ -352,7 +368,7 @@ class _RetrieverForwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.RETRIEVAL_DOCUMENTS: [
+                            RETRIEVAL_DOCUMENTS: [
                                 {
                                     DocumentAttributes.DOCUMENT_CONTENT: document_text,
                                 }
@@ -366,7 +382,7 @@ class _RetrieverForwardWrapper(_WithTracer):
         return prediction
 
 
-class _RetrieveModelCallWrapper(_WithTracer):
+class _RetrieverModelCallWrapper(_WithTracer):
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -378,11 +394,15 @@ class _RetrieveModelCallWrapper(_WithTracer):
         span_name = class_name + ".__call__"
         with self._tracer.start_as_current_span(
             span_name,
-            attributes={
-                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.RETRIEVER.value,
-                SpanAttributes.INPUT_VALUE: (_get_input_value(wrapped, *args, **kwargs)),
-                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
-            },
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: RETRIEVER.value,
+                        INPUT_VALUE: (_get_input_value(wrapped, *args, **kwargs)),
+                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                    }
+                )
+            ),
         ) as span:
             try:
                 retrieved_documents = wrapped(*args, **kwargs)
@@ -394,7 +414,7 @@ class _RetrieveModelCallWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.RETRIEVAL_DOCUMENTS: [
+                            RETRIEVAL_DOCUMENTS: [
                                 {
                                     DocumentAttributes.DOCUMENT_ID: doc["pid"],
                                     DocumentAttributes.DOCUMENT_CONTENT: doc["text"],
@@ -460,3 +480,16 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
+
+
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+CHAIN = OpenInferenceSpanKindValues.CHAIN
+LLM = OpenInferenceSpanKindValues.LLM
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
