@@ -9,7 +9,7 @@ This example integrates three components:
 
 ## Setup
 
-This application is automatically instrumented using OpenInference entirely with one [instrumentation call](./backend/instrument.py):
+This application is instrumented using OpenInference with one [instrumentation call](./backend/instrument.py):
 
 ```python
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
