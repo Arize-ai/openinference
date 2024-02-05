@@ -54,8 +54,8 @@ View examples of instrumented JavaScript applications [here](js/examples/README.
 
 OpenInference supports the following destinations as span collectors.
 
-- ✅ [Arize](https://arize.com/)
 - ✅ [Arize-Phoenix](https://github.com/Arize-ai/phoenix)
+- ✅ [Arize](https://arize.com/)
 - ✅ Any OTEL-compatible collector
 
 ## Community
