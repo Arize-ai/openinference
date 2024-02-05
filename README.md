@@ -49,3 +49,11 @@ View examples of instrumented Python applications [here](python/examples/README.
 ### Examples
 
 View examples of instrumented JavaScript applications [here](js/examples/README.md).
+
+## Supported Destinations
+
+OpenInference supports the following destinations as span collectors.
+
+- ✅ [Arize](https://arize.com/)
+- ✅ [Arize-Phoenix](https://github.com/Arize-ai/phoenix)
+- ✅ Any OTEL-compatible collector
