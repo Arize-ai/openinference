@@ -81,3 +81,5 @@ px.launch_app()
 ```
 
 By default, the Phoenix collector is running on `http://localhost:6006/v1/traces`.
+
+Phoenix runs completely locally on your machine and does not collect any data over the internet.
