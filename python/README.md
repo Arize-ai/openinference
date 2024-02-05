@@ -26,13 +26,15 @@ This assumes that you already have OpenAI>=1.0.0 installed. If not, install usin
 ```shell
 pip install "openai>=1.0.0"
 ```
-Currently only openai>=1.0.0 is supported.
+Currently only `openai>=1.0.0` is supported.
 
-## Chat Completions
+## Application
 
 Below shows a simple application calling chat completions from OpenAI.
 
-Note that the endpoint is set to collector running on `localhost:6006`, but can be changed if you are running a collector on a different location.
+Note that the `endpoint` is set to a collector running on `localhost:6006/v1/traces`, but can be changed if you are running your collector at a different location. 
+
+The trace collector should be started before running this example. See [Phoenix Collector](#phoenix-collector) below if you don't have a collector.
 
 ```python
 import openai
@@ -69,9 +71,7 @@ if __name__ == "__main__":
 
 ## Phoenix Collector
 
-If you don't have a collector, you can try Arize Phoenix. 
-
-Phoenix runs completely locally on your machine, and does not send any data over the internet.
+Phoenix runs locally on your machine and does not send data over the internet.
 
 Install using:
 
