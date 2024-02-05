@@ -7,7 +7,7 @@ This is the Python version of OpenInference instrumentation, a framework for col
 Instrumentation is the act of adding observability code to an app yourself.
 If you’re instrumenting an app, you need to use the OpenTelemetry SDK for your language. You’ll then use the SDK to initialize OpenTelemetry and the API to instrument your code. This will emit telemetry from your app, and any library you installed that also comes with instrumentation.
 
-# OpenAI Example
+# Example
 
 To export traces from the instrumentor to a collector, install the OpenTelemetry SDK and HTTP exporter using:
 
