@@ -5,7 +5,7 @@ This is a [LlamaIndex](https://www.llamaindex.ai/) project bootstrapped with [`c
 This example integrates three components:
 - A NextJS frontend that provides an interface to a basic RAG chat application
 - A Python FastAPI backend that serves a simple LlamaIndex RAG application. The LlamaIndex framework is instrumented using OpenInference to produce traces.
-- A [Phoenix](https://github.com/Arize-ai/phoenix) server that acts as both a collector for OpenInference traces and UI for viewing traces.
+- A [Phoenix](https://github.com/Arize-ai/phoenix) server that acts as both a collector for OpenInference traces and as a trace UI for observability.
 
 ## Setup
 
