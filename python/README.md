@@ -8,24 +8,27 @@ Instrumentation is the act of adding observability code to an app yourself.
 If you’re instrumenting an app, you need to use the OpenTelemetry SDK for your language. You’ll then use the SDK to initialize OpenTelemetry and the API to instrument your code. This will emit telemetry from your app, and any library you installed that also comes with instrumentation.
 
 # OpenAI Example
-Install openinference instrumentation for OpenAI:
+
+To export traces from the instrumentor to a collector, install the OpenTelemetry SDK and HTTP exporter using:
+
+```shell
+pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+```
+
+Install OpenInference instrumentator for OpenAI:
 
 ```shell
 pip install openinference-instrumentation-openai
 ```
 
-This assumes that you already have OpenAI installed. If not, you can install it using:
+This assumes that you already have OpenAI>=1.0.0 installed. If not, install using:
 
 ```shell
 pip install "openai>=1.0.0"
 ```
 Currently only openai>=1.0.0 is supported.
 
-To export traces from the instrumentor to a collector, we use the OpenTelemetry SDK and the HTTP exporter. Install these using:
-
-```shell
-pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
-```
+## Chat Completions
 
 Below shows a simple application calling chat completions from OpenAI.
 
@@ -66,7 +69,11 @@ if __name__ == "__main__":
 
 ## Phoenix Collector
 
-If you don't have collector running, you can use the Phoenix collector. Install it using:
+If you don't have a collector, you can try Arize Phoenix. 
+
+Phoenix runs completely locally on your machine, and does not send any data over the internet.
+
+Install using:
 
 ```shell
 pip install arize-phoenix
@@ -74,12 +81,12 @@ pip install arize-phoenix
 
 Then before running the example above, start the collector using:
 
-```python
-import phoenix as px
-
-px.launch_app()
+```shell
+python -m phoenix.server.main serve
 ```
 
-By default, the Phoenix collector is running on `http://localhost:6006/v1/traces`.
+By default, the Phoenix collector is running on `http://localhost:6006`, so the example above will work without modification.
 
-Phoenix runs completely locally on your machine and does not collect any data over the internet.
+Here's a screenshot of traces being visualized in the Phoenix UI:
+
+![LLM Application Tracing](https://github.com/Arize-ai/phoenix-assets/blob/main/gifs/langchain_rag_stuff_documents_chain_10mb.gif?raw=true)
