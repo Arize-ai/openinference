@@ -30,7 +30,7 @@ def instrument():
     LlamaIndexInstrumentor().instrument()
 ```
 
-By calling `instrument()` prior to starting the FastAPI server, LlamaIndex will automatically send traces to the configured Phoenix server that acts as a trace collector, providing deep observability into the underlying behavior of the application. This includes information about all of the retrieved context for a given query, and other relevant information such as reranking and synthesis steps that might occur prior to returning the final LLM response to the user.
+By calling `instrument()` prior to starting the FastAPI server, traces for LlamaIndex will be sent to the phoenix server, providing deep observability into the underlying behavior of the application. This includes information about all of the retrieved context for a given query, and other relevant information such as reranking and synthesis steps that might occur prior to returning the final LLM response to the user.
 
 To learn more about LlamaIndex, take a look at the following resources:
 
