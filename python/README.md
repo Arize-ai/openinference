@@ -79,14 +79,14 @@ Install using:
 pip install arize-phoenix
 ```
 
-Then before running the example above, start the collector using:
+Then before running the example above, start Phoenix using:
 
 ```shell
 python -m phoenix.server.main serve
 ```
 
-By default, the Phoenix collector is running on `http://localhost:6006`, so the example above will work without modification.
+By default, the Phoenix collector is running on `http://localhost:6006/v1/traces`, so the example above will work without modification.
 
-Here's a screenshot of traces being visualized in the Phoenix UI:
+Here's a screenshot of traces being visualized in the Phoenix UI. Visit `http://localhost:6006` on your browser.
 
 ![LLM Application Tracing](https://github.com/Arize-ai/phoenix-assets/blob/main/gifs/langchain_rag_stuff_documents_chain_10mb.gif?raw=true)
