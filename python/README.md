@@ -4,8 +4,7 @@ This is the Python version of OpenInference instrumentation, a framework for col
 
 
 # Getting Started
-Instrumentation is the act of adding observability code to an app yourself.
-If you’re instrumenting an app, you need to use the OpenTelemetry SDK for your language. You’ll then use the SDK to initialize OpenTelemetry and the API to instrument your code. This will emit telemetry from your app, and any library you installed that also comes with instrumentation.
+Instrumentation is the act of adding observability code to an application. OpenInference provides instrumentors for several popular LLM frameworks and SDKs. The instrumentors emit traces from the LLM applications, and the traces can be collected by a collector, e.g. by the [Phoenix Collector](#phoenix-collector).
 
 # Example
 
