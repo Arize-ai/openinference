@@ -57,3 +57,14 @@ OpenInference supports the following destinations as span collectors.
 - ✅ [Arize](https://arize.com/)
 - ✅ [Arize-Phoenix](https://github.com/Arize-ai/phoenix)
 - ✅ Any OTEL-compatible collector
+
+## Community
+
+Join our community to connect with thousands of machine learning practitioners and LLM observability enthusiasts!
+
+-  🌍 Join our [Slack community](https://join.slack.com/t/arize-ai/shared_invite/zt-1px8dcmlf-fmThhDFD_V_48oU7ALan4Q).
+- 💡 Ask questions and provide feedback in the _#phoenix-support_ channel.
+- 🌟 Leave a star on our [GitHub](https://github.com/Arize-ai/openinference).
+- 🐞 Report bugs with [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
+- 𝕏 Follow us on [X](https://twitter.com/ArizePhoenix).
+- 🗺️ Check out our [roadmap](https://github.com/orgs/Arize-ai/projects/45) to see where we're heading next.
