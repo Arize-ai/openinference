@@ -80,4 +80,4 @@ import phoenix as px
 px.launch_app()
 ```
 
-By default, the collector will run on `localhost:6006`.
+By default, the Phoenix collector is running on `http://localhost:6006/v1/traces`.
