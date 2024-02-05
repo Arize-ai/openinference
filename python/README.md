@@ -72,7 +72,7 @@ If you don't have collector running, you can use the Phoenix collector. Install 
 pip install arize-phoenix
 ```
 
-Then before running the example abov, start the collector using:
+Then before running the example above, start the collector using:
 
 ```python
 import phoenix as px
