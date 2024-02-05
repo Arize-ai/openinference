@@ -7,9 +7,28 @@ This is the JavaScript version of OpenInference, a framework for collecting trac
 
 ## Installation
 
+OpenInference uses OpenTelemetry Protocol (OTLP) to send traces to a compatible backend (e.x. [arize-phoenix](<[https://git](https://github.com/Arize-ai/phoenix)>)). To use OpenInference, you will need to install the OpenTelemetry SDK and the OpenInference instrumentation for the LLM framework you are using.
+
+Install the OpenTelemetry SDK:
+
+```shell
+npm install --save @opentelemetry/exporter-trace-otlp-http @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-node
+```
+
+Install the OpenInference instrumentation you would like to use:
+
 ```shell
 npm install --save @arizeai/openinference-instrumentation-openai
 ```
+
+If you plan on manually instrumenting your application, you will also need to install the OpenInference Semantic Conventions:
+
+```shell
+npm install --save @arizeai/openinference-semantic-conventions
+```
+
+> [!NOTE]
+> This example instruments OpenAI but you can replace `@arizeai/openinference-instrumentation-openai` with the instrumentation(s) of your choosing.
 
 ## Usage
 
@@ -31,6 +50,14 @@ registerInstrumentations({
 ```
 
 For more information on OpenTelemetry Node.js SDK, see the [OpenTelemetry Node.js SDK documentation](https://opentelemetry.io/docs/instrumentation/js/getting-started/nodejs/).
+
+> [!WARNING]
+> Note the above instrumentation must run before any other code in your application. This is because the instrumentation will only capture spans for the code that runs after the instrumentation is loaded. Typically this is done by requiring the instrumentation when running your application.
+> `node -r ./path/to/instrumentation.js ./path/to/your/app.js`
+
+## Examples
+
+For more examples on how to use OpenInference, see the [examples](./examples) directory.
 
 ## Contributing
 
