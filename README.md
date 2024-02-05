@@ -22,18 +22,49 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 
 ## Python
 
+### Libraries
+
 | Package                                                                                                                      | Description                                    | Version                                                                                                                                                                |
-| ---------------------------------------------------------------------------------------------------------------------------- |------------------------------------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md)                                | Semantic conventions for tracing of LLM Apps.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)               |
 | [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai/README.rst)           | OpenInference Instrumentation for OpenAI SDK.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai)           |
 | [`openinference-instrumentation-llama-index`](./python/instrumentation/openinference-instrumentation-llama-index/README.rst) | OpenInference Instrumentation for LlamaIndex.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-llama-index.svg)](https://pypi.python.org/pypi/openinference-instrumentation-llama-index) |
 | [`openinference-instrumentation-dspy`](./python/instrumentation/openinference-instrumentation-dspy/README.rst)               | OpenInference Instrumentation for DSPy.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-dspy.svg)](https://pypi.python.org/pypi/openinference-instrumentation-dspy)               |
-| [`openinference-instrumentation-bedrock`](./python/instrumentation/openinference-instrumentation-bedrock/README.rst)               | OpenInference Instrumentation for AWS Bedrock. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-bedrock.svg)](https://pypi.python.org/pypi/openinference-instrumentation-bedrock)               |
+| [`openinference-instrumentation-bedrock`](./python/instrumentation/openinference-instrumentation-bedrock/README.rst)         | OpenInference Instrumentation for AWS Bedrock. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-bedrock.svg)](https://pypi.python.org/pypi/openinference-instrumentation-bedrock)         |
 | [`openinference-instrumentation-langchain`](./python/instrumentation/openinference-instrumentation-langchain/README.rst)     | OpenInference Instrumentation for LangChain.   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-langchain.svg)](https://pypi.python.org/pypi/openinference-instrumentation-langchain)     |
 
+### Examples
+
+View examples of instrumented Python applications [here](python/examples/README.md).
+
 ## JavaScript
+
+### Libraries
 
 | Package                                                                                                         | Description                                   | Version                                                                                                                                                                   |
 | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`@arizeai/openinference-semantic-conventions`](./js/packages/openinference-semantic-conventions/README.md)     | Semantic conventions for tracing of LLM Apps. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-semantic-conventions.svg)](https://www.npmjs.com/package/@arizeai/openinference-semantic-conventions) |
 | [`@arizeai/openinference-instrumentation-openai`](./js/packages/openinference-instrumentation-openai/README.md) | OpenInference Instrumentation for OpenAI SDK. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-openai)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-openai) |
+
+### Examples
+
+View examples of instrumented JavaScript applications [here](js/examples/README.md).
+
+## Supported Destinations
+
+OpenInference supports the following destinations as span collectors.
+
+- ✅ [Arize-Phoenix](https://github.com/Arize-ai/phoenix)
+- ✅ [Arize](https://arize.com/)
+- ✅ Any OTEL-compatible collector
+
+## Community
+
+Join our community to connect with thousands of machine learning practitioners and LLM observability enthusiasts!
+
+-  🌍 Join our [Slack community](https://join.slack.com/t/arize-ai/shared_invite/zt-1px8dcmlf-fmThhDFD_V_48oU7ALan4Q).
+- 💡 Ask questions and provide feedback in the _#phoenix-support_ channel.
+- 🌟 Leave a star on our [GitHub](https://github.com/Arize-ai/openinference).
+- 🐞 Report bugs with [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
+- 𝕏 Follow us on [X](https://twitter.com/ArizePhoenix).
+- 🗺️ Check out our [roadmap](https://github.com/orgs/Arize-ai/projects/45) to see where we're heading next.
