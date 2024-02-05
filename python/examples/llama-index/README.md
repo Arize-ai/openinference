@@ -2,27 +2,35 @@
 
 This is a [LlamaIndex](https://www.llamaindex.ai/) project bootstrapped with [`create-llama`](https://github.com/run-llama/LlamaIndexTS/tree/main/packages/create-llama) and instrumented using OpenInference.
 
-Our example will export spans data to [arize-phoenix](https://github.com/Arize-ai/phoenix), however you can run your code anywhere and can use any exporter that OpenTelemetry supports.
+This example integrates three components:
+- A NextJS frontend that provides an interface to a basic RAG chat application
+- A Python FastAPI backend that serves a simple LlamaIndex RAG application. The LlamaIndex framework is instrumented using OpenInference to produce traces.
+- A [Phoenix](https://github.com/Arize-ai/phoenix) server that acts as both a collector for OpenInference traces and as a trace UI for observability.
 
-## Getting Started with Local Development
+## Setup
 
-First, startup the backend as described in the [backend README](./backend/README.md).
+This application is instrumented using OpenInference with one [instrumentation call](./backend/instrument.py):
 
-Second, run the development server of the frontend as described in the [frontend README](./frontend/README.md).
+```python
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from opentelemetry import trace as trace_api
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Getting Started with Docker-Compose
+def instrument():
+    resource = Resource(attributes={})
+    tracer_provider = trace_sdk.TracerProvider(resource=resource)
+    span_exporter = OTLPSpanExporter(endpoint="http://phoenix:6006/v1/traces")
+    span_processor = SimpleSpanProcessor(span_exporter=span_exporter)
+    tracer_provider.add_span_processor(span_processor=span_processor)
+    trace_api.set_tracer_provider(tracer_provider=tracer_provider)
+    LlamaIndexInstrumentor().instrument()
+```
 
-If you'd like, add your own PDFs to `./backend/data` to build indexes over.
-
-Either create a `.env` file that contains an OpenAI API key or set the `OPENAI_API_KEY` env variable.
-
-Ensure that Docker is installed and running. Run the command `docker compose up` to spin up services for the frontend, backend, and Phoenix. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface. When you're finished, run `docker compose down` to spin down the services.
-
-Traces can be viewed using the [Phoenix UI](http://localhost:6006).
-
-## Learn More
+By calling `instrument()` prior to starting the FastAPI server, traces for LlamaIndex will be sent to the phoenix server, providing deep observability into the underlying behavior of the application. This includes information about all of the retrieved context for a given query, and other relevant information such as reranking and synthesis steps that might occur prior to returning the final LLM response to the user.
 
 To learn more about LlamaIndex, take a look at the following resources:
 
@@ -30,3 +38,28 @@ To learn more about LlamaIndex, take a look at the following resources:
 -   [LlamaIndexTS Documentation](https://ts.llamaindex.ai) - learn about LlamaIndex (Typescript features).
 
 You can check out [the LlamaIndexTS GitHub repository](https://github.com/run-llama/LlamaIndexTS) - your feedback and contributions are welcome!
+
+
+## Getting Started with Local Development
+
+First, startup the backend as described in the [backend README](./backend/README.md).
+- If you'd like, include your own data to build an index in [the data directory](./backend/data/)
+- Build a simple index using LlamaIndex
+- Ensure that your OpenAI API key is available to the application, either via the `OPENAI_API_KEY` environment variable or a `.env` file
+- Start the backend server
+
+Second, run the development server of the frontend as described in the [frontend README](./frontend/README.md).
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to use the chat interface to your RAG application.
+
+Traces can be viewed using the [Phoenix UI](http://localhost:6006).
+
+## Getting Started with Docker-Compose
+
+1. If you'd like, add your own PDFs to `./backend/data` to build indexes over.
+2. Ensure that your OpenAI API key is available to the application, either via the `OPENAI_API_KEY` environment variable or a `.env` file.
+3. Ensure that Docker is installed and running.
+4. Run the command `docker compose up --build` to spin up services for the frontend, backend, and Phoenix.
+5. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface.
+6. Traces can be viewed using the [Phoenix UI](http://localhost:6006).
+7. When you're finished, run `docker compose down` to spin down the services.
