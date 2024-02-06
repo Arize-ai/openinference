@@ -1,13 +1,14 @@
 # Semantic Conventions
 
-The **Semantic Conventions** define the keys and values which describe commonly observed concepts, protocols, and operations used by applications. These conventions are used to populate the `attributes` of `spans` and span `events`.
+The **Semantic Conventions** define the keys and values which describe commonly observed concepts, protocols, and
+operations used by applications. These conventions are used to populate the `attributes` of `spans` and span `events`.
 
 ## Reserved Attributes
 
 The following attributes are reserved and MUST be supported by all OpenInference Tracing SDKs:
 
 | Attribute                              | Type            | Example                                                                    | Description                                                      |
-| -------------------------------------- | --------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+|----------------------------------------|-----------------|----------------------------------------------------------------------------|------------------------------------------------------------------|
 | `openinference.span.kind`              | String          | `"CHAIN"`                                                                  | The kind of span (e.g., `CHAIN`, `LLM`, `RETRIEVER`, `RERANKER`) |
 | `exception.type`                       | String          | `"NullPointerException"`                                                   | The type of exception that was thrown                            |
 | `exception.message`                    | String          | `"Null value encountered"`                                                 | Detailed message describing the exception                        |
@@ -46,7 +47,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `document.id`                          | String/Integer  | `"1234"` or `1`                                                            | Unique identifier for a document                                 |
 | `document.score`                       | Float           | `0.98`                                                                     | Score representing the relevance of a document                   |
 | `document.content`                     | String          | `"This is a sample document content."`                                     | The content of a retrieved document                              |
-| `document.metadata`                    | Object          | `{"author": "John Doe", "date": "2023-09-09"}`                             | Metadata associated with a document                              |
+| `document.metadata`                    | JSON String     | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                           | Metadata associated with a document                              |
 | `reranker.input_documents`             | List of objects | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | List of documents as input to the reranker                       |
 | `reranker.output_documents`            | List of objects | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | List of documents outputted by the reranker                      |
 | `reranker.query`                       | String          | `"How to format timestamp?"`                                               | Query parameter of the reranker                                  |

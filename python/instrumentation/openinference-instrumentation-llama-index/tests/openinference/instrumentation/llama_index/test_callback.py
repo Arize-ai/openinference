@@ -1,9 +1,20 @@
 import asyncio
+import json
 import logging
 import random
 from contextlib import suppress
 from itertools import count
-from typing import Any, AsyncIterator, Dict, Generator, Iterable, Iterator, List, Tuple, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Dict,
+    Generator,
+    Iterable,
+    Iterator,
+    List,
+    Tuple,
+    cast,
+)
 
 import openai
 import pytest
@@ -158,10 +169,9 @@ def test_callback_llm(
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}", None)
         == nodes[0].text
     )
-    assert (
-        retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_METADATA}.category", None)
-        == nodes[0].metadata["category"]
-    )
+    assert retrieve_attributes.pop(
+        f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_METADATA}", None
+    ) == json.dumps(nodes[0].metadata)
     assert (
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}", None)
         == nodes[1].text
@@ -182,8 +192,11 @@ def test_callback_llm(
         assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None
         assert llm_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
         assert llm_attributes.pop(LLM_PROMPT_TEMPLATE, None) is not None
-        assert llm_attributes.pop(f"{LLM_PROMPT_TEMPLATE_VARIABLES}.context_str", None) is not None
-        assert llm_attributes.pop(f"{LLM_PROMPT_TEMPLATE_VARIABLES}.query_str", None) == question
+        template_variables = json.loads(
+            cast(str, llm_attributes.pop(f"{LLM_PROMPT_TEMPLATE_VARIABLES}", None))
+        )
+        assert template_variables.keys() == {"context_str", "query_str"}
+        assert template_variables["query_str"] == question
         assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) is not None
         assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
         assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) is not None
