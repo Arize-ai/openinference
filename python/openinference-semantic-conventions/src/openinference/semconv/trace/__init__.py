@@ -84,7 +84,8 @@ class SpanAttributes:
     """
     TOOL_PARAMETERS = "tool.parameters"
     """
-    Parameters of the tool, e.g. see https://platform.openai.com/docs/guides/gpt/function-calling
+    Parameters of the tool represented a dictionary JSON string, e.g.
+    see https://platform.openai.com/docs/guides/gpt/function-calling
     """
 
     RETRIEVAL_DOCUMENTS = "retrieval.documents"
@@ -146,7 +147,8 @@ class DocumentAttributes:
     """
     DOCUMENT_METADATA = "document.metadata"
     """
-    The metadata of the document
+    The metadata of the document represented as a dictionary
+    JSON string, e.g. `"{ 'title': 'foo' }"`
     """
 
 
