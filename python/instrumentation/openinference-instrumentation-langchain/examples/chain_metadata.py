@@ -23,5 +23,5 @@ if __name__ == "__main__":
     prompt_template = "Tell me a {adjective} joke"
     prompt = PromptTemplate(input_variables=["adjective"], template=prompt_template)
     llm = LLMChain(llm=OpenAI(), prompt=prompt, metadata={"category": "jokes"})
-    completion = llm.predict(adjective="funny")
+    completion = llm.predict(adjective="funny", metadata={"variant": "funny"})
     print(completion)
