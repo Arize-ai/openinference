@@ -36,6 +36,8 @@ from opentelemetry import trace as trace_api
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.util.types import AttributeValue
 
+from .lc_span_attributes import LC_METADATA_PREFIX
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -140,6 +142,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
                     _function_calls(run.outputs),
                     _tools(run),
                     _retrieval_documents(run),
+                    _metadata(run),
                 )
             )
         )
@@ -469,6 +472,26 @@ def _retrieval_documents(run: Run) -> Iterator[Tuple[str, List[Mapping[str, Any]
     documents = outputs.get("documents")
     assert isinstance(documents, Iterable), f"expected Iterable, found {type(documents)}"
     yield RETRIEVAL_DOCUMENTS, [dict(_as_document(document)) for document in documents]
+
+
+@stop_on_exception
+def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
+    """
+    Takes the LangChain chain metadata and adds it to the trace
+    """
+    # if run.run_type.lower() != "retriever":
+    #     return
+    # if not (outputs := run.outputs):
+    #     return
+    # assert hasattr(outputs, "get"), f"expected Mapping, found {type(outputs)}"
+    # documents = outputs.get("documents")
+    # assert isinstance(documents, Iterable), f"expected Iterable, found {type(documents)}"
+    if not (metadata := run.extra.get("metadata")):
+        return
+    assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
+    # Yield out each metadata key and value
+    for key, value in metadata.items():
+        yield f"{LC_METADATA_PREFIX}.{key}", value
 
 
 @stop_on_exception

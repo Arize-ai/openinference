@@ -2,3 +2,4 @@ langchain_openai
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 openinference-instrumentation-langchain
+langchain
