@@ -14,7 +14,6 @@ export const SemanticAttributePrefixes = {
   embedding: "embedding",
   tool: "tool",
   tool_call: "tool_call",
-  metadata: "metadata",
   openinference: "openinference",
 } as const;
 
