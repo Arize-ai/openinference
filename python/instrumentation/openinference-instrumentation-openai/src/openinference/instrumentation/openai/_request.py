@@ -187,6 +187,9 @@ class _WithOpenAI(ABC):
             )
             # Note that we must have called `.parse()` beforehand, otherwise `._parsed` is None.
             and self._is_streaming(response._parsed)
+            or hasattr(response, "_parsed_by_type")
+            and hasattr(response._parsed_by_type, "get")
+            and self._is_streaming(response._parsed_by_type.get(cast_to))
         ):
             # For streaming, we need an (optional) accumulator to process each chunk iteration.
             try:
@@ -203,6 +206,17 @@ class _WithOpenAI(ABC):
             if hasattr(response, "_parsed") and self._is_streaming(parsed := response._parsed):
                 # Monkey-patch a private attribute assumed to be caching the output of `.parse()`.
                 response._parsed = _Stream(
+                    stream=parsed,
+                    with_span=with_span,
+                    response_accumulator=response_accumulator,
+                )
+                return response
+            if (
+                hasattr(response, "_parsed_by_type")
+                and isinstance(response._parsed_by_type, dict)
+                and self._is_streaming(parsed := response._parsed_by_type.get(cast_to))
+            ):
+                response._parsed_by_type[cast_to] = _Stream(
                     stream=parsed,
                     with_span=with_span,
                     response_accumulator=response_accumulator,
