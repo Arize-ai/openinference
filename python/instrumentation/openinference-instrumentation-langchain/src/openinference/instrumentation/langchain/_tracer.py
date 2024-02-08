@@ -42,6 +42,7 @@ logger.addHandler(logging.NullHandler())
 
 class _Run(NamedTuple):
     span: trace_api.Span
+    context: context_api.Context
     token: object  # token for OTEL context API
 
 
@@ -58,9 +59,15 @@ class OpenInferenceTracer(BaseTracer):
 
     def _start_trace(self, run: Run) -> None:
         super()._start_trace(run)
-        span = self._tracer.start_span(run.name)
-        token = context_api.attach(trace_api.set_span_in_context(span))
-        self._runs[run.id] = _Run(span=span, token=token)
+        span = self._tracer.start_span(
+            name=run.name,
+            context=parent.context
+            if (parent_run_id := run.parent_run_id) and (parent := self._runs.get(parent_run_id))
+            else None,
+        )
+        context = trace_api.set_span_in_context(span)
+        token = context_api.attach(context)
+        self._runs[run.id] = _Run(span=span, context=context, token=token)
 
     def _end_trace(self, run: Run) -> None:
         if event_data := self._runs.pop(run.id, None):

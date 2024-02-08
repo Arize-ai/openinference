@@ -92,7 +92,7 @@ class SpanAttributes:
 
     METADATA = "metadata"
     """
-    Metadata attributes are used to store user-defined key-value pairs. 
+    Metadata attributes are used to store user-defined key-value pairs.
     For example, LangChain uses metadata to store user-defined attributes for a chain.
     """
 
