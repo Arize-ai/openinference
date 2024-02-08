@@ -157,7 +157,11 @@ def test_callback_llm(
     assert llm_attributes.pop(INPUT_VALUE, None) is not None
     assert llm_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
     assert llm_attributes.pop(LLM_PROMPT_TEMPLATE, None) == template
-    assert json.loads(llm_attributes.pop(LLM_PROMPT_TEMPLATE_VARIABLES, None)) == {
+    assert isinstance(
+        template_variables_json_string := llm_attributes.pop(LLM_PROMPT_TEMPLATE_VARIABLES, None),
+        str,
+    )
+    assert json.loads(template_variables_json_string) == {
         "context": "\n\n".join(documents),
         "question": question,
     }
