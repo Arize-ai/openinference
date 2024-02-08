@@ -60,7 +60,7 @@ class OpenInferenceTracer(BaseTracer):
     def _start_trace(self, run: Run) -> None:
         super()._start_trace(run)
         span = self._tracer.start_span(
-            run.name,
+            name=run.name,
             context=parent.context
             if (parent_run_id := run.parent_run_id) and (parent := self._runs.get(parent_run_id))
             else None,
