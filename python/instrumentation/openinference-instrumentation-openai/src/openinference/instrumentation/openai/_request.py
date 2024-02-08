@@ -216,6 +216,9 @@ class _WithOpenAI(ABC):
                 and isinstance(response._parsed_by_type, dict)
                 and self._is_streaming(parsed := response._parsed_by_type.get(cast_to))
             ):
+                # New in openai v1.8.0. Streaming with .with_raw_response now returns
+                # LegacyAPIResponse and caching is done differently.
+                # See https://github.com/openai/openai-python/blob/d231d1fa783967c1d3a1db3ba1b52647fff148ac/src/openai/_legacy_response.py#L112-L113  # noqa: E501
                 response._parsed_by_type[cast_to] = _Stream(
                     stream=parsed,
                     with_span=with_span,
