@@ -9,9 +9,10 @@ import numpy as np
 import openai
 import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
-from langchain.chains import RetrievalQA
+from langchain.chains import LLMChain, RetrievalQA
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
+from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from openinference.instrumentation.openai import OpenAIInstrumentor
@@ -214,6 +215,38 @@ def test_callback_llm(
         assert openai_span.context.trace_id == oai_span.context.trace_id
 
     assert spans_by_name == {}
+
+
+def test_chain_metadata(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
+) -> None:
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_kwargs: Dict[str, Any] = {
+        "json": {
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "nock nock"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "model": "gpt-3.5-turbo",
+            "usage": completion_usage,
+        }
+    }
+    respx_mock.post(url).mock(return_value=Response(status_code=200, **respx_kwargs))
+    prompt_template = "Tell me a {adjective} joke"
+    prompt = PromptTemplate(input_variables=["adjective"], template=prompt_template)
+    llm = LLMChain(llm=ChatOpenAI(), prompt=prompt, metadata={"category": "jokes"})
+    llm.predict(adjective="funny")
+    spans = in_memory_span_exporter.get_finished_spans()
+    spans_by_name = {span.name: span for span in spans}
+
+    assert (llm_chain_span := spans_by_name.pop("LLMChain")) is not None
+    assert llm_chain_span.attributes
+    assert llm_chain_span.attributes.get("metadata.category") == "jokes"
 
 
 @pytest.fixture

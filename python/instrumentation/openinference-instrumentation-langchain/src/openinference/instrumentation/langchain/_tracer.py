@@ -140,6 +140,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
                     _function_calls(run.outputs),
                     _tools(run),
                     _retrieval_documents(run),
+                    _metadata(run),
                 )
             )
         )
@@ -472,6 +473,19 @@ def _retrieval_documents(run: Run) -> Iterator[Tuple[str, List[Mapping[str, Any]
 
 
 @stop_on_exception
+def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
+    """
+    Takes the LangChain chain metadata and adds it to the trace
+    """
+    if not run.extra or not (metadata := run.extra.get("metadata")):
+        return
+    assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
+    # Yield out each metadata key and value
+    for key, value in metadata.items():
+        yield f"{METADATA}.{key}", value
+
+
+@stop_on_exception
 def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
     if page_content := getattr(document, "page_content", None):
         assert isinstance(page_content, str), f"expected str, found {type(page_content)}"
@@ -522,3 +536,4 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+METADATA = SpanAttributes.METADATA
