@@ -25,7 +25,6 @@ from llama_index.llms import OpenAI
 from llama_index.response.schema import StreamingResponse
 from llama_index.schema import Document, TextNode
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -220,21 +219,6 @@ def test_callback_llm(
     assert chunking_attributes.pop(OPENINFERENCE_SPAN_KIND, None) is not None
     assert chunking_attributes == {}
 
-    # The remaining span is from the openai instrumentator.
-    openai_span = spans_by_name.pop(next(iter(spans_by_name.keys())))
-    if is_stream:
-        # FIXME: for streaming, the openai call happens after the trace has ended, so it's orphaned.
-        # https://github.com/run-llama/llama_index/blob/fcfab6486bc6a0eec31a983dd3056ef9cbe8ceb2/llama_index/llms/base.py#L62  # noqa E501
-        assert openai_span.parent is None
-    else:
-        assert openai_span.parent is not None
-        if status_code == 200:
-            # FIXME: LlamaIndex doesn't currently capture the LLM span when status_code == 400
-            # because `on_event_end` never gets called.
-            assert llm_span is not None
-            assert openai_span.parent.span_id == llm_span.context.span_id
-            assert openai_span.context.trace_id == llm_span.context.trace_id
-
     assert spans_by_name == {}
 
 
@@ -280,9 +264,7 @@ def instrument(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
     LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
-    OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
-    OpenAIInstrumentor().uninstrument()
     LlamaIndexInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
 

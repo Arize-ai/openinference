@@ -40,7 +40,6 @@ test = [
   "langchain_openai == 0.0.2",
   "langchain-community == 0.0.10",
   "opentelemetry-sdk",
-  "openinference-instrumentation-openai",
   "respx",
 ]
 type-check = [
