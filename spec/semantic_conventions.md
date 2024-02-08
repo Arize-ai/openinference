@@ -53,7 +53,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `reranker.query`                       | String          | `"How to format timestamp?"`                                               | Query parameter of the reranker                                  |
 | `reranker.model_name`                  | String          | `"cross-encoder/ms-marco-MiniLM-L-12-v2"`                                  | Model name of the reranker                                       |
 | `reranker.top_k`                       | Integer         | 3                                                                          | Top K parameter of the reranker                                  |
-| `metadata.tags`                        | List of strings | ["shopping", "travel"]                                                     | List of tags to give the span a category                |
-| `metadata.*`                           | Any             | Any OTEL-compatible value                                                  | User-defined metadata for a chain or other span kind                      |
+| `tag.tags`                             | List of strings | ["shopping", "travel"]                                                     | List of tags to give the span a category                         |
+| `metadata.*`                           | Any             | Any OTEL-compatible value                                                  | User-defined metadata for a chain or other span kind             |
 
 Note: the `object` type refers to a set of key-value pairs also known as a `struct`, `mapping`, `dictionary`, etc.

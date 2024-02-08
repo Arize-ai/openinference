@@ -90,6 +90,17 @@ class SpanAttributes:
 
     RETRIEVAL_DOCUMENTS = "retrieval.documents"
 
+    METADATA = "metadata"
+    """
+    Metadata attributes are used to store user-defined key-value pairs. 
+    For example, LangChain uses metadata to store user-defined attributes for a chain.
+    """
+
+    TAGS = "tags.tags"
+    """
+    Custom categorical tags for the span.
+    """
+    
     OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
 
 
@@ -208,20 +219,6 @@ class ToolCallAttributes:
     The JSON string representing the arguments passed to the function
     during a tool call.
     """
-
-METADATA_PREFIX = "metadata"
-"""
-The prefix for all metadata attributes. Metadata attributes are used to store
-user-defined key-value pairs. For example, LangChain uses metadata to store
-user-defined attributes for a chain.
-"""
-
-class MetadataAttributes:
-    """
-    Attributes for metadata
-    """
-
-    TAGS: str = f"{METADATA_PREFIX}.tags"
 
 
 class OpenInferenceSpanKindValues(Enum):
