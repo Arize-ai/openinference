@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.3...python-openinference-semantic-conventions-v0.1.4) (2024-02-08)
+
+
+### Features
+
+* **langchain:** add support for chain metadata in spans ([#175](https://github.com/Arize-ai/openinference/issues/175)) ([f218740](https://github.com/Arize-ai/openinference/commit/f2187403dccad43fe201be46ec4357ba2e1b1523))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.2...python-openinference-semantic-conventions-v0.1.3) (2024-02-08)
 
 
