@@ -35,7 +35,6 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from respx import MockRouter
@@ -251,10 +250,8 @@ def in_memory_span_exporter() -> InMemorySpanExporter:
 
 @pytest.fixture(scope="module")
 def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = trace_sdk.TracerProvider(resource=resource)
-    span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
-    tracer_provider.add_span_processor(span_processor=span_processor)
+    tracer_provider = trace_sdk.TracerProvider()
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     return tracer_provider
 
 
