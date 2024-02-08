@@ -96,11 +96,11 @@ class SpanAttributes:
     For example, LangChain uses metadata to store user-defined attributes for a chain.
     """
 
-    TAGS = "tags.tags"
+    TAG_TAGS = "tag.tags"
     """
     Custom categorical tags for the span.
     """
-    
+
     OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
 
 
