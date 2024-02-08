@@ -2,8 +2,8 @@
 
 This is the Python version of OpenInference instrumentation, a framework for collecting traces from LLM applications.
 
-
 # Getting Started
+
 Instrumentation is the act of adding observability code to an application. OpenInference provides [instrumentors](https://github.com/Arize-ai/openinference?tab=readme-ov-file#python) for several popular LLM frameworks and SDKs. The instrumentors emit traces from the LLM applications, and the traces can be collected by a collector, e.g. by the [Phoenix Collector](#phoenix-collector).
 
 # Example
@@ -25,13 +25,14 @@ This assumes that you already have OpenAI>=1.0.0 installed. If not, install usin
 ```shell
 pip install "openai>=1.0.0"
 ```
+
 Currently only `openai>=1.0.0` is supported.
 
 ## Application
 
 Below shows a simple application calling chat completions from OpenAI.
 
-Note that the `endpoint` is set to a collector running on `localhost:6006/v1/traces`, but can be changed if you are running your collector at a different location. 
+Note that the `endpoint` is set to a collector running on `localhost:6006/v1/traces`, but can be changed if you are running your collector at a different location.
 
 The trace collector should be started before running this example. See [Phoenix Collector](#phoenix-collector) below if you don't have a collector.
 

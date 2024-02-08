@@ -42,6 +42,7 @@ logger.addHandler(logging.NullHandler())
 
 class _Run(NamedTuple):
     span: trace_api.Span
+    context: context_api.Context
     token: object  # token for OTEL context API
 
 
@@ -58,9 +59,15 @@ class OpenInferenceTracer(BaseTracer):
 
     def _start_trace(self, run: Run) -> None:
         super()._start_trace(run)
-        span = self._tracer.start_span(run.name)
-        token = context_api.attach(trace_api.set_span_in_context(span))
-        self._runs[run.id] = _Run(span=span, token=token)
+        span = self._tracer.start_span(
+            name=run.name,
+            context=parent.context
+            if (parent_run_id := run.parent_run_id) and (parent := self._runs.get(parent_run_id))
+            else None,
+        )
+        context = trace_api.set_span_in_context(span)
+        token = context_api.attach(context)
+        self._runs[run.id] = _Run(span=span, context=context, token=token)
 
     def _end_trace(self, run: Run) -> None:
         if event_data := self._runs.pop(run.id, None):
@@ -140,6 +147,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
                     _function_calls(run.outputs),
                     _tools(run),
                     _retrieval_documents(run),
+                    _metadata(run),
                 )
             )
         )
@@ -472,6 +480,19 @@ def _retrieval_documents(run: Run) -> Iterator[Tuple[str, List[Mapping[str, Any]
 
 
 @stop_on_exception
+def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
+    """
+    Takes the LangChain chain metadata and adds it to the trace
+    """
+    if not run.extra or not (metadata := run.extra.get("metadata")):
+        return
+    assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
+    # Yield out each metadata key and value
+    for key, value in metadata.items():
+        yield f"{METADATA}.{key}", value
+
+
+@stop_on_exception
 def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
     if page_content := getattr(document, "page_content", None):
         assert isinstance(page_content, str), f"expected str, found {type(page_content)}"
@@ -522,3 +543,4 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+METADATA = SpanAttributes.METADATA

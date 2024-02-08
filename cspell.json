@@ -6,7 +6,9 @@
         "autouse",
         "chatbot",
         "dspy",
+        "instrumentator",
         "Instrumentor",
+        "langchain",
         "openinfernece",
         "otel",
         "uninstrument"
