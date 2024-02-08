@@ -143,7 +143,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
                     _prompts(run.inputs),
                     _input_messages(run.inputs),
                     _output_messages(run.outputs),
-                    _prompt_template(run.serialized),
+                    _prompt_template(run),
                     _invocation_parameters(run),
                     _model_name(run.extra),
                     _token_counts(run.outputs),
@@ -356,11 +356,12 @@ def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str
 
 
 @stop_on_exception
-def _prompt_template(serialized: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
+def _prompt_template(run: Run) -> Iterator[Tuple[str, Any]]:
     """
     A best-effort attempt to locate the PromptTemplate object among the
     keyword arguments of a serialized object, e.g. an LLMChain object.
     """
+    serialized: Optional[Mapping[str, Any]] = run.serialized
     if not serialized:
         return
     assert hasattr(serialized, "get"), f"expected Mapping, found {type(serialized)}"
@@ -386,7 +387,12 @@ def _prompt_template(serialized: Optional[Mapping[str, Any]]) -> Iterator[Tuple[
                 assert isinstance(
                     input_variables, list
                 ), f"expected list, found {type(input_variables)}"
-                yield LLM_PROMPT_TEMPLATE_VARIABLES, input_variables
+                template_variables = {}
+                for variable in input_variables:
+                    if value := run.inputs.get(variable):
+                        template_variables[variable] = value
+                if template_variables:
+                    yield LLM_PROMPT_TEMPLATE_VARIABLES, json.dumps(template_variables)
             break
 
 

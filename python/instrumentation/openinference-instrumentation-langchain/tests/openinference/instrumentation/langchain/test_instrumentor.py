@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import random
 from contextlib import suppress
@@ -26,7 +27,6 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
@@ -54,6 +54,8 @@ def test_callback_llm(
     completion_usage: Dict[str, Any],
 ) -> None:
     question = randstr()
+    template = "{context}{question}"
+    prompt = PromptTemplate(input_variables=["context", "question"], template=template)
     output_messages: List[Dict[str, Any]] = (
         chat_completion_mock_stream[1] if is_stream else [{"role": randstr(), "content": randstr()}]
     )
@@ -81,7 +83,11 @@ def test_callback_llm(
         texts=documents,
         embeddings=FakeEmbeddings(size=2),
     )
-    rqa = RetrievalQA.from_chain_type(llm=chat_model, retriever=retriever)
+    rqa = RetrievalQA.from_chain_type(
+        llm=chat_model,
+        retriever=retriever,
+        chain_type_kwargs={"prompt": prompt},
+    )
     with suppress(openai.BadRequestError):
         if is_async:
             asyncio.run(rqa.ainvoke({"query": question}))
@@ -149,6 +155,15 @@ def test_callback_llm(
     assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
     assert llm_attributes.pop(INPUT_VALUE, None) is not None
     assert llm_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
+    assert llm_attributes.pop(LLM_PROMPT_TEMPLATE, None) == template
+    assert isinstance(
+        template_variables_json_string := llm_attributes.pop(LLM_PROMPT_TEMPLATE_VARIABLES, None),
+        str,
+    )
+    assert json.loads(template_variables_json_string) == {
+        "context": "\n\n".join(documents),
+        "question": question,
+    }
     if status_code == 200:
         assert llm_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
     elif status_code == 400:
@@ -263,10 +278,8 @@ def in_memory_span_exporter() -> InMemorySpanExporter:
 
 @pytest.fixture(scope="module")
 def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = trace_sdk.TracerProvider(resource=resource)
-    span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
-    tracer_provider.add_span_processor(span_processor=span_processor)
+    tracer_provider = trace_sdk.TracerProvider()
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     return tracer_provider
 
 
@@ -348,6 +361,8 @@ LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
+LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
