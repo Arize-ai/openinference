@@ -1,5 +1,3 @@
-import asyncio
-
 import openai
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry import trace as trace_api
@@ -16,20 +14,11 @@ trace_api.set_tracer_provider(tracer_provider)
 OpenAIInstrumentor().instrument()
 
 
-async def chat_completions(**kwargs):
-    client = openai.AsyncOpenAI()
-    response = await client.chat.completions.create(**kwargs)
-    async for chunk in response:
-        if content := chunk.choices[0].delta.content:
-            print(content, end="")
-
-
 if __name__ == "__main__":
-    asyncio.run(
-        chat_completions(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Write a haiku."}],
-            max_tokens=20,
-            stream=True,
-        ),
+    client = openai.OpenAI()
+    response = client.chat.completions.with_raw_response.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "Write a haiku."}],
+        max_tokens=20,
     )
+    print(response.parse().choices[0].message.content)
