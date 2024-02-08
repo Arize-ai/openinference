@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.2...python-openinference-semantic-conventions-v0.1.3) (2024-02-08)
+
+
+### Features
+
+* **semcov:** add metadata ([#176](https://github.com/Arize-ai/openinference/issues/176)) ([0174830](https://github.com/Arize-ai/openinference/commit/0174830891cf91743b0c60d74239ebc5906704d6))
+* **semcov:** add metadata ([#179](https://github.com/Arize-ai/openinference/issues/179)) ([04c303f](https://github.com/Arize-ai/openinference/commit/04c303f28241da264c11503bfd64892e4baadafd))
+
+
+### Bug Fixes
+
+* JSON string attributes ([#157](https://github.com/Arize-ai/openinference/issues/157)) ([392057e](https://github.com/Arize-ai/openinference/commit/392057ecf4b601c5d8149697b4b8b3e91a2a2af6))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.1...python-openinference-semantic-conventions-v0.1.2) (2024-01-11)
 
 
