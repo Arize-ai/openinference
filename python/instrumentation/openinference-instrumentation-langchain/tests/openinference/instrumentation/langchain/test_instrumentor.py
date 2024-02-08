@@ -221,7 +221,7 @@ def test_chain_metadata(
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
-):
+) -> None:
     url = "https://api.openai.com/v1/chat/completions"
     respx_kwargs: Dict[str, Any] = {
         "json": {
@@ -239,15 +239,14 @@ def test_chain_metadata(
     respx_mock.post(url).mock(return_value=Response(status_code=200, **respx_kwargs))
     prompt_template = "Tell me a {adjective} joke"
     prompt = PromptTemplate(input_variables=["adjective"], template=prompt_template)
-    llm = LLMChain(
-        llm=ChatOpenAI(model_name="gpt-3.5-turbo"), prompt=prompt, metadata={"category": "jokes"}
-    )
+    llm = LLMChain(llm=ChatOpenAI(), prompt=prompt, metadata={"category": "jokes"})
     llm.predict(adjective="funny")
     spans = in_memory_span_exporter.get_finished_spans()
     spans_by_name = {span.name: span for span in spans}
 
     assert (llm_chain_span := spans_by_name.pop("LLMChain")) is not None
-    assert llm_chain_span.attributes.get("langchain.metadata.category") == "jokes"
+    assert llm_chain_span.attributes
+    assert llm_chain_span.attributes.get("metadata.category") == "jokes"
 
 
 @pytest.fixture
