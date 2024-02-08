@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.2...python-openinference-instrumentation-langchain-v0.1.3) (2024-02-08)
+
+
+### Bug Fixes
+
+* **python:** parent id for async in langchain-core 0.1.21 ([#186](https://github.com/Arize-ai/openinference/issues/186)) ([9e59803](https://github.com/Arize-ai/openinference/commit/9e59803dbbb9adc8c9482a62e2d2410a0d44d01a))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.1...python-openinference-instrumentation-langchain-v0.1.2) (2024-02-08)
 
 
