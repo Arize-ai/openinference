@@ -14,6 +14,8 @@ export const SemanticAttributePrefixes = {
   embedding: "embedding",
   tool: "tool",
   tool_call: "tool_call",
+  metadata: "metadata",
+  tag: "tag",
   openinference: "openinference",
 } as const;
 
@@ -76,6 +78,10 @@ export const DocumentAttributePostfixes = {
   content: "content",
   score: "score",
   metadata: "metadata",
+} as const;
+
+export const TagAttributePostfixes = {
+  tags: "tags",
 } as const;
 
 /**

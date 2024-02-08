@@ -90,6 +90,17 @@ class SpanAttributes:
 
     RETRIEVAL_DOCUMENTS = "retrieval.documents"
 
+    METADATA = "metadata"
+    """
+    Metadata attributes are used to store user-defined key-value pairs. 
+    For example, LangChain uses metadata to store user-defined attributes for a chain.
+    """
+
+    TAG_TAGS = "tag.tags"
+    """
+    Custom categorical tags for the span.
+    """
+
     OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
 
 
