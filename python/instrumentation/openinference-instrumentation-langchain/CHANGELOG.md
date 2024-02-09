@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.3...python-openinference-instrumentation-langchain-v0.1.4) (2024-02-08)
+
+
+### Bug Fixes
+
+* set langchain template variables as dict ([#193](https://github.com/Arize-ai/openinference/issues/193)) ([a7e2679](https://github.com/Arize-ai/openinference/commit/a7e2679f7e03a2a5813d82411d35a207383fdd31))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.2...python-openinference-instrumentation-langchain-v0.1.3) (2024-02-08)
 
 
