@@ -54,6 +54,6 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `reranker.model_name`                  | String          | `"cross-encoder/ms-marco-MiniLM-L-12-v2"`                                  | Model name of the reranker                                       |
 | `reranker.top_k`                       | Integer         | 3                                                                          | Top K parameter of the reranker                                  |
 | `tag.tags`                             | List of strings | ["shopping", "travel"]                                                     | List of tags to give the span a category                         |
-| `metadata.*`                           | Any             | Any OTEL-compatible value                                                  | User-defined metadata for a chain or other span kind             |
+| `metadata`                             | JSON String     | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                           | Metadata associated with a span                                  |
 
 Note: the `object` type refers to a set of key-value pairs also known as a `struct`, `mapping`, `dictionary`, etc.
