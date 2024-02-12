@@ -8,11 +8,17 @@
   "esnext": "dist/esnext/index.js",
   "types": "dist/src/index.d.ts",
   "scripts": {
+    "prebuild": "rimraf dist & pnpm run version:update",
+    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
     "version:update": "../../scripts/version-update.js",
-    "type:check": "tsc --noEmit",
-    "test": "jest ."
+    "type:check": "tsc --noEmit"
   },
   "keywords": [],
   "author": "oss-devs@arize.com",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@opentelemetry/api": "^1.7.0",
+    "@opentelemetry/instrumentation": "^0.46.0",
+    "@arizeai/openinference-semantic-conventions": "workspace:*"
+  }
 }
