@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.4...python-openinference-instrumentation-langchain-v0.1.5) (2024-02-12)
+
+
+### Bug Fixes
+
+* stop attaching context for callback based instrumentors ([#192](https://github.com/Arize-ai/openinference/issues/192)) ([c05ab06](https://github.com/Arize-ai/openinference/commit/c05ab06e4529bf15953715f94bcaf4a616755d90))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.3...python-openinference-instrumentation-langchain-v0.1.4) (2024-02-08)
 
 
