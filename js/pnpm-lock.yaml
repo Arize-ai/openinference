@@ -41,6 +41,9 @@ importers:
 
   packages/openinference-instrumentation-llama-index:
     dependencies:
+      '@arizeai/openinference-semantic-conventions':
+        specifier: workspace:*
+        version: link:../openinference-semantic-conventions
       '@opentelemetry/api':
         specifier: ^1.7.0
         version: 1.7.0
