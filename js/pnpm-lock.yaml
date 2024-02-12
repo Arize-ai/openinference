@@ -39,6 +39,18 @@ importers:
         specifier: ^5.3.3
         version: 5.3.3
 
+  packages/openinference-instrumentation-llama-index:
+    dependencies:
+      '@arizeai/openinference-semantic-conventions':
+        specifier: workspace:*
+        version: link:../openinference-semantic-conventions
+      '@opentelemetry/api':
+        specifier: ^1.7.0
+        version: 1.7.0
+      '@opentelemetry/instrumentation':
+        specifier: ^0.46.0
+        version: 0.46.0(@opentelemetry/api@1.7.0)
+
   packages/openinference-instrumentation-openai:
     dependencies:
       '@arizeai/openinference-semantic-conventions':
