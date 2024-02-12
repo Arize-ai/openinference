@@ -16,7 +16,6 @@ from langchain_community.retrievers import KNNRetriever
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from openinference.instrumentation.langchain import LangChainInstrumentor
-from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -218,17 +217,6 @@ def test_callback_llm(
         ) == "BadRequestError"
     assert oai_attributes == {}
 
-    # The remaining span is from the openai instrumentor.
-    openai_span = spans_by_name.popitem()[1]
-    assert openai_span.parent is not None
-    if is_async:
-        # FIXME: it's unclear why the context fails to propagate.
-        assert openai_span.parent.span_id == llm_span.context.span_id
-        assert openai_span.context.trace_id == llm_span.context.trace_id
-    else:
-        assert openai_span.parent.span_id == oai_span.context.span_id
-        assert openai_span.context.trace_id == oai_span.context.trace_id
-
     assert spans_by_name == {}
 
 
@@ -301,9 +289,7 @@ def instrument(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
     LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
-    OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
-    OpenAIInstrumentor().uninstrument()
     LangChainInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
 

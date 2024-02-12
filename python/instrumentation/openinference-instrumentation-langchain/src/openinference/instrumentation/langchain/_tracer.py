@@ -43,7 +43,6 @@ logger.addHandler(logging.NullHandler())
 class _Run(NamedTuple):
     span: trace_api.Span
     context: context_api.Context
-    token: object  # token for OTEL context API
 
 
 class OpenInferenceTracer(BaseTracer):
@@ -66,13 +65,17 @@ class OpenInferenceTracer(BaseTracer):
             else None,
         )
         context = trace_api.set_span_in_context(span)
-        token = context_api.attach(context)
-        self._runs[run.id] = _Run(span=span, context=context, token=token)
+        # The following line of code is commented out to serve as a reminder that in a system
+        # of callbacks, attaching the context can be hazardous because there is no guarantee
+        # that the context will be detached. An error could happen between callbacks leaving
+        # the context attached forever, and all future spans will use it as parent. What's
+        # worse is that the error could have also prevented the span from being exported,
+        # leaving all future spans as orphans. That is a very bad scenario.
+        # token = context_api.attach(context)
+        self._runs[run.id] = _Run(span=span, context=context)
 
     def _end_trace(self, run: Run) -> None:
         if event_data := self._runs.pop(run.id, None):
-            # FIXME: find out why sometimes token fails to detach, e.g. when it's async
-            context_api.detach(event_data.token)
             span = event_data.span
             try:
                 _update_span(span, run)

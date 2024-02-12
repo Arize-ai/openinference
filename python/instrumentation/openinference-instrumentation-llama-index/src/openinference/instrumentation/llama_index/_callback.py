@@ -56,7 +56,6 @@ _EventId: TypeAlias = str
 @dataclass
 class _EventData:
     span: trace_api.Span
-    token: object
     parent_id: str
     context: Optional[context_api.Context]
     payloads: List[Dict[str, Any]]
@@ -193,7 +192,6 @@ def _extract_invocation_parameters(serialized: Mapping[str, Any]) -> Dict[str, A
 class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
     __slots__ = (
         "_tracer",
-        "_context_api_token_stack",
         "_event_data",
         "_stragglers",
     )
@@ -201,7 +199,6 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
     def __init__(self, tracer: trace_api.Tracer) -> None:
         super().__init__(event_starts_to_ignore=[], event_ends_to_ignore=[])
         self._tracer = tracer
-        self._context_api_token_stack = _ContextApiTokenStack()
         self._event_data: Dict[_EventId, _EventData] = {}
         self._stragglers: Dict[_EventId, _EventData] = _Stragglers(capacity=1000)
         """
@@ -259,11 +256,15 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         )
         span.set_attribute(OPENINFERENCE_SPAN_KIND, _get_span_kind(event_type).value)
         new_context = trace_api.set_span_in_context(span)
-        token = context_api.attach(new_context)
-        self._context_api_token_stack.append(token)
+        # The following line of code is commented out to serve as a reminder that in a system
+        # of callbacks, attaching the context can be hazardous because there is no guarantee
+        # that the context will be detached. An error could happen between callbacks leaving
+        # the context attached forever, and all future spans will use it as parent. What's
+        # worse is that the error could have also prevented the span from being exported,
+        # leaving all future spans as orphans. That is a very bad scenario.
+        # token = context_api.attach(new_context)
         self._event_data[event_id] = _EventData(
             span=span,
-            token=token,
             parent_id=parent_id,
             context=new_context,
             start_time=start_time,
@@ -295,7 +296,6 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
             return
 
         event_data.end_time = time_ns()
-        self._context_api_token_stack.pop(event_data.token)
 
         if payload is not None:
             event_data.payloads.append(payload.copy())
@@ -364,34 +364,6 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
             elif not event_data.is_dispatched:
                 _finish_tracing(event_data)
             dfs_stack.extend(adjacency_list[event_id])
-
-
-class _ContextApiTokenStack:
-    """
-    Allows popping a token from the middle of the stack, whereby all tokens above
-    it are also popped. Popping a non-existent token is allowed and has no effect.
-    """
-
-    __slots__ = ("_stack", "_positions")
-
-    def __init__(self) -> None:
-        self._stack: List[object] = []
-        self._positions: Dict[int, int] = {}
-
-    def append(self, token: object) -> None:
-        if id(token) in self._positions:
-            return
-        position = len(self._stack)
-        self._positions[id(token)] = position
-        self._stack.append(token)
-
-    def pop(self, token: object) -> None:
-        if (position := self._positions.get(id(token))) is None:
-            return
-        for token in reversed(self._stack[position:]):
-            self._positions.pop(id(token))
-            context_api.detach(token)
-        self._stack = self._stack[:position]
 
 
 class _Stragglers(OrderedDict[_EventId, _EventData]):
