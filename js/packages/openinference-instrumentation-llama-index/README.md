@@ -10,7 +10,7 @@ npm install --save @arizeai/openinference-instrumentation-llama-index
 
 ## Usage
 
-To load the OpenAI instrumentation, specify it in the registerInstrumentations call along with any additional instrumentation you wish to enable.
+To load the LlamaIndex instrumentation, specify it in the registerInstrumentations call along with any additional instrumentation you wish to enable.
 
 ```typescript
 const { NodeTracerProvider } = require("@opentelemetry/sdk-trace-node");
