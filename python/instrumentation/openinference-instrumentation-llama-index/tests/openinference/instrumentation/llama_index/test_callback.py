@@ -23,7 +23,7 @@ from llama_index.core import Document, ListIndex, Settings
 from llama_index.core.base.response.schema import StreamingResponse
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.schema import TextNode
-from llama_index.llms.openai import OpenAI
+from llama_index.llms.openai import OpenAI  # type: ignore
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
