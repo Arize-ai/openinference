@@ -37,12 +37,12 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias, TypeGuard
 from wrapt import ObjectProxy
 
+from llama_index.core import Response
+from llama_index.core.base.response.schema import StreamingResponse
+from llama_index.core.callbacks import CBEventType, EventPayload
 from llama_index.core.callbacks.base_handler import BaseCallbackHandler
 from llama_index.core.callbacks.schema import BASE_TRACE_EVENT
-from llama_index.core.callbacks import CBEventType, EventPayload
 from llama_index.core.llms import ChatMessage, ChatResponse
-from llama_index.core import Response
-from llama_index.core.response.schema import StreamingResponse
 from llama_index.core.tools import ToolMetadata
 
 logger = logging.getLogger(__name__)

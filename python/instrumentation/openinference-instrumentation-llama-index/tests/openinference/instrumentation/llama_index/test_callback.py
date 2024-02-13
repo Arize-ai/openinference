@@ -19,12 +19,11 @@ from typing import (
 import openai
 import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
-from llama_index.core import ListIndex, ServiceContext
+from llama_index.core import Document, ListIndex, ServiceContext
+from llama_index.core.base.response.schema import StreamingResponse
 from llama_index.core.callbacks import CallbackManager
-from llama_index.llms.openai import OpenAI
-from llama_index.core.response.schema import StreamingResponse
-from llama_index.core import Document
 from llama_index.core.schema import TextNode
+from llama_index.legacy.llms.openai import OpenAI
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
