@@ -10,6 +10,7 @@
         "instrumentator",
         "Instrumentor",
         "langchain",
+        "llms",
         "openinference",
         "otel",
         "uninstrument"

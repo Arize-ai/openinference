@@ -8,7 +8,7 @@ from openinference.instrumentation.llama_index.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 
-_MODULE = "llama_index"
+_MODULE = "llama_index.core"
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -29,16 +29,16 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
         if TYPE_CHECKING:
-            import llama_index
+            import llama_index.core as llama_index_core
         else:
-            llama_index = import_module(_MODULE)
-        self._original_global_handler = llama_index.global_handler
-        llama_index.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
+            llama_index_core = import_module(_MODULE)
+        self._original_global_handler = llama_index_core.global_handler
+        llama_index_core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if TYPE_CHECKING:
-            import llama_index
+            import llama_index.core as llama_index_core
         else:
-            llama_index = import_module(_MODULE)
-        llama_index.global_handler = self._original_global_handler
+            llama_index_core = import_module(_MODULE)
+        llama_index_core.global_handler = self._original_global_handler
         self._original_global_handler = None
