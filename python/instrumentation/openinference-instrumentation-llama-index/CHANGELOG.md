@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v0.1.2...python-openinference-instrumentation-llama-index-v0.1.3) (2024-02-12)
+
+
+### Bug Fixes
+
+* stop attaching context for callback based instrumentors ([#192](https://github.com/Arize-ai/openinference/issues/192)) ([c05ab06](https://github.com/Arize-ai/openinference/commit/c05ab06e4529bf15953715f94bcaf4a616755d90))
+
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v0.1.1...python-openinference-instrumentation-llama-index-v0.1.2) (2024-02-09)
+
+
+### Bug Fixes
+
+* JSON string attributes ([#157](https://github.com/Arize-ai/openinference/issues/157)) ([392057e](https://github.com/Arize-ai/openinference/commit/392057ecf4b601c5d8149697b4b8b3e91a2a2af6))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v0.1.0...python-openinference-instrumentation-llama-index-v0.1.1) (2024-01-27)
 
 

@@ -1,4 +1,6 @@
-from langchain_openai import ChatOpenAI
+from langchain.chains import LLMChain
+from langchain_core.prompts import PromptTemplate
+from langchain_openai import OpenAI
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -15,5 +17,8 @@ LangChainInstrumentor().instrument()
 
 
 if __name__ == "__main__":
-    for chunk in ChatOpenAI(model_name="gpt-3.5-turbo").stream("Write a haiku."):
-        print(chunk.content, end="", flush=True)
+    prompt_template = "Tell me a {adjective} joke"
+    prompt = PromptTemplate(input_variables=["adjective"], template=prompt_template)
+    llm = LLMChain(llm=OpenAI(), prompt=prompt, metadata={"category": "jokes"})
+    completion = llm.predict(adjective="funny", metadata={"variant": "funny"})
+    print(completion)

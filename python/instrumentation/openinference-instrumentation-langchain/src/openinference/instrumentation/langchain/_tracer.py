@@ -42,7 +42,7 @@ logger.addHandler(logging.NullHandler())
 
 class _Run(NamedTuple):
     span: trace_api.Span
-    token: object  # token for OTEL context API
+    context: context_api.Context
 
 
 class OpenInferenceTracer(BaseTracer):
@@ -58,14 +58,24 @@ class OpenInferenceTracer(BaseTracer):
 
     def _start_trace(self, run: Run) -> None:
         super()._start_trace(run)
-        span = self._tracer.start_span(run.name)
-        token = context_api.attach(trace_api.set_span_in_context(span))
-        self._runs[run.id] = _Run(span=span, token=token)
+        span = self._tracer.start_span(
+            name=run.name,
+            context=parent.context
+            if (parent_run_id := run.parent_run_id) and (parent := self._runs.get(parent_run_id))
+            else None,
+        )
+        context = trace_api.set_span_in_context(span)
+        # The following line of code is commented out to serve as a reminder that in a system
+        # of callbacks, attaching the context can be hazardous because there is no guarantee
+        # that the context will be detached. An error could happen between callbacks leaving
+        # the context attached forever, and all future spans will use it as parent. What's
+        # worse is that the error could have also prevented the span from being exported,
+        # leaving all future spans as orphans. That is a very bad scenario.
+        # token = context_api.attach(context)
+        self._runs[run.id] = _Run(span=span, context=context)
 
     def _end_trace(self, run: Run) -> None:
         if event_data := self._runs.pop(run.id, None):
-            # FIXME: find out why sometimes token fails to detach, e.g. when it's async
-            context_api.detach(event_data.token)
             span = event_data.span
             try:
                 _update_span(span, run)
@@ -133,13 +143,14 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
                     _prompts(run.inputs),
                     _input_messages(run.inputs),
                     _output_messages(run.outputs),
-                    _prompt_template(run.serialized),
+                    _prompt_template(run),
                     _invocation_parameters(run),
                     _model_name(run.extra),
                     _token_counts(run.outputs),
                     _function_calls(run.outputs),
                     _tools(run),
                     _retrieval_documents(run),
+                    _metadata(run),
                 )
             )
         )
@@ -345,11 +356,12 @@ def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str
 
 
 @stop_on_exception
-def _prompt_template(serialized: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
+def _prompt_template(run: Run) -> Iterator[Tuple[str, Any]]:
     """
     A best-effort attempt to locate the PromptTemplate object among the
     keyword arguments of a serialized object, e.g. an LLMChain object.
     """
+    serialized: Optional[Mapping[str, Any]] = run.serialized
     if not serialized:
         return
     assert hasattr(serialized, "get"), f"expected Mapping, found {type(serialized)}"
@@ -375,7 +387,12 @@ def _prompt_template(serialized: Optional[Mapping[str, Any]]) -> Iterator[Tuple[
                 assert isinstance(
                     input_variables, list
                 ), f"expected list, found {type(input_variables)}"
-                yield LLM_PROMPT_TEMPLATE_VARIABLES, input_variables
+                template_variables = {}
+                for variable in input_variables:
+                    if value := run.inputs.get(variable):
+                        template_variables[variable] = value
+                if template_variables:
+                    yield LLM_PROMPT_TEMPLATE_VARIABLES, json.dumps(template_variables)
             break
 
 
@@ -472,6 +489,19 @@ def _retrieval_documents(run: Run) -> Iterator[Tuple[str, List[Mapping[str, Any]
 
 
 @stop_on_exception
+def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
+    """
+    Takes the LangChain chain metadata and adds it to the trace
+    """
+    if not run.extra or not (metadata := run.extra.get("metadata")):
+        return
+    assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
+    # Yield out each metadata key and value
+    for key, value in metadata.items():
+        yield f"{METADATA}.{key}", value
+
+
+@stop_on_exception
 def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
     if page_content := getattr(document, "page_content", None):
         assert isinstance(page_content, str), f"expected str, found {type(page_content)}"
@@ -522,3 +552,4 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+METADATA = SpanAttributes.METADATA

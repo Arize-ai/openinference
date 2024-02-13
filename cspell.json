@@ -3,11 +3,14 @@
     "language": "en",
     "words": [
         "arize",
+        "arizeai",
         "autouse",
         "chatbot",
         "dspy",
+        "instrumentator",
         "Instrumentor",
-        "openinfernece",
+        "langchain",
+        "openinference",
         "otel",
         "uninstrument"
     ],
