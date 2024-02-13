@@ -33,10 +33,11 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "llama-index >= 0.9.14",
+  "llama-index >= 0.10.0",
 ]
 test = [
-  "llama-index == 0.9.14",
+  "llama-index == 0.10.1",
+  "llama-index-llms-openai",
   "opentelemetry-sdk",
   "respx",
 ]
