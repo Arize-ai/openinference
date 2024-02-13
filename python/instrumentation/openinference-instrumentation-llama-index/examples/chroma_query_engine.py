@@ -1,6 +1,5 @@
 import chromadb
-from llama_index.core import SimpleDirectoryReader, VectorStoreIndex
-from llama_index.core import StorageContext
+from llama_index.core import SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from opentelemetry import trace as trace_api
