@@ -1,8 +1,5 @@
 {
-    "bump-minor-pre-major": true,
     "bump-patch-for-minor-pre-major": true,
-    "prerelease-type": "beta",
-    "prerelease": true,
     "separate-pull-requests": true,
     "sequential-calls": true,
     "packages": {
