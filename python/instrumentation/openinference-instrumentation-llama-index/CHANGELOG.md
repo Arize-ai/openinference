@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v0.1.3...python-openinference-instrumentation-llama-index-v1.0.0) (2024-02-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **llama_index:** support 0.10.0 ([#201](https://github.com/Arize-ai/openinference/issues/201))
+
+### Features
+
+* **llama_index:** support 0.10.0 ([#201](https://github.com/Arize-ai/openinference/issues/201)) ([b22b435](https://github.com/Arize-ai/openinference/commit/b22b435abbc3075353b6d6883ff6c973ad79feca))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v0.1.2...python-openinference-instrumentation-llama-index-v0.1.3) (2024-02-12)
 
 
