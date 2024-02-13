@@ -23,7 +23,7 @@ from llama_index.core import Document, ListIndex, Settings
 from llama_index.core.base.response.schema import StreamingResponse
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.schema import TextNode
-from llama_index.legacy.llms.openai import OpenAI
+from llama_index.llms.openai import OpenAI
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -70,7 +70,7 @@ def test_callback_llm(
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
     callback_manager = CallbackManager()
     Settings.callback_manager = callback_manager
-    Settings.llm = OpenAI(callback_manager=callback_manager)
+    Settings.llm = OpenAI()
     query_engine = ListIndex(nodes).as_query_engine(use_async=is_async, streaming=is_stream)
     respx_kwargs: Dict[str, Any] = (
         {

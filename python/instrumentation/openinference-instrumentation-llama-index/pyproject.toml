@@ -36,7 +36,7 @@ instruments = [
   "llama-index >= 0.10.0",
 ]
 test = [
-  "llama-index == 0.10.0",
+  "llama-index == 0.10.1",
   "opentelemetry-sdk",
   "respx",
 ]
