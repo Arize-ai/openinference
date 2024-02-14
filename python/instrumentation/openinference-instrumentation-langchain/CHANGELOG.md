@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.5...python-openinference-instrumentation-langchain-v0.1.6) (2024-02-14)
+
+
+### Bug Fixes
+
+* handle BaseException ([#208](https://github.com/Arize-ai/openinference/issues/208)) ([398280b](https://github.com/Arize-ai/openinference/commit/398280b9d836f269af4e1e95e5b20c672b213f3d))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.4...python-openinference-instrumentation-langchain-v0.1.5) (2024-02-12)
 
 
