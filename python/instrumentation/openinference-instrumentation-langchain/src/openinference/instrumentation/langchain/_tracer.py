@@ -1,5 +1,6 @@
 import json
 import logging
+import traceback
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum
@@ -113,14 +114,22 @@ class OpenInferenceTracer(BaseTracer):
 def _record_exception(span: trace_api.Span, error: BaseException) -> None:
     if isinstance(error, Exception):
         span.record_exception(error)
-    else:
-        span.add_event(
-            name="exception",
-            attributes={
-                OTELSpanAttributes.EXCEPTION_MESSAGE: str(error),
-                OTELSpanAttributes.EXCEPTION_TYPE: error.__class__.__name__,
-            },
-        )
+        return
+    exception_type = error.__class__.__name__
+    exception_message = str(error)
+    if not exception_message:
+        exception_message = repr(error)
+    attributes: Dict[str, AttributeValue] = {
+        OTELSpanAttributes.EXCEPTION_TYPE: exception_type,
+        OTELSpanAttributes.EXCEPTION_MESSAGE: exception_message,
+        OTELSpanAttributes.EXCEPTION_ESCAPED: False,
+    }
+    try:
+        # See e.g. https://github.com/open-telemetry/opentelemetry-python/blob/e9c7c7529993cd13b4af661e2e3ddac3189a34d0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L967  # noqa: E501
+        attributes[OTELSpanAttributes.EXCEPTION_STACKTRACE] = traceback.format_exc()
+    except Exception:
+        logger.exception("Failed to record exception stacktrace.")
+    span.add_event(name="exception", attributes=attributes)
 
 
 def _update_span(span: trace_api.Span, run: Run) -> None:
