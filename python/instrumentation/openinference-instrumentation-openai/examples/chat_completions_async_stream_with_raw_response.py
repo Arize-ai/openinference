@@ -18,8 +18,8 @@ OpenAIInstrumentor().instrument()
 
 async def chat_completions(**kwargs):
     client = openai.AsyncOpenAI()
-    response = await client.chat.completions.create(**kwargs)
-    async for chunk in response:
+    response = await client.chat.completions.with_raw_response.create(**kwargs)
+    async for chunk in response.parse():
         if content := chunk.choices[0].delta.content:
             print(content, end="")
 
