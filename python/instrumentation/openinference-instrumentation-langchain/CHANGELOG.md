@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.7...python-openinference-instrumentation-langchain-v0.1.8) (2024-02-15)
+
+
+### Bug Fixes
+
+* retain empty strings for template variables ([#213](https://github.com/Arize-ai/openinference/issues/213)) ([c262008](https://github.com/Arize-ai/openinference/commit/c2620089bc960f3778e4d0182e962c7e90a6ba5f))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.6...python-openinference-instrumentation-langchain-v0.1.7) (2024-02-15)
 
 
