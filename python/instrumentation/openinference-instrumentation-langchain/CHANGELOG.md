@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.6...python-openinference-instrumentation-langchain-v0.1.7) (2024-02-15)
+
+
+### Bug Fixes
+
+* replace NaN with none in output JSON ([#211](https://github.com/Arize-ai/openinference/issues/211)) ([306241d](https://github.com/Arize-ai/openinference/commit/306241d4a08ce9d4d6c437365fdf9cb22b8a7622))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.5...python-openinference-instrumentation-langchain-v0.1.6) (2024-02-14)
 
 
