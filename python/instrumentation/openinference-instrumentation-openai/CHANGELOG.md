@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.1...python-openinference-instrumentation-openai-v0.1.2) (2024-02-15)
+
+
+### Bug Fixes
+
+* avoid openai dependency at import time ([#216](https://github.com/Arize-ai/openinference/issues/216)) ([3bfc23c](https://github.com/Arize-ai/openinference/commit/3bfc23c2c41a06262096ae02df04d96fec471e6c))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.0...python-openinference-instrumentation-openai-v0.1.1) (2024-02-08)
 
 
