@@ -227,14 +227,16 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     if len(obj) == 1 and isinstance(value := next(iter(obj.values())), str):
         yield value
     else:
-        obj = dict(_remove_nan(obj))
+        obj = dict(_replace_nan(obj))
         yield json.dumps(obj, default=_serialize_json)
         yield OpenInferenceMimeTypeValues.JSON.value
 
 
-def _remove_nan(obj: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _replace_nan(obj: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     for k, v in obj.items():
-        if not isinstance(v, float) or math.isfinite(v):
+        if isinstance(v, float) and not math.isfinite(v):
+            yield k, None
+        else:
             yield k, v
 
 
