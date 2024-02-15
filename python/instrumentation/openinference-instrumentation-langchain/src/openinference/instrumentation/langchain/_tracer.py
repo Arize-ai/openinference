@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import traceback
 from copy import deepcopy
 from datetime import datetime
@@ -226,8 +227,17 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     if len(obj) == 1 and isinstance(value := next(iter(obj.values())), str):
         yield value
     else:
+        obj = dict(_replace_nan(obj))
         yield json.dumps(obj, default=_serialize_json)
         yield OpenInferenceMimeTypeValues.JSON.value
+
+
+def _replace_nan(obj: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    for k, v in obj.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            yield k, None
+        else:
+            yield k, v
 
 
 @stop_on_exception
