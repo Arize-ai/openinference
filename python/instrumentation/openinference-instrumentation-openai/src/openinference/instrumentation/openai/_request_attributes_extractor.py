@@ -13,7 +13,7 @@ from typing import (
     Type,
 )
 
-from openinference.instrumentation.openai._utils import _openai_version
+from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 from opentelemetry.util.types import AttributeValue
 
@@ -118,7 +118,7 @@ def _get_attributes_from_message_param(
                 function_arguments,
             )
     if (
-        _openai_version() >= (1, 1, 0)
+        _get_openai_version() >= (1, 1, 0)
         and (tool_calls := message.get("tool_calls"),)
         and isinstance(tool_calls, Iterable)
     ):

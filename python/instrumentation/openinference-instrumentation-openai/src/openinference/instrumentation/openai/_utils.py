@@ -27,7 +27,7 @@ logger.addHandler(logging.NullHandler())
 
 
 @lru_cache
-def _openai_version() -> Tuple[int, int, int]:
+def _get_openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
 
 
