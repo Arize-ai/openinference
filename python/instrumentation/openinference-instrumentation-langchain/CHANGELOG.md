@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.8...python-openinference-instrumentation-langchain-v0.1.9) (2024-02-15)
+
+
+### Bug Fixes
+
+* avoid langchain dependency at import time ([#222](https://github.com/Arize-ai/openinference/issues/222)) ([a3e1b52](https://github.com/Arize-ai/openinference/commit/a3e1b52a2868726d27299d7121c74fc00a26ddef))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.7...python-openinference-instrumentation-langchain-v0.1.8) (2024-02-15)
 
 
