@@ -1,8 +1,6 @@
 import logging
-from importlib import import_module
-from typing import TYPE_CHECKING, Any, Collection
+from typing import Any, Collection
 
-from openinference.instrumentation.llama_index._callback import OpenInferenceTraceCallbackHandler
 from openinference.instrumentation.llama_index.package import _instruments
 from openinference.instrumentation.llama_index.version import __version__
 from opentelemetry import trace as trace_api
@@ -28,17 +26,17 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
-        if TYPE_CHECKING:
-            import llama_index.core as llama_index_core
-        else:
-            llama_index_core = import_module(_MODULE)
-        self._original_global_handler = llama_index_core.global_handler
-        llama_index_core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
+        from openinference.instrumentation.llama_index._callback import (
+            OpenInferenceTraceCallbackHandler,
+        )
+
+        import llama_index.core
+
+        self._original_global_handler = llama_index.core.global_handler
+        llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        if TYPE_CHECKING:
-            import llama_index.core as llama_index_core
-        else:
-            llama_index_core = import_module(_MODULE)
-        llama_index_core.global_handler = self._original_global_handler
+        import llama_index.core
+
+        llama_index.core.global_handler = self._original_global_handler
         self._original_global_handler = None
