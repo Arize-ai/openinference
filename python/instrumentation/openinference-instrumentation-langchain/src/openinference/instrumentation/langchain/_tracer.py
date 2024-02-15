@@ -408,7 +408,7 @@ def _prompt_template(run: Run) -> Iterator[Tuple[str, Any]]:
                 ), f"expected list, found {type(input_variables)}"
                 template_variables = {}
                 for variable in input_variables:
-                    if value := run.inputs.get(variable):
+                    if (value := run.inputs.get(variable)) is not None:
                         template_variables[variable] = value
                 if template_variables:
                     yield LLM_PROMPT_TEMPLATE_VARIABLES, json.dumps(template_variables)
