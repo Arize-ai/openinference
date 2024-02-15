@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.0.0...python-openinference-instrumentation-llama-index-v1.0.1) (2024-02-15)
+
+
+### Bug Fixes
+
+* avoid llama-index dependency at import time ([#224](https://github.com/Arize-ai/openinference/issues/224)) ([09db813](https://github.com/Arize-ai/openinference/commit/09db8132e055daa2c57765a27fb8b18939aa726e))
+* missing dependency `typing-extensions` ([#217](https://github.com/Arize-ai/openinference/issues/217)) ([bd6f049](https://github.com/Arize-ai/openinference/commit/bd6f0496b3999afc43b49d74f59c51ba71032001))
+
 ## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v0.1.3...python-openinference-instrumentation-llama-index-v1.0.0) (2024-02-13)
 
 
