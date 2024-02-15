@@ -14,10 +14,7 @@ from typing import (
     Type,
 )
 
-from openinference.instrumentation.openai._utils import (
-    _OPENAI_VERSION,
-    _get_texts,
-)
+from openinference.instrumentation.openai._utils import _get_texts, _openai_version
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
@@ -189,7 +186,7 @@ def _get_attributes_from_chat_completion_message(
         if arguments := getattr(function_call, "arguments", None):
             yield MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
     if (
-        _OPENAI_VERSION >= (1, 1, 0)
+        _openai_version() >= (1, 1, 0)
         and (tool_calls := getattr(message, "tool_calls", None))
         and isinstance(tool_calls, Iterable)
     ):

@@ -1,6 +1,7 @@
 import json
 import logging
 import warnings
+from functools import lru_cache
 from importlib.metadata import version
 from typing import (
     Any,
@@ -24,7 +25,10 @@ from opentelemetry.util.types import Attributes, AttributeValue
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-_OPENAI_VERSION = tuple(map(int, version("openai").split(".")[:3]))
+
+@lru_cache
+def _openai_version() -> Tuple[int, int, int]:
+    return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
 
 
 class _ValueAndType(NamedTuple):
