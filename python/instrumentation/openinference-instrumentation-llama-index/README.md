@@ -4,7 +4,9 @@
 
 ## Installation
 
-    `pip install openinference-instrumentation-llama-index`
+```shell
+pip install openinference-instrumentation-llama-index
+```
 
 ## Compatibility
 

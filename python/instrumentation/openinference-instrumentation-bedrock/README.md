@@ -4,6 +4,6 @@
 
 ## Installation
 
-    ```shell
-    pip install openinference-instrumentation-bedrock
-    ```
+```shell
+pip install openinference-instrumentation-bedrock
+```
