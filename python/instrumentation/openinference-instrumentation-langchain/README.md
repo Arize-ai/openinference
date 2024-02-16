@@ -4,4 +4,4 @@
 
 ## Installation
 
-    pip install openinference-instrumentation-langchain
+    `pip install openinference-instrumentation-langchain`

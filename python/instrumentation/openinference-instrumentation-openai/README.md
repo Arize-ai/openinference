@@ -4,4 +4,4 @@
 
 ## Installation
 
-    pip install openinference-instrumentation-openai
+    `pip install openinference-instrumentation-openai`

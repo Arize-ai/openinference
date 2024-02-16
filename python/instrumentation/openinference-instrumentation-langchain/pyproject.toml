@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "openinference-instrumentation-langchain"
 dynamic = ["version"]
 description = "OpenInference LangChain Instrumentation"
-readme = "README.rst"
+readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.8, <3.12"
 authors = [
