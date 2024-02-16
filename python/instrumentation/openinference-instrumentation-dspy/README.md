@@ -4,4 +4,6 @@
 
 ## Installation
 
-    `pip install openinference-instrumentation-dspy`
+    ```shell
+    pip install openinference-instrumentation-dspy
+    ```
