@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "openinference-instrumentation-dspy"
 dynamic = ["version"]
 description = "OpenInference DSPy Instrumentation"
-readme = "README.rst"
+readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9, <3.12"
 authors = [
