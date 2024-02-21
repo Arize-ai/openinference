@@ -121,6 +121,7 @@ def test_callback_llm(
     assert query_attributes.pop(INPUT_VALUE, None) == question
     if status_code == 200:
         assert query_span.status.status_code == trace_api.StatusCode.OK
+        assert not query_span.status.description
         assert query_attributes.pop(OUTPUT_VALUE, None) == answer
     elif (
         # FIXME: currently the error is propagated when streaming because we don't rely on
@@ -128,6 +129,9 @@ def test_callback_llm(
         status_code == 400 and is_stream
     ):
         assert query_span.status.status_code == trace_api.StatusCode.ERROR
+        assert query_span.status.description and query_span.status.description.startswith(
+            openai.BadRequestError.__name__,
+        )
     assert query_attributes == {}
 
     assert (synthesize_span := spans_by_name.pop("synthesize")) is not None
@@ -139,6 +143,7 @@ def test_callback_llm(
     assert synthesize_attributes.pop(INPUT_VALUE, None) == question
     if status_code == 200:
         assert synthesize_span.status.status_code == trace_api.StatusCode.OK
+        assert not synthesize_span.status.description
         assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
     elif (
         # FIXME: currently the error is propagated when streaming because we don't rely on
@@ -146,6 +151,9 @@ def test_callback_llm(
         status_code == 400 and is_stream
     ):
         assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
+        assert query_span.status.description and query_span.status.description.startswith(
+            openai.BadRequestError.__name__,
+        )
     assert synthesize_attributes == {}
 
     assert (retrieve_span := spans_by_name.pop("retrieve")) is not None
@@ -194,6 +202,7 @@ def test_callback_llm(
         assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) is not None
         assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}", None) is not None
         assert llm_span.status.status_code == trace_api.StatusCode.OK
+        assert not synthesize_span.status.description
         assert llm_attributes.pop(OUTPUT_VALUE, None) == answer
         if not is_stream:
             # FIXME: currently we can't capture messages when streaming
