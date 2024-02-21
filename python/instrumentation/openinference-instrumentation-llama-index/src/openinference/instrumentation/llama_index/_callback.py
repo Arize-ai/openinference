@@ -424,9 +424,14 @@ class _ResponseGen(ObjectProxy):  # type: ignore
                 event_data = self._self_event_data
                 span = event_data.span
                 if isinstance(exception, StopIteration):
-                    status_code = trace_api.StatusCode.OK
+                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 else:
-                    status_code = trace_api.StatusCode.ERROR
+                    status = trace_api.Status(
+                        status_code=trace_api.StatusCode.ERROR,
+                        # Follow the format in OTEL SDK for description, see:
+                        # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+                        description=f"{type(exception).__name__}: {exception}",
+                    )
                     span.record_exception(exception)
                 if output_value := "".join(self._self_tokens):
                     span.set_attribute(SpanAttributes.OUTPUT_VALUE, output_value)
@@ -440,7 +445,7 @@ class _ResponseGen(ObjectProxy):  # type: ignore
                     )
                 else:
                     span.set_attributes(flattened_attributes)
-                span.set_status(status=status_code)
+                span.set_status(status=status)
                 end_time = event_data.end_time
                 span.end(end_time=end_time)
                 self._self_is_finished = True
@@ -475,11 +480,19 @@ def _finish_tracing(event_data: _EventData) -> None:
         return
     attributes = event_data.attributes
     if event_data.exceptions:
-        span.set_status(trace_api.StatusCode.ERROR)
+        status_descriptions = []
         for exception in event_data.exceptions:
             span.record_exception(exception)
+            # Follow the format in OTEL SDK for description, see:
+            # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+            status_descriptions.append(f"{type(exception).__name__}: {exception}")
+        status = trace_api.Status(
+            status_code=trace_api.StatusCode.ERROR,
+            description="\n".join(status_descriptions),
+        )
     else:
-        span.set_status(trace_api.StatusCode.OK)
+        status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+    span.set_status(status=status)
     try:
         span.set_attributes(dict(_flatten(attributes)))
     except Exception:
