@@ -50,7 +50,7 @@ class _WithSpan:
 
     def finish_tracing(
         self,
-        status_code: Optional[trace_api.StatusCode] = None,
+        status: Optional[trace_api.Status] = None,
         attributes: Attributes = None,
         extra_attributes: Attributes = None,
     ) -> None:
@@ -70,9 +70,9 @@ class _WithSpan:
                     self._span.set_attribute(key, value)
                 except Exception:
                     logger.exception("Failed to set attribute on span")
-        if status_code is not None:
+        if status is not None:
             try:
-                self._span.set_status(status_code)
+                self._span.set_status(status=status)
             except Exception:
                 logger.exception("Failed to set status code on span")
         try:

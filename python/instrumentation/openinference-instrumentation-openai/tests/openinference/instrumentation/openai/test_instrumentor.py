@@ -122,8 +122,12 @@ def test_chat_completions(
     span: ReadableSpan = spans[1]
     if status_code == 200:
         assert span.status.is_ok
+        assert not span.status.description
     elif status_code == 400:
         assert not span.status.is_ok and not span.status.is_unset
+        assert span.status.description and span.status.description.startswith(
+            openai.BadRequestError.__name__
+        )
         assert len(span.events) == 1
         event = span.events[0]
         assert event.name == "exception"
@@ -251,8 +255,12 @@ def test_completions(
     span: ReadableSpan = spans[1]
     if status_code == 200:
         assert span.status.is_ok
+        assert not span.status.description
     elif status_code == 400:
         assert not span.status.is_ok and not span.status.is_unset
+        assert span.status.description and span.status.description.startswith(
+            openai.BadRequestError.__name__
+        )
         assert len(span.events) == 1
         event = span.events[0]
         assert event.name == "exception"
@@ -345,8 +353,12 @@ def test_embeddings(
     span: ReadableSpan = spans[1]
     if status_code == 200:
         assert span.status.is_ok
+        assert not span.status.description
     elif status_code == 400:
         assert not span.status.is_ok and not span.status.is_unset
+        assert span.status.description and span.status.description.startswith(
+            openai.BadRequestError.__name__
+        )
         assert len(span.events) == 1
         event = span.events[0]
         assert event.name == "exception"
