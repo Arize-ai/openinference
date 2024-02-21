@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.2.0
+
+### Minor Changes
+
+- 04c303f: Add metadata and tag semantic conventions
+
 ## 0.1.0
 
 ### Minor Changes
