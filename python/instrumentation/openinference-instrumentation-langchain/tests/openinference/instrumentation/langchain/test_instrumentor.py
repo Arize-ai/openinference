@@ -249,7 +249,7 @@ def test_chain_metadata(
 
     assert (llm_chain_span := spans_by_name.pop("LLMChain")) is not None
     assert llm_chain_span.attributes
-    assert llm_chain_span.attributes.get("metadata") == '{"category": "jokes"}'
+    assert llm_chain_span.attributes.get(METADATA) == '{"category": "jokes"}'
 
 
 @pytest.fixture
@@ -371,6 +371,7 @@ MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_A
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
