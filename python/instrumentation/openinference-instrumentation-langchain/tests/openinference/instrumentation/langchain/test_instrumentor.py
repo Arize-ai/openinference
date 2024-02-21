@@ -249,7 +249,7 @@ def test_chain_metadata(
 
     assert (llm_chain_span := spans_by_name.pop("LLMChain")) is not None
     assert llm_chain_span.attributes
-    assert llm_chain_span.attributes.get("metadata.category") == "jokes"
+    assert llm_chain_span.attributes.get("metadata") == '{"category": "jokes"}'
 
 
 @pytest.fixture
