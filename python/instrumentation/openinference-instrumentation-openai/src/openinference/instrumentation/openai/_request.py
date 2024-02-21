@@ -231,7 +231,7 @@ class _WithOpenAI(ABC):
                 response_accumulator=response_accumulator,
             )
         _finish_tracing(
-            status_code=trace_api.StatusCode.OK,
+            status=trace_api.Status(status_code=trace_api.StatusCode.OK),
             with_span=with_span,
             has_attributes=_ResponseAttributes(
                 request_parameters=request_parameters,
@@ -273,9 +273,14 @@ class _Request(_WithTracer, _WithOpenAI):
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
-                status_code = trace_api.StatusCode.ERROR
                 with_span.record_exception(exception)
-                with_span.finish_tracing(status_code=status_code)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    # Follow the format in OTEL SDK for description, see:
+                    # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                with_span.finish_tracing(status=status)
                 raise
             try:
                 response = self._finalize_response(
@@ -286,7 +291,7 @@ class _Request(_WithTracer, _WithOpenAI):
                 )
             except Exception:
                 logger.exception(f"Failed to finalize response of type {type(response)}")
-                with_span.finish_tracing(status_code=None)
+                with_span.finish_tracing()
         return response
 
 
@@ -321,9 +326,14 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
-                status_code = trace_api.StatusCode.ERROR
                 with_span.record_exception(exception)
-                with_span.finish_tracing(status_code=status_code)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    # Follow the format in OTEL SDK for description, see:
+                    # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                with_span.finish_tracing(status=status)
                 raise
             try:
                 response = self._finalize_response(
@@ -334,7 +344,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 )
             except Exception:
                 logger.exception(f"Failed to finalize response of type {type(response)}")
-                with_span.finish_tracing(status_code=None)
+                with_span.finish_tracing()
         return response
 
 

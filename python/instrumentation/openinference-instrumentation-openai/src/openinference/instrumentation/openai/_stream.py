@@ -71,11 +71,16 @@ class _Stream(ObjectProxy):  # type: ignore
         except Exception as exception:
             if not self._self_is_finished:
                 if isinstance(exception, StopIteration):
-                    status_code = trace_api.StatusCode.OK
+                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 else:
-                    status_code = trace_api.StatusCode.ERROR
+                    status = trace_api.Status(
+                        status_code=trace_api.StatusCode.ERROR,
+                        # Follow the format in OTEL SDK for description, see:
+                        # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+                        description=f"{type(exception).__name__}: {exception}",
+                    )
                     self._self_with_span.record_exception(exception)
-                self._finish_tracing(status_code=status_code)
+                self._finish_tracing(status=status)
             raise
         else:
             self._process_chunk(chunk)
@@ -93,11 +98,16 @@ class _Stream(ObjectProxy):  # type: ignore
         except Exception as exception:
             if not self._self_is_finished:
                 if isinstance(exception, StopAsyncIteration):
-                    status_code = trace_api.StatusCode.OK
+                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 else:
-                    status_code = trace_api.StatusCode.ERROR
+                    status = trace_api.Status(
+                        status_code=trace_api.StatusCode.ERROR,
+                        # Follow the format in OTEL SDK for description, see:
+                        # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+                        description=f"{type(exception).__name__}: {exception}",
+                    )
                     self._self_with_span.record_exception(exception)
-                self._finish_tracing(status_code=status_code)
+                self._finish_tracing(status=status)
             raise
         else:
             self._process_chunk(chunk)
@@ -118,10 +128,10 @@ class _Stream(ObjectProxy):  # type: ignore
 
     def _finish_tracing(
         self,
-        status_code: Optional[trace_api.StatusCode] = None,
+        status: Optional[trace_api.Status] = None,
     ) -> None:
         _finish_tracing(
-            status_code=status_code,
+            status=status,
             with_span=self._self_with_span,
             has_attributes=self,
         )
