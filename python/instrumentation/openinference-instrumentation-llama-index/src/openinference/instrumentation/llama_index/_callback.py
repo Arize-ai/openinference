@@ -33,6 +33,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias, TypeGuard
 from wrapt import ObjectProxy
@@ -218,6 +219,8 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> str:
         event_id = event_id or str(uuid4())
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return event_id
         parent_id = parent_id or BASE_TRACE_EVENT
 
         if payload is None:
@@ -280,6 +283,8 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         event_id: str = "",
         **kwargs: Any,
     ) -> None:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return
         if event_data := self._event_data.get(event_id):
             is_straggler = False
         elif event_data := self._stragglers.get(event_id):
@@ -326,6 +331,8 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         self._event_data.clear()
 
     def end_trace(self, trace_id: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return
         roots, adjacency_list = _build_graph(self._event_data)
         self._event_data.clear()
         dfs_stack = roots.copy()

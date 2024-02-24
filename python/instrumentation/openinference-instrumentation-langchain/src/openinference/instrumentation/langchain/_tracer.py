@@ -35,6 +35,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.util.types import AttributeValue
 
@@ -60,6 +61,8 @@ class OpenInferenceTracer(BaseTracer):
 
     def _start_trace(self, run: Run) -> None:
         super()._start_trace(run)
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return
         span = self._tracer.start_span(
             name=run.name,
             context=parent.context
@@ -77,6 +80,9 @@ class OpenInferenceTracer(BaseTracer):
         self._runs[run.id] = _Run(span=span, context=context)
 
     def _end_trace(self, run: Run) -> None:
+        super()._end_trace(run)
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return
         if event_data := self._runs.pop(run.id, None):
             span = event_data.span
             try:
@@ -84,7 +90,6 @@ class OpenInferenceTracer(BaseTracer):
             except Exception:
                 logger.exception("Failed to update span with run data.")
             span.end()
-        super()._end_trace(run)
 
     def _persist_run(self, run: Run) -> None:
         pass
