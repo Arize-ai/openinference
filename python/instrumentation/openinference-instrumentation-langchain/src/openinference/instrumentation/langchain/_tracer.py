@@ -535,6 +535,7 @@ class _SafeJSONEncoder(json.JSONEncoder):
     A JSON encoder that falls back to the string representation of a
     non-JSON-serializable object rather than raising an error.
     """
+
     def default(self, obj):
         try:
             return super().default(obj)
