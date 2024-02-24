@@ -91,7 +91,7 @@ class _HasAttributes(Protocol):
 def _finish_tracing(
     with_span: _WithSpan,
     has_attributes: _HasAttributes,
-    status_code: Optional[trace_api.StatusCode] = None,
+    status: Optional[trace_api.Status] = None,
 ) -> None:
     try:
         attributes: Attributes = dict(has_attributes.get_attributes())
@@ -105,7 +105,7 @@ def _finish_tracing(
         extra_attributes = None
     try:
         with_span.finish_tracing(
-            status_code=status_code,
+            status=status,
             attributes=attributes,
             extra_attributes=extra_attributes,
         )

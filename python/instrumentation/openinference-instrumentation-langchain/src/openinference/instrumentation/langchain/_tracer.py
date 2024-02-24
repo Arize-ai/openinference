@@ -525,7 +525,20 @@ def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
         yield DOCUMENT_CONTENT, page_content
     if metadata := getattr(document, "metadata", None):
         assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
-        yield DOCUMENT_METADATA, json.dumps(metadata)
+        yield DOCUMENT_METADATA, json.dumps(metadata, cls=_SafeJSONEncoder)
+
+
+class _SafeJSONEncoder(json.JSONEncoder):
+    """
+    A JSON encoder that falls back to the string representation of a
+    non-JSON-serializable object rather than raising an error.
+    """
+
+    def default(self, obj: Any) -> Any:
+        try:
+            return super().default(obj)
+        except TypeError:
+            return str(obj)
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
