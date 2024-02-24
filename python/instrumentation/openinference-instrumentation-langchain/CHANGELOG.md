@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.10...python-openinference-instrumentation-langchain-v0.1.11) (2024-02-24)
+
+
+### Bug Fixes
+
+* allow instrumentation to be suppressed in langchain instrumentor ([#243](https://github.com/Arize-ai/openinference/issues/243)) ([edf20f3](https://github.com/Arize-ai/openinference/commit/edf20f390b8811f751f1b8d2a0a9814535df4a90))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.9...python-openinference-instrumentation-langchain-v0.1.10) (2024-02-24)
 
 
