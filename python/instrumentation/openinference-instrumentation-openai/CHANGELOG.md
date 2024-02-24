@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.2...python-openinference-instrumentation-openai-v0.1.3) (2024-02-24)
+
+
+### Features
+
+* add status description for openai instrumentor ([#235](https://github.com/Arize-ai/openinference/issues/235)) ([4ff392e](https://github.com/Arize-ai/openinference/commit/4ff392e2a67883b9cdcf87b54e2de4d99e2007b0))
+
+
+### Bug Fixes
+
+* missing dependency `typing-extensions` ([#220](https://github.com/Arize-ai/openinference/issues/220)) ([5b8e2e0](https://github.com/Arize-ai/openinference/commit/5b8e2e0bc2b5abe48ffbcf3c9ccc38e2e6d33d76))
+
+
+### Documentation
+
+* Convert READMEs to Markdown ([#227](https://github.com/Arize-ai/openinference/issues/227)) ([e4bcf4b](https://github.com/Arize-ai/openinference/commit/e4bcf4b86f27cc119a77f551811f9142ec6075ce))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.1...python-openinference-instrumentation-openai-v0.1.2) (2024-02-15)
 
 
