@@ -536,7 +536,7 @@ class _SafeJSONEncoder(json.JSONEncoder):
     non-JSON-serializable object rather than raising an error.
     """
 
-    def default(self, obj):
+    def default(self, obj: Any) -> Any:
         try:
             return super().default(obj)
         except TypeError:
