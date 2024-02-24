@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.9...python-openinference-instrumentation-langchain-v0.1.10) (2024-02-24)
+
+
+### Bug Fixes
+
+* ensure langchain metadata is always json serializable ([#245](https://github.com/Arize-ai/openinference/issues/245)) ([bb6b08b](https://github.com/Arize-ai/openinference/commit/bb6b08b4789c1795921d23129a2f281c7e88f5c9))
+
+
+### Documentation
+
+* Convert READMEs to Markdown ([#227](https://github.com/Arize-ai/openinference/issues/227)) ([e4bcf4b](https://github.com/Arize-ai/openinference/commit/e4bcf4b86f27cc119a77f551811f9142ec6075ce))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.8...python-openinference-instrumentation-langchain-v0.1.9) (2024-02-15)
 
 
