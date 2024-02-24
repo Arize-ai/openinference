@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.0.1...python-openinference-instrumentation-llama-index-v1.1.0) (2024-02-24)
+
+
+### Features
+
+* add status description to llama-index instrumentor ([#237](https://github.com/Arize-ai/openinference/issues/237)) ([d11f815](https://github.com/Arize-ai/openinference/commit/d11f815628a34dbf0015c07d9fd9321eebeca937))
+
+
+### Bug Fixes
+
+* allow instrumentation to be suppressed in llama-index instrumentor ([#241](https://github.com/Arize-ai/openinference/issues/241)) ([891a83a](https://github.com/Arize-ai/openinference/commit/891a83a21439ff698922d6332b749ec1b0f25e8b))
+
+
+### Documentation
+
+* Convert READMEs to Markdown ([#227](https://github.com/Arize-ai/openinference/issues/227)) ([e4bcf4b](https://github.com/Arize-ai/openinference/commit/e4bcf4b86f27cc119a77f551811f9142ec6075ce))
+
 ## [1.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.0.0...python-openinference-instrumentation-llama-index-v1.0.1) (2024-02-15)
 
 
