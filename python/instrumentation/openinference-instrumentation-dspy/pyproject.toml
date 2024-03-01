@@ -35,7 +35,7 @@ instruments = [
   "dspy-ai >= 2.3.4",
 ]
 test = [
-  "dspy-ai==2.1.0",
+  "dspy-ai==2.3.4",
   "opentelemetry-sdk",
   "responses",
 ]
