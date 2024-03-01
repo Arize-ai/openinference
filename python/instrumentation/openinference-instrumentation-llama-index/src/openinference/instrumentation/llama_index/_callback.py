@@ -327,14 +327,18 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
             _finish_tracing(event_data)
             self._stragglers.pop(event_id)
 
-    def start_trace(self, trace_id: Optional[str] = None) -> None:
-        self._event_data.clear()
+    def start_trace(self, trace_id: Optional[str] = None) -> None: ...
 
-    def end_trace(self, trace_id: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
+    def end_trace(
+        self,
+        trace_id: Optional[str] = None,
+        trace_map: Optional[Dict[str, List[str]]] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
-        roots, adjacency_list = _build_graph(self._event_data)
-        self._event_data.clear()
+        roots, adjacency_list = _build_graph(_pop_event_data(self._event_data, trace_map))
         dfs_stack = roots.copy()
         while dfs_stack:
             event_id, event_data = dfs_stack.pop()
@@ -462,8 +466,20 @@ class _ResponseGen(ObjectProxy):  # type: ignore
             return value
 
 
+def _pop_event_data(
+    event_data: Dict[_EventId, _EventData],
+    trace_map: Optional[Mapping[str, List[str]]],
+) -> Iterator[Tuple[_EventId, _EventData]]:
+    if not trace_map:
+        return
+    for _, v in trace_map.items():
+        for id_ in v:
+            if event := event_data.pop(id_, None):
+                yield id_, event
+
+
 def _build_graph(
-    event_data: Mapping[_EventId, _EventData],
+    events: Iterable[Tuple[_EventId, _EventData]],
 ) -> Tuple[
     List[Tuple[_EventId, _EventData]],
     DefaultDict[_EventId, List[Tuple[_EventId, _EventData]]],
@@ -474,7 +490,7 @@ def _build_graph(
     """
     adjacency_list: DefaultDict[_EventId, List[Tuple[_EventId, _EventData]]] = defaultdict(list)
     roots: List[Tuple[_EventId, _EventData]] = []
-    for id_, data in event_data.items():
+    for id_, data in events:
         events = roots if data.parent_id == BASE_TRACE_EVENT else adjacency_list[data.parent_id]
         events.append((id_, data))
     for id_, children in adjacency_list.items():
