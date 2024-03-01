@@ -246,12 +246,12 @@ class _PredictForwardWrapper(_WithTracer):
 
     def _prediction_to_output_dict(self, prediction: Any, signature: Any) -> Dict[str, Any]:
         """
-        Parse the prediction fields to get the input and output fields
+        Parse the prediction to get output fields
         """
         output = {}
-        for field in signature.fields:
-            if field.output_variable and field.output_variable in prediction:
-                output[field.output_variable] = prediction.get(field.output_variable)
+        for output_field_name in signature.output_fields:
+            if (prediction_value := prediction.get(output_field_name)) is not None:
+                output[output_field_name] = prediction_value
         return output
 
 
