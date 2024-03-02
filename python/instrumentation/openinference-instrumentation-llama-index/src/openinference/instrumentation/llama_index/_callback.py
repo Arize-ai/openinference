@@ -52,17 +52,18 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 _EventId: TypeAlias = str
+_ParentId: TypeAlias = str
 
 
 @dataclass
 class _EventData:
     span: trace_api.Span
-    parent_id: str
+    parent_id: _ParentId
     context: Optional[context_api.Context]
-    payloads: List[Dict[str, Any]]
+    payloads: List[Dict[_EventId, Any]]
     exceptions: List[Exception]
     event_type: CBEventType
-    attributes: Dict[str, Any]
+    attributes: Dict[_EventId, Any]
     start_time: int
     end_time: Optional[int] = None
     is_dispatched: bool = False
@@ -201,9 +202,9 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
     def __init__(self, tracer: trace_api.Tracer) -> None:
         super().__init__(event_starts_to_ignore=[], event_ends_to_ignore=[])
         self._tracer = tracer
-        self._event_data: Dict[str, _EventData] = _BoundedDict(fn=_finish_tracing)
-        self._templating_parent_id: Dict[str, str] = _BoundedDict()
-        self._templating_payloads: Dict[str, List[Dict[str, Any]]] = _BoundedDict()
+        self._event_data: Dict[_EventId, _EventData] = _BoundedDict(fn=_finish_tracing)
+        self._templating_parent_id: Dict[_EventId, _ParentId] = _BoundedDict()
+        self._templating_payloads: Dict[_ParentId, List[Dict[str, Any]]] = _BoundedDict()
         """Templating events are sibling events preceding the LLM event. We won't be turning
         the templating events into spans but will extract values from their payloads to update
         the corresponding LLM span attributes.
