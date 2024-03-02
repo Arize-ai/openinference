@@ -271,7 +271,7 @@ def test_async_concurrent(
     for span in spans:
         traces[span.context.trace_id][span.name] = span
 
-    assert len(traces) == len(questions)
+    assert len(traces) == n
 
     for spans_by_name in traces.values():
         assert (query_span := spans_by_name.pop("query")) is not None
