@@ -2,6 +2,7 @@ import json
 import logging
 from dataclasses import dataclass
 from enum import Enum
+from threading import RLock
 from time import time_ns
 from types import MappingProxyType
 from typing import (
@@ -192,6 +193,7 @@ def _extract_invocation_parameters(serialized: Mapping[str, Any]) -> Dict[str, A
 class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
     __slots__ = (
         "_tracer",
+        "_lock",
         "_event_data",
         "_templating_parent_id",
         "_templating_payloads",
@@ -200,6 +202,7 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
     def __init__(self, tracer: trace_api.Tracer) -> None:
         super().__init__(event_starts_to_ignore=[], event_ends_to_ignore=[])
         self._tracer = tracer
+        self._lock = RLock()
         self._event_data: Dict[_EventId, _EventData] = _BoundedDict(fn=_finish_tracing)
         self._templating_parent_id: Dict[_EventId, _ParentId] = _BoundedDict()
         self._templating_payloads: Dict[_ParentId, List[Dict[str, Any]]] = _BoundedDict()
@@ -239,23 +242,25 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
                 )
                 attributes = {}
 
-        if event_type is CBEventType.TEMPLATING:
-            self._templating_parent_id[event_id] = parent_id
-            if payloads:
-                if parent_id in self._templating_payloads:
-                    self._templating_payloads[parent_id].extend(payloads)
-                else:
-                    self._templating_payloads[parent_id] = payloads
-            return event_id
-        elif event_type is CBEventType.LLM:
-            for templating_payload in self._templating_payloads.pop(parent_id, ()):
-                attributes.update(_template_attributes(templating_payload))
+        with self._lock:
+            if event_type is CBEventType.TEMPLATING:
+                self._templating_parent_id[event_id] = parent_id
+                if payloads:
+                    if parent_id in self._templating_payloads:
+                        self._templating_payloads[parent_id].extend(payloads)
+                    else:
+                        self._templating_payloads[parent_id] = payloads
+                return event_id
+            if event_type is CBEventType.LLM:
+                for templating_payload in self._templating_payloads.pop(parent_id, ()):
+                    attributes.update(_template_attributes(templating_payload))
 
         start_time = time_ns()
         context = None
         if parent_id != BASE_TRACE_EVENT:
-            if parent_event_data := self._event_data.get(parent_id):
-                context = parent_event_data.context
+            with self._lock:
+                if parent_event_data := self._event_data.get(parent_id):
+                    context = parent_event_data.context
         # Instead of relying on automatic context lookup, we set the context
         # manually based on `parent_id``, because using the automatic context
         # may produce a family tree that is different from what LlamaIndex has
@@ -274,16 +279,17 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         # worse is that the error could have also prevented the span from being exported,
         # leaving all future spans as orphans. That is a very bad scenario.
         # token = context_api.attach(new_context)
-        self._event_data[event_id] = _EventData(
-            span=span,
-            parent_id=parent_id,
-            context=new_context,
-            start_time=start_time,
-            event_type=event_type,
-            payloads=payloads,
-            exceptions=exceptions,
-            attributes=attributes,
-        )
+        with self._lock:
+            self._event_data[event_id] = _EventData(
+                span=span,
+                parent_id=parent_id,
+                context=new_context,
+                start_time=start_time,
+                event_type=event_type,
+                payloads=payloads,
+                exceptions=exceptions,
+                attributes=attributes,
+            )
         return event_id
 
     def on_event_end(
@@ -296,16 +302,16 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
 
-        if event_type is CBEventType.TEMPLATING:
-            if (parent_id := self._templating_parent_id.pop(event_id, None)) and payload:
-                if parent_id in self._templating_payloads:
-                    self._templating_payloads[parent_id].append(payload)
-                else:
-                    self._templating_payloads[parent_id] = [payload]
-            return
-
-        if not (event_data := self._event_data.pop(event_id, None)):
-            return
+        with self._lock:
+            if event_type is CBEventType.TEMPLATING:
+                if (parent_id := self._templating_parent_id.pop(event_id, None)) and payload:
+                    if parent_id in self._templating_payloads:
+                        self._templating_payloads[parent_id].append(payload)
+                    else:
+                        self._templating_payloads[parent_id] = [payload]
+                return
+            if not (event_data := self._event_data.pop(event_id, None)):
+                return
 
         event_data.end_time = time_ns()
         is_dispatched = False

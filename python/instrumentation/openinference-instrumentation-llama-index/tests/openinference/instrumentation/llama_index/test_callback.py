@@ -3,6 +3,7 @@ import json
 import logging
 import random
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from itertools import count
 from typing import (
@@ -227,14 +228,16 @@ def test_callback_llm(
     assert spans_by_name == {}
 
 
+@pytest.mark.parametrize("is_async", [True, False])
 @pytest.mark.parametrize("status_code", [200, 400])
-def test_async_concurrent(
+def test_concurrent(
+    is_async: bool,
     status_code: int,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     nodes: List[Document],
 ) -> None:
-    n = 5  # number of concurrent queries
+    n = 10  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     answer = randstr()
     callback_manager = CallbackManager()
@@ -257,14 +260,19 @@ def test_async_concurrent(
         )
     )
 
-    async def task() -> None:
-        await asyncio.gather(
-            *[query_engine.aquery(question) for question in questions],
-            return_exceptions=True,
-        )
+    if is_async:
 
-    with suppress(openai.BadRequestError):
-        asyncio.run(task())
+        async def task() -> None:
+            await asyncio.gather(
+                *[query_engine.aquery(question) for question in questions],
+                return_exceptions=True,
+            )
+
+        with suppress(openai.BadRequestError):
+            asyncio.run(task())
+    else:
+        with ThreadPoolExecutor(max_workers=n) as executor:
+            executor.map(query_engine.query, questions)
 
     spans = in_memory_span_exporter.get_finished_spans()
     traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
