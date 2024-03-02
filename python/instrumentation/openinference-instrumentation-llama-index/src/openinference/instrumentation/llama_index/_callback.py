@@ -63,7 +63,7 @@ class _EventData:
     payloads: List[Dict[_EventId, Any]]
     exceptions: List[Exception]
     event_type: CBEventType
-    attributes: Dict[_EventId, Any]
+    attributes: Dict[str, Any]
     start_time: int
     end_time: Optional[int] = None
     is_dispatched: bool = False
