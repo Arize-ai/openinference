@@ -2,11 +2,13 @@ import asyncio
 import json
 import logging
 import random
+from collections import defaultdict
 from contextlib import suppress
 from itertools import count
 from typing import (
     Any,
     AsyncIterator,
+    DefaultDict,
     Dict,
     Generator,
     Iterable,
@@ -35,6 +37,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from respx import MockRouter
@@ -222,6 +225,148 @@ def test_callback_llm(
     assert chunking_attributes == {}
 
     assert spans_by_name == {}
+
+
+@pytest.mark.parametrize("status_code", [200, 400])
+def test_async_concurrent(
+    status_code: int,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    nodes: List[Document],
+) -> None:
+    n = 5  # number of concurrent queries
+    questions = {randstr() for _ in range(n)}
+    answer = randstr()
+    callback_manager = CallbackManager()
+    Settings.callback_manager = callback_manager
+    Settings.llm = OpenAI()
+    query_engine = ListIndex(nodes).as_query_engine()
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=status_code,
+            json={
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": answer},
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+        )
+    )
+
+    async def task() -> None:
+        await asyncio.gather(
+            *[query_engine.aquery(question) for question in questions],
+            return_exceptions=True,
+        )
+
+    with suppress(openai.BadRequestError):
+        asyncio.run(task())
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
+    for span in spans:
+        traces[span.context.trace_id][span.name] = span
+
+    assert len(traces) == len(questions)
+
+    for spans_by_name in traces.values():
+        assert (query_span := spans_by_name.pop("query")) is not None
+        assert query_span.parent is None
+        query_attributes = dict(query_span.attributes or {})
+        assert query_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+        question = query_attributes.pop(INPUT_VALUE, None)
+        assert question is not None
+        assert question in questions
+        questions.remove(cast(str, question))
+        if status_code == 200:
+            assert query_span.status.status_code == trace_api.StatusCode.OK
+            assert query_attributes.pop(OUTPUT_VALUE, None) == answer
+        assert query_attributes == {}
+
+        assert (synthesize_span := spans_by_name.pop("synthesize")) is not None
+        assert synthesize_span.parent is not None
+        assert synthesize_span.parent.span_id == query_span.context.span_id
+        assert synthesize_span.context.trace_id == query_span.context.trace_id
+        synthesize_attributes = dict(synthesize_span.attributes or {})
+        assert synthesize_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+        assert synthesize_attributes.pop(INPUT_VALUE, None) == question
+        if status_code == 200:
+            assert synthesize_span.status.status_code == trace_api.StatusCode.OK
+            assert not synthesize_span.status.description
+            assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
+        assert synthesize_attributes == {}
+
+        assert (retrieve_span := spans_by_name.pop("retrieve")) is not None
+        assert retrieve_span.parent is not None
+        assert retrieve_span.parent.span_id == query_span.context.span_id
+        assert retrieve_span.context.trace_id == query_span.context.trace_id
+        retrieve_attributes = dict(retrieve_span.attributes or {})
+        assert retrieve_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
+        assert retrieve_attributes.pop(INPUT_VALUE, None) == question
+        retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_ID}", None)
+        retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_ID}", None)
+        assert (
+            retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}", None)
+            == nodes[0].text
+        )
+        assert retrieve_attributes.pop(
+            f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_METADATA}", None
+        ) == json.dumps(nodes[0].metadata)
+        assert (
+            retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}", None)
+            == nodes[1].text
+        )
+        assert retrieve_attributes == {}
+
+        if status_code == 200:
+            # FIXME: LlamaIndex doesn't currently capture the LLM span when status_code == 400
+            # For example, if an exception is raised by the LLM at the following location,
+            # `on_event_end` never gets called.
+            # https://github.com/run-llama/llama_index/blob/dcef41ee67925cccf1ee7bb2dd386bcf0564ba29/llama_index/llms/base.py#L100 # noqa E501
+            assert (llm_span := spans_by_name.pop("llm", None)) is not None
+            assert llm_span.parent is not None
+            assert llm_span.parent.span_id == synthesize_span.context.span_id
+            assert llm_span.context.trace_id == synthesize_span.context.trace_id
+            llm_attributes = dict(llm_span.attributes or {})
+            assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+            assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None
+            assert llm_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+            assert llm_attributes.pop(LLM_PROMPT_TEMPLATE, None) is not None
+            template_variables = json.loads(
+                cast(str, llm_attributes.pop(f"{LLM_PROMPT_TEMPLATE_VARIABLES}", None))
+            )
+            assert template_variables.keys() == {"context_str", "query_str"}
+            assert template_variables["query_str"] == question
+            assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) is not None
+            assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
+            assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) is not None
+            assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}", None) is not None
+            assert llm_span.status.status_code == trace_api.StatusCode.OK
+            assert not synthesize_span.status.description
+            assert llm_attributes.pop(OUTPUT_VALUE, None) == answer
+            assert (
+                llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "assistant"
+            )
+            assert llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
+            assert llm_attributes == {}
+
+        # FIXME: maybe chunking spans should be discarded?
+        assert (chunking_span := spans_by_name.pop("chunking", None)) is not None
+        assert chunking_span.parent is not None
+        assert chunking_span.parent.span_id == synthesize_span.context.span_id
+        assert chunking_span.context.trace_id == synthesize_span.context.trace_id
+        chunking_attributes = dict(chunking_span.attributes or {})
+        assert chunking_attributes.pop(OPENINFERENCE_SPAN_KIND, None) is not None
+        assert chunking_attributes == {}
+
+        assert spans_by_name == {}
+
+    # all questions have been popped
+    assert len(questions) == 0
 
 
 @pytest.fixture
