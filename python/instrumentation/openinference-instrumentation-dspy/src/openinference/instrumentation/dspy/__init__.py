@@ -499,8 +499,9 @@ def _get_signature_name(signature: Any) -> Optional[str]:
         # At the time of this writing, the __name__ attribute on signatures does
         # not return the user-defined class name, but __qualname__ does.
         qual_name := getattr(signature, "__qualname__", None)
-    ) is not None:
-        return qual_name.split(".")[-1]
+    ) is None:
+        return None
+    return str(qual_name.split(".")[-1])
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
