@@ -183,7 +183,7 @@ def _check_spans(
         assert query_span.status.description and query_span.status.description.startswith(
             openai.BadRequestError.__name__,
         )
-    assert len(synthesize_attributes) == 0
+    assert synthesize_attributes == {}
 
     assert (retrieve_span := spans_by_name.pop("retrieve")) is not None
     assert retrieve_span.parent is not None
@@ -205,7 +205,7 @@ def _check_spans(
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}", None)
         == nodes[1].text
     )
-    assert len(retrieve_attributes) == 0
+    assert retrieve_attributes == {}
 
     if status_code == 200:
         # FIXME: LlamaIndex doesn't currently capture the LLM span when status_code == 400
@@ -239,7 +239,7 @@ def _check_spans(
                 llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "assistant"
             )
             assert llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
-        assert len(llm_attributes) == 0
+        assert llm_attributes == {}
 
     # FIXME: maybe chunking spans should be discarded?
     assert (chunking_span := spans_by_name.pop("chunking", None)) is not None
@@ -248,9 +248,9 @@ def _check_spans(
     assert chunking_span.context.trace_id == synthesize_span.context.trace_id
     chunking_attributes = dict(chunking_span.attributes or {})
     assert chunking_attributes.pop(OPENINFERENCE_SPAN_KIND, None) is not None
-    assert len(chunking_attributes) == 0
+    assert chunking_attributes == {}
 
-    assert len(spans_by_name) == 0
+    assert spans_by_name == {}
 
     return question
 
