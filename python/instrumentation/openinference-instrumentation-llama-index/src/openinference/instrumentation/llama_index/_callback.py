@@ -1,6 +1,5 @@
 import json
 import logging
-from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 from time import time_ns
@@ -8,7 +7,6 @@ from types import MappingProxyType
 from typing import (
     Any,
     Callable,
-    DefaultDict,
     Dict,
     Iterable,
     Iterator,
@@ -438,38 +436,6 @@ class _ResponseGen(ObjectProxy):  # type: ignore
         else:
             self._self_tokens.append(value)
             return value
-
-
-def _pop_event_data(
-    event_data: Dict[_EventId, _EventData],
-    trace_map: Optional[Mapping[str, List[str]]],
-) -> Iterator[Tuple[_EventId, _EventData]]:
-    if not trace_map:
-        return
-    for _, v in trace_map.items():
-        for id_ in v:
-            if event := event_data.pop(id_, None):
-                yield id_, event
-
-
-def _build_graph(
-    events: Iterable[Tuple[_EventId, _EventData]],
-) -> Tuple[
-    List[Tuple[_EventId, _EventData]],
-    DefaultDict[_EventId, List[Tuple[_EventId, _EventData]]],
-]:
-    """
-    Builds a graph from the event data and returns a tuple of root nodes and the adjacency list,
-    where child nodes are sorted by ascending start time.
-    """
-    adjacency_list: DefaultDict[_EventId, List[Tuple[_EventId, _EventData]]] = defaultdict(list)
-    roots: List[Tuple[_EventId, _EventData]] = []
-    for id_, data in events:
-        events = roots if data.parent_id == BASE_TRACE_EVENT else adjacency_list[data.parent_id]
-        events.append((id_, data))
-    for id_, children in adjacency_list.items():
-        adjacency_list[id_] = sorted(children, key=lambda x: x[1].start_time)
-    return roots, adjacency_list
 
 
 def _finish_tracing(event_data: _EventData) -> None:
