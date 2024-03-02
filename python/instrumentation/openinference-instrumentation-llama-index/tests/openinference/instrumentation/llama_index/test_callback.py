@@ -240,8 +240,7 @@ def test_concurrent(
     n = 10  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     answer = randstr()
-    callback_manager = CallbackManager()
-    Settings.callback_manager = callback_manager
+    Settings.callback_manager = CallbackManager()
     Settings.llm = OpenAI()
     query_engine = ListIndex(nodes).as_query_engine()
     url = "https://api.openai.com/v1/chat/completions"
@@ -264,7 +263,7 @@ def test_concurrent(
 
         async def task() -> None:
             await asyncio.gather(
-                *[query_engine.aquery(question) for question in questions],
+                *(query_engine.aquery(question) for question in questions),
                 return_exceptions=True,
             )
 
