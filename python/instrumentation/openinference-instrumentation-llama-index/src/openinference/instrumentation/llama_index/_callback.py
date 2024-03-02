@@ -76,11 +76,6 @@ class _EventData:
     """
 
 
-@dataclass
-class _TemplatingData:
-    ...
-
-
 def payload_to_semantic_attributes(
     event_type: CBEventType,
     payload: Dict[str, Any],
