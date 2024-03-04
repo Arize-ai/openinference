@@ -16,7 +16,6 @@ from typing import (
     Iterator,
     List,
     Optional,
-    Set,
     Tuple,
     cast,
 )
@@ -128,7 +127,7 @@ def test_callback_llm(
 
     assert len(traces) == n
     for spans_by_name in traces.values():
-        question = _check_spans(spans_by_name, questions, answer, nodes, status_code, is_stream)
+        question = _check_spans(spans_by_name, answer, nodes, status_code, is_stream)
         assert question in questions
         questions.remove(question)
     assert len(questions) == 0
@@ -136,7 +135,6 @@ def test_callback_llm(
 
 def _check_spans(
     spans_by_name: Dict[str, ReadableSpan],
-    questions: Set[str],
     answer: str,
     nodes: List[Document],
     status_code: int,
