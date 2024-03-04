@@ -51,9 +51,9 @@ class _ResponseAttributesExtractor:
         self._openai = openai
         self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
         self._completion_type: Type["Completion"] = openai.types.Completion
-        self._create_embedding_response_type: Type[
-            "CreateEmbeddingResponse"
-        ] = openai.types.CreateEmbeddingResponse
+        self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
+            openai.types.CreateEmbeddingResponse
+        )
 
     def get_attributes_from_response(
         self,
