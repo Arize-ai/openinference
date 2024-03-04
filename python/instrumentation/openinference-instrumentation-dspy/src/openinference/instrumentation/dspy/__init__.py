@@ -2,7 +2,7 @@ import json
 from abc import ABC
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Optional, Tuple
 
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
@@ -246,12 +246,12 @@ class _PredictForwardWrapper(_WithTracer):
 
     def _prediction_to_output_dict(self, prediction: Any, signature: Any) -> Dict[str, Any]:
         """
-        Parse the prediction fields to get the input and output fields
+        Parse the prediction to get output fields
         """
         output = {}
-        for field in signature.fields:
-            if field.output_variable and field.output_variable in prediction:
-                output[field.output_variable] = prediction.get(field.output_variable)
+        for output_field_name in signature.output_fields:
+            if (prediction_value := prediction.get(output_field_name)) is not None:
+                output[output_field_name] = prediction_value
         return output
 
 
@@ -485,10 +485,23 @@ def _get_predict_span_name(instance: Any) -> str:
     """
     class_name = str(instance.__class__.__name__)
     if (signature := getattr(instance, "signature", None)) and (
-        signature_name := getattr(signature, "__name__", None)
+        signature_name := _get_signature_name(signature)
     ):
         return f"{class_name}({signature_name}).forward"
     return f"{class_name}.forward"
+
+
+def _get_signature_name(signature: Any) -> Optional[str]:
+    """
+    A best-effort attempt to get the name of a signature.
+    """
+    if (
+        # At the time of this writing, the __name__ attribute on signatures does
+        # not return the user-defined class name, but __qualname__ does.
+        qual_name := getattr(signature, "__qualname__", None)
+    ) is None:
+        return None
+    return str(qual_name.split(".")[-1])
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
