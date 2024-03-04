@@ -9,7 +9,6 @@ import uvicorn
 from app.api.routers.chat import chat_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from instrument import instrument
 
 do_not_instrument = os.getenv("INSTRUMENT_LLAMA_INDEX", "true") == "false"
