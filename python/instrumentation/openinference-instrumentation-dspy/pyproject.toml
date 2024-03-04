@@ -38,6 +38,7 @@ test = [
   "dspy-ai==2.3.4",
   "opentelemetry-sdk",
   "responses",
+  "respx==0.20.2",
 ]
 
 [project.urls]
