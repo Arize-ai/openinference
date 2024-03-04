@@ -1,10 +1,12 @@
 import json
-from typing import Generator
+from typing import Any, Generator
 
 import dspy
 import pytest
 import responses
+import respx
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
+from httpx import Response
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -55,9 +57,9 @@ def clear_cache() -> None:
     NotebookCacheMemory.clear()
 
 
-@responses.activate
 def test_openai_lm(
     in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
 ) -> None:
     class BasicQA(dspy.Signature):  # type: ignore
         """Answer questions with short factoid answers."""
@@ -69,29 +71,29 @@ def test_openai_lm(
     dspy.settings.configure(lm=turbo)
 
     # Mock out the OpenAI API.
-    responses.add(
-        method=responses.POST,
-        url="https://api.openai.com/v1/chat/completions",
-        json={
-            "id": "chatcmpl-8kKarJQUyeuFeRsj18o6TWrxoP2zs",
-            "object": "chat.completion",
-            "created": 1706052941,
-            "model": "gpt-3.5-turbo-0613",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": "Washington DC",
-                    },
-                    "logprobs": None,
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {"prompt_tokens": 39, "completion_tokens": 396, "total_tokens": 435},
-            "system_fingerprint": None,
-        },
-        status=200,
+    respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "chatcmpl-8kKarJQUyeuFeRsj18o6TWrxoP2zs",
+                "object": "chat.completion",
+                "created": 1706052941,
+                "model": "gpt-3.5-turbo-0613",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "Washington DC",
+                        },
+                        "logprobs": None,
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 39, "completion_tokens": 396, "total_tokens": 435},
+                "system_fingerprint": None,
+            },
+        )
     )
 
     # Define the predictor.
@@ -114,6 +116,7 @@ def test_openai_lm(
 @responses.activate
 def test_rag_module(
     in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
 ) -> None:
     class BasicQA(dspy.Signature):  # type: ignore
         """Answer questions with short factoid answers."""
@@ -178,29 +181,29 @@ def test_rag_module(
     )
 
     # Mock out the OpenAI API.
-    responses.add(
-        method=responses.POST,
-        url="https://api.openai.com/v1/chat/completions",
-        json={
-            "id": "chatcmpl-8kKarJQUyeuFeRsj18o6TWrxoP2zs",
-            "object": "chat.completion",
-            "created": 1706052941,
-            "model": "gpt-3.5-turbo-0613",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": "Washington, D.C.",
-                    },
-                    "logprobs": None,
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {"prompt_tokens": 39, "completion_tokens": 396, "total_tokens": 435},
-            "system_fingerprint": None,
-        },
-        status=200,
+    respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "chatcmpl-8kKarJQUyeuFeRsj18o6TWrxoP2zs",
+                "object": "chat.completion",
+                "created": 1706052941,
+                "model": "gpt-3.5-turbo-0613",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "Washington, D.C.",
+                        },
+                        "logprobs": None,
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 39, "completion_tokens": 396, "total_tokens": 435},
+                "system_fingerprint": None,
+            },
+        )
     )
 
     rag = RAG()
