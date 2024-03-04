@@ -32,12 +32,13 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "dspy-ai >= 2.1.0",
+  "dspy-ai >= 2.3.4",
 ]
 test = [
-  "dspy-ai==2.1.0",
+  "dspy-ai==2.3.4",
   "opentelemetry-sdk",
   "responses",
+  "respx==0.20.2",
 ]
 
 [project.urls]
