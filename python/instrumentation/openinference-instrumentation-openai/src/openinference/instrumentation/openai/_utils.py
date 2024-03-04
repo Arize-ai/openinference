@@ -81,11 +81,9 @@ def _as_output_attributes(
 
 
 class _HasAttributes(Protocol):
-    def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        ...
+    def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]: ...
 
-    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        ...
+    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]: ...
 
 
 def _finish_tracing(

@@ -40,8 +40,7 @@ class _CanGetAttributesFromResponse(Protocol):
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        ...
+    ) -> Iterator[Tuple[str, AttributeValue]]: ...
 
 
 class _ChatCompletionAccumulator:
