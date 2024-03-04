@@ -203,7 +203,7 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         super().__init__(event_starts_to_ignore=[], event_ends_to_ignore=[])
         self._tracer = tracer
         self._lock = RLock()
-        self._event_data: Dict[_EventId, _EventData] = _BoundedDict(fn=_finish_tracing)
+        self._event_data: Dict[_EventId, _EventData] = _BoundedDict(on_evict_fn=_finish_tracing)
         self._templating_parent_id: Dict[_EventId, _ParentId] = _BoundedDict()
         self._templating_payloads: Dict[_ParentId, List[Dict[str, Any]]] = _BoundedDict()
         """Templating events are sibling events preceding the LLM event. We won't be turning
@@ -345,7 +345,10 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        """This is intentionally empty."""
+        """
+        This is intentionally empty because each OTEL span only needs `on_event_start`, and
+        will be exported at `on_event_end`.
+        """
 
     def end_trace(
         self,
@@ -354,7 +357,10 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        """This is intentionally empty."""
+        """
+        This is intentionally empty because each OTEL span only needs `on_event_start`, and
+        `trace_map` is not used because each `on_event_start` call already provides `parent_id`.
+        """
 
 
 _Value = TypeVar("_Value")
@@ -369,17 +375,19 @@ class _BoundedDict(OrderedDict[str, _Value]):
     reaches that capacity, the oldest item by insertion order will be popped.
     """  # noqa: E501
 
-    def __init__(self, capacity: int = 1000, fn: Optional[Callable[[_Value], None]] = None) -> None:
+    def __init__(
+        self, capacity: int = 1000, on_evict_fn: Optional[Callable[[_Value], None]] = None
+    ) -> None:
         super().__init__()
         self._capacity = capacity
-        self._fn = fn
+        self._on_evict_fn = on_evict_fn
 
     def __setitem__(self, key: str, value: _Value) -> None:
         if key not in self and len(self) >= self._capacity > 0:
             # pop the oldest item by insertion order
             _, oldest = self.popitem(last=False)
-            if self._fn:
-                self._fn(oldest)
+            if self._on_evict_fn:
+                self._on_evict_fn(oldest)
         super().__setitem__(key, value)
 
 

@@ -129,6 +129,7 @@ def test_callback_llm(
     assert len(traces) == n
     for spans_by_name in traces.values():
         question = _check_spans(spans_by_name, questions, answer, nodes, status_code, is_stream)
+        assert question in questions
         questions.remove(question)
     assert len(questions) == 0
 
@@ -147,7 +148,6 @@ def _check_spans(
     assert query_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
     question = cast(Optional[str], query_attributes.pop(INPUT_VALUE, None))
     assert question is not None
-    assert question in questions
     if status_code == 200:
         assert query_span.status.status_code == trace_api.StatusCode.OK
         assert not query_span.status.description
