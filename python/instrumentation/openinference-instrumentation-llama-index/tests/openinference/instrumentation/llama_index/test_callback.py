@@ -2,16 +2,20 @@ import asyncio
 import json
 import logging
 import random
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from itertools import count
 from typing import (
     Any,
     AsyncIterator,
+    DefaultDict,
     Dict,
     Generator,
     Iterable,
     Iterator,
     List,
+    Optional,
     Tuple,
     cast,
 )
@@ -35,6 +39,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from respx import MockRouter
@@ -66,7 +71,8 @@ def test_callback_llm(
     nodes: List[Document],
     chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
 ) -> None:
-    question = randstr()
+    n = 10  # number of concurrent queries
+    questions = {randstr() for _ in range(n)}
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
     callback_manager = CallbackManager()
     Settings.callback_manager = callback_manager
@@ -98,27 +104,48 @@ def test_callback_llm(
         if is_async:
 
             async def task() -> None:
-                await query_engine.aquery(question)
-                # FIXME: stream + async is not supported by LlamaIndex as of v0.9.33
-                # if is_stream:
-                #     async for _ in response.response_gen:
-                #         pass
+                await asyncio.gather(
+                    *(query_engine.aquery(question) for question in questions),
+                    return_exceptions=True,
+                )
 
             asyncio.run(task())
         else:
-            response = query_engine.query(question)
-            if is_stream:
-                for _ in cast(StreamingResponse, response).response_gen:
-                    pass
+            with ThreadPoolExecutor(max_workers=n) as executor:
+                executor.map(
+                    lambda question: (
+                        (response := query_engine.query(question)),
+                        list(cast(StreamingResponse, response).response_gen) if is_stream else None,
+                    ),
+                    questions,
+                )
 
     spans = in_memory_span_exporter.get_finished_spans()
-    spans_by_name = {span.name: span for span in spans}
+    traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
+    for span in spans:
+        traces[span.context.trace_id][span.name] = span
 
+    assert len(traces) == n
+    for spans_by_name in traces.values():
+        question = _check_spans(spans_by_name, answer, nodes, status_code, is_stream)
+        assert question in questions
+        questions.remove(question)
+    assert len(questions) == 0
+
+
+def _check_spans(
+    spans_by_name: Dict[str, ReadableSpan],
+    answer: str,
+    nodes: List[Document],
+    status_code: int,
+    is_stream: bool,
+) -> str:
     assert (query_span := spans_by_name.pop("query")) is not None
     assert query_span.parent is None
     query_attributes = dict(query_span.attributes or {})
     assert query_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-    assert query_attributes.pop(INPUT_VALUE, None) == question
+    question = cast(Optional[str], query_attributes.pop(INPUT_VALUE, None))
+    assert question is not None
     if status_code == 200:
         assert query_span.status.status_code == trace_api.StatusCode.OK
         assert not query_span.status.description
@@ -222,6 +249,8 @@ def test_callback_llm(
     assert chunking_attributes == {}
 
     assert spans_by_name == {}
+
+    return question
 
 
 @pytest.fixture

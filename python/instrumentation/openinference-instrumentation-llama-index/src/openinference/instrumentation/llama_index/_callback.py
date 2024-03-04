@@ -1,13 +1,13 @@
 import json
 import logging
-from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
+from threading import RLock
 from time import time_ns
 from types import MappingProxyType
 from typing import (
     Any,
-    DefaultDict,
+    Callable,
     Dict,
     Iterable,
     Iterator,
@@ -16,6 +16,7 @@ from typing import (
     Optional,
     OrderedDict,
     Tuple,
+    TypeVar,
     Union,
     cast,
 )
@@ -50,14 +51,15 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 _EventId: TypeAlias = str
+_ParentId: TypeAlias = str
 
 
 @dataclass
 class _EventData:
     span: trace_api.Span
-    parent_id: str
+    parent_id: _ParentId
     context: Optional[context_api.Context]
-    payloads: List[Dict[str, Any]]
+    payloads: List[Dict[_EventId, Any]]
     exceptions: List[Exception]
     event_type: CBEventType
     attributes: Dict[str, Any]
@@ -191,23 +193,22 @@ def _extract_invocation_parameters(serialized: Mapping[str, Any]) -> Dict[str, A
 class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
     __slots__ = (
         "_tracer",
+        "_lock",
         "_event_data",
-        "_stragglers",
+        "_templating_parent_id",
+        "_templating_payloads",
     )
 
     def __init__(self, tracer: trace_api.Tracer) -> None:
         super().__init__(event_starts_to_ignore=[], event_ends_to_ignore=[])
         self._tracer = tracer
-        self._event_data: Dict[_EventId, _EventData] = {}
-        self._stragglers: Dict[_EventId, _EventData] = _Stragglers(capacity=1000)
-        """
-        Stragglers are events that have not ended before their traces have ended. An example
-        of a straggler is the LLM event when streaming is true, in which case its `on_event_end`
-        is only called after the trace has ended. If an event is a straggler, then we are still
-        waiting for its `on_event_end` to be called after its trace has ended. However, this call
-        may never take place. Therefore, to prevent memory leak, this container is limited to a
-        certain capacity. When it exceeds that capacity, the oldest straggler by insertion order
-        is popped and are forced to finish tracing.
+        self._lock = RLock()
+        self._event_data: Dict[_EventId, _EventData] = _BoundedDict(on_evict_fn=_finish_tracing)
+        self._templating_parent_id: Dict[_EventId, _ParentId] = _BoundedDict()
+        self._templating_payloads: Dict[_ParentId, List[Dict[str, Any]]] = _BoundedDict()
+        """Templating events are sibling events preceding the LLM event. We won't be turning
+        the templating events into spans but will extract values from their payloads to update
+        the corresponding LLM span attributes.
         """
 
     def on_event_start(
@@ -241,11 +242,25 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
                 )
                 attributes = {}
 
+        with self._lock:
+            if event_type is CBEventType.TEMPLATING:
+                self._templating_parent_id[event_id] = parent_id
+                if payloads:
+                    if parent_id in self._templating_payloads:
+                        self._templating_payloads[parent_id].extend(payloads)
+                    else:
+                        self._templating_payloads[parent_id] = payloads
+                return event_id
+            if event_type is CBEventType.LLM:
+                for templating_payload in self._templating_payloads.pop(parent_id, ()):
+                    attributes.update(_template_attributes(templating_payload))
+
         start_time = time_ns()
         context = None
         if parent_id != BASE_TRACE_EVENT:
-            if parent_event_data := self._event_data.get(parent_id):
-                context = parent_event_data.context
+            with self._lock:
+                if parent_event_data := self._event_data.get(parent_id):
+                    context = parent_event_data.context
         # Instead of relying on automatic context lookup, we set the context
         # manually based on `parent_id``, because using the automatic context
         # may produce a family tree that is different from what LlamaIndex has
@@ -264,16 +279,17 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
         # worse is that the error could have also prevented the span from being exported,
         # leaving all future spans as orphans. That is a very bad scenario.
         # token = context_api.attach(new_context)
-        self._event_data[event_id] = _EventData(
-            span=span,
-            parent_id=parent_id,
-            context=new_context,
-            start_time=start_time,
-            event_type=event_type,
-            payloads=payloads,
-            exceptions=exceptions,
-            attributes=attributes,
-        )
+        with self._lock:
+            self._event_data[event_id] = _EventData(
+                span=span,
+                parent_id=parent_id,
+                context=new_context,
+                start_time=start_time,
+                event_type=event_type,
+                payloads=payloads,
+                exceptions=exceptions,
+                attributes=attributes,
+            )
         return event_id
 
     def on_event_end(
@@ -285,20 +301,20 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
     ) -> None:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
-        if event_data := self._event_data.get(event_id):
-            is_straggler = False
-        elif event_data := self._stragglers.get(event_id):
-            # Stragglers are events that have not ended before their traces have ended.
-            # When `on_trace_end` is called, any event without an end time is flagged
-            # as a straggler. An example straggler is the LLM event when streaming is
-            # true, in which case `on_event_end` for the LLM event is only called after
-            # the stream has been consumed, but `on_trace_end` will be called before
-            # the stream can be iterated on.
-            is_straggler = True
-        else:
-            return
+
+        with self._lock:
+            if event_type is CBEventType.TEMPLATING:
+                if (parent_id := self._templating_parent_id.pop(event_id, None)) and payload:
+                    if parent_id in self._templating_payloads:
+                        self._templating_payloads[parent_id].append(payload)
+                    else:
+                        self._templating_payloads[parent_id] = [payload]
+                return
+            if not (event_data := self._event_data.pop(event_id, None)):
+                return
 
         event_data.end_time = time_ns()
+        is_dispatched = False
 
         if payload is not None:
             event_data.payloads.append(payload.copy())
@@ -314,90 +330,64 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
                     f"event_type={event_type}, payload={payload}",
                 )
             if (
-                not is_straggler
-                and _is_streaming_response(response := payload.get(EventPayload.RESPONSE))
+                _is_streaming_response(response := payload.get(EventPayload.RESPONSE))
                 and response.response_gen is not None
             ):
                 response.response_gen = _ResponseGen(response.response_gen, event_data)
-                event_data.is_dispatched = True
+                is_dispatched = True
 
-        if is_straggler:
-            # This can happen if `on_event_end` is called after `on_trace_end`, e.g. in the case of
-            # the LLM span when streaming is true.
+        if not is_dispatched:
             _finish_tracing(event_data)
-            self._stragglers.pop(event_id)
 
-    def start_trace(self, trace_id: Optional[str] = None) -> None:
-        self._event_data.clear()
+    def start_trace(
+        self,
+        trace_id: Optional[str] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        """
+        This is intentionally empty because each OTEL span only needs `on_event_start`, and
+        will be exported at `on_event_end`.
+        """
 
-    def end_trace(self, trace_id: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-            return
-        roots, adjacency_list = _build_graph(self._event_data)
-        self._event_data.clear()
-        dfs_stack = roots.copy()
-        while dfs_stack:
-            event_id, event_data = dfs_stack.pop()
-            event_type = event_data.event_type
-            attributes = event_data.attributes
-
-            if event_type is CBEventType.LLM:
-                # Need to update the template variables attribute by extracting their values
-                # from the template events, which are sibling events preceding the LLM event.
-                # Note that the stack should be sorted in chronological order, and we are
-                # going backwards in time on the stack.
-                while dfs_stack:
-                    _, preceding_event_data = dfs_stack[-1]
-                    if (
-                        preceding_event_data.parent_id != event_data.parent_id
-                        or preceding_event_data.event_type is not CBEventType.TEMPLATING
-                    ):
-                        break
-                    dfs_stack.pop()  # remove template event from stack
-                    for payload in preceding_event_data.payloads:
-                        # Add template attributes to the LLM span to which they belong.
-                        try:
-                            attributes.update(_template_attributes(payload))
-                        except Exception:
-                            logger.exception(
-                                f"Failed to convert payload to semantic attributes. "
-                                f"event_type={preceding_event_data.event_type}, payload={payload}",
-                            )
-
-            if event_data.end_time is None:
-                self._stragglers[event_id] = event_data
-            elif not event_data.is_dispatched:
-                _finish_tracing(event_data)
-            dfs_stack.extend(adjacency_list[event_id])
+    def end_trace(
+        self,
+        trace_id: Optional[str] = None,
+        trace_map: Optional[Dict[str, List[str]]] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        """
+        This is intentionally empty because each OTEL span only needs `on_event_start`, and
+        `trace_map` is not used because each `on_event_start` call already provides `parent_id`.
+        """
 
 
-class _Stragglers(OrderedDict[_EventId, _EventData]):
+_Value = TypeVar("_Value")
+
+
+class _BoundedDict(OrderedDict[str, _Value]):
     """
-    Stragglers are events that have not ended before their traces have ended. If an event is in
-    this container, then we are still waiting for its `on_event_end` to be called after its trace
-    has ended. However, this call may never take place. One example is when the LLM raises an
-    exception in the following code location, in which case the LLM event never ends.
+    One use case for this is when the LLM raises an exception in the following code location, in
+    which case the LLM event will never be popped and will remain in the container forever.
     https://github.com/run-llama/llama_index/blob/dcef41ee67925cccf1ee7bb2dd386bcf0564ba29/llama_index/llms/base.py#L62
     Therefore, to prevent memory leak, this container is limited to a certain capacity, and when it
-    exceeds that capacity, the oldest straggler by insertion order is popped and are forced to
-    finish tracing.
+    reaches that capacity, the oldest item by insertion order will be popped.
     """  # noqa: E501
 
-    def __init__(self, capacity: int) -> None:
+    def __init__(
+        self, capacity: int = 1000, on_evict_fn: Optional[Callable[[_Value], None]] = None
+    ) -> None:
         super().__init__()
         self._capacity = capacity
+        self._on_evict_fn = on_evict_fn
 
-    def __setitem__(self, key: _EventId, value: _EventData) -> None:
+    def __setitem__(self, key: str, value: _Value) -> None:
         if key not in self and len(self) >= self._capacity > 0:
-            # pop the oldest straggler by insertion order
-            _, event_data = self.popitem(last=False)
-            # FIXME: It's unclear whether we should call `_finish_tracing` here or simply drop
-            # the event data, and if we call finish tracing, what status we should set it to.
-            # Note that calling `_finish_tracing` here would set status_code to OK even though
-            # en error likely had prevented `on_event_end` from being called. The `end_time`
-            # would also be set to to now because stragglers have no `end_time` (because
-            # `on_event_end` has not been called).
-            _finish_tracing(event_data)
+            # pop the oldest item by insertion order
+            _, oldest = self.popitem(last=False)
+            if self._on_evict_fn:
+                self._on_evict_fn(oldest)
         super().__setitem__(key, value)
 
 
@@ -460,26 +450,6 @@ class _ResponseGen(ObjectProxy):  # type: ignore
         else:
             self._self_tokens.append(value)
             return value
-
-
-def _build_graph(
-    event_data: Mapping[_EventId, _EventData],
-) -> Tuple[
-    List[Tuple[_EventId, _EventData]],
-    DefaultDict[_EventId, List[Tuple[_EventId, _EventData]]],
-]:
-    """
-    Builds a graph from the event data and returns a tuple of root nodes and the adjacency list,
-    where child nodes are sorted by ascending start time.
-    """
-    adjacency_list: DefaultDict[_EventId, List[Tuple[_EventId, _EventData]]] = defaultdict(list)
-    roots: List[Tuple[_EventId, _EventData]] = []
-    for id_, data in event_data.items():
-        events = roots if data.parent_id == BASE_TRACE_EVENT else adjacency_list[data.parent_id]
-        events.append((id_, data))
-    for id_, children in adjacency_list.items():
-        adjacency_list[id_] = sorted(children, key=lambda x: x[1].start_time)
-    return roots, adjacency_list
 
 
 def _finish_tracing(event_data: _EventData) -> None:
