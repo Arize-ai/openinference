@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.1...python-openinference-instrumentation-dspy-v0.1.2) (2024-03-04)
+
+
+### Bug Fixes
+
+* support dpsy 2.3.4 and above ([#250](https://github.com/Arize-ai/openinference/issues/250)) ([e036418](https://github.com/Arize-ai/openinference/commit/e0364189281d5f0073000f8ff02ac4daef321c4e))
+
+
+### Documentation
+
+* Convert READMEs to Markdown ([#227](https://github.com/Arize-ai/openinference/issues/227)) ([e4bcf4b](https://github.com/Arize-ai/openinference/commit/e4bcf4b86f27cc119a77f551811f9142ec6075ce))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.0...python-openinference-instrumentation-dspy-v0.1.1) (2024-02-01)
 
 
