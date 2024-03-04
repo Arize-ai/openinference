@@ -4,9 +4,11 @@ exclude = [
     ".tox",
     "dist",
 ]
+target-version = "py38"
+
+[lint]
 ignore-init-module-imports = true
 select = ["E", "F", "W", "I"]
-target-version = "py38"
 
 [lint.isort]
 force-single-line = false
