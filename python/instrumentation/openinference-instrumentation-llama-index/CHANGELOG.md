@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.1.0...python-openinference-instrumentation-llama-index-v1.1.1) (2024-03-04)
+
+
+### Bug Fixes
+
+* concurrent tracing for llama-index ([#249](https://github.com/Arize-ai/openinference/issues/249)) ([46c9d5a](https://github.com/Arize-ai/openinference/commit/46c9d5a0cd8cc7aecde671fc1efb0a9b1fde51e9))
+
 ## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.0.1...python-openinference-instrumentation-llama-index-v1.1.0) (2024-02-24)
 
 
