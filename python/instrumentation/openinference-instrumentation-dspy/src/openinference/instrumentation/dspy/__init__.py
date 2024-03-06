@@ -29,8 +29,15 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeGuard
 from wrapt import wrap_function_wrapper
 
-if TYPE_CHECKING:
+try:
     from google.generativeai.types import GenerateContentResponse  # type: ignore
+except ImportError:
+    GenerateContentResponse = None
+
+if TYPE_CHECKING:
+    from google.generativeai.types import (
+        GenerateContentResponse as GenerateContentResponseType,  # type: ignore
+    )
 
 _DSPY_MODULE = "dspy"
 
@@ -545,19 +552,16 @@ def _jsonify_output(response: Any) -> str:
     return json.dumps(response)
 
 
-def _is_google_response(response: Any) -> TypeGuard["GenerateContentResponse"]:
+def _is_google_response(response: Any) -> TypeGuard["GenerateContentResponseType"]:
     """
     Checks whether a candidate response is an instance of
     GenerateContentResponse returned by the Google generative AI SDK.
     """
-    try:
-        from google.generativeai.types import GenerateContentResponse
-        return isinstance(response, GenerateContentResponse)
-    except ImportError:
-        return False
+
+    return GenerateContentResponse is not None and isinstance(response, GenerateContentResponse)
 
 
-def _parse_google_response(response: "GenerateContentResponse") -> Dict[str, Any]:
+def _parse_google_response(response: "GenerateContentResponseType") -> Dict[str, Any]:
     """
     Parses a response from the Google generative AI SDK into a dictionary.
     """
