@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.2...python-openinference-instrumentation-dspy-v0.1.3) (2024-03-06)
+
+
+### Bug Fixes
+
+* add support for DSPy's Google model class ([#255](https://github.com/Arize-ai/openinference/issues/255)) ([8354956](https://github.com/Arize-ai/openinference/commit/83549561d1749eed4ab74c423fadec2c934935ca))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.1...python-openinference-instrumentation-dspy-v0.1.2) (2024-03-04)
 
 
