@@ -28,6 +28,7 @@ dependencies = [
   "opentelemetry-semantic-conventions",
   "openinference-semantic-conventions",
   "wrapt",
+  "typing-extensions",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,7 @@ instruments = [
 ]
 test = [
   "dspy-ai==2.3.4",
+  "google-generativeai",
   "opentelemetry-sdk",
   "responses",
   "respx==0.20.2",

@@ -1,11 +1,14 @@
 import json
 from typing import Any, Generator
+from unittest.mock import Mock, patch
 
 import dspy
 import pytest
 import responses
 import respx
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
+from google.generativeai import GenerativeModel  # type: ignore
+from google.generativeai.types import GenerateContentResponse  # type: ignore
 from httpx import Response
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
@@ -111,6 +114,27 @@ def test_openai_lm(
     assert chain_span.name == "Predict(BasicQA).forward"
     assert lm_span.name == "GPT3.request"
     assert question in lm_span.attributes[INPUT_VALUE]  # type: ignore
+
+
+def test_google_lm(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    model = dspy.Google(api_key="jk-fake-key")
+    mock_response_object = Mock(spec=GenerateContentResponse)
+    mock_response_object.parts = [Mock(text="Washington, D.C.")]
+    mock_response_object.text = "Washington, D.C."
+    with patch.object(GenerativeModel, "generate_content", return_value=mock_response_object):
+        response = model("What is the capital of the United States?")
+    assert response == ["Washington, D.C."]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "Google.request"
+    assert (attributes := span.attributes) is not None
+    assert attributes[OPENINFERENCE_SPAN_KIND] == LLM.value
+    assert isinstance((output_value := attributes[OUTPUT_VALUE]), str)
+    assert json.loads(output_value) == {"text": "Washington, D.C."}
+    assert attributes[OUTPUT_MIME_TYPE] == JSON.value
 
 
 @responses.activate
