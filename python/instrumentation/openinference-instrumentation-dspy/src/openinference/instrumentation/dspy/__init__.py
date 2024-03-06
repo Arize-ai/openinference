@@ -2,7 +2,18 @@ import json
 from abc import ABC
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+)
 
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
@@ -15,7 +26,11 @@ from openinference.semconv.trace import (
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeGuard
 from wrapt import wrap_function_wrapper
+
+if TYPE_CHECKING:
+    from google.generativeai.types import GenerateContentResponse  # type: ignore
 
 _DSPY_MODULE = "dspy"
 
@@ -158,7 +173,7 @@ class _LMBasicRequestWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: json.dumps(response),
+                            OUTPUT_VALUE: _jsonify_output(response),
                             OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                         }
                     )
@@ -519,6 +534,37 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
+
+
+def _jsonify_output(response: Any) -> str:
+    """
+    Converts output to JSON string.
+    """
+    if _is_google_response(response):
+        return json.dumps(_parse_google_response(response))
+    return json.dumps(response)
+
+
+def _is_google_response(response: Any) -> TypeGuard["GenerateContentResponse"]:
+    """
+    Checks whether a candidate response is an instance of
+    GenerateContentResponse returned by the Google generative AI SDK.
+    """
+    try:
+        from google.generativeai.types import GenerateContentResponse
+        return isinstance(response, GenerateContentResponse)
+    except ImportError:
+        return False
+
+
+def _parse_google_response(response: "GenerateContentResponse") -> Dict[str, Any]:
+    """
+    Parses a response from the Google generative AI SDK into a dictionary.
+    """
+
+    return {
+        "text": response.text,
+    }
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND

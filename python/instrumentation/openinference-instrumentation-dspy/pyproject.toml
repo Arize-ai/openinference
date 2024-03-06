@@ -36,6 +36,7 @@ instruments = [
 ]
 test = [
   "dspy-ai==2.3.4",
+  "google-generativeai",
   "opentelemetry-sdk",
   "responses",
   "respx==0.20.2",
