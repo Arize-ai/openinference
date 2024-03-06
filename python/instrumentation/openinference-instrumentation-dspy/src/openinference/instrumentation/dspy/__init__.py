@@ -36,7 +36,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from google.generativeai.types import (
-        GenerateContentResponse as GenerateContentResponseType,  # type: ignore
+        GenerateContentResponse as GenerateContentResponseType,
     )
 
 _DSPY_MODULE = "dspy"
