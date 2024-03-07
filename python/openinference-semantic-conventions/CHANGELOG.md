@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.4...python-openinference-semantic-conventions-v0.1.5) (2024-03-07)
+
+
+### Features
+
+* add resource attributes to semantic conventions ([#253](https://github.com/Arize-ai/openinference/issues/253)) ([8675e41](https://github.com/Arize-ai/openinference/commit/8675e4109fb648d7de4ceb82814277b772a6cc3d))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.3...python-openinference-semantic-conventions-v0.1.4) (2024-02-13)
 
 
