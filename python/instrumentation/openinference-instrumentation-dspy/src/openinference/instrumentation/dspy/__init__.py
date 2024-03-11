@@ -15,6 +15,7 @@ from typing import (
     Tuple,
 )
 
+import opentelemetry.context as context_api
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
 from openinference.semconv.trace import (
@@ -151,6 +152,8 @@ class _LMBasicRequestWrapper(_WithTracer):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         prompt = args[0]
         invocation_parameters = {**instance.kwargs, **kwargs}
         span_name = instance.__class__.__name__ + ".request"
@@ -202,6 +205,8 @@ class _PredictForwardWrapper(_WithTracer):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         from dspy import Predict
 
         # At this time, subclasses of Predict override the base class' forward
@@ -292,6 +297,8 @@ class _ModuleForwardWrapper(_WithTracer):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         span_name = instance.__class__.__name__ + ".forward"
         with self._tracer.start_as_current_span(
             span_name,
@@ -348,6 +355,8 @@ class _RetrieverForwardWrapper(_WithTracer):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         span_name = instance.__class__.__name__ + ".forward"
         with self._tracer.start_as_current_span(
             span_name,
@@ -397,6 +406,8 @@ class _RetrieverModelCallWrapper(_WithTracer):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         class_name = instance.__class__.__name__
         span_name = class_name + ".__call__"
         with self._tracer.start_as_current_span(
