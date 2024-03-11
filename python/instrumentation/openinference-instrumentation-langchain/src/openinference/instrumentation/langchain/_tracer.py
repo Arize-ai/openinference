@@ -520,9 +520,7 @@ def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
     if not run.extra or not (metadata := run.extra.get("metadata")):
         return
     assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
-    # Yield out each metadata key and value
-    for key, value in metadata.items():
-        yield f"{METADATA}.{key}", value
+    yield METADATA, json.dumps(metadata)
 
 
 @stop_on_exception
