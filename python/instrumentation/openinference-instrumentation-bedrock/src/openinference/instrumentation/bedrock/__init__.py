@@ -87,7 +87,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
         @wraps(wrapped_client.invoke_model)
         def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
             if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                return wrapped_client._unwrapped_invoke_model(*args, **kwargs)
+                return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
 
             with tracer.start_as_current_span("bedrock.invoke_model") as span:
                 span.set_attribute(
