@@ -9,7 +9,10 @@ from botocore.client import BaseClient
 from botocore.response import StreamingBody
 from openinference.instrumentation.bedrock.package import _instruments
 from openinference.instrumentation.bedrock.version import __version__
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -83,7 +86,14 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
 
         @wraps(wrapped_client.invoke_model)
         def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
+
             with tracer.start_as_current_span("bedrock.invoke_model") as span:
+                span.set_attribute(
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                    OpenInferenceSpanKindValues.LLM.value,
+                )
                 response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
                 response["body"] = BufferedStreamingBody(
                     response["body"]._raw_stream, response["body"]._content_length
@@ -96,10 +106,33 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 prompt = request_body.pop("prompt")
                 invocation_parameters = json.dumps(request_body)
 
-                _set_span_attribute(span, SpanAttributes.LLM_PROMPTS, prompt)
+                _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
                 _set_span_attribute(
                     span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
                 )
+
+                if metadata := response.get("ResponseMetadata"):
+                    if headers := metadata.get("HTTPHeaders"):
+                        if input_token_count := headers.get("x-amzn-bedrock-input-token-count"):
+                            input_token_count = int(input_token_count)
+                            _set_span_attribute(
+                                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count
+                            )
+                        if response_token_count := headers.get("x-amzn-bedrock-output-token-count"):
+                            response_token_count = int(response_token_count)
+                            _set_span_attribute(
+                                span,
+                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
+                                response_token_count,
+                            )
+                        if total_token_count := (
+                            input_token_count + response_token_count
+                            if input_token_count and response_token_count
+                            else None
+                        ):
+                            _set_span_attribute(
+                                span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
+                            )
 
                 if model_id := kwargs.get("modelId"):
                     _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
@@ -117,7 +150,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                         content = ""
 
                     if content:
-                        _set_span_attribute(span, MessageAttributes.MESSAGE_CONTENT, content)
+                        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
 
                 return response  # type: ignore
 
