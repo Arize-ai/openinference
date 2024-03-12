@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.1...python-openinference-instrumentation-bedrock-v0.1.2) (2024-03-12)
+
+
+### Bug Fixes
+
+* Add token counts to bedrock instrumentation ([#270](https://github.com/Arize-ai/openinference/issues/270)) ([29b0ac9](https://github.com/Arize-ai/openinference/commit/29b0ac9d643c47bb7c6fd62d4cf581dd8157291c))
+
+
+### Documentation
+
+* Convert READMEs to Markdown ([#227](https://github.com/Arize-ai/openinference/issues/227)) ([e4bcf4b](https://github.com/Arize-ai/openinference/commit/e4bcf4b86f27cc119a77f551811f9142ec6075ce))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.0...python-openinference-instrumentation-bedrock-v0.1.1) (2024-01-26)
 
 
