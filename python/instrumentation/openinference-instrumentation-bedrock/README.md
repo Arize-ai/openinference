@@ -57,7 +57,7 @@ BedrockInstrumentor().instrument()
 
 Now, all calls to `invoke_model` are instrumented and can be viewed in the `phoenix` UI.
 
-```
+```python
 session = boto3.session.Session()
 client = session.client("bedrock-runtime")
 prompt = b'{"prompt": "Human: Hello there, how are you? Assistant:", "max_tokens_to_sample": 1024}'
