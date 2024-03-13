@@ -1,6 +1,6 @@
 # OpenInference AWS Bedrock Instrumentation
 
-Python autoinstrumentation library for AWS Bedrock made using `boto3`.
+Python autoinstrumentation library for AWS Bedrock calls made using `boto3`.
 
 This package implements OpenInference tracing for `invoke_model` calls made using a `boto3` `bedrock-runtime` client. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
 
@@ -14,7 +14,9 @@ pip install openinference-instrumentation-bedrock
 
 ## Quickstart
 
-Install `openinference-instrumentation-bedrock`, `arize-phoenix` and `boto3`.
+In a notebook environment (`jupyter`, `colab`, etc.) install `openinference-instrumentation-bedrock`, `arize-phoenix` and `boto3`.
+
+[You can test out this quickstart guide in Google Colab!](https://colab.research.google.com/github/Arize-ai/phoenix/blob/main/tutorials/integrations/bedrock_tracing_tutorial.ipynb)
 
 ```shell
 pip install openinference-instrumentation-bedrock arize-phoenix boto3
@@ -68,4 +70,4 @@ print(response_body["completion"])
 
 ## More Info
 
-More documentation on tracing with OpenInference and `phoenix` can be found in the [`phoenix` documentation](https://docs.arize.com/phoenix).
+More details about tracing with OpenInference and `phoenix` can be found in the [`phoenix` documentation](https://docs.arize.com/phoenix).
