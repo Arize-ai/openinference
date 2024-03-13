@@ -39,7 +39,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 Next, we'll start a `phoenix` server and set it as a collector.
 
-```
+```python
 px.launch_app()
 session_url = px.active_session().url
 phoenix_otlp_endpoint = urljoin(session_url, "v1/traces")
@@ -51,7 +51,7 @@ trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 
 Instrumenting `boto3` is simple:
 
-```
+```python
 BedrockInstrumentor().instrument()
 ```
 
