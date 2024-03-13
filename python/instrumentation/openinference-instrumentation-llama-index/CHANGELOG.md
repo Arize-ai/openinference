@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.1.1...python-openinference-instrumentation-llama-index-v1.2.0) (2024-03-13)
+
+
+### Features
+
+* add support for python 3.12 ([#271](https://github.com/Arize-ai/openinference/issues/271)) ([0556d72](https://github.com/Arize-ai/openinference/commit/0556d72997ef607545488112cde881e8660bf5db))
+
 ## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.1.0...python-openinference-instrumentation-llama-index-v1.1.1) (2024-03-04)
 
 
