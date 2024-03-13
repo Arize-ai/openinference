@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference DSPy Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.12"
+requires-python = ">=3.9, <3.13"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -21,6 +21,7 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
   "opentelemetry-api",
