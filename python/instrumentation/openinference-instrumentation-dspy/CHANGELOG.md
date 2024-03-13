@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.4...python-openinference-instrumentation-dspy-v0.1.5) (2024-03-13)
+
+
+### Features
+
+* add support for python 3.12 ([#271](https://github.com/Arize-ai/openinference/issues/271)) ([0556d72](https://github.com/Arize-ai/openinference/commit/0556d72997ef607545488112cde881e8660bf5db))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.3...python-openinference-instrumentation-dspy-v0.1.4) (2024-03-11)
 
 
