@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.11...python-openinference-instrumentation-langchain-v0.1.12) (2024-03-13)
+
+
+### Features
+
+* add support for python 3.12 ([#271](https://github.com/Arize-ai/openinference/issues/271)) ([0556d72](https://github.com/Arize-ai/openinference/commit/0556d72997ef607545488112cde881e8660bf5db))
+
+
+### Bug Fixes
+
+* metadata as json string in langchain instrumentor ([#234](https://github.com/Arize-ai/openinference/issues/234)) ([0cb0850](https://github.com/Arize-ai/openinference/commit/0cb085031350d1d88724b15fb57ec390525a7e98))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.10...python-openinference-instrumentation-langchain-v0.1.11) (2024-02-24)
 
 
