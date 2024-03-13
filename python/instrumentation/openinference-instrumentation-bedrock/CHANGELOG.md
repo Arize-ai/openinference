@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.2...python-openinference-instrumentation-bedrock-v0.1.3) (2024-03-13)
+
+
+### Features
+
+* add support for python 3.12 ([#271](https://github.com/Arize-ai/openinference/issues/271)) ([0556d72](https://github.com/Arize-ai/openinference/commit/0556d72997ef607545488112cde881e8660bf5db))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.1...python-openinference-instrumentation-bedrock-v0.1.2) (2024-03-12)
 
 
