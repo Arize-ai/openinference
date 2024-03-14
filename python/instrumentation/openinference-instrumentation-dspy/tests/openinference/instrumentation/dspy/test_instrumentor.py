@@ -7,6 +7,11 @@ import pytest
 import responses
 import respx
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
+from dspy.primitives.assertions import (
+    assert_transform_module,
+    backtrack_handler,
+)
+from dspy.teleprompt import BootstrapFewShotWithRandomSearch
 from google.generativeai import GenerativeModel  # type: ignore
 from google.generativeai.types import GenerateContentResponse  # type: ignore
 from httpx import Response
@@ -337,6 +342,79 @@ def test_rag_module(
     assert isinstance(output_value := attributes[OUTPUT_VALUE], str)
     assert "Washington, D.C." in output_value
     assert attributes[OUTPUT_MIME_TYPE] == JSON.value
+
+
+def test_compilation(
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    class AssertModule(dspy.Module):  # type: ignore
+        def __init__(self) -> None:
+            super().__init__()
+            self.query = dspy.Predict("question -> answer")
+
+        def forward(self, question: str) -> dspy.Prediction:
+            response = self.query(question=question)
+            dspy.Assert(
+                response.answer != "I don't know",
+                "I don't know is not a valid answer",
+            )
+            return response
+
+    student = AssertModule()
+    teacher = assert_transform_module(AssertModule(), backtrack_handler)
+
+    def exact_match(example: dspy.Example, pred: dspy.Example, trace: Any = None) -> bool:
+        return bool(example.answer.lower() == pred.answer.lower())
+
+    respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "chatcmpl-92UvclZCQxpucXceE70xwd5i6pX7E",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "logprobs": None,
+                        "message": {
+                            "content": "2",
+                            "role": "assistant",
+                            "function_call": None,
+                            "tool_calls": None,
+                        },
+                    }
+                ],
+                "created": 1710382572,
+                "model": "gpt-4-0613",
+                "object": "chat.completion",
+                "system_fingerprint": None,
+                "usage": {"completion_tokens": 1, "prompt_tokens": 64, "total_tokens": 65},
+            },
+        )
+    )
+
+    with dspy.context(lm=dspy.OpenAI(model="gpt-4")):
+        teleprompter = BootstrapFewShotWithRandomSearch(
+            metric=exact_match,
+            max_bootstrapped_demos=1,
+            max_labeled_demos=1,
+            num_candidate_programs=1,
+            num_threads=1,
+        )
+        teleprompter.compile(
+            student=student,
+            teacher=teacher,
+            trainset=[
+                dspy.Example(question="What is 2 + 2?", answer="4").with_inputs("question"),
+                dspy.Example(question="What is 1 + 1?", answer="2").with_inputs("question"),
+            ],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert spans, "no spans were recorded"
+    for span in spans:
+        assert not span.events, "spans should not contain exception events"
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
