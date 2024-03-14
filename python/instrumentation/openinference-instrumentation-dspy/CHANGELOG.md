@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.5...python-openinference-instrumentation-dspy-v0.1.6) (2024-03-14)
+
+
+### Bug Fixes
+
+* dspy instrumentation does not break teleprompter compilation ([#279](https://github.com/Arize-ai/openinference/issues/279)) ([f206c2e](https://github.com/Arize-ai/openinference/commit/f206c2ee4fbe0ed273e798321e5d972ddc62dac9))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.4...python-openinference-instrumentation-dspy-v0.1.5) (2024-03-13)
 
 
