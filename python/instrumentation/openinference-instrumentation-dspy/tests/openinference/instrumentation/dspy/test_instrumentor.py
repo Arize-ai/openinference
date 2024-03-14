@@ -348,7 +348,6 @@ def test_compilation(
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
 ) -> None:
-
     class AssertModule(dspy.Module):  # type: ignore
         def __init__(self) -> None:
             super().__init__()
