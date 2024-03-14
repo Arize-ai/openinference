@@ -51,7 +51,7 @@ LlamaIndexInstrumentor().instrument()
 
 To demonstrate tracing, we'll use the `llama-index` below to query a document. 
 
-First, download a document.
+First, download a text file.
 
 ```python
 import tempfile
@@ -64,7 +64,7 @@ with tempfile.NamedTemporaryFile() as tf:
     documents = SimpleDirectoryReader(input_files=[tf.name]).load_data()
 ```
 
-Next, we'll index the documents using OpenAI. To do that you need to set up your OpenAI API key in an environment variable.
+Next, we'll query using OpenAI. To do that you need to set up your OpenAI API key in an environment variable.
 
 ```python
 import os
