@@ -13,6 +13,7 @@
         "llms",
         "openinference",
         "otel",
+        "OTLP",
         "uninstrument"
     ],
     "flagWords": [
