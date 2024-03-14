@@ -17,8 +17,6 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 const provider = new NodeTracerProvider({
   resource: new Resource({
     [SemanticResourceAttributes.SERVICE_NAME]: "openai-service",
-    model_id: "llama-index-js",
-    model_version: "1.0.0",
   }),
 });
 
@@ -26,11 +24,7 @@ provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 provider.addSpanProcessor(
   new SimpleSpanProcessor(
     new OTLPTraceExporter({
-      url: "https://otlp.arize.com/v1",
-      headers: {
-        space_key: "452545f",
-        api_key: "7c0f3322d92ef44058d",
-      },
+      url: "http://localhost:6006/v1/traces",
     }),
   ),
 );
