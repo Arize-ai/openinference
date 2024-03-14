@@ -1,7 +1,7 @@
 # OpenInference LlamaIndex Instrumentation
-Python autoinstrumentation library for AWS Bedrock calls made using `boto3`.
+Python auto-instrumentation library for LlamaIndex.
 
-This package implements OpenInference tracing for `invoke_model` calls made using a `boto3` `bedrock-runtime` client. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
+These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-llama-index.svg)](https://pypi.org/project/openinference-instrumentation-llama-index/)
 
