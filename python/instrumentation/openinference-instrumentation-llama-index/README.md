@@ -26,7 +26,9 @@ Install packages needed for this demonstration.
 pip install openinference-instrumentation-llama-index llama-index arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
-Start the `phoenix` app in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address.
+Start the Phoenix app in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address.
+
+The Phoenix app does not send data over the internet. It only operates locally on your machine.
 
 ```shell
 python -m phoenix.server.main serve
@@ -49,7 +51,7 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 LlamaIndexInstrumentor().instrument()
 ```
 
-To demonstrate tracing, we'll use the `llama-index` below to query a document. 
+To demonstrate tracing, we'll use LlamaIndex below to query a document. 
 
 First, download a text file.
 
@@ -85,6 +87,6 @@ Visit the Phoenix app at `http://localhost:6006` to see the traces.
 
 ## More Info
 
-More details about tracing with OpenInference and `phoenix` can be found in the [`phoenix` documentation](https://docs.arize.com/phoenix).
+More details about tracing with OpenInference and Phoenix can be found in the [Phoenix documentation](https://docs.arize.com/phoenix).
 
 For AI/ML observability solutions in production, including a cloud-based trace collector, visit [Arize](https://docs.arize.com/arize).
