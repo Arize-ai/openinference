@@ -1,7 +1,7 @@
 # OpenInference LlamaIndex Instrumentation
 Python auto-instrumentation library for LlamaIndex.
 
-These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
+These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix).
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-llama-index.svg)](https://pypi.org/project/openinference-instrumentation-llama-index/)
 
