@@ -348,12 +348,13 @@ def test_compilation(
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
 ) -> None:
-    class AssertModule(dspy.Module):
-        def __init__(self):
+
+    class AssertModule(dspy.Module):  # type: ignore
+        def __init__(self) -> None:
             super().__init__()
             self.query = dspy.Predict("question -> answer")
 
-        def forward(self, question):
+        def forward(self, question: str) -> dspy.Prediction:
             response = self.query(question=question)
             dspy.Assert(
                 response.answer != "I don't know",
@@ -364,8 +365,8 @@ def test_compilation(
     student = AssertModule()
     teacher = assert_transform_module(AssertModule(), backtrack_handler)
 
-    def exact_match(example: dspy.Example, pred: dspy.Example, trace=None) -> bool:
-        return example.answer.lower() == pred.answer.lower()
+    def exact_match(example: dspy.Example, pred: dspy.Example, trace: Any = None) -> bool:
+        return bool(example.answer.lower() == pred.answer.lower())
 
     respx.post("https://api.openai.com/v1/chat/completions").mock(
         return_value=Response(
