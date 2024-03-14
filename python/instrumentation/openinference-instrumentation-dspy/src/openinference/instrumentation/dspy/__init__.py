@@ -1,5 +1,6 @@
 import json
 from abc import ABC
+from copy import copy, deepcopy
 from enum import Enum
 from inspect import signature
 from typing import (
@@ -28,7 +29,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeGuard
-from wrapt import wrap_function_wrapper
+from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_function_wrapper, wrap_object
 
 try:
     from google.generativeai.types import GenerateContentResponse  # type: ignore
@@ -96,13 +97,15 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_RetrieverForwardWrapper(tracer),
         )
 
-        wrap_function_wrapper(
+        wrap_object(
             module=_DSPY_MODULE,
             # At this time, dspy.Module does not have an abstract forward
             # method, but assumes that user-defined subclasses implement the
             # forward method and invokes that method using __call__.
             name="Module.__call__",
-            wrapper=_ModuleForwardWrapper(tracer),
+            factory=CopyableFunctionWrapper,
+            # factory=CopyableFunctionWrapper,
+            args=(_ModuleForwardWrapper(tracer),),
         )
 
         # At this time, there is no common parent class for retriever models as
@@ -127,6 +130,42 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         if hasattr(Predict.forward, "__wrapped__"):
             Predict.forward = Predict.forward.__wrapped__
+
+class CopyableBoundFunctionWrapper(BoundFunctionWrapper):
+    """
+    A bound function wrapper that can be copied and deep-copied. When used to
+    wrap a class method, this allows the entire class to be copied and
+    deep-copied.
+
+    For reference, see
+    https://github.com/GrahamDumpleton/wrapt/issues/86#issuecomment-426161271
+    and
+    https://wrapt.readthedocs.io/en/master/wrappers.html#custom-function-wrappers
+    """
+    def __copy__(self):
+        return CopyableBoundFunctionWrapper(copy(self.__wrapped__))
+
+    def __deepcopy__(self, memo):
+        return CopyableBoundFunctionWrapper(deepcopy(self.__wrapped__, memo))
+
+
+class CopyableFunctionWrapper(FunctionWrapper):
+    """
+    A function wrapper that can be copied and deep-copied. When used to wrap a
+    class method, this allows the entire class to be copied and deep-copied.
+
+    For reference, see
+    https://github.com/GrahamDumpleton/wrapt/issues/86#issuecomment-426161271
+    and
+    https://wrapt.readthedocs.io/en/master/wrappers.html#custom-function-wrappers
+    """
+    __bound_function_wrapper__ = CopyableBoundFunctionWrapper
+
+    def __copy__(self):
+        return CopyableFunctionWrapper(copy(self.__wrapped__))
+
+    def __deepcopy__(self, memo):
+        return CopyableFunctionWrapper(deepcopy(self.__wrapped__, memo))
 
 
 class _WithTracer(ABC):
