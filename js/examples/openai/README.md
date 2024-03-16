@@ -8,4 +8,13 @@ Our example will export spans data simultaneously on `Console` and [arize-phoeni
 
 ```shell
 npm install
-``
+```
+
+## Run
+
+Make sure you have `OPENAI_API_KEY` set as an environment variable, then run:
+
+```shell
+npm run build
+npm run start
+```
