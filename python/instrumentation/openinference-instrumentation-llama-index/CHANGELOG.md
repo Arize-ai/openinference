@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.2.0...python-openinference-instrumentation-llama-index-v1.2.1) (2024-03-18)
+
+
+### Bug Fixes
+
+* for streaming use `response_txt` as output_value for llama-index ([#292](https://github.com/Arize-ai/openinference/issues/292)) ([1906ef2](https://github.com/Arize-ai/openinference/commit/1906ef2cf29b02bec5c76ba07021917f8dedc2f1))
+
+
+### Documentation
+
+* quick start demo for llama-index ([#285](https://github.com/Arize-ai/openinference/issues/285)) ([60f0671](https://github.com/Arize-ai/openinference/commit/60f06710b62828852ac5cc686e05567b75fd38a0))
+
 ## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.1.1...python-openinference-instrumentation-llama-index-v1.2.0) (2024-03-13)
 
 
