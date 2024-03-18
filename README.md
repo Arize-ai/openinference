@@ -35,7 +35,15 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 
 ### Examples
 
-View examples of instrumented Python applications [here](python/examples).
+| Name                                                                                           | Description                                                                                  | Complexity Level |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------- |
+| [OpenAI SDK](python/instrumentation/openinference-instrumentation-openai/examples/)            | OpenAI Python SDK, including chat completions and embeddings                                 | Beginner         |
+| [LlamaIndex](python/instrumentation/openinference-instrumentation-llama-index/examples/)       | LlamaIndex query engines                                                                     | Beginner         |
+| [DSPy](python/instrumentation/openinference-instrumentation-dspy/examples/)                    | DSPy primitives and custom RAG modules                                                       | Beginner         |
+| [Boto3 Bedrock Client](python/instrumentation/openinference-instrumentation-bedrock/examples/) | Boto3 Bedrock client                                                                         | Beginner         |
+| [LangChain](python/instrumentation/openinference-instrumentation-langchain/examples/)          | LangChain primitives and simple chains                                                       | Beginner         |
+| [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                   | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
+| [LangServe](python/examples/langserve/)                                                        | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
 
 ## JavaScript
 
@@ -48,7 +56,10 @@ View examples of instrumented Python applications [here](python/examples).
 
 ### Examples
 
-View examples of instrumented JavaScript applications [here](js/examples/README.md).
+| Name                                                      | Description                                                                                                                                               | Complexity Level |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| [OpenAI SDK](js/examples/openai)                          | OpenAI Node.js client                                                                                                                                     | Beginner         |
+| [LlamaIndex Express App](js/examples/llama-index-express) | A fully functional LlamaIndex chatbot with a Next.js frontend and a LlamaIndex Express backend, instrumented using `openinference-instrumentation-openai` | Intermediate     |
 
 ## Supported Destinations
 
