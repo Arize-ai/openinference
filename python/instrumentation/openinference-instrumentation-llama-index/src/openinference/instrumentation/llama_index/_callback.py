@@ -558,8 +558,8 @@ def _get_response_output(response: Any) -> Iterator[Tuple[str, Any]]:
         if response.response:
             yield OUTPUT_VALUE, response.response
     elif isinstance(response, StreamingResponse):
-        if response.response_txt:
-            yield OUTPUT_VALUE, response.response_txt
+        if response_txt := getattr(response, "response_txt"):
+            yield OUTPUT_VALUE, response_txt
     else:  # if the response has unknown type, make a best-effort attempt to get the output
         yield OUTPUT_VALUE, str(response)
 
