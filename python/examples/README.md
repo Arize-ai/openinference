@@ -6,9 +6,10 @@ This directory contains a number of examples of how to use OpenInference Python
 
 The examples listed below are expected to be updated with every OpenInference Python release, to use the latest and greatest features and best practices.
 
-| Name                        | Description                                                                            | Complexity Level |
-| --------------------------- | -------------------------------------------------------------------------------------- | ---------------- |
-| [llama-index](llama-index/) | A fully functional chatbot instrumented with openinfernece-instrumentation-llama-index | Beginner         |
+| Name                       | Description                                                                                               | Complexity Level |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------- |
+| [LlamaIndex](llama-index/) | A fully functional chatbot using Next.js and LlamaIndex                                                   | Beginner         |
+| [LangServe](langserve/)    | An example LangChain application deployed with LangServe that uses custom metadata on a per-request basis | Intermediate     |
 
 ## Contributing
 

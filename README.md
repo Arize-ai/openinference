@@ -24,9 +24,9 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 
 ### Libraries
 
-| Package                                                                                                                      | Description                                    | Version                                                                                                                                                                |
-| ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md)                                | Semantic conventions for tracing of LLM Apps.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)               |
+| Package                                                                                                                     | Description                                    | Version                                                                                                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`openinference-semantic-conventions`](./python/openinference-semantic-conventions/README.md)                               | Semantic conventions for tracing of LLM Apps.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)               |
 | [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai/README.md)           | OpenInference Instrumentation for OpenAI SDK.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai)           |
 | [`openinference-instrumentation-llama-index`](./python/instrumentation/openinference-instrumentation-llama-index/README.md) | OpenInference Instrumentation for LlamaIndex.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-llama-index.svg)](https://pypi.python.org/pypi/openinference-instrumentation-llama-index) |
 | [`openinference-instrumentation-dspy`](./python/instrumentation/openinference-instrumentation-dspy/README.md)               | OpenInference Instrumentation for DSPy.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-dspy.svg)](https://pypi.python.org/pypi/openinference-instrumentation-dspy)               |
@@ -35,7 +35,15 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 
 ### Examples
 
-View examples of instrumented Python applications [here](python/examples/README.md).
+| Name                                                                                           | Description                                                                                  | Complexity Level |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------- |
+| [OpenAI SDK](python/instrumentation/openinference-instrumentation-openai/examples/)            | OpenAI Python SDK, including chat completions and embeddings                                 | Beginner         |
+| [LlamaIndex](python/instrumentation/openinference-instrumentation-llama-index/examples/)       | LlamaIndex query engines                                                                     | Beginner         |
+| [DSPy](python/instrumentation/openinference-instrumentation-dspy/examples/)                    | DSPy primitives and custom RAG modules                                                       | Beginner         |
+| [Boto3 Bedrock Client](python/instrumentation/openinference-instrumentation-bedrock/examples/) | Boto3 Bedrock client                                                                         | Beginner         |
+| [LangChain](python/instrumentation/openinference-instrumentation-langchain/examples/)          | LangChain primitives and simple chains                                                       | Beginner         |
+| [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                   | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
+| [LangServe](python/examples/langserve/)                                                        | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
 
 ## JavaScript
 
@@ -48,7 +56,10 @@ View examples of instrumented Python applications [here](python/examples/README.
 
 ### Examples
 
-View examples of instrumented JavaScript applications [here](js/examples/README.md).
+| Name                                                      | Description                                                                                                                                               | Complexity Level |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| [OpenAI SDK](js/examples/openai)                          | OpenAI Node.js client                                                                                                                                     | Beginner         |
+| [LlamaIndex Express App](js/examples/llama-index-express) | A fully functional LlamaIndex chatbot with a Next.js frontend and a LlamaIndex Express backend, instrumented using `openinference-instrumentation-openai` | Intermediate     |
 
 ## Supported Destinations
 
