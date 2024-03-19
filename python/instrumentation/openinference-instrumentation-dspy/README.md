@@ -1,10 +1,11 @@
 # OpenInference DSPy Instrumentation
 
+[![pypi](https://badge.fury.io/py/openinference-instrumentation-dspy.svg)](https://pypi.org/project/openinference-instrumentation-dspy/)
+
 Python auto-instrumentation library for DSPy.
 
 These traces are fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for viewing, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix).
 
-[![pypi](https://badge.fury.io/py/openinference-instrumentation-dspy.svg)](https://pypi.org/project/openinference-instrumentation-dspy/)
 
 ## Installation
 
