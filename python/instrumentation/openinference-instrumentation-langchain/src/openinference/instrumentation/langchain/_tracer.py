@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+import time
 import traceback
 from copy import deepcopy
 from datetime import datetime
@@ -41,6 +42,8 @@ from opentelemetry.util.types import AttributeValue
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+_AUDIT_TIMING = False
 
 
 class _Run(NamedTuple):
@@ -189,10 +192,15 @@ def stop_on_exception(
     wrapped: Callable[..., Iterator[Tuple[str, Any]]],
 ) -> Callable[..., Iterator[Tuple[str, Any]]]:
     def wrapper(*args: Any, **kwargs: Any) -> Iterator[Tuple[str, Any]]:
+        start = time.perf_counter()
         try:
             yield from wrapped(*args, **kwargs)
         except Exception:
             logger.exception("Failed to get attribute.")
+        finally:
+            if _AUDIT_TIMING:
+                latency_ms = (time.perf_counter() - start) * 1000
+                print(f"{wrapped.__name__}: {latency_ms:.3f}ms")
 
     return wrapper
 
