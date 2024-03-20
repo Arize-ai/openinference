@@ -20,6 +20,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 
 def test_synchronous_chat_completions(
+    in_memory_span_exporter: InMemorySpanExporter
 ) -> None:
     client = MistralClient(api_key=os.environ["MISTRAL_API_KEY"])
     response = client.chat(
@@ -36,6 +37,9 @@ def test_synchronous_chat_completions(
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "france" in response_content.lower()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2  # first span is from the HTTPXClientInstrumentor
 
 
 @pytest.fixture(scope="module")
