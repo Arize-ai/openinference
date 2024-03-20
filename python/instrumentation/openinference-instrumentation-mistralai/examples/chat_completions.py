@@ -12,7 +12,7 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 trace_api.set_tracer_provider(tracer_provider)
 
-# MistralAIInstrumentor().instrument()
+MistralAIInstrumentor().instrument()
 
 
 if __name__ == "__main__":
