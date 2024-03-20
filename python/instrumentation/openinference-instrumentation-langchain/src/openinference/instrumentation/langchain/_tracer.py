@@ -6,6 +6,7 @@ from copy import deepcopy
 from datetime import datetime
 from enum import Enum
 from itertools import chain
+from threading import RLock
 from typing import (
     Any,
     Callable,
@@ -55,6 +56,7 @@ class OpenInferenceTracer(BaseTracer):
         super().__init__(*args, **kwargs)
         self._tracer = tracer
         self._runs: Dict[UUID, _Run] = {}
+        self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def _start_trace(self, run: Run) -> None:
         super()._start_trace(run)
@@ -74,13 +76,16 @@ class OpenInferenceTracer(BaseTracer):
         # worse is that the error could have also prevented the span from being exported,
         # leaving all future spans as orphans. That is a very bad scenario.
         # token = context_api.attach(context)
-        self._runs[run.id] = _Run(span=span, context=context)
+        with self._lock:
+            self._runs[run.id] = _Run(span=span, context=context)
 
     def _end_trace(self, run: Run) -> None:
         super()._end_trace(run)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
-        if event_data := self._runs.pop(run.id, None):
+        with self._lock:
+            event_data = self._runs.pop(run.id, None)
+        if event_data:
             span = event_data.span
             try:
                 _update_span(span, run)
