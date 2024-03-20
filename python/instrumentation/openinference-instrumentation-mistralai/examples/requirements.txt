@@ -1,0 +1,5 @@
+mistralai
+openinference-instrumentation-mistralai
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation-httpx
