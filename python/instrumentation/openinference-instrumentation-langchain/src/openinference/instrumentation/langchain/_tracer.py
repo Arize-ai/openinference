@@ -22,6 +22,7 @@ from typing import (
 )
 from uuid import UUID
 
+import wrapt
 from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
 from openinference.semconv.trace import (
@@ -46,6 +47,17 @@ logger.addHandler(logging.NullHandler())
 _AUDIT_TIMING = False
 
 
+@wrapt.decorator  # type: ignore
+def audit_timing(wrapped: Any, _: Any, args: Any, kwargs: Any) -> Any:
+    start = time.perf_counter()
+    try:
+        return wrapped(*args, **kwargs)
+    finally:
+        if _AUDIT_TIMING:
+            latency_ms = (time.perf_counter() - start) * 1000
+            print(f"{wrapped.__name__}: {latency_ms:.2f}ms")
+
+
 class _Run(NamedTuple):
     span: trace_api.Span
     context: context_api.Context
@@ -62,6 +74,7 @@ class OpenInferenceTracer(BaseTracer):
         # https://github.com/langchain-ai/langchain/blob/5c2538b9f7fb64afed2a918b621d9d8681c7ae32/libs/core/langchain_core/callbacks/manager.py#L321  # noqa: E501
         self.run_inline = True
 
+    @audit_timing  # type: ignore
     def _start_trace(self, run: Run) -> None:
         super()._start_trace(run)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -82,6 +95,7 @@ class OpenInferenceTracer(BaseTracer):
         # token = context_api.attach(context)
         self._runs[run.id] = _Run(span=span, context=context)
 
+    @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
         super()._end_trace(run)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -120,6 +134,7 @@ class OpenInferenceTracer(BaseTracer):
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
 
 
+@audit_timing  # type: ignore
 def _record_exception(span: trace_api.Span, error: BaseException) -> None:
     if isinstance(error, Exception):
         span.record_exception(error)
@@ -141,6 +156,7 @@ def _record_exception(span: trace_api.Span, error: BaseException) -> None:
     span.add_event(name="exception", attributes=attributes)
 
 
+@audit_timing  # type: ignore
 def _update_span(span: trace_api.Span, run: Run) -> None:
     if run.error is None:
         span.set_status(trace_api.StatusCode.OK)
@@ -191,16 +207,13 @@ def _serialize_json(obj: Any) -> str:
 def stop_on_exception(
     wrapped: Callable[..., Iterator[Tuple[str, Any]]],
 ) -> Callable[..., Iterator[Tuple[str, Any]]]:
+    wrapped = audit_timing(wrapped)
+
     def wrapper(*args: Any, **kwargs: Any) -> Iterator[Tuple[str, Any]]:
-        start = time.perf_counter()
         try:
             yield from wrapped(*args, **kwargs)
         except Exception:
             logger.exception("Failed to get attribute.")
-        finally:
-            if _AUDIT_TIMING:
-                latency_ms = (time.perf_counter() - start) * 1000
-                print(f"{wrapped.__name__}: {latency_ms:.3f}ms")
 
     return wrapper
 
