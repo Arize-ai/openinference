@@ -4,7 +4,7 @@ import math
 import time
 import traceback
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from itertools import chain
 from threading import RLock
@@ -86,7 +86,12 @@ class OpenInferenceTracer(BaseTracer):
                 and (parent := self._runs.get(parent_run_id))
                 else None
             )
-        span = self._tracer.start_span(name=run.name, context=parent_context)
+        start_time_utc_nano = _as_utc_nano(run.start_time)
+        span = self._tracer.start_span(
+            name=run.name,
+            context=parent_context,
+            start_time=start_time_utc_nano,
+        )
         context = trace_api.set_span_in_context(span)
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
@@ -111,7 +116,8 @@ class OpenInferenceTracer(BaseTracer):
                 _update_span(span, run)
             except Exception:
                 logger.exception("Failed to update span with run data.")
-            span.end()
+            end_time_utc_nano = _as_utc_nano(run.end_time) if run.end_time else None
+            span.end(end_time=end_time_utc_nano)
 
     def _persist_run(self, run: Run) -> None:
         pass
@@ -581,6 +587,10 @@ class _SafeJSONEncoder(json.JSONEncoder):
             return super().default(obj)
         except TypeError:
             return str(obj)
+
+
+def _as_utc_nano(dt: datetime) -> int:
+    return int(dt.astimezone(timezone.utc).timestamp() * 1_000_000_000)
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
