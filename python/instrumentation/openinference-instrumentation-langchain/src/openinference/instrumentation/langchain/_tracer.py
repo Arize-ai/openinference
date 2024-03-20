@@ -49,13 +49,14 @@ _AUDIT_TIMING = False
 
 @wrapt.decorator  # type: ignore
 def audit_timing(wrapped: Any, _: Any, args: Any, kwargs: Any) -> Any:
-    start = time.perf_counter()
+    if not _AUDIT_TIMING:
+        return wrapped(*args, **kwargs)
+    start_time = time.perf_counter()
     try:
         return wrapped(*args, **kwargs)
     finally:
-        if _AUDIT_TIMING:
-            latency_ms = (time.perf_counter() - start) * 1000
-            print(f"{wrapped.__name__}: {latency_ms:.2f}ms")
+        latency_ms = (time.perf_counter() - start_time) * 1000
+        print(f"{wrapped.__name__}: {latency_ms:.2f}ms")
 
 
 class _Run(NamedTuple):
