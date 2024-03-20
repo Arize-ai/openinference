@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+import time
 import traceback
 from copy import deepcopy
 from datetime import datetime
@@ -22,6 +23,7 @@ from typing import (
 )
 from uuid import UUID
 
+import wrapt
 from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
 from openinference.semconv.trace import (
@@ -43,6 +45,20 @@ from opentelemetry.util.types import AttributeValue
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+_AUDIT_TIMING = False
+
+
+@wrapt.decorator  # type: ignore
+def audit_timing(wrapped: Any, _: Any, args: Any, kwargs: Any) -> Any:
+    if not _AUDIT_TIMING:
+        return wrapped(*args, **kwargs)
+    start_time = time.perf_counter()
+    try:
+        return wrapped(*args, **kwargs)
+    finally:
+        latency_ms = (time.perf_counter() - start_time) * 1000
+        print(f"{wrapped.__name__}: {latency_ms:.2f}ms")
+
 
 class _Run(NamedTuple):
     span: trace_api.Span
@@ -58,6 +74,7 @@ class OpenInferenceTracer(BaseTracer):
         self._runs: Dict[UUID, _Run] = {}
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
+    @audit_timing  # type: ignore
     def _start_trace(self, run: Run) -> None:
         super()._start_trace(run)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -81,6 +98,7 @@ class OpenInferenceTracer(BaseTracer):
         with self._lock:
             self._runs[run.id] = _Run(span=span, context=context)
 
+    @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
         super()._end_trace(run)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -129,6 +147,7 @@ class OpenInferenceTracer(BaseTracer):
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
 
 
+@audit_timing  # type: ignore
 def _record_exception(span: trace_api.Span, error: BaseException) -> None:
     if isinstance(error, Exception):
         span.record_exception(error)
@@ -150,6 +169,7 @@ def _record_exception(span: trace_api.Span, error: BaseException) -> None:
     span.add_event(name="exception", attributes=attributes)
 
 
+@audit_timing  # type: ignore
 def _update_span(span: trace_api.Span, run: Run) -> None:
     if run.error is None:
         span.set_status(trace_api.StatusCode.OK)
@@ -201,10 +221,15 @@ def stop_on_exception(
     wrapped: Callable[..., Iterator[Tuple[str, Any]]],
 ) -> Callable[..., Iterator[Tuple[str, Any]]]:
     def wrapper(*args: Any, **kwargs: Any) -> Iterator[Tuple[str, Any]]:
+        start_time = time.perf_counter()
         try:
             yield from wrapped(*args, **kwargs)
         except Exception:
             logger.exception("Failed to get attribute.")
+        finally:
+            if _AUDIT_TIMING:
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                print(f"{wrapped.__name__}: {latency_ms:.3f}ms")
 
     return wrapper
 
