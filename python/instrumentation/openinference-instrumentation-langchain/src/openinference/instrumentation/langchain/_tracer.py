@@ -62,12 +62,14 @@ class OpenInferenceTracer(BaseTracer):
         super()._start_trace(run)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
-        span = self._tracer.start_span(
-            name=run.name,
-            context=parent.context
-            if (parent_run_id := run.parent_run_id) and (parent := self._runs.get(parent_run_id))
-            else None,
-        )
+        with self._lock:
+            parent_context = (
+                parent.context
+                if (parent_run_id := run.parent_run_id)
+                and (parent := self._runs.get(parent_run_id))
+                else None
+            )
+        span = self._tracer.start_span(name=run.name, context=parent_context)
         context = trace_api.set_span_in_context(span)
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
@@ -97,24 +99,32 @@ class OpenInferenceTracer(BaseTracer):
         pass
 
     def on_llm_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        if event_data := self._runs.get(run_id):
+        with self._lock:
+            event_data = self._runs.get(run_id)
+        if event_data:
             _record_exception(event_data.span, error)
         return super().on_llm_error(error, *args, run_id=run_id, **kwargs)
 
     def on_chain_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        if event_data := self._runs.get(run_id):
+        with self._lock:
+            event_data = self._runs.get(run_id)
+        if event_data:
             _record_exception(event_data.span, error)
         return super().on_chain_error(error, *args, run_id=run_id, **kwargs)
 
     def on_retriever_error(
         self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any
     ) -> Run:
-        if event_data := self._runs.get(run_id):
+        with self._lock:
+            event_data = self._runs.get(run_id)
+        if event_data:
             _record_exception(event_data.span, error)
         return super().on_retriever_error(error, *args, run_id=run_id, **kwargs)
 
     def on_tool_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        if event_data := self._runs.get(run_id):
+        with self._lock:
+            event_data = self._runs.get(run_id)
+        if event_data:
             _record_exception(event_data.span, error)
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
 
