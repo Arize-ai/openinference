@@ -55,9 +55,6 @@ class OpenInferenceTracer(BaseTracer):
         super().__init__(*args, **kwargs)
         self._tracer = tracer
         self._runs: Dict[UUID, _Run] = {}
-        # run_inline=True so the handler is not run in a thread. E.g. see the following location.
-        # https://github.com/langchain-ai/langchain/blob/5c2538b9f7fb64afed2a918b621d9d8681c7ae32/libs/core/langchain_core/callbacks/manager.py#L321  # noqa: E501
-        self.run_inline = True
 
     def _start_trace(self, run: Run) -> None:
         super()._start_trace(run)
