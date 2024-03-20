@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.13...python-openinference-instrumentation-langchain-v0.1.14) (2024-03-20)
+
+
+### Bug Fixes
+
+* use start and end times from langchain ([#304](https://github.com/Arize-ai/openinference/issues/304)) ([9b92169](https://github.com/Arize-ai/openinference/commit/9b92169b57fedd99906758ca15089c1295e532c8))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.12...python-openinference-instrumentation-langchain-v0.1.13) (2024-03-20)
 
 
