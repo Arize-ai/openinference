@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.12...python-openinference-instrumentation-langchain-v0.1.13) (2024-03-20)
+
+
+### Bug Fixes
+
+* add printer for run times ([#301](https://github.com/Arize-ai/openinference/issues/301)) ([242a50f](https://github.com/Arize-ai/openinference/commit/242a50f3f9babdb890aa3990544daea5371f3cb8))
+* allow running handler in threads ([#302](https://github.com/Arize-ai/openinference/issues/302)) ([89c9464](https://github.com/Arize-ai/openinference/commit/89c946475584c31f77043139ee7812f3dd4eb748))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.11...python-openinference-instrumentation-langchain-v0.1.12) (2024-03-13)
 
 
