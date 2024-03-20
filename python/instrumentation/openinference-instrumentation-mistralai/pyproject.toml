@@ -39,6 +39,7 @@ instruments = [
 test = [
   "mistralai",
   "opentelemetry-sdk",
+  "opentelemetry-instrumentation-httpx",
   "respx",
 ]
 
