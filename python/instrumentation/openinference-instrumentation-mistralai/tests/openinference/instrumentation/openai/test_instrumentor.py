@@ -1,18 +1,25 @@
 import os
+from typing import Generator
 
+import pytest
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
+from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
 def test_synchronous_chat_completions(
-    # respx_mock: MockRouter,
-    # in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     client = MistralClient(api_key=os.environ["MISTRAL_API_KEY"])
     response = client.chat(
@@ -29,6 +36,33 @@ def test_synchronous_chat_completions(
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "france" in response_content.lower()
+
+
+@pytest.fixture(scope="module")
+def in_memory_span_exporter() -> InMemorySpanExporter:
+    return InMemorySpanExporter()
+
+
+@pytest.fixture(scope="module")
+def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
+    resource = Resource(attributes={})
+    tracer_provider = trace_sdk.TracerProvider(resource=resource)
+    span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
+    tracer_provider.add_span_processor(span_processor=span_processor)
+    HTTPXClientInstrumentor().instrument(tracer_provider=tracer_provider)
+    return tracer_provider
+
+
+@pytest.fixture(autouse=True)
+def instrument(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> Generator[None, None, None]:
+    MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
+    yield
+    MistralAIInstrumentor().uninstrument()
+    in_memory_span_exporter.clear()
+
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
