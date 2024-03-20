@@ -36,6 +36,9 @@ dependencies = [
 instruments = [
   "mistralai",
 ]
+dev = [
+  "pytest",
+]
 test = [
   "mistralai",
   "opentelemetry-sdk",
