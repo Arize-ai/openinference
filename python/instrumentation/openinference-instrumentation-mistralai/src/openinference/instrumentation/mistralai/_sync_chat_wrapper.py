@@ -13,6 +13,9 @@ from typing import (
     Tuple,
 )
 
+from openinference.instrumentation.mistralai._response_attributes_extractor import (
+    _ResponseAttributesExtractor,
+)
 from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
 from openinference.semconv.trace import (
@@ -36,9 +39,16 @@ logger.addHandler(logging.NullHandler())
 
 
 class _SyncChatWrapper:
+    __slots__ = (
+        "_tracer",
+        "_mistral_client",
+        "_response_attributes_extractor",
+    )
+
     def __init__(self, tracer: trace_api.Tracer, mistral_client: "MistralClient") -> None:
         self._tracer = tracer
         self._mistral_client = mistral_client
+        self._response_attributes_extractor = _ResponseAttributesExtractor()
 
     def __call__(
         self,
@@ -79,6 +89,7 @@ class _SyncChatWrapper:
                     has_attributes=_ResponseAttributes(
                         request_parameters=request_parameters,
                         response=response,
+                        response_attributes_extractor=self._response_attributes_extractor,
                     ),
                 )
             except Exception:
@@ -140,22 +151,28 @@ class _SyncChatWrapper:
         bound_arguments = signature.bind(*args, **kwargs).arguments
         return self._mistral_client._make_chat_request(**bound_arguments)
 
+
 class _ResponseAttributes:
     __slots__ = (
         "_response",
         "_request_parameters",
+        "_response_attributes_extractor",
     )
 
     def __init__(
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
+        response_attributes_extractor: _ResponseAttributesExtractor,
     ) -> None:
         self._response = response
         self._request_parameters = request_parameters
+        self._response_attributes_extractor = response_attributes_extractor
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from ()
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        yield from ()
+        yield from self._response_attributes_extractor.get_attributes_from_response(
+            response=self._response,
+        )
