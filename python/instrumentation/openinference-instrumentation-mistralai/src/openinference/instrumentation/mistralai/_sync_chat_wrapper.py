@@ -80,6 +80,24 @@ class _WithMistralAI(ABC):
     def _get_span_kind(self) -> str:
         return OpenInferenceSpanKindValues.LLM.value
 
+    def _get_attributes_from_request(
+        self,
+        request_parameters: Dict[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind()
+        try:
+            yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+            yield SpanAttributes.INPUT_VALUE, json.dumps(request_parameters)
+            invocation_parameters = {
+                param_key: param_value
+                for param_key, param_value in request_parameters.items()
+                if param_key != "messages"
+            }
+            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_parameters)
+            yield SpanAttributes.LLM_INPUT_MESSAGES, json.dumps(request_parameters.get("messages"))
+        except Exception:
+            logger.exception("Failed to get input attributes from request parameters.")
+
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     __slots__ = (
@@ -134,23 +152,6 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
                 with_span.finish_tracing()
         return response
 
-    def _get_attributes_from_request(
-        self,
-        request_parameters: Dict[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind()
-        try:
-            yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
-            yield SpanAttributes.INPUT_VALUE, json.dumps(request_parameters)
-            invocation_parameters = {
-                param_key: param_value
-                for param_key, param_value in request_parameters.items()
-                if param_key != "messages"
-            }
-            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_parameters)
-            yield SpanAttributes.LLM_INPUT_MESSAGES, json.dumps(request_parameters.get("messages"))
-        except Exception:
-            logger.exception("Failed to get input attributes from request parameters.")
 
     def _parse_args(
         self, signature: Signature, *args: Tuple[Any], **kwargs: Mapping[str, Any]
@@ -217,23 +218,6 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
                 with_span.finish_tracing()
         return response
 
-    def _get_attributes_from_request(
-        self,
-        request_parameters: Dict[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind()
-        try:
-            yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
-            yield SpanAttributes.INPUT_VALUE, json.dumps(request_parameters)
-            invocation_parameters = {
-                param_key: param_value
-                for param_key, param_value in request_parameters.items()
-                if param_key != "messages"
-            }
-            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_parameters)
-            yield SpanAttributes.LLM_INPUT_MESSAGES, json.dumps(request_parameters.get("messages"))
-        except Exception:
-            logger.exception("Failed to get input attributes from request parameters.")
 
     def _parse_args(
         self, signature: Signature, *args: Tuple[Any], **kwargs: Mapping[str, Any]
