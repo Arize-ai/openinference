@@ -65,12 +65,12 @@ def _get_attributes_from_chat_completion_message(
                         ),
                         name,
                     )
-                # if arguments := getattr(function, "arguments", None):
-                #     yield (
-                #         f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
-                #         f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                #         arguments,
-                #     )
+                if arguments := getattr(function, "arguments", None):
+                    yield (
+                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        arguments,
+                    )
 
 
 def _get_attributes_from_completion_usage(
