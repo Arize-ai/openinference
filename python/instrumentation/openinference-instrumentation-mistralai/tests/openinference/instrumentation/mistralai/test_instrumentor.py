@@ -254,25 +254,18 @@ def test_synchronous_chat_completions_with_tool_call_emits_expected_span(
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
     assert output_message_role == "assistant"
     assert (
-        attributes.pop(
-            tool_call := f"{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}"
-        )
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
     )
-    assert isinstance(
-        output_message_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"),
-        str,
-    )
-    assert "France" in output_message_content
 
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 96
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
     assert attributes == {}  # test should account for all span attributes
 
