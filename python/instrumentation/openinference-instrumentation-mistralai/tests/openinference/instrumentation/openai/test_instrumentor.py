@@ -63,14 +63,15 @@ def test_synchronous_chat_completions(
         "temperature": 0.1,
     }
 
-    # input_messages = attributes.pop(LLM_INPUT_MESSAGES)
-    # assert isinstance(input_messages, list)
-    # assert len(input_messages) == 1
-    # input_message = input_messages[0]
-    # assert input_message == {
-    #     "role": "user",
-    #     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
-    # }
+    assert isinstance(input_message_str := attributes.pop(LLM_INPUT_MESSAGES), str)
+    input_messages = json.loads(input_message_str)
+    assert isinstance(input_messages, list)
+    assert len(input_messages) == 1
+    input_message = input_messages[0]
+    assert input_message == {
+        "role": "user",
+        "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
+    }
 
     # output_messages = attributes.pop(LLM_OUTPUT_MESSAGES)
     # assert isinstance(output_messages, list)

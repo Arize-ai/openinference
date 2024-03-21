@@ -126,6 +126,7 @@ class _SyncChatWrapper:
                 if param_key != "messages"
             }
             yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_parameters)
+            yield SpanAttributes.LLM_INPUT_MESSAGES, json.dumps(request_parameters.get("messages"))
         except Exception:
             logger.exception("Failed to get input attributes from request parameters.")
 
