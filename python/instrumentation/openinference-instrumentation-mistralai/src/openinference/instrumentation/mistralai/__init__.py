@@ -4,7 +4,7 @@ from typing import (
     Collection,
 )
 
-from openinference.instrumentation.mistralai._sync_chat_wrapper import (
+from openinference.instrumentation.mistralai._chat_wrapper import (
     _AsyncChatWrapper,
     _SyncChatWrapper,
 )
