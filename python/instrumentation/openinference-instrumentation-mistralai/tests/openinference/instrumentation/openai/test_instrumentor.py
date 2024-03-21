@@ -1,11 +1,14 @@
 import json
 from typing import (
+    Any,
     Generator,
     Mapping,
     cast,
 )
 
 import pytest
+import respx
+from httpx import Response
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
@@ -26,8 +29,34 @@ from opentelemetry.util.types import AttributeValue
 
 
 def test_synchronous_chat_completions(
-    mistral_client: MistralClient, in_memory_span_exporter: InMemorySpanExporter
+    mistral_client: MistralClient,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
 ) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "a21b3c92f73642ccb6352ff9883c327b",
+                "object": "chat.completion",
+                "created": 1711044439,
+                "model": "mistral-large-latest",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "The 2018 FIFA World Cup was won by the French national team. They defeated Croatia 4-2 in the final, which took place on July 15, 2018, at the Luzhniki Stadium in Moscow, Russia. This was France's second World Cup title; they had previously won the tournament in 1998 when they hosted the event. Did you know that the 2018 World Cup was the first time the video assistant referee (VAR) system was used in a World Cup tournament? It played a significant role in several matches, helping referees make more accurate decisions by reviewing certain incidents.",  # noqa: E501
+                            "tool_calls": None,
+                        },
+                        "finish_reason": "stop",
+                        "logprobs": None,
+                    }
+                ],
+                "usage": {"prompt_tokens": 15, "total_tokens": 156, "completion_tokens": 141},
+            },
+        )
+    )
     response = mistral_client.chat(
         model="mistral-large-latest",
         messages=[
@@ -86,11 +115,9 @@ def test_synchronous_chat_completions(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
-    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
-    assert (
-        isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
-    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
     assert attributes == {}  # test should account for all span attributes
 
