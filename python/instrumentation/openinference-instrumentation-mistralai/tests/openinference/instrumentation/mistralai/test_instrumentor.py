@@ -257,6 +257,13 @@ def test_synchronous_chat_completions_with_tool_call_emits_expected_span(
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
     )
+    assert isinstance(
+        function_arguments_json := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert json.loads(function_arguments_json) == {"city": "San Francisco"}
 
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert (
