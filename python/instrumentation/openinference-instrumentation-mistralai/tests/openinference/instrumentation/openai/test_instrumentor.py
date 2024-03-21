@@ -13,6 +13,7 @@ from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -52,11 +53,11 @@ def test_synchronous_chat_completions(
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
-    # assert isinstance(attributes.pop(INPUT_VALUE), str)
-    # assert (
-    #     OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
-    #     == OpenInferenceMimeTypeValues.JSON
-    # )
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
     # assert (
     #     json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS)))
     #     == {"model": "mistral-large-latest", "temperature": 0.1}

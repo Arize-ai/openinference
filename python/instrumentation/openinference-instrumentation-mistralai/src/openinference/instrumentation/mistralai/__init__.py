@@ -36,7 +36,6 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         try:
             from mistralai.client import MistralClient
-            from mistralai.client_base import ClientBase
         except ImportError as err:
             raise Exception("Could not import mistralai. Please install with `pip install mistralai`.") from err
 
@@ -44,7 +43,10 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             module=_MODULE,
             name="client.MistralClient.chat",
-            wrapper=_SyncChatWrapper(tracer, ClientBase),
+            wrapper=_SyncChatWrapper(
+                tracer,
+                MistralClient()
+            ),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

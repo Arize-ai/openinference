@@ -1,3 +1,5 @@
+import inspect
+import json
 import logging
 from contextlib import contextmanager
 from typing import (
@@ -9,12 +11,15 @@ from typing import (
     Iterator,
     Mapping,
     Tuple,
-    Type,
 )
 
 from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -22,7 +27,7 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
-    from mistralai.client_base import ClientBase
+    from mistralai.client import MistralClient
 
 __all__ = (
     "_SyncChatWrapper",
@@ -33,21 +38,23 @@ logger.addHandler(logging.NullHandler())
 
 
 class _SyncChatWrapper:
-    def __init__(self, tracer: trace_api.Tracer, client_base_cls: Type["ClientBase"]) -> None:
+    def __init__(self, tracer: trace_api.Tracer, mistral_client: "MistralClient") -> None:
         self._tracer = tracer
-        self._minstral_client_base_cls = client_base_cls
+        self._mistral_client = mistral_client
 
     def __call__(
         self,
         wrapped: Callable[..., Any],
         instance: Any,
-        args: Tuple[type, Any],
+        args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         try:
-            request_parameters = _parse_sync_chat_args(args)
+            signature = inspect.signature(wrapped)
+            bound_arguments = signature.bind(*args, **kwargs).arguments
+            request_parameters = self._parse_chat_args(bound_arguments)
             span_name = "MistralClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
@@ -115,11 +122,19 @@ class _SyncChatWrapper:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind()
         try:
-            pass
+            yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+            yield SpanAttributes.INPUT_VALUE, json.dumps(self._mistral_client._make_chat_request(**request_parameters))
         except Exception:
             logger.exception(
-                "Failed to get input attributes from request parameters of "
+                "Failed to get input attributes from request parameters."
             )
+
+    def _parse_chat_args(self, kwargs: Mapping[str, Any]) -> Dict[str, Any]:
+        """
+        Invokes the private _make_chat_request method on MistralClient, which
+        serializes the request parameters to JSON
+        """
+        return self._mistral_client._make_chat_request(**kwargs)
 
 class _ResponseAttributes:
     __slots__ = (
@@ -141,6 +156,3 @@ class _ResponseAttributes:
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from ()
 
-
-def _parse_sync_chat_args(args: Tuple[type, Any]) -> Dict[str, Any]:
-    return {}
