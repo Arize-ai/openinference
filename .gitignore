@@ -27,3 +27,6 @@ version.ts
 
 # DSPy produced files
 assertion.log
+
+# Environment variable files
+.envs
