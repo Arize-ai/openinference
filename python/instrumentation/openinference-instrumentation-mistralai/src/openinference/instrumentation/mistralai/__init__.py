@@ -4,7 +4,10 @@ from typing import (
     Collection,
 )
 
-from openinference.instrumentation.mistralai._sync_chat_wrapper import _SyncChatWrapper
+from openinference.instrumentation.mistralai._chat_wrapper import (
+    _AsyncChatWrapper,
+    _SyncChatWrapper,
+)
 from openinference.instrumentation.mistralai.package import _instruments
 from openinference.instrumentation.mistralai.version import __version__
 from opentelemetry import trace as trace_api
@@ -22,7 +25,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
     An instrumentor for mistralai
     """
 
-    __slots__ = ("_original_chat_method",)
+    __slots__ = ("_original_sync_chat_method", "_original_async_chat_method")
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -33,20 +36,30 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
 
         try:
+            import mistralai
+            from mistralai.async_client import MistralAsyncClient
             from mistralai.client import MistralClient
         except ImportError as err:
             raise Exception(
                 "Could not import mistralai. Please install with `pip install mistralai`."
             ) from err
 
-        self._original_chat_method = MistralClient.chat
+        self._original_sync_chat_method = MistralClient.chat
+        self._original_async_chat_method = MistralAsyncClient.chat
         wrap_function_wrapper(
             module=_MODULE,
             name="client.MistralClient.chat",
-            wrapper=_SyncChatWrapper(tracer, MistralClient()),
+            wrapper=_SyncChatWrapper(tracer, mistralai),
+        )
+        wrap_function_wrapper(
+            module=_MODULE,
+            name="async_client.MistralAsyncClient.chat",
+            wrapper=_AsyncChatWrapper(tracer, mistralai),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        from mistralai.async_client import MistralAsyncClient
         from mistralai.client import MistralClient
 
-        MistralClient.chat = self._original_chat_method  # type: ignore
+        MistralClient.chat = self._original_sync_chat_method  # type: ignore
+        MistralAsyncClient.chat = self._original_async_chat_method  # type: ignore
