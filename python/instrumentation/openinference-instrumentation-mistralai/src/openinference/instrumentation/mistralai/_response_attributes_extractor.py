@@ -1,11 +1,13 @@
 import logging
 from typing import (
     TYPE_CHECKING,
+    Iterable,
     Iterator,
     Tuple,
 )
 
 from openinference.semconv.trace import (
+    MessageAttributes,
     SpanAttributes,
 )
 from opentelemetry.util.types import AttributeValue
@@ -35,10 +37,19 @@ def _get_attributes_from_chat_completion_response(
         yield SpanAttributes.LLM_MODEL_NAME, model
     # if usage := getattr(response, "usage", None):
     #     yield from _get_attributes_from_completion_usage(usage)
-    # if (choices := getattr(response, "choices", None)) and isinstance(choices, Iterable):
-    #     for choice in choices:
-    #         if (index := getattr(choice, "index", None)) is None:
-    #             continue
-    #         if message := getattr(choice, "message", None):
-    #             for key, value in _get_attributes_from_chat_completion_message(message):
-    #                 yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+    if (choices := getattr(response, "choices", None)) and isinstance(choices, Iterable):
+        for choice in choices:
+            if (index := getattr(choice, "index", None)) is None:
+                continue
+            if message := getattr(choice, "message", None):
+                for key, value in _get_attributes_from_chat_completion_message(message):
+                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+
+
+def _get_attributes_from_chat_completion_message(
+    message: "ChatCompletionResponse",
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if role := getattr(message, "role", None):
+        yield MessageAttributes.MESSAGE_ROLE, role
+    if content := getattr(message, "content", None):
+        yield MessageAttributes.MESSAGE_CONTENT, content

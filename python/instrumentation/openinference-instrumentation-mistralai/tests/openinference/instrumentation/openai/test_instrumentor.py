@@ -73,14 +73,13 @@ def test_synchronous_chat_completions(
         "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
     }
 
-    # output_messages = attributes.pop(LLM_OUTPUT_MESSAGES)
-    # assert isinstance(output_messages, list)
-    # assert len(output_messages) == 1
-    # output_message = output_messages[0]
-    # assert output_message == {
-    #     "role": "assistant",
-    #     "content": "France won the World Cup in 2018.",
-    # }
+    output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
+    assert output_message_role == "assistant"
+    assert isinstance(
+        output_message_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"),
+        str,
+    )
+    assert "France" in output_message_content
 
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert (
