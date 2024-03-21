@@ -48,8 +48,8 @@ def test_synchronous_chat_completions(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    # assert span.status.is_ok
-    # assert not span.status.description
+    assert span.status.is_ok
+    assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     # assert isinstance(attributes.pop(INPUT_VALUE), str)
