@@ -49,4 +49,4 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
     def _uninstrument(self, **kwargs: Any) -> None:
         from mistralai.client import MistralClient
 
-        MistralClient.chat = self._original_chat_method
+        MistralClient.chat = self._original_chat_method  # type: ignore
