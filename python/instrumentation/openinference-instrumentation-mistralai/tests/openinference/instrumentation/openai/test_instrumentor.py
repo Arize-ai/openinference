@@ -86,12 +86,11 @@ def test_synchronous_chat_completions(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    # assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 17
-    # assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 18
-    # assert (
-    #     attributes.pop(LLM_TOKEN_COUNT_COMPLETION)
-    #     == 19
-    # )
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert (
+        isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    )
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
     assert attributes == {}  # test should account for all span attributes
 
