@@ -1,5 +1,10 @@
+import json
 import os
-from typing import Generator
+from typing import (
+    Generator,
+    Mapping,
+    cast,
+)
 
 import pytest
 from mistralai.client import MistralClient
@@ -8,6 +13,7 @@ from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -16,29 +22,82 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
 
 
 def test_synchronous_chat_completions(
+    mistral_client: MistralClient,
     in_memory_span_exporter: InMemorySpanExporter
 ) -> None:
-    client = MistralClient(api_key=os.environ["MISTRAL_API_KEY"])
-    response = client.chat(
+    response = mistral_client.chat(
         model="mistral-large-latest",
         messages=[
             ChatMessage(
-                content="Who won the World Cup in 2018? Answer in one word.",
+                content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
                 role="user",
             )
         ],
+        temperature=0.1,
     )
     choices = response.choices
     assert len(choices) == 1
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
-    assert "france" in response_content.lower()
+    assert "France" in response_content
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
+    span = spans[0]
+    # assert span.status.is_ok
+    # assert not span.status.description
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    # assert isinstance(attributes.pop(INPUT_VALUE), str)
+    # assert (
+    #     OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+    #     == OpenInferenceMimeTypeValues.JSON
+    # )
+    # assert (
+    #     json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS)))
+    #     == {"model": "mistral-large-latest", "temperature": 0.1}
+    # )
+
+    # input_messages = attributes.pop(LLM_INPUT_MESSAGES)
+    # assert isinstance(input_messages, list)
+    # assert len(input_messages) == 1
+    # input_message = input_messages[0]
+    # assert input_message == {
+    #     "role": "user",
+    #     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
+    # }
+
+    # output_messages = attributes.pop(LLM_OUTPUT_MESSAGES)
+    # assert isinstance(output_messages, list)
+    # assert len(output_messages) == 1
+    # output_message = output_messages[0]
+    # assert output_message == {
+    #     "role": "assistant",
+    #     "content": "France won the World Cup in 2018.",
+    # }
+
+    # assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    # assert (
+    #     OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+    #     == OpenInferenceMimeTypeValues.JSON
+    # )
+    # assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 17
+    # assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 18
+    # assert (
+    #     attributes.pop(LLM_TOKEN_COUNT_COMPLETION)
+    #     == 19
+    # )
+    # assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    # assert attributes == {}  # test should account for all span attributes
+
+
+@pytest.fixture(scope="module")
+def mistral_client() -> MistralClient:
+    return MistralClient()
 
 
 @pytest.fixture(scope="module")

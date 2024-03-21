@@ -1,6 +1,7 @@
 import logging
 from contextlib import contextmanager
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -8,15 +9,20 @@ from typing import (
     Iterator,
     Mapping,
     Tuple,
+    Type,
 )
 
 from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
+
+if TYPE_CHECKING:
+    from mistralai.client_base import ClientBase
 
 __all__ = (
     "_SyncChatWrapper",
@@ -26,10 +32,10 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-
 class _SyncChatWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: trace_api.Tracer, client_base_cls: Type["ClientBase"]) -> None:
         self._tracer = tracer
+        self._minstral_client_base_cls = client_base_cls
 
     def __call__(
         self,
@@ -48,7 +54,7 @@ class _SyncChatWrapper:
             return wrapped(*args, **kwargs)
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=(),
+            attributes=self._get_attributes_from_request(request_parameters),
             extra_attributes=(),
         ) as with_span:
             try:
@@ -100,6 +106,20 @@ class _SyncChatWrapper:
         ) as span:
             yield _WithSpan(span=span, extra_attributes=dict(extra_attributes))
 
+    def _get_span_kind(self) -> str:
+        return OpenInferenceSpanKindValues.LLM.value
+
+    def _get_attributes_from_request(
+        self,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind()
+        try:
+            pass
+        except Exception:
+            logger.exception(
+                "Failed to get input attributes from request parameters of "
+            )
 
 class _ResponseAttributes:
     __slots__ = (
