@@ -4,8 +4,8 @@ import warnings
 from abc import ABC
 from contextlib import contextmanager
 from inspect import Signature, signature
+from types import ModuleType
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -30,10 +30,6 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
-
-if TYPE_CHECKING:
-    from mistralai.async_client import MistralAsyncClient
-    from mistralai.client import MistralClient
 
 __all__ = ("_SyncChatWrapper",)
 
@@ -69,18 +65,27 @@ class _WithTracer(ABC):
         ) as span:
             yield _WithSpan(span=span, extra_attributes=dict(extra_attributes))
 
-class _SyncChatWrapper(_WithTracer):
+
+class _WithMistralAI(ABC):
     __slots__ = (
-        "_tracer",
         "_mistral_client",
         "_response_attributes_extractor",
     )
 
-    def __init__(self, tracer: trace_api.Tracer, mistral_client: "MistralClient") -> None:
-        super().__init__(tracer)
-        self._tracer = tracer
-        self._mistral_client = mistral_client
+    def __init__(self, mistralai: ModuleType, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._mistral_client = mistralai.client.MistralClient()
         self._response_attributes_extractor = _ResponseAttributesExtractor()
+
+    def _get_span_kind(self) -> str:
+        return OpenInferenceSpanKindValues.LLM.value
+
+
+class _SyncChatWrapper(_WithTracer, _WithMistralAI):
+    __slots__ = (
+        "_tracer",
+        "_response_attributes_extractor",
+    )
 
     def __call__(
         self,
@@ -129,9 +134,6 @@ class _SyncChatWrapper(_WithTracer):
                 with_span.finish_tracing()
         return response
 
-    def _get_span_kind(self) -> str:
-        return OpenInferenceSpanKindValues.LLM.value
-
     def _get_attributes_from_request(
         self,
         request_parameters: Dict[str, Any],
@@ -161,18 +163,12 @@ class _SyncChatWrapper(_WithTracer):
         return self._mistral_client._make_chat_request(**bound_arguments)
 
 
-class _AsyncChatWrapper(_WithTracer):
+class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
     __slots__ = (
         "_tracer",
         "_mistral_client",
         "_response_attributes_extractor",
     )
-
-    def __init__(self, tracer: trace_api.Tracer, mistral_client: "MistralAsyncClient") -> None:
-        super().__init__(tracer)
-        self._tracer = tracer
-        self._mistral_client = mistral_client
-        self._response_attributes_extractor = _ResponseAttributesExtractor()
 
     async def __call__(
         self,
@@ -220,9 +216,6 @@ class _AsyncChatWrapper(_WithTracer):
                 logger.exception(f"Failed to finish tracing for response of type {type(response)}")
                 with_span.finish_tracing()
         return response
-
-    def _get_span_kind(self) -> str:
-        return OpenInferenceSpanKindValues.LLM.value
 
     def _get_attributes_from_request(
         self,

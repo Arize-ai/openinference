@@ -36,6 +36,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
 
         try:
+            import mistralai
             from mistralai.async_client import MistralAsyncClient
             from mistralai.client import MistralClient
         except ImportError as err:
@@ -48,12 +49,12 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             module=_MODULE,
             name="client.MistralClient.chat",
-            wrapper=_SyncChatWrapper(tracer, MistralClient()),
+            wrapper=_SyncChatWrapper(tracer, mistralai),
         )
         wrap_function_wrapper(
             module=_MODULE,
             name="async_client.MistralAsyncClient.chat",
-            wrapper=_AsyncChatWrapper(tracer, MistralAsyncClient()),
+            wrapper=_AsyncChatWrapper(tracer, mistralai),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
