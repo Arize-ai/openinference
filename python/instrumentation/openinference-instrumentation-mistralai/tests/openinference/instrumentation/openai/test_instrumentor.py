@@ -10,6 +10,7 @@ import pytest
 import respx
 from httpx import Response
 from mistralai.client import MistralClient
+from mistralai.exceptions import MistralAPIException
 from mistralai.models.chat_completion import ChatMessage
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
@@ -28,7 +29,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.util.types import AttributeValue
 
 
-def test_synchronous_chat_completions(
+def test_synchronous_chat_completions_emits_expected_span(
     mistral_client: MistralClient,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
@@ -78,6 +79,8 @@ def test_synchronous_chat_completions(
     span = spans[0]
     assert span.status.is_ok
     assert not span.status.description
+    assert len(span.events) == 0
+
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -119,6 +122,65 @@ def test_synchronous_chat_completions(
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes == {}  # test should account for all span attributes
+
+
+def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
+    mistral_client: MistralClient,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            401,
+            json={"message": "Unauthorized", "request_id": "2387442eca7ad4280697667d25a36f14"},
+        )
+    )
+    with pytest.raises(MistralAPIException):
+        mistral_client.chat(
+            model="mistral-large-latest",
+            messages=[
+                ChatMessage(
+                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    role="user",
+                )
+            ],
+            temperature=0.1,
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert not span.status.is_ok
+    assert isinstance(span.status.description, str)
+    assert "Unauthorized" in span.status.description
+    assert len(span.events) == 1
+    event = span.events[0]
+    assert event.name == "exception"
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters_str) == {
+        "safe_prompt": False,
+        "model": "mistral-large-latest",
+        "temperature": 0.1,
+    }
+
+    assert isinstance(input_message_str := attributes.pop(LLM_INPUT_MESSAGES), str)
+    input_messages = json.loads(input_message_str)
+    assert isinstance(input_messages, list)
+    assert len(input_messages) == 1
+    input_message = input_messages[0]
+    assert input_message == {
+        "role": "user",
+        "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
+    }
     assert attributes == {}  # test should account for all span attributes
 
 
