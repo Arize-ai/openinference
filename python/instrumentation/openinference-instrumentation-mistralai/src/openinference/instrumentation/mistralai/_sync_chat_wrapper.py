@@ -1,6 +1,7 @@
 import json
 import logging
 import warnings
+from abc import ABC
 from contextlib import contextmanager
 from inspect import Signature, signature
 from typing import (
@@ -40,7 +41,35 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-class _SyncChatWrapper:
+class _WithTracer(ABC):
+    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._tracer = tracer
+
+    @contextmanager
+    def _start_as_current_span(
+        self,
+        span_name: str,
+        attributes: Iterable[Tuple[str, AttributeValue]],
+        extra_attributes: Iterable[Tuple[str, AttributeValue]],
+    ) -> Iterator[_WithSpan]:
+        # Because OTEL has a default limit of 128 attributes, we split our attributes into
+        # two tiers, where the addition of "extra_attributes" is deferred until the end
+        # and only after the "attributes" are added.
+        try:
+            span = self._tracer.start_span(name=span_name, attributes=dict(attributes))
+        except Exception:
+            logger.exception("Failed to start span")
+            span = INVALID_SPAN
+        with trace_api.use_span(
+            span,
+            end_on_exit=False,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            yield _WithSpan(span=span, extra_attributes=dict(extra_attributes))
+
+class _SyncChatWrapper(_WithTracer):
     __slots__ = (
         "_tracer",
         "_mistral_client",
@@ -48,6 +77,7 @@ class _SyncChatWrapper:
     )
 
     def __init__(self, tracer: trace_api.Tracer, mistral_client: "MistralClient") -> None:
+        super().__init__(tracer)
         self._tracer = tracer
         self._mistral_client = mistral_client
         self._response_attributes_extractor = _ResponseAttributesExtractor()
@@ -99,29 +129,6 @@ class _SyncChatWrapper:
                 with_span.finish_tracing()
         return response
 
-    @contextmanager
-    def _start_as_current_span(
-        self,
-        span_name: str,
-        attributes: Iterable[Tuple[str, AttributeValue]],
-        extra_attributes: Iterable[Tuple[str, AttributeValue]],
-    ) -> Iterator[_WithSpan]:
-        # Because OTEL has a default limit of 128 attributes, we split our attributes into
-        # two tiers, where the addition of "extra_attributes" is deferred until the end
-        # and only after the "attributes" are added.
-        try:
-            span = self._tracer.start_span(name=span_name, attributes=dict(attributes))
-        except Exception:
-            logger.exception("Failed to start span")
-            span = INVALID_SPAN
-        with trace_api.use_span(
-            span,
-            end_on_exit=False,
-            record_exception=False,
-            set_status_on_exception=False,
-        ) as span:
-            yield _WithSpan(span=span, extra_attributes=dict(extra_attributes))
-
     def _get_span_kind(self) -> str:
         return OpenInferenceSpanKindValues.LLM.value
 
@@ -154,7 +161,7 @@ class _SyncChatWrapper:
         return self._mistral_client._make_chat_request(**bound_arguments)
 
 
-class _AsyncChatWrapper:
+class _AsyncChatWrapper(_WithTracer):
     __slots__ = (
         "_tracer",
         "_mistral_client",
@@ -162,6 +169,7 @@ class _AsyncChatWrapper:
     )
 
     def __init__(self, tracer: trace_api.Tracer, mistral_client: "MistralAsyncClient") -> None:
+        super().__init__(tracer)
         self._tracer = tracer
         self._mistral_client = mistral_client
         self._response_attributes_extractor = _ResponseAttributesExtractor()
@@ -212,29 +220,6 @@ class _AsyncChatWrapper:
                 logger.exception(f"Failed to finish tracing for response of type {type(response)}")
                 with_span.finish_tracing()
         return response
-
-    @contextmanager
-    def _start_as_current_span(
-        self,
-        span_name: str,
-        attributes: Iterable[Tuple[str, AttributeValue]],
-        extra_attributes: Iterable[Tuple[str, AttributeValue]],
-    ) -> Iterator[_WithSpan]:
-        # Because OTEL has a default limit of 128 attributes, we split our attributes into
-        # two tiers, where the addition of "extra_attributes" is deferred until the end
-        # and only after the "attributes" are added.
-        try:
-            span = self._tracer.start_span(name=span_name, attributes=dict(attributes))
-        except Exception:
-            logger.exception("Failed to start span")
-            span = INVALID_SPAN
-        with trace_api.use_span(
-            span,
-            end_on_exit=False,
-            record_exception=False,
-            set_status_on_exception=False,
-        ) as span:
-            yield _WithSpan(span=span, extra_attributes=dict(extra_attributes))
 
     def _get_span_kind(self) -> str:
         return OpenInferenceSpanKindValues.LLM.value
