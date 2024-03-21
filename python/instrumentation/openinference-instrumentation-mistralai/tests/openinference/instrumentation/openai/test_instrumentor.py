@@ -93,7 +93,7 @@ def test_synchronous_chat_completions(
     #     == 19
     # )
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
-    # assert attributes == {}  # test should account for all span attributes
+    assert attributes == {}  # test should account for all span attributes
 
 
 @pytest.fixture(scope="module")
