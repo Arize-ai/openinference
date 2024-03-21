@@ -82,11 +82,11 @@ def test_synchronous_chat_completions(
     #     "content": "France won the World Cup in 2018.",
     # }
 
-    # assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    # assert (
-    #     OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
-    #     == OpenInferenceMimeTypeValues.JSON
-    # )
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
     # assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 17
     # assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 18
     # assert (

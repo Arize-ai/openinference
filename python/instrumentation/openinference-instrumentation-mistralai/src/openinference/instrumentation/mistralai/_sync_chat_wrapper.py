@@ -1,5 +1,6 @@
 import json
 import logging
+import warnings
 from contextlib import contextmanager
 from inspect import Signature, signature
 from typing import (
@@ -170,7 +171,16 @@ class _ResponseAttributes:
         self._response_attributes_extractor = response_attributes_extractor
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        yield from ()
+        if hasattr(self._response, "model_dump_json") and callable(self._response.model_dump_json):
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    value = self._response.model_dump_json(exclude_unset=True)
+                assert isinstance(value, str)
+                yield SpanAttributes.OUTPUT_VALUE, value
+                yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+            except Exception:
+                logger.exception("Failed to get model dump json")
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from self._response_attributes_extractor.get_attributes_from_response(
