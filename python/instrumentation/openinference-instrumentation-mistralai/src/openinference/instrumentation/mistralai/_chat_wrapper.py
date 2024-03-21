@@ -111,11 +111,6 @@ class _WithMistralAI(ABC):
 
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
-    __slots__ = (
-        "_tracer",
-        "_response_attributes_extractor",
-    )
-
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -165,12 +160,6 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
 
 
 class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
-    __slots__ = (
-        "_tracer",
-        "_mistral_client",
-        "_response_attributes_extractor",
-    )
-
     async def __call__(
         self,
         wrapped: Callable[..., Any],
