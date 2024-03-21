@@ -98,6 +98,16 @@ class _WithMistralAI(ABC):
         except Exception:
             logger.exception("Failed to get input attributes from request parameters.")
 
+    def _parse_args(
+        self, signature: Signature, *args: Tuple[Any], **kwargs: Mapping[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Invokes the private _make_chat_request method on MistralClient, which
+        serializes the request parameters to JSON
+        """
+        bound_arguments = signature.bind(*args, **kwargs).arguments
+        return self._mistral_client._make_chat_request(**bound_arguments)
+
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     __slots__ = (
@@ -153,17 +163,6 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
         return response
 
 
-    def _parse_args(
-        self, signature: Signature, *args: Tuple[Any], **kwargs: Mapping[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Invokes the private _make_chat_request method on MistralClient, which
-        serializes the request parameters to JSON
-        """
-        bound_arguments = signature.bind(*args, **kwargs).arguments
-        return self._mistral_client._make_chat_request(**bound_arguments)
-
-
 class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
     __slots__ = (
         "_tracer",
@@ -217,17 +216,6 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
                 logger.exception(f"Failed to finish tracing for response of type {type(response)}")
                 with_span.finish_tracing()
         return response
-
-
-    def _parse_args(
-        self, signature: Signature, *args: Tuple[Any], **kwargs: Mapping[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Invokes the private _make_chat_request method on MistralClient, which
-        serializes the request parameters to JSON
-        """
-        bound_arguments = signature.bind(*args, **kwargs).arguments
-        return self._mistral_client._make_chat_request(**bound_arguments)
 
 
 class _ResponseAttributes:
