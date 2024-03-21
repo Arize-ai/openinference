@@ -13,6 +13,7 @@ from typing import (
     Iterator,
     Mapping,
     Tuple,
+    cast,
 )
 
 from openinference.instrumentation.mistralai._response_attributes_extractor import (
@@ -106,7 +107,7 @@ class _WithMistralAI(ABC):
         serializes the request parameters to JSON
         """
         bound_arguments = signature.bind(*args, **kwargs).arguments
-        return self._mistral_client._make_chat_request(**bound_arguments)
+        return cast(Dict[str, Any], self._mistral_client._make_chat_request(**bound_arguments))
 
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
