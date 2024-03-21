@@ -12,7 +12,6 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -39,7 +38,7 @@ def test_synchronous_chat_completions(
     assert "france" in response_content.lower()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span is from the HTTPXClientInstrumentor
+    assert len(spans) == 1
 
 
 @pytest.fixture(scope="module")
@@ -53,7 +52,6 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.
     tracer_provider = trace_sdk.TracerProvider(resource=resource)
     span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
     tracer_provider.add_span_processor(span_processor=span_processor)
-    HTTPXClientInstrumentor().instrument(tracer_provider=tracer_provider)
     return tracer_provider
 
 
