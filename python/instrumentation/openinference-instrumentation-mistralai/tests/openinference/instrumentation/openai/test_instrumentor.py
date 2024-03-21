@@ -1,5 +1,4 @@
 import json
-import os
 from typing import (
     Generator,
     Mapping,
@@ -27,8 +26,7 @@ from opentelemetry.util.types import AttributeValue
 
 
 def test_synchronous_chat_completions(
-    mistral_client: MistralClient,
-    in_memory_span_exporter: InMemorySpanExporter
+    mistral_client: MistralClient, in_memory_span_exporter: InMemorySpanExporter
 ) -> None:
     response = mistral_client.chat(
         model="mistral-large-latest",
@@ -58,10 +56,12 @@ def test_synchronous_chat_completions(
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    # assert (
-    #     json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS)))
-    #     == {"model": "mistral-large-latest", "temperature": 0.1}
-    # )
+    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters_str) == {
+        "safe_prompt": False,
+        "model": "mistral-large-latest",
+        "temperature": 0.1,
+    }
 
     # input_messages = attributes.pop(LLM_INPUT_MESSAGES)
     # assert isinstance(input_messages, list)
@@ -124,7 +124,6 @@ def instrument(
     yield
     MistralAIInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
-
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND

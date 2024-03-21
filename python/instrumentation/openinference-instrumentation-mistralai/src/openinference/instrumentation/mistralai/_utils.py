@@ -20,7 +20,6 @@ class _HasAttributes(Protocol):
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]: ...
 
 
-
 def _finish_tracing(
     with_span: _WithSpan,
     has_attributes: _HasAttributes,

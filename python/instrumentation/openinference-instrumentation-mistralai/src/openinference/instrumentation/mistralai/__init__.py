@@ -22,9 +22,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
     An instrumentor for mistralai
     """
 
-    __slots__ = (
-        "_original_chat_method",
-    )
+    __slots__ = ("_original_chat_method",)
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -37,18 +35,18 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         try:
             from mistralai.client import MistralClient
         except ImportError as err:
-            raise Exception("Could not import mistralai. Please install with `pip install mistralai`.") from err
+            raise Exception(
+                "Could not import mistralai. Please install with `pip install mistralai`."
+            ) from err
 
         self._original_chat_method = MistralClient.chat
         wrap_function_wrapper(
             module=_MODULE,
             name="client.MistralClient.chat",
-            wrapper=_SyncChatWrapper(
-                tracer,
-                MistralClient()
-            ),
+            wrapper=_SyncChatWrapper(tracer, MistralClient()),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
         from mistralai.client import MistralClient
+
         MistralClient.chat = self._original_chat_method

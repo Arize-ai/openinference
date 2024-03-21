@@ -1,7 +1,7 @@
-import inspect
 import json
 import logging
 from contextlib import contextmanager
+from inspect import Signature, signature
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -29,9 +29,7 @@ from opentelemetry.util.types import AttributeValue
 if TYPE_CHECKING:
     from mistralai.client import MistralClient
 
-__all__ = (
-    "_SyncChatWrapper",
-)
+__all__ = ("_SyncChatWrapper",)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -52,9 +50,7 @@ class _SyncChatWrapper:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         try:
-            signature = inspect.signature(wrapped)
-            bound_arguments = signature.bind(*args, **kwargs).arguments
-            request_parameters = self._parse_chat_args(bound_arguments)
+            request_parameters = self._parse_args(signature(wrapped), *args, **kwargs)
             span_name = "MistralClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
@@ -118,23 +114,30 @@ class _SyncChatWrapper:
 
     def _get_attributes_from_request(
         self,
-        request_parameters: Mapping[str, Any],
+        request_parameters: Dict[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind()
         try:
             yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
-            yield SpanAttributes.INPUT_VALUE, json.dumps(self._mistral_client._make_chat_request(**request_parameters))
+            yield SpanAttributes.INPUT_VALUE, json.dumps(request_parameters)
+            invocation_parameters = {
+                param_key: param_value
+                for param_key, param_value in request_parameters.items()
+                if param_key != "messages"
+            }
+            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_parameters)
         except Exception:
-            logger.exception(
-                "Failed to get input attributes from request parameters."
-            )
+            logger.exception("Failed to get input attributes from request parameters.")
 
-    def _parse_chat_args(self, kwargs: Mapping[str, Any]) -> Dict[str, Any]:
+    def _parse_args(
+        self, signature: Signature, *args: Tuple[Any], **kwargs: Mapping[str, Any]
+    ) -> Dict[str, Any]:
         """
         Invokes the private _make_chat_request method on MistralClient, which
         serializes the request parameters to JSON
         """
-        return self._mistral_client._make_chat_request(**kwargs)
+        bound_arguments = signature.bind(*args, **kwargs).arguments
+        return self._mistral_client._make_chat_request(**bound_arguments)
 
 class _ResponseAttributes:
     __slots__ = (
@@ -155,4 +158,3 @@ class _ResponseAttributes:
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from ()
-
