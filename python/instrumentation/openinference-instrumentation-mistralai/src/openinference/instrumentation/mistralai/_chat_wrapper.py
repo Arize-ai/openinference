@@ -157,6 +157,93 @@ class _WithMistralAI(ABC):
         return request_data
 
 
+    def _finalize_response(
+        self,
+        response: Any,
+        with_span: _WithSpan,
+        request_parameters: Mapping[str, Any],
+    ) -> Any:
+        """
+        Monkey-patch the response object to trace the stream, or finish tracing if the response is
+        not a stream.
+        """
+
+        # if hasattr(response, "parse") and callable(response.parse):
+        #     # `.request()` may be called under `.with_raw_response` and it's necessary to call
+        #     # `.parse()` to get back the usual response types.
+        #     # E.g. see https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_base_client.py#L518  # noqa: E501
+        #     try:
+        #         response.parse()
+        #     except Exception:
+        #         logger.exception(f"Failed to parse response of type {type(response)}")
+        # if (
+        #     self._is_streaming(response)
+        #     or hasattr(
+        #         # FIXME: Ideally we shouldn't rely on a private attribute (but it may be
+        #         # impossible). The assumption here is that calling `.parse()` stores the
+        #         # stream object in `._parsed` and calling `.parse()` again will not
+        #         # overwrite the monkey-patched version.
+        #         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_response.py#L65  # noqa: E501
+        #         response,
+        #         "_parsed",
+        #     )
+        #     # Note that we must have called `.parse()` beforehand, otherwise `._parsed` is None.
+        #     and self._is_streaming(response._parsed)
+        #     or hasattr(response, "_parsed_by_type")
+        #     and hasattr(response._parsed_by_type, "get")
+        #     and self._is_streaming(response._parsed_by_type.get(cast_to))
+        # ):
+        #     # For streaming, we need an (optional) accumulator to process each chunk iteration.
+        #     try:
+        #         response_accumulator_factory = self._response_accumulator_factories.get(cast_to)
+        #         response_accumulator = (
+        #             response_accumulator_factory(request_parameters)
+        #             if response_accumulator_factory
+        #             else None
+        #         )
+        #     except Exception:
+        #         # Note that cast_to may not be hashable.
+        #         logger.exception(f"Failed to get response accumulator for {cast_to}")
+        #         response_accumulator = None
+        #     if hasattr(response, "_parsed") and self._is_streaming(parsed := response._parsed):
+        #         # Monkey-patch a private attribute assumed to be caching the output of `.parse()`.
+        #         response._parsed = _Stream(
+        #             stream=parsed,
+        #             with_span=with_span,
+        #             response_accumulator=response_accumulator,
+        #         )
+        #         return response
+        #     if (
+        #         hasattr(response, "_parsed_by_type")
+        #         and isinstance(response._parsed_by_type, dict)
+        #         and self._is_streaming(parsed := response._parsed_by_type.get(cast_to))
+        #     ):
+        #         # New in openai v1.8.0. Streaming with .with_raw_response now returns
+        #         # LegacyAPIResponse and caching is done differently.
+        #         # See https://github.com/openai/openai-python/blob/d231d1fa783967c1d3a1db3ba1b52647fff148ac/src/openai/_legacy_response.py#L112-L113  # noqa: E501
+        #         response._parsed_by_type[cast_to] = _Stream(
+        #             stream=parsed,
+        #             with_span=with_span,
+        #             response_accumulator=response_accumulator,
+        #         )
+        #         return response
+        #     return _Stream(
+        #         stream=response,
+        #         with_span=with_span,
+        #         response_accumulator=response_accumulator,
+        #     )
+        _finish_tracing(
+            status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+            with_span=with_span,
+            has_attributes=_ResponseAttributes(
+                request_parameters=request_parameters,
+                response=response,
+                response_attributes_extractor=self._response_attributes_extractor,
+            ),
+        )
+        return response
+
+
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
         self,
@@ -193,14 +280,10 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
                 with_span.finish_tracing(status=status)
                 raise
             try:
-                _finish_tracing(
-                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                response = self._finalize_response(
+                    response=response,
                     with_span=with_span,
-                    has_attributes=_ResponseAttributes(
-                        request_parameters=request_parameters,
-                        response=response,
-                        response_attributes_extractor=self._response_attributes_extractor,
-                    ),
+                    request_parameters=request_parameters,
                 )
             except Exception:
                 logger.exception(f"Failed to finish tracing for response of type {type(response)}")
@@ -244,14 +327,10 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
                 with_span.finish_tracing(status=status)
                 raise
             try:
-                _finish_tracing(
-                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                response = self._finalize_response(
+                    response=response,
                     with_span=with_span,
-                    has_attributes=_ResponseAttributes(
-                        request_parameters=request_parameters,
-                        response=response,
-                        response_attributes_extractor=self._response_attributes_extractor,
-                    ),
+                    request_parameters=request_parameters,
                 )
             except Exception:
                 logger.exception(f"Failed to finish tracing for response of type {type(response)}")
