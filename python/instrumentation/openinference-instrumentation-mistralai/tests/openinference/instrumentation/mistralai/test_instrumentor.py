@@ -611,24 +611,24 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     event = span.events[0]
     assert event.name == "First Token Stream Event"
 
-    # attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    # assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
-    # assert isinstance(attributes.pop(INPUT_VALUE), str)
-    # assert (
-    #     OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
-    #     == OpenInferenceMimeTypeValues.JSON
-    # )
-    # assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    # assert json.loads(invocation_parameters_str) == {
-    #     "model": "mistral-large-latest",
-    #     "temperature": 0.1,
-    # }
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters_str) == {
+        "model": "mistral-large-latest",
+        "temperature": 0.1,
+    }
 
-    # assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-    # assert (
-    #     attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
-    #     == "Who won the World Cup in 2018? Answer in one word, no punctuation."
-    # )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Who won the World Cup in 2018? Answer in one word, no punctuation."
+    )
 
     # output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
     # assert output_message_role == "assistant"
