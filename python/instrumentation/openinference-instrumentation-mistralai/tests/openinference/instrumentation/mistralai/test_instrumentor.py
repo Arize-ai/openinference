@@ -12,7 +12,7 @@ from httpx import Response
 from mistralai.async_client import MistralAsyncClient
 from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
-from mistralai.models.chat_completion import ChatMessage
+from mistralai.models.chat_completion import ChatMessage, FunctionCall, ToolCall, ToolChoice
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -96,15 +96,11 @@ def test_synchronous_chat_completions_emits_expected_span(
         "temperature": 0.1,
     }
 
-    assert isinstance(input_message_str := attributes.pop(LLM_INPUT_MESSAGES), str)
-    input_messages = json.loads(input_message_str)
-    assert isinstance(input_messages, list)
-    assert len(input_messages) == 1
-    input_message = input_messages[0]
-    assert input_message == {
-        "role": "user",
-        "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
-    }
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Who won the World Cup in 2018? Answer in one word, no punctuation."
+    )
 
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
     assert output_message_role == "assistant"
@@ -122,6 +118,252 @@ def test_synchronous_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes == {}  # test should account for all span attributes
+
+
+def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spans(
+    mistral_sync_client: MistralClient,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "6e8cf9abaac64c038c97e8db21e90567",
+                "object": "chat.completion",
+                "created": 1711062532,
+                "model": "mistral-large-latest",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "function": {
+                                        "name": "get_weather",
+                                        "arguments": '{"city": "San Francisco"}',
+                                    }
+                                }
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                        "logprobs": None,
+                    }
+                ],
+                "usage": {"prompt_tokens": 96, "total_tokens": 119, "completion_tokens": 23},
+            },
+        )
+    )
+    response = mistral_sync_client.chat(
+        model="mistral-large-latest",
+        tool_choice=ToolChoice.any,
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "finds the weather for a given city",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "city": {
+                                "type": "string",
+                                "description": "The city to find the weather for, e.g. 'London'",
+                            }
+                        },
+                        "required": ["city"],
+                    },
+                },
+            },
+        ],
+        messages=[
+            ChatMessage(
+                content="What's the weather like in San Francisco?",
+                role="user",
+            )
+        ],
+    )
+    choices = response.choices
+    assert len(choices) == 1
+    assert choices[0].message.content == ""
+
+    assert (tool_calls := choices[0].message.tool_calls)
+    assert len(tool_calls) == 1
+    assert (tool_call := tool_calls[0])
+    assert tool_call.function.name == "get_weather"
+    assert tool_call.function.arguments == '{"city": "San Francisco"}'
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.is_ok
+    assert not span.status.description
+    assert len(span.events) == 0
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters_str) == {
+        "safe_prompt": False,
+        "model": "mistral-large-latest",
+        "tool_choice": "any",
+    }
+
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "What's the weather like in San Francisco?"
+    )
+
+    output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
+    assert output_message_role == "assistant"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert isinstance(
+        function_arguments_json := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert json.loads(function_arguments_json) == {"city": "San Francisco"}
+
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 96
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes == {}  # test should account for all span attributes
+
+
+def test_synchronous_chat_completions_with_tool_call_message_emits_expected_spans(
+    mistral_sync_client: MistralClient,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "55ef30fc9c13499f92c77214ff056e7f",
+                "object": "chat.completion",
+                "created": 1711066504,
+                "model": "mistral-large-latest",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "The weather in San Francisco is currently sunny.",
+                            "tool_calls": None,
+                        },
+                        "finish_reason": "stop",
+                        "logprobs": None,
+                    }
+                ],
+                "usage": {"prompt_tokens": 64, "total_tokens": 74, "completion_tokens": 10},
+            },
+        )
+    )
+    response = mistral_sync_client.chat(
+        model="mistral-large-latest",
+        messages=[
+            ChatMessage(
+                content="What's the weather like in San Francisco?",
+                role="user",
+            ),
+            ChatMessage(
+                content="",
+                role="assistant",
+                tool_calls=[
+                    ToolCall(
+                        function=FunctionCall(
+                            name="get_weather", arguments='{"city": "San Francisco"}'
+                        )
+                    )
+                ],
+            ),
+            ChatMessage(role="tool", name="get_weather", content='{"weather_category": "sunny"}'),
+        ],
+    )
+    choices = response.choices
+    assert len(choices) == 1
+    assert choices[0].message.content == "The weather in San Francisco is currently sunny."
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.status.is_ok
+    assert not span.status.description
+    assert len(span.events) == 0
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters_str) == {
+        "safe_prompt": False,
+        "model": "mistral-large-latest",
+    }
+
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "What's the weather like in San Francisco?"
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        )
+        == '{"city": "San Francisco"}'
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_NAME}") == "get_weather"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
+        == '{"weather_category": "sunny"}'
+    )
+
+    output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
+    assert output_message_role == "assistant"
+    assert isinstance(
+        output_message_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"),
+        str,
+    )
+    assert output_message_content == "The weather in San Francisco is currently sunny."
+
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 64
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 74
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
     assert attributes == {}  # test should account for all span attributes
 
@@ -173,15 +415,11 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
         "temperature": 0.1,
     }
 
-    assert isinstance(input_message_str := attributes.pop(LLM_INPUT_MESSAGES), str)
-    input_messages = json.loads(input_message_str)
-    assert isinstance(input_messages, list)
-    assert len(input_messages) == 1
-    input_message = input_messages[0]
-    assert input_message == {
-        "role": "user",
-        "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
-    }
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Who won the World Cup in 2018? Answer in one word, no punctuation."
+    )
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -252,15 +490,11 @@ async def test_asynchronous_chat_completions_emits_expected_span(
         "temperature": 0.1,
     }
 
-    assert isinstance(input_message_str := attributes.pop(LLM_INPUT_MESSAGES), str)
-    input_messages = json.loads(input_message_str)
-    assert isinstance(input_messages, list)
-    assert len(input_messages) == 1
-    input_message = input_messages[0]
-    assert input_message == {
-        "role": "user",
-        "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
-    }
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Who won the World Cup in 2018? Answer in one word, no punctuation."
+    )
 
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
     assert output_message_role == "assistant"
@@ -330,15 +564,11 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
         "temperature": 0.1,
     }
 
-    assert isinstance(input_message_str := attributes.pop(LLM_INPUT_MESSAGES), str)
-    input_messages = json.loads(input_message_str)
-    assert isinstance(input_messages, list)
-    assert len(input_messages) == 1
-    input_message = input_messages[0]
-    assert input_message == {
-        "role": "user",
-        "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
-    }
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Who won the World Cup in 2018? Answer in one word, no punctuation."
+    )
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -395,6 +625,7 @@ MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS

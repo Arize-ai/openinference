@@ -9,6 +9,7 @@ from typing import (
 from openinference.semconv.trace import (
     MessageAttributes,
     SpanAttributes,
+    ToolCallAttributes,
 )
 from opentelemetry.util.types import AttributeValue
 
@@ -53,6 +54,23 @@ def _get_attributes_from_chat_completion_message(
         yield MessageAttributes.MESSAGE_ROLE, role
     if content := getattr(message, "content", None):
         yield MessageAttributes.MESSAGE_CONTENT, content
+    if (tool_calls := getattr(message, "tool_calls", None)) and isinstance(tool_calls, Iterable):
+        for index, tool_call in enumerate(tool_calls):
+            if function := getattr(tool_call, "function", None):
+                if name := getattr(function, "name", None):
+                    yield (
+                        (
+                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+                        ),
+                        name,
+                    )
+                if arguments := getattr(function, "arguments", None):
+                    yield (
+                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        arguments,
+                    )
 
 
 def _get_attributes_from_completion_usage(
