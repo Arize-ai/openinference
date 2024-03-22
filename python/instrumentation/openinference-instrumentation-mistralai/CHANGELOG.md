@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.1...python-openinference-instrumentation-mistralai-v0.0.2) (2024-03-22)
+
+
+### Bug Fixes
+
+* mistral argument parsing error ([#323](https://github.com/Arize-ai/openinference/issues/323)) ([ca1d5eb](https://github.com/Arize-ai/openinference/commit/ca1d5eb160a05cf50163eec223468dda42e71960))
+
 ## 0.0.1 (2024-03-22)
 
 
