@@ -1,4 +1,3 @@
-import json
 import logging
 import warnings
 from abc import ABC
@@ -16,10 +15,17 @@ from typing import (
     cast,
 )
 
+from openinference.instrumentation.mistralai._request_attributes_extractor import (
+    _RequestAttributesExtractor,
+)
 from openinference.instrumentation.mistralai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.mistralai._utils import _finish_tracing
+from openinference.instrumentation.mistralai._utils import (
+    _as_input_attributes,
+    _finish_tracing,
+    _io_value_and_type,
+)
 from openinference.instrumentation.mistralai._with_span import _WithSpan
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
@@ -50,11 +56,12 @@ class _WithTracer(ABC):
         attributes: Iterable[Tuple[str, AttributeValue]],
         extra_attributes: Iterable[Tuple[str, AttributeValue]],
     ) -> Iterator[_WithSpan]:
-        # Because OTEL has a default limit of 128 attributes, we split our attributes into
-        # two tiers, where the addition of "extra_attributes" is deferred until the end
-        # and only after the "attributes" are added.
+        # Because OTEL has a default limit of 128 attributes, we split our
+        # attributes into two tiers, where "extra_attributes" are added first to
+        # ensure that the most important "attributes" are added last and are not
+        # dropped.
         try:
-            span = self._tracer.start_span(name=span_name, attributes=dict(attributes))
+            span = self._tracer.start_span(name=span_name, attributes=dict(extra_attributes))
         except Exception:
             logger.exception("Failed to start span")
             span = INVALID_SPAN
@@ -64,18 +71,20 @@ class _WithTracer(ABC):
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            yield _WithSpan(span=span, extra_attributes=dict(extra_attributes))
+            yield _WithSpan(span=span, extra_attributes=dict(attributes))
 
 
 class _WithMistralAI(ABC):
     __slots__ = (
         "_mistral_client",
+        "_request_attributes_extractor",
         "_response_attributes_extractor",
     )
 
     def __init__(self, mistralai: ModuleType, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._mistral_client = mistralai.client.MistralClient()
+        self._request_attributes_extractor = _RequestAttributesExtractor(mistralai)
         self._response_attributes_extractor = _ResponseAttributesExtractor()
 
     def _get_span_kind(self) -> str:
@@ -87,17 +96,26 @@ class _WithMistralAI(ABC):
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind()
         try:
-            yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
-            yield SpanAttributes.INPUT_VALUE, json.dumps(request_parameters)
-            invocation_parameters = {
-                param_key: param_value
-                for param_key, param_value in request_parameters.items()
-                if param_key != "messages"
-            }
-            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_parameters)
-            yield SpanAttributes.LLM_INPUT_MESSAGES, json.dumps(request_parameters.get("messages"))
+            yield from _as_input_attributes(_io_value_and_type(request_parameters))
         except Exception:
-            logger.exception("Failed to get input attributes from request parameters.")
+            logger.exception(
+                f"Failed to get input attributes from request parameters of "
+                f"type {type(request_parameters)}"
+            )
+
+    def _get_extra_attributes_from_request(
+        self,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        try:
+            yield from self._request_attributes_extractor.get_attributes_from_request(
+                request_parameters=request_parameters,
+            )
+        except Exception:
+            logger.exception(
+                f"Failed to get extra attributes from request options of "
+                f"type {type(request_parameters)}"
+            )
 
     def _parse_args(
         self, signature: Signature, *args: Tuple[Any], **kwargs: Mapping[str, Any]
@@ -129,7 +147,7 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=self._get_attributes_from_request(request_parameters),
-            extra_attributes=(),
+            extra_attributes=self._get_extra_attributes_from_request(request_parameters),
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -178,7 +196,7 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=self._get_attributes_from_request(request_parameters),
-            extra_attributes=(),
+            extra_attributes=self._get_extra_attributes_from_request(request_parameters),
         ) as with_span:
             try:
                 response = await wrapped(*args, **kwargs)
