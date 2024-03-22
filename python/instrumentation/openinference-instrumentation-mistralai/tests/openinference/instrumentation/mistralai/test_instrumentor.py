@@ -607,7 +607,9 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     span = spans[0]
     assert span.status.is_ok
     assert not span.status.description
-    # assert len(span.events) == 0
+    assert len(span.events) == 1
+    event = span.events[0]
+    assert event.name == "First Token Stream Event"
 
     # attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     # assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
