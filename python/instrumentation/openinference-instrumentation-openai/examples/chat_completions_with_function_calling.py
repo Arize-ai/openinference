@@ -65,12 +65,10 @@ if __name__ == "__main__":
                         function={"name": "get_weather", "arguments": '{"city": "San Francisco"}'},
                         type="function",
                     ),
-                ]
+                ],
             ),
             ChatCompletionToolMessageParam(
-                content='{"weather_category": "sunny"}',
-                role="tool",
-                tool_call_id=tool_call_id
-            )
+                content='{"weather_category": "sunny"}', role="tool", tool_call_id=tool_call_id
+            ),
         ],
     )

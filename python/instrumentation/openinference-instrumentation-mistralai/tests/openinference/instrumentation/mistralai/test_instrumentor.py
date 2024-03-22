@@ -212,7 +212,11 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {"safe_prompt": False, "model": "mistral-large-latest", "tool_choice": "any"}
+    assert json.loads(invocation_parameters_str) == {
+        "safe_prompt": False,
+        "model": "mistral-large-latest",
+        "tool_choice": "any",
+    }
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -328,10 +332,8 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     )
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}"
-        )
-        == 'get_weather'
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
     )
     assert (
         attributes.pop(
@@ -341,7 +343,10 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     )
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_NAME}") == "get_weather"
-    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}") == '{"weather_category": "sunny"}'
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
+        == '{"weather_category": "sunny"}'
+    )
 
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
     assert output_message_role == "assistant"
