@@ -36,7 +36,6 @@ class _ResponseAttributesExtractor:
 def _get_attributes_from_chat_completion_response(
     response: "ChatCompletionResponse",
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion.py#L40  # noqa: E501
     if model := getattr(response, "model", None):
         yield SpanAttributes.LLM_MODEL_NAME, model
     if usage := getattr(response, "usage", None):
@@ -81,11 +80,11 @@ def _get_attributes_from_completion_usage(
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # openai.types.CompletionUsage
     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_usage.py#L8  # noqa: E501
-    if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
+    if (total_tokens := _get_attribute_or_value(usage, "total_tokens")) is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
-    if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
+    if (prompt_tokens := _get_attribute_or_value(usage, "prompt_tokens")) is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
+    if (completion_tokens := _get_attribute_or_value(usage, "completion_tokens")) is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
 
 
