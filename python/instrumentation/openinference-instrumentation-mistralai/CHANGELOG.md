@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.1...python-openinference-instrumentation-mistralai-v0.0.2) (2024-03-22)
+## 0.0.1 (2024-03-22)
 
 
 ### Features
