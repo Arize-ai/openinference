@@ -93,7 +93,7 @@ def _get_attribute_or_value(
     attribute_name: str,
 ) -> Any:
     if (value := getattr(obj, attribute_name, None)) is not None or (
-        isinstance(obj, dict) and (value := obj.get(attribute_name)) is not None
+        hasattr(obj, "get") and callable(obj.get) and (value := obj.get(attribute_name)) is not None
     ):
         return value
     return None
