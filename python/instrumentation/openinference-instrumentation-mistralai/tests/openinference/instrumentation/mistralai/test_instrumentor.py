@@ -91,7 +91,6 @@ def test_synchronous_chat_completions_emits_expected_span(
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
-        "safe_prompt": False,
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
@@ -213,7 +212,6 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
-        "safe_prompt": False,
         "model": "mistral-large-latest",
         "tool_choice": "any",
     }
@@ -321,7 +319,6 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
-        "safe_prompt": False,
         "model": "mistral-large-latest",
     }
 
@@ -410,7 +407,6 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
-        "safe_prompt": False,
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
@@ -485,7 +481,6 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
-        "safe_prompt": False,
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
@@ -559,7 +554,6 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
-        "safe_prompt": False,
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
