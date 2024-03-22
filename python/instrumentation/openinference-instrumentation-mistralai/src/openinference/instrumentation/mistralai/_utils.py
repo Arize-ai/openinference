@@ -64,3 +64,14 @@ def _as_input_attributes(
     # It's assumed to be TEXT by default, so we can skip to save one attribute.
     if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
         yield SpanAttributes.INPUT_MIME_TYPE, value_and_type.type.value
+
+
+def _as_output_attributes(
+    value_and_type: Optional[_ValueAndType],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if not value_and_type:
+        return
+    yield SpanAttributes.OUTPUT_VALUE, value_and_type.value
+    # It's assumed to be TEXT by default, so we can skip to save one attribute.
+    if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
+        yield SpanAttributes.OUTPUT_MIME_TYPE, value_and_type.type.value
