@@ -56,11 +56,12 @@ class _WithTracer(ABC):
         attributes: Iterable[Tuple[str, AttributeValue]],
         extra_attributes: Iterable[Tuple[str, AttributeValue]],
     ) -> Iterator[_WithSpan]:
-        # Because OTEL has a default limit of 128 attributes, we split our attributes into
-        # two tiers, where the addition of "extra_attributes" is deferred until the end
-        # and only after the "attributes" are added.
+        # Because OTEL has a default limit of 128 attributes, we split our
+        # attributes into two tiers, where "extra_attributes" are added first to
+        # ensure that the most important "attributes" are added last and are not
+        # dropped.
         try:
-            span = self._tracer.start_span(name=span_name, attributes=dict(attributes))
+            span = self._tracer.start_span(name=span_name, attributes=dict(extra_attributes))
         except Exception:
             logger.exception("Failed to start span")
             span = INVALID_SPAN
@@ -70,7 +71,7 @@ class _WithTracer(ABC):
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            yield _WithSpan(span=span, extra_attributes=dict(extra_attributes))
+            yield _WithSpan(span=span, extra_attributes=dict(attributes))
 
 
 class _WithMistralAI(ABC):
@@ -106,8 +107,6 @@ class _WithMistralAI(ABC):
         self,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        # Secondary attributes should be added after input and output to ensure
-        # that input and output are not dropped if there are too many attributes.
         try:
             yield from self._request_attributes_extractor.get_attributes_from_request(
                 request_parameters=request_parameters,
