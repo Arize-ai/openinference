@@ -1,3 +1,4 @@
+import json
 import logging
 import warnings
 from abc import ABC
@@ -5,6 +6,7 @@ from contextlib import contextmanager
 from inspect import Signature, signature
 from types import ModuleType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -12,7 +14,6 @@ from typing import (
     Iterator,
     Mapping,
     Tuple,
-    cast,
 )
 
 from openinference.instrumentation.mistralai._request_attributes_extractor import (
@@ -37,6 +38,9 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
+
+if TYPE_CHECKING:
+    from mistralai.client import MistralClient
 
 __all__ = ("_SyncChatWrapper",)
 
@@ -118,14 +122,39 @@ class _WithMistralAI(ABC):
             )
 
     def _parse_args(
-        self, signature: Signature, *args: Tuple[Any], **kwargs: Mapping[str, Any]
+        self,
+        signature: Signature,
+        mistral_client: "MistralClient",
+        *args: Tuple[Any],
+        **kwargs: Mapping[str, Any],
     ) -> Dict[str, Any]:
         """
-        Invokes the private _make_chat_request method on MistralClient, which
-        serializes the request parameters to JSON
+        Serialize parameters to JSON.
+
+        Based off of https://github.com/mistralai/client-python/blob/80c7951bad83338641d5e89684f841ce1cac938f/src/mistralai/client_base.py#L76
         """
         bound_arguments = signature.bind(*args, **kwargs).arguments
-        return cast(Dict[str, Any], self._mistral_client._make_chat_request(**bound_arguments))
+        request_data: Dict[str, Any] = {}
+        for key, value in bound_arguments.items():
+            try:
+                if key == "messages":
+                    request_data[key] = mistral_client._parse_messages(value)
+                elif key == "tools":
+                    request_data[key] = mistral_client._parse_tools(value)
+                elif key == "tool_choice":
+                    request_data[key] = mistral_client._parse_tool_choice(value)
+                elif key == "response_format" and value is not None:
+                    request_data[key] = mistral_client._parse_response_format(value)
+                elif value is not None:
+                    try:
+                        # ensure the value is JSON-serializable
+                        json.dumps(value)
+                        request_data[key] = value
+                    except json.JSONDecodeError:
+                        request_data[key] = str(value)
+            except Exception:
+                request_data[key] = str(value)
+        return request_data
 
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
@@ -139,7 +168,9 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         try:
-            request_parameters = self._parse_args(signature(wrapped), *args, **kwargs)
+            request_parameters = self._parse_args(
+                signature(wrapped), self._mistral_client, *args, **kwargs
+            )
             span_name = "MistralClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
@@ -188,7 +219,9 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
         try:
-            request_parameters = self._parse_args(signature(wrapped), *args, **kwargs)
+            request_parameters = self._parse_args(
+                signature(wrapped), self._mistral_client, *args, **kwargs
+            )
             span_name = "MistralAsyncClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
