@@ -19,9 +19,11 @@ from typing import (
 from openinference.instrumentation.mistralai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
+from openinference.instrumentation.mistralai._response_accumulator import _ChatCompletionAccumulator
 from openinference.instrumentation.mistralai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
+from openinference.instrumentation.mistralai._stream import _Stream
 from openinference.instrumentation.mistralai._utils import (
     _as_input_attributes,
     _finish_tracing,
@@ -156,7 +158,6 @@ class _WithMistralAI(ABC):
                 request_data[key] = str(value)
         return request_data
 
-
     def _finalize_response(
         self,
         response: Any,
@@ -167,43 +168,17 @@ class _WithMistralAI(ABC):
         Monkey-patch the response object to trace the stream, or finish tracing if the response is
         not a stream.
         """
-        from mistralai.models.chat_completion import ChatCompletionResponse
+        from mistralai.models.chat_completion import (
+            ChatCompletionResponse,
+            ChatCompletionStreamResponse,
+        )
 
         if not isinstance(response, ChatCompletionResponse):  # assume it's a stream
-            # For streaming, we need an (optional) accumulator to process each chunk iteration.
-            try:
-                response_accumulator_factory = self._response_accumulator_factories.get(cast_to)
-                response_accumulator = (
-                    response_accumulator_factory(request_parameters)
-                    if response_accumulator_factory
-                    else None
-                )
-            except Exception:
-                # Note that cast_to may not be hashable.
-                logger.exception(f"Failed to get response accumulator for {cast_to}")
-                response_accumulator = None
-            if hasattr(response, "_parsed") and self._is_streaming(parsed := response._parsed):
-                # Monkey-patch a private attribute assumed to be caching the output of `.parse()`.
-                response._parsed = _Stream(
-                    stream=parsed,
-                    with_span=with_span,
-                    response_accumulator=response_accumulator,
-                )
-                return response
-            if (
-                hasattr(response, "_parsed_by_type")
-                and isinstance(response._parsed_by_type, dict)
-                and self._is_streaming(parsed := response._parsed_by_type.get(cast_to))
-            ):
-                # New in openai v1.8.0. Streaming with .with_raw_response now returns
-                # LegacyAPIResponse and caching is done differently.
-                # See https://github.com/openai/openai-python/blob/d231d1fa783967c1d3a1db3ba1b52647fff148ac/src/openai/_legacy_response.py#L112-L113  # noqa: E501
-                response._parsed_by_type[cast_to] = _Stream(
-                    stream=parsed,
-                    with_span=with_span,
-                    response_accumulator=response_accumulator,
-                )
-                return response
+            response_accumulator = _ChatCompletionAccumulator(
+                request_parameters=request_parameters,
+                chat_completion_type=ChatCompletionStreamResponse,
+                response_attributes_extractor=self._response_attributes_extractor,
+            )
             return _Stream(
                 stream=response,
                 with_span=with_span,
@@ -347,4 +322,5 @@ class _ResponseAttributes:
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from self._response_attributes_extractor.get_attributes_from_response(
             response=self._response,
+            request_parameters=self._request_parameters,
         )

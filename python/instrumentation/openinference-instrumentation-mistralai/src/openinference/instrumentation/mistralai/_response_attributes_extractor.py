@@ -1,8 +1,10 @@
 import logging
 from typing import (
     TYPE_CHECKING,
+    Any,
     Iterable,
     Iterator,
+    Mapping,
     Tuple,
 )
 
@@ -25,7 +27,8 @@ logger.addHandler(logging.NullHandler())
 class _ResponseAttributesExtractor:
     def get_attributes_from_response(
         self,
-        response: "ChatCompletionResponse",
+        response: Any,
+        request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield from _get_attributes_from_chat_completion_response(response)
 

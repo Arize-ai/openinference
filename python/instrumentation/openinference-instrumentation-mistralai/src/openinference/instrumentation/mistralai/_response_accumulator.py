@@ -1,5 +1,4 @@
 import json
-import warnings
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
@@ -26,11 +25,9 @@ from openinference.semconv.trace import OpenInferenceMimeTypeValues
 from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
-    from openai.types.chat import ChatCompletion, ChatCompletionChunk
+    from mistralai.models.chat_completion import ChatCompletionStreamResponse
 
-__all__ = (
-    "_ChatCompletionAccumulator",
-)
+__all__ = ("_ChatCompletionAccumulator",)
 
 
 class _CanGetAttributesFromResponse(Protocol):
@@ -54,7 +51,7 @@ class _ChatCompletionAccumulator:
     def __init__(
         self,
         request_parameters: Mapping[str, Any],
-        chat_completion_type: Type["ChatCompletion"],
+        chat_completion_type: Type["ChatCompletionStreamResponse"],
         response_attributes_extractor: Optional[_CanGetAttributesFromResponse] = None,
     ) -> None:
         self._chat_completion_type = chat_completion_type
@@ -78,13 +75,10 @@ class _ChatCompletionAccumulator:
             ),
         )
 
-    def process_chunk(self, chunk: "ChatCompletionChunk") -> None:
+    def process_chunk(self, chunk: "ChatCompletionStreamResponse") -> None:
         self._is_null = False
         self._cached_result = None
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            # `warnings=False` in `model_dump()` is only supported in Pydantic v2
-            values = chunk.model_dump(exclude_unset=True)
+        values = chunk.model_dump(exclude_unset=True, warnings=False)
         for choice in values.get("choices", ()):
             if delta := choice.pop("delta", None):
                 choice["message"] = delta
@@ -113,6 +107,7 @@ class _ChatCompletionAccumulator:
                 self._chat_completion_type.construct(**result),
                 self._request_parameters,
             )
+
 
 class _ValuesAccumulator:
     __slots__ = ("_values",)

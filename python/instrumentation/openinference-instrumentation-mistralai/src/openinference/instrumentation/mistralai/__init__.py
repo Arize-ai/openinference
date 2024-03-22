@@ -25,7 +25,11 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
     An instrumentor for mistralai
     """
 
-    __slots__ = ("_original_sync_chat_method", "_original_async_chat_method")
+    __slots__ = (
+        "_original_sync_chat_method",
+        "_original_sync_stream_chat_method",
+        "_original_async_chat_method",
+    )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -45,10 +49,16 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
             ) from err
 
         self._original_sync_chat_method = MistralClient.chat
+        self._original_sync_stream_chat_method = MistralClient.chat_stream
         self._original_async_chat_method = MistralAsyncClient.chat
         wrap_function_wrapper(
             module=_MODULE,
             name="client.MistralClient.chat",
+            wrapper=_SyncChatWrapper(tracer, mistralai),
+        )
+        wrap_function_wrapper(
+            module=_MODULE,
+            name="client.MistralClient.chat_stream",
             wrapper=_SyncChatWrapper(tracer, mistralai),
         )
         wrap_function_wrapper(
@@ -62,4 +72,5 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         from mistralai.client import MistralClient
 
         MistralClient.chat = self._original_sync_chat_method  # type: ignore
+        MistralClient.chat_stream = self._original_sync_stream_chat_method  # type: ignore
         MistralAsyncClient.chat = self._original_async_chat_method  # type: ignore
