@@ -1,5 +1,5 @@
 from mistralai.client import MistralClient
-from mistralai.models.chat_completion import ChatMessage, ToolChoice
+from mistralai.models.chat_completion import ChatMessage, FunctionCall, ToolCall, ToolChoice
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -48,3 +48,26 @@ if __name__ == "__main__":
     )
     message = response.choices[0].message
     print(message.tool_calls)
+
+    response = client.chat(
+        model="mistral-large-latest",
+        messages=[
+            ChatMessage(
+                content="What's the weather like in San Francisco?",
+                role="user",
+            ),
+            ChatMessage(
+                content="",
+                role="assistant",
+                tool_calls=[
+                    ToolCall(
+                        function=FunctionCall(
+                            name="get_weather", arguments='{"city": "San Francisco"}'
+                        )
+                    )
+                ],
+            ),
+            ChatMessage(role="tool", name="get_weather", content='{"weather_category": "sunny"}'),
+        ],
+    )
+    print(response.choices[0].message.content)
