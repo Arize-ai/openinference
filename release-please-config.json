@@ -7,6 +7,10 @@
             "package-name": "python-openinference-semantic-conventions",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-mistralai": {
+            "package-name": "python-openinference-instrumentation-mistralai",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-openai": {
             "package-name": "python-openinference-instrumentation-openai",
             "release-type": "python"
