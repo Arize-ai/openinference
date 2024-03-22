@@ -32,12 +32,14 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`openinference-instrumentation-dspy`](./python/instrumentation/openinference-instrumentation-dspy)               | OpenInference Instrumentation for DSPy.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-dspy.svg)](https://pypi.python.org/pypi/openinference-instrumentation-dspy)               |
 | [`openinference-instrumentation-bedrock`](./python/instrumentation/openinference-instrumentation-bedrock)         | OpenInference Instrumentation for AWS Bedrock. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-bedrock.svg)](https://pypi.python.org/pypi/openinference-instrumentation-bedrock)         |
 | [`openinference-instrumentation-langchain`](./python/instrumentation/openinference-instrumentation-langchain)     | OpenInference Instrumentation for LangChain.   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-langchain.svg)](https://pypi.python.org/pypi/openinference-instrumentation-langchain)     |
+| [`openinference-instrumentation-mistralai`](./python/instrumentation/openinference-instrumentation-mistralai)     | OpenInference Instrumentation for MistralAI.   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-mistralai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-mistralai)     |
 
 ### Examples
 
 | Name                                                                                           | Description                                                                                  | Complexity Level |
 | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------- |
 | [OpenAI SDK](python/instrumentation/openinference-instrumentation-openai/examples/)            | OpenAI Python SDK, including chat completions and embeddings                                 | Beginner         |
+| [MistralAI SDK](python/instrumentation/openinference-instrumentation-mistralai/examples/)      | MistraAI Python SDK                                                                          | Beginner         |
 | [LlamaIndex](python/instrumentation/openinference-instrumentation-llama-index/examples/)       | LlamaIndex query engines                                                                     | Beginner         |
 | [DSPy](python/instrumentation/openinference-instrumentation-dspy/examples/)                    | DSPy primitives and custom RAG modules                                                       | Beginner         |
 | [Boto3 Bedrock Client](python/instrumentation/openinference-instrumentation-bedrock/examples/) | Boto3 Bedrock client                                                                         | Beginner         |
