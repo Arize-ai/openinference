@@ -630,13 +630,13 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
         == "Who won the World Cup in 2018? Answer in one word, no punctuation."
     )
 
-    # output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
-    # assert output_message_role == "assistant"
-    # assert isinstance(
-    #     output_message_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"),
-    #     str,
-    # )
-    # assert "France" in output_message_content
+    output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
+    assert output_message_role == "assistant"
+    assert isinstance(
+        output_message_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"),
+        str,
+    )
+    assert "France" in output_message_content
 
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert (
