@@ -649,6 +649,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
     assert attributes == {}  # test should account for all span attributes
 
+
 @pytest.mark.asyncio
 async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     mistral_async_client: MistralAsyncClient,
@@ -728,6 +729,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 124
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
     assert attributes == {}  # test should account for all span attributes
+
 
 @pytest.fixture(scope="module")
 def mistral_sync_client() -> MistralClient:
