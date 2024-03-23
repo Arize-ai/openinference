@@ -731,6 +731,109 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     assert attributes == {}  # test should account for all span attributes
 
 
+def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_expected_spans(
+    mistral_sync_client: MistralClient,
+    in_memory_span_exporter: InMemorySpanExporter,
+    chat_stream: AsyncByteStream,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            stream=chat_stream,
+        )
+    )
+    response_stream = mistral_sync_client.chat_stream(
+        model="mistral-large-latest",
+        tool_choice=ToolChoice.any,
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "finds the weather for a given city",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "city": {
+                                "type": "string",
+                                "description": "The city to find the weather for, e.g. 'London'",
+                            }
+                        },
+                        "required": ["city"],
+                    },
+                },
+            },
+        ],
+        messages=[
+            ChatMessage(
+                content="What's the weather like in San Francisco?",
+                role="user",
+            )
+        ],
+    )
+    response_content = ""
+    for chunk in response_stream:
+        if chunk_content := chunk.choices[0].delta.content:
+            response_content += chunk_content
+
+    assert (
+        response_content
+        == "The 2018 FIFA World Cup was won by the French national team. They defeated Croatia 4-2 in the final, which took place on July 15, 2018, in Moscow, Russia. This was France's second World Cup title; they had previously won the tournament in 1998 when they hosted the event. Did you know that the World Cup is the most prestigious tournament in international football and is often considered as the height of a footballer's career?"  # noqa: E501
+    )  # noqa: E501
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.is_ok
+    assert not span.status.description
+    assert len(span.events) == 0
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters_str) == {
+        "model": "mistral-large-latest",
+        "tool_choice": "any",
+    }
+
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "What's the weather like in San Francisco?"
+    )
+
+    output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
+    assert output_message_role == "assistant"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert isinstance(
+        function_arguments_json := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert json.loads(function_arguments_json) == {"city": "San Francisco"}
+
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 96
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes == {}  # test should account for all span attributes
+
+
 @pytest.fixture(scope="module")
 def mistral_sync_client() -> MistralClient:
     return MistralClient()
