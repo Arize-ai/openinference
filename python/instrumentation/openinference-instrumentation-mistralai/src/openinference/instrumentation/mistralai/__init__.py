@@ -6,6 +6,7 @@ from typing import (
 
 from openinference.instrumentation.mistralai._chat_wrapper import (
     _AsyncChatWrapper,
+    _AsyncStreamChatWrapper,
     _SyncChatWrapper,
 )
 from openinference.instrumentation.mistralai.package import _instruments
@@ -29,6 +30,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_sync_chat_method",
         "_original_sync_stream_chat_method",
         "_original_async_chat_method",
+        "_original_async_stream_chat_method",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -51,6 +53,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_sync_chat_method = MistralClient.chat
         self._original_sync_stream_chat_method = MistralClient.chat_stream
         self._original_async_chat_method = MistralAsyncClient.chat
+        self._original_async_stream_chat_method = MistralAsyncClient.chat_stream
         wrap_function_wrapper(
             module=_MODULE,
             name="client.MistralClient.chat",
@@ -66,6 +69,11 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
             name="async_client.MistralAsyncClient.chat",
             wrapper=_AsyncChatWrapper(tracer, mistralai),
         )
+        wrap_function_wrapper(
+            module=_MODULE,
+            name="async_client.MistralAsyncClient.chat_stream",
+            wrapper=_AsyncStreamChatWrapper(tracer, mistralai),
+        )
 
     def _uninstrument(self, **kwargs: Any) -> None:
         from mistralai.async_client import MistralAsyncClient
@@ -74,3 +82,4 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         MistralClient.chat = self._original_sync_chat_method  # type: ignore
         MistralClient.chat_stream = self._original_sync_stream_chat_method  # type: ignore
         MistralAsyncClient.chat = self._original_async_chat_method  # type: ignore
+        MistralAsyncClient.chat_stream = self._original_async_stream_chat_method  # type: ignore

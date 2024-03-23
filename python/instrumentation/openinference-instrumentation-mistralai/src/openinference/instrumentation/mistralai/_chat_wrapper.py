@@ -290,6 +290,53 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
         return response
 
 
+class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        try:
+            request_parameters = self._parse_args(
+                signature(wrapped), self._mistral_client, *args, **kwargs
+            )
+            span_name = "MistralAsyncClient.chat"
+        except Exception:
+            logger.exception("Failed to parse request args")
+            return wrapped(*args, **kwargs)
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=self._get_attributes_from_request(request_parameters),
+            extra_attributes=self._get_extra_attributes_from_request(request_parameters),
+        ) as with_span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                with_span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    # Follow the format in OTEL SDK for description, see:
+                    # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                with_span.finish_tracing(status=status)
+                raise
+            try:
+                response = self._finalize_response(
+                    response=response,
+                    with_span=with_span,
+                    request_parameters=request_parameters,
+                )
+            except Exception:
+                logger.exception(f"Failed to finish tracing for response of type {type(response)}")
+                with_span.finish_tracing()
+        return response
+
+
 class _ResponseAttributes:
     __slots__ = (
         "_response",
