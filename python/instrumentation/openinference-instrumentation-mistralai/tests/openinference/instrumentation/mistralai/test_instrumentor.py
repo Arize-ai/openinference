@@ -775,7 +775,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     for chunk in response_stream:
         delta = chunk.choices[0].delta
         assert not delta.content
-        if (tool_calls := delta.tool_calls):
+        if tool_calls := delta.tool_calls:
             tool_call = tool_calls[0]
             assert tool_call.function.name == "get_weather"
             assert tool_call.function.arguments == '{"city": "San Francisco"}'
@@ -785,7 +785,9 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     span = spans[0]
     assert span.status.is_ok
     assert not span.status.description
-    assert len(span.events) == 0
+    assert len(span.events) == 1
+    event = span.events[0]
+    assert event.name == "First Token Stream Event"
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
@@ -992,6 +994,7 @@ def server_sent_events_with_tool_call() -> List[bytes]:
         b"""data: {"id":"7a5fe619e34d4d0fb02dedcbdd17b8b4","object":"chat.completion.chunk","created":1711159624,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"name":"get_weather","arguments":"{\\"city\\": \\"San Francisco\\"}"}}]},"finish_reason":"tool_calls","logprobs":null}],"usage":{"prompt_tokens":96,"total_tokens":119,"completion_tokens":23}}\n\n""",  # noqa: E501
         b"""data: [DONE]\n""",
     ]
+
 
 class MockAsyncByteStream(AsyncByteStream):
     def __init__(self, byte_stream: Iterable[bytes]):
