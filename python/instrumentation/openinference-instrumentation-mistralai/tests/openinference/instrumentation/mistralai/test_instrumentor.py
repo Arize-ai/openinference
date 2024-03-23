@@ -734,13 +734,13 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
 def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_expected_spans(
     mistral_sync_client: MistralClient,
     in_memory_span_exporter: InMemorySpanExporter,
-    chat_stream: AsyncByteStream,
+    chat_stream_with_tool_call: AsyncByteStream,
     respx_mock: Any,
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
             200,
-            stream=chat_stream,
+            stream=chat_stream_with_tool_call,
         )
     )
     response_stream = mistral_sync_client.chat_stream(
@@ -772,15 +772,13 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
             )
         ],
     )
-    response_content = ""
     for chunk in response_stream:
-        if chunk_content := chunk.choices[0].delta.content:
-            response_content += chunk_content
-
-    assert (
-        response_content
-        == "The 2018 FIFA World Cup was won by the French national team. They defeated Croatia 4-2 in the final, which took place on July 15, 2018, in Moscow, Russia. This was France's second World Cup title; they had previously won the tournament in 1998 when they hosted the event. Did you know that the World Cup is the most prestigious tournament in international football and is often considered as the height of a footballer's career?"  # noqa: E501
-    )  # noqa: E501
+        delta = chunk.choices[0].delta
+        assert not delta.content
+        if (tool_calls := delta.tool_calls):
+            tool_call = tool_calls[0]
+            assert tool_call.function.name == "get_weather"
+            assert tool_call.function.arguments == '{"city": "San Francisco"}'
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -987,6 +985,14 @@ def server_sent_events() -> List[bytes]:
     ]
 
 
+@pytest.fixture
+def server_sent_events_with_tool_call() -> List[bytes]:
+    return [
+        b"""data: {"id":"2b081bc20de346a987269f670396c651","object":"chat.completion.chunk","created":1711157727,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
+        b"""data: {"id":"7a5fe619e34d4d0fb02dedcbdd17b8b4","object":"chat.completion.chunk","created":1711159624,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"name":"get_weather","arguments":"{\\"city\\": \\"San Francisco\\"}"}}]},"finish_reason":"tool_calls","logprobs":null}],"usage":{"prompt_tokens":96,"total_tokens":119,"completion_tokens":23}}\n\n""",  # noqa: E501
+        b"""data: [DONE]\n""",
+    ]
+
 class MockAsyncByteStream(AsyncByteStream):
     def __init__(self, byte_stream: Iterable[bytes]):
         self._byte_stream = byte_stream
@@ -1003,6 +1009,11 @@ class MockAsyncByteStream(AsyncByteStream):
 @pytest.fixture
 def chat_stream(server_sent_events: List[bytes]) -> AsyncByteStream:
     return MockAsyncByteStream(server_sent_events)
+
+
+@pytest.fixture
+def chat_stream_with_tool_call(server_sent_events_with_tool_call: List[bytes]) -> AsyncByteStream:
+    return MockAsyncByteStream(server_sent_events_with_tool_call)
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
