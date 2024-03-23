@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.3...python-openinference-instrumentation-mistralai-v0.0.4) (2024-03-23)
+
+
+### Features
+
+* support async streaming chat completions for mistralai ([#329](https://github.com/Arize-ai/openinference/issues/329)) ([35e2b71](https://github.com/Arize-ai/openinference/commit/35e2b7178b353fcf843b4dd45ec2f780dcbb3e3e))
+
 ## [0.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.2...python-openinference-instrumentation-mistralai-v0.0.3) (2024-03-23)
 
 
