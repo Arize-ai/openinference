@@ -19,9 +19,11 @@ from typing import (
 from openinference.instrumentation.mistralai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
+from openinference.instrumentation.mistralai._response_accumulator import _ChatCompletionAccumulator
 from openinference.instrumentation.mistralai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
+from openinference.instrumentation.mistralai._stream import _Stream
 from openinference.instrumentation.mistralai._utils import (
     _as_input_attributes,
     _finish_tracing,
@@ -156,6 +158,43 @@ class _WithMistralAI(ABC):
                 request_data[key] = str(value)
         return request_data
 
+    def _finalize_response(
+        self,
+        response: Any,
+        with_span: _WithSpan,
+        request_parameters: Mapping[str, Any],
+    ) -> Any:
+        """
+        Monkey-patch the response object to trace the stream, or finish tracing if the response is
+        not a stream.
+        """
+        from mistralai.models.chat_completion import (
+            ChatCompletionResponse,
+            ChatCompletionStreamResponse,
+        )
+
+        if not isinstance(response, ChatCompletionResponse):  # assume it's a stream
+            response_accumulator = _ChatCompletionAccumulator(
+                request_parameters=request_parameters,
+                chat_completion_type=ChatCompletionStreamResponse,
+                response_attributes_extractor=self._response_attributes_extractor,
+            )
+            return _Stream(
+                stream=response,
+                with_span=with_span,
+                response_accumulator=response_accumulator,
+            )
+        _finish_tracing(
+            status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+            with_span=with_span,
+            has_attributes=_ResponseAttributes(
+                request_parameters=request_parameters,
+                response=response,
+                response_attributes_extractor=self._response_attributes_extractor,
+            ),
+        )
+        return response
+
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
@@ -193,14 +232,10 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
                 with_span.finish_tracing(status=status)
                 raise
             try:
-                _finish_tracing(
-                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                response = self._finalize_response(
+                    response=response,
                     with_span=with_span,
-                    has_attributes=_ResponseAttributes(
-                        request_parameters=request_parameters,
-                        response=response,
-                        response_attributes_extractor=self._response_attributes_extractor,
-                    ),
+                    request_parameters=request_parameters,
                 )
             except Exception:
                 logger.exception(f"Failed to finish tracing for response of type {type(response)}")
@@ -244,14 +279,10 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
                 with_span.finish_tracing(status=status)
                 raise
             try:
-                _finish_tracing(
-                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                response = self._finalize_response(
+                    response=response,
                     with_span=with_span,
-                    has_attributes=_ResponseAttributes(
-                        request_parameters=request_parameters,
-                        response=response,
-                        response_attributes_extractor=self._response_attributes_extractor,
-                    ),
+                    request_parameters=request_parameters,
                 )
             except Exception:
                 logger.exception(f"Failed to finish tracing for response of type {type(response)}")
@@ -291,4 +322,5 @@ class _ResponseAttributes:
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from self._response_attributes_extractor.get_attributes_from_response(
             response=self._response,
+            request_parameters=self._request_parameters,
         )

@@ -36,14 +36,12 @@ dependencies = [
 instruments = [
   "mistralai",
 ]
-dev = [
-  "pytest",
-]
 test = [
   "mistralai",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "respx",
+  "pytest-asyncio",
 ]
 
 [project.urls]

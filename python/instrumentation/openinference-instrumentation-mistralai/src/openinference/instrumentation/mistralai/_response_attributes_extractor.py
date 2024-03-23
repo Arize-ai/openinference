@@ -1,8 +1,10 @@
 import logging
 from typing import (
     TYPE_CHECKING,
+    Any,
     Iterable,
     Iterator,
+    Mapping,
     Tuple,
 )
 
@@ -25,7 +27,8 @@ logger.addHandler(logging.NullHandler())
 class _ResponseAttributesExtractor:
     def get_attributes_from_response(
         self,
-        response: "ChatCompletionResponse",
+        response: Any,
+        request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield from _get_attributes_from_chat_completion_response(response)
 
@@ -33,16 +36,15 @@ class _ResponseAttributesExtractor:
 def _get_attributes_from_chat_completion_response(
     response: "ChatCompletionResponse",
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion.py#L40  # noqa: E501
     if model := getattr(response, "model", None):
         yield SpanAttributes.LLM_MODEL_NAME, model
     if usage := getattr(response, "usage", None):
         yield from _get_attributes_from_completion_usage(usage)
     if (choices := getattr(response, "choices", None)) and isinstance(choices, Iterable):
         for choice in choices:
-            if (index := getattr(choice, "index", None)) is None:
+            if (index := _get_attribute_or_value(choice, "index")) is None:
                 continue
-            if message := getattr(choice, "message", None):
+            if message := _get_attribute_or_value(choice, "message"):
                 for key, value in _get_attributes_from_chat_completion_message(message):
                     yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
 
@@ -50,9 +52,9 @@ def _get_attributes_from_chat_completion_response(
 def _get_attributes_from_chat_completion_message(
     message: "ChatCompletionResponse",
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    if role := getattr(message, "role", None):
+    if role := _get_attribute_or_value(message, "role"):
         yield MessageAttributes.MESSAGE_ROLE, role
-    if content := getattr(message, "content", None):
+    if content := _get_attribute_or_value(message, "content"):
         yield MessageAttributes.MESSAGE_CONTENT, content
     if (tool_calls := getattr(message, "tool_calls", None)) and isinstance(tool_calls, Iterable):
         for index, tool_call in enumerate(tool_calls):
@@ -78,9 +80,20 @@ def _get_attributes_from_completion_usage(
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # openai.types.CompletionUsage
     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_usage.py#L8  # noqa: E501
-    if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
+    if (total_tokens := _get_attribute_or_value(usage, "total_tokens")) is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
-    if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
+    if (prompt_tokens := _get_attribute_or_value(usage, "prompt_tokens")) is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
+    if (completion_tokens := _get_attribute_or_value(usage, "completion_tokens")) is not None:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+
+
+def _get_attribute_or_value(
+    obj: Any,
+    attribute_name: str,
+) -> Any:
+    if (value := getattr(obj, attribute_name, None)) is not None or (
+        hasattr(obj, "get") and callable(obj.get) and (value := obj.get(attribute_name)) is not None
+    ):
+        return value
+    return None
