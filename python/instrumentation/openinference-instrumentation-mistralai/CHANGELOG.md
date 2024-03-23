@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.4...python-openinference-instrumentation-mistralai-v0.0.5) (2024-03-23)
+
+
+### Bug Fixes
+
+* support streaming with tool calls ([#332](https://github.com/Arize-ai/openinference/issues/332)) ([498e1df](https://github.com/Arize-ai/openinference/commit/498e1df22d6b5d2cf3d9871c174ff63df5aa2d4c))
+
 ## [0.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.3...python-openinference-instrumentation-mistralai-v0.0.4) (2024-03-23)
 
 
