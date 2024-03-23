@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.2...python-openinference-instrumentation-mistralai-v0.0.3) (2024-03-23)
+
+
+### Features
+
+* add support for sync streaming to mistralai ([#326](https://github.com/Arize-ai/openinference/issues/326)) ([b42bc78](https://github.com/Arize-ai/openinference/commit/b42bc780daea3a5ebff544ae1de90432092dacf2))
+
+
+### Documentation
+
+* Update MistralAI instrumentation documentation ([#327](https://github.com/Arize-ai/openinference/issues/327)) ([50ffe23](https://github.com/Arize-ai/openinference/commit/50ffe23d87834e5f33d91c29cddb95cbc556636e))
+
 ## [0.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.1...python-openinference-instrumentation-mistralai-v0.0.2) (2024-03-22)
 
 
