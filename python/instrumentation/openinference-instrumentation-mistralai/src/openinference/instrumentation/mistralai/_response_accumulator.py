@@ -64,7 +64,6 @@ class _ChatCompletionAccumulator:
                 lambda: _ValuesAccumulator(
                     message=_ValuesAccumulator(
                         content=_StringAccumulator(),
-                        function_call=_ValuesAccumulator(arguments=_StringAccumulator()),
                         tool_calls=_IndexedAccumulator(
                             lambda: _ValuesAccumulator(
                                 function=_ValuesAccumulator(arguments=_StringAccumulator()),
@@ -146,7 +145,9 @@ class _ValuesAccumulator:
                     self_value += value
             elif isinstance(self_value, _IndexedAccumulator):
                 if isinstance(value, Iterable):
-                    for v in value:
+                    for index, v in enumerate(value):
+                        if isinstance(v, Dict) and "index" not in v:
+                            v["index"] = index
                         self_value += v
                 else:
                     self_value += value

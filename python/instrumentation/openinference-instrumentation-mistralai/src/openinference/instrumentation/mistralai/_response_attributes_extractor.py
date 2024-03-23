@@ -56,10 +56,12 @@ def _get_attributes_from_chat_completion_message(
         yield MessageAttributes.MESSAGE_ROLE, role
     if content := _get_attribute_or_value(message, "content"):
         yield MessageAttributes.MESSAGE_CONTENT, content
-    if (tool_calls := getattr(message, "tool_calls", None)) and isinstance(tool_calls, Iterable):
+    if (tool_calls := _get_attribute_or_value(message, "tool_calls")) and isinstance(
+        tool_calls, Iterable
+    ):
         for index, tool_call in enumerate(tool_calls):
-            if function := getattr(tool_call, "function", None):
-                if name := getattr(function, "name", None):
+            if function := _get_attribute_or_value(tool_call, "function"):
+                if name := _get_attribute_or_value(function, "name"):
                     yield (
                         (
                             f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
@@ -67,7 +69,7 @@ def _get_attributes_from_chat_completion_message(
                         ),
                         name,
                     )
-                if arguments := getattr(function, "arguments", None):
+                if arguments := _get_attribute_or_value(function, "arguments"):
                     yield (
                         f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
                         f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
