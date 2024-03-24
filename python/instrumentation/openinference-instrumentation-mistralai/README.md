@@ -1,4 +1,5 @@
 # OpenInference Mistral AI Instrumentation
+[![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-mistralai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-mistralai) 
 
 Python autoinstrumentation library for MistralAI's Python SDK.
 
