@@ -37,3 +37,34 @@ actions defined under `ruff` and `openai`. In short, the `-` (hyphen) signifies 
 actions to performed in a virtual environment created under a name that is a concatenation of the factor strings.
 That is why you don't see "ruff-mypy-test-openai" defined in `tox.ini` -- it is just a conjunction of the four 
 factors: `ruff`, `mypy`, `test`, and `openai`.
+
+
+# Publishing
+
+## Conda-Forge
+
+In addition to distributing our software via `pypi`, we also publish to Conda.
+
+### Creating a New Conda Feedstock
+
+Once a new package is published to PyPI, a few manual steps are needed to create a corresponding Conda feedstock, which is a repository containing all the necessary files and configurations to build the Conda package.
+
+1. Fork and clone `conda-forge`'s [`staged-recipes`](https://github.com/conda-forge/staged-recipes) repo.
+1. Change directories into the `recipes` folder.
+1. Install `grayskull`, a tool to generate your conda recipe, with `pip install grayskull`. Run `grayskull pypi <name-of-your-package-on-pypi>`.
+1. Create a PR targeting upstream.
+1. Modify the contents of `meta.yaml` as needed. In particular:
+  - Make sure your GitHub username is correct under `extra.recipe-maintainers`.
+  - Make sure the imports under `test.imports` are correct.
+  - Set `about.home` to the appropriate URL.
+1. Once CI passes, alert the Conda Forge admins that the PR is ready for review with a comment such as: `@conda-forge/help-python, ready for review!`. Once the admin has reviewed and merged your PR, your feedstock repo will be created under the `conda-forge` organization on GitHub by appending `-feedstock` to your package name, e.g., `https://github.com/conda-forge/arize-phoenix-feedstock`.
+1. In the feedstock repo, add a new issue entitled `@conda-forge-admin, please add bot automerge` to allow the bot to merge PRs automatically.
+1. For each member of the OSS team, create an issue entitled `@conda-forge-admin, please add user @<user-name>`. The bot will automatically create PRs to add maintainers, which you must merge manually.
+
+### Updating the Conda Feedstock
+
+After the Conda feedstock has been created and the Conda package has been published, Conda will handle most subsequent releases automatically. In some cases (e.g., when a new dependency is added to the package), it's necessary to manually edit the Conda feedstock. This can be accomplished by committing directly to `main` in the feedstock repo.
+
+### Notes
+
+Conda Forge has a delay of several hours when detecting new releases on PyPI. If multiple PyPI releases for the same package are made in a single day, Conda Forge usually only catches the last one, so we sometimes wind up with gaps in our release train for Conda.
