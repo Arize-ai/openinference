@@ -1,0 +1,29 @@
+from typing import Iterator
+
+import pytest
+from openinference.instrumentation import suppress_tracing
+from opentelemetry.context import (
+    _SUPPRESS_INSTRUMENTATION_KEY,
+    attach,
+    detach,
+    get_value,
+    set_value,
+)
+
+
+def test_suppress_tracing(obj: object):
+    with suppress_tracing():
+        assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is True
+    assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is obj
+
+
+@pytest.fixture(autouse=True)
+def instrument(obj: object) -> Iterator[None]:
+    token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, obj))
+    yield
+    detach(token)
+
+
+@pytest.fixture
+def obj() -> object:
+    return object()
