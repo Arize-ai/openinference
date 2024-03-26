@@ -54,9 +54,9 @@ Once a new package is published to PyPI, a few manual steps are needed to create
 1. Install `grayskull`, a tool to generate your conda recipe, with `pip install grayskull`. Run `grayskull pypi <name-of-your-package-on-pypi>`.
 1. Create a PR targeting upstream.
 1. Modify the contents of `meta.yaml` as needed. In particular:
-  - Make sure your GitHub username is correct under `extra.recipe-maintainers`.
-  - Make sure the imports under `test.imports` are correct.
-  - Set `about.home` to the appropriate URL.
+    - Make sure your GitHub username is correct under `extra.recipe-maintainers`.
+    - Make sure the imports under `test.imports` are correct.
+    - Set `about.home` to the appropriate URL.
 1. Once CI passes, alert the Conda Forge admins that the PR is ready for review with a comment such as: `@conda-forge/help-python, ready for review!`. Once the admin has reviewed and merged your PR, your feedstock repo will be created under the `conda-forge` organization on GitHub by appending `-feedstock` to your package name, e.g., `https://github.com/conda-forge/arize-phoenix-feedstock`.
 1. In the feedstock repo, add a new issue entitled `@conda-forge-admin, please add bot automerge` to allow the bot to merge PRs automatically.
 1. For each member of the OSS team, create an issue entitled `@conda-forge-admin, please add user @<user-name>`. The bot will automatically create PRs to add maintainers, which you must merge manually.
