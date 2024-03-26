@@ -11,7 +11,7 @@ from opentelemetry.context import (
 )
 
 
-def test_suppress_tracing(obj: object):
+def test_suppress_tracing(obj: object) -> None:
     with suppress_tracing():
         assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is True
     assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is obj
