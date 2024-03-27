@@ -18,3 +18,9 @@ Make sure you have `OPENAI_API_KEY` set as an environment variable, then run:
 npm run build
 npm run start
 ```
+
+## Query
+
+```shell
+curl --data "{ \"query\": \"are you intelligent?\" }" -H "Content-Type:application/json" -X POST http://localhost:3000/completion
+```

@@ -1,24 +1,28 @@
 import { OpenAI } from "openai";
+import express from "express";
+import bodyParser from "body-parser";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-(async function () {
-  let chatCompletion = await openai.chat.completions.create({
-    messages: [{ role: "user", content: "Say this is a test" }],
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(bodyParser.json());
+
+app.post("/completion", async (req, res) => {
+  const { query } = req.body;
+  const chatCompletion = await openai.chat.completions.create({
+    messages: [{ role: "user", content: query }],
     model: "gpt-3.5-turbo",
   });
   chatCompletion.choices.forEach((choice) => {
-    // eslint-disable-next-line no-console
-    console.log(choice.message);
+    res.send(choice.message.content);
   });
-  chatCompletion = await openai.chat.completions.create({
-    messages: [{ role: "user", content: "Tell me a joke" }],
-    model: "gpt-3.5-turbo",
-  });
-  chatCompletion.choices.forEach((choice) => {
-    // eslint-disable-next-line no-console
-    console.log(choice.message);
-  });
-})();
+});
+
+app.listen(port, () => {
+  // eslint-disable-next-line no-console
+  console.log(`Example app listening on port ${port}`);
+});
