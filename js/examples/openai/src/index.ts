@@ -32,10 +32,11 @@ app.post("/completion/stream", async (req, res) => {
     stream: true,
   });
   for await (const chunk of stream) {
-    if (chunk.choices[0].finish_reason === "stop") {
+    const choice = chunk.choices[0];
+    if (choice.finish_reason === "stop" || choice.delta == null) {
       break;
     }
-    res.write(chunk.choices[0].delta.content);
+    res.write(choice.delta.content);
   }
   res.end();
 });
