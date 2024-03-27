@@ -1,6 +1,7 @@
 import { OpenAI } from "openai";
 import express from "express";
 import bodyParser from "body-parser";
+import "dotenv/config";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -20,6 +21,23 @@ app.post("/completion", async (req, res) => {
   chatCompletion.choices.forEach((choice) => {
     res.send(choice.message.content);
   });
+});
+
+// Streaming
+app.post("/completion/stream", async (req, res) => {
+  const { query } = req.body;
+  const stream = await openai.chat.completions.create({
+    messages: [{ role: "user", content: query }],
+    model: "gpt-3.5-turbo",
+    stream: true,
+  });
+  for await (const chunk of stream) {
+    if (chunk.choices[0].finish_reason === "stop") {
+      break;
+    }
+    res.write(chunk.choices[0].delta.content);
+  }
+  res.end();
 });
 
 app.listen(port, () => {
