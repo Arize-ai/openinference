@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { OpenAI } from "openai";
 import { ChatCompletionMessageParam } from "openai/resources";
-import { trace } from "@opentelemetry/api";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import {
   MimeType,
   OpenInferenceSpanKind,
@@ -9,10 +9,10 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 
 export const chat = async (req: Request, res: Response) => {
-  try {
-    const tracer = trace.getTracer("openai-service");
-    // Add a custom span to trace the chat request
-    tracer.startActiveSpan("chat", async (span) => {
+  const tracer = trace.getTracer("openai-service");
+  // Add a custom span to trace the chat request
+  tracer.startActiveSpan("chat", async (span) => {
+    try {
       const { messages }: { messages: ChatCompletionMessageParam[] } = req.body;
       span.setAttributes({
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
@@ -57,14 +57,20 @@ export const chat = async (req: Request, res: Response) => {
           role,
       });
       res.end();
+      span.setStatus({ code: SpanStatusCode.OK });
       // End the span
       span.end();
-    });
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("Error:", error);
-    return res.status(500).json({
-      error: (error as Error).message,
-    });
-  }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Error:", error);
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: (error as Error).message,
+      });
+      span.end();
+      return res.status(500).json({
+        error: (error as Error).message,
+      });
+    }
+  });
 };
