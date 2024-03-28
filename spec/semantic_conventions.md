@@ -50,10 +50,11 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `document.metadata`                    | JSON String     | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                           | Metadata associated with a document                              |
 | `reranker.input_documents`             | List of objects | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | List of documents as input to the reranker                       |
 | `reranker.output_documents`            | List of objects | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | List of documents outputted by the reranker                      |
-| `reranker.query`                       | String          | `"How to format timestamp?"`                                               | Query parameter of the reranker                                  |
-| `reranker.model_name`                  | String          | `"cross-encoder/ms-marco-MiniLM-L-12-v2"`                                  | Model name of the reranker                                       |
-| `reranker.top_k`                       | Integer         | 3                                                                          | Top K parameter of the reranker                                  |
-| `tag.tags`                             | List of strings | ["shopping", "travel"]                                                     | List of tags to give the span a category                         |
-| `metadata`                             | JSON String     | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                           | Metadata associated with a span                                  |
+| `reranker.query`                       | String          | `"How to format timestamp?"`                                            | Query parameter of the reranker                                  |
+| `reranker.model_name`                  | String          | `"cross-encoder/ms-marco-MiniLM-L-12-v2"`                               | Model name of the reranker                                       |
+| `reranker.top_k`                       | Integer         | 3                                                                       | Top K parameter of the reranker                                  |
+| `tag.tags`                             | List of strings | ["shopping", "travel"]                                                  | List of tags to give the span a category                         |
+| `framework.name`                       | String          | "langchain", "llama-index" ...                                          | LLM framework                                                   |
+| `metadata`                             | JSON String     | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                        | Metadata associated with a span                                  |
 
 Note: the `object` type refers to a set of key-value pairs also known as a `struct`, `mapping`, `dictionary`, etc.
