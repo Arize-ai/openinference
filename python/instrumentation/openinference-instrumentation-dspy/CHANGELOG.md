@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.6...python-openinference-instrumentation-dspy-v0.1.7) (2024-03-28)
+
+
+### Documentation
+
+* improve dspy readme ([#297](https://github.com/Arize-ai/openinference/issues/297)) ([af34d98](https://github.com/Arize-ai/openinference/commit/af34d98d9657287625a6776ca1cab09768da6aa6))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.5...python-openinference-instrumentation-dspy-v0.1.6) (2024-03-14)
 
 
