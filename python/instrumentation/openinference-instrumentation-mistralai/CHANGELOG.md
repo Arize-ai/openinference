@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.5...python-openinference-instrumentation-mistralai-v0.0.6) (2024-03-28)
+
+
+### Bug Fixes
+
+* update mistralai minimum python version ([#341](https://github.com/Arize-ai/openinference/issues/341)) ([04e7ee1](https://github.com/Arize-ai/openinference/commit/04e7ee17c748708a28a73e8e9d43889ac3fb6fb0))
+
+
+### Documentation
+
+* update mistral README.md with pypi badge ([#334](https://github.com/Arize-ai/openinference/issues/334)) ([8e31667](https://github.com/Arize-ai/openinference/commit/8e31667c7e15066c22de0b9f1c88aa0e5bd29c6f))
+
 ## [0.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.4...python-openinference-instrumentation-mistralai-v0.0.5) (2024-03-23)
 
 
