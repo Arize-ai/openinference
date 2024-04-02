@@ -14,7 +14,7 @@ To load the Langchain instrumentation, specify it in the registerInstrumentation
 
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { LangchainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
+import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 
 const provider = new NodeTracerProvider();
