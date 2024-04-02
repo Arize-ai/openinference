@@ -17,8 +17,11 @@
   "author": "oss-devs@arize.com",
   "license": "Apache-2.0",
   "dependencies": {
+    "@arizeai/openinference-semantic-conventions": "workspace:*",
     "@opentelemetry/api": "^1.7.0",
-    "@opentelemetry/instrumentation": "^0.46.0",
-    "@arizeai/openinference-semantic-conventions": "workspace:*"
+    "@opentelemetry/instrumentation": "^0.46.0"
+  },
+  "devDependencies": {
+    "langchain": "^0.1.30"
   }
 }
