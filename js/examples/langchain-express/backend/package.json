@@ -1,0 +1,39 @@
+{
+  "name": "arize-openai-express",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsup ./index.ts ./instrumentation.ts --format cjs --dts",
+    "start": "node --import ./dist/instrumentation.cjs ./dist/index.cjs",
+    "dev": "concurrently \"tsup ./index.ts ./instrumentation.ts --format cjs --dts --watch\" \"nodemon --inspect --import ./dist/instrumentation.cjs -q ./dist/index.cjs\"",
+    "type:check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@langchain/community": "^0.0.43",
+    "@langchain/core": "^0.1.52",
+    "@langchain/openai": "^0.0.25",
+    "@opentelemetry/api": "^1.7.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.46.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.46.0",
+    "@opentelemetry/instrumentation": "^0.47.0",
+    "@opentelemetry/resources": "^1.20.0",
+    "@opentelemetry/sdk-trace-base": "^1.20.0",
+    "@opentelemetry/sdk-trace-node": "^1.20.0",
+    "@opentelemetry/semantic-conventions": "^1.20.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "langchain": "^0.1.30"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.16",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.30",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.54.0",
+    "nodemon": "^3.0.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.2"
+  }
+}
