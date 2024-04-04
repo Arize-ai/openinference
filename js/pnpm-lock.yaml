@@ -94,6 +94,25 @@ importers:
         specifier: ^4.52.7
         version: 4.52.7
 
+  packages/openinference-core:
+    dependencies:
+      '@opentelemetry/api':
+        specifier: '>=1.0.0 <1.9.0'
+        version: 1.7.0
+    devDependencies:
+      '@opentelemetry/resources':
+        specifier: ^1.19.0
+        version: 1.19.0(@opentelemetry/api@1.7.0)
+      '@opentelemetry/sdk-trace-base':
+        specifier: ^1.19.0
+        version: 1.19.0(@opentelemetry/api@1.7.0)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^1.19.0
+        version: 1.19.0(@opentelemetry/api@1.7.0)
+      '@opentelemetry/semantic-conventions':
+        specifier: ^1.19.0
+        version: 1.19.0
+
   packages/openinference-instrumentation-llama-index:
     dependencies:
       '@arizeai/openinference-semantic-conventions':
