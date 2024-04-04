@@ -15,6 +15,7 @@ import {
   SpanStatusCode,
   Span,
 } from "@opentelemetry/api";
+import { isTracingSuppressed } from "@opentelemetry/core";
 import { VERSION } from "./version";
 import {
   SemanticConventions,
@@ -195,7 +196,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   code: SpanStatusCode.ERROR,
                   message: error.message,
                 });
-                span.end();
+                isTracingSuppressed(context.active()) ? span.end() : span.;
               }
             },
           );
