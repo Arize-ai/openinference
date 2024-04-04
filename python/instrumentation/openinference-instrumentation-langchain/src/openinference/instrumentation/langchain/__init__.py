@@ -32,8 +32,8 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
         from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 
-        langchain = import_module(_MODULE)
-        self._original_callback_manager_init = langchain.callbacks.BaseCallbackManager.__init__
+        import langchain_core
+        self._original_callback_manager_init = langchain_core.callbacks.BaseCallbackManager.__init__
         wrap_function_wrapper(
             module="langchain_core.callbacks",
             name="BaseCallbackManager.__init__",
