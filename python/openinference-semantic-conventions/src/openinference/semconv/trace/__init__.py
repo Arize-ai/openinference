@@ -221,6 +221,28 @@ class ToolCallAttributes:
     """
 
 
+class SessionAttributes:
+    """
+    Attributes for sessions
+    """
+
+    SESSION_ID = "session.id"
+    """
+    The ID of the session.
+    """
+
+
+class UserAttributes:
+    """
+    Attributes for users
+    """
+
+    USER_ID = "user.id"
+    """
+    The ID of the user.
+    """
+
+
 class OpenInferenceSpanKindValues(Enum):
     TOOL = "TOOL"
     CHAIN = "CHAIN"
