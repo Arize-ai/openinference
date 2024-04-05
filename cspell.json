@@ -14,7 +14,8 @@
         "openinference",
         "otel",
         "OTLP",
-        "uninstrument"
+        "uninstrument",
+        "unsuppress"
     ],
     "flagWords": [
         "hte"
