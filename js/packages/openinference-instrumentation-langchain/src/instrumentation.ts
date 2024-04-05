@@ -10,7 +10,7 @@ import { VERSION } from "./version";
 import { diag } from "@opentelemetry/api";
 import { LangChainTracer } from "./tracer";
 
-const MODULE_NAME = "@langchain/core";
+const MODULE_NAME = "@langchain/core/callbacks";
 
 export class LangChainInstrumentation extends InstrumentationBase<
   typeof CallbackManagerModule
@@ -27,7 +27,7 @@ export class LangChainInstrumentation extends InstrumentationBase<
     typeof CallbackManagerModule
   > {
     const module = new InstrumentationNodeModuleDefinition(
-      "@langchain/core/callbacks/manager",
+      "@langchain/core/dist/callbacks/manager.cjs",
       ["^0.1.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
