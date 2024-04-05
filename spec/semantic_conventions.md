@@ -55,5 +55,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `reranker.top_k`                       | Integer         | 3                                                                          | Top K parameter of the reranker                                  |
 | `tag.tags`                             | List of strings | ["shopping", "travel"]                                                     | List of tags to give the span a category                         |
 | `metadata`                             | JSON String     | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                           | Metadata associated with a span                                  |
+| `session.id`                           | String/Integer  | `"session-123"` or `123`                                                   | ID for a session                                                 |
+| `user.id`                              | String/Integer  | `"user-123"` or `123`                                                      | ID for a user                                                    |
 
 Note: the `object` type refers to a set of key-value pairs also known as a `struct`, `mapping`, `dictionary`, etc.
