@@ -36,9 +36,27 @@ import {
   EmbeddingCreateParams,
 } from "openai/resources";
 import { assertUnreachable, isString } from "./typeUtils";
+import { isTracingSuppressed } from "@opentelemetry/core";
 
 const MODULE_NAME = "openai";
 
+/**
+ * Resolves the execution context for the current span
+ * If tracing is suppressed, the span is dropped and the current context is returned
+ * @param span
+ */
+function getExecContext(span: Span) {
+  const activeContext = context.active();
+  const suppressTracing = isTracingSuppressed(activeContext);
+  const execContext = suppressTracing
+    ? trace.setSpan(context.active(), span)
+    : activeContext;
+  // Drop the span from the context
+  if (suppressTracing) {
+    trace.deleteSpan(activeContext);
+  }
+  return execContext;
+}
 export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   constructor(config?: InstrumentationConfig) {
     super(
@@ -102,7 +120,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               },
             },
           );
-          const execContext = trace.setSpan(context.active(), span);
+
+          const execContext = getExecContext(span);
           const execPromise = safeExecuteInTheMiddle<
             ReturnType<ChatCompletionCreateType>
           >(
@@ -178,7 +197,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               ...getCompletionInputValueAndMimeType(body),
             },
           });
-          const execContext = trace.setSpan(context.active(), span);
+          const execContext = getExecContext(span);
+
           const execPromise = safeExecuteInTheMiddle<
             ReturnType<CompletionsCreateType>
           >(
@@ -250,7 +270,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               ...getEmbeddingTextAttributes(body),
             },
           });
-          const execContext = trace.setSpan(context.active(), span);
+          const execContext = getExecContext(span);
           const execPromise = safeExecuteInTheMiddle<
             ReturnType<EmbeddingsCreateType>
           >(
