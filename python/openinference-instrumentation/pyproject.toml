@@ -26,10 +26,6 @@ classifiers = [
 ]
 dependencies = [
   "opentelemetry-api",
-]
-
-[project.optional-dependencies]
-test = [
   "opentelemetry-sdk",
 ]
 
