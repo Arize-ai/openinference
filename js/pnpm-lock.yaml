@@ -47,6 +47,9 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.7.0
         version: 1.7.0
+      '@opentelemetry/core':
+        specifier: ^1.23.0
+        version: 1.23.0(@opentelemetry/api@1.7.0)
       '@opentelemetry/exporter-trace-otlp-proto':
         specifier: ^0.50.0
         version: 0.50.0(@opentelemetry/api@1.7.0)
@@ -60,6 +63,9 @@ importers:
         specifier: ^1.19.0
         version: 1.23.0
     devDependencies:
+      '@langchain/community':
+        specifier: ^0.0.44
+        version: 0.0.44
       '@langchain/core':
         specifier: ^0.1.52
         version: 0.1.52
@@ -1015,8 +1021,8 @@ packages:
       '@jridgewell/sourcemap-codec': 1.4.15
     dev: true
 
-  /@langchain/community@0.0.43:
-    resolution: {integrity: sha512-60TjV3knGGOPHfbJxLpuwARr8oA0r6Txm8wTFvFx+TjRUrloyBUcWSbJIdm62gAwBJDEHmdjjyWOOzU+eewcuA==}
+  /@langchain/community@0.0.44:
+    resolution: {integrity: sha512-II9Hz90jJmfWRICtxTg1auQWzFw0npqacWiiOpaxNhzs6rptdf56gyfC48Z6n1ii4R8FfAlfX6YxhOE7lGGKXg==}
     engines: {node: '>=18'}
     peerDependencies:
       '@aws-crypto/sha256-js': ^5.0.0
@@ -1077,6 +1083,7 @@ packages:
       couchbase: ^4.3.0
       discord.js: ^14.14.1
       dria: ^0.0.3
+      duck-duck-scrape: ^2.2.5
       faiss-node: ^0.5.1
       firebase-admin: ^11.9.0 || ^12.0.0
       google-auth-library: ^8.9.0
@@ -1226,6 +1233,8 @@ packages:
         optional: true
       dria:
         optional: true
+      duck-duck-scrape:
+        optional: true
       faiss-node:
         optional: true
       firebase-admin:
@@ -1298,6 +1307,7 @@ packages:
       langsmith: 0.1.14
       uuid: 9.0.1
       zod: 3.22.4
+      zod-to-json-schema: 3.22.5(zod@3.22.4)
     transitivePeerDependencies:
       - encoding
     dev: true
@@ -4158,7 +4168,7 @@ packages:
         optional: true
     dependencies:
       '@anthropic-ai/sdk': 0.9.1
-      '@langchain/community': 0.0.43
+      '@langchain/community': 0.0.44
       '@langchain/core': 0.1.52
       '@langchain/openai': 0.0.25
       binary-extensions: 2.3.0
@@ -4220,6 +4230,7 @@ packages:
       - cohere-ai
       - discord.js
       - dria
+      - duck-duck-scrape
       - encoding
       - firebase-admin
       - googleapis
