@@ -2,14 +2,14 @@ This is a [LlamaIndex](https://www.llamaindex.ai/) project using [FastAPI](https
 
 ## Getting Started
 
-First, setup the environment:
+First, setup the environment with poetry:
 
 ```
 poetry install
 poetry shell
 ```
 
-By default, we use the OpenAI LLM (though you can customize, see `app/context.py`). As a result you need to specify an `OPENAI_API_KEY` in an .env file in this directory.
+By default, we use the OpenAI LLM (though you can customize, see `app/settings.py`). As a result, you need to specify an `OPENAI_API_KEY` in an .env file in this directory.
 
 Example `.env` file:
 
@@ -22,6 +22,8 @@ Second, generate the embeddings of the documents in the `./data` directory (if t
 ```
 python app/engine/generate.py
 ```
+
+For custom embedding configurations, we can modify `.env` file by specifying values for `EMBEDDING_MODEL`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `TOP_K`, `SYSTEM_PROMPT`.
 
 Third, run the development server:
 
@@ -44,7 +46,7 @@ Open [http://localhost:8000/docs](http://localhost:8000/docs) with your browser 
 The API allows CORS for all origins to simplify development. You can change this behavior by setting the `ENVIRONMENT` environment variable to `prod`:
 
 ```
-ENVIRONMENT=prod uvicorn main:app
+ENVIRONMENT=prod python main.py
 ```
 
 ## Learn More
