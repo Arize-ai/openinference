@@ -1,3 +1,4 @@
+import type * as CallbackManagerModuleType from "@langchain/core/callbacks/manager";
 import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 import {
   InstrumentationBase,
@@ -13,7 +14,7 @@ import { LangChainTracer } from "./tracer";
 const MODULE_NAME = "@langchain/core/callbacks";
 
 export class LangChainInstrumentation extends InstrumentationBase<
-  typeof CallbackManagerModule
+  typeof CallbackManagerModuleType
 > {
   constructor(config?: InstrumentationConfig) {
     super(
@@ -24,7 +25,7 @@ export class LangChainInstrumentation extends InstrumentationBase<
   }
 
   protected init(): InstrumentationModuleDefinition<
-    typeof CallbackManagerModule
+    typeof CallbackManagerModuleType
   > {
     const module = new InstrumentationNodeModuleDefinition(
       "@langchain/core/dist/callbacks/manager.cjs",
@@ -37,7 +38,7 @@ export class LangChainInstrumentation extends InstrumentationBase<
   }
 
   private patch(
-    module: typeof CallbackManagerModule & {
+    module: typeof CallbackManagerModuleType & {
       openInferencePatched?: boolean;
     },
     moduleVersion?: string,
@@ -66,7 +67,9 @@ export class LangChainInstrumentation extends InstrumentationBase<
   }
 
   private unpatch(
-    module?: typeof CallbackManagerModule & { openInferencePatched?: boolean },
+    module?: typeof CallbackManagerModuleType & {
+      openInferencePatched?: boolean;
+    },
     moduleVersion?: string,
   ) {
     if (module == null) {
