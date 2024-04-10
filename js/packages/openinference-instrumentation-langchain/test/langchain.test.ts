@@ -72,9 +72,6 @@ jest.mock("@langchain/openai", () => {
   };
 });
 
-/**
- * Dummy test for scaffolding package, remove when real tests are added
- */
 describe("LangChainInstrumentation", () => {
   const memoryExporter = new InMemorySpanExporter();
   const provider = new NodeTracerProvider();
@@ -163,7 +160,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should add input and output messages to spans", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: process.env.OPENAI_API_KEY,
+      openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
