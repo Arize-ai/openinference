@@ -3,9 +3,9 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["node", "jest"],
+    "types": ["node", "jest"]
   },
   "files": [],
   "include": ["src/**/*.ts"],
-  "references": [],
+  "references": []
 }
