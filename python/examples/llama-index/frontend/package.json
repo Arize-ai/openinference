@@ -1,10 +1,10 @@
 {
-  "name": "llama-index",
+  "name": "llama-index-example",
   "version": "0.1.0",
   "scripts": {
     "format": "prettier --ignore-unknown --cache --check .",
     "format:write": "prettier --ignore-unknown --write .",
-    "dev": "next dev",
+    "dev": "cross-env NEXT_PUBLIC_CHAT_API=http://localhost:8000/api/chat next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
