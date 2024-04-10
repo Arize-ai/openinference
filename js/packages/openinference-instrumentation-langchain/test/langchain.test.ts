@@ -118,7 +118,7 @@ describe("LangChainInstrumentation", () => {
     const docs = await textSplitter.createDocuments([text]);
     const vectorStore = await MemoryVectorStore.fromDocuments(
       docs,
-      new OpenAIEmbeddings(),
+      new OpenAIEmbeddings({ openAIApiKey: "my-api-key" }),
     );
     const chain = new RetrievalQAChain({
       combineDocumentsChain: loadQAStuffChain(chatModel, { prompt }),
