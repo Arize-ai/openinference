@@ -48,7 +48,7 @@ describe("safelyFlattenAttributes", () => {
   const testAttributes = {
     input: {
       value: "test",
-      mime_ioType: "application/json",
+      mime_type: "application/json",
     },
     llm: {
       token_count: {
