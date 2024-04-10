@@ -10,7 +10,7 @@ import {
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
-} from "@arizeai/OpenInference-semantic-conventions";
+} from "@arizeai/openinference-semantic-conventions";
 import { Run } from "@langchain/core/tracers/base";
 import {
   GenericFunction,
