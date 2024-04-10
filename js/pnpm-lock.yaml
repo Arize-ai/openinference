@@ -114,9 +114,6 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.7.0
         version: 1.7.0
-      '@opentelemetry/exporter-trace-otlp-proto':
-        specifier: ^0.50.0
-        version: 0.50.0(@opentelemetry/api@1.7.0)
       '@opentelemetry/instrumentation':
         specifier: ^0.46.0
         version: 0.46.0(@opentelemetry/api@1.7.0)
@@ -133,9 +130,6 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.19.0
         version: 1.19.0
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.4.5
       openai:
         specifier: ^4.24.1
         version: 4.24.1
