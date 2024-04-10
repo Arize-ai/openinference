@@ -4,6 +4,8 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { suppressTracing } from "@opentelemetry/core";
+import { context } from "@opentelemetry/api";
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.register();
 
@@ -26,8 +28,6 @@ describe("OpenAIInstrumentation", () => {
   let openai: OpenAI.OpenAI;
 
   const memoryExporter = new InMemorySpanExporter();
-  const provider = new NodeTracerProvider();
-  provider.getTracer("default");
 
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
@@ -690,5 +690,48 @@ describe("OpenAIInstrumentation", () => {
         "output.value": "",
       }
   `);
+  });
+  it("should not emit a span if tracing is suppressed", async () => {
+    const response = {
+      id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
+      object: "chat.completion",
+      created: 1703743645,
+      model: "gpt-3.5-turbo-0613",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "This is a test.",
+          },
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 12,
+        completion_tokens: 5,
+        total_tokens: 17,
+      },
+    };
+    // Mock out the chat completions endpoint
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+    const _response = await new Promise((resolve, _reject) => {
+      context.with(suppressTracing(context.active()), () => {
+        resolve(
+          openai.chat.completions.create({
+            messages: [{ role: "user", content: "Say this is a test" }],
+            model: "gpt-3.5-turbo",
+          }),
+        );
+      });
+    });
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(0);
   });
 });
