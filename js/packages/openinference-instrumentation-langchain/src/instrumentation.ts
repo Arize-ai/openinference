@@ -7,7 +7,7 @@ import {
   isWrapped,
 } from "@opentelemetry/instrumentation";
 import { VERSION } from "./version";
-import { diag } from "@opentelemetry/api";
+import { Tracer, diag } from "@opentelemetry/api";
 import { LangChainTracer } from "./tracer";
 
 const MODULE_NAME = "@langchain/core/callbacks";
@@ -52,15 +52,17 @@ export class LangChainInstrumentation extends InstrumentationBase<
     if (module?.openInferencePatched) {
       return module;
     }
+    this.tracer;
 
     this._wrap(module.CallbackManager, "configure", (original) => {
       return (...args: Parameters<typeof original>) => {
         const inheritableHandlers = args[0];
-        const newInheritableHandlers =
-          this._addTracerToHandlers(inheritableHandlers);
+        const newInheritableHandlers = addTracerToHandlers(
+          this.tracer,
+          inheritableHandlers,
+        );
         args[0] = newInheritableHandlers;
-        const manager = original.apply(this, args);
-        return manager;
+        return original.apply(this, args);
       };
     });
     module.openInferencePatched = true;
@@ -87,26 +89,31 @@ export class LangChainInstrumentation extends InstrumentationBase<
     delete module.openInferencePatched;
     return module;
   }
+}
 
-  private _addTracerToHandlers(handlers?: CallbackManagerModule.Callbacks) {
-    if (handlers == null) {
-      return [new LangChainTracer(this.tracer)];
-    }
-    if (handlers instanceof CallbackManagerModule.CallbackManager) {
-      if (
-        handlers.inheritableHandlers.some(
-          (handler) => handler instanceof LangChainTracer,
-        )
-      ) {
-        return handlers;
-      }
-      handlers.addHandler(new LangChainTracer(this.tracer), true);
+function addTracerToHandlers(
+  tracer: Tracer,
+  handlers?: CallbackManagerModule.Callbacks,
+) {
+  if (handlers == null) {
+    return [new LangChainTracer(tracer)];
+  }
+  if (handlers instanceof CallbackManagerModule.CallbackManager) {
+    const tracerAlreadyRegistered = handlers.inheritableHandlers.some(
+      (handler) => handler instanceof LangChainTracer,
+    );
+    if (tracerAlreadyRegistered) {
       return handlers;
     }
-    const newHandlers = handlers ?? [];
-    if (!newHandlers.some((handler) => handler instanceof LangChainTracer)) {
-      newHandlers.push(new LangChainTracer(this.tracer));
-    }
-    return newHandlers;
+    handlers.addHandler(new LangChainTracer(tracer), true);
+    return handlers;
   }
+  const newHandlers = handlers;
+  const tracerAlreadyRegistered = newHandlers.some(
+    (handler) => handler instanceof LangChainTracer,
+  );
+  if (!tracerAlreadyRegistered) {
+    newHandlers.push(new LangChainTracer(tracer));
+  }
+  return newHandlers;
 }

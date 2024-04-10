@@ -40,6 +40,10 @@ export class LangChainTracer extends BaseTracer {
       return;
     }
 
+    /**
+     * If the parent span context is available, use it as the active context for the new span.
+     * This will allow the new span to be a child of the parent span.
+     */
     let activeContext = context.active();
     const parentCtx = this.getParentSpanContext(run);
     if (parentCtx != null) {
@@ -81,8 +85,8 @@ export class LangChainTracer extends BaseTracer {
     }
 
     const attributes = safelyFlattenAttributes({
-      ...safelyFormatIO({ io: run.inputs, type: "input" }),
-      ...safelyFormatIO({ io: run.outputs, type: "output" }),
+      ...safelyFormatIO({ io: run.inputs, ioType: "input" }),
+      ...safelyFormatIO({ io: run.outputs, ioType: "output" }),
       ...safelyFormatInputMessages(run.inputs),
       ...safelyFormatOutputMessages(run.outputs),
     });
@@ -91,6 +95,7 @@ export class LangChainTracer extends BaseTracer {
     }
 
     runWithSpan.span.end();
+    delete this.runs[run.id];
   }
 
   private getParentSpanContext(run: Run) {

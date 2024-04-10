@@ -9,15 +9,12 @@ export function assertUnreachable(_: never): never {
 }
 
 /**
- * A type-guard function for checking if a value is an object with string keys
+ * A type-guard function for checking if a value is an object
  */
-export function isObject(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value != null &&
-    !Array.isArray(value) &&
-    Object.keys(value).every((key) => typeof key === "string")
-  );
+export function isObject(
+  value: unknown,
+): value is Record<string | number | symbol, unknown> {
+  return typeof value === "object" && value != null && !Array.isArray(value);
 }
 
 export function isString(value: unknown): value is string {

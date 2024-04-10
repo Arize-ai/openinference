@@ -48,7 +48,7 @@ describe("safelyFlattenAttributes", () => {
   const testAttributes = {
     input: {
       value: "test",
-      mime_type: "application/json",
+      mime_ioType: "application/json",
     },
     llm: {
       token_count: {
@@ -129,16 +129,16 @@ describe("formatIO", () => {
   };
 
   it("should return an empty object when output is undefined", () => {
-    expect(safelyFormatIO({ io: undefined, type: "output" })).toEqual({});
+    expect(safelyFormatIO({ io: undefined, ioType: "output" })).toEqual({});
   });
 
   it("should return the formatted the stringified IO when given an object with more than one key", () => {
-    const inputResult = safelyFormatIO({ io: testInput, type: "input" });
+    const inputResult = safelyFormatIO({ io: testInput, ioType: "input" });
     expect(inputResult).toEqual({
       [SemanticConventions.INPUT_VALUE]: JSON.stringify(testInput),
       [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
     });
-    const outputResult = safelyFormatIO({ io: testOutput, type: "output" });
+    const outputResult = safelyFormatIO({ io: testOutput, ioType: "output" });
     expect(outputResult).toEqual({
       [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(testOutput),
       [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
@@ -151,13 +151,13 @@ describe("formatIO", () => {
     const simpleOutput = {
       value: "output",
     };
-    const inputResult = safelyFormatIO({ io: simpleInput, type: "input" });
+    const inputResult = safelyFormatIO({ io: simpleInput, ioType: "input" });
     expect(inputResult).toEqual({
       [SemanticConventions.INPUT_VALUE]: "input",
       [SemanticConventions.INPUT_MIME_TYPE]: MimeType.TEXT,
     });
 
-    const outputResult = safelyFormatIO({ io: simpleOutput, type: "output" });
+    const outputResult = safelyFormatIO({ io: simpleOutput, ioType: "output" });
     expect(outputResult).toEqual({
       [SemanticConventions.OUTPUT_VALUE]: "output",
       [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,

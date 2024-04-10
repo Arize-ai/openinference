@@ -10,7 +10,7 @@ import {
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+} from "@arizeai/OpenInference-semantic-conventions";
 import { Run } from "@langchain/core/tracers/base";
 import {
   GenericFunction,
@@ -33,7 +33,11 @@ export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
 }
 
 /**
- * Flattens nested attributes into a single level object
+ * Flattens a nested object into a single level object with keys as dot-separated paths.
+ * Specifies elements in arrays with their index as part of the path.
+ * @param attributes Nested attributes to flatten.
+ * @param baseKey Base key to prepend to all keys.
+ * @returns Flattened attributes
  */
 function flattenAttributes(
   attributes: Record<string, unknown>,
@@ -65,6 +69,11 @@ function flattenAttributes(
   return result;
 }
 
+/**
+ * Gets the OpenInferenceSpanKind based on the langchain run type.
+ * @param runType - The langchain run type
+ * @returns The OpenInferenceSpanKind based on the langchain run type or "UNKNOWN".
+ */
 function getOpenInferenceSpanKindFromRunType(runType: string) {
   const normalizedRunType = runType.toUpperCase();
   if (normalizedRunType.includes("AGENT")) {
@@ -79,16 +88,21 @@ function getOpenInferenceSpanKindFromRunType(runType: string) {
   return "UNKNOWN";
 }
 
+/**
+ * Formats the input or output of a langchain run into OpenInference attributes for a span.
+ * @param ioConfig - The input or output of a langchain run and the type of IO
+ * @returns The formatted input or output attributes for the span
+ */
 function formatIO({
   io,
-  type,
+  ioType,
 }: {
   io: Run["inputs"] | Run["outputs"];
-  type: "input" | "output";
+  ioType: "input" | "output";
 }) {
   let valueAttribute: string;
   let mimeTypeAttribute: string;
-  switch (type) {
+  switch (ioType) {
     case "input": {
       valueAttribute = SemanticConventions.INPUT_VALUE;
       mimeTypeAttribute = SemanticConventions.INPUT_MIME_TYPE;
@@ -100,7 +114,7 @@ function formatIO({
       break;
     }
     default:
-      assertUnreachable(type);
+      assertUnreachable(ioType);
   }
   if (io == null) {
     return {};
@@ -119,12 +133,17 @@ function formatIO({
   };
 }
 
+/**
+ * Gets the role of a message from the langchain message data.
+ * @param messageData - The langchain message data to extract the role from
+ * @returns The role of the message or null
+ */
 function getRoleFromMessageData(
   messageData: Record<string, unknown>,
-): string | undefined {
+): string | null {
   const messageIds = messageData.lc_id;
   if (!isNonEmptyArray(messageIds)) {
-    return;
+    return null;
   }
   const langchainMessageClass = messageIds[messageIds.length - 1];
   const normalizedLangchainMessageClass = isString(langchainMessageClass)
@@ -149,12 +168,18 @@ function getRoleFromMessageData(
   ) {
     return messageData.kwargs.role;
   }
+  return null;
 }
 
+/**
+ * Gets the content of a message from the langchain message kwargs.
+ * @param messageKwargs The langchain message kwargs to extract the content from
+ * @returns The content of the message or null
+ */
 function getContentFromMessageData(
   messageKwargs: Record<string, unknown>,
-): string | undefined {
-  return isString(messageKwargs.content) ? messageKwargs.content : undefined;
+): string | null {
+  return isString(messageKwargs.content) ? messageKwargs.content : null;
 }
 
 function getFunctionCallDataFromAdditionalKwargs(
@@ -177,6 +202,11 @@ function getFunctionCallDataFromAdditionalKwargs(
   };
 }
 
+/**
+ * Gets the tool calls from the langchain message additional kwargs and formats them into OpenInference attributes.
+ * @param additionalKwargs The langchain message additional kwargs to extract the tool calls from
+ * @returns the OpenInference attributes for the tool calls
+ */
 function getToolCallDataFromAdditionalKwargs(
   additionalKwargs: Record<string, unknown>,
 ): LLMMessageToolCalls {
@@ -204,18 +234,27 @@ function getToolCallDataFromAdditionalKwargs(
   };
 }
 
+/**
+ * Parses a langchain message into OpenInference attributes.
+ * @param messageData The langchain message data to parse
+ * @returns The OpenInference attributes for the message
+ */
 function parseMessage(messageData: Record<string, unknown>): LLMMessage {
   const message: LLMMessage = {};
 
-  message[SemanticConventions.MESSAGE_ROLE] =
-    getRoleFromMessageData(messageData);
+  const maybeRole = getRoleFromMessageData(messageData);
+  if (maybeRole != null) {
+    message[SemanticConventions.MESSAGE_ROLE] = maybeRole;
+  }
 
   const messageKwargs = messageData.lc_kwargs;
   if (!isObject(messageKwargs)) {
     return message;
   }
-  message[SemanticConventions.MESSAGE_CONTENT] =
-    getContentFromMessageData(messageKwargs);
+  const maybeContent = getContentFromMessageData(messageKwargs);
+  if (maybeContent != null) {
+    message[SemanticConventions.MESSAGE_CONTENT] = maybeContent;
+  }
 
   const additionalKwargs = messageKwargs.additional_kwargs;
   if (!isObject(additionalKwargs)) {
@@ -228,6 +267,11 @@ function parseMessage(messageData: Record<string, unknown>): LLMMessage {
   };
 }
 
+/**
+ * Formats the input messages of a langchain run into OpenInference attributes.
+ * @param input The input of a langchain run.
+ * @returns The OpenInference attributes for the input messages.
+ */
 function formatInputMessages(
   input: Run["inputs"],
 ): LLMMessagesAttributes | null {
@@ -257,6 +301,11 @@ function formatInputMessages(
   return null;
 }
 
+/**
+ * Formats the output messages of a langchain run into OpenInference attributes.
+ * @param output The output of a langchain run.
+ * @returns The OpenInference attributes for the output messages.
+ */
 function formatOutputMessages(
   output: Run["outputs"],
 ): LLMMessagesAttributes | null {
