@@ -57,7 +57,7 @@ Traces can be viewed using the [Phoenix UI](http://localhost:6006).
 ## Getting Started with Docker-Compose
 
 1. If you'd like, add your own PDFs to `./backend/data` to build indexes over.
-2. Ensure that your OpenAI API key is available to the application, either via the `OPENAI_API_KEY` environment variable or a `.env` file.
+2. Ensure that your OpenAI API key is available to the application, either via the `OPENAI_API_KEY` environment variable or a `.env` file alongside `compose.yml`.
 3. Ensure that Docker is installed and running.
 4. Run the command `docker compose up --build` to spin up services for the frontend, backend, and Phoenix.
 5. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface.
