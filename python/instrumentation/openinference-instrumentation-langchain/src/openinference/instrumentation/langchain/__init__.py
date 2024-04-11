@@ -42,8 +42,8 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
     def _uninstrument(self, **kwargs: Any) -> None:
         import langchain_core
 
-        langchain_core.callbacks.BaseCallbackManager.__init__ = self._original_callback_manager_init
-        self._original_callback_manager_init = None
+        langchain_core.callbacks.BaseCallbackManager.__init__ = self._original_callback_manager_init  # type: ignore
+        self._original_callback_manager_init = None  # type: ignore
 
 
 class _BaseCallbackManagerInit:
