@@ -21,6 +21,11 @@ import {
   SafeFunction,
 } from "./types";
 
+/**
+ * Wraps a function with a try-catch block to catch and log any errors.
+ * @param fn - A function to wrap with a try-catch block.
+ * @returns A function that returns null if an error is thrown.
+ */
 export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
   return (...args) => {
     try {
@@ -35,8 +40,8 @@ export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
 /**
  * Flattens a nested object into a single level object with keys as dot-separated paths.
  * Specifies elements in arrays with their index as part of the path.
- * @param attributes Nested attributes to flatten.
- * @param baseKey Base key to prepend to all keys.
+ * @param attributes - Nested attributes to flatten.
+ * @param baseKey - Base key to prepend to all keys.
  * @returns Flattened attributes
  */
 function flattenAttributes(
@@ -91,6 +96,8 @@ function getOpenInferenceSpanKindFromRunType(runType: string) {
 /**
  * Formats the input or output of a langchain run into OpenInference attributes for a span.
  * @param ioConfig - The input or output of a langchain run and the type of IO
+ * @param ioConfig.io - The input or output of a langchain run
+ * @param ioConfig.ioType - The type of IO
  * @returns The formatted input or output attributes for the span
  */
 function formatIO({
@@ -173,7 +180,7 @@ function getRoleFromMessageData(
 
 /**
  * Gets the content of a message from the langchain message kwargs.
- * @param messageKwargs The langchain message kwargs to extract the content from
+ * @param messageKwargs - The langchain message kwargs to extract the content from
  * @returns The content of the message or null
  */
 function getContentFromMessageData(
@@ -204,7 +211,7 @@ function getFunctionCallDataFromAdditionalKwargs(
 
 /**
  * Gets the tool calls from the langchain message additional kwargs and formats them into OpenInference attributes.
- * @param additionalKwargs The langchain message additional kwargs to extract the tool calls from
+ * @param additionalKwargs - The langchain message additional kwargs to extract the tool calls from
  * @returns the OpenInference attributes for the tool calls
  */
 function getToolCallDataFromAdditionalKwargs(
@@ -236,7 +243,7 @@ function getToolCallDataFromAdditionalKwargs(
 
 /**
  * Parses a langchain message into OpenInference attributes.
- * @param messageData The langchain message data to parse
+ * @param messageData - The langchain message data to parse
  * @returns The OpenInference attributes for the message
  */
 function parseMessage(messageData: Record<string, unknown>): LLMMessage {
@@ -269,7 +276,7 @@ function parseMessage(messageData: Record<string, unknown>): LLMMessage {
 
 /**
  * Formats the input messages of a langchain run into OpenInference attributes.
- * @param input The input of a langchain run.
+ * @param input - The input of a langchain run.
  * @returns The OpenInference attributes for the input messages.
  */
 function formatInputMessages(
@@ -303,7 +310,7 @@ function formatInputMessages(
 
 /**
  * Formats the output messages of a langchain run into OpenInference attributes.
- * @param output The output of a langchain run.
+ * @param output - The output of a langchain run.
  * @returns The OpenInference attributes for the output messages.
  */
 function formatOutputMessages(

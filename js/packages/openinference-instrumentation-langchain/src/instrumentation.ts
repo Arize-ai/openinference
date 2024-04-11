@@ -1,4 +1,4 @@
-import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
+import type * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -98,22 +98,22 @@ function addTracerToHandlers(
   if (handlers == null) {
     return [new LangChainTracer(tracer)];
   }
-  if (handlers instanceof CallbackManagerModule.CallbackManager) {
-    const tracerAlreadyRegistered = handlers.inheritableHandlers.some(
+  if (Array.isArray(handlers)) {
+    const newHandlers = handlers;
+    const tracerAlreadyRegistered = newHandlers.some(
       (handler) => handler instanceof LangChainTracer,
     );
-    if (tracerAlreadyRegistered) {
-      return handlers;
+    if (!tracerAlreadyRegistered) {
+      newHandlers.push(new LangChainTracer(tracer));
     }
-    handlers.addHandler(new LangChainTracer(tracer), true);
-    return handlers;
+    return newHandlers;
   }
-  const newHandlers = handlers;
-  const tracerAlreadyRegistered = newHandlers.some(
+  const tracerAlreadyRegistered = handlers.inheritableHandlers.some(
     (handler) => handler instanceof LangChainTracer,
   );
-  if (!tracerAlreadyRegistered) {
-    newHandlers.push(new LangChainTracer(tracer));
+  if (tracerAlreadyRegistered) {
+    return handlers;
   }
-  return newHandlers;
+  handlers.addHandler(new LangChainTracer(tracer), true);
+  return handlers;
 }

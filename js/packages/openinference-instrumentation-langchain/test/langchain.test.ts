@@ -15,6 +15,8 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+import { LangChainTracer } from "../src/tracer";
+import { trace } from "@opentelemetry/api";
 jest.useFakeTimers();
 
 const tracerProvider = new NodeTracerProvider();
@@ -228,5 +230,28 @@ describe("LangChainInstrumentation", () => {
       "llm.output_messages.0.message.role": "assistant",
       "llm.output_messages.0.message.content": "This is a test.",
     });
+  });
+});
+
+describe("LangChainTracer", () => {
+  const testSerialized = {
+    lc: 1,
+    type: "not_implemented" as const,
+    id: [],
+  };
+  it("should delete runs after they are ended", async () => {
+    const langChainTracer = new LangChainTracer(trace.getTracer("default"));
+    for (let i = 0; i < 10; i++) {
+      await langChainTracer.handleLLMStart(testSerialized, [], "runId");
+      expect(Object.keys(langChainTracer["runs"]).length).toBe(1);
+      await langChainTracer.handleRetrieverStart(testSerialized, "", "runId2");
+      expect(Object.keys(langChainTracer["runs"]).length).toBe(2);
+      await langChainTracer.handleLLMEnd({ generations: [] }, "runId");
+      expect(Object.keys(langChainTracer["runs"]).length).toBe(1);
+      await langChainTracer.handleRetrieverEnd([], "runId2");
+      expect(Object.keys(langChainTracer["runs"]).length).toBe(0);
+    }
+    expect(langChainTracer["runs"]).toBeDefined();
+    expect(Object.keys(langChainTracer["runs"]).length).toBe(0);
   });
 });
