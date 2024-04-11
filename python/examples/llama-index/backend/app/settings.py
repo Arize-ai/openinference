@@ -9,7 +9,7 @@ from llama_index.llms.openai import OpenAI
 def llm_config_from_env() -> Dict:
     from llama_index.core.constants import DEFAULT_TEMPERATURE
 
-    model = os.getenv("MODEL", "gpt-3.5-turbo-0125")
+    model = os.getenv("MODEL", "gpt-4-turbo-preview")
     temperature = os.getenv("LLM_TEMPERATURE", DEFAULT_TEMPERATURE)
     max_tokens = os.getenv("LLM_MAX_TOKENS")
 
@@ -22,7 +22,7 @@ def llm_config_from_env() -> Dict:
 
 
 def embedding_config_from_env() -> Dict:
-    model = os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
+    model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
     dimension = os.getenv("EMBEDDING_DIM")
 
     config = {

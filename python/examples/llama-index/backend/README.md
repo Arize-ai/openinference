@@ -2,6 +2,8 @@ This is a [LlamaIndex](https://www.llamaindex.ai/) project using [FastAPI](https
 
 ## Getting Started
 
+We will need python 3.11, check if there is a compatible version `python --version`.
+
 First, setup the environment with poetry:
 
 ```
