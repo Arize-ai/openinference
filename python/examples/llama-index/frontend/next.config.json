@@ -1,0 +1,13 @@
+{
+  "experimental": {
+    "outputFileTracingIncludes": {
+      "/*": [
+        "./cache/**/*"
+      ]
+    }
+  },
+  "output": "standalone",
+  "images": {
+    "unoptimized": true
+  }
+}
