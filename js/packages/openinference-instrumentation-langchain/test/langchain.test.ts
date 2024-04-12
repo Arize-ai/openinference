@@ -13,11 +13,30 @@ import { loadQAStuffChain, RetrievalQAChain } from "langchain/chains";
 import "dotenv/config";
 import {
   OpenInferenceSpanKind,
+  RetrievalAttributePostfixes,
+  SemanticAttributePrefixes,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { LangChainTracer } from "../src/tracer";
 import { trace } from "@opentelemetry/api";
 jest.useFakeTimers();
+
+const {
+  INPUT_VALUE,
+  LLM_INPUT_MESSAGES,
+  OUTPUT_VALUE,
+  LLM_OUTPUT_MESSAGES,
+  INPUT_MIME_TYPE,
+  OUTPUT_MIME_TYPE,
+  MESSAGE_ROLE,
+  MESSAGE_CONTENT,
+  DOCUMENT_CONTENT,
+  DOCUMENT_METADATA,
+  OPENINFERENCE_SPAN_KIND,
+  LLM_MODEL_NAME,
+  LLM_INVOCATION_PARAMETERS,
+} = SemanticConventions;
+const RETRIEVAL_DOCUMENTS = `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`;
 
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.register();
@@ -65,7 +84,11 @@ jest.mock("@langchain/openai", () => {
     },
     OpenAIEmbeddings: class extends originalModule.OpenAIEmbeddings {
       embedDocuments = async () => {
-        return Promise.resolve([[1, 2, 3]]);
+        return Promise.resolve([
+          [1, 2, 3],
+          [4, 5, 6],
+          [7, 8, 9],
+        ]);
       };
       embedQuery = async () => {
         return Promise.resolve([1, 2, 4]);
@@ -103,6 +126,12 @@ describe("LangChainInstrumentation", () => {
     ).toBe(true);
   });
 
+  const testDocuments = [
+    "dogs are cute",
+    "rainbows are colorful",
+    "water is wet",
+  ];
+
   it("should properly nest spans", async () => {
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
@@ -113,21 +142,22 @@ describe("LangChainInstrumentation", () => {
     {context}
     `;
     const prompt = ChatPromptTemplate.fromTemplate(PROMPT_TEMPLATE);
-    const text = "This is a test";
     const textSplitter = new RecursiveCharacterTextSplitter({
       chunkSize: 1000,
     });
-    const docs = await textSplitter.createDocuments([text]);
+    const docs = await textSplitter.createDocuments(testDocuments);
     const vectorStore = await MemoryVectorStore.fromDocuments(
       docs,
-      new OpenAIEmbeddings({ openAIApiKey: "my-api-key" }),
+      new OpenAIEmbeddings({
+        openAIApiKey: "my-api-key",
+      }),
     );
     const chain = new RetrievalQAChain({
       combineDocumentsChain: loadQAStuffChain(chatModel, { prompt }),
       retriever: vectorStore.asRetriever(),
     });
     await chain.invoke({
-      query: "Is this a test?",
+      query: "What are cats?",
     });
 
     const spans = memoryExporter.getFinishedSpans();
@@ -160,20 +190,21 @@ describe("LangChainInstrumentation", () => {
     expect(llmSpan?.parentSpanId).toBe(llmChainSpan?.spanContext().spanId);
   });
 
-  it("should add input and output messages to spans", async () => {
+  it("should add messages and param information to llm spans", async () => {
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
+      temperature: 0,
     });
 
-    await chatModel.invoke("hello, this is a test");
+    await chatModel.invoke("hello, this is a test", {});
 
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span).toBeDefined();
 
     expect(span.attributes).toStrictEqual({
-      "openinference.span.kind": "llm",
-      "input.value": JSON.stringify({
+      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      [INPUT_VALUE]: JSON.stringify({
         messages: [
           [
             {
@@ -189,8 +220,8 @@ describe("LangChainInstrumentation", () => {
           ],
         ],
       }),
-      "input.mime_type": "application/json",
-      "output.value": JSON.stringify({
+      [INPUT_MIME_TYPE]: "application/json",
+      [OUTPUT_VALUE]: JSON.stringify({
         generations: [
           [
             {
@@ -224,11 +255,99 @@ describe("LangChainInstrumentation", () => {
           },
         },
       }),
-      "output.mime_type": "application/json",
-      "llm.input_messages.0.message.role": "user",
-      "llm.input_messages.0.message.content": "hello, this is a test",
-      "llm.output_messages.0.message.role": "assistant",
-      "llm.output_messages.0.message.content": "This is a test.",
+      [OUTPUT_MIME_TYPE]: "application/json",
+      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
+      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
+      [LLM_MODEL_NAME]: "gpt-3.5-turbo",
+      [LLM_INVOCATION_PARAMETERS]:
+        '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
+    });
+  });
+
+  it("should add documents to retriever spans", async () => {
+    const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
+      modelName: "gpt-3.5-turbo",
+    });
+    const PROMPT_TEMPLATE = `Use the context below to answer the question.
+    ----------------
+    {context}
+    `;
+    const prompt = ChatPromptTemplate.fromTemplate(PROMPT_TEMPLATE);
+    const textSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 1000,
+    });
+    const docs = await textSplitter.createDocuments(testDocuments);
+    const vectorStore = await MemoryVectorStore.fromDocuments(
+      docs,
+      new OpenAIEmbeddings({
+        openAIApiKey: "my-api-key",
+      }),
+    );
+    const chain = new RetrievalQAChain({
+      combineDocumentsChain: loadQAStuffChain(chatModel, { prompt }),
+      retriever: vectorStore.asRetriever(),
+    });
+    await chain.invoke({
+      query: "What are cats?",
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    const retrieverSpan = spans.find(
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.RETRIEVER,
+    );
+    const stuffDocSpan = spans.find(
+      (span) => span.name === "StuffDocumentsChain",
+    );
+    expect(retrieverSpan).toBeDefined();
+    expect(stuffDocSpan).toBeDefined();
+    expect(retrieverSpan?.attributes).toStrictEqual({
+      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.RETRIEVER,
+      [OUTPUT_MIME_TYPE]: "application/json",
+      [OUTPUT_VALUE]:
+        '{"documents":[{"pageContent":"dogs are cute","metadata":{"loc":{"lines":{"from":1,"to":1}}}},{"pageContent":"rainbows are colorful","metadata":{"loc":{"lines":{"from":1,"to":1}}}},{"pageContent":"water is wet","metadata":{"loc":{"lines":{"from":1,"to":1}}}}]}',
+      [INPUT_MIME_TYPE]: "text/plain",
+      [INPUT_VALUE]: "What are cats?",
+      [`${RETRIEVAL_DOCUMENTS}.0.${DOCUMENT_CONTENT}`]: "dogs are cute",
+      [`${RETRIEVAL_DOCUMENTS}.0.${DOCUMENT_METADATA}`]: JSON.stringify({
+        loc: {
+          lines: {
+            from: 1,
+            to: 1,
+          },
+        },
+      }),
+      [`${RETRIEVAL_DOCUMENTS}.1.${DOCUMENT_CONTENT}`]: "rainbows are colorful",
+      [`${RETRIEVAL_DOCUMENTS}.1.${DOCUMENT_METADATA}`]: JSON.stringify({
+        loc: {
+          lines: {
+            from: 1,
+            to: 1,
+          },
+        },
+      }),
+      [`${RETRIEVAL_DOCUMENTS}.2.${DOCUMENT_CONTENT}`]: "water is wet",
+      [`${RETRIEVAL_DOCUMENTS}.2.${DOCUMENT_METADATA}`]: JSON.stringify({
+        loc: {
+          lines: {
+            from: 1,
+            to: 1,
+          },
+        },
+      }),
+    });
+
+    expect(stuffDocSpan?.attributes).toStrictEqual({
+      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+      [OUTPUT_MIME_TYPE]: "text/plain",
+      [OUTPUT_VALUE]: "This is a test.",
+      [INPUT_MIME_TYPE]: "application/json",
+      [INPUT_VALUE]:
+        '{"question":"What are cats?","input_documents":[{"pageContent":"dogs are cute","metadata":{"loc":{"lines":{"from":1,"to":1}}}},{"pageContent":"rainbows are colorful","metadata":{"loc":{"lines":{"from":1,"to":1}}}},{"pageContent":"water is wet","metadata":{"loc":{"lines":{"from":1,"to":1}}}}],"query":"What are cats?"}',
     });
   });
 });

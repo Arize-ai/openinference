@@ -13,7 +13,9 @@ import {
   safelyFlattenAttributes,
   safelyFormatIO,
   safelyFormatInputMessages,
+  safelyFormatLLMParams,
   safelyFormatOutputMessages,
+  safelyFormatRetrievalDocuments,
   safelyGetOpenInferenceSpanKindFromRunType,
 } from "./utils";
 
@@ -89,6 +91,8 @@ export class LangChainTracer extends BaseTracer {
       ...safelyFormatIO({ io: run.outputs, ioType: "output" }),
       ...safelyFormatInputMessages(run.inputs),
       ...safelyFormatOutputMessages(run.outputs),
+      ...safelyFormatRetrievalDocuments(run),
+      ...safelyFormatLLMParams(run.extra),
     });
     if (attributes != null) {
       span.setAttributes(attributes);

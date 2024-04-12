@@ -34,3 +34,13 @@ export type GenericFunction = (...args: any[]) => any;
 export type SafeFunction<T extends GenericFunction> = (
   ...args: Parameters<T>
 ) => ReturnType<T> | null;
+
+export type RetrievalDocument = {
+  [SemanticConventions.DOCUMENT_CONTENT]?: string;
+  [SemanticConventions.DOCUMENT_METADATA]?: string;
+};
+
+export type LLMOpenInferenceAttributes = {
+  [SemanticConventions.LLM_MODEL_NAME]?: string;
+  [SemanticConventions.LLM_INVOCATION_PARAMETERS]?: string;
+};
