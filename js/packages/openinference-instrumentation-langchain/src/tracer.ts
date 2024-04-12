@@ -11,11 +11,16 @@ import { isTracingSuppressed } from "@opentelemetry/core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import {
   safelyFlattenAttributes,
+  safelyFormatFunctionCalls,
   safelyFormatIO,
   safelyFormatInputMessages,
   safelyFormatLLMParams,
+  safelyFormatMetadata,
   safelyFormatOutputMessages,
+  safelyFormatPromptTemplate,
   safelyFormatRetrievalDocuments,
+  safelyFormatTokenCounts,
+  safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
 } from "./utils";
 
@@ -93,6 +98,11 @@ export class LangChainTracer extends BaseTracer {
       ...safelyFormatOutputMessages(run.outputs),
       ...safelyFormatRetrievalDocuments(run),
       ...safelyFormatLLMParams(run.extra),
+      ...safelyFormatPromptTemplate(run),
+      ...safelyFormatTokenCounts(run.outputs),
+      ...safelyFormatFunctionCalls(run.outputs),
+      ...safelyFormatToolCalls(run),
+      ...safelyFormatMetadata(run),
     });
     if (attributes != null) {
       span.setAttributes(attributes);

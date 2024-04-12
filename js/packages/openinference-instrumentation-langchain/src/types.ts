@@ -1,4 +1,10 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import {
+  PROMPT_TEMPLATE_TEMPLATE,
+  PROMPT_TEMPLATE_VARIABLES,
+  TOOL_DESCRIPTION,
+  TOOL_NAME,
+} from "./constants";
 
 type LLMMessageToolCall = {
   [SemanticConventions.TOOL_CALL_FUNCTION_NAME]?: string;
@@ -40,7 +46,22 @@ export type RetrievalDocument = {
   [SemanticConventions.DOCUMENT_METADATA]?: string;
 };
 
-export type LLMOpenInferenceAttributes = {
+export type LLMParameterAttributes = {
   [SemanticConventions.LLM_MODEL_NAME]?: string;
   [SemanticConventions.LLM_INVOCATION_PARAMETERS]?: string;
+};
+
+export type PromptTemplateAttributes = {
+  [PROMPT_TEMPLATE_TEMPLATE]?: string;
+  [PROMPT_TEMPLATE_VARIABLES]?: string;
+};
+export type TokenCountAttributes = {
+  [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]?: number;
+  [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]?: number;
+  [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]?: number;
+};
+
+export type ToolAttributes = {
+  [TOOL_NAME]?: string;
+  [TOOL_DESCRIPTION]?: string;
 };

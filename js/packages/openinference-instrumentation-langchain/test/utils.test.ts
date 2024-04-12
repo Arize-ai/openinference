@@ -7,17 +7,29 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import {
   safelyFlattenAttributes,
+  safelyFormatFunctionCalls,
   safelyFormatIO,
   safelyFormatInputMessages,
   safelyFormatLLMParams,
+  safelyFormatMetadata,
   safelyFormatOutputMessages,
+  safelyFormatPromptTemplate,
   safelyFormatRetrievalDocuments,
+  safelyFormatTokenCounts,
+  safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
   withSafety,
 } from "../src/utils";
 import { diag } from "@opentelemetry/api";
 import { getLangchainMessage, getLangchainRun } from "./fixtures";
 import { LLMMessage } from "../src/types";
+import {
+  LLM_FUNCTION_CALL,
+  PROMPT_TEMPLATE_TEMPLATE,
+  PROMPT_TEMPLATE_VARIABLES,
+  TOOL_DESCRIPTION,
+  TOOL_NAME,
+} from "../src/constants";
 
 describe("withSafety", () => {
   afterEach(() => {
@@ -455,7 +467,7 @@ describe("formatLLMParams", () => {
     );
   });
 
-  it("should return the formatted LLMOpenInferenceAttributes object", () => {
+  it("should return the formatted LLMParameterAttributes object", () => {
     const runExtra = {
       invocation_params: {
         model_name: "test",
@@ -491,5 +503,298 @@ describe("formatLLMParams", () => {
     const runExtra = {};
     const result = safelyFormatLLMParams(runExtra);
     expect(result).toBeNull();
+  });
+});
+
+describe("formatPromptTemplate", () => {
+  it("should return null if run type is not 'prompt'", () => {
+    const result = safelyFormatPromptTemplate(getLangchainRun());
+    expect(result).toBeNull();
+  });
+
+  it("should return the run input as prompt template variables for a prompt run", () => {
+    const promptRun = getLangchainRun({
+      run_type: "prompt",
+      inputs: { test: "test value" },
+    });
+    const result = safelyFormatPromptTemplate(promptRun);
+    expect(result).toEqual({
+      [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
+    });
+  });
+
+  it("should not return the template from the runs serialized field if it the path to the template has the wrong type", () => {
+    const promptRun = getLangchainRun({
+      run_type: "prompt",
+      inputs: { test: "test value" },
+      serialized: {
+        kwargs: {
+          messages: [
+            {
+              prompt: {
+                template: "my template",
+              },
+            },
+          ],
+        },
+      },
+    });
+    const result = safelyFormatPromptTemplate(promptRun);
+    expect(result).toEqual({
+      [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
+      [PROMPT_TEMPLATE_TEMPLATE]: "my template",
+    });
+  });
+
+  it("should not return the template from the runs serialized field if it the path to the template has the wrong type", () => {
+    const promptRun = getLangchainRun({
+      run_type: "prompt",
+      inputs: { test: "test value" },
+      serialized: {
+        kwargs: {
+          messages: [
+            {
+              prompt: "my template",
+            },
+          ],
+        },
+      },
+    });
+    const result = safelyFormatPromptTemplate(promptRun);
+    expect(result).toEqual({
+      [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
+    });
+  });
+});
+
+describe("formatTokenCounts", () => {
+  it("should return null if outputs is undefined", () => {
+    const result = safelyFormatTokenCounts(undefined);
+    expect(result).toBeNull();
+  });
+
+  it("should return null if llmOutput or tokenUsage is not an object", () => {
+    const outputs = {
+      llmOutput: null,
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toBeNull();
+  });
+
+  it("should return the token counts if llmOutput and tokenUsage are valid", () => {
+    const outputs = {
+      llmOutput: {
+        tokenUsage: {
+          completionTokens: 10,
+          promptTokens: 20,
+          totalTokens: 30,
+        },
+      },
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 30,
+    });
+  });
+
+  it("should return null if llmOutput or tokenUsage are missing", () => {
+    const outputs = {
+      llmOutput: {},
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toBeNull();
+  });
+
+  it("should only add numeric token values", () => {
+    const outputs = {
+      llmOutput: {
+        tokenUsage: {
+          completionTokens: 10,
+          promptTokens: 20,
+          totalTokens: "wrong",
+        },
+      },
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+    });
+  });
+
+  it("should add estimated token counts if actual usage is not present", () => {
+    const outputs = {
+      llmOutput: {
+        estimatedTokenUsage: {
+          completionTokens: 10,
+          promptTokens: 20,
+          totalTokens: 30,
+        },
+      },
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 30,
+    });
+  });
+});
+
+describe("formatFunctionCalls", () => {
+  it("should return null if outputs is empty", () => {
+    const result = safelyFormatFunctionCalls(undefined);
+    expect(result).toBeNull();
+  });
+
+  it("should return null if the first output generation is not an object or does not have a message property", () => {
+    const runWithInvalidGeneration = getLangchainRun({
+      outputs: {
+        generations: ["invalid generation"],
+      },
+    });
+    const result = safelyFormatFunctionCalls(runWithInvalidGeneration.outputs);
+    expect(result).toBeNull();
+
+    const runWithInvalidMessage = getLangchainRun({
+      outputs: {
+        generations: [{ test: "invalid message" }],
+      },
+    });
+
+    const resultWithNoMessage = safelyFormatFunctionCalls(
+      runWithInvalidMessage.outputs,
+    );
+    expect(resultWithNoMessage).toBeNull();
+  });
+
+  it("should return null if additional_kwargs or function_call is not an object", () => {
+    const runWithInvalidKwargs = getLangchainRun({
+      outputs: {
+        generations: [
+          {
+            message: {
+              additional_kwargs: "invalid",
+            },
+          },
+        ],
+      },
+    });
+    const result = safelyFormatFunctionCalls(runWithInvalidKwargs.outputs);
+    expect(result).toBeNull();
+
+    const runWithInvalidFunctionCall = getLangchainRun({
+      outputs: {
+        generations: [
+          {
+            message: {
+              additional_kwargs: {
+                function_call: "invalid",
+              },
+            },
+          },
+        ],
+      },
+    });
+    const resultWithInvalidFunctionCall = safelyFormatFunctionCalls(
+      runWithInvalidFunctionCall.outputs,
+    );
+
+    expect(resultWithInvalidFunctionCall).toBeNull();
+  });
+});
+
+it("should return the formatted function call if it is valid", () => {
+  const validRun = getLangchainRun({
+    outputs: {
+      generations: [
+        [
+          {
+            message: {
+              additional_kwargs: {
+                function_call: {
+                  name: "test-function",
+                  args: "my_arg: 'test'",
+                },
+              },
+            },
+          },
+        ],
+      ],
+    },
+  });
+  const result = safelyFormatFunctionCalls(validRun.outputs);
+  expect(result).toEqual({
+    [LLM_FUNCTION_CALL]: JSON.stringify({
+      name: "test-function",
+      args: "my_arg: 'test'",
+    }),
+  });
+});
+describe("formatToolCalls", () => {
+  it("should return null if the normalized run type is not 'tool'", () => {
+    const run = getLangchainRun();
+    const result = safelyFormatToolCalls(run);
+    expect(result).toBeNull();
+  });
+
+  it("should get tool name from run name if not present in serialized field", () => {
+    const run = getLangchainRun({ run_type: "tool", name: "test_tool" });
+    const result = safelyFormatToolCalls(run);
+    expect(result).toEqual({
+      [TOOL_NAME]: "test_tool",
+    });
+  });
+
+  it("should return the tool attributes with the serialized name and description if available", () => {
+    const run = getLangchainRun({
+      run_type: "tool",
+      name: "Test Run",
+      serialized: {
+        name: "my_tools_name",
+        description: "my tools description",
+      },
+    });
+    const result = safelyFormatToolCalls(run);
+    expect(result).toEqual({
+      [TOOL_NAME]: "my_tools_name",
+      [TOOL_DESCRIPTION]: "my tools description",
+    });
+  });
+
+  it("should not return name or description if they are not strings", () => {
+    const run = getLangchainRun({
+      run_type: "tool",
+      name: "test_tool",
+      serialized: {
+        name: 1,
+        description: 1,
+      },
+    });
+    const result = safelyFormatToolCalls(run);
+    expect(result).toEqual({
+      [TOOL_NAME]: "test_tool",
+    });
+  });
+});
+
+describe("formatMetadata", () => {
+  it("should return null if run.extra or run.extra.metadata is not an object", () => {
+    const run1 = getLangchainRun();
+    const run2 = getLangchainRun({ extra: { metadata: null } });
+    const run3 = getLangchainRun({ extra: { metadata: "invalid" } });
+
+    expect(safelyFormatMetadata(run1)).toBeNull();
+    expect(safelyFormatMetadata(run2)).toBeNull();
+    expect(safelyFormatMetadata(run3)).toBeNull();
+  });
+
+  it("should return the formatted metadata if run.extra.metadata is an object", () => {
+    const run = getLangchainRun({ extra: { metadata: { key: "value" } } });
+    const expected = { metadata: JSON.stringify({ key: "value" }) };
+
+    expect(safelyFormatMetadata(run)).toEqual(expected);
   });
 });
