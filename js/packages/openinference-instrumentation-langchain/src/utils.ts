@@ -2,6 +2,7 @@ import { Attributes, diag } from "@opentelemetry/api";
 import {
   assertUnreachable,
   isNonEmptyArray,
+  isNumber,
   isObject,
   isString,
 } from "./typeUtils";
@@ -20,10 +21,20 @@ import {
   LLMMessageFunctionCall,
   LLMMessageToolCalls,
   LLMMessagesAttributes,
-  LLMOpenInferenceAttributes,
+  LLMParameterAttributes,
+  PromptTemplateAttributes,
   RetrievalDocument,
   SafeFunction,
+  TokenCountAttributes,
+  ToolAttributes,
 } from "./types";
+import {
+  LLM_FUNCTION_CALL,
+  PROMPT_TEMPLATE_TEMPLATE,
+  PROMPT_TEMPLATE_VARIABLES,
+  TOOL_DESCRIPTION,
+  TOOL_NAME,
+} from "./constants";
 
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
@@ -44,7 +55,7 @@ export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
   };
 }
 
-const safelyStringify = withSafety(JSON.stringify);
+const safelyJSONStringify = withSafety(JSON.stringify);
 
 /**
  * Flattens a nested object into a single level object with keys as dot-separated paths.
@@ -144,7 +155,7 @@ function formatIO({
   }
 
   return {
-    [valueAttribute]: safelyStringify(io),
+    [valueAttribute]: safelyJSONStringify(io),
     [mimeTypeAttribute]: MimeType.JSON,
   };
 }
@@ -318,6 +329,27 @@ function formatInputMessages(
 }
 
 /**
+ * Gets the first generation of the output of a langchain run.
+ * @param output - The output of a langchain run.
+ * @returns The first generation of the output or null.
+ */
+function getFirstOutputGeneration(output: Run["outputs"]) {
+  if (!isObject(output)) {
+    return null;
+  }
+  const maybeGenerations = output.generations;
+  if (!isNonEmptyArray(maybeGenerations)) {
+    return null;
+  }
+  // Only support the first 'set' of generations
+  const firstGeneration = maybeGenerations[0];
+  if (!isNonEmptyArray(firstGeneration)) {
+    return null;
+  }
+  return firstGeneration;
+}
+
+/**
  * Formats the output messages of a langchain run into OpenInference attributes.
  * @param output - The output of a langchain run.
  * @returns The OpenInference attributes for the output messages.
@@ -325,23 +357,12 @@ function formatInputMessages(
 function formatOutputMessages(
   output: Run["outputs"],
 ): LLMMessagesAttributes | null {
-  if (output == null) {
+  const firstGeneration = getFirstOutputGeneration(output);
+  if (firstGeneration == null) {
     return null;
   }
-
-  const maybeGenerations = output.generations;
-
-  if (!isNonEmptyArray(maybeGenerations)) {
-    return null;
-  }
-  // Only support the first 'set' of generations
-  const firstGenerations = maybeGenerations[0];
-  if (!isNonEmptyArray(firstGenerations)) {
-    return null;
-  }
-
   const parsedMessages: LLMMessage[] = [];
-  firstGenerations.forEach((generation) => {
+  firstGeneration.forEach((generation) => {
     if (!isObject(generation) || !isObject(generation.message)) {
       return;
     }
@@ -370,7 +391,7 @@ function parseRetrievalDocument(document: unknown) {
   }
   if (isObject(document.metadata)) {
     parsedDocument["document.metadata"] =
-      safelyStringify(document.metadata) ?? undefined;
+      safelyJSONStringify(document.metadata) ?? undefined;
   }
   return parsedDocument;
 }
@@ -402,14 +423,14 @@ function formatRetrievalDocuments(run: Run) {
  */
 function formatLLMParams(
   runExtra: Run["extra"],
-): LLMOpenInferenceAttributes | null {
+): LLMParameterAttributes | null {
   if (!isObject(runExtra) || !isObject(runExtra.invocation_params)) {
     return null;
   }
-  const openInferenceParams: LLMOpenInferenceAttributes = {};
+  const openInferenceParams: LLMParameterAttributes = {};
 
   openInferenceParams[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
-    safelyStringify(runExtra.invocation_params) ?? undefined;
+    safelyJSONStringify(runExtra.invocation_params) ?? undefined;
 
   if (isString(runExtra.invocation_params.model_name)) {
     openInferenceParams[SemanticConventions.LLM_MODEL_NAME] =
@@ -419,6 +440,129 @@ function formatLLMParams(
       runExtra.invocation_params.model;
   }
   return openInferenceParams;
+}
+
+function getTemplateFromSerialized(serialized: Run["serialized"]) {
+  if (!isObject(serialized) || !isObject(serialized.kwargs)) {
+    return null;
+  }
+  const messages = serialized.kwargs.messages;
+  if (!isNonEmptyArray(messages)) {
+    return null;
+  }
+  const firstMessage = messages[0];
+  if (!isObject(firstMessage) || !isObject(firstMessage.prompt)) {
+    return null;
+  }
+  const template = firstMessage.prompt.template;
+  if (!isString(template)) {
+    return null;
+  }
+  return template;
+}
+
+const safelyGetTemplateFromSerialized = withSafety(getTemplateFromSerialized);
+
+/**
+ * A best effort function to extract the prompt template from a langchain run.
+ * @param run - The langchain run to extract the prompt template from
+ * @returns The OpenInference attributes for the prompt template
+ */
+function formatPromptTemplate(run: Run): PromptTemplateAttributes | null {
+  if (run.run_type.toLowerCase() !== "prompt") {
+    return null;
+  }
+  return {
+    [PROMPT_TEMPLATE_VARIABLES]: safelyJSONStringify(run.inputs) ?? undefined,
+    [PROMPT_TEMPLATE_TEMPLATE]:
+      safelyGetTemplateFromSerialized(run.serialized) ?? undefined,
+  };
+}
+
+function getTokenCount(maybeCount: unknown) {
+  return isNumber(maybeCount) ? maybeCount : undefined;
+}
+
+/**
+ * Formats the token counts of a langchain run into OpenInference attributes.
+ * @param outputs - The outputs of a langchain run
+ * @returns The OpenInference attributes for the token counts
+ */
+function formatTokenCounts(
+  outputs: Run["outputs"],
+): TokenCountAttributes | null {
+  if (!isObject(outputs)) {
+    return null;
+  }
+  const llmOutput = outputs.llmOutput;
+  if (isObject(llmOutput) && isObject(llmOutput.tokenUsage)) {
+    return {
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(
+        llmOutput.tokenUsage.completionTokens,
+      ),
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: getTokenCount(
+        llmOutput.tokenUsage.promptTokens,
+      ),
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: getTokenCount(
+        llmOutput.tokenUsage.totalTokens,
+      ),
+    };
+  }
+  return null;
+}
+
+/**
+ * Formats the function calls of a langchain run into OpenInference attributes.
+ * @param outputs - The outputs of a langchain run
+ * @returns The OpenInference attributes for the function calls
+ */
+function formatFunctionCalls(outputs: Run["outputs"]) {
+  const firstGeneration = getFirstOutputGeneration(outputs);
+  if (firstGeneration == null) {
+    return null;
+  }
+  const maybeGeneration = firstGeneration[0];
+  if (!isObject(maybeGeneration) || !isObject(maybeGeneration.message)) {
+    return null;
+  }
+
+  const additionalKwargs = maybeGeneration.message.additional_kwargs;
+
+  if (
+    !isObject(additionalKwargs) ||
+    !isObject(additionalKwargs.function_call)
+  ) {
+    return null;
+  }
+
+  return {
+    [LLM_FUNCTION_CALL]: safelyJSONStringify(additionalKwargs.function_call),
+  };
+}
+
+/**
+ * Formats the tool calls of a langchain run into OpenInference attributes.
+ * @param run - The langchain run to extract the tool calls from
+ * @returns The OpenInference attributes for the tool calls
+ */
+function formatToolCalls(run: Run) {
+  const normalizedRunType = run.run_type.toLowerCase();
+  if (normalizedRunType !== "tool") {
+    return null;
+  }
+  const toolAttributes: ToolAttributes = {
+    [TOOL_NAME]: run.name,
+  };
+  if (!isObject(run.serialized)) {
+    return toolAttributes;
+  }
+  if (isString(run.serialized.name)) {
+    toolAttributes[TOOL_NAME] = run.serialized.name;
+  }
+  if (isString(run.serialized.description)) {
+    toolAttributes[TOOL_DESCRIPTION] = run.serialized.description;
+  }
+  return toolAttributes;
 }
 
 export const safelyFlattenAttributes = withSafety(flattenAttributes);
@@ -432,3 +576,7 @@ export const safelyFormatRetrievalDocuments = withSafety(
   formatRetrievalDocuments,
 );
 export const safelyFormatLLMParams = withSafety(formatLLMParams);
+export const safelyFormatPromptTemplate = withSafety(formatPromptTemplate);
+export const safelyFormatTokenCounts = withSafety(formatTokenCounts);
+export const safelyFormatFunctionCalls = withSafety(formatFunctionCalls);
+export const safelyFormatToolCalls = withSafety(formatToolCalls);

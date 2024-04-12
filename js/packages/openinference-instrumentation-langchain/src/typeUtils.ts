@@ -21,6 +21,10 @@ export function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
+export function isNumber(value: unknown): value is number {
+  return typeof value === "number";
+}
+
 export function isNonEmptyArray(value: unknown): value is unknown[] {
   return value != null && Array.isArray(value) && value.length > 0;
 }
