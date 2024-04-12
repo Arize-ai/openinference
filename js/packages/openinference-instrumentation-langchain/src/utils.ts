@@ -565,6 +565,20 @@ function formatToolCalls(run: Run) {
   return toolAttributes;
 }
 
+/**
+ * Formats the metadata of a langchain run into OpenInference attributes.
+ * @param run - The langchain run to extract the metadata from
+ * @returns The OpenInference attributes for the metadata
+ */
+function formatMetadata(run: Run) {
+  if (!isObject(run.extra) || !isObject(run.extra.metadata)) {
+    return null;
+  }
+  return {
+    metadata: safelyJSONStringify(run.extra.metadata),
+  };
+}
+
 export const safelyFlattenAttributes = withSafety(flattenAttributes);
 export const safelyFormatIO = withSafety(formatIO);
 export const safelyFormatInputMessages = withSafety(formatInputMessages);
@@ -580,3 +594,4 @@ export const safelyFormatPromptTemplate = withSafety(formatPromptTemplate);
 export const safelyFormatTokenCounts = withSafety(formatTokenCounts);
 export const safelyFormatFunctionCalls = withSafety(formatFunctionCalls);
 export const safelyFormatToolCalls = withSafety(formatToolCalls);
+export const safelyFormatMetadata = withSafety(formatMetadata);

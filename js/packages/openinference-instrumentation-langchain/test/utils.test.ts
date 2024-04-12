@@ -11,6 +11,7 @@ import {
   safelyFormatIO,
   safelyFormatInputMessages,
   safelyFormatLLMParams,
+  safelyFormatMetadata,
   safelyFormatOutputMessages,
   safelyFormatPromptTemplate,
   safelyFormatRetrievalDocuments,
@@ -758,5 +759,24 @@ describe("formatToolCalls", () => {
     expect(result).toEqual({
       [TOOL_NAME]: "test_tool",
     });
+  });
+});
+
+describe("formatMetadata", () => {
+  it("should return null if run.extra or run.extra.metadata is not an object", () => {
+    const run1 = getLangchainRun();
+    const run2 = getLangchainRun({ extra: { metadata: null } });
+    const run3 = getLangchainRun({ extra: { metadata: "invalid" } });
+
+    expect(safelyFormatMetadata(run1)).toBeNull();
+    expect(safelyFormatMetadata(run2)).toBeNull();
+    expect(safelyFormatMetadata(run3)).toBeNull();
+  });
+
+  it("should return the formatted metadata if run.extra.metadata is an object", () => {
+    const run = getLangchainRun({ extra: { metadata: { key: "value" } } });
+    const expected = { metadata: JSON.stringify({ key: "value" }) };
+
+    expect(safelyFormatMetadata(run)).toEqual(expected);
   });
 });
