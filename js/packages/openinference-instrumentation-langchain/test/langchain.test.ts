@@ -60,8 +60,14 @@ instrumentation.disable();
 jest.mock("@langchain/openai", () => {
   const originalModule = jest.requireActual("@langchain/openai");
   class MockChatOpenAI extends originalModule.ChatOpenAI {
-    constructor() {
-      super();
+    constructor({
+      openAIApiKey,
+      modelName,
+    }: {
+      openAIApiKey: string;
+      modelName: string;
+    }) {
+      super({ openAIApiKey, modelName });
       this.client = {
         chat: {
           completions: {
@@ -262,6 +268,7 @@ describe("LangChainInstrumentation", () => {
       [LLM_MODEL_NAME]: "gpt-3.5-turbo",
       [LLM_INVOCATION_PARAMETERS]:
         '{"model":"gpt-3.5-turbo","temperature":1,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
+      metadata: "{}",
     });
   });
 
@@ -334,6 +341,7 @@ describe("LangChainInstrumentation", () => {
           },
         },
       }),
+      metadata: "{}",
     });
 
     expect(stuffDocSpan?.attributes).toStrictEqual({
@@ -343,6 +351,7 @@ describe("LangChainInstrumentation", () => {
       [INPUT_MIME_TYPE]: "application/json",
       [INPUT_VALUE]:
         '{"question":"What are cats?","input_documents":[{"pageContent":"dogs are cute","metadata":{"loc":{"lines":{"from":1,"to":1}}}},{"pageContent":"rainbows are colorful","metadata":{"loc":{"lines":{"from":1,"to":1}}}},{"pageContent":"water is wet","metadata":{"loc":{"lines":{"from":1,"to":1}}}}],"query":"What are cats?"}',
+      metadata: "{}",
     });
   });
 
@@ -375,6 +384,7 @@ describe("LangChainInstrumentation", () => {
       [OUTPUT_VALUE]:
         '{"lc":1,"type":"constructor","id":["langchain_core","prompt_values","ChatPromptValue"],"kwargs":{"messages":[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"Use the context below to answer the question.\\n  ----------------\\n  This is a test.\\n  \\n  Question:\\n  What is this?\\n  ","additional_kwargs":{},"response_metadata":{}}}]}}',
       [OUTPUT_MIME_TYPE]: "application/json",
+      metadata: "{}",
     });
   });
 
@@ -447,6 +457,7 @@ describe("LangChainInstrumentation", () => {
       [OUTPUT_VALUE]:
         '{"generations":[[{"text":"","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"","additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110},"finish_reason":"function_call"}}},"generationInfo":{"finish_reason":"function_call"}}]],"llmOutput":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110}}}',
       [OUTPUT_MIME_TYPE]: "application/json",
+      metadata: "{}",
     });
   });
 
@@ -475,6 +486,7 @@ describe("LangChainInstrumentation", () => {
       [INPUT_MIME_TYPE]: "text/plain",
       [OUTPUT_VALUE]: "this is a test tool",
       [OUTPUT_MIME_TYPE]: "text/plain",
+      metadata: "{}",
     });
   });
 });
