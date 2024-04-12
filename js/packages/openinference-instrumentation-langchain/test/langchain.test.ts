@@ -9,7 +9,6 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { loadQAStuffChain, RetrievalQAChain } from "langchain/chains";
 import "dotenv/config";
 import {
@@ -20,7 +19,7 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import { LangChainTracer } from "../src/tracer";
 import { trace } from "@opentelemetry/api";
-// jest.useFakeTimers();
+jest.useFakeTimers();
 
 const {
   INPUT_VALUE,
@@ -105,13 +104,6 @@ describe("LangChainInstrumentation", () => {
 
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
-  tracerProvider.addSpanProcessor(
-    new SimpleSpanProcessor(
-      new OTLPTraceExporter({
-        url: "http://localhost:6006/v1/traces",
-      }),
-    ),
-  );
 
   // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
   instrumentation._modules[0].moduleExports = CallbackManager;
@@ -142,6 +134,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should properly nest spans", async () => {
     const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
     const PROMPT_TEMPLATE = `Use the context below to answer the question.
@@ -155,7 +148,9 @@ describe("LangChainInstrumentation", () => {
     const docs = await textSplitter.createDocuments(testDocuments);
     const vectorStore = await MemoryVectorStore.fromDocuments(
       docs,
-      new OpenAIEmbeddings(),
+      new OpenAIEmbeddings({
+        openAIApiKey: "my-api-key",
+      }),
     );
     const chain = new RetrievalQAChain({
       combineDocumentsChain: loadQAStuffChain(chatModel, { prompt }),
@@ -197,6 +192,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should add messages and param information to llm spans", async () => {
     const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
       temperature: 0,
     });
@@ -272,6 +268,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should add documents to retriever spans", async () => {
     const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
     const PROMPT_TEMPLATE = `Use the context below to answer the question.
@@ -285,7 +282,9 @@ describe("LangChainInstrumentation", () => {
     const docs = await textSplitter.createDocuments(testDocuments);
     const vectorStore = await MemoryVectorStore.fromDocuments(
       docs,
-      new OpenAIEmbeddings(),
+      new OpenAIEmbeddings({
+        openAIApiKey: "my-api-key",
+      }),
     );
     const chain = new RetrievalQAChain({
       combineDocumentsChain: loadQAStuffChain(chatModel, { prompt }),

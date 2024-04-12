@@ -20,6 +20,11 @@ import { getLangchainMessage, getLangchainRun } from "./fixtures";
 import { LLMMessage } from "../src/types";
 
 describe("withSafety", () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+    jest.resetModules();
+    jest.restoreAllMocks();
+  });
   it("should return a function", () => {
     const safeFunction = withSafety(() => {});
     expect(typeof safeFunction).toBe("function");
@@ -424,6 +429,11 @@ describe("formatRetrievalDocuments", () => {
   });
 });
 describe("formatLLMParams", () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+    jest.resetModules();
+    jest.restoreAllMocks();
+  });
   it("should return null if runExtra is not an object or runExtra.invocation_params is not an object", () => {
     expect(safelyFormatLLMParams(undefined)).toBeNull();
     expect(safelyFormatLLMParams({ test: "test" })).toBeNull();
@@ -437,10 +447,11 @@ describe("formatLLMParams", () => {
     }).extra;
     const result = safelyFormatLLMParams(runExtra);
     expect(result).toStrictEqual({
+      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: undefined,
       [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
     });
     expect(diagMock).toHaveBeenCalledWith(
-      "Failed to stringify invocation params",
+      "Failed to get attributes for span: TypeError: Do not know how to serialize a BigInt",
     );
   });
 
