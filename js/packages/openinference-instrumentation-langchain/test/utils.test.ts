@@ -1,18 +1,22 @@
 import {
   MimeType,
   OpenInferenceSpanKind,
+  RetrievalAttributePostfixes,
+  SemanticAttributePrefixes,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import {
   safelyFlattenAttributes,
   safelyFormatIO,
   safelyFormatInputMessages,
+  safelyFormatLLMParams,
   safelyFormatOutputMessages,
+  safelyFormatRetrievalDocuments,
   safelyGetOpenInferenceSpanKindFromRunType,
   withSafety,
 } from "../src/utils";
 import { diag } from "@opentelemetry/api";
-import { getLangchainMessage } from "./fixtures";
+import { getLangchainMessage, getLangchainRun } from "./fixtures";
 import { LLMMessage } from "../src/types";
 
 describe("withSafety", () => {
@@ -337,5 +341,144 @@ describe("formatMessages", () => {
         [SemanticConventions.LLM_OUTPUT_MESSAGES]: expectedMessages,
       });
     });
+  });
+});
+
+describe("formatRetrievalDocuments", () => {
+  const runOutputDocuments = [{ pageContent: "doc1" }, { pageContent: "doc2" }];
+
+  const expectedOpenInferenceRetrievalDocuments = {
+    [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]:
+      [
+        {
+          [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
+        },
+        {
+          [SemanticConventions.DOCUMENT_CONTENT]: "doc2",
+        },
+      ],
+  };
+  it("should return null if run_type is not 'retriever'", () => {
+    const result = safelyFormatRetrievalDocuments(getLangchainRun());
+    expect(result).toBeNull();
+  });
+
+  it("should return null if outputs is not an object", () => {
+    const result = safelyFormatRetrievalDocuments(
+      getLangchainRun({ run_type: "retriever" }),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("should return null if outputs.documents is not an array", () => {
+    const result = safelyFormatRetrievalDocuments(
+      getLangchainRun({
+        run_type: "retriever",
+        outputs: { documents: "not an array" },
+      }),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("should return an object with parsed documents if outputs.documents is an array", () => {
+    const result = safelyFormatRetrievalDocuments(
+      getLangchainRun({
+        run_type: "retriever",
+        outputs: { documents: runOutputDocuments },
+      }),
+    );
+    expect(result).toEqual(expectedOpenInferenceRetrievalDocuments);
+  });
+  it("should filter out non object documents", () => {
+    const result = safelyFormatRetrievalDocuments(
+      getLangchainRun({
+        run_type: "retriever",
+        outputs: {
+          documents: [...runOutputDocuments, "not an object"],
+        },
+      }),
+    );
+    expect(result).toEqual(expectedOpenInferenceRetrievalDocuments);
+  });
+
+  it("should add document metadata", () => {
+    const result = safelyFormatRetrievalDocuments(
+      getLangchainRun({
+        run_type: "retriever",
+        outputs: {
+          documents: [{ pageContent: "doc1", metadata: { key: "value" } }],
+        },
+      }),
+    );
+    expect(result).toEqual({
+      [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]:
+        [
+          {
+            [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
+            [SemanticConventions.DOCUMENT_METADATA]: JSON.stringify({
+              key: "value",
+            }),
+          },
+        ],
+    });
+  });
+});
+describe("formatLLMParams", () => {
+  it("should return null if runExtra is not an object or runExtra.invocation_params is not an object", () => {
+    expect(safelyFormatLLMParams(undefined)).toBeNull();
+    expect(safelyFormatLLMParams({ test: "test" })).toBeNull();
+    expect(safelyFormatLLMParams([])).toBeNull();
+  });
+
+  it("should return swallow errors stringifying invocation params, but still add model_name if possible", () => {
+    const diagMock = jest.spyOn(diag, "error");
+    const runExtra = getLangchainRun({
+      extra: { invocation_params: { badKey: BigInt(1), model_name: "gpt-4" } },
+    }).extra;
+    const result = safelyFormatLLMParams(runExtra);
+    expect(result).toStrictEqual({
+      [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
+    });
+    expect(diagMock).toHaveBeenCalledWith(
+      "Failed to stringify invocation params",
+    );
+  });
+
+  it("should return the formatted LLMOpenInferenceAttributes object", () => {
+    const runExtra = {
+      invocation_params: {
+        model_name: "test",
+      },
+    };
+    const expectedParams = {
+      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(
+        runExtra.invocation_params,
+      ),
+      [SemanticConventions.LLM_MODEL_NAME]: "test",
+    };
+    const result = safelyFormatLLMParams(runExtra);
+    expect(result).toEqual(expectedParams);
+  });
+
+  it("should use 'model' if 'model_name' is not a string", () => {
+    const runExtra = {
+      invocation_params: {
+        model: "test",
+      },
+    };
+    const expectedParams = {
+      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(
+        runExtra.invocation_params,
+      ),
+      [SemanticConventions.LLM_MODEL_NAME]: "test",
+    };
+    const result = safelyFormatLLMParams(runExtra);
+    expect(result).toEqual(expectedParams);
+  });
+
+  it("should return null if invocation_params is missing", () => {
+    const runExtra = {};
+    const result = safelyFormatLLMParams(runExtra);
+    expect(result).toBeNull();
   });
 });

@@ -9,6 +9,8 @@ import { isAttributeValue } from "@opentelemetry/core";
 import {
   MimeType,
   OpenInferenceSpanKind,
+  RetrievalAttributePostfixes,
+  SemanticAttributePrefixes,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { Run } from "@langchain/core/tracers/base";
@@ -18,8 +20,13 @@ import {
   LLMMessageFunctionCall,
   LLMMessageToolCalls,
   LLMMessagesAttributes,
+  LLMOpenInferenceAttributes,
+  RetrievalDocument,
   SafeFunction,
 } from "./types";
+
+export const RETRIEVAL_DOCUMENTS =
+  `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.
@@ -36,6 +43,8 @@ export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
     }
   };
 }
+
+const safelyStringify = withSafety(JSON.stringify);
 
 /**
  * Flattens a nested object into a single level object with keys as dot-separated paths.
@@ -135,7 +144,7 @@ function formatIO({
   }
 
   return {
-    [valueAttribute]: JSON.stringify(io),
+    [valueAttribute]: safelyStringify(io),
     [mimeTypeAttribute]: MimeType.JSON,
   };
 }
@@ -346,6 +355,72 @@ function formatOutputMessages(
   return null;
 }
 
+/**
+ * Parses a langchain retrieval document into OpenInference attributes.
+ * @param document - The langchain retrieval document to parse
+ * @returns The OpenInference attributes for the retrieval document
+ */
+function parseRetrievalDocument(document: unknown) {
+  if (!isObject(document)) {
+    return null;
+  }
+  const parsedDocument: RetrievalDocument = {};
+  if (isString(document.pageContent)) {
+    parsedDocument["document.content"] = document.pageContent;
+  }
+  if (isObject(document.metadata)) {
+    parsedDocument["document.metadata"] =
+      safelyStringify(document.metadata) ?? undefined;
+  }
+  return parsedDocument;
+}
+
+/**
+ * Formats the retrieval documents of a langchain run into OpenInference attributes.
+ * @param run - The langchain run to extract the retrieval documents from
+ * @returns The OpenInference attributes for the retrieval documents.
+ */
+function formatRetrievalDocuments(run: Run) {
+  const normalizedRunType = run.run_type.toLowerCase();
+  if (normalizedRunType !== "retriever") {
+    return null;
+  }
+  if (!isObject(run.outputs) || !Array.isArray(run.outputs.documents)) {
+    return null;
+  }
+  return {
+    [RETRIEVAL_DOCUMENTS]: run.outputs.documents
+      .map(parseRetrievalDocument)
+      .filter((doc) => doc != null),
+  };
+}
+
+/**
+ * Gets the model name from the langchain run extra data.
+ * @param runExtra - The extra data from a langchain run
+ * @returns The OpenInference attributes for the model name
+ */
+function formatLLMParams(
+  runExtra: Run["extra"],
+): LLMOpenInferenceAttributes | null {
+  if (!isObject(runExtra) || !isObject(runExtra.invocation_params)) {
+    return null;
+  }
+  const openInferenceParams: LLMOpenInferenceAttributes = {};
+
+  openInferenceParams[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
+    safelyStringify(runExtra.invocation_params) ?? undefined;
+
+  if (isString(runExtra.invocation_params.model_name)) {
+    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] =
+      runExtra.invocation_params.model_name;
+  } else if (isString(runExtra.invocation_params.model)) {
+    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] =
+      runExtra.invocation_params.model;
+  }
+  return openInferenceParams;
+}
+
 export const safelyFlattenAttributes = withSafety(flattenAttributes);
 export const safelyFormatIO = withSafety(formatIO);
 export const safelyFormatInputMessages = withSafety(formatInputMessages);
@@ -353,3 +428,7 @@ export const safelyFormatOutputMessages = withSafety(formatOutputMessages);
 export const safelyGetOpenInferenceSpanKindFromRunType = withSafety(
   getOpenInferenceSpanKindFromRunType,
 );
+export const safelyFormatRetrievalDocuments = withSafety(
+  formatRetrievalDocuments,
+);
+export const safelyFormatLLMParams = withSafety(formatLLMParams);
