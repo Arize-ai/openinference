@@ -8,6 +8,7 @@ import * as CallbackManager from "@langchain/core/callbacks/manager";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { Stream } from "openai/streaming";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { loadQAStuffChain, RetrievalQAChain } from "langchain/chains";
 import "dotenv/config";
@@ -26,10 +27,8 @@ import {
   PROMPT_TEMPLATE_VARIABLES,
   TOOL_NAME,
 } from "../src/constants";
-
 import { completionsResponse, functionCallResponse } from "./fixtures";
 import { DynamicTool } from "@langchain/core/tools";
-jest.useFakeTimers();
 
 const {
   INPUT_VALUE,
@@ -49,6 +48,7 @@ const {
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_TOTAL,
 } = SemanticConventions;
+
 const RETRIEVAL_DOCUMENTS = `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`;
 
 const tracerProvider = new NodeTracerProvider();
@@ -60,14 +60,8 @@ instrumentation.disable();
 jest.mock("@langchain/openai", () => {
   const originalModule = jest.requireActual("@langchain/openai");
   class MockChatOpenAI extends originalModule.ChatOpenAI {
-    constructor({
-      openAIApiKey,
-      modelName,
-    }: {
-      openAIApiKey: string;
-      modelName: string;
-    }) {
-      super({ openAIApiKey, modelName });
+    constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
+      super(...args);
       this.client = {
         chat: {
           completions: {
@@ -94,6 +88,71 @@ jest.mock("@langchain/openai", () => {
     },
   };
 });
+
+const expectedSpanAttributes = {
+  [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+  [INPUT_VALUE]: JSON.stringify({
+    messages: [
+      [
+        {
+          lc: 1,
+          type: "constructor",
+          id: ["langchain_core", "messages", "HumanMessage"],
+          kwargs: {
+            content: "hello, this is a test",
+            additional_kwargs: {},
+            response_metadata: {},
+          },
+        },
+      ],
+    ],
+  }),
+  [INPUT_MIME_TYPE]: "application/json",
+  [OUTPUT_VALUE]: JSON.stringify({
+    generations: [
+      [
+        {
+          text: "This is a test.",
+          message: {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain_core", "messages", "AIMessage"],
+            kwargs: {
+              content: "This is a test.",
+              tool_calls: [],
+              invalid_tool_calls: [],
+              additional_kwargs: {},
+              response_metadata: {
+                tokenUsage: {
+                  completionTokens: 5,
+                  promptTokens: 12,
+                  totalTokens: 17,
+                },
+                finish_reason: "stop",
+              },
+            },
+          },
+          generationInfo: { finish_reason: "stop" },
+        },
+      ],
+    ],
+    llmOutput: {
+      tokenUsage: { completionTokens: 5, promptTokens: 12, totalTokens: 17 },
+    },
+  }),
+  [LLM_TOKEN_COUNT_COMPLETION]: 5,
+  [LLM_TOKEN_COUNT_PROMPT]: 12,
+  [LLM_TOKEN_COUNT_TOTAL]: 17,
+  [OUTPUT_MIME_TYPE]: "application/json",
+  [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
+  [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
+  [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
+  [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
+  [LLM_MODEL_NAME]: "gpt-3.5-turbo",
+  [LLM_INVOCATION_PARAMETERS]:
+    '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
+  metadata: "{}",
+};
 
 describe("LangChainInstrumentation", () => {
   const memoryExporter = new InMemorySpanExporter();
@@ -197,6 +256,7 @@ describe("LangChainInstrumentation", () => {
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
+      temperature: 0,
     });
 
     await chatModel.invoke("hello, this is a test");
@@ -204,72 +264,49 @@ describe("LangChainInstrumentation", () => {
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span).toBeDefined();
 
-    expect(span.attributes).toStrictEqual({
-      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-      [INPUT_VALUE]: JSON.stringify({
-        messages: [
-          [
-            {
-              lc: 1,
-              type: "constructor",
-              id: ["langchain_core", "messages", "HumanMessage"],
-              kwargs: {
-                content: "hello, this is a test",
-                additional_kwargs: {},
-                response_metadata: {},
-              },
-            },
-          ],
-        ],
-      }),
-      [INPUT_MIME_TYPE]: "application/json",
-      [OUTPUT_VALUE]: JSON.stringify({
-        generations: [
-          [
-            {
-              text: "This is a test.",
-              message: {
-                lc: 1,
-                type: "constructor",
-                id: ["langchain_core", "messages", "AIMessage"],
-                kwargs: {
-                  content: "This is a test.",
-                  additional_kwargs: {},
-                  response_metadata: {
-                    tokenUsage: {
-                      completionTokens: 5,
-                      promptTokens: 12,
-                      totalTokens: 17,
-                    },
-                    finish_reason: "stop",
-                  },
-                },
-              },
-              generationInfo: { finish_reason: "stop" },
-            },
-          ],
-        ],
-        llmOutput: {
-          tokenUsage: {
-            completionTokens: 5,
-            promptTokens: 12,
-            totalTokens: 17,
-          },
-        },
-      }),
-      [LLM_TOKEN_COUNT_COMPLETION]: 5,
-      [LLM_TOKEN_COUNT_PROMPT]: 12,
-      [LLM_TOKEN_COUNT_TOTAL]: 17,
-      [OUTPUT_MIME_TYPE]: "application/json",
-      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
-      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
-      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
-      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
-      [LLM_MODEL_NAME]: "gpt-3.5-turbo",
-      [LLM_INVOCATION_PARAMETERS]:
-        '{"model":"gpt-3.5-turbo","temperature":1,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
-      metadata: "{}",
+    expect(span.attributes).toStrictEqual(expectedSpanAttributes);
+  });
+
+  it("should add attributes to llm spans when streaming", async () => {
+    // Do this to update the mock to return a streaming response
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { ChatOpenAI } = jest.requireMock("@langchain/openai");
+
+    const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
+      modelName: "gpt-3.5-turbo",
+      streaming: true,
     });
+
+    chatModel.client.chat.completions.create.mockResolvedValue(
+      new Stream(async function* iterator() {
+        yield { choices: [{ delta: { content: "This is " } }] };
+        yield { choices: [{ delta: { content: "a test stream." } }] };
+        yield { choices: [{ delta: { finish_reason: "stop" } }] };
+      }, new AbortController()),
+    );
+
+    await chatModel.invoke("hello, this is a test");
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span).toBeDefined();
+
+    const expectedStreamingAttributes = {
+      ...expectedSpanAttributes,
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test stream.",
+      [LLM_INVOCATION_PARAMETERS]:
+        '{"model":"gpt-3.5-turbo","temperature":1,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":true}',
+      [LLM_TOKEN_COUNT_PROMPT]: 13,
+      [LLM_TOKEN_COUNT_COMPLETION]: 6,
+      [LLM_TOKEN_COUNT_TOTAL]: 19,
+      [OUTPUT_VALUE]:
+        '{"generations":[[{"text":"This is a test stream.","generationInfo":{"prompt":0,"completion":0},"message":{"lc":1,"type":"constructor","id":["langchain_core","messages","ChatMessageChunk"],"kwargs":{"content":"This is a test stream.","additional_kwargs":{},"response_metadata":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19},"prompt":0,"completion":0}}}}]],"llmOutput":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19}}}',
+    };
+    delete expectedStreamingAttributes[
+      `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`
+    ];
+
+    expect(span.attributes).toStrictEqual(expectedStreamingAttributes);
   });
 
   it("should add documents to retriever spans", async () => {
@@ -455,7 +492,7 @@ describe("LangChainInstrumentation", () => {
         '{"messages":[[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"whats the weather like in seattle, wa in fahrenheit?","additional_kwargs":{},"response_metadata":{}}}]]}',
       [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_VALUE]:
-        '{"generations":[[{"text":"","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"","additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110},"finish_reason":"function_call"}}},"generationInfo":{"finish_reason":"function_call"}}]],"llmOutput":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110}}}',
+        '{"generations":[[{"text":"","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110},"finish_reason":"function_call"}}},"generationInfo":{"finish_reason":"function_call"}}]],"llmOutput":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110}}}',
       [OUTPUT_MIME_TYPE]: "application/json",
       metadata: "{}",
     });

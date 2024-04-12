@@ -623,6 +623,24 @@ describe("formatTokenCounts", () => {
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
     });
   });
+
+  it("should add estimated token counts if actual usage is not present", () => {
+    const outputs = {
+      llmOutput: {
+        estimatedTokenUsage: {
+          completionTokens: 10,
+          promptTokens: 20,
+          totalTokens: 30,
+        },
+      },
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 30,
+    });
+  });
 });
 
 describe("formatFunctionCalls", () => {

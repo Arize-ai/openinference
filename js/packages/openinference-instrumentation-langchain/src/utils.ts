@@ -495,7 +495,10 @@ function formatTokenCounts(
     return null;
   }
   const llmOutput = outputs.llmOutput;
-  if (isObject(llmOutput) && isObject(llmOutput.tokenUsage)) {
+  if (!isObject(llmOutput)) {
+    return null;
+  }
+  if (isObject(llmOutput.tokenUsage)) {
     return {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(
         llmOutput.tokenUsage.completionTokens,
@@ -505,6 +508,23 @@ function formatTokenCounts(
       ),
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: getTokenCount(
         llmOutput.tokenUsage.totalTokens,
+      ),
+    };
+  }
+  /**
+   * In the case of streamed outputs, the token counts are not available
+   * only estimated counts provided by langchain (not the model provider) are available
+   */
+  if (isObject(llmOutput.estimatedTokenUsage)) {
+    return {
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(
+        llmOutput.estimatedTokenUsage.completionTokens,
+      ),
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: getTokenCount(
+        llmOutput.estimatedTokenUsage.promptTokens,
+      ),
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: getTokenCount(
+        llmOutput.estimatedTokenUsage.totalTokens,
       ),
     };
   }
