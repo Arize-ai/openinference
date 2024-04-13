@@ -1,13 +1,12 @@
-from typing import List, Tuple
-
+from pydantic import BaseModel
+from typing import List, Any, Optional, Dict, Tuple
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from llama_index.core.chat_engine.types import (
     BaseChatEngine,
 )
+from llama_index.core.schema import NodeWithScore
 from llama_index.core.llms import ChatMessage, MessageRole
-from pydantic import BaseModel
-
 from app.engine import get_chat_engine
 
 chat_router = r = APIRouter()
@@ -26,6 +25,41 @@ def healthcheck():
 
 class _ChatData(BaseModel):
     messages: List[_Message]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "What standards for letters exist?",
+                    }
+                ]
+            }
+        }
+
+
+class _SourceNodes(BaseModel):
+    id: str
+    metadata: Dict[str, Any]
+    score: Optional[float]
+
+    @classmethod
+    def from_source_node(cls, source_node: NodeWithScore):
+        return cls(
+            id=source_node.node.node_id,
+            metadata=source_node.node.metadata,
+            score=source_node.score,
+        )
+
+    @classmethod
+    def from_source_nodes(cls, source_nodes: List[NodeWithScore]):
+        return [cls.from_source_node(node) for node in source_nodes]
+
+
+class _Result(BaseModel):
+    result: _Message
+    nodes: List[_SourceNodes]
 
 
 async def parse_chat_data(data: _ChatData) -> Tuple[str, List[ChatMessage]]:
@@ -70,3 +104,18 @@ async def chat(
             yield token
 
     return StreamingResponse(event_generator(), media_type="text/plain")
+
+
+# non-streaming endpoint - delete if not needed
+@r.post("/request")
+async def chat_request(
+    data: _ChatData,
+    chat_engine: BaseChatEngine = Depends(get_chat_engine),
+) -> _Result:
+    last_message_content, messages = await parse_chat_data(data)
+
+    response = await chat_engine.achat(last_message_content, messages)
+    return _Result(
+        result=_Message(role=MessageRole.ASSISTANT, content=response.response),
+        nodes=_SourceNodes.from_source_nodes(response.source_nodes),
+    )

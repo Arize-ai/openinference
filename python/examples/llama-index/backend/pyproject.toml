@@ -1,21 +1,28 @@
+[tool]
 [tool.poetry]
 name = "app"
-version = "0.1.1"
+version = "0.1.0"
 description = ""
-authors = ["Arize OSS <oss@arize.com>"]
+authors = [ "Marcus Schiesser <mail@marcusschiesser.de>" ]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11,<3.12"
 fastapi = "^0.109.1"
-uvicorn = { extras = ["standard"], version = "^0.23.2" }
 python-dotenv = "^1.0.0"
-pypdf = "^4.0.1"
-llama-index = "0.10.24"
-llama-index-agent-openai = "<0.2.0"
+llama-index = "0.10.15"
+llama-index-core = "0.10.15"
+llama-index-agent-openai = "0.1.5"
 openinference-semantic-conventions = "*"
 openinference-instrumentation-llama-index = "^1.2.1"
 opentelemetry-exporter-otlp = "^1.24.0"
+
+[tool.poetry.dependencies.uvicorn]
+extras = [ "standard" ]
+version = "^0.23.2"
+
+[tool.poetry.dependencies.docx2txt]
+version = "^0.8"
 
 [build-system]
 requires = [ "poetry-core" ]

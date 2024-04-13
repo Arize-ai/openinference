@@ -1,20 +1,18 @@
-import logging
-import os
-
-import uvicorn
-from app.api.routers.chat import chat_router
-from app.settings import init_settings
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
-from instrument import instrument
 
 load_dotenv()
 
-do_not_instrument = os.getenv("INSTRUMENT_LLAMA_INDEX", "true") == "false"
-if not do_not_instrument:
-    instrument()
+import logging
+import os
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from app.api.routers.chat import chat_router
+from app.settings import init_settings
+from instrument import instrument
+
+instrument()
 
 app = FastAPI()
 

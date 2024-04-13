@@ -1,5 +1,4 @@
 import os
-
 from app.engine.index import get_index
 
 
@@ -10,8 +9,7 @@ def get_chat_engine():
     index = get_index()
     if index is None:
         raise Exception(
-            "StorageContext is empty - call 'python app/engine/generate.py'\
-                to generate the storage first"
+            "StorageContext is empty - call 'python app/engine/generate.py' to generate the storage first"
         )
 
     return index.as_chat_engine(
