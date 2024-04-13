@@ -1,13 +1,19 @@
-from pydantic import BaseModel
-from typing import List, Any, Optional, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from llama_index.core.chat_engine.types import (
     BaseChatEngine,
 )
-from llama_index.core.schema import NodeWithScore
 from llama_index.core.llms import ChatMessage, MessageRole
+from llama_index.core.schema import NodeWithScore
+from openinference.semconv.trace import SpanAttributes
+from opentelemetry import trace
+from pydantic import BaseModel
+
 from app.engine import get_chat_engine
+
+tracer = trace.get_tracer(__name__)
 
 chat_router = r = APIRouter()
 
@@ -93,29 +99,20 @@ async def chat(
     data: _ChatData,
     chat_engine: BaseChatEngine = Depends(get_chat_engine),
 ):
-    last_message_content, messages = await parse_chat_data(data)
+    span = tracer.start_span("chat", attributes={SpanAttributes.OPENINFERENCE_SPAN_KIND: "CHAIN"})
+    with trace.use_span(span, end_on_exit=False):
+        last_message_content, messages = await parse_chat_data(data)
+        span.set_attribute(SpanAttributes.INPUT_VALUE, last_message_content)
+        response = await chat_engine.astream_chat(last_message_content, messages)
 
-    response = await chat_engine.astream_chat(last_message_content, messages)
+        async def event_generator():
+            full_response = ""
+            async for token in response.async_response_gen():
+                if await request.is_disconnected():
+                    break
+                full_response = full_response + token
+                yield token
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, full_response)
+            span.end()
 
-    async def event_generator():
-        async for token in response.async_response_gen():
-            if await request.is_disconnected():
-                break
-            yield token
-
-    return StreamingResponse(event_generator(), media_type="text/plain")
-
-
-# non-streaming endpoint - delete if not needed
-@r.post("/request")
-async def chat_request(
-    data: _ChatData,
-    chat_engine: BaseChatEngine = Depends(get_chat_engine),
-) -> _Result:
-    last_message_content, messages = await parse_chat_data(data)
-
-    response = await chat_engine.achat(last_message_content, messages)
-    return _Result(
-        result=_Message(role=MessageRole.ASSISTANT, content=response.response),
-        nodes=_SourceNodes.from_source_nodes(response.source_nodes),
-    )
+        return StreamingResponse(event_generator(), media_type="text/plain")

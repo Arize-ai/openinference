@@ -1,6 +1,6 @@
 services:
   phoenix:
-    image: arizephoenix/phoenix:latest
+    image: arizephoenix/phoenix:version-3.21.0
     ports:
       - "6006:6006"
   backend:
