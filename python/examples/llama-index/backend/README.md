@@ -4,8 +4,6 @@ This is a [LlamaIndex](https://www.llamaindex.ai/) project using [FastAPI](https
 
 First, setup the environment with poetry:
 
-> **_Note:_** This step is not needed if you are using the dev-container.
-
 ```
 poetry install
 poetry shell
