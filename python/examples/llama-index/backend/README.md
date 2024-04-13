@@ -44,13 +44,6 @@ curl --location 'localhost:8000/api/chat' \
 --data '{ "messages": [{ "role": "user", "content": "Hello" }] }'
 ```
 
-And for the non-streaming endpoint run:
-
-```
-curl --location 'localhost:8000/api/chat/request' \
---header 'Content-Type: application/json' \
---data '{ "messages": [{ "role": "user", "content": "Hello" }] }'
-```
 
 You can start editing the API endpoints by modifying `app/api/routers/chat.py`. The endpoints auto-update as you save the file. You can delete the endpoint you're not using.
 
