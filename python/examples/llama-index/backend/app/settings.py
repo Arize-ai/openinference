@@ -1,8 +1,10 @@
 import os
 from typing import Dict
+
+from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
 from llama_index.core.settings import Settings
-from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.openai import OpenAI
 
 
 def llm_config_from_env() -> Dict:
@@ -39,3 +41,4 @@ def init_settings():
     Settings.embed_model = OpenAIEmbedding(**embedding_configs)
     Settings.chunk_size = int(os.getenv("CHUNK_SIZE", "1024"))
     Settings.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "20"))
+    Settings.callback_manager = CallbackManager([LlamaDebugHandler(print_trace_on_end=True)])
