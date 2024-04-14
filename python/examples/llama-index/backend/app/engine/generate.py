@@ -1,15 +1,15 @@
-import logging
-
 from dotenv import load_dotenv
+
+load_dotenv()
+
+import logging
 from llama_index.core.indices import (
     VectorStoreIndex,
 )
-
 from app.engine.constants import STORAGE_DIR
 from app.engine.loaders import get_documents
 from app.settings import init_settings
 
-load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
