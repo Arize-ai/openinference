@@ -2,8 +2,6 @@ This is a [LlamaIndex](https://www.llamaindex.ai/) project using [FastAPI](https
 
 ## Getting Started
 
-We will need python 3.11, check if there is a compatible version `python --version`.
-
 First, setup the environment with poetry:
 
 ```
@@ -19,13 +17,13 @@ Example `.env` file:
 OPENAI_API_KEY=<openai_api_key>
 ```
 
+If you are using any tools or data sources, you can update their config files in the `config` folder.
+
 Second, generate the embeddings of the documents in the `./data` directory (if this folder exists - otherwise, skip this step):
 
 ```
 python app/engine/generate.py
 ```
-
-For custom embedding configurations, we can modify `.env` file by specifying values for `EMBEDDING_MODEL`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `TOP_K`, `SYSTEM_PROMPT`.
 
 Third, run the development server:
 
@@ -33,7 +31,12 @@ Third, run the development server:
 python main.py
 ```
 
-Then call the API endpoint `/api/chat` to see the result:
+The example provides two different API endpoints:
+
+1. `/api/chat` - a streaming chat endpoint
+2. `/api/chat/request` - a non-streaming chat endpoint
+
+You can test the streaming endpoint with the following curl request:
 
 ```
 curl --location 'localhost:8000/api/chat' \
@@ -41,7 +44,8 @@ curl --location 'localhost:8000/api/chat' \
 --data '{ "messages": [{ "role": "user", "content": "Hello" }] }'
 ```
 
-You can start editing the API by modifying `app/api/routers/chat.py`. The endpoint auto-updates as you save the file.
+
+You can start editing the API endpoints by modifying `app/api/routers/chat.py`. The endpoints auto-update as you save the file. You can delete the endpoint you're not using.
 
 Open [http://localhost:8000/docs](http://localhost:8000/docs) with your browser to see the Swagger UI of the API.
 
@@ -49,6 +53,40 @@ The API allows CORS for all origins to simplify development. You can change this
 
 ```
 ENVIRONMENT=prod python main.py
+```
+
+## Using Docker
+
+1. Build an image for the FastAPI app:
+
+```
+docker build -t <your_backend_image_name> .
+```
+
+2. Generate embeddings:
+
+Parse the data and generate the vector embeddings if the `./data` folder exists - otherwise, skip this step:
+
+```
+docker run \
+  --rm \
+  -v $(pwd)/.env:/app/.env \ # Use ENV variables and configuration from your file-system
+  -v $(pwd)/config:/app/config \
+  -v $(pwd)/data:/app/data \ # Use your local folder to read the data
+  -v $(pwd)/storage:/app/storage \ # Use your file system to store the vector database
+  <your_backend_image_name> \
+  python app/engine/generate.py
+```
+
+3. Start the API:
+
+```
+docker run \
+  -v $(pwd)/.env:/app/.env \ # Use ENV variables and configuration from your file-system
+  -v $(pwd)/config:/app/config \
+  -v $(pwd)/storage:/app/storage \ # Use your file system to store gea vector database
+  -p 8000:8000 \
+  <your_backend_image_name>
 ```
 
 ## Learn More

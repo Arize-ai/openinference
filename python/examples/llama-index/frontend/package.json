@@ -1,12 +1,12 @@
 {
-  "name": "llama-index-example",
+  "name": "full-stack-llama",
   "version": "0.1.0",
   "scripts": {
     "format": "prettier --ignore-unknown --cache --check .",
     "format:write": "prettier --ignore-unknown --write .",
-    "dev": "cross-env NEXT_PUBLIC_CHAT_API=http://localhost:8000/api/chat next dev",
+    "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "serve out",
     "lint": "next lint",
     "generate": "ts-node app/api/chat/engine/generate.ts"
   },
@@ -27,6 +27,7 @@
     "remark-code-import": "^1.2.0",
     "remark-gfm": "^3.0.1",
     "remark-math": "^5.1.1",
+    "serve": "^14.2.1",
     "supports-color": "^8.1.1",
     "tailwind-merge": "^2.1.0"
   },

@@ -1,6 +1,7 @@
 import os
 from typing import Dict
 
+from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
 from llama_index.core.settings import Settings
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
@@ -9,7 +10,7 @@ from llama_index.llms.openai import OpenAI
 def llm_config_from_env() -> Dict:
     from llama_index.core.constants import DEFAULT_TEMPERATURE
 
-    model = os.getenv("MODEL", "gpt-4-turbo-preview")
+    model = os.getenv("MODEL")
     temperature = os.getenv("LLM_TEMPERATURE", DEFAULT_TEMPERATURE)
     max_tokens = os.getenv("LLM_MAX_TOKENS")
 
@@ -22,7 +23,7 @@ def llm_config_from_env() -> Dict:
 
 
 def embedding_config_from_env() -> Dict:
-    model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    model = os.getenv("EMBEDDING_MODEL")
     dimension = os.getenv("EMBEDDING_DIM")
 
     config = {
@@ -40,3 +41,4 @@ def init_settings():
     Settings.embed_model = OpenAIEmbedding(**embedding_configs)
     Settings.chunk_size = int(os.getenv("CHUNK_SIZE", "1024"))
     Settings.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "20"))
+    Settings.callback_manager = CallbackManager([LlamaDebugHandler(print_trace_on_end=True)])

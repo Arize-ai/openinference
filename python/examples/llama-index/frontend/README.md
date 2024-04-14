@@ -8,7 +8,7 @@ First, install the dependencies:
 npm install
 ```
 
-Second, run the development server:
+Then, run the development server:
 
 ```
 npm run dev
