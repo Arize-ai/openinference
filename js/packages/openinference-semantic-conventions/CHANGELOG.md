@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.3.0
+
+### Minor Changes
+
+- 9af89e5: add semantic conventions for prompt template, retrieval documents, tools, and functions
+
 ## 0.2.0
 
 ### Minor Changes
