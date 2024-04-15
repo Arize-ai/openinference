@@ -16,7 +16,7 @@
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "jest --setupFiles dotenv/config"
+    "test": "jest"
   },
   "keywords": [],
   "files": [
