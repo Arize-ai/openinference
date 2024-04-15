@@ -28,13 +28,6 @@ import {
   TokenCountAttributes,
   ToolAttributes,
 } from "./types";
-import {
-  LLM_FUNCTION_CALL,
-  PROMPT_TEMPLATE_TEMPLATE,
-  PROMPT_TEMPLATE_VARIABLES,
-  TOOL_DESCRIPTION,
-  TOOL_NAME,
-} from "./constants";
 
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
@@ -473,8 +466,9 @@ function formatPromptTemplate(run: Run): PromptTemplateAttributes | null {
     return null;
   }
   return {
-    [PROMPT_TEMPLATE_VARIABLES]: safelyJSONStringify(run.inputs) ?? undefined,
-    [PROMPT_TEMPLATE_TEMPLATE]:
+    [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]:
+      safelyJSONStringify(run.inputs) ?? undefined,
+    [SemanticConventions.PROMPT_TEMPLATE_TEMPLATE]:
       safelyGetTemplateFromSerialized(run.serialized) ?? undefined,
   };
 }
@@ -556,7 +550,9 @@ function formatFunctionCalls(outputs: Run["outputs"]) {
   }
 
   return {
-    [LLM_FUNCTION_CALL]: safelyJSONStringify(additionalKwargs.function_call),
+    [SemanticConventions.LLM_FUNCTION_CALL]: safelyJSONStringify(
+      additionalKwargs.function_call,
+    ),
   };
 }
 
@@ -571,16 +567,17 @@ function formatToolCalls(run: Run) {
     return null;
   }
   const toolAttributes: ToolAttributes = {
-    [TOOL_NAME]: run.name,
+    [SemanticConventions.TOOL_NAME]: run.name,
   };
   if (!isObject(run.serialized)) {
     return toolAttributes;
   }
   if (isString(run.serialized.name)) {
-    toolAttributes[TOOL_NAME] = run.serialized.name;
+    toolAttributes[SemanticConventions.TOOL_NAME] = run.serialized.name;
   }
   if (isString(run.serialized.description)) {
-    toolAttributes[TOOL_DESCRIPTION] = run.serialized.description;
+    toolAttributes[SemanticConventions.TOOL_DESCRIPTION] =
+      run.serialized.description;
   }
   return toolAttributes;
 }

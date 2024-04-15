@@ -15,18 +15,10 @@ import "dotenv/config";
 import {
   MESSAGE_FUNCTION_CALL_NAME,
   OpenInferenceSpanKind,
-  RetrievalAttributePostfixes,
-  SemanticAttributePrefixes,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { LangChainTracer } from "../src/tracer";
 import { trace } from "@opentelemetry/api";
-import {
-  LLM_FUNCTION_CALL,
-  PROMPT_TEMPLATE_TEMPLATE,
-  PROMPT_TEMPLATE_VARIABLES,
-  TOOL_NAME,
-} from "../src/constants";
 import { completionsResponse, functionCallResponse } from "./fixtures";
 import { DynamicTool } from "@langchain/core/tools";
 
@@ -47,9 +39,12 @@ const {
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_TOTAL,
+  TOOL_NAME,
+  LLM_FUNCTION_CALL,
+  PROMPT_TEMPLATE_TEMPLATE,
+  PROMPT_TEMPLATE_VARIABLES,
+  RETRIEVAL_DOCUMENTS,
 } = SemanticConventions;
-
-const RETRIEVAL_DOCUMENTS = `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`;
 
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.register();
