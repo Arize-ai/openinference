@@ -14,7 +14,7 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 const provider = new NodeTracerProvider({
   resource: new Resource({
-    [SEMRESATTRS_SERVICE_NAME]: "openai-service",
+    [SEMRESATTRS_SERVICE_NAME]: "langchain-service",
   }),
 });
 
@@ -28,7 +28,7 @@ provider.addSpanProcessor(
 );
 
 registerInstrumentations({
-  instrumentations: [new LangChainInstrumentation({})],
+  instrumentations: [new LangChainInstrumentation()],
 });
 
 provider.register();
