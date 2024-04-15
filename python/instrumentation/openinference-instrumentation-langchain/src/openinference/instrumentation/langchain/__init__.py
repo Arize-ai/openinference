@@ -1,5 +1,4 @@
 import logging
-from importlib import import_module
 from typing import TYPE_CHECKING, Any, Callable, Collection, Type
 
 from openinference.instrumentation.langchain.package import _instruments
@@ -30,9 +29,9 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        import langchain_core
         from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 
-        import langchain_core
         self._original_callback_manager_init = langchain_core.callbacks.BaseCallbackManager.__init__
         wrap_function_wrapper(
             module="langchain_core.callbacks",
@@ -42,8 +41,9 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _uninstrument(self, **kwargs: Any) -> None:
         import langchain_core
-        langchain_core.callbacks.BaseCallbackManager.__init__ = self._original_callback_manager_init
-        self._original_callback_manager_init = None
+
+        langchain_core.callbacks.BaseCallbackManager.__init__ = self._original_callback_manager_init  # type: ignore
+        self._original_callback_manager_init = None  # type: ignore
 
 
 class _BaseCallbackManagerInit:

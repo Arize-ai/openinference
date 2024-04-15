@@ -3,6 +3,7 @@
 This is a [LlamaIndex](https://www.llamaindex.ai/) project bootstrapped with [`create-llama`](https://github.com/run-llama/LlamaIndexTS/tree/main/packages/create-llama) and instrumented using OpenInference.
 
 This example integrates three components:
+
 - A NextJS frontend that provides an interface to a basic RAG chat application
 - A Python FastAPI backend that serves a simple LlamaIndex RAG application. The LlamaIndex framework is instrumented using OpenInference to produce traces.
 - A [Phoenix](https://github.com/Arize-ai/phoenix) server that acts as both a collector for OpenInference traces and as a trace UI for observability.
@@ -34,15 +35,15 @@ By calling `instrument()` prior to starting the FastAPI server, traces for Llama
 
 To learn more about LlamaIndex, take a look at the following resources:
 
--   [LlamaIndex Documentation](https://docs.llamaindex.ai) - learn about LlamaIndex (Python features).
--   [LlamaIndexTS Documentation](https://ts.llamaindex.ai) - learn about LlamaIndex (Typescript features).
+- [LlamaIndex Documentation](https://docs.llamaindex.ai) - learn about LlamaIndex (Python features).
+- [LlamaIndexTS Documentation](https://ts.llamaindex.ai) - learn about LlamaIndex (Typescript features).
 
 You can check out [the LlamaIndexTS GitHub repository](https://github.com/run-llama/LlamaIndexTS) - your feedback and contributions are welcome!
-
 
 ## Getting Started with Local Development
 
 First, startup the backend as described in the [backend README](./backend/README.md).
+
 - If you'd like, include your own data to build an index in [the data directory](./backend/data/)
 - Build a simple index using LlamaIndex
 - Ensure that your OpenAI API key is available to the application, either via the `OPENAI_API_KEY` environment variable or a `.env` file
@@ -57,9 +58,10 @@ Traces can be viewed using the [Phoenix UI](http://localhost:6006).
 ## Getting Started with Docker-Compose
 
 1. If you'd like, add your own PDFs to `./backend/data` to build indexes over.
-2. Ensure that your OpenAI API key is available to the application, either via the `OPENAI_API_KEY` environment variable or a `.env` file.
-3. Ensure that Docker is installed and running.
-4. Run the command `docker compose up --build` to spin up services for the frontend, backend, and Phoenix.
-5. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface.
-6. Traces can be viewed using the [Phoenix UI](http://localhost:6006).
-7. When you're finished, run `docker compose down` to spin down the services.
+2. Follow the instructions in `backend/README.md` to install LlamaIndex using poetry and generate an index.
+3. Ensure that your OpenAI API key is available to the application, either via the `OPENAI_API_KEY` environment variable or a `.env` file alongside `compose.yml`.
+4. Ensure that Docker is installed and running.
+5. Run the command `docker compose up --build` to spin up services for the frontend, backend, and Phoenix.
+6. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface.
+7. Traces can be viewed using the [Phoenix UI](http://localhost:6006).
+8. When you're finished, run `docker compose down` to spin down the services.

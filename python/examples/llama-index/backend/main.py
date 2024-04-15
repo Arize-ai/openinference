@@ -4,18 +4,20 @@ load_dotenv()
 
 import logging
 import os
-
 import uvicorn
-from app.api.routers.chat import chat_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from app.api.routers.chat import chat_router
+from app.settings import init_settings
 from instrument import instrument
 
-do_not_instrument = os.getenv("INSTRUMENT_LLAMA_INDEX", "true") == "false"
-if not do_not_instrument:
-    instrument()
+instrument()
 
 app = FastAPI()
+
+init_settings()
+
 environment = os.getenv("ENVIRONMENT", "dev")  # Default to 'development' if not set
 
 
@@ -30,8 +32,18 @@ if environment == "dev":
         allow_headers=["*"],
     )
 
+    # Redirect to documentation page when accessing base URL
+    @app.get("/")
+    async def redirect_to_docs():
+        return RedirectResponse(url="/docs")
+
+
 app.include_router(chat_router, prefix="/api/chat")
 
 
 if __name__ == "__main__":
-    uvicorn.run(app="main:app", host="0.0.0.0", port=8000, reload=True)
+    app_host = os.getenv("APP_HOST", "0.0.0.0")
+    app_port = int(os.getenv("APP_PORT", "8000"))
+    reload = True if environment == "dev" else False
+
+    uvicorn.run(app="main:app", host=app_host, port=app_port, reload=reload)
