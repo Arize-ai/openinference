@@ -10,6 +10,7 @@
     "type:check": "tsc --noEmit"
   },
   "dependencies": {
+    "@arizeai/openinference-instrumentation-langchain": "^0.0.2",
     "@langchain/community": "^0.0.43",
     "@langchain/core": "^0.1.52",
     "@langchain/openai": "^0.0.25",
