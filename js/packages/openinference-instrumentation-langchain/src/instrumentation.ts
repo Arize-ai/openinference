@@ -1,4 +1,4 @@
-import type * as CallbackManagerModule from "@langchain/core/callbacks/manager";
+import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -23,6 +23,10 @@ export class LangChainInstrumentation extends InstrumentationBase<
     );
   }
 
+  manuallyInstrument(module: typeof CallbackManagerModule) {
+    this.patch(module);
+  }
+
   protected init(): InstrumentationModuleDefinition<
     typeof CallbackManagerModule
   > {
@@ -34,7 +38,6 @@ export class LangChainInstrumentation extends InstrumentationBase<
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
-
     return module;
   }
 
