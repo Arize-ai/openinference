@@ -9,6 +9,8 @@ import { Resource } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
+import * as lcCallbackManager from "@langchain/core/callbacks/manager";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
@@ -31,6 +33,10 @@ provider.addSpanProcessor(
 registerInstrumentations({
   instrumentations: [],
 });
+
+// LangChain must be manually instrumented as it doesn't have a traditional module structure
+const lcInstrumentation = new LangChainInstrumentation();
+lcInstrumentation.manuallyInstrument(lcCallbackManager);
 
 provider.register();
 
