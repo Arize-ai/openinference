@@ -24,6 +24,7 @@ export class LangChainInstrumentation extends InstrumentationBase<
   }
 
   manuallyInstrument(module: typeof CallbackManagerModule) {
+    diag.debug(`Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
   }
 
