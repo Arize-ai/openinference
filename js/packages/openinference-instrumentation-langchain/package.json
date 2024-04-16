@@ -16,7 +16,7 @@
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "jest --setupFiles dotenv/config"
+    "test": "jest"
   },
   "keywords": [],
   "files": [
@@ -32,7 +32,7 @@
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "devDependencies": {
-    "@langchain/core": "^0.1.52",
+    "@langchain/core": "^0.1.57",
     "@langchain/openai": "^0.0.25",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
     "@opentelemetry/resources": "^1.19.0",

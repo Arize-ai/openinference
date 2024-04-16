@@ -7,7 +7,7 @@ const main = async () => {
     openAIApiKey: process.env.OPENAI_API_KEY,
   });
 
-  const response = await chatModel.invoke("test");
+  const response = await chatModel.invoke("Hello! How are you?");
   return response;
 };
 

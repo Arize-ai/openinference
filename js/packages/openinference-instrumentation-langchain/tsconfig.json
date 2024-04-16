@@ -6,6 +6,6 @@
     "types": ["node", "jest"]
   },
   "files": [],
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "examples/**/*.ts"],
   "references": []
 }

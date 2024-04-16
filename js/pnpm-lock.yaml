@@ -55,7 +55,7 @@ importers:
         version: 0.46.0(@opentelemetry/api@1.7.0)
     devDependencies:
       '@langchain/core':
-        specifier: ^0.1.52
+        specifier: ^0.1.57
         version: 0.1.57
       '@langchain/openai':
         specifier: ^0.0.25

@@ -30,7 +30,7 @@ export class LangChainInstrumentation extends InstrumentationBase<
       typeof CallbackManagerModule
     >(
       "@langchain/core/dist/callbacks/manager.cjs",
-      ["^0.0.0", "^0.1.0"],
+      ["^0.1.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );

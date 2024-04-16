@@ -23,13 +23,6 @@ import {
 import { diag } from "@opentelemetry/api";
 import { getLangchainMessage, getLangchainRun } from "./fixtures";
 import { LLMMessage } from "../src/types";
-import {
-  LLM_FUNCTION_CALL,
-  PROMPT_TEMPLATE_TEMPLATE,
-  PROMPT_TEMPLATE_VARIABLES,
-  TOOL_DESCRIPTION,
-  TOOL_NAME,
-} from "../src/constants";
 
 describe("withSafety", () => {
   afterEach(() => {
@@ -519,7 +512,9 @@ describe("formatPromptTemplate", () => {
     });
     const result = safelyFormatPromptTemplate(promptRun);
     expect(result).toEqual({
-      [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
+      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(
+        promptRun.inputs,
+      ),
     });
   });
 
@@ -541,8 +536,10 @@ describe("formatPromptTemplate", () => {
     });
     const result = safelyFormatPromptTemplate(promptRun);
     expect(result).toEqual({
-      [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
-      [PROMPT_TEMPLATE_TEMPLATE]: "my template",
+      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(
+        promptRun.inputs,
+      ),
+      [SemanticConventions.PROMPT_TEMPLATE_TEMPLATE]: "my template",
     });
   });
 
@@ -562,7 +559,9 @@ describe("formatPromptTemplate", () => {
     });
     const result = safelyFormatPromptTemplate(promptRun);
     expect(result).toEqual({
-      [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
+      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(
+        promptRun.inputs,
+      ),
     });
   });
 });
@@ -727,7 +726,7 @@ it("should return the formatted function call if it is valid", () => {
   });
   const result = safelyFormatFunctionCalls(validRun.outputs);
   expect(result).toEqual({
-    [LLM_FUNCTION_CALL]: JSON.stringify({
+    [SemanticConventions.LLM_FUNCTION_CALL]: JSON.stringify({
       name: "test-function",
       args: "my_arg: 'test'",
     }),
@@ -744,7 +743,7 @@ describe("formatToolCalls", () => {
     const run = getLangchainRun({ run_type: "tool", name: "test_tool" });
     const result = safelyFormatToolCalls(run);
     expect(result).toEqual({
-      [TOOL_NAME]: "test_tool",
+      [SemanticConventions.TOOL_NAME]: "test_tool",
     });
   });
 
@@ -759,8 +758,8 @@ describe("formatToolCalls", () => {
     });
     const result = safelyFormatToolCalls(run);
     expect(result).toEqual({
-      [TOOL_NAME]: "my_tools_name",
-      [TOOL_DESCRIPTION]: "my tools description",
+      [SemanticConventions.TOOL_NAME]: "my_tools_name",
+      [SemanticConventions.TOOL_DESCRIPTION]: "my tools description",
     });
   });
 
@@ -775,7 +774,7 @@ describe("formatToolCalls", () => {
     });
     const result = safelyFormatToolCalls(run);
     expect(result).toEqual({
-      [TOOL_NAME]: "test_tool",
+      [SemanticConventions.TOOL_NAME]: "test_tool",
     });
   });
 });

@@ -26,7 +26,7 @@ const baseLangchainRun: Run = {
   inputs: {},
 };
 
-export const getLangchainRun = (config?: Partial<Run>) => {
+export const getLangchainRun = (config?: Partial<Run>): Run => {
   return Object.assign({ ...baseLangchainRun }, config);
 };
 
