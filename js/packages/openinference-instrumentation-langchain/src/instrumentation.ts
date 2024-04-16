@@ -1,4 +1,4 @@
-import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
+import type * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 import {
   InstrumentationBase,
   InstrumentationConfig,
