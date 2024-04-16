@@ -29,6 +29,7 @@ provider.addSpanProcessor(
 );
 
 const lcInstrumentation = new LangChainInstrumentation();
+// LangChain must be manually instrumented as it doesn't have a traditional module structure
 lcInstrumentation.manuallyInstrument(CallbackManagerModule);
 
 registerInstrumentations({
