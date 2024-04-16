@@ -103,7 +103,7 @@ function getOpenInferenceSpanKindFromRunType(runType: string) {
       normalizedRunType as keyof typeof OpenInferenceSpanKind
     ];
   }
-  return OpenInferenceSpanKind.AGENT;
+  return OpenInferenceSpanKind.CHAIN;
 }
 
 /**
