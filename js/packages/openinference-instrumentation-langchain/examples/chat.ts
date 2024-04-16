@@ -8,7 +8,6 @@ const main = async () => {
   });
 
   const response = await chatModel.invoke("Hello! How are you?");
-  console.log("test--", response);
   return response;
 };
 
