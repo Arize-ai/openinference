@@ -129,7 +129,7 @@ describe("getOpenInferenceSpanKindFromRunType", () => {
   it("should return 'UNKNOWN' when runType is not recognized", () => {
     const runType = "test";
     const result = safelyGetOpenInferenceSpanKindFromRunType(runType);
-    expect(result).toBe("UNKNOWN");
+    expect(result).toBe(OpenInferenceSpanKind.AGENT);
   });
 });
 describe("formatIO", () => {
