@@ -33,7 +33,7 @@ const lcInstrumentation = new LangChainInstrumentation();
 lcInstrumentation.manuallyInstrument(CallbackManagerModule);
 
 registerInstrumentations({
-  instrumentations: [lcInstrumentation],
+  instrumentations: [],
 });
 
 provider.register();
