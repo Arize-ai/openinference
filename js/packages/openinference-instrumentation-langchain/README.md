@@ -10,7 +10,7 @@ npm install --save @arizeai/openinference-instrumentation-langchain
 
 ## Usage
 
-To load the Langchain instrumentation, manually instrument the `@langchain/core/callbacks/manager` module. The callbacks manager must be manually instrumented due to the non-traditional module structure in `@langchain/core`. Additional instrumentations can be registered as usual in the registerInstrumentations function.
+To load the Langchain instrumentation, manually instrument the `@langchain/core/callbacks/manager` module. The callbacks manager must be manually instrumented due to the non-traditional module structure in `@langchain/core`. Additional instrumentations can be registered as usual using the `registerInstrumentations` function.
 
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
