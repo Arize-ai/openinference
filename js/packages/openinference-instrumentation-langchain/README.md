@@ -15,7 +15,6 @@ To load the Langchain instrumentation, manually instrument the `@langchain/core/
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 
 const provider = new NodeTracerProvider();
@@ -24,10 +23,6 @@ provider.register();
 const lcInstrumentation = new LangChainInstrumentation();
 // LangChain must be manually instrumented as it doesn't have a traditional module structure
 lcInstrumentation.manuallyInstrument(CallbackManagerModule);
-
-registerInstrumentations({
-  instrumentations: [],
-});
 ```
 
 For more information on OpenTelemetry Node.js SDK, see the [OpenTelemetry Node.js SDK documentation](https://opentelemetry.io/docs/instrumentation/js/getting-started/nodejs/).
