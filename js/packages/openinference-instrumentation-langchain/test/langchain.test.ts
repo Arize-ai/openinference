@@ -405,7 +405,7 @@ describe("LangChainInstrumentation", () => {
 
     expect(promptSpan).toBeDefined();
     expect(promptSpan?.attributes).toStrictEqual({
-      [OPENINFERENCE_SPAN_KIND]: "UNKNOWN",
+      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
       [PROMPT_TEMPLATE_TEMPLATE]: PROMPT_TEMPLATE,
       [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify({
         context: "This is a test.",
