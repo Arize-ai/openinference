@@ -28,6 +28,9 @@ export default function ChatSection() {
 
   return (
     <div className="space-y-4 max-w-5xl w-full">
+      <div>
+        Ask about using Phoenix or OpenInference with TypeScript / JavaScript!
+      </div>
       <ChatMessages
         messages={transformedMessages}
         isLoading={isLoading}

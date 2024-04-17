@@ -1,8 +1,10 @@
 import express from "express";
-import { chat } from "../controllers/chat.controller";
+import { createChatController } from "../controllers/chat.controller";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
 
-const llmRouter = express.Router();
+export const createChatRouter = (vectorStore: MemoryVectorStore) => {
+  const llmRouter = express.Router();
 
-llmRouter.route("/").post(chat);
-
-export default llmRouter;
+  llmRouter.route("/").post(createChatController(vectorStore));
+  return llmRouter;
+};

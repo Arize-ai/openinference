@@ -2,7 +2,8 @@
 import cors from "cors";
 import "dotenv/config";
 import express, { Express, Request, Response } from "express";
-import chatRouter from "./src/routes/chat.route";
+import { createChatRouter } from "./src/routes/chat.route";
+import { initializeVectorStore } from "./src/vector_store/store";
 
 const app: Express = express();
 const port = parseInt(process.env.PORT || "8000");
@@ -32,8 +33,13 @@ app.get("/", (req: Request, res: Response) => {
   res.send("Arize Express Server");
 });
 
-app.use("/api/chat", chatRouter);
-
-app.listen(port, () => {
-  console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
-});
+initializeVectorStore()
+  .then((vectorStore) => {
+    app.use("/api/chat", createChatRouter(vectorStore));
+    app.listen(port, () => {
+      console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Error initializing store:", error);
+  });

@@ -25,7 +25,7 @@ export default function ChatInput(props: ChatInputProps) {
         <input
           autoFocus
           name="message"
-          placeholder="Type a message"
+          placeholder="Ask a question about TS / JS"
           className="w-full p-4 rounded-xl shadow-inner flex-1"
           value={props.input}
           onChange={props.handleInputChange}
