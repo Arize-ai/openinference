@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 0.0.3
+
+### Patch Changes
+
+- 5d21aac: update fallback span kind to be chain
+
 ## 0.0.2
 
 ### Patch Changes
