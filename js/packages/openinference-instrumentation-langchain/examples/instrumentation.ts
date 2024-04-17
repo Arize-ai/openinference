@@ -1,4 +1,3 @@
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { LangChainInstrumentation } from "../src/index";
 import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
 import {
@@ -31,10 +30,6 @@ provider.addSpanProcessor(
 const lcInstrumentation = new LangChainInstrumentation();
 // LangChain must be manually instrumented as it doesn't have a traditional module structure
 lcInstrumentation.manuallyInstrument(CallbackManagerModule);
-
-registerInstrumentations({
-  instrumentations: [lcInstrumentation],
-});
 
 provider.register();
 
