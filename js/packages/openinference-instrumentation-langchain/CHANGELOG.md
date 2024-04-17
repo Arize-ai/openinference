@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 0.0.4
+
+### Patch Changes
+
+- ecda94a: update README to include manual instrumentation step
+
 ## 0.0.3
 
 ### Patch Changes
