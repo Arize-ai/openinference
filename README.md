@@ -55,6 +55,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | ----------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`@arizeai/openinference-semantic-conventions`](./js/packages/openinference-semantic-conventions)     | Semantic conventions for tracing of LLM Apps. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-semantic-conventions.svg)](https://www.npmjs.com/package/@arizeai/openinference-semantic-conventions) |
 | [`@arizeai/openinference-instrumentation-openai`](./js/packages/openinference-instrumentation-openai) | OpenInference Instrumentation for OpenAI SDK. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-openai)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-openai) |
+| [`@arizeai/openinference-instrumentation/langchain`](./js/packages/openinference-instrumentation-langchain) | OpenInference Instrumentation for LangChain.js. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-langchain)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-langchain) 
 
 ### Examples
 
@@ -62,22 +63,23 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | [OpenAI SDK](js/examples/openai)                          | OpenAI Node.js client                                                                                                                                     | Beginner         |
 | [LlamaIndex Express App](js/examples/llama-index-express) | A fully functional LlamaIndex chatbot with a Next.js frontend and a LlamaIndex Express backend, instrumented using `openinference-instrumentation-openai` | Intermediate     |
+| [LangChain RAG Express App](js/examples/langchain-express) | A fully functional LangChain chatbot that uses RAG to answer user questions. It has a Next.js frontend and a LangChain Express backend, instrumented using `openinference-instrumentation-langchain` | Intermediate
 
 ## Supported Destinations
 
 OpenInference supports the following destinations as span collectors.
 
--   ✅ [Arize-Phoenix](https://github.com/Arize-ai/phoenix)
--   ✅ [Arize](https://arize.com/)
--   ✅ Any OTEL-compatible collector
+- ✅ [Arize-Phoenix](https://github.com/Arize-ai/phoenix)
+- ✅ [Arize](https://arize.com/)
+- ✅ Any OTEL-compatible collector
 
 ## Community
 
 Join our community to connect with thousands of machine learning practitioners and LLM observability enthusiasts!
 
--   🌍 Join our [Slack community](https://join.slack.com/t/arize-ai/shared_invite/zt-1px8dcmlf-fmThhDFD_V_48oU7ALan4Q).
--   💡 Ask questions and provide feedback in the _#phoenix-support_ channel.
--   🌟 Leave a star on our [GitHub](https://github.com/Arize-ai/openinference).
--   🐞 Report bugs with [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
--   𝕏 Follow us on [X](https://twitter.com/ArizePhoenix).
--   🗺️ Check out our [roadmap](https://github.com/orgs/Arize-ai/projects/45) to see where we're heading next.
+- 🌍 Join our [Slack community](https://join.slack.com/t/arize-ai/shared_invite/zt-1px8dcmlf-fmThhDFD_V_48oU7ALan4Q).
+- 💡 Ask questions and provide feedback in the _#phoenix-support_ channel.
+- 🌟 Leave a star on our [GitHub](https://github.com/Arize-ai/openinference).
+- 🐞 Report bugs with [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
+- 𝕏 Follow us on [X](https://twitter.com/ArizePhoenix).
+- 🗺️ Check out our [roadmap](https://github.com/orgs/Arize-ai/projects/45) to see where we're heading next.
