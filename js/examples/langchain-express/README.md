@@ -1,6 +1,6 @@
 # Overview
 
-This example shows how to use langchain with express to create a chat bot.
+This example shows how to use langchain with express to create a chat bot. The chat bot performance Retrieval Augmented Generation (RAG) to answer questions about using Phoenix and OpenInference with TypeScript / JavaScript.
 
 Our example will export spans data simultaneously on `Console` and [arize-phoenix](https://github.com/Arize-ai/phoenix), however you can run your code anywhere and can use any exporter that OpenTelemetry supports.
 

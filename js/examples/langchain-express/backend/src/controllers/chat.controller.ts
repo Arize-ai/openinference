@@ -1,40 +1,60 @@
 import { Request, Response } from "express";
 import { ChatOpenAI } from "@langchain/openai";
-import { StringOutputParser } from "@langchain/core/output_parsers";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { loadQAStuffChain, RetrievalQAChain } from "langchain/chains";
+import { SYSTEM_PROMPT_TEMPLATE } from "../constants";
+import { getMessageHistoryFromChat, getUserQuestion } from "../utils";
+import { Message } from "../types";
 
-type Message = {
-  content: string;
-  role: "user" | "assistant";
-};
+export const createChatController =
+  (vectorStore: MemoryVectorStore) => async (req: Request, res: Response) => {
+    try {
+      const { messages }: { messages: Message[] } = req.body;
 
-export const chat = async (req: Request, res: Response) => {
-  try {
-    const { messages }: { messages: Message[] } = req.body;
+      if (!messages) {
+        return res.status(400).json({
+          error: "messages are required in the request body",
+        });
+      }
 
-    if (!messages) {
-      return res.status(400).json({
-        error: "messages are required in the request body",
+      const llm = new ChatOpenAI({
+        modelName: "gpt-3.5-turbo",
+        streaming: true,
+      });
+
+      const qaPrompt = ChatPromptTemplate.fromMessages([
+        ["system", SYSTEM_PROMPT_TEMPLATE],
+        ...getMessageHistoryFromChat(messages),
+        ["human", "{question}"],
+      ]);
+
+      const retriever = vectorStore.asRetriever();
+
+      const ragChain = new RetrievalQAChain({
+        combineDocumentsChain: loadQAStuffChain(llm, {
+          prompt: qaPrompt,
+          verbose: true,
+        }),
+        retriever,
+        verbose: true,
+      });
+
+      const response = await ragChain.invoke({
+        query: getUserQuestion(messages),
+        llm,
+      });
+
+      if (response.text == null) {
+        throw new Error("No response from the model");
+      }
+      res.send(response.text);
+      res.end();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Error:", error);
+      return res.status(500).json({
+        error: (error as Error).message,
       });
     }
-
-    const parser = new StringOutputParser();
-
-    const chatModel = new ChatOpenAI({
-      modelName: "gpt-3.5-turbo",
-    });
-    const stream = await chatModel
-      .pipe(parser)
-      .stream(messages.map((message) => message.content));
-
-    for await (const chunk of stream) {
-      res.write(chunk);
-    }
-    res.end();
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("Error:", error);
-    return res.status(500).json({
-      error: (error as Error).message,
-    });
-  }
-};
+  };

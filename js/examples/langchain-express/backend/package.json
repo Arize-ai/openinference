@@ -10,10 +10,10 @@
     "type:check": "tsc --noEmit"
   },
   "dependencies": {
-    "@arizeai/openinference-instrumentation-langchain": "^0.0.2",
-    "@langchain/community": "^0.0.43",
-    "@langchain/core": "^0.1.52",
-    "@langchain/openai": "^0.0.25",
+    "@arizeai/openinference-instrumentation-langchain": "^0.0.3",
+    "@langchain/community": "^0.0.49",
+    "@langchain/core": "^0.1.58",
+    "@langchain/openai": "^0.0.28",
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.46.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.46.0",
@@ -22,10 +22,11 @@
     "@opentelemetry/sdk-trace-base": "^1.20.0",
     "@opentelemetry/sdk-trace-node": "^1.20.0",
     "@opentelemetry/semantic-conventions": "^1.20.0",
+    "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "langchain": "^0.1.30"
+    "langchain": "^0.1.33"
   },
   "devDependencies": {
     "@types/cors": "^2.8.16",
