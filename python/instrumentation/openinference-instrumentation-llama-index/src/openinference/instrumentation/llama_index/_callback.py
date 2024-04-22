@@ -15,6 +15,7 @@ from typing import (
     Mapping,
     Optional,
     OrderedDict,
+    SupportsFloat,
     Tuple,
     TypeVar,
     Union,
