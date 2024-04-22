@@ -676,10 +676,10 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
                 value,
                 (int, float, Iterable),
             ):
-                # This for when there are numpy values, which will be rejected by protobuf.
+                # This is for when there are numpy values, which will be rejected by protobuf.
                 # We convert all of them to float, so we don't need a dependency on numpy.
                 # The check on Iterable is to avoid converting numpy arrays to float,
-                # because SupportsFloat is true for numpy arrays.
+                # because numpy arrays are instances of SupportsFloat.
                 value = float(value)
             yield key, value
 
