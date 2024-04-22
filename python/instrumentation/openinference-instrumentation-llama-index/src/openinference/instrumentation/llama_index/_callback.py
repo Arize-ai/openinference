@@ -671,6 +671,10 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
         else:
             if isinstance(value, Enum):
                 value = value.value
+            elif isinstance(value, SupportsFloat) and not isinstance(value, (int, float)):
+                # This for when there are numpy values, which will be rejected by protobuf.
+                # We convert all of them to float, so we don't need a dependency on numpy.
+                value = float(value)
             yield key, value
 
 
