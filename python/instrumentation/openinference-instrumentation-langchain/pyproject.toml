@@ -85,3 +85,16 @@ line-length = 100
 select = ["E", "F", "W", "I"]
 target-version = "py38"
 
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+ignore-init-module-imports = true
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
