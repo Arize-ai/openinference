@@ -23,7 +23,7 @@ from typing import (
 )
 from uuid import UUID
 
-import wrapt
+import wrapt  # type: ignore
 from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
 from openinference.semconv.trace import (
