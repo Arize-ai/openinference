@@ -63,6 +63,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | [OpenAI SDK](js/examples/openai)                          | OpenAI Node.js client                                                                                                                                     | Beginner         |
 | [LlamaIndex Express App](js/examples/llama-index-express) | A fully functional LlamaIndex chatbot with a Next.js frontend and a LlamaIndex Express backend, instrumented using `openinference-instrumentation-openai` | Intermediate     |
+| [LangChain OpenAI](js/packages/openinference-instrumentation-langchain/examples) | A simple script to call OpenAI via LangChain, instrumented using `openinference-instrumentation-langchain` | Beginner
 | [LangChain RAG Express App](js/examples/langchain-express) | A fully functional LangChain chatbot that uses RAG to answer user questions. It has a Next.js frontend and a LangChain Express backend, instrumented using `openinference-instrumentation-langchain` | Intermediate
 
 ## Supported Destinations
