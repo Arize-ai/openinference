@@ -40,10 +40,15 @@ Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/openinfer
 path = "src/openinference/instrumentation/version.py"
 
 [tool.hatch.build.targets.sdist]
-include = [
-  "/src",
-  "/tests",
+exclude = [
+  "/src/openinference/instrumentation/*/*",
 ]
+
+[tool.hatch.build]
+only-packages = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
+exclude = [
+  "/src/openinference/instrumentation/*/*",
+]
