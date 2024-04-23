@@ -72,8 +72,8 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
-  "dspy",
-  "dsp",
+  "dspy.*",
+  "dsp.*",
 ]
 
 [tool.ruff]
