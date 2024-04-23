@@ -14,7 +14,7 @@ Second, run the development server:
 npm run dev
 ```
 
-Or, you can also build an run the server locally by running:
+Or, you can also build and run the server locally by running:
 
 ```
 npm run build
@@ -24,7 +24,7 @@ npm run build
 npm run start
 ```
 
-Note: If you run the server using the commands, please make sure to use Node version >= 20.
+Note: If you run the server using the commands above, please make sure to use Node version >= 20.
 
 Then call the express API endpoint `/api/chat` to see the result:
 
