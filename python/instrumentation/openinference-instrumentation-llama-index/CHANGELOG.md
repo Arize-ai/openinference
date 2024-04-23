@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.2.1...python-openinference-instrumentation-llama-index-v1.2.2) (2024-04-22)
+
+
+### Bug Fixes
+
+* convert numpy values for protobuf ([#394](https://github.com/Arize-ai/openinference/issues/394)) ([eccda65](https://github.com/Arize-ai/openinference/commit/eccda6510e2bbdfb6ecb7779bb7adcab77e070d3))
+
 ## [1.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.2.0...python-openinference-instrumentation-llama-index-v1.2.1) (2024-03-18)
 
 
