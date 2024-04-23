@@ -57,3 +57,18 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "wrapt",
+]

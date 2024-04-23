@@ -64,13 +64,18 @@ include = [
 packages = ["src/openinference"]
 
 [tool.mypy]
-plugins = []
-disallow_untyped_calls = true
-disallow_untyped_defs = true
-disallow_incomplete_defs  = true
 strict = true
+explicit_package_bases = true
 exclude = [
-  "dist/",
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "wrapt",
 ]
 
 [tool.ruff]

@@ -41,7 +41,7 @@ path = "src/openinference/instrumentation/version.py"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
-  "/src/openinference/instrumentation/*/*",
+  "src/openinference/instrumentation/*/*",
 ]
 
 [tool.hatch.build]
@@ -50,5 +50,12 @@ only-packages = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
 exclude = [
-  "/src/openinference/instrumentation/*/*",
+  "src/openinference/instrumentation/*/*",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+  "src/openinference/instrumentation/*/*",
 ]
