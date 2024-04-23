@@ -60,18 +60,32 @@ include = [
 packages = ["src/openinference"]
 
 [tool.mypy]
-plugins = []
-disallow_untyped_calls = true
-disallow_untyped_defs = true
-disallow_incomplete_defs  = true
 strict = true
+explicit_package_bases = true
 exclude = [
-  "dist/",
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "wrapt",
+  "dspy.*",
+  "dsp.*",
 ]
 
 [tool.ruff]
-exclude = [".git", "__pycache__", "*_pb2.py*", "*.pyi"]
-ignore-init-module-imports = true
 line-length = 100
-select = ["E", "F", "W", "I"]
 target-version = "py38"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+ignore-init-module-imports = true
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false

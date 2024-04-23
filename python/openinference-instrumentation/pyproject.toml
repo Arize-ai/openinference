@@ -40,10 +40,39 @@ Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/openinfer
 path = "src/openinference/instrumentation/version.py"
 
 [tool.hatch.build.targets.sdist]
-include = [
-  "/src",
-  "/tests",
+exclude = [
+  "src/openinference/instrumentation/*/*",
 ]
+
+[tool.hatch.build]
+only-packages = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
+exclude = [
+  "src/openinference/instrumentation/*/*",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+  "src/openinference/instrumentation/*/*",
+]
+
+[tool.ruff]
+exclude= [
+  "src/openinference/instrumentation/*/*",
+]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+ignore-init-module-imports = true
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
