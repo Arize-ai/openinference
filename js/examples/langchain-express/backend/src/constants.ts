@@ -3,3 +3,12 @@ export const SYSTEM_PROMPT_TEMPLATE = `You are a helpful assistant for answering
 ----------------------
 {context}
 `;
+
+export const DOCUMENT_URLS = [
+  "https://docs.arize.com/phoenix/tracing/how-to-tracing/instrumentation/auto-instrument-ts",
+  "https://docs.arize.com/phoenix/tracing/how-to-tracing/instrumentation/auto-instrument-ts/openai-node-sdk",
+  "https://docs.arize.com/phoenix/tracing/how-to-tracing/instrumentation/auto-instrument-ts/langchain.js",
+  "https://docs.arize.com/phoenix/tracing/how-to-tracing/manual-instrumentation/javascript",
+];
+
+export const WEB_LOADER_TIMEOUT = 10000;
