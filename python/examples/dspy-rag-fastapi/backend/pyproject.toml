@@ -19,6 +19,7 @@ structlog = "^24.1.0"
 openai = "^1.23.5"
 tokenizers = "^0.19.1"
 chromadb = "^0.5.0"
+openinference-semantic-conventions = "^0.1.5"
 
 
 [build-system]

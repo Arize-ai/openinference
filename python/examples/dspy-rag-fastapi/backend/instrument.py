@@ -10,12 +10,13 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from openinference.semconv.resource import ResourceAttributes
 
 collector_endpoint = os.getenv("COLLECTOR_ENDPOINT", "localhost")
 
 
 def instrument():
-    resource = Resource(attributes={})
+    resource = Resource(attributes={ResourceAttributes.PROJECT_NAME: "dspy-rag"})
     tracer_provider = trace_sdk.TracerProvider(resource=resource)
     span_exporter = OTLPSpanExporter(endpoint=collector_endpoint)
     span_processor = SimpleSpanProcessor(span_exporter=span_exporter)
