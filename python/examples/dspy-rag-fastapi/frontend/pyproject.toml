@@ -9,7 +9,6 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = ">=3.10, <3.11"
 streamlit = "^1.32.0"
-ollama = "^0.1.7"
 python-dotenv = "^1.0.1"
 
 

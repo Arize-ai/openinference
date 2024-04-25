@@ -105,16 +105,17 @@ This project now supports Docker Compose for easier setup and deployment, includ
 
 1. Configure your environment variables in the .env file or modify the compose file directly.
 2. Ensure that Docker is installed and running.
-3. Run the command `docker-compose -f compose.yml up` to spin up services for the backend, and Phoenix.
-4. Backend docs can be viewed using the [OpenAPI](http://0.0.0.0:8000/docs).
-5. Frontend can be viewed using [Streamlit](http://0.0.0.0:8501)
-6. Traces can be viewed using the [Phoenix UI](http://0.0.0.0:6006).
-7. When you're finished, run `docker compose down` to spin down the services.
+3. This project uses OpenAI to embed data, so you will need to create the embeddings first. Run the command `python -m app.utils.load` from the backend folder to create embeddings for the data located in the `data/example` folder.
+4. Run the command `docker-compose -f compose.yml up` to spin up services for the backend, and Phoenix.
+5. Backend docs can be viewed using the [OpenAPI Spec](http://0.0.0.0:8000/docs).
+6. Frontend can be viewed using [Streamlit](http://0.0.0.0:8501)
+7. Traces can be viewed using the [Phoenix UI](http://localhost:6006).
+8. When you're finished, run `docker compose down` to spin down the services.
 
 ## Usage
 
 The FastAPI and Streamlit integration allows for seamless interaction between the user and the NLP backend. Utilize the FastAPI endpoints for NLP tasks and visualize results and interact with the system through the Streamlit frontend.
 
-## Contributing
+## Acknowledgements
 
-Contributions are welcome! Please feel free to submit pull requests or create issues for bugs, questions, and suggestions.
+This example is a fork of [dspy-rag-fastapi](https://github.com/diicellman/dspy-rag-fastapi) by @diicellman and credit for the implementation goes to them.

@@ -85,7 +85,7 @@ question,answer
 with st.sidebar:
     st.subheader("Models and parameters")
     selected_model = st.sidebar.selectbox(
-        "Choose an Ollama model available on your system",
+        "Choose an OpenAI model available on your system",
         get_list_models(server_url=openai_models_url),
         key="selected_model",
     )

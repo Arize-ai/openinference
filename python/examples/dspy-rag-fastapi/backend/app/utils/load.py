@@ -15,6 +15,14 @@ logger = logging.getLogger()
 DATA_DIR = "data"
 
 
+def chunks(iterable, chunk_size):
+    """
+    Split an iterable into chunks of a given size. Used to bulk process embeddings
+    """
+    for i in range(0, len(iterable), chunk_size):
+        yield iterable[i : i + chunk_size]
+
+
 # Custom Embedding function that supports OPen embeddings
 class OpenAIEmbeddingFunction(EmbeddingFunction[Documents]):
     """
@@ -46,11 +54,11 @@ class OpenAIEmbeddingFunction(EmbeddingFunction[Documents]):
 
         embeddings: Embeddings = []
         # Call OpenAI Embedding API for each document.
-        for document in input:
+        for document_chunk in chunks(input, chunk_size=10):
             embedding_response = self._client.embeddings.create(
-                model=self._model_name, input=[document]
+                model=self._model_name, input=document_chunk
             )
-            embeddings.append(embedding_response.data[0].embedding)
+            embeddings.extend([emb.embedding for emb in embedding_response.data])
 
         return embeddings
 
