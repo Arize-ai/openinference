@@ -2,7 +2,7 @@
 name = "dspy-rag-fastapi"
 version = "0.2.0"
 description = "FastAPI wrapper around dspy"
-authors = ["diicell"]
+authors = ["diicell", "mikeldking"]
 license = "MIT"
 readme = "README.md"
 
