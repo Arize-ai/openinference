@@ -2,12 +2,11 @@
 
 ## Introduction
 
-This project is a full-stack application designed to leverage natural language processing capabilities entirely locally and to integrate with the [DSPy](https://github.com/stanfordnlp/dspy) framework developed by StanfordNLP. It features a [FastAPI](https://github.com/tiangolo/fastapi) backend for processing and a [Streamlit](https://streamlit.io) frontend for interactive user interfaces. This implementation is fully local, integrating cutting-edge technologies such as OpenAI for language and embedding models, [Chroma DB](https://github.com/chroma-core/chroma) for vector storage, and [Arize Phoenix](https://github.com/Arize-ai/phoenix) for observability. This setup ensures all operations, from processing to data storage, are executed on the local machine, enhancing privacy, data security, and ease of use.
+This project is a full-stack application designed to leverage natural language processing capabilities entirely locally and to integrate with the [DSPy](https://github.com/stanfordnlp/dspy) framework developed by StanfordNLP. It features a [FastAPI](https://github.com/tiangolo/fastapi) backend for processing and a [Streamlit](https://streamlit.io) frontend for interactive user interfaces. This implementation utilizes OpenAI for language and embedding models, [Chroma DB](https://github.com/chroma-core/chroma) for vector storage, and [Arize Phoenix](https://github.com/Arize-ai/phoenix) for observability.
 
 ## Features
 
--   **Fully Local Execution**: Ensures privacy and security by running all processes on your local machine without external dependencies.
--   **OpenAI Integration**: Leverages the powerful OpenAI for language and embedding models.
+-   **OpenAI Integration**: Leverages OpenAI for language and embedding models.
 -   **Chroma DB Vector Storage**: Utilizes Chroma DB for efficient, scalable vector storage, enabling quick and precise information retrieval.
 -   **Arize Phoenix Observability**: Integrates Arize Phoenix for real-time monitoring and analytics, aiding in performance improvement and system health tracking.
 -   **FastAPI Backend**: Offers robust and scalable API endpoints for interacting with the NLP models and performing various queries and compilations.

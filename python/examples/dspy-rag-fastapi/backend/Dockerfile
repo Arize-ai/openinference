@@ -1,12 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
-
-# Install gcc
-RUN apt-get update -y \
-    && apt-get install -y python3-dev \
-    gcc \
-    libc-dev \
-    libffi-dev
+FROM python:3.10-bullseye
 
 WORKDIR /rag
 
