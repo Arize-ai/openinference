@@ -14,7 +14,9 @@ st.sidebar.info("Select a demo above.")
 
 st.markdown(
     """
-    ## Description This project introduces a [Streamlit](https://streamlit.io)
+    ## Description
+    
+    This project introduces a [Streamlit](https://streamlit.io)
     application designed to interface seamlessly with the
     [DSPy](https://github.com/stanfordnlp/dspy) framework by StanfordNLP,
     encapsulated within a [FastAPI](https://github.com/tiangolo/fastapi)
