@@ -56,6 +56,8 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`@arizeai/openinference-semantic-conventions`](./js/packages/openinference-semantic-conventions)     | Semantic conventions for tracing of LLM Apps. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-semantic-conventions.svg)](https://www.npmjs.com/package/@arizeai/openinference-semantic-conventions) |
 | [`@arizeai/openinference-instrumentation-openai`](./js/packages/openinference-instrumentation-openai) | OpenInference Instrumentation for OpenAI SDK. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-openai)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-openai) |
 | [`@arizeai/openinference-instrumentation/langchain`](./js/packages/openinference-instrumentation-langchain) | OpenInference Instrumentation for LangChain.js. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-langchain)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-langchain) 
+| [`@arizeai/openinference-instrumentation/langchain`](./js/packages/openinference-instrumentation-langchain) | OpenInference Instrumentation for LlamaIndex. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-llama-index)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-llama-index)
+
 
 ### Examples
 
