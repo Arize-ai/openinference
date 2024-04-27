@@ -525,6 +525,20 @@ class DSPyJSONEncoder(json.JSONEncoder):
             return repr(o)
 
 
+class SafeJSONEncoder(json.JSONEncoder):
+    """
+    Safely encodes non-JSON-serializable objects.
+    """
+
+    def default(self, o: Any) -> Any:
+        try:
+            return super().default(o)
+        except TypeError:
+            if hasattr(o, "dict") and callable(o.dict):  # pydantic v1 models, e.g., from Cohere
+                return o.dict()
+            return repr(o)
+
+
 def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     """
     Parses a method call's inputs into a JSON string. Ensures a consistent
@@ -610,7 +624,7 @@ def _jsonify_output(response: Any) -> str:
     """
     if _is_google_response(response):
         return json.dumps(_parse_google_response(response))
-    return json.dumps(response)
+    return json.dumps(response, cls=SafeJSONEncoder)
 
 
 def _is_google_response(response: Any) -> TypeGuard["GenerateContentResponseType"]:
