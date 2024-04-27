@@ -731,7 +731,7 @@ weaviate = ["weaviate-client (>=4.5.4,<5.0.0)"]
 type = "git"
 url = "https://github.com/stanfordnlp/dspy.git"
 reference = "HEAD"
-resolved_reference = "66573d66622acd73e8bfe68a6c098a5351826db2"
+resolved_reference = "d09d984ecaf17f7262294d50fe46fd8105fbf291"
 
 [[package]]
 name = "exceptiongroup"
@@ -1821,13 +1821,13 @@ test = ["opentelemetry-sdk"]
 
 [[package]]
 name = "openinference-instrumentation-dspy"
-version = "0.1.6"
+version = "0.1.7"
 description = "OpenInference DSPy Instrumentation"
 optional = false
 python-versions = "<3.13,>=3.9"
 files = [
-    {file = "openinference_instrumentation_dspy-0.1.6-py3-none-any.whl", hash = "sha256:0a81887c938b1997e9fee3b43b72adbf0ee5e882b1d9adb7a8c22b397ab9810d"},
-    {file = "openinference_instrumentation_dspy-0.1.6.tar.gz", hash = "sha256:636dc85441217510860c45bffa3d39f3994cab6db5af640b73b419cbea0f4dd4"},
+    {file = "openinference_instrumentation_dspy-0.1.7-py3-none-any.whl", hash = "sha256:93f50fb3e4a74867988f2d03e955f86e744f8f50a68bc61891209a3a6ecb84b0"},
+    {file = "openinference_instrumentation_dspy-0.1.7.tar.gz", hash = "sha256:f92295ab39e5f728d17d475c7215d96085b90b8a5f7c3f5df9318fe2bfa430bf"},
 ]
 
 [package.dependencies]
@@ -3845,4 +3845,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10, <3.11"
-content-hash = "4baa5211e33efa18130f704bad81ff599debee72f6034c91e914521442d64bb3"
+content-hash = "835555ae4d5adf9fddc596ee7d2d5a341f69f96046b7a9a59536d36db5e085a8"
