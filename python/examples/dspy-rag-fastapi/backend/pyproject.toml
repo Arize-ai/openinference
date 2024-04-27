@@ -4,13 +4,11 @@ version = "0.2.0"
 description = "FastAPI wrapper around dspy"
 authors = ["diicell", "mikeldking"]
 license = "MIT"
-readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.10, <3.11"
 fastapi = "^0.110.0"
 uvicorn = {extras = ["standard"], version = "^0.27.1"}
-dspy-ai = "2.4.5"
 arize-phoenix = "^3.4.1"
 openinference-instrumentation-dspy = "^0.1.2"
 opentelemetry-exporter-otlp = "^1.23.0"
@@ -18,8 +16,8 @@ weaviate-client = "^4.5.6"
 structlog = "^24.1.0"
 openai = "^1.23.5"
 tokenizers = "^0.19.1"
-chromadb = "^0.5.0"
 openinference-semantic-conventions = "^0.1.5"
+dspy = {git = "https://github.com/stanfordnlp/dspy.git"}
 
 
 [build-system]

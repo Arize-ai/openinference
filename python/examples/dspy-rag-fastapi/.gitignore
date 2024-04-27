@@ -160,7 +160,7 @@ cython_debug/
 #.idea/
 
 # Local files
-backend/data/chroma_db
+backend/data/weaviate
 backend/data/*.json
 *.DS_store
 */.streamlit

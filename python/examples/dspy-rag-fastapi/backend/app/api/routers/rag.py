@@ -1,12 +1,13 @@
 """Endpoints."""
 
 from fastapi import APIRouter
-from app.utils.models import MessageData, RAGResponse, QAList
+
+from app.utils.models import MessageData, QAList, RAGResponse
 from app.utils.rag_functions import (
-    get_zero_shot_query,
-    get_compiled_rag,
     compile_rag,
+    get_compiled_rag,
     get_models,
+    get_zero_shot_query,
 )
 
 rag_router = APIRouter()
