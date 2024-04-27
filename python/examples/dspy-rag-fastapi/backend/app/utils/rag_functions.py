@@ -2,8 +2,9 @@
 
 import contextlib
 import os
-from typing import Dict
+from typing import Dict, List
 
+import cohere
 import dspy
 import openai
 import weaviate
@@ -52,19 +53,38 @@ def using_weaviate():
         weaviate_client.close()
 
 
+def get_lm(vendor_model: str, temperature: float, top_p: float, max_tokens: int, *args, **kwargs):
+    vendor, model = vendor_model.split(":")
+    if vendor == "openai":
+        return dspy.OpenAI(
+            model=model,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+        )
+    if vendor == "cohere":
+        return dspy.Cohere(
+            model=model,
+            temperature=temperature,
+            p=top_p,
+            max_tokens=max_tokens,
+        )
+    raise ValueError(f"model vendor {vendor} not supported.")
+
+
 def get_zero_shot_query(payload: MessageData):
     rag = RAG()
 
     # Global settings
-    openai_lm = dspy.OpenAI(
-        model=payload.openai_model_name,
+    lm = get_lm(
+        vendor_model=payload.vendor_model,
         temperature=payload.temperature,
         top_p=payload.top_p,
         max_tokens=payload.max_tokens,
     )
 
     with using_weaviate() as weaviate_rm:
-        with dspy.context(lm=openai_lm, rm=weaviate_rm):
+        with dspy.context(lm=lm, rm=weaviate_rm):
             pred = rag(
                 question=payload.query,  # chat_history=parsed_chat_history
             )
@@ -83,9 +103,8 @@ def validate_context_and_answer(example, pred, trace=None):
 
 
 def compile_rag(qa_items: QAList) -> Dict:
-    # Global settings
-    openai_lm = dspy.OpenAI(
-        model=qa_items.openai_model_name,
+    lm = get_lm(
+        vendor_model=qa_items.vendor_model,
         temperature=qa_items.temperature,
         top_p=qa_items.top_p,
         max_tokens=qa_items.max_tokens,
@@ -104,7 +123,7 @@ def compile_rag(qa_items: QAList) -> Dict:
         teleprompter = BootstrapFewShot(metric=validate_context_and_answer)
 
         # Compile!
-        with dspy.context(lm=openai_lm, rm=weaviate_rm):
+        with dspy.context(lm=lm, rm=weaviate_rm):
             compiled_rag = teleprompter.compile(RAG(), trainset=trainset)
 
         # Saving
@@ -119,15 +138,15 @@ def get_compiled_rag(payload: MessageData):
     rag.load(f"{DATA_DIR}/compiled_rag.json")
 
     # Global settings
-    openai_lm = dspy.OpenAI(
-        model=payload.openai_model_name,
+    lm = get_lm(
+        vendor_model=payload.vendor_model,
         temperature=payload.temperature,
         top_p=payload.top_p,
         max_tokens=payload.max_tokens,
     )
 
     with using_weaviate() as weaviate_rm:
-        with dspy.context(lm=openai_lm, rm=weaviate_rm):
+        with dspy.context(lm=lm, rm=weaviate_rm):
             pred = rag(
                 question=payload.query,  # chat_history=parsed_chat_history
             )
@@ -141,14 +160,18 @@ def get_compiled_rag(payload: MessageData):
 
 openai_client = openai.Client()
 
-
-models_list = openai_client.models.list()
+models_list: List[str] = []
 
 
 def get_models():
-    models = []
-    for model in models_list:
-        if "gpt" in model.id:
-            models.append(model.id)
+    if len(models_list) == 0:
+        openai_models = [model.id for model in openai_client.models.list()]
+        cohere_models: List[str] = []
+        if os.getenv("CO_API_KEY"):
+            cohere_client = cohere.Client()
+            cohere_models_response = cohere_client.models.list()
+            cohere_models = [model.name for model in cohere_models_response.models]  # type: ignore
+        models_list.extend([f"openai:{model}" for model in openai_models if "gpt" in model])
+        models_list.extend([f"cohere:{model}" for model in cohere_models if "command" in model])
 
-    return {"models": models}
+    return {"models": models_list}
