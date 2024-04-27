@@ -18,6 +18,7 @@ openai = "^1.23.5"
 tokenizers = "^0.19.1"
 openinference-semantic-conventions = "^0.1.5"
 dspy = {git = "https://github.com/stanfordnlp/dspy.git"}
+cohere = "^5.3.3"
 
 
 [build-system]

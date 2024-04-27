@@ -2,11 +2,11 @@
 
 ## Introduction
 
-This project is a full-stack application designed to leverage natural language processing capabilities entirely locally and to integrate with the [DSPy](https://github.com/stanfordnlp/dspy) framework developed by StanfordNLP. It features a [FastAPI](https://github.com/tiangolo/fastapi) backend for processing and a [Streamlit](https://streamlit.io) frontend for interactive user interfaces. This implementation utilizes OpenAI for language and embedding models, [Weaviate](https://github.com/weaviate/weaviate) for vector storage, and [Arize Phoenix](https://github.com/Arize-ai/phoenix) for observability.
+This project is a full-stack application designed to leverage natural language processing capabilities entirely locally and to integrate with the [DSPy](https://github.com/stanfordnlp/dspy) framework developed by StanfordNLP. It features a [FastAPI](https://github.com/tiangolo/fastapi) backend for processing and a [Streamlit](https://streamlit.io) frontend for interactive user interfaces. This implementation utilizes OpenAI or Cohere for language and embedding models, [Weaviate](https://github.com/weaviate/weaviate) for vector storage, and [Arize Phoenix](https://github.com/Arize-ai/phoenix) for observability.
 
 ## Features
 
--   **OpenAI Integration**: Leverages OpenAI for language and embedding models.
+-   **OpenAI or Cohere**: Leveraged for language and embedding models.
 -   **Weaviate DB Vector Storage**: Utilizes Weaviate DB for efficient, scalable vector storage, enabling quick and precise information retrieval.
 -   **Arize Phoenix Observability**: Integrates Arize Phoenix for real-time monitoring and analytics, aiding in performance improvement and system health tracking.
 -   **FastAPI Backend**: Offers robust and scalable API endpoints for interacting with the NLP models and performing various queries and compilations.
@@ -14,10 +14,10 @@ This project is a full-stack application designed to leverage natural language p
 
 ## Architecture
 
-This full-stack application combines the DSPy Framework with OpenAI, Arize Phoenix, and Weaviate DB in a cohesive ecosystem. Here's a brief overview of the system components:
+This full-stack application combines the DSPy Framework with OpenAI, Cohere, Arize Phoenix, and Weaviate DB in a cohesive ecosystem. Here's a brief overview of the system components:
 
 -   **DSPy Framework**: Serves as the core for language model interactions, offering advanced NLP capabilities.
--   **OpenAI**: Acts as the backend engine for language understanding and generation.
+-   **OpenAI/Cohere**: Acts as the backend engine for language understanding and generation.
 -   **Weaviate**: Provides efficient vector storage solutions, essential for NLP tasks like semantic search.
 -   **Arize Phoenix**: Enhances visibility into the application's performance and health.
 -   **FastAPI**: Facilitates the backend logic, handling API requests and responses.
@@ -55,6 +55,7 @@ ENVIRONMENT=<your_environment_value>
 INSTRUMENT_DSPY=<true or false>
 COLLECTOR_ENDPOINT=<your_arize_phoenix_endpoint>
 OPENAI_API_KEY=<your_openai_api_key>
+CO_API_KEY=<your_cohere_api_key>
 ```
 
 Third, run this command to create embeddings of data located in data/example folder:

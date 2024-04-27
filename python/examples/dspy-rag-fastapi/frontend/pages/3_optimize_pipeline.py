@@ -41,7 +41,7 @@ def compile_rag(
     payload = {
         "items": trainset_data,
         # "chat_history": chat_history,
-        "openai_model_name": model_name,
+        "vendor_model": model_name,
         "temperature": temperature,
         "top_p": top_p,
         "max_tokens": max_tokens,
