@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.5...python-openinference-semantic-conventions-v0.1.6) (2024-04-29)
+
+
+### Features
+
+* Add `user.id` and `session.id` to semantic conventions ([#410](https://github.com/Arize-ai/openinference/issues/410)) ([6588134](https://github.com/Arize-ai/openinference/commit/6588134e099c86248a485bdc822c0e84853582e3))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.4...python-openinference-semantic-conventions-v0.1.5) (2024-03-07)
 
 
