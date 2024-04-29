@@ -23,9 +23,6 @@ RUN poetry config virtualenvs.create false \
 # Copy the rest of your application's code
 COPY . /rag/
 
-# Populate Weaviate
-# RUN ["python", "-m", "app.utils.load"]
-
 EXPOSE 8000
 
 # Run the main.py script when the container starts

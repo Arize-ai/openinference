@@ -62,7 +62,7 @@ def load_data() -> None:
 
         logger.info("Loading data into Weaviate.")
         with collection.batch.dynamic() as batch:
-            for sentence_chunk in chunks(sentence_chunks, 10):
+            for sentence_chunk in chunks(sentence_chunks, 20):
                 embedding_response = openai_client.embeddings.create(
                     model="text-embedding-ada-002", input=sentence_chunk
                 )
