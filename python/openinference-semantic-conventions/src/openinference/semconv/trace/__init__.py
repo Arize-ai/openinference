@@ -103,6 +103,15 @@ class SpanAttributes:
 
     OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
 
+    SESSION_ID = "session.id"
+    """
+    The id of the session
+    """
+    USER_ID = "user.id"
+    """
+    The id of the user
+    """
+
 
 class MessageAttributes:
     """
