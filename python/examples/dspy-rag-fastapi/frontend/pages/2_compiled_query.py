@@ -27,7 +27,7 @@ def zero_shot_query(
     payload = {
         "query": query,
         # "chat_history": chat_history,
-        "openai_model_name": model_name,
+        "vendor_model": model_name,
         "temperature": temperature,
         "top_p": top_p,
         "max_tokens": max_tokens,

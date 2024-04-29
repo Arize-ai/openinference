@@ -28,7 +28,5 @@ st.markdown(
     In a notable application of this system, the Retrieval-Augmented Generation
     (RAG) process is performed on the insightful essay "What I Worked On" by
     Paul Graham. 
-
-    ### Info [GitHub](https://github.com/Arize-ai/openinference)
 """
 )

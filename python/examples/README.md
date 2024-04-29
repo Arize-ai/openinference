@@ -10,6 +10,7 @@ The examples listed below are expected to be updated with every OpenInference Py
 | -------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------- |
 | [LlamaIndex](llama-index/) | A fully functional chatbot using Next.js and LlamaIndex                                                   | Beginner         |
 | [LangServe](langserve/)    | An example LangChain application deployed with LangServe that uses custom metadata on a per-request basis | Intermediate     |
+| [DSPy](dspy-rag-fastapi/)  | An example DSPy application deployed with FastAPI and Weaviate to perform RAG                             | Intermediate     |
 
 ## Contributing
 
