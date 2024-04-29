@@ -49,11 +49,13 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `reranker.query`                       | String          | `"How to format timestamp?"`                                               | Query parameter of the reranker                                  |
 | `reranker.top_k`                       | Integer         | 3                                                                          | Top K parameter of the reranker                                  |
 | `retrieval.documents`                  | List of objects | `[{"document.id": "1", "document.score": 0.9, "document.content": "..."}]` | List of retrieved documents                                      |
+| `session.id`                           | String          | `"26bcd3d2-cad2-443d-a23c-625e47f3324a"`                                   | Unique identifier for a session                                  |
 | `tag.tags`                             | List of strings | ["shopping", "travel"]                                                     | List of tags to give the span a category                         |
 | `tool.description`                     | String          | `"An API to get weather data."`                                            | Description of the tool's purpose and functionality              |
 | `tool.name`                            | String          | `"WeatherAPI"`                                                             | The name of the tool being utilized                              |
 | `tool.parameters`                      | JSON string     | `"{ 'a': 'int' }"`                                                         | The parameters definition for invoking the tool                  |
 | `tool_call.function.arguments`         | JSON string     | `"{'city': 'London'}"`                                                     | The arguments for the function being invoked by a tool call      |
 | `tool_call.function.name`              | String          | `get_current_weather`                                                      | The name of the function being invoked by a tool call            |
+| `user.id`                              | String          | `"9328ae73-7141-4f45-a044-8e06192aa465"`                                   | Unique identifier for a user                                     |
 
 Note: the `object` type refers to a set of key-value pairs also known as a `struct`, `mapping`, `dictionary`, etc.
