@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.4.0
+
+### Minor Changes
+
+- 921a40c: Add semantic conventions for session.id and user.id
+
 ## 0.3.0
 
 ### Minor Changes
