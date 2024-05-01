@@ -43,6 +43,7 @@ class suppress_tracing:
 class UsingAttributes:
     def __init__(
         self,
+        *,
         session_id: str = "",
         user_id: str = "",
         metadata: Optional[Dict[str, Any]] = None,
