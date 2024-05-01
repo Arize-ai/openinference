@@ -23,7 +23,6 @@ CONTEXT_ATTRIBUTES = (
 
 
 class suppress_tracing:
-    slots = ["_token"]
     """
     Context manager to pause OpenTelemetry instrumentation.
 
@@ -44,14 +43,6 @@ class suppress_tracing:
 
 
 class UsingAttributes:
-    slots = [
-        "_token",
-        "_session_id",
-        "_user_id",
-        "_metadata",
-        "_tags",
-    ]
-
     def __init__(
         self,
         session_id: str = "",
