@@ -1,19 +1,23 @@
 import json
-from typing import Dict, List, Any, Optional
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+)
+
 from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     attach,
     detach,
-    set_value,
-    get_value,
     get_current,
+    get_value,
+    set_value,
 )
 from opentelemetry.util.types import AttributeValue
-from typing import (
-    Iterator,
-    Tuple,
-)
 
 CONTEXT_ATTRIBUTES = (
     SpanAttributes.SESSION_ID,
