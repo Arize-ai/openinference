@@ -41,7 +41,7 @@ class suppress_tracing:
         detach(self._token)
 
 
-class UsingAttributes:
+class _UsingAttributes:
     def __init__(
         self,
         *,
@@ -81,7 +81,7 @@ class UsingAttributes:
         detach(self._token)
 
 
-class using_session(UsingAttributes):
+class using_session(_UsingAttributes):
     """
     Context manager to add session id to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the session id as a span attribute,
@@ -106,7 +106,7 @@ class using_session(UsingAttributes):
         return self
 
 
-class using_user(UsingAttributes):
+class using_user(_UsingAttributes):
     """
     Context manager to add user id to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the user id as a span attribute,
@@ -131,7 +131,7 @@ class using_user(UsingAttributes):
         return self
 
 
-class using_metadata(UsingAttributes):
+class using_metadata(_UsingAttributes):
     """
     Context manager to add metadata to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the metadata as a span attribute,
@@ -161,7 +161,7 @@ class using_metadata(UsingAttributes):
         return self
 
 
-class using_tags(UsingAttributes):
+class using_tags(_UsingAttributes):
     """
     Context manager to add tags to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the tags as a span attribute,
@@ -191,7 +191,7 @@ class using_tags(UsingAttributes):
         return self
 
 
-class using_attributes(UsingAttributes):
+class using_attributes(_UsingAttributes):
     """
     Context manager to add attributes to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the attributes to the traced span,
@@ -235,8 +235,20 @@ class using_attributes(UsingAttributes):
 
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        *,
+        session_id: str = "",
+        user_id: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> None:
+        super().__init__(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+        )
 
     def __enter__(self) -> "using_attributes":
         super().__enter__()
