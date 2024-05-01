@@ -67,13 +67,11 @@ class UsingAttributes:
 
         self._token = attach(ctx)
 
-    def __enter__(self) -> "UsingAttributes":
+    def __enter__(self) -> None:
         self.attach_context()
-        return self
 
-    async def __aenter__(self) -> "UsingAttributes":
+    async def __aenter__(self) -> None:
         self.attach_context()
-        return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         detach(self._token)
@@ -84,7 +82,15 @@ class UsingAttributes:
 
 class using_session(UsingAttributes):
     """
-    TBD
+    Context manager to add session id to the current OpenTelemetry Context. OpenInference
+    instrumentations will read this Context and pass the session id as a span attribute,
+    following the OpenInference semantic conventions.
+
+    Examples:
+        with using_session("my-session-id"):
+            # Tracing within this block will include the span attribute:
+            # "session.id" = "my-session-id"
+            ...
     """
 
     def __init__(self, session_id: str) -> None:
@@ -101,7 +107,15 @@ class using_session(UsingAttributes):
 
 class using_user(UsingAttributes):
     """
-    TBD
+    Context manager to add user id to the current OpenTelemetry Context. OpenInference
+    instrumentations will read this Context and pass the user id as a span attribute,
+    following the OpenInference semantic conventions.
+
+    Examples:
+        with using_user("my-user-id"):
+            # Tracing within this block will include the span attribute:
+            # "user.id" = "my-user-id"
+            ...
     """
 
     def __init__(self, user_id: str) -> None:
@@ -118,7 +132,20 @@ class using_user(UsingAttributes):
 
 class using_metadata(UsingAttributes):
     """
-    TBD
+    Context manager to add metadata to the current OpenTelemetry Context. OpenInference
+    instrumentations will read this Context and pass the metadata as a span attribute,
+    following the OpenInference semantic conventions.
+
+    Examples:
+        metadata = {
+            "key-1": value_1,
+            "key-2": value_2,
+            ...
+        }
+        with using_metadata(metadata):
+            # Tracing within this block will include the span attribute:
+            # "metadata" = "{\"key-1\": value_1, \"key-2\": value_2, ... }"
+            ...
     """
 
     def __init__(self, metadata: Dict[str, Any]) -> None:
@@ -135,7 +162,20 @@ class using_metadata(UsingAttributes):
 
 class using_tags(UsingAttributes):
     """
-    TBD
+    Context manager to add tags to the current OpenTelemetry Context. OpenInference
+    instrumentations will read this Context and pass the tags as a span attribute,
+    following the OpenInference semantic conventions.
+
+    Examples:
+        tags = [
+            "tag_1",
+            "tag_2",
+            ...
+        ]
+        with using_tags(tags):
+            # Tracing within this block will include the span attribute:
+            # "tag.tags" = "["tag_1","tag_2",...]"
+            ...
     """
 
     def __init__(self, tags: List[str]) -> None:
@@ -152,7 +192,46 @@ class using_tags(UsingAttributes):
 
 class using_attributes(UsingAttributes):
     """
-    TBD
+    Context manager to add attributes to the current OpenTelemetry Context. OpenInference
+    instrumentations will read this Context and pass the attributes to the traced span,
+    following the OpenInference semantic conventions.
+
+    It is a convenient context manager to use if you find yourself using many others, provided
+    by this package, combined.
+
+    Example:
+        tags = [
+            "tag_1",
+            "tag_2",
+            ...
+        ]
+        metadata = {
+            "key-1": value_1,
+            "key-2": value_2,
+            ...
+        }
+        with using_attributes(
+            session_id="my-session-id",
+            user_id="my-user-id",
+            metadata=metadata,
+            tags=tags,
+        ):
+            # Tracing within this block will include the span attribute:
+            # "session.id" = "my-session-id"
+            # "user.id" = "my-user-id"
+            # "metadata" = "{\"key-1\": value_1, \"key-2\": value_2, ... }"
+            # "tag.tags" = "["tag_1","tag_2",...]"
+            ...
+
+    The previous example is equivalent to doing:
+        with (
+            using_session("my-session-id"),
+            using_user("my-user-id"),
+            using_metadata(metadata),
+            using_tags(tags),
+        ):
+            ...
+
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
