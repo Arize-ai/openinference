@@ -1,5 +1,4 @@
-from contextlib import AbstractContextManager, AbstractAsyncContextManager
-from typing import Dict, Type, Sequence, List, Any
+from typing import Dict, List, Any, Optional
 from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
@@ -23,7 +22,7 @@ CONTEXT_ATTRIBUTES = (
 )
 
 
-class suppress_tracing(AbstractContextManager):
+class suppress_tracing:
     slots = ["_token"]
     """
     Context manager to pause OpenTelemetry instrumentation.
@@ -57,18 +56,9 @@ class UsingAttributes:
         self,
         session_id: str = "",
         user_id: str = "",
-        metadata: Dict[str, str] = {},
-        tags: List[str] = [],
+        metadata: Optional[Dict[str, str]] = None,
+        tags: Optional[List[str]] = None,
     ) -> None:
-        if not isinstance(session_id, str):
-            raise TypeError("session_id must be a string")
-        if not isinstance(user_id, str):
-            raise TypeError("user_id must be a string")
-        if not is_dict_of(metadata, key_allowed_types=(str), value_allowed_types=(str)):
-            raise TypeError("metadata must be a dictionary with string keys and values")
-        if not is_list_of(tags, str):
-            raise TypeError("tags must be a list of strings")
-
         self._session_id = session_id
         self._user_id = user_id
         self._metadata = metadata
@@ -92,8 +82,24 @@ class UsingAttributes:
         detach(self._token)
         return
 
+    def __enter__(self) -> "UsingAttributes":
+        self.attach_context()
+        return self
 
-class using_session(AbstractContextManager, UsingAttributes):
+    async def __aenter__(self) -> "UsingAttributes":
+        self.attach_context()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.detach_context()
+        return
+
+    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+        self.detach_context()
+        return
+
+
+class using_session(UsingAttributes):
     """
     TBD
     """
@@ -102,15 +108,15 @@ class using_session(AbstractContextManager, UsingAttributes):
         super().__init__(session_id=session_id)
 
     def __enter__(self) -> "using_session":
-        self.attach_context()
+        super().__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.detach_context()
-        return
+    async def __aenter__(self) -> "using_session":
+        super().__aenter__()
+        return self
 
 
-class using_user(AbstractContextManager, UsingAttributes):
+class using_user(UsingAttributes):
     """
     TBD
     """
@@ -119,15 +125,15 @@ class using_user(AbstractContextManager, UsingAttributes):
         super().__init__(user_id=user_id)
 
     def __enter__(self) -> "using_user":
-        self.attach_context()
+        super().__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.detach_context()
-        return
+    async def __aenter__(self) -> "using_user":
+        super().__aenter__()
+        return self
 
 
-class using_metadata(AbstractContextManager, UsingAttributes):
+class using_metadata(UsingAttributes):
     """
     TBD
     """
@@ -136,15 +142,15 @@ class using_metadata(AbstractContextManager, UsingAttributes):
         super().__init__(metadata=metadata)
 
     def __enter__(self) -> "using_metadata":
-        self.attach_context()
+        super().__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.detach_context()
-        return
+    async def __aenter__(self) -> "using_metadata":
+        super().__aenter__()
+        return self
 
 
-class using_tags(AbstractContextManager, UsingAttributes):
+class using_tags(UsingAttributes):
     """
     TBD
     """
@@ -153,15 +159,15 @@ class using_tags(AbstractContextManager, UsingAttributes):
         super().__init__(tags=tags)
 
     def __enter__(self) -> "using_tags":
-        self.attach_context()
+        super().__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.detach_context()
-        return
+    async def __aenter__(self) -> "using_tags":
+        super().__aenter__()
+        return self
 
 
-class using_attributes(AbstractContextManager, UsingAttributes):
+class using_attributes(UsingAttributes):
     """
     TBD
     """
@@ -170,91 +176,14 @@ class using_attributes(AbstractContextManager, UsingAttributes):
         super().__init__(*args, **kwargs)
 
     def __enter__(self) -> "using_attributes":
-        self.attach_context()
+        super().__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.detach_context()
-        return
-
-
-class using_attributes(AbstractContextManager, UsingAttributes):
-    """
-    TBD
-    """
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-
-    def __enter__(self) -> "using_attributes":
-        self.attach_context()
+    async def __aenter__(self) -> "using_attributes":
+        await super().__aenter__()
         return self
-
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.detach_context()
-        return
-
-
-class async_using_attributes(AbstractAsyncContextManager, UsingAttributes):
-    """
-    TBD
-    """
-
-    slots = [
-        "_token",
-    ]
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-
-    async def __aenter__(self) -> "async_using_attributes":
-        self.attach_context()
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
-        self.detach_context()
-        return
 
 
 def get_attributes_from_context() -> Iterator[Tuple[str, AttributeValue]]:
     for ctx_attr in CONTEXT_ATTRIBUTES:
         yield ctx_attr, get_value(ctx_attr)
-
-
-def is_dict_of(
-    d: Dict[object, object],
-    key_allowed_types: (Type),
-    value_allowed_types: (Type) = (),
-    value_list_allowed_types: (Type) = (),
-) -> bool:
-    """
-    Method to check types are valid for dictionary.
-
-    Arguments:
-    ----------
-        d (Dict[object, object]): dictionary itself
-        key_allowed_types (T): all allowed types for keys of dictionary
-        value_allowed_types (T): all allowed types for values of dictionary
-        value_list_allowed_types (T): if value is a list, these are the allowed types for value list
-
-    Returns:
-    --------
-        True if the data types of dictionary match the types specified by the arguments, false otherwise
-    """
-    if value_list_allowed_types and not isinstance(value_list_allowed_types, tuple):
-        value_list_allowed_types = (value_list_allowed_types,)
-
-    return (
-        isinstance(d, dict)
-        and all(isinstance(k, key_allowed_types) for k in d.keys())
-        and all(
-            isinstance(v, value_allowed_types)
-            or any(is_list_of(v, t) for t in value_list_allowed_types)
-            for v in d.values()
-            if value_allowed_types or value_list_allowed_types
-        )
-    )
-
-
-def is_list_of(lst: Sequence[object], tp: Type) -> bool:
-    return isinstance(lst, list) and all(isinstance(x, tp) for x in lst)
