@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import Optional
 
 from opentelemetry import trace as trace_api
@@ -11,6 +12,7 @@ logger.addHandler(logging.NullHandler())
 class _WithSpan:
     __slots__ = (
         "_span",
+        "_context_attributes",
         "_extra_attributes",
         "_is_finished",
     )
@@ -18,9 +20,11 @@ class _WithSpan:
     def __init__(
         self,
         span: trace_api.Span,
+        context_attributes: Attributes = None,
         extra_attributes: Attributes = None,
     ) -> None:
         self._span = span
+        self._context_attributes = context_attributes
         self._extra_attributes = extra_attributes
         try:
             self._is_finished = not self._span.is_recording()
@@ -58,6 +62,7 @@ class _WithSpan:
             return
         for mapping in (
             attributes,
+            self._context_attributes,
             self._extra_attributes,
             extra_attributes,
         ):
@@ -67,7 +72,10 @@ class _WithSpan:
                 if value is None:
                     continue
                 try:
-                    self._span.set_attribute(key, value)
+                    if isinstance(value, dict):
+                        self._span.set_attribute(key, json.dumps(value))
+                    else:
+                        self._span.set_attribute(key, value)
                 except Exception:
                     logger.exception("Failed to set attribute on span")
         if status is not None:
