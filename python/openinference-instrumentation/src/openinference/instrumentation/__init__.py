@@ -37,9 +37,7 @@ class suppress_tracing:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        """Raise any exception triggered within the runtime context."""
         detach(self._token)
-        return None
 
 
 class UsingAttributes:
@@ -47,7 +45,7 @@ class UsingAttributes:
         self,
         session_id: str = "",
         user_id: str = "",
-        metadata: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
     ) -> None:
         self._session_id = session_id
@@ -67,11 +65,6 @@ class UsingAttributes:
             ctx = set_value(SpanAttributes.TAG_TAGS, self._tags, ctx)
 
         self._token = attach(ctx)
-        return
-
-    def detach_context(self) -> None:
-        detach(self._token)
-        return
 
     def __enter__(self) -> "UsingAttributes":
         self.attach_context()
@@ -82,12 +75,10 @@ class UsingAttributes:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.detach_context()
-        return
+        detach(self._token)
 
     async def __aexit__(self, exc_type, exc_value, traceback) -> None:
-        self.detach_context()
-        return
+        detach(self._token)
 
 
 class using_session(UsingAttributes):
@@ -129,7 +120,7 @@ class using_metadata(UsingAttributes):
     TBD
     """
 
-    def __init__(self, metadata: Dict[str, str]) -> None:
+    def __init__(self, metadata: Dict[str, Any]) -> None:
         super().__init__(metadata=metadata)
 
     def __enter__(self) -> "using_metadata":
@@ -177,4 +168,5 @@ class using_attributes(UsingAttributes):
 
 def get_attributes_from_context() -> Iterator[Tuple[str, AttributeValue]]:
     for ctx_attr in CONTEXT_ATTRIBUTES:
-        yield ctx_attr, get_value(ctx_attr)
+        if (val := get_value(ctx_attr)) is not None:
+            yield ctx_attr, val
