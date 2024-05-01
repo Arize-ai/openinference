@@ -93,14 +93,95 @@ class UsingAttributes:
         return
 
 
+class using_session(AbstractContextManager, UsingAttributes):
+    """
+    TBD
+    """
+
+    def __init__(self, session_id: str) -> None:
+        super().__init__(session_id=session_id)
+
+    def __enter__(self) -> "using_session":
+        self.attach_context()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.detach_context()
+        return
+
+
+class using_user(AbstractContextManager, UsingAttributes):
+    """
+    TBD
+    """
+
+    def __init__(self, user_id: str) -> None:
+        super().__init__(user_id=user_id)
+
+    def __enter__(self) -> "using_user":
+        self.attach_context()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.detach_context()
+        return
+
+
+class using_metadata(AbstractContextManager, UsingAttributes):
+    """
+    TBD
+    """
+
+    def __init__(self, metadata: Dict[str, str]) -> None:
+        super().__init__(metadata=metadata)
+
+    def __enter__(self) -> "using_metadata":
+        self.attach_context()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.detach_context()
+        return
+
+
+class using_tags(AbstractContextManager, UsingAttributes):
+    """
+    TBD
+    """
+
+    def __init__(self, tags: List[str]) -> None:
+        super().__init__(tags=tags)
+
+    def __enter__(self) -> "using_tags":
+        self.attach_context()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.detach_context()
+        return
+
+
 class using_attributes(AbstractContextManager, UsingAttributes):
     """
     TBD
     """
 
-    slots = [
-        "_token",
-    ]
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+    def __enter__(self) -> "using_attributes":
+        self.attach_context()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.detach_context()
+        return
+
+
+class using_attributes(AbstractContextManager, UsingAttributes):
+    """
+    TBD
+    """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
