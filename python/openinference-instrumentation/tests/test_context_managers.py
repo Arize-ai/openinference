@@ -1,7 +1,14 @@
 from typing import Iterator
 
 import pytest
-from openinference.instrumentation import suppress_tracing
+from openinference.instrumentation import (
+    suppress_tracing,
+    using_session,
+    using_user,
+    using_metadata,
+    using_tags,
+    using_attributes,
+)
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     attach,
