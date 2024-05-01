@@ -1,0 +1,111 @@
+ 
+SYNC
+ 
+{
+    "name": "ChatCompletion",
+    "context": {
+        "trace_id": "0x160cb466f2d2afeff4d545250f65282c",
+        "span_id": "0x126e46b0568ab38c",
+        "trace_state": "[]"
+    },
+    "kind": "SpanKind.INTERNAL",
+    "parent_id": null,
+    "start_time": "2024-05-01T18:41:34.721392Z",
+    "end_time": "2024-05-01T18:41:35.709838Z",
+    "status": {
+        "status_code": "OK"
+    },
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "input.value": "{\"messages\": [{\"role\": \"user\", \"content\": \"Write a haiku.\"}], \"model\": \"gpt-3.5-turbo\", \"max_tokens\": 20}",
+        "input.mime_type": "application/json",
+        "output.value": "{\"id\":\"chatcmpl-9K9BXNZrqmuBpGFHKPYpYPic5tmwz\",\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null,\"message\":{\"content\":\"Blossoms dance in wind\\nPetals fall like tears from sky\\nNature's gentle grace\",\"role\":\"assistant\"}}],\"created\":1714588895,\"model\":\"gpt-3.5-turbo-0125\",\"object\":\"chat.completion\",\"system_fingerprint\":\"fp_3b956da36b\",\"usage\":{\"completion_tokens\":19,\"prompt_tokens\":12,\"total_tokens\":31}}",
+        "output.mime_type": "application/json",
+        "session.id": "test-session",
+        "user.id": "kiko",
+        "metadata": "{\"show\": \"blacklist\", \"hour\": \"dusk\"}",
+        "tag.tags": [
+            "x",
+            "y",
+            "z"
+        ],
+        "llm.invocation_parameters": "{\"model\": \"gpt-3.5-turbo\", \"max_tokens\": 20}",
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.content": "Write a haiku.",
+        "llm.model_name": "gpt-3.5-turbo-0125",
+        "llm.token_count.total": 31,
+        "llm.token_count.prompt": 12,
+        "llm.token_count.completion": 19,
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.content": "Blossoms dance in wind\nPetals fall like tears from sky\nNature's gentle grace"
+    },
+    "events": [],
+    "links": [],
+    "resource": {
+        "attributes": {
+            "telemetry.sdk.language": "python",
+            "telemetry.sdk.name": "opentelemetry",
+            "telemetry.sdk.version": "1.24.0",
+            "service.name": "unknown_service"
+        },
+        "schema_url": ""
+    }
+}
+ctx={'session.id': 'test-session', 'metadata': {'show': 'blacklist', 'hour': 'dusk'}, 'user.id': 'kiko', 'tag.tags': ['x', 'y', 'z']}
+ 
+ASYNC
+ 
+{
+    "name": "ChatCompletion",
+    "context": {
+        "trace_id": "0x7dc5cd6905f15f8bcb8ef3e8e679947f",
+        "span_id": "0x728a10b6c1afa1c2",
+        "trace_state": "[]"
+    },
+    "kind": "SpanKind.INTERNAL",
+    "parent_id": null,
+    "start_time": "2024-05-01T18:41:35.733950Z",
+    "end_time": "2024-05-01T18:41:36.394155Z",
+    "status": {
+        "status_code": "OK"
+    },
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "input.value": "{\"messages\": [{\"role\": \"user\", \"content\": \"Write a haiku.\"}], \"model\": \"gpt-3.5-turbo\", \"max_tokens\": 20}",
+        "input.mime_type": "application/json",
+        "output.value": "{\"id\":\"chatcmpl-9K9BX5bMhbfxKuJqSXqDgdZRyynyK\",\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null,\"message\":{\"content\":\"Sunset on the shore\\nColors dance across the sky\\nPeaceful waves whisper\",\"role\":\"assistant\"}}],\"created\":1714588895,\"model\":\"gpt-3.5-turbo-0125\",\"object\":\"chat.completion\",\"system_fingerprint\":\"fp_3b956da36b\",\"usage\":{\"completion_tokens\":16,\"prompt_tokens\":12,\"total_tokens\":28}}",
+        "output.mime_type": "application/json",
+        "session.id": "test-session",
+        "user.id": "kiko",
+        "metadata": "{\"show\": \"blacklist\", \"hour\": \"dusk\"}",
+        "tag.tags": [
+            "x",
+            "y",
+            "z"
+        ],
+        "llm.invocation_parameters": "{\"model\": \"gpt-3.5-turbo\", \"max_tokens\": 20}",
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.content": "Write a haiku.",
+        "llm.model_name": "gpt-3.5-turbo-0125",
+        "llm.token_count.total": 28,
+        "llm.token_count.prompt": 12,
+        "llm.token_count.completion": 16,
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.content": "Sunset on the shore\nColors dance across the sky\nPeaceful waves whisper"
+    },
+    "events": [],
+    "links": [],
+    "resource": {
+        "attributes": {
+            "telemetry.sdk.language": "python",
+            "telemetry.sdk.name": "opentelemetry",
+            "telemetry.sdk.version": "1.24.0",
+            "service.name": "unknown_service"
+        },
+        "schema_url": ""
+    }
+}
+ 
+DONE
+ 
+ctx={}
