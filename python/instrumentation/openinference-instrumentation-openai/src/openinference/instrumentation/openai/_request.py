@@ -12,7 +12,6 @@ from typing import (
     Tuple,
 )
 
-from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -42,7 +41,6 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
-
 __all__ = (
     "_Request",
     "_AsyncRequest",
@@ -62,7 +60,6 @@ class _WithTracer(ABC):
         self,
         span_name: str,
         attributes: Iterable[Tuple[str, AttributeValue]],
-        context_attributes: Iterable[Tuple[str, AttributeValue]],
         extra_attributes: Iterable[Tuple[str, AttributeValue]],
     ) -> Iterator[_WithSpan]:
         # Because OTEL has a default limit of 128 attributes, we split our attributes into
@@ -79,11 +76,7 @@ class _WithTracer(ABC):
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            yield _WithSpan(
-                span=span,
-                context_attributes=dict(context_attributes),
-                extra_attributes=dict(extra_attributes),
-            )
+            yield _WithSpan(span=span, extra_attributes=dict(extra_attributes))
 
 
 _RequestParameters: TypeAlias = Mapping[str, Any]
@@ -272,7 +265,6 @@ class _Request(_WithTracer, _WithOpenAI):
                 cast_to=cast_to,
                 request_parameters=request_parameters,
             ),
-            context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(
                 cast_to=cast_to,
                 request_parameters=request_parameters,
@@ -326,7 +318,6 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 cast_to=cast_to,
                 request_parameters=request_parameters,
             ),
-            context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(
                 cast_to=cast_to,
                 request_parameters=request_parameters,
