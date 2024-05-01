@@ -1,4 +1,3 @@
-import json
 from typing import Dict, List, Any, Optional
 from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
@@ -62,7 +61,7 @@ class UsingAttributes:
         if self._user_id:
             ctx = set_value(SpanAttributes.USER_ID, self._user_id, ctx)
         if self._metadata:
-            ctx = set_value(SpanAttributes.METADATA, json.dumps(self._metadata), ctx)
+            ctx = set_value(SpanAttributes.METADATA, self._metadata, ctx)
         if self._tags:
             ctx = set_value(SpanAttributes.TAG_TAGS, self._tags, ctx)
 
