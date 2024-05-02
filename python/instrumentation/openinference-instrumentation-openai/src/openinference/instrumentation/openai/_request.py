@@ -42,7 +42,6 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
-
 __all__ = (
     "_Request",
     "_AsyncRequest",

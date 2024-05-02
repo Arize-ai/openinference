@@ -1,5 +1,4 @@
 import logging
-import json
 from typing import Optional
 
 from opentelemetry import trace as trace_api
@@ -72,10 +71,7 @@ class _WithSpan:
                 if value is None:
                     continue
                 try:
-                    if isinstance(value, dict):
-                        self._span.set_attribute(key, json.dumps(value))
-                    else:
-                        self._span.set_attribute(key, value)
+                    self._span.set_attribute(key, value)
                 except Exception:
                     logger.exception("Failed to set attribute on span")
         if status is not None:
