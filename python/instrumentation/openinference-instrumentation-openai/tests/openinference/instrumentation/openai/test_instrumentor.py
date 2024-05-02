@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import random
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from importlib import import_module
 from importlib.metadata import version
 from itertools import count
@@ -106,29 +106,32 @@ def test_chat_completions(
     )
     create = completions.with_raw_response.create if is_raw else completions.create
 
-    with suppress(openai.BadRequestError):
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-        ):
-            if is_async:
+    with ExitStack() as stack:
+        stack.enter_context(suppress(openai.BadRequestError))
+        stack.enter_context(
+            using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+            )
+        )
+        if is_async:
 
-                async def task() -> None:
-                    response = await create(**create_kwargs)
-                    response = response.parse() if is_raw else response
-                    if is_stream:
-                        async for _ in response:
-                            pass
-
-                asyncio.run(task())
-            else:
-                response = create(**create_kwargs)
+            async def task() -> None:
+                response = await create(**create_kwargs)
                 response = response.parse() if is_raw else response
                 if is_stream:
-                    for _ in response:
+                    async for _ in response:
                         pass
+
+            asyncio.run(task())
+        else:
+            response = create(**create_kwargs)
+            response = response.parse() if is_raw else response
+            if is_stream:
+                for _ in response:
+                    pass
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2  # first span should be from the httpx instrumentor
     span: ReadableSpan = spans[1]
@@ -261,29 +264,32 @@ def test_completions(
         else openai.OpenAI(api_key="sk-").completions
     )
     create = completions.with_raw_response.create if is_raw else completions.create
-    with suppress(openai.BadRequestError):
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-        ):
-            if is_async:
+    with ExitStack() as stack:
+        stack.enter_context(suppress(openai.BadRequestError))
+        stack.enter_context(
+            using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+            )
+        )
+        if is_async:
 
-                async def task() -> None:
-                    response = await create(**create_kwargs)
-                    response = response.parse() if is_raw else response
-                    if is_stream:
-                        async for _ in response:
-                            pass
-
-                asyncio.run(task())
-            else:
-                response = create(**create_kwargs)
+            async def task() -> None:
+                response = await create(**create_kwargs)
                 response = response.parse() if is_raw else response
                 if is_stream:
-                    for _ in response:
+                    async for _ in response:
                         pass
+
+            asyncio.run(task())
+        else:
+            response = create(**create_kwargs)
+            response = response.parse() if is_raw else response
+            if is_stream:
+                for _ in response:
+                    pass
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2  # first span should be from the httpx instrumentor
     span: ReadableSpan = spans[1]
