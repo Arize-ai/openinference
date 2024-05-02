@@ -16,6 +16,8 @@ export const SemanticAttributePrefixes = {
   tool_call: "tool_call",
   metadata: "metadata",
   tag: "tag",
+  session: "session",
+  user: "user",
   openinference: "openinference",
 } as const;
 
@@ -83,6 +85,14 @@ export const DocumentAttributePostfixes = {
 
 export const TagAttributePostfixes = {
   tags: "tags",
+} as const;
+
+export const SessionAttributePostfixes = {
+  id: "id",
+} as const;
+
+export const UserAttributePostfixes = {
+  id: "id",
 } as const;
 
 /**
@@ -270,6 +280,18 @@ export const TOOL_NAME =
 export const TOOL_DESCRIPTION =
   `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.description}` as const;
 
+/**
+ * The session id of a trace. Used to correlate spans in a single session.
+ */
+export const SESSION_ID =
+  `${SemanticAttributePrefixes.session}.${SessionAttributePostfixes.id}` as const;
+
+/**
+ * The user id of a trace. Used to correlate spans for a single user.
+ */
+export const USER_ID =
+  `${SemanticAttributePrefixes.user}.${UserAttributePostfixes.id}` as const;
+
 export const SemanticConventions = {
   INPUT_VALUE,
   INPUT_MIME_TYPE,
@@ -305,6 +327,8 @@ export const SemanticConventions = {
   PROMPT_TEMPLATE_TEMPLATE,
   LLM_FUNCTION_CALL,
   RETRIEVAL_DOCUMENTS,
+  SESSION_ID,
+  USER_ID,
   // OpenInference steps
   OPENINFERENCE_SPAN_KIND: `${SemanticAttributePrefixes.openinference}.span.kind`,
 } as const;

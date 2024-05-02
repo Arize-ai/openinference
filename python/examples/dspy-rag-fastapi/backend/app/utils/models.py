@@ -9,7 +9,7 @@ class MessageData(BaseModel):
 
     query: str
     # chat_history: List[dict] | None
-    openai_model_name: str
+    vendor_model: str  # A concatenation of the vendor and model name
     temperature: float
     top_p: float
     max_tokens: int
@@ -32,7 +32,7 @@ class QAList(BaseModel):
     """Datamodel for trainset."""
 
     items: List[QAItem]
-    openai_model_name: str
+    vendor_model: str  # A concatenation of the vendor and model name
     temperature: float
     top_p: float
     max_tokens: int

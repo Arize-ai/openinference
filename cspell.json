@@ -6,6 +6,7 @@
         "arizeai",
         "autouse",
         "chatbot",
+        "dotenv",
         "dspy",
         "instrumentator",
         "Instrumentor",
@@ -16,7 +17,8 @@
         "OTLP",
         "Streamlit",
         "uninstrument",
-        "unsuppress"
+        "unsuppress",
+        "weaviate"
     ],
     "flagWords": [
         "hte"
