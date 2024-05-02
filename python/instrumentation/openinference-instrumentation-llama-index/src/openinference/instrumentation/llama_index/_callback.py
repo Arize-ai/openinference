@@ -1,6 +1,7 @@
 import json
 import logging
 from dataclasses import dataclass
+from openinference.instrumentation import get_attributes_from_context
 from enum import Enum
 from threading import RLock
 from time import time_ns
@@ -272,6 +273,13 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
             context=context,
         )
         span.set_attribute(OPENINFERENCE_SPAN_KIND, _get_span_kind(event_type).value)
+        for key, value in get_attributes_from_context():
+            if value is None:
+                continue
+            try:
+                span.set_attribute(key, value)
+            except Exception:
+                logger.exception("Failed to set attribute on span")
         new_context = trace_api.set_span_in_context(span)
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
