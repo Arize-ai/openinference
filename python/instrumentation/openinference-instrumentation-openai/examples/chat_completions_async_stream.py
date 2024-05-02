@@ -1,6 +1,7 @@
 import asyncio
 
 import openai
+from openinference.instrumentation import using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -18,10 +19,24 @@ OpenAIInstrumentor().instrument()
 
 async def chat_completions(**kwargs):
     client = openai.AsyncOpenAI()
-    response = await client.chat.completions.create(**kwargs)
-    async for chunk in response:
-        if content := chunk.choices[0].delta.content:
-            print(content, end="")
+    with using_attributes(
+        session_id="my-test-session",
+        user_id="my-test-user",
+        metadata={
+            "test-int": 1,
+            "test-str": "string",
+            "test-list": [1, 2, 3],
+            "test-dict": {
+                "key-1": "val-1",
+                "key-2": "val-2",
+            },
+        },
+        tags=["tag-1", "tag-2"],
+    ):
+        response = await client.chat.completions.create(**kwargs)
+        async for chunk in response:
+            if content := chunk.choices[0].delta.content:
+                print(content, end="")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import random
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from importlib import import_module
 from importlib.metadata import version
 from itertools import count
@@ -23,6 +23,7 @@ from typing import (
 
 import pytest
 from httpx import AsyncByteStream, Response
+from openinference.instrumentation import using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -63,6 +64,10 @@ def test_chat_completions(
     completion_usage: Dict[str, Any],
     model_name: str,
     chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     input_messages: List[Dict[str, Any]] = get_messages()
     output_messages: List[Dict[str, Any]] = (
@@ -100,7 +105,17 @@ def test_chat_completions(
         else openai.OpenAI(api_key="sk-").chat.completions
     )
     create = completions.with_raw_response.create if is_raw else completions.create
-    with suppress(openai.BadRequestError):
+
+    with ExitStack() as stack:
+        stack.enter_context(suppress(openai.BadRequestError))
+        stack.enter_context(
+            using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+            )
+        )
         if is_async:
 
             async def task() -> None:
@@ -181,6 +196,18 @@ def test_chat_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
+    assert attributes.pop(SESSION_ID, None) == session_id
+    assert attributes.pop(USER_ID, None) == user_id
+    attr_tags = attributes.pop(TAG_TAGS, None)
+    assert attr_tags is not None
+    assert isinstance(attr_tags, tuple)
+    assert len(attr_tags) == len(tags)
+    assert list(attr_tags) == tags
+    attr_metadata = attributes.pop(METADATA, None)
+    assert attr_metadata is not None
+    assert isinstance(attr_metadata, str)  # must be json string
+    metadata_dict = json.loads(attr_metadata)
+    assert metadata_dict == metadata
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -198,6 +225,10 @@ def test_completions(
     completion_usage: Dict[str, Any],
     model_name: str,
     completion_mock_stream: Tuple[List[bytes], List[str]],
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     prompt: List[str] = get_texts()
     output_texts: List[str] = completion_mock_stream[1] if is_stream else get_texts()
@@ -233,7 +264,16 @@ def test_completions(
         else openai.OpenAI(api_key="sk-").completions
     )
     create = completions.with_raw_response.create if is_raw else completions.create
-    with suppress(openai.BadRequestError):
+    with ExitStack() as stack:
+        stack.enter_context(suppress(openai.BadRequestError))
+        stack.enter_context(
+            using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+            )
+        )
         if is_async:
 
             async def task() -> None:
@@ -286,6 +326,18 @@ def test_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
+    assert attributes.pop(SESSION_ID, None) == session_id
+    assert attributes.pop(USER_ID, None) == user_id
+    attr_tags = attributes.pop(TAG_TAGS, None)
+    assert attr_tags is not None
+    assert isinstance(attr_tags, tuple)
+    assert len(attr_tags) == len(tags)
+    assert list(attr_tags) == tags
+    attr_metadata = attributes.pop(METADATA, None)
+    assert attr_metadata is not None
+    assert isinstance(attr_metadata, str)  # must be json string
+    metadata_dict = json.loads(attr_metadata)
+    assert metadata_dict == metadata
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -386,6 +438,34 @@ def test_embeddings(
                 == embedding[1]
             )
     assert attributes == {}  # test should account for all span attributes
+
+
+@pytest.fixture()
+def session_id() -> str:
+    return "my-test-session-id"
+
+
+@pytest.fixture()
+def user_id() -> str:
+    return "my-test-user-id"
+
+
+@pytest.fixture()
+def metadata() -> Dict[str, Any]:
+    return {
+        "test-int": 1,
+        "test-str": "string",
+        "test-list": [1, 2, 3],
+        "test-dict": {
+            "key-1": "val-1",
+            "key-2": "val-2",
+        },
+    }
+
+
+@pytest.fixture()
+def tags() -> List[str]:
+    return ["tag-1", "tag-2"]
 
 
 @pytest.fixture(scope="module")
@@ -671,3 +751,7 @@ EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
+SESSION_ID = SpanAttributes.SESSION_ID
+USER_ID = SpanAttributes.USER_ID
+METADATA = SpanAttributes.METADATA
+TAG_TAGS = SpanAttributes.TAG_TAGS
