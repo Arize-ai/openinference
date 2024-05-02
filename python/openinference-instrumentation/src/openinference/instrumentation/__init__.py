@@ -1,12 +1,5 @@
 import json
-from typing import (
-    Any,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Tuple,
-)
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
@@ -18,6 +11,7 @@ from opentelemetry.context import (
     set_value,
 )
 from opentelemetry.util.types import AttributeValue
+from typing_extensions import Self
 
 CONTEXT_ATTRIBUTES = (
     SpanAttributes.SESSION_ID,
@@ -41,11 +35,18 @@ class suppress_tracing:
         self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
         return self
 
+    def __aenter__(self) -> "suppress_tracing":
+        self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
+        return self
+
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         detach(self._token)
 
+    def __aexit__(self, exc_type, exc_value, traceback) -> None:
+        detach(self._token)
 
-class _UsingAttributes:
+
+class _UsingAttributesContextManager:
     def __init__(
         self,
         *,
@@ -69,14 +70,15 @@ class _UsingAttributes:
             ctx = set_value(SpanAttributes.METADATA, json.dumps(self._metadata, default=str), ctx)
         if self._tags:
             ctx = set_value(SpanAttributes.TAG_TAGS, self._tags, ctx)
-
         self._token = attach(ctx)
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> Self:
         self.attach_context()
+        return self
 
-    async def __aenter__(self) -> None:
+    async def __aenter__(self) -> Self:
         self.attach_context()
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         detach(self._token)
@@ -85,7 +87,7 @@ class _UsingAttributes:
         detach(self._token)
 
 
-class using_session(_UsingAttributes):
+class using_session(_UsingAttributesContextManager):
     """
     Context manager to add session id to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the session id as a span attribute,
@@ -101,16 +103,8 @@ class using_session(_UsingAttributes):
     def __init__(self, session_id: str) -> None:
         super().__init__(session_id=session_id)
 
-    def __enter__(self) -> "using_session":
-        super().__enter__()
-        return self
 
-    async def __aenter__(self) -> "using_session":
-        super().__aenter__()
-        return self
-
-
-class using_user(_UsingAttributes):
+class using_user(_UsingAttributesContextManager):
     """
     Context manager to add user id to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the user id as a span attribute,
@@ -126,16 +120,8 @@ class using_user(_UsingAttributes):
     def __init__(self, user_id: str) -> None:
         super().__init__(user_id=user_id)
 
-    def __enter__(self) -> "using_user":
-        super().__enter__()
-        return self
 
-    async def __aenter__(self) -> "using_user":
-        super().__aenter__()
-        return self
-
-
-class using_metadata(_UsingAttributes):
+class using_metadata(_UsingAttributesContextManager):
     """
     Context manager to add metadata to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the metadata as a span attribute,
@@ -156,16 +142,8 @@ class using_metadata(_UsingAttributes):
     def __init__(self, metadata: Dict[str, Any]) -> None:
         super().__init__(metadata=metadata)
 
-    def __enter__(self) -> "using_metadata":
-        super().__enter__()
-        return self
 
-    async def __aenter__(self) -> "using_metadata":
-        super().__aenter__()
-        return self
-
-
-class using_tags(_UsingAttributes):
+class using_tags(_UsingAttributesContextManager):
     """
     Context manager to add tags to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the tags as a span attribute,
@@ -186,16 +164,8 @@ class using_tags(_UsingAttributes):
     def __init__(self, tags: List[str]) -> None:
         super().__init__(tags=tags)
 
-    def __enter__(self) -> "using_tags":
-        super().__enter__()
-        return self
 
-    async def __aenter__(self) -> "using_tags":
-        super().__aenter__()
-        return self
-
-
-class using_attributes(_UsingAttributes):
+class using_attributes(_UsingAttributesContextManager):
     """
     Context manager to add attributes to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the attributes to the traced span,
@@ -253,14 +223,6 @@ class using_attributes(_UsingAttributes):
             metadata=metadata,
             tags=tags,
         )
-
-    def __enter__(self) -> "using_attributes":
-        super().__enter__()
-        return self
-
-    async def __aenter__(self) -> "using_attributes":
-        await super().__aenter__()
-        return self
 
 
 def get_attributes_from_context() -> Iterator[Tuple[str, AttributeValue]]:
