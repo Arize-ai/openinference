@@ -5,7 +5,8 @@
 
 ### Features
 
-* Create `using_attributes` context managers and have openai instrumentation read from it ([#414](https://github.com/Arize-ai/openinference/issues/414)) ([c142b3a](https://github.com/Arize-ai/openinference/commit/c142b3a1adcb286d9d4be00d7bbe34c23f6e6805))
+* Create context managers to pass session, user, metadata and tags as span attributes ([#414](https://github.com/Arize-ai/openinference/issues/414)) ([c142b3a](https://github.com/Arize-ai/openinference/commit/c142b3a1adcb286d9d4be00d7bbe34c23f6e6805))
+
 
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.0...python-openinference-instrumentation-v0.1.1) (2024-03-26)
 
