@@ -26,6 +26,7 @@ from uuid import UUID
 import wrapt  # type: ignore
 from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
+from openinference.instrumentation import get_attributes_from_context
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -212,6 +213,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
             )
         )
     )
+    span.set_attributes(dict(get_attributes_from_context()))
 
 
 def _langchain_run_type_to_span_kind(run_type: str) -> OpenInferenceSpanKindValues:
