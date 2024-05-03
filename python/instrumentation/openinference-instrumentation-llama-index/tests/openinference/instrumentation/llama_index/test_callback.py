@@ -189,8 +189,7 @@ def _check_spans(
     elif (
         # FIXME: currently the error is propagated when streaming because we don't rely on
         # `on_event_end` to set the status code.
-        status_code == 400
-        and is_stream
+        status_code == 400 and is_stream
     ):
         assert query_span.status.status_code == trace_api.StatusCode.ERROR
         assert query_span.status.description and query_span.status.description.startswith(
@@ -214,8 +213,7 @@ def _check_spans(
     elif (
         # FIXME: currently the error is propagated when streaming because we don't rely on
         # `on_event_end` to set the status code.
-        status_code == 400
-        and is_stream
+        status_code == 400 and is_stream
     ):
         assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
         assert query_span.status.description and query_span.status.description.startswith(
