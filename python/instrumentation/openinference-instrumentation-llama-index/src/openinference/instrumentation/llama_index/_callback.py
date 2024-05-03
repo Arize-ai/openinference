@@ -444,11 +444,11 @@ class _ResponseGen(ObjectProxy):  # type: ignore
                     )
                 else:
                     span.set_attributes(flattened_attributes)
-                for key, value in get_attributes_from_context():
-                    if value is None:
+                for key, val in get_attributes_from_context():
+                    if val is None:
                         continue
                     try:
-                        span.set_attribute(key, value)
+                        span.set_attribute(key, val)
                     except Exception:
                         logger.exception("Failed to set attribute on span")
                 span.set_status(status=status)
