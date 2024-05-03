@@ -17,7 +17,6 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
-from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
 from openinference.semconv.trace import (
@@ -222,7 +221,6 @@ class _LMBasicRequestWrapper(_WithTracer):
                 )
             ),
         ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -302,7 +300,6 @@ class _PredictForwardWrapper(_WithTracer):
                 )
             ),
         ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
             try:
                 prediction = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -372,7 +369,6 @@ class _ModuleForwardWrapper(_WithTracer):
                 )
             ),
         ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
             try:
                 prediction = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -424,7 +420,6 @@ class _RetrieverForwardWrapper(_WithTracer):
                 )
             ),
         ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
             try:
                 prediction = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -477,7 +472,6 @@ class _RetrieverModelCallWrapper(_WithTracer):
                 )
             ),
         ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
             try:
                 retrieved_documents = wrapped(*args, **kwargs)
             except Exception as exception:
