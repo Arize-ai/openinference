@@ -124,6 +124,9 @@ def test_callback_llm(
         else:
 
             def threaded_query(question: str) -> None:
+                # This context manager must be inside this function definition so
+                # there's a different instantiation per thread. This allows to use
+                # a different context per thread, as desired
                 with using_attributes(
                     session_id=session_id,
                     user_id=user_id,
