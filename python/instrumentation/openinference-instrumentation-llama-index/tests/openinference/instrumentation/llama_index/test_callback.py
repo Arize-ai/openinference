@@ -131,23 +131,10 @@ def test_callback_llm(
                     tags=tags,
                 ):
                     response = query_engine.query(question)
-                    list(cast(StreamingResponse, response).response_gen) if is_stream else None,
+                    (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
 
             with ThreadPoolExecutor(max_workers=n) as executor:
                 executor.map(
-                    # using_attributes(
-                    #     session_id=session_id,
-                    #     user_id=user_id,
-                    #     metadata=metadata,
-                    #     tags=tags,
-                    # )(
-                    #     lambda question: (
-                    #         (response := query_engine.query(question)),
-                    #         list(cast(StreamingResponse, response).response_gen)
-                    #         if is_stream
-                    #         else None,
-                    #     )
-                    # ),
                     threaded_query,
                     questions,
                 )
@@ -199,8 +186,7 @@ def _check_spans(
     elif (
         # FIXME: currently the error is propagated when streaming because we don't rely on
         # `on_event_end` to set the status code.
-        status_code == 400
-        and is_stream
+        status_code == 400 and is_stream
     ):
         assert query_span.status.status_code == trace_api.StatusCode.ERROR
         assert query_span.status.description and query_span.status.description.startswith(
@@ -224,8 +210,7 @@ def _check_spans(
     elif (
         # FIXME: currently the error is propagated when streaming because we don't rely on
         # `on_event_end` to set the status code.
-        status_code == 400
-        and is_stream
+        status_code == 400 and is_stream
     ):
         assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
         assert query_span.status.description and query_span.status.description.startswith(
@@ -320,13 +305,13 @@ def _check_context_attributes(
     attr_tags = attributes.pop(TAG_TAGS, None)
     assert attr_tags is not None
     # assert isinstance(attr_tags, list)
-    # assert len(attr_tags) == len(tags)
-    # assert list(attr_tags) == tags
+    assert len(attr_tags) == len(tags)
+    assert list(attr_tags) == tags
     attr_metadata = attributes.pop(METADATA, None)
     assert attr_metadata is not None
     assert isinstance(attr_metadata, str)  # must be json string
-    # metadata_dict = json.loads(attr_metadata)
-    # assert metadata_dict == metadata
+    metadata_dict = json.loads(attr_metadata)
+    assert metadata_dict == metadata
     # print(attr_tags)
     # print(type(attr_tags))
     # print(attr_metadata)
