@@ -444,13 +444,7 @@ class _ResponseGen(ObjectProxy):  # type: ignore
                     )
                 else:
                     span.set_attributes(flattened_attributes)
-                for key, val in get_attributes_from_context():
-                    if val is None:
-                        continue
-                    try:
-                        span.set_attribute(key, val)
-                    except Exception:
-                        logger.exception("Failed to set attribute on span")
+                span.set_attributes(dict(get_attributes_from_context()))
                 span.set_status(status=status)
                 end_time = event_data.end_time
                 span.end(end_time=end_time)
@@ -479,14 +473,8 @@ def _finish_tracing(event_data: _EventData) -> None:
     else:
         status = trace_api.Status(status_code=trace_api.StatusCode.OK)
     span.set_status(status=status)
-    for key, value in get_attributes_from_context():
-        if value is None:
-            continue
-        try:
-            span.set_attribute(key, value)
-        except Exception:
-            logger.exception("Failed to set attribute on span")
     try:
+        span.set_attributes(dict(get_attributes_from_context()))
         span.set_attributes(dict(_flatten(attributes)))
     except Exception:
         logger.exception(
