@@ -16,7 +16,6 @@ from typing import (
     Tuple,
 )
 
-from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.mistralai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -61,7 +60,6 @@ class _WithTracer(ABC):
         self,
         span_name: str,
         attributes: Iterable[Tuple[str, AttributeValue]],
-        context_attributes: Iterable[Tuple[str, AttributeValue]],
         extra_attributes: Iterable[Tuple[str, AttributeValue]],
     ) -> Iterator[_WithSpan]:
         # Because OTEL has a default limit of 128 attributes, we split our
@@ -79,11 +77,7 @@ class _WithTracer(ABC):
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            yield _WithSpan(
-                span=span,
-                context_attributes=dict(context_attributes),
-                extra_attributes=dict(attributes),
-            )
+            yield _WithSpan(span=span, extra_attributes=dict(attributes))
 
 
 class _WithMistralAI(ABC):
@@ -223,7 +217,6 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=self._get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(request_parameters),
         ) as with_span:
             try:
@@ -271,7 +264,6 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=self._get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(request_parameters),
         ) as with_span:
             try:
@@ -319,7 +311,6 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=self._get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(request_parameters),
         ) as with_span:
             try:
