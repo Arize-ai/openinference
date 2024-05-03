@@ -213,13 +213,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
             )
         )
     )
-    for key, val in get_attributes_from_context():
-        if val is None:
-            continue
-        try:
-            span.set_attribute(key, val)
-        except Exception:
-            logger.exception("Failed to set attribute on span")
+    span.set_attributes(dict(get_attributes_from_context())
 
 
 def _langchain_run_type_to_span_kind(run_type: str) -> OpenInferenceSpanKindValues:
