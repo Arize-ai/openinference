@@ -2,6 +2,7 @@ import json
 from typing import (
     Any,
     AsyncIterator,
+    Dict,
     Generator,
     Iterable,
     Iterator,
@@ -17,6 +18,7 @@ from mistralai.async_client import MistralAsyncClient
 from mistralai.client import MistralClient
 from mistralai.exceptions import MistralAPIException
 from mistralai.models.chat_completion import ChatMessage, FunctionCall, ToolCall, ToolChoice
+from openinference.instrumentation import using_attributes
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -38,6 +40,10 @@ def test_synchronous_chat_completions_emits_expected_span(
     mistral_sync_client: MistralClient,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
@@ -63,16 +69,22 @@ def test_synchronous_chat_completions_emits_expected_span(
             },
         )
     )
-    response = mistral_sync_client.chat(
-        model="mistral-large-latest",
-        messages=[
-            ChatMessage(
-                content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                role="user",
-            )
-        ],
-        temperature=0.1,
-    )
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+    ):
+        response = mistral_sync_client.chat(
+            model="mistral-large-latest",
+            messages=[
+                ChatMessage(
+                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    role="user",
+                )
+            ],
+            temperature=0.1,
+        )
     choices = response.choices
     assert len(choices) == 1
     response_content = choices[0].message.content
@@ -122,6 +134,7 @@ def test_synchronous_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    _check_context_attributes(attributes, session_id, user_id, metadata, tags)
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -129,6 +142,10 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
     mistral_sync_client: MistralClient,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
@@ -161,35 +178,41 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
             },
         )
     )
-    response = mistral_sync_client.chat(
-        model="mistral-large-latest",
-        tool_choice=ToolChoice.any,
-        tools=[
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_weather",
-                    "description": "finds the weather for a given city",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "city": {
-                                "type": "string",
-                                "description": "The city to find the weather for, e.g. 'London'",
-                            }
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+    ):
+        response = mistral_sync_client.chat(
+            model="mistral-large-latest",
+            tool_choice=ToolChoice.any,
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "description": "finds the weather for a given city",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "city": {
+                                    "type": "string",
+                                    "description": "The city to find the weather for, e.g. 'London'",  # noqa: E501
+                                }
+                            },
+                            "required": ["city"],
                         },
-                        "required": ["city"],
                     },
                 },
-            },
-        ],
-        messages=[
-            ChatMessage(
-                content="What's the weather like in San Francisco?",
-                role="user",
-            )
-        ],
-    )
+            ],
+            messages=[
+                ChatMessage(
+                    content="What's the weather like in San Francisco?",
+                    role="user",
+                )
+            ],
+        )
     choices = response.choices
     assert len(choices) == 1
     assert choices[0].message.content == ""
@@ -249,6 +272,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    _check_context_attributes(attributes, session_id, user_id, metadata, tags)
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -256,6 +280,10 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     mistral_sync_client: MistralClient,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
@@ -281,27 +309,35 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
             },
         )
     )
-    response = mistral_sync_client.chat(
-        model="mistral-large-latest",
-        messages=[
-            ChatMessage(
-                content="What's the weather like in San Francisco?",
-                role="user",
-            ),
-            ChatMessage(
-                content="",
-                role="assistant",
-                tool_calls=[
-                    ToolCall(
-                        function=FunctionCall(
-                            name="get_weather", arguments='{"city": "San Francisco"}'
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+    ):
+        response = mistral_sync_client.chat(
+            model="mistral-large-latest",
+            messages=[
+                ChatMessage(
+                    content="What's the weather like in San Francisco?",
+                    role="user",
+                ),
+                ChatMessage(
+                    content="",
+                    role="assistant",
+                    tool_calls=[
+                        ToolCall(
+                            function=FunctionCall(
+                                name="get_weather", arguments='{"city": "San Francisco"}'
+                            )
                         )
-                    )
-                ],
-            ),
-            ChatMessage(role="tool", name="get_weather", content='{"weather_category": "sunny"}'),
-        ],
-    )
+                    ],
+                ),
+                ChatMessage(
+                    role="tool", name="get_weather", content='{"weather_category": "sunny"}'
+                ),
+            ],
+        )
     choices = response.choices
     assert len(choices) == 1
     assert choices[0].message.content == "The weather in San Francisco is currently sunny."
@@ -366,6 +402,7 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 74
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    _check_context_attributes(attributes, session_id, user_id, metadata, tags)
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -373,6 +410,10 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
     mistral_sync_client: MistralClient,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
@@ -381,16 +422,22 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
         )
     )
     with pytest.raises(MistralAPIException):
-        mistral_sync_client.chat(
-            model="mistral-large-latest",
-            messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
-            ],
-            temperature=0.1,
-        )
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+        ):
+            mistral_sync_client.chat(
+                model="mistral-large-latest",
+                messages=[
+                    ChatMessage(
+                        content="Who won the World Cup in 2018? Answer in one word, no punctuation.",  # noqa: E501
+                        role="user",
+                    )
+                ],
+                temperature=0.1,
+            )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -420,6 +467,7 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Who won the World Cup in 2018? Answer in one word, no punctuation."
     )
+    _check_context_attributes(attributes, session_id, user_id, metadata, tags)
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -428,6 +476,10 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     mistral_async_client: MistralAsyncClient,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
@@ -453,16 +505,22 @@ async def test_asynchronous_chat_completions_emits_expected_span(
             },
         )
     )
-    response = await mistral_async_client.chat(
-        model="mistral-large-latest",
-        messages=[
-            ChatMessage(
-                content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                role="user",
-            )
-        ],
-        temperature=0.1,
-    )
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+    ):
+        response = await mistral_async_client.chat(
+            model="mistral-large-latest",
+            messages=[
+                ChatMessage(
+                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    role="user",
+                )
+            ],
+            temperature=0.1,
+        )
     choices = response.choices
     assert len(choices) == 1
     response_content = choices[0].message.content
@@ -512,6 +570,7 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    _check_context_attributes(attributes, session_id, user_id, metadata, tags)
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -520,6 +579,10 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
     mistral_async_client: MistralAsyncClient,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
@@ -528,16 +591,22 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
         )
     )
     with pytest.raises(MistralAPIException):
-        await mistral_async_client.chat(
-            model="mistral-large-latest",
-            messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
-            ],
-            temperature=0.1,
-        )
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+        ):
+            await mistral_async_client.chat(
+                model="mistral-large-latest",
+                messages=[
+                    ChatMessage(
+                        content="Who won the World Cup in 2018? Answer in one word, no punctuation.",  # noqa: E501
+                        role="user",
+                    )
+                ],
+                temperature=0.1,
+            )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -567,6 +636,7 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Who won the World Cup in 2018? Answer in one word, no punctuation."
     )
+    _check_context_attributes(attributes, session_id, user_id, metadata, tags)
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -575,6 +645,10 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     in_memory_span_exporter: InMemorySpanExporter,
     chat_stream: AsyncByteStream,
     respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
@@ -582,16 +656,22 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
             stream=chat_stream,
         )
     )
-    response_stream = mistral_sync_client.chat_stream(
-        model="mistral-large-latest",
-        messages=[
-            ChatMessage(
-                content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                role="user",
-            )
-        ],
-        temperature=0.1,
-    )
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+    ):
+        response_stream = mistral_sync_client.chat_stream(
+            model="mistral-large-latest",
+            messages=[
+                ChatMessage(
+                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    role="user",
+                )
+            ],
+            temperature=0.1,
+        )
     response_content = ""
     for chunk in response_stream:
         if chunk_content := chunk.choices[0].delta.content:
@@ -647,6 +727,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 109
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 124
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    _check_context_attributes(attributes, session_id, user_id, metadata, tags)
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -656,6 +737,10 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     in_memory_span_exporter: InMemorySpanExporter,
     chat_stream: AsyncByteStream,
     respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
@@ -663,16 +748,22 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
             stream=chat_stream,
         )
     )
-    response_stream = mistral_async_client.chat_stream(
-        model="mistral-large-latest",
-        messages=[
-            ChatMessage(
-                content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                role="user",
-            )
-        ],
-        temperature=0.1,
-    )
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+    ):
+        response_stream = mistral_async_client.chat_stream(
+            model="mistral-large-latest",
+            messages=[
+                ChatMessage(
+                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    role="user",
+                )
+            ],
+            temperature=0.1,
+        )
     response_content = ""
     async for chunk in response_stream:
         if chunk_content := chunk.choices[0].delta.content:
@@ -728,6 +819,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 109
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 124
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    _check_context_attributes(attributes, session_id, user_id, metadata, tags)
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -736,6 +828,10 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     in_memory_span_exporter: InMemorySpanExporter,
     chat_stream_with_tool_call: AsyncByteStream,
     respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
 ) -> None:
     respx.post("https://api.mistral.ai/v1/chat/completions").mock(
         return_value=Response(
@@ -743,35 +839,41 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
             stream=chat_stream_with_tool_call,
         )
     )
-    response_stream = mistral_sync_client.chat_stream(
-        model="mistral-large-latest",
-        tool_choice=ToolChoice.any,
-        tools=[
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_weather",
-                    "description": "finds the weather for a given city",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "city": {
-                                "type": "string",
-                                "description": "The city to find the weather for, e.g. 'London'",
-                            }
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+    ):
+        response_stream = mistral_sync_client.chat_stream(
+            model="mistral-large-latest",
+            tool_choice=ToolChoice.any,
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "description": "finds the weather for a given city",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "city": {
+                                    "type": "string",
+                                    "description": "The city to find the weather for, e.g. 'London'",  # noqa: E501
+                                }
+                            },
+                            "required": ["city"],
                         },
-                        "required": ["city"],
                     },
                 },
-            },
-        ],
-        messages=[
-            ChatMessage(
-                content="What's the weather like in San Francisco?",
-                role="user",
-            )
-        ],
-    )
+            ],
+            messages=[
+                ChatMessage(
+                    content="What's the weather like in San Francisco?",
+                    role="user",
+                )
+            ],
+        )
     for chunk in response_stream:
         delta = chunk.choices[0].delta
         assert not delta.content
@@ -831,7 +933,56 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    _check_context_attributes(attributes, session_id, user_id, metadata, tags)
     assert attributes == {}  # test should account for all span attributes
+
+
+def _check_context_attributes(
+    attributes: Dict[str, Any],
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+) -> None:
+    assert attributes.pop(SESSION_ID, None) == session_id
+    assert attributes.pop(USER_ID, None) == user_id
+    attr_metadata = attributes.pop(METADATA, None)
+    assert attr_metadata is not None
+    assert isinstance(attr_metadata, str)  # must be json string
+    metadata_dict = json.loads(attr_metadata)
+    assert metadata_dict == metadata
+    attr_tags = attributes.pop(TAG_TAGS, None)
+    assert attr_tags is not None
+    assert len(attr_tags) == len(tags)
+    assert list(attr_tags) == tags
+
+
+@pytest.fixture()
+def session_id() -> str:
+    return "my-test-session-id"
+
+
+@pytest.fixture()
+def user_id() -> str:
+    return "my-test-user-id"
+
+
+@pytest.fixture()
+def metadata() -> Dict[str, Any]:
+    return {
+        "test-int": 1,
+        "test-str": "string",
+        "test-list": [1, 2, 3],
+        "test-dict": {
+            "key-1": "val-1",
+            "key-2": "val-2",
+        },
+    }
+
+
+@pytest.fixture()
+def tags() -> List[str]:
+    return ["tag-1", "tag-2"]
 
 
 @pytest.fixture(scope="module")
@@ -1044,3 +1195,7 @@ EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
+SESSION_ID = SpanAttributes.SESSION_ID
+USER_ID = SpanAttributes.USER_ID
+METADATA = SpanAttributes.METADATA
+TAG_TAGS = SpanAttributes.TAG_TAGS
