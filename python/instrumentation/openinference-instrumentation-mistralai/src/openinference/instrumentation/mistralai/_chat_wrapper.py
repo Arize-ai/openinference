@@ -220,11 +220,10 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
-        context_attributes = get_attributes_from_context()
         with self._start_as_current_span(
             span_name=span_name,
             attributes=self._get_attributes_from_request(request_parameters),
-            context_attributes=context_attributes,
+            context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(request_parameters),
         ) as with_span:
             try:
@@ -269,11 +268,10 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
         except Exception:
             logger.exception("Failed to parse request args")
             return await wrapped(*args, **kwargs)
-        context_attributes = get_attributes_from_context()
         with self._start_as_current_span(
             span_name=span_name,
             attributes=self._get_attributes_from_request(request_parameters),
-            context_attributes=context_attributes,
+            context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(request_parameters),
         ) as with_span:
             try:
@@ -318,11 +316,10 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
-        context_attributes = get_attributes_from_context()
         with self._start_as_current_span(
             span_name=span_name,
             attributes=self._get_attributes_from_request(request_parameters),
-            context_attributes=context_attributes,
+            context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(request_parameters),
         ) as with_span:
             try:
