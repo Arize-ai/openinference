@@ -213,7 +213,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
             )
         )
     )
-    span.set_attributes(dict(get_attributes_from_context())
+    span.set_attributes(dict(get_attributes_from_context()))
 
 
 def _langchain_run_type_to_span_kind(run_type: str) -> OpenInferenceSpanKindValues:
