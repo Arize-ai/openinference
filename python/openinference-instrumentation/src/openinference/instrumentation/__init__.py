@@ -1,4 +1,5 @@
 import json
+from contextlib import ContextDecorator
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from openinference.semconv.trace import SpanAttributes
@@ -46,7 +47,7 @@ class suppress_tracing:
         detach(self._token)
 
 
-class _UsingAttributesContextManager:
+class _UsingAttributesContextManager(ContextDecorator):
     def __init__(
         self,
         *,
