@@ -1,12 +1,4 @@
 import json
-from openinference.instrumentation import using_attributes
-import responses
-from dspy.primitives.assertions import (
-    assert_transform_module,
-    backtrack_handler,
-)
-from dspy.teleprompt import BootstrapFewShotWithRandomSearch
-from google.generativeai import GenerativeModel  # type: ignore
 from typing import (
     Any,
     Dict,
@@ -15,25 +7,30 @@ from typing import (
     Mapping,
     cast,
 )
+from unittest.mock import Mock, patch
 
 import dspy
-from opentelemetry.util.types import AttributeValue
 import pytest
-from unittest.mock import Mock, patch
-from google.generativeai import GenerativeModel  # type: ignore                 │    │
-from google.generativeai.types import GenerateContentResponse  # type: ignore
+import responses
 import respx
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
+from dspy.primitives.assertions import (
+    assert_transform_module,
+    backtrack_handler,
+)
+from dspy.teleprompt import BootstrapFewShotWithRandomSearch
+from google.generativeai import GenerativeModel  # type: ignore
+from google.generativeai.types import GenerateContentResponse  # type: ignore
 from httpx import Response
+from openinference.instrumentation import using_attributes
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
-    OpenInferenceSpanKindValues,
+    EmbeddingAttributes,
+    MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
-    MessageAttributes,
-    EmbeddingAttributes,
     ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
@@ -41,6 +38,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
 
 
 @pytest.fixture()
@@ -193,7 +191,7 @@ def test_openai_lm(
     assert lm_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert lm_attributes.pop(LLM_MODEL_NAME) == "gpt-3.5-turbo-instruct"
     input_value = lm_attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(lm_attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.TEXT
@@ -221,7 +219,7 @@ def test_openai_lm(
     chain_attributes = dict(cast(Mapping[str, AttributeValue], chain_span.attributes))
     assert chain_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     input_value = chain_attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(chain_attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -252,7 +250,7 @@ def test_google_lm(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     input_value = attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.TEXT
@@ -404,7 +402,7 @@ def test_rag_module(
         "model": "gpt-3.5-turbo-instruct",
     }
     input_value = attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.TEXT
@@ -432,7 +430,7 @@ def test_rag_module(
         "model": "gpt-3.5-turbo-instruct",
     }
     input_value = attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.TEXT
@@ -630,7 +628,7 @@ def test_openai_lm_with_context_attributes(
     assert lm_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert lm_attributes.pop(LLM_MODEL_NAME) == "gpt-3.5-turbo-instruct"
     input_value = lm_attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(lm_attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.TEXT
@@ -659,7 +657,7 @@ def test_openai_lm_with_context_attributes(
     chain_attributes = dict(cast(Mapping[str, AttributeValue], chain_span.attributes))
     assert chain_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     input_value = chain_attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(chain_attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -701,7 +699,7 @@ def test_google_lm_with_context_attributes(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     input_value = attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.TEXT
@@ -866,7 +864,7 @@ def test_rag_module_with_context_attributes(
         "model": "gpt-3.5-turbo-instruct",
     }
     input_value = attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.TEXT
@@ -895,7 +893,7 @@ def test_rag_module_with_context_attributes(
         "model": "gpt-3.5-turbo-instruct",
     }
     input_value = attributes.pop(INPUT_VALUE)
-    assert question in input_value
+    assert question in input_value  # type:ignore
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.TEXT
