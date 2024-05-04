@@ -7,6 +7,7 @@ from typing import IO, Any, Callable, Collection, Dict, Optional, Tuple, TypeVar
 
 from botocore.client import BaseClient
 from botocore.response import StreamingBody
+from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.bedrock.package import _instruments
 from openinference.instrumentation.bedrock.version import __version__
 from openinference.semconv.trace import (
@@ -152,6 +153,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                     if content:
                         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
 
+                span.set_attributes(dict(get_attributes_from_context()))
                 return response  # type: ignore
 
         return instrumented_response
