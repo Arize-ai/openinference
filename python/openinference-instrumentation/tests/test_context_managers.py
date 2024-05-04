@@ -37,7 +37,7 @@ def test_using_user(user_id: str) -> None:
 
 def test_using_metadata(metadata: Dict[str, Any]) -> None:
     with using_metadata(metadata):
-        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata, default=str)
+        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
     assert get_value(SpanAttributes.METADATA) is None
 
 
@@ -58,7 +58,7 @@ def test_using_attributes(
     ):
         assert get_value(SpanAttributes.SESSION_ID) == session_id
         assert get_value(SpanAttributes.USER_ID) == user_id
-        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata, default=str)
+        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
         assert get_value(SpanAttributes.TAG_TAGS) == tags
     assert get_value(SpanAttributes.SESSION_ID) is None
     assert get_value(SpanAttributes.USER_ID) is None
@@ -87,7 +87,7 @@ def test_using_user_decorator(user_id: str) -> None:
 def test_using_metadata_decorator(metadata: Dict[str, Any]) -> None:
     @using_metadata(metadata)
     def f() -> None:
-        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata, default=str)
+        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
 
     f()
     assert get_value(SpanAttributes.METADATA) is None
@@ -109,7 +109,7 @@ def test_using_attributes_decorator(
     def f() -> None:
         assert get_value(SpanAttributes.SESSION_ID) == session_id
         assert get_value(SpanAttributes.USER_ID) == user_id
-        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata, default=str)
+        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
         assert get_value(SpanAttributes.TAG_TAGS) == tags
 
     f()
