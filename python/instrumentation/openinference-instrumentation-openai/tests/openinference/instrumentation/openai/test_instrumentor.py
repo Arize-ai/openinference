@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import random
-from contextlib import ExitStack, suppress
+from contextlib import suppress
 from importlib import import_module
 from importlib.metadata import version
 from itertools import count
@@ -54,11 +54,13 @@ for name, logger in logging.root.manager.loggerDict.items():
 @pytest.mark.parametrize("is_raw", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
+@pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_chat_completions(
     is_async: bool,
     is_raw: bool,
     is_stream: bool,
     status_code: int,
+    use_context_attributes: bool,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
@@ -68,6 +70,9 @@ def test_chat_completions(
     user_id: str,
     metadata: Dict[str, Any],
     tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
     input_messages: List[Dict[str, Any]] = get_messages()
     output_messages: List[Dict[str, Any]] = (
@@ -106,32 +111,41 @@ def test_chat_completions(
     )
     create = completions.with_raw_response.create if is_raw else completions.create
 
-    with ExitStack() as stack:
-        stack.enter_context(suppress(openai.BadRequestError))
-        stack.enter_context(
-            using_attributes(
+    async def task() -> None:
+        response = await create(**create_kwargs)
+        response = response.parse() if is_raw else response
+        if is_stream:
+            async for _ in response:
+                pass
+
+    with suppress(openai.BadRequestError):
+        if use_context_attributes:
+            with using_attributes(
                 session_id=session_id,
                 user_id=user_id,
                 metadata=metadata,
                 tags=tags,
-            )
-        )
-        if is_async:
-
-            async def task() -> None:
-                response = await create(**create_kwargs)
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                if is_async:
+                    asyncio.run(task())
+                else:
+                    response = create(**create_kwargs)
+                    response = response.parse() if is_raw else response
+                    if is_stream:
+                        for _ in response:
+                            pass
+        else:
+            if is_async:
+                asyncio.run(task())
+            else:
+                response = create(**create_kwargs)
                 response = response.parse() if is_raw else response
                 if is_stream:
-                    async for _ in response:
+                    for _ in response:
                         pass
-
-            asyncio.run(task())
-        else:
-            response = create(**create_kwargs)
-            response = response.parse() if is_raw else response
-            if is_stream:
-                for _ in response:
-                    pass
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2  # first span should be from the httpx instrumentor
     span: ReadableSpan = spans[1]
@@ -196,18 +210,17 @@ def test_chat_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-    assert attributes.pop(SESSION_ID, None) == session_id
-    assert attributes.pop(USER_ID, None) == user_id
-    attr_tags = attributes.pop(TAG_TAGS, None)
-    assert attr_tags is not None
-    assert isinstance(attr_tags, tuple)
-    assert len(attr_tags) == len(tags)
-    assert list(attr_tags) == tags
-    attr_metadata = attributes.pop(METADATA, None)
-    assert attr_metadata is not None
-    assert isinstance(attr_metadata, str)  # must be json string
-    metadata_dict = json.loads(attr_metadata)
-    assert metadata_dict == metadata
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -215,11 +228,13 @@ def test_chat_completions(
 @pytest.mark.parametrize("is_raw", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
+@pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_completions(
     is_async: bool,
     is_raw: bool,
     is_stream: bool,
     status_code: int,
+    use_context_attributes: bool,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
@@ -229,6 +244,9 @@ def test_completions(
     user_id: str,
     metadata: Dict[str, Any],
     tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
     prompt: List[str] = get_texts()
     output_texts: List[str] = completion_mock_stream[1] if is_stream else get_texts()
@@ -264,32 +282,42 @@ def test_completions(
         else openai.OpenAI(api_key="sk-").completions
     )
     create = completions.with_raw_response.create if is_raw else completions.create
-    with ExitStack() as stack:
-        stack.enter_context(suppress(openai.BadRequestError))
-        stack.enter_context(
-            using_attributes(
+
+    async def task() -> None:
+        response = await create(**create_kwargs)
+        response = response.parse() if is_raw else response
+        if is_stream:
+            async for _ in response:
+                pass
+
+    with suppress(openai.BadRequestError):
+        if use_context_attributes:
+            with using_attributes(
                 session_id=session_id,
                 user_id=user_id,
                 metadata=metadata,
                 tags=tags,
-            )
-        )
-        if is_async:
-
-            async def task() -> None:
-                response = await create(**create_kwargs)
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                if is_async:
+                    asyncio.run(task())
+                else:
+                    response = create(**create_kwargs)
+                    response = response.parse() if is_raw else response
+                    if is_stream:
+                        for _ in response:
+                            pass
+        else:
+            if is_async:
+                asyncio.run(task())
+            else:
+                response = create(**create_kwargs)
                 response = response.parse() if is_raw else response
                 if is_stream:
-                    async for _ in response:
+                    for _ in response:
                         pass
-
-            asyncio.run(task())
-        else:
-            response = create(**create_kwargs)
-            response = response.parse() if is_raw else response
-            if is_stream:
-                for _ in response:
-                    pass
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2  # first span should be from the httpx instrumentor
     span: ReadableSpan = spans[1]
@@ -326,18 +354,17 @@ def test_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-    assert attributes.pop(SESSION_ID, None) == session_id
-    assert attributes.pop(USER_ID, None) == user_id
-    attr_tags = attributes.pop(TAG_TAGS, None)
-    assert attr_tags is not None
-    assert isinstance(attr_tags, tuple)
-    assert len(attr_tags) == len(tags)
-    assert list(attr_tags) == tags
-    attr_metadata = attributes.pop(METADATA, None)
-    assert attr_metadata is not None
-    assert isinstance(attr_metadata, str)  # must be json string
-    metadata_dict = json.loads(attr_metadata)
-    assert metadata_dict == metadata
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -440,6 +467,36 @@ def test_embeddings(
     assert attributes == {}  # test should account for all span attributes
 
 
+def _check_context_attributes(
+    attributes: Dict[str, Any],
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    assert attributes.pop(SESSION_ID, None) == session_id
+    assert attributes.pop(USER_ID, None) == user_id
+    attr_metadata = attributes.pop(METADATA, None)
+    assert attr_metadata is not None
+    assert isinstance(attr_metadata, str)  # must be json string
+    metadata_dict = json.loads(attr_metadata)
+    assert metadata_dict == metadata
+    attr_tags = attributes.pop(TAG_TAGS, None)
+    assert attr_tags is not None
+    assert len(attr_tags) == len(tags)
+    assert list(attr_tags) == tags
+    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
+    assert (
+        attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) == prompt_template_version
+    )
+    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
+        prompt_template_variables
+    )
+
+
 @pytest.fixture()
 def session_id() -> str:
     return "my-test-session-id"
@@ -466,6 +523,28 @@ def metadata() -> Dict[str, Any]:
 @pytest.fixture()
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
+
+
+@pytest.fixture
+def prompt_template() -> str:
+    return (
+        "This is a test prompt template with int {var_int}, "
+        "string {var_string}, and list {var_list}"
+    )
+
+
+@pytest.fixture
+def prompt_template_version() -> str:
+    return "v1.0"
+
+
+@pytest.fixture
+def prompt_template_variables() -> Dict[str, Any]:
+    return {
+        "var_int": 1,
+        "var_str": "2",
+        "var_list": [1, 2, 3],
+    }
 
 
 @pytest.fixture(scope="module")
