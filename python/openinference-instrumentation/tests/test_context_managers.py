@@ -237,13 +237,6 @@ def test_get_attributes_from_context(
     assert context_vars.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) is None
     assert context_vars.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) is None
     assert context_vars.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) is None
-    # assert get_value(SpanAttributes.SESSION_ID) is None
-    # assert get_value(SpanAttributes.USER_ID) is None
-    # assert get_value(SpanAttributes.METADATA) is None
-    # assert get_value(SpanAttributes.TAG_TAGS) is None
-    # assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
-    # assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
-    # assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
 
 
 @pytest.fixture
