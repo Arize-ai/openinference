@@ -55,11 +55,17 @@ class _UsingAttributesContextManager(ContextDecorator):
         user_id: str = "",
         metadata: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
+        prompt_template: str = "",
+        prompt_template_version: str = "",
+        prompt_template_variables: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._session_id = session_id
         self._user_id = user_id
         self._metadata = metadata
         self._tags = tags
+        self._prompt_template = prompt_template
+        self._prompt_template_version = prompt_template_version
+        self._prompt_template_variables = prompt_template_variables
 
     def attach_context(self) -> None:
         ctx = get_current()
@@ -71,6 +77,18 @@ class _UsingAttributesContextManager(ContextDecorator):
             ctx = set_value(SpanAttributes.METADATA, json.dumps(self._metadata, default=str), ctx)
         if self._tags:
             ctx = set_value(SpanAttributes.TAG_TAGS, self._tags, ctx)
+        if self._prompt_template:
+            ctx = set_value(SpanAttributes.LLM_PROMPT_TEMPLATE, self._prompt_template, ctx)
+        if self._prompt_template_version:
+            ctx = set_value(
+                SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, self._prompt_template_version, ctx
+            )
+        if self._prompt_template_variables:
+            ctx = set_value(
+                SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES,
+                json.dumps(self._prompt_template_variables, default=str),
+                ctx,
+            )
         self._token = attach(ctx)
 
     def __enter__(self) -> Self:
@@ -166,6 +184,61 @@ class using_tags(_UsingAttributesContextManager):
         super().__init__(tags=tags)
 
 
+class using_prompt_template(_UsingAttributesContextManager):
+    """
+    Context manager to add prompt template to the current OpenTelemetry Context. OpenInference
+    instrumentations will read this Context and pass the prompt template as a span attribute,
+    following the OpenInference semantic conventions.
+
+    Examples:
+        prompt_template = "Please describe the weather forecast for {city} on {date}"
+        with using_prompt_template(prompt_template):
+            # Tracing within this block will include the span attribute:
+            # "llm.prompt_template.template" = "Please describe the weather
+            forecast for {city} on {date}"
+            ...
+    """
+
+    def __init__(self, prompt_template: str) -> None:
+        super().__init__(prompt_template=prompt_template)
+
+
+class using_prompt_template_version(_UsingAttributesContextManager):
+    """
+    Context manager to add prompt template version to the current OpenTelemetry Context.
+    OpenInference instrumentations will read this Context and pass the prompt template
+    version as a span attribute, following the OpenInference semantic conventions.
+
+    Examples:
+        with using_prompt_template_version("v1.0"):
+            # Tracing within this block will include the span attribute:
+            # "llm.prompt_template.version" = "v1.0"
+            ...
+    """
+
+    def __init__(self, prompt_template_version: str) -> None:
+        super().__init__(prompt_template_version=prompt_template_version)
+
+
+class using_prompt_template_variables(_UsingAttributesContextManager):
+    """
+    Context manager to add prompt template variables to the current OpenTelemetry Context.
+    OpenInference instrumentations will read this Context and pass the prompt template
+    variables as a span attribute, following the OpenInference semantic conventions.
+
+    Examples:
+        prompt_template_variables = "{"city": "Johannesburg", date:"July 11"}"
+        with using_prompt_template_variables(prompt_template_variables):
+            # Tracing within this block will include the span attribute:
+            # "llm.prompt_template.variables" = "{\"city\": \"Johannesburg\",
+            \"date\": \"July 11\"}"
+            ...
+    """
+
+    def __init__(self, prompt_template_variables: Dict[str, Any]) -> None:
+        super().__init__(prompt_template_variables=prompt_template_variables)
+
+
 class using_attributes(_UsingAttributesContextManager):
     """
     Context manager to add attributes to the current OpenTelemetry Context. OpenInference
@@ -186,17 +259,31 @@ class using_attributes(_UsingAttributesContextManager):
             "key-2": value_2,
             ...
         }
+        prompt_template = "Please describe the weather forecast for {city} on {date}"
+        prompt_template_variables = "{"city": "Johannesburg", date:"July 11"}"
+        prompt_template_version = "v1.0"
         with using_attributes(
             session_id="my-session-id",
             user_id="my-user-id",
             metadata=metadata,
             tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
         ):
             # Tracing within this block will include the span attribute:
             # "session.id" = "my-session-id"
             # "user.id" = "my-user-id"
             # "metadata" = "{\"key-1\": value_1, \"key-2\": value_2, ... }"
             # "tag.tags" = "["tag_1","tag_2",...]"
+            # "llm.prompt_template.template" = "Please describe the weather forecast
+            for {city} on {date}"
+            # "llm.prompt_template.variables" = "{\"city\": \"Johannesburg\",
+            \"date\": \"July 11\"}"
+            # "llm.prompt_template.version " = "v1.0"
+
+
+
             ...
 
     The previous example is equivalent to doing:
@@ -205,6 +292,9 @@ class using_attributes(_UsingAttributesContextManager):
             using_user("my-user-id"),
             using_metadata(metadata),
             using_tags(tags),
+            using_prompt_template(prompt_template),
+            using_prompt_template_variables(prompt_template_variables),
+            using_prompt_template_version(prompt_tempate_version),
         ):
             ...
 
@@ -217,12 +307,18 @@ class using_attributes(_UsingAttributesContextManager):
         user_id: str = "",
         metadata: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
+        prompt_template: str = "",
+        prompt_template_version: str = "",
+        prompt_template_variables: Optional[Dict[str, Any]] = None,
     ) -> None:
         super().__init__(
             session_id=session_id,
             user_id=user_id,
             metadata=metadata,
             tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
         )
 
 
