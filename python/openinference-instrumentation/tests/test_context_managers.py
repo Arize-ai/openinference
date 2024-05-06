@@ -15,6 +15,7 @@ from openinference.instrumentation import (
 from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
+    get_current,
     get_value,
 )
 
@@ -217,26 +218,14 @@ def test_get_attributes_from_context(
         prompt_template_version=prompt_template_version,
         prompt_template_variables=prompt_template_variables,
     ):
+        ctx = get_current()
         context_vars = {attr[0]: attr[1] for attr in get_attributes_from_context()}
-        assert context_vars.pop(SpanAttributes.SESSION_ID, None) == session_id
-        assert context_vars.pop(SpanAttributes.USER_ID, None) == user_id
-        assert context_vars.pop(SpanAttributes.METADATA, None) == json.dumps(metadata)
-        assert context_vars.pop(SpanAttributes.TAG_TAGS, None) == tags
-        assert context_vars.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
-        assert (
-            context_vars.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None)
-            == prompt_template_version
-        )
-        assert context_vars.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
-            prompt_template_variables
-        )
-    assert context_vars.pop(SpanAttributes.SESSION_ID, None) is None
-    assert context_vars.pop(SpanAttributes.USER_ID, None) is None
-    assert context_vars.pop(SpanAttributes.METADATA, None) is None
-    assert context_vars.pop(SpanAttributes.TAG_TAGS, None) is None
-    assert context_vars.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) is None
-    assert context_vars.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) is None
-    assert context_vars.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) is None
+        assert len(ctx) == len(context_vars)
+        for key, value in ctx.items():
+            assert context_vars.pop(key, None) == value, f"Missing context variable {key}"
+
+    context_vars = {attr[0]: attr[1] for attr in get_attributes_from_context()}
+    assert context_vars == {}
 
 
 @pytest.fixture
