@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.3...python-openinference-instrumentation-v0.1.4) (2024-05-06)
+
+
+### Features
+
+* Add context manager for prompt template, version, and variables ([#437](https://github.com/Arize-ai/openinference/issues/437)) ([0d44490](https://github.com/Arize-ai/openinference/commit/0d444904afa13f33c67a7e520eeb819fc7208ddf))
+* Allow context managers as decorators ([#431](https://github.com/Arize-ai/openinference/issues/431)) ([b1bb379](https://github.com/Arize-ai/openinference/commit/b1bb379bad97f811668dcc6d8c37760944bf03ff))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.2...python-openinference-instrumentation-v0.1.3) (2024-05-03)
 
 
