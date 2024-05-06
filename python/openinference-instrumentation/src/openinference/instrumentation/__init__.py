@@ -193,7 +193,7 @@ class using_prompt_template(_UsingAttributesContextManager):
 
     Examples:
         prompt_template = "Please describe the weather forecast for {city} on {date}"
-        prompt_template_variables = "{"city": "Johannesburg", date:"July 11"}"
+        prompt_template_variables = {"city": "Johannesburg", date:"July 11"}
         with using_prompt_template(
             template=prompt_template,
             version=prompt_template_variables,
@@ -243,7 +243,7 @@ class using_attributes(_UsingAttributesContextManager):
             ...
         }
         prompt_template = "Please describe the weather forecast for {city} on {date}"
-        prompt_template_variables = "{"city": "Johannesburg", date:"July 11"}"
+        prompt_template_variables = {"city": "Johannesburg", date:"July 11"}
         prompt_template_version = "v1.0"
         with using_attributes(
             session_id="my-session-id",
