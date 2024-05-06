@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 import pytest
 from openinference.instrumentation import (
+    get_attributes_from_context,
     suppress_tracing,
     using_attributes,
     using_metadata,
@@ -14,6 +15,7 @@ from openinference.instrumentation import (
 from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
+    get_current,
     get_value,
 )
 
@@ -196,6 +198,34 @@ def test_using_attributes_decorator(
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
+
+
+def test_get_attributes_from_context(
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    ):
+        ctx = get_current()
+        context_vars = {attr[0]: attr[1] for attr in get_attributes_from_context()}
+        assert len(ctx) == len(context_vars)
+        for key, value in ctx.items():
+            assert context_vars.pop(key, None) == value, f"Missing context variable {key}"
+
+    context_vars = {attr[0]: attr[1] for attr in get_attributes_from_context()}
+    assert context_vars == {}
 
 
 @pytest.fixture
