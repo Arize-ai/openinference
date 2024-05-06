@@ -6,6 +6,7 @@ from openinference.instrumentation import (
     suppress_tracing,
     using_attributes,
     using_metadata,
+    using_prompt_template,
     using_session,
     using_tags,
     using_user,
@@ -47,23 +48,58 @@ def test_using_tags(tags: List[str]) -> None:
     assert get_value(SpanAttributes.TAG_TAGS) is None
 
 
+def test_using_prompt_template(
+    prompt_template: str, prompt_template_version: str, prompt_template_variables: Dict[str, Any]
+) -> None:
+    with using_prompt_template(
+        template=prompt_template,
+        version=prompt_template_version,
+        variables=prompt_template_variables,
+    ):
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+            prompt_template_variables
+        )
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
+
+
 def test_using_attributes(
-    session_id: str, user_id: str, metadata: Dict[str, Any], tags: List[str]
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
     with using_attributes(
         session_id=session_id,
         user_id=user_id,
         metadata=metadata,
         tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
     ):
         assert get_value(SpanAttributes.SESSION_ID) == session_id
         assert get_value(SpanAttributes.USER_ID) == user_id
         assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
         assert get_value(SpanAttributes.TAG_TAGS) == tags
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+            prompt_template_variables
+        )
     assert get_value(SpanAttributes.SESSION_ID) is None
     assert get_value(SpanAttributes.USER_ID) is None
     assert get_value(SpanAttributes.METADATA) is None
     assert get_value(SpanAttributes.TAG_TAGS) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
 
 
 def test_using_session_decorator(session_id: str) -> None:
@@ -102,21 +138,64 @@ def test_using_tags_decorator(tags: List[str]) -> None:
     assert get_value(SpanAttributes.TAG_TAGS) is None
 
 
-def test_using_attributes_decorator(
-    session_id: str, user_id: str, metadata: Dict[str, Any], tags: List[str]
+def test_using_prompt_template_decorator(
+    prompt_template: str, prompt_template_version: str, prompt_template_variables: Dict[str, Any]
 ) -> None:
-    @using_attributes(session_id=session_id, user_id=user_id, metadata=metadata, tags=tags)
+    @using_prompt_template(
+        template=prompt_template,
+        version=prompt_template_version,
+        variables=prompt_template_variables,
+    )
+    def f() -> None:
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+            prompt_template_variables
+        )
+
+    f()
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
+
+
+def test_using_attributes_decorator(
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    @using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    )
     def f() -> None:
         assert get_value(SpanAttributes.SESSION_ID) == session_id
         assert get_value(SpanAttributes.USER_ID) == user_id
         assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
         assert get_value(SpanAttributes.TAG_TAGS) == tags
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+            prompt_template_variables
+        )
 
     f()
     assert get_value(SpanAttributes.SESSION_ID) is None
     assert get_value(SpanAttributes.USER_ID) is None
     assert get_value(SpanAttributes.METADATA) is None
     assert get_value(SpanAttributes.TAG_TAGS) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
 
 
 @pytest.fixture
@@ -141,3 +220,25 @@ def metadata() -> Dict[str, Any]:
 @pytest.fixture
 def tags() -> List[str]:
     return ["tag_1", "tag_2"]
+
+
+@pytest.fixture
+def prompt_template() -> str:
+    return (
+        "This is a test prompt template with int {var_int}, "
+        "string {var_string}, and list {var_list}"
+    )
+
+
+@pytest.fixture
+def prompt_template_version() -> str:
+    return "v1.0"
+
+
+@pytest.fixture
+def prompt_template_variables() -> Dict[str, Any]:
+    return {
+        "var_int": 1,
+        "var_str": "2",
+        "var_list": [1, 2, 3],
+    }
