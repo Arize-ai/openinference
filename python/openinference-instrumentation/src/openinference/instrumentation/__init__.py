@@ -19,6 +19,9 @@ CONTEXT_ATTRIBUTES = (
     SpanAttributes.USER_ID,
     SpanAttributes.METADATA,
     SpanAttributes.TAG_TAGS,
+    SpanAttributes.LLM_PROMPT_TEMPLATE,
+    SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION,
+    SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES,
 )
 
 
