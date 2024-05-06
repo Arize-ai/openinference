@@ -186,9 +186,10 @@ class using_tags(_UsingAttributesContextManager):
 
 class using_prompt_template(_UsingAttributesContextManager):
     """
-    Context manager to add prompt template to the current OpenTelemetry Context. OpenInference
-    instrumentations will read this Context and pass the prompt template as a span attribute,
-    following the OpenInference semantic conventions.
+    Context manager to add prompt template, with its version and variables a to the
+    current OpenTelemetry Context. OpenInference instrumentations will read this
+    Context and pass the prompt template as a span attribute, following the
+    OpenInference semantic conventions.
 
     Examples:
         prompt_template = "Please describe the weather forecast for {city} on {date}"
