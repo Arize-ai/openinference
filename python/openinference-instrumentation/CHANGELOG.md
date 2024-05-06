@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.4...python-openinference-instrumentation-v0.1.5) (2024-05-06)
+
+
+### Bug Fixes
+
+* Add missing context variables to list ([#438](https://github.com/Arize-ai/openinference/issues/438)) ([ab2ef46](https://github.com/Arize-ai/openinference/commit/ab2ef4655c16e662c499b0302f4a0b28892f6b6c))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.3...python-openinference-instrumentation-v0.1.4) (2024-05-06)
 
 
