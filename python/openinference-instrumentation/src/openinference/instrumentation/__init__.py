@@ -192,51 +192,33 @@ class using_prompt_template(_UsingAttributesContextManager):
 
     Examples:
         prompt_template = "Please describe the weather forecast for {city} on {date}"
-        with using_prompt_template(prompt_template):
+        prompt_template_variables = "{"city": "Johannesburg", date:"July 11"}"
+        with using_prompt_template(
+            template=prompt_template,
+            version=prompt_template_variables,
+            variables="v1.0",
+            ):
             # Tracing within this block will include the span attribute:
             # "llm.prompt_template.template" = "Please describe the weather
             forecast for {city} on {date}"
-            ...
-    """
-
-    def __init__(self, prompt_template: str) -> None:
-        super().__init__(prompt_template=prompt_template)
-
-
-class using_prompt_template_version(_UsingAttributesContextManager):
-    """
-    Context manager to add prompt template version to the current OpenTelemetry Context.
-    OpenInference instrumentations will read this Context and pass the prompt template
-    version as a span attribute, following the OpenInference semantic conventions.
-
-    Examples:
-        with using_prompt_template_version("v1.0"):
-            # Tracing within this block will include the span attribute:
             # "llm.prompt_template.version" = "v1.0"
-            ...
-    """
-
-    def __init__(self, prompt_template_version: str) -> None:
-        super().__init__(prompt_template_version=prompt_template_version)
-
-
-class using_prompt_template_variables(_UsingAttributesContextManager):
-    """
-    Context manager to add prompt template variables to the current OpenTelemetry Context.
-    OpenInference instrumentations will read this Context and pass the prompt template
-    variables as a span attribute, following the OpenInference semantic conventions.
-
-    Examples:
-        prompt_template_variables = "{"city": "Johannesburg", date:"July 11"}"
-        with using_prompt_template_variables(prompt_template_variables):
-            # Tracing within this block will include the span attribute:
             # "llm.prompt_template.variables" = "{\"city\": \"Johannesburg\",
             \"date\": \"July 11\"}"
             ...
     """
 
-    def __init__(self, prompt_template_variables: Dict[str, Any]) -> None:
-        super().__init__(prompt_template_variables=prompt_template_variables)
+    def __init__(
+        self,
+        *,
+        template: str = "",
+        version: str = "",
+        variables: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            prompt_template=template,
+            prompt_template_version=version,
+            prompt_template_variables=variables,
+        )
 
 
 class using_attributes(_UsingAttributesContextManager):
@@ -292,9 +274,11 @@ class using_attributes(_UsingAttributesContextManager):
             using_user("my-user-id"),
             using_metadata(metadata),
             using_tags(tags),
-            using_prompt_template(prompt_template),
-            using_prompt_template_variables(prompt_template_variables),
-            using_prompt_template_version(prompt_tempate_version),
+            using_prompt_template(
+                template=prompt_template,
+                version=prompt_template_version,
+                variables=prompt_template_variables,
+            ),
         ):
             ...
 

@@ -7,8 +7,6 @@ from openinference.instrumentation import (
     using_attributes,
     using_metadata,
     using_prompt_template,
-    using_prompt_template_variables,
-    using_prompt_template_version,
     using_session,
     using_tags,
     using_user,
@@ -50,23 +48,21 @@ def test_using_tags(tags: List[str]) -> None:
     assert get_value(SpanAttributes.TAG_TAGS) is None
 
 
-def test_using_prompt_template(prompt_template: str) -> None:
-    with using_prompt_template(prompt_template):
+def test_using_prompt_template(
+    prompt_template: str, prompt_template_version: str, prompt_template_variables: Dict[str, Any]
+) -> None:
+    with using_prompt_template(
+        template=prompt_template,
+        version=prompt_template_version,
+        variables=prompt_template_variables,
+    ):
         assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
-    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
-
-
-def test_using_prompt_template_version(prompt_template_version: str) -> None:
-    with using_prompt_template_version(prompt_template_version):
         assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
-    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
-
-
-def test_using_prompt_template_variables(prompt_template_variables: Dict[str, Any]) -> None:
-    with using_prompt_template_variables(prompt_template_variables):
         assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
             prompt_template_variables
         )
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
 
 
@@ -142,34 +138,24 @@ def test_using_tags_decorator(tags: List[str]) -> None:
     assert get_value(SpanAttributes.TAG_TAGS) is None
 
 
-def test_using_prompt_template_decorator(prompt_template: str) -> None:
-    @using_prompt_template(prompt_template)
+def test_using_prompt_template_decorator(
+    prompt_template: str, prompt_template_version: str, prompt_template_variables: Dict[str, Any]
+) -> None:
+    @using_prompt_template(
+        template=prompt_template,
+        version=prompt_template_version,
+        variables=prompt_template_variables,
+    )
     def f() -> None:
         assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
-
-    f()
-    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
-
-
-def test_using_prompt_template_version_decorator(prompt_template_version: str) -> None:
-    @using_prompt_template_version(prompt_template_version)
-    def f() -> None:
         assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
-
-    f()
-    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
-
-
-def test_using_prompt_template_variables_decorator(
-    prompt_template_variables: Dict[str, Any],
-) -> None:
-    @using_prompt_template_variables(prompt_template_variables)
-    def f() -> None:
         assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
             prompt_template_variables
         )
 
     f()
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
 
 
