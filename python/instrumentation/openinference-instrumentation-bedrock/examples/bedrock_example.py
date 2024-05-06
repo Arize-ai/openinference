@@ -19,7 +19,7 @@ trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 BedrockInstrumentor().instrument()
 
 session = boto3.session.Session()
-client = session.client("bedrock-runtime", region_name="us-west-2")
+client = session.client("bedrock-runtime")
 
 
 if __name__ == "__main__":
