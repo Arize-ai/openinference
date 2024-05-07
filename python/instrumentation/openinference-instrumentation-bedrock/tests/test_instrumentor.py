@@ -48,6 +48,28 @@ def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 
 
+@pytest.fixture
+def prompt_template() -> str:
+    return (
+        "This is a test prompt template with int {var_int}, "
+        "string {var_string}, and list {var_list}"
+    )
+
+
+@pytest.fixture
+def prompt_template_version() -> str:
+    return "v1.0"
+
+
+@pytest.fixture
+def prompt_template_variables() -> Dict[str, Any]:
+    return {
+        "var_int": 1,
+        "var_str": "2",
+        "var_list": [1, 2, 3],
+    }
+
+
 @pytest.fixture(scope="module")
 def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
     resource = Resource(attributes={})
@@ -81,6 +103,9 @@ def test_invoke_client(
     user_id: str,
     metadata: Dict[str, Any],
     tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
     output = b'{"completion":" Hello!","stop_reason":"stop_sequence","stop":"\\n\\nHuman:"}'
     streaming_body = StreamingBody(io.BytesIO(output), len(output))
@@ -116,6 +141,9 @@ def test_invoke_client(
             user_id=user_id,
             metadata=metadata,
             tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
         ):
             client.invoke_model(
                 modelId=model_name,
@@ -132,7 +160,6 @@ def test_invoke_client(
     span = spans[0]
     assert span.status.is_ok
     attributes = dict(span.attributes or dict())
-    print(attributes)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(INPUT_VALUE) == body["prompt"]
     assert attributes.pop(OUTPUT_VALUE) == " Hello!"
@@ -145,7 +172,16 @@ def test_invoke_client(
         "max_tokens_to_sample": 1024,
     }
     if use_context_attributes:
-        _check_context_attributes(attributes, session_id, user_id, metadata, tags)
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
     assert attributes == {}
 
 
@@ -157,6 +193,9 @@ def test_invoke_client_with_missing_tokens(
     user_id: str,
     metadata: Dict[str, Any],
     tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
     output = b'{"completion":" Hello!","stop_reason":"stop_sequence","stop":"\\n\\nHuman:"}'
     streaming_body = StreamingBody(io.BytesIO(output), len(output))
@@ -192,6 +231,9 @@ def test_invoke_client_with_missing_tokens(
             user_id=user_id,
             metadata=metadata,
             tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
         ):
             client.invoke_model(
                 modelId=model_name,
@@ -217,7 +259,16 @@ def test_invoke_client_with_missing_tokens(
         "max_tokens_to_sample": 1024,
     }
     if use_context_attributes:
-        _check_context_attributes(attributes, session_id, user_id, metadata, tags)
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
     assert attributes == {}
 
 
@@ -227,6 +278,9 @@ def _check_context_attributes(
     user_id: str,
     metadata: Dict[str, Any],
     tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
     assert attributes.pop(SESSION_ID, None) == session_id
     assert attributes.pop(USER_ID, None) == user_id
@@ -239,6 +293,13 @@ def _check_context_attributes(
     assert attr_tags is not None
     assert len(attr_tags) == len(tags)
     assert list(attr_tags) == tags
+    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
+    assert (
+        attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) == prompt_template_version
+    )
+    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
+        prompt_template_variables
+    )
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND

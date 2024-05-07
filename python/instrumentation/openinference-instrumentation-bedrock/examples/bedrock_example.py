@@ -39,6 +39,12 @@ if __name__ == "__main__":
             },
         },
         tags=["tag-1", "tag-2"],
+        prompt_template="Who won the soccer match in {city} on {date}",
+        prompt_template_version="v1.0",
+        prompt_template_variables={
+            "city": "Johannesburg",
+            "date": "July 11th",
+        },
     ):
         response = client.invoke_model(modelId="anthropic.claude-v2", body=prompt)
     response_body = json.loads(response.get("body").read())
