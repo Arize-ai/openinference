@@ -49,6 +49,11 @@ if __name__ == "__main__":
             },
         },
         tags=["tag-1", "tag-2"],
+        prompt_template_version="v1.0",
+        prompt_template_variables={
+            "city": "Johannesburg",
+            "date": "July 11th",
+        },
     ):
         # Define the predictor.
         generate_answer = dspy.Predict(BasicQA)
