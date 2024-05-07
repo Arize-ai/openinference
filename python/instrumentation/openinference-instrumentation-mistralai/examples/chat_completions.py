@@ -3,7 +3,6 @@ from mistralai.models.chat_completion import ChatMessage
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from opentelemetry import trace as trace_api
-
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
