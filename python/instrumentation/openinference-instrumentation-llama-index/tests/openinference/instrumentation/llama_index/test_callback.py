@@ -63,10 +63,12 @@ for name, logger in logging.root.manager.loggerDict.items():
     ],
 )
 @pytest.mark.parametrize("status_code", [200, 400])
+@pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_callback_llm(
     is_async: bool,
     is_stream: bool,
     status_code: int,
+    use_context_attributes: bool,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     nodes: List[Document],
@@ -105,42 +107,54 @@ def test_callback_llm(
     url = "https://api.openai.com/v1/chat/completions"
     respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
 
+    async def task() -> None:
+        await asyncio.gather(
+            *(query_engine.aquery(question) for question in questions),
+            return_exceptions=True,
+        )
+
+    def threaded_query(question: str) -> None:
+        response = query_engine.query(question)
+        (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
+
+    def threaded_query_with_attributes(question: str) -> None:
+        # This context manager must be inside this function definition so
+        # there's a different instantiation per thread. This allows to use
+        # a different context per thread, as desired
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+        ):
+            response = query_engine.query(question)
+            (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
+
     with suppress(openai.BadRequestError):
-        if is_async:
-
-            async def task() -> None:
-                await asyncio.gather(
-                    *(query_engine.aquery(question) for question in questions),
-                    return_exceptions=True,
-                )
-
-            with using_attributes(
-                session_id=session_id,
-                user_id=user_id,
-                metadata=metadata,
-                tags=tags,
-            ):
-                asyncio.run(task())
-        else:
-
-            def threaded_query(question: str) -> None:
-                # This context manager must be inside this function definition so
-                # there's a different instantiation per thread. This allows to use
-                # a different context per thread, as desired
+        if use_context_attributes:
+            if is_async:
                 with using_attributes(
                     session_id=session_id,
                     user_id=user_id,
                     metadata=metadata,
                     tags=tags,
                 ):
-                    response = query_engine.query(question)
-                    (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
-
-            with ThreadPoolExecutor(max_workers=n) as executor:
-                executor.map(
-                    threaded_query,
-                    questions,
-                )
+                    asyncio.run(task())
+            else:
+                with ThreadPoolExecutor(max_workers=n) as executor:
+                    executor.map(
+                        threaded_query_with_attributes,
+                        questions,
+                    )
+        else:
+            if is_async:
+                asyncio.run(task())
+            else:
+                with ThreadPoolExecutor(max_workers=n) as executor:
+                    executor.map(
+                        threaded_query,
+                        questions,
+                    )
 
     spans = in_memory_span_exporter.get_finished_spans()
     traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
@@ -154,6 +168,7 @@ def test_callback_llm(
             answer,
             nodes,
             status_code,
+            use_context_attributes,
             is_stream,
             session_id,
             user_id,
@@ -170,6 +185,7 @@ def _check_spans(
     answer: str,
     nodes: List[Document],
     status_code: int,
+    use_context_attributes: bool,
     is_stream: bool,
     session_id: str,
     user_id: str,
@@ -196,7 +212,8 @@ def _check_spans(
             openai.BadRequestError.__name__,
         )
 
-    _check_context_attributes(query_attributes, session_id, user_id, metadata, tags)
+    if use_context_attributes:
+        _check_context_attributes(query_attributes, session_id, user_id, metadata, tags)
     assert query_attributes == {}
 
     assert (synthesize_span := spans_by_name.pop("synthesize")) is not None
@@ -219,7 +236,8 @@ def _check_spans(
         assert query_span.status.description and query_span.status.description.startswith(
             openai.BadRequestError.__name__,
         )
-    _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
+    if use_context_attributes:
+        _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
     assert synthesize_attributes == {}
 
     assert (retrieve_span := spans_by_name.pop("retrieve")) is not None
@@ -242,7 +260,8 @@ def _check_spans(
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_CONTENT}", None)
         == nodes[1].text
     )
-    _check_context_attributes(retrieve_attributes, session_id, user_id, metadata, tags)
+    if use_context_attributes:
+        _check_context_attributes(retrieve_attributes, session_id, user_id, metadata, tags)
     assert retrieve_attributes == {}
 
     if status_code == 200:
@@ -277,7 +296,8 @@ def _check_spans(
                 llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "assistant"
             )
             assert llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
-        _check_context_attributes(llm_attributes, session_id, user_id, metadata, tags)
+        if use_context_attributes:
+            _check_context_attributes(llm_attributes, session_id, user_id, metadata, tags)
         assert llm_attributes == {}
 
     # FIXME: maybe chunking spans should be discarded?
@@ -287,7 +307,8 @@ def _check_spans(
     assert chunking_span.context.trace_id == synthesize_span.context.trace_id
     chunking_attributes = dict(chunking_span.attributes or {})
     assert chunking_attributes.pop(OPENINFERENCE_SPAN_KIND, None) is not None
-    _check_context_attributes(chunking_attributes, session_id, user_id, metadata, tags)
+    if use_context_attributes:
+        _check_context_attributes(chunking_attributes, session_id, user_id, metadata, tags)
     assert chunking_attributes == {}
 
     assert spans_by_name == {}
