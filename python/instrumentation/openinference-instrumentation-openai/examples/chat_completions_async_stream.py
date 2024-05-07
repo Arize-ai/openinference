@@ -32,6 +32,12 @@ async def chat_completions(**kwargs):
             },
         },
         tags=["tag-1", "tag-2"],
+        prompt_template="Who won the soccer match in {city} on {date}",
+        prompt_template_version="v1.0",
+        prompt_template_variables={
+            "city": "Johannesburg",
+            "date": "July 11th",
+        },
     ):
         response = await client.chat.completions.create(**kwargs)
         async for chunk in response:
