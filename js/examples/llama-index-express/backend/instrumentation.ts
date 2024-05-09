@@ -1,10 +1,7 @@
 /* eslint-disable no-console */
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
-import {
-  ConsoleSpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -20,7 +17,6 @@ const provider = new NodeTracerProvider({
   }),
 });
 
-provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 provider.addSpanProcessor(
   new SimpleSpanProcessor(
     new OTLPTraceExporter({
