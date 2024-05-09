@@ -192,6 +192,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
         else _langchain_run_type_to_span_kind(run.run_type)
     )
     span.set_attribute(OPENINFERENCE_SPAN_KIND, span_kind.value)
+    span.set_attributes(dict(get_attributes_from_context()))
     span.set_attributes(
         dict(
             _flatten(
@@ -213,7 +214,6 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
             )
         )
     )
-    span.set_attributes(dict(get_attributes_from_context()))
 
 
 def _langchain_run_type_to_span_kind(run_type: str) -> OpenInferenceSpanKindValues:
@@ -569,6 +569,12 @@ def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
     if not run.extra or not (metadata := run.extra.get("metadata")):
         return
     assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
+    if LANGCHAIN_THREAD_ID in metadata.keys():
+        yield SESSION_ID, metadata[LANGCHAIN_THREAD_ID]
+    if LANGCHAIN_CONVERSATION_ID in metadata.keys():
+        yield SESSION_ID, metadata[LANGCHAIN_CONVERSATION_ID]
+    if LANGCHAIN_SESSION_ID in metadata.keys():
+        yield SESSION_ID, metadata[LANGCHAIN_SESSION_ID]
     yield METADATA, json.dumps(metadata)
 
 
@@ -598,6 +604,10 @@ class _SafeJSONEncoder(json.JSONEncoder):
 def _as_utc_nano(dt: datetime) -> int:
     return int(dt.astimezone(timezone.utc).timestamp() * 1_000_000_000)
 
+
+LANGCHAIN_SESSION_ID = "session_id"
+LANGCHAIN_CONVERSATION_ID = "conversation_id"
+LANGCHAIN_THREAD_ID = "thread_id"
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
@@ -641,3 +651,4 @@ TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 METADATA = SpanAttributes.METADATA
+SESSION_ID = SpanAttributes.SESSION_ID
