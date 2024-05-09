@@ -2,7 +2,6 @@
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
 import {
-  ConsoleSpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
@@ -20,7 +19,6 @@ const provider = new NodeTracerProvider({
   }),
 });
 
-provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 provider.addSpanProcessor(
   new SimpleSpanProcessor(
     new OTLPTraceExporter({
