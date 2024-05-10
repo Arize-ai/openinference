@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.14...python-openinference-instrumentation-langchain-v0.1.15) (2024-05-10)
+
+
+### Features
+
+* Instrumentation reads session id from metadata ([#446](https://github.com/Arize-ai/openinference/issues/446)) ([5490f68](https://github.com/Arize-ai/openinference/commit/5490f6872415c1e9a874f0a7a4960a93e68afec8))
+* Make langchain instrumentation read context attributes ([#419](https://github.com/Arize-ai/openinference/issues/419)) ([0005fa8](https://github.com/Arize-ai/openinference/commit/0005fa8025a6c5bc44535f6610de4b938b535125))
+
+
+### Bug Fixes
+
+* Bump openinference-instrumentation req to avoid yanked release ([#429](https://github.com/Arize-ai/openinference/issues/429)) ([54d0931](https://github.com/Arize-ai/openinference/commit/54d09313900ad3bfc32f5202cd16ac725c11947a))
+* Enables `uninstrument` method on `LangchainInstrumentor` ([#353](https://github.com/Arize-ai/openinference/issues/353)) ([c96ae51](https://github.com/Arize-ai/openinference/commit/c96ae51bf80705e0aca6725136e2822cbe1fcdb9))
+* fix formatting and types in langchain instrumentation ([#367](https://github.com/Arize-ai/openinference/issues/367)) ([6d79c57](https://github.com/Arize-ai/openinference/commit/6d79c572f611a0b1cdb69ceb79f034091a3713af))
+
+
+### Documentation
+
+* Update LangChain instrumentation readme ([#349](https://github.com/Arize-ai/openinference/issues/349)) ([6cb1bcf](https://github.com/Arize-ai/openinference/commit/6cb1bcfbc0d19d96eca0221f3359d153a5fcc73c))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.13...python-openinference-instrumentation-langchain-v0.1.14) (2024-03-20)
 
 
