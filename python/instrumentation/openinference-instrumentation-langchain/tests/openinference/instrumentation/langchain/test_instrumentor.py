@@ -4,7 +4,7 @@ import logging
 import random
 from contextlib import suppress
 from itertools import count
-from typing import Any, AsyncIterator, Dict, Generator, Iterable, Iterator, List, Tuple
+from typing import Any, AsyncIterator, Dict, Generator, Iterable, Iterator, List, Optional, Tuple
 
 import numpy as np
 import openai
@@ -57,10 +57,16 @@ def test_callback_llm(
     user_id: str,
     metadata: Dict[str, Any],
     tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
     question = randstr()
-    template = "{context}{question}"
-    prompt = PromptTemplate(input_variables=["context", "question"], template=template)
+    langchain_template = "{context}{question}"
+
+    langchain_prompt = PromptTemplate(
+        input_variables=["context", "question"], template=langchain_template
+    )
     output_messages: List[Dict[str, Any]] = (
         chat_completion_mock_stream[1] if is_stream else [{"role": randstr(), "content": randstr()}]
     )
@@ -91,19 +97,13 @@ def test_callback_llm(
     rqa = RetrievalQA.from_chain_type(
         llm=chat_model,
         retriever=retriever,
-        chain_type_kwargs={"prompt": prompt},
+        chain_type_kwargs={"prompt": langchain_prompt},
     )
     with suppress(openai.BadRequestError):
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-        ):
-            if is_async:
-                asyncio.run(rqa.ainvoke({"query": question}))
-            else:
-                rqa.invoke({"query": question})
+        if is_async:
+            asyncio.run(rqa.ainvoke({"query": question}))
+        else:
+            rqa.invoke({"query": question})
 
     spans = in_memory_span_exporter.get_finished_spans()
     spans_by_name = {span.name: span for span in spans}
@@ -122,7 +122,7 @@ def test_callback_llm(
         assert (rqa_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
         ) == "BadRequestError"
-    _check_context_attributes(rqa_attributes, session_id, user_id, metadata, tags)
+
     assert rqa_attributes == {}
 
     assert (sd_span := spans_by_name.pop("StuffDocumentsChain")) is not None
@@ -142,7 +142,6 @@ def test_callback_llm(
         assert (sd_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
         ) == "BadRequestError"
-    _check_context_attributes(sd_attributes, session_id, user_id, metadata, tags)
     assert sd_attributes == {}
 
     assert (retriever_span := spans_by_name.pop("Retriever")) is not None
@@ -158,7 +157,6 @@ def test_callback_llm(
         assert (
             retriever_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", None) == text
         )
-    _check_context_attributes(retriever_attributes, session_id, user_id, metadata, tags)
     assert retriever_attributes == {}
 
     assert (llm_span := spans_by_name.pop("LLMChain", None)) is not None
@@ -169,15 +167,6 @@ def test_callback_llm(
     assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
     assert llm_attributes.pop(INPUT_VALUE, None) is not None
     assert llm_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
-    assert llm_attributes.pop(LLM_PROMPT_TEMPLATE, None) == template
-    assert isinstance(
-        template_variables_json_string := llm_attributes.pop(LLM_PROMPT_TEMPLATE_VARIABLES, None),
-        str,
-    )
-    assert json.loads(template_variables_json_string) == {
-        "context": "\n\n".join(documents),
-        "question": question,
-    }
     if status_code == 200:
         assert llm_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
     elif status_code == 400:
@@ -186,7 +175,20 @@ def test_callback_llm(
         assert (llm_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
         ) == "BadRequestError"
-    _check_context_attributes(llm_attributes, session_id, user_id, metadata, tags)
+    langchain_prompt_variables = {
+        "context": "\n\n".join(documents),
+        "question": question,
+    }
+    _check_context_attributes(
+        llm_attributes,
+        session_id=None,
+        user_id=None,
+        metadata=None,
+        tags=None,
+        prompt_template=langchain_template,
+        prompt_template_version=None,
+        prompt_template_variables=langchain_prompt_variables,
+    )
     assert llm_attributes == {}
 
     assert (oai_span := spans_by_name.pop("ChatOpenAI", None)) is not None
@@ -230,13 +232,258 @@ def test_callback_llm(
         assert (oai_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
         ) == "BadRequestError"
-    _check_context_attributes(oai_attributes, session_id, user_id, metadata, tags)
     assert oai_attributes == {}
 
     assert spans_by_name == {}
 
 
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_stream", [False, True])
+@pytest.mark.parametrize("status_code", [200, 400])
+def test_callback_llm_with_context_attributes(
+    is_async: bool,
+    is_stream: bool,
+    status_code: int,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    documents: List[str],
+    chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
+    model_name: str,
+    completion_usage: Dict[str, Any],
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    question = randstr()
+    langchain_template = "{context}{question}"
+
+    langchain_prompt = PromptTemplate(
+        input_variables=["context", "question"], template=langchain_template
+    )
+    output_messages: List[Dict[str, Any]] = (
+        chat_completion_mock_stream[1] if is_stream else [{"role": randstr(), "content": randstr()}]
+    )
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_kwargs: Dict[str, Any] = {
+        **(
+            {"stream": MockByteStream(chat_completion_mock_stream[0])}
+            if is_stream
+            else {
+                "json": {
+                    "choices": [
+                        {"index": i, "message": message, "finish_reason": "stop"}
+                        for i, message in enumerate(output_messages)
+                    ],
+                    "model": model_name,
+                    "usage": completion_usage,
+                }
+            }
+        ),
+    }
+    respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
+    chat_model = ChatOpenAI(model_name="gpt-3.5-turbo", streaming=is_stream)  # type: ignore
+    retriever = KNNRetriever(
+        index=np.ones((len(documents), 2)),
+        texts=documents,
+        embeddings=FakeEmbeddings(size=2),
+    )
+    rqa = RetrievalQA.from_chain_type(
+        llm=chat_model,
+        retriever=retriever,
+        chain_type_kwargs={"prompt": langchain_prompt},
+    )
+    with suppress(openai.BadRequestError):
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            if is_async:
+                asyncio.run(rqa.ainvoke({"query": question}))
+            else:
+                rqa.invoke({"query": question})
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    spans_by_name = {span.name: span for span in spans}
+
+    assert (rqa_span := spans_by_name.pop("RetrievalQA")) is not None
+    assert rqa_span.parent is None
+    rqa_attributes = dict(rqa_span.attributes or {})
+    assert rqa_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+    assert rqa_attributes.pop(INPUT_VALUE, None) == question
+    if status_code == 200:
+        assert rqa_span.status.status_code == trace_api.StatusCode.OK
+        assert rqa_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
+    elif status_code == 400:
+        assert rqa_span.status.status_code == trace_api.StatusCode.ERROR
+        assert rqa_span.events[0].name == "exception"
+        assert (rqa_span.events[0].attributes or {}).get(
+            OTELSpanAttributes.EXCEPTION_TYPE
+        ) == "BadRequestError"
+
+    _check_context_attributes(
+        rqa_attributes,
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    )
+    assert rqa_attributes == {}
+
+    assert (sd_span := spans_by_name.pop("StuffDocumentsChain")) is not None
+    assert sd_span.parent is not None
+    assert sd_span.parent.span_id == rqa_span.context.span_id
+    assert sd_span.context.trace_id == rqa_span.context.trace_id
+    sd_attributes = dict(sd_span.attributes or {})
+    assert sd_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+    assert sd_attributes.pop(INPUT_VALUE, None) is not None
+    assert sd_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
+    if status_code == 200:
+        assert sd_span.status.status_code == trace_api.StatusCode.OK
+        assert sd_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
+    elif status_code == 400:
+        assert sd_span.status.status_code == trace_api.StatusCode.ERROR
+        assert sd_span.events[0].name == "exception"
+        assert (sd_span.events[0].attributes or {}).get(
+            OTELSpanAttributes.EXCEPTION_TYPE
+        ) == "BadRequestError"
+    _check_context_attributes(
+        sd_attributes,
+        session_id,
+        user_id,
+        metadata,
+        tags,
+        prompt_template,
+        prompt_template_version,
+        prompt_template_variables,
+    )
+    assert sd_attributes == {}
+
+    assert (retriever_span := spans_by_name.pop("Retriever")) is not None
+    assert retriever_span.parent is not None
+    assert retriever_span.parent.span_id == rqa_span.context.span_id
+    assert retriever_span.context.trace_id == rqa_span.context.trace_id
+    retriever_attributes = dict(retriever_span.attributes or {})
+    assert retriever_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
+    assert retriever_attributes.pop(INPUT_VALUE, None) == question
+    assert retriever_attributes.pop(OUTPUT_VALUE, None) is not None
+    assert retriever_attributes.pop(OUTPUT_MIME_TYPE, None) == JSON.value
+    for i, text in enumerate(documents):
+        assert (
+            retriever_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", None) == text
+        )
+    _check_context_attributes(
+        retriever_attributes,
+        session_id,
+        user_id,
+        metadata,
+        tags,
+        prompt_template,
+        prompt_template_version,
+        prompt_template_variables,
+    )
+    assert retriever_attributes == {}
+
+    assert (llm_span := spans_by_name.pop("LLMChain", None)) is not None
+    assert llm_span.parent is not None
+    assert llm_span.parent.span_id == sd_span.context.span_id
+    assert llm_span.context.trace_id == sd_span.context.trace_id
+    llm_attributes = dict(llm_span.attributes or {})
+    assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+    assert llm_attributes.pop(INPUT_VALUE, None) is not None
+    assert llm_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
+    if status_code == 200:
+        assert llm_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
+    elif status_code == 400:
+        assert llm_span.status.status_code == trace_api.StatusCode.ERROR
+        assert llm_span.events[0].name == "exception"
+        assert (llm_span.events[0].attributes or {}).get(
+            OTELSpanAttributes.EXCEPTION_TYPE
+        ) == "BadRequestError"
+    _check_context_attributes(
+        llm_attributes,
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=langchain_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    )
+    assert llm_attributes == {}
+
+    assert (oai_span := spans_by_name.pop("ChatOpenAI", None)) is not None
+    assert oai_span.parent is not None
+    assert oai_span.parent.span_id == llm_span.context.span_id
+    assert oai_span.context.trace_id == llm_span.context.trace_id
+    oai_attributes = dict(oai_span.attributes or {})
+    assert oai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+    assert oai_attributes.pop(LLM_MODEL_NAME, None) is not None
+    assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+    assert oai_attributes.pop(INPUT_VALUE, None) is not None
+    assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
+    assert oai_attributes.pop(LLM_PROMPTS, None) is not None
+    if status_code == 200:
+        assert oai_span.status.status_code == trace_api.StatusCode.OK
+        assert oai_attributes.pop(OUTPUT_VALUE, None) is not None
+        assert oai_attributes.pop(OUTPUT_MIME_TYPE, None) == JSON.value
+        assert (
+            oai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
+            == output_messages[0]["role"]
+        )
+        assert (
+            oai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
+            == output_messages[0]["content"]
+        )
+        if not is_stream:
+            assert (
+                oai_attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
+            )
+            assert (
+                oai_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None)
+                == completion_usage["prompt_tokens"]
+            )
+            assert (
+                oai_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None)
+                == completion_usage["completion_tokens"]
+            )
+    elif status_code == 400:
+        assert oai_span.status.status_code == trace_api.StatusCode.ERROR
+        assert oai_span.events[0].name == "exception"
+        assert (oai_span.events[0].attributes or {}).get(
+            OTELSpanAttributes.EXCEPTION_TYPE
+        ) == "BadRequestError"
+    _check_context_attributes(
+        oai_attributes,
+        session_id,
+        user_id,
+        metadata,
+        tags,
+        prompt_template,
+        prompt_template_version,
+        prompt_template_variables,
+    )
+    assert oai_attributes == {}
+
+    assert spans_by_name == {}
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+@pytest.mark.parametrize("use_langchain_metadata", [False, True])
 def test_chain_metadata(
+    use_context_attributes: bool,
+    use_langchain_metadata: bool,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
@@ -244,14 +491,18 @@ def test_chain_metadata(
     user_id: str,
     metadata: Dict[str, Any],
     tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
     url = "https://api.openai.com/v1/chat/completions"
+    output_val = "nock nock"
     respx_kwargs: Dict[str, Any] = {
         "json": {
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": "nock nock"},
+                    "message": {"role": "assistant", "content": output_val},
                     "finish_reason": "stop",
                 }
             ],
@@ -260,43 +511,221 @@ def test_chain_metadata(
         }
     }
     respx_mock.post(url).mock(return_value=Response(status_code=200, **respx_kwargs))
-    prompt_template = "Tell me a {adjective} joke"
-    prompt = PromptTemplate(input_variables=["adjective"], template=prompt_template)
-    llm = LLMChain(llm=ChatOpenAI(), prompt=prompt, metadata={"category": "jokes"})
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-    ):
-        llm.predict(adjective="funny")
+    langchain_prompt_template = "Tell me a {adjective} joke"
+    prompt = PromptTemplate(input_variables=["adjective"], template=langchain_prompt_template)
+    if use_langchain_metadata:
+        langchain_metadata = {"category": "jokes"}
+        llm = LLMChain(llm=ChatOpenAI(), prompt=prompt, metadata=langchain_metadata)
+    else:
+        llm = LLMChain(llm=ChatOpenAI(), prompt=prompt)
+    langchain_prompt_variables = {
+        "adjective": "funny",
+    }
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            # We will test that this prompt template does not overwrite the passed prompt template
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            # We will test that these variables do not overwrite the passed variables
+            prompt_template_variables=prompt_template_variables,
+        ):
+            llm.predict(**langchain_prompt_variables)  # type: ignore
+    else:
+        llm.predict(**langchain_prompt_variables)  # type: ignore
     spans = in_memory_span_exporter.get_finished_spans()
     spans_by_name = {span.name: span for span in spans}
 
     assert (llm_chain_span := spans_by_name.pop("LLMChain")) is not None
     llm_attributes = dict(llm_chain_span.attributes or {})
     assert llm_attributes
-    _check_context_attributes(llm_attributes, session_id, user_id, metadata, tags)
+    if use_langchain_metadata:
+        check_metadata = langchain_metadata
+    else:
+        if use_context_attributes:
+            check_metadata = metadata
+        else:
+            check_metadata = None
+
+    _check_context_attributes(
+        attributes=llm_attributes,
+        session_id=session_id if use_context_attributes else None,
+        user_id=user_id if use_context_attributes else None,
+        metadata=check_metadata,
+        tags=tags if use_context_attributes else None,
+        prompt_template=langchain_prompt_template,
+        prompt_template_version=prompt_template_version if use_context_attributes else None,
+        prompt_template_variables=langchain_prompt_variables,
+    )
+    assert (
+        llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.CHAIN.value
+    )
+    assert llm_attributes.pop(INPUT_VALUE, None) == langchain_prompt_variables["adjective"]
+    assert llm_attributes.pop(OUTPUT_VALUE, None) == output_val
+    assert llm_attributes == {}
 
 
-def _check_context_attributes(
-    attributes: Dict[str, Any],
+@pytest.mark.parametrize(
+    "session_metadata, expected_session_id",
+    [
+        (
+            {
+                "session_id": "test-langchain-session-id",
+            },
+            "test-langchain-session-id",
+        ),
+        (
+            {
+                "conversation_id": "test-langchain-conversation-id",
+            },
+            "test-langchain-conversation-id",
+        ),
+        (
+            {
+                "thread_id": "test-langchain-thread-id",
+            },
+            "test-langchain-thread-id",
+        ),
+        (
+            {
+                "session_id": "test-langchain-session-id",
+                "conversation_id": "test-langchain-conversation-id",
+                "thread_id": "test-langchain-thread-id",
+            },
+            "test-langchain-session-id",
+        ),
+        (
+            {
+                "conversation_id": "test-langchain-conversation-id",
+                "thread_id": "test-langchain-thread-id",
+            },
+            "test-langchain-conversation-id",
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_read_session_from_metadata(
+    use_context_attributes: bool,
+    session_metadata: Dict[str, str],
+    expected_session_id: str,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
     tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
-    assert attributes.pop(SESSION_ID, None) == session_id
-    assert attributes.pop(USER_ID, None) == user_id
-    attr_metadata = attributes.pop(METADATA, None)
-    assert attr_metadata is not None
-    assert isinstance(attr_metadata, str)  # must be json string
-    metadata_dict = json.loads(attr_metadata)
-    assert metadata_dict == metadata
-    attr_tags = attributes.pop(TAG_TAGS, None)
-    assert attr_tags is not None
-    assert len(attr_tags) == len(tags)
-    assert list(attr_tags) == tags
+    url = "https://api.openai.com/v1/chat/completions"
+    output_val = "nock nock"
+    respx_kwargs: Dict[str, Any] = {
+        "json": {
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": output_val},
+                    "finish_reason": "stop",
+                }
+            ],
+            "model": "gpt-3.5-turbo",
+            "usage": completion_usage,
+        }
+    }
+    respx_mock.post(url).mock(return_value=Response(status_code=200, **respx_kwargs))
+    langchain_prompt_template = "Tell me a {adjective} joke"
+    prompt = PromptTemplate(input_variables=["adjective"], template=langchain_prompt_template)
+    langchain_metadata = session_metadata
+    langchain_metadata["category"] = "jokes"
+    llm = LLMChain(llm=ChatOpenAI(), prompt=prompt, metadata=langchain_metadata)
+    langchain_prompt_variables = {
+        "adjective": "funny",
+    }
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            # We will test that this prompt template does not overwrite the passed prompt template
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            # We will test that these variables do not overwrite the passed variables
+            prompt_template_variables=prompt_template_variables,
+        ):
+            llm.predict(**langchain_prompt_variables)  # type: ignore
+    else:
+        llm.predict(**langchain_prompt_variables)  # type: ignore
+    spans = in_memory_span_exporter.get_finished_spans()
+    spans_by_name = {span.name: span for span in spans}
+
+    assert (llm_chain_span := spans_by_name.pop("LLMChain")) is not None
+    llm_attributes = dict(llm_chain_span.attributes or {})
+    print(f"{llm_attributes=}")
+    assert llm_attributes
+
+    _check_context_attributes(
+        attributes=llm_attributes,
+        session_id=expected_session_id,
+        user_id=user_id if use_context_attributes else None,
+        metadata=langchain_metadata,
+        tags=tags if use_context_attributes else None,
+        prompt_template=langchain_prompt_template,
+        prompt_template_version=prompt_template_version if use_context_attributes else None,
+        prompt_template_variables=langchain_prompt_variables,
+    )
+    assert (
+        llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.CHAIN.value
+    )
+    assert llm_attributes.pop(INPUT_VALUE, None) == langchain_prompt_variables["adjective"]
+    assert llm_attributes.pop(OUTPUT_VALUE, None) == output_val
+    assert llm_attributes == {}
+
+
+def _check_context_attributes(
+    attributes: Dict[str, Any],
+    session_id: Optional[str],
+    user_id: Optional[str],
+    metadata: Optional[Dict[str, Any]],
+    tags: Optional[List[str]],
+    prompt_template: Optional[str],
+    prompt_template_version: Optional[str],
+    prompt_template_variables: Optional[Dict[str, Any]],
+) -> None:
+    if session_id is not None:
+        assert attributes.pop(SESSION_ID, None) == session_id
+    if user_id is not None:
+        assert attributes.pop(USER_ID, None) == user_id
+    if metadata is not None:
+        attr_metadata = attributes.pop(METADATA, None)
+        assert attr_metadata is not None
+        assert isinstance(attr_metadata, str)  # must be json string
+        metadata_dict = json.loads(attr_metadata)
+        assert metadata_dict == metadata
+    if tags is not None:
+        attr_tags = attributes.pop(TAG_TAGS, None)
+        assert attr_tags is not None
+        assert len(attr_tags) == len(tags)
+        assert list(attr_tags) == tags
+    if prompt_template is not None:
+        assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
+    if prompt_template_version:
+        assert (
+            attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None)
+            == prompt_template_version
+        )
+    if prompt_template_variables:
+        # print(prompt_template_variables)
+        # x = attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None)
+        # print(x)
+        # assert x == json.dumps(prompt_template_variables)
+        x = attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None)
+        assert x
 
 
 @pytest.fixture()
@@ -325,6 +754,28 @@ def metadata() -> Dict[str, Any]:
 @pytest.fixture()
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
+
+
+@pytest.fixture
+def prompt_template() -> str:
+    return (
+        "This is a test prompt template with int {var_int}, "
+        "string {var_string}, and list {var_list}"
+    )
+
+
+@pytest.fixture
+def prompt_template_version() -> str:
+    return "v1.0"
+
+
+@pytest.fixture
+def prompt_template_variables() -> Dict[str, Any]:
+    return {
+        "var_int": 1,
+        "var_str": "2",
+        "var_list": [1, 2, 3],
+    }
 
 
 @pytest.fixture
@@ -421,6 +872,10 @@ class MockByteStream(SyncByteStream, AsyncByteStream):
         for byte_string in self._byte_stream:
             yield byte_string
 
+
+LANGCHAIN_SESSION_ID = "session_id"
+LANGCHAIN_CONVERSATION_ID = "conversation_id"
+LANGCHAIN_THREAD_ID = "thread_id"
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
