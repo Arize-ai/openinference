@@ -29,6 +29,12 @@ if __name__ == "__main__":
             },
         },
         tags=["tag-1", "tag-2"],
+        prompt_template="Who won the soccer match in {city} on {date}",
+        prompt_template_version="v1.0",
+        prompt_template_variables={
+            "city": "Johannesburg",
+            "date": "July 11th",
+        },
     ):
         for chunk in ChatOpenAI(model_name="gpt-3.5-turbo").stream("Write a haiku."):
             print(chunk.content, end="", flush=True)
