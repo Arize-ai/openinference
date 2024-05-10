@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.5...python-openinference-instrumentation-mistralai-v0.0.6) (2024-05-09)
+
+
+### Features
+
+* Make Mistral ai instrumentation read context attributes  ([#420](https://github.com/Arize-ai/openinference/issues/420)) ([e4a61c5](https://github.com/Arize-ai/openinference/commit/e4a61c514c867b2f5a8b5d550176506d693ae720))
+
+
+### Bug Fixes
+
+* Bump openinference-instrumentation req to avoid yanked release ([#427](https://github.com/Arize-ai/openinference/issues/427)) ([a9ef31e](https://github.com/Arize-ai/openinference/commit/a9ef31eb268c21328bdccc388d5fb8aeb0051cb4))
+* update mistralai minimum python version ([#341](https://github.com/Arize-ai/openinference/issues/341)) ([04e7ee1](https://github.com/Arize-ai/openinference/commit/04e7ee17c748708a28a73e8e9d43889ac3fb6fb0))
+
+
+### Documentation
+
+* update mistral README.md with pypi badge ([#334](https://github.com/Arize-ai/openinference/issues/334)) ([8e31667](https://github.com/Arize-ai/openinference/commit/8e31667c7e15066c22de0b9f1c88aa0e5bd29c6f))
+
 ## [0.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.4...python-openinference-instrumentation-mistralai-v0.0.5) (2024-03-23)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.7...python-openinference-instrumentation-dspy-v0.1.8) (2024-05-09)
+
+
+### Features
+
+* Make DSPY instrumentation read from attributes from context ([#421](https://github.com/Arize-ai/openinference/issues/421)) ([60c9b9c](https://github.com/Arize-ai/openinference/commit/60c9b9c2a82f4b149e1b89aff9295f9fe17fb5a7))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.6...python-openinference-instrumentation-dspy-v0.1.7) (2024-04-27)
 
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.4...python-openinference-instrumentation-openai-v0.1.5) (2024-05-09)
+
+
+### Features
+
+* add tool calling support for sync and async chat completions for mistralai instrumentation ([#313](https://github.com/Arize-ai/openinference/issues/313)) ([9889164](https://github.com/Arize-ai/openinference/commit/9889164b4dd815cdb044d6f40a9506a02adf38c2))
+* OpenAI instrumentation to capture context attributes ([#415](https://github.com/Arize-ai/openinference/issues/415)) ([8e0cab9](https://github.com/Arize-ai/openinference/commit/8e0cab90c10a4e74270eacca7e0cc9271543fe2a))
+
+
+### Bug Fixes
+
+* Bump openinference-instrumentation requirement to avoid yanked release ([#426](https://github.com/Arize-ai/openinference/issues/426)) ([71b28f2](https://github.com/Arize-ai/openinference/commit/71b28f29c1331be89e0e82278b16fee2f17a0a9e))
+
+
+### Documentation
+
+* **openai:** flesh out README ([#290](https://github.com/Arize-ai/openinference/issues/290)) ([70adfae](https://github.com/Arize-ai/openinference/commit/70adfae642e0e0c1f207d237766ef54bec587236))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.3...python-openinference-instrumentation-openai-v0.1.4) (2024-03-13)
 
 
