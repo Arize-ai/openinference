@@ -569,7 +569,11 @@ def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
     if not run.extra or not (metadata := run.extra.get("metadata")):
         return
     assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
-    if (session_id := (metadata.get(LANGCHAIN_THREAD_ID) or metadata.get(LANGCHAIN_CONVERSATION_ID) or metadata.get(LANGCHAIN_SESSION_ID))):
+    if session_id := (
+        metadata.get(LANGCHAIN_SESSION_ID)
+        or metadata.get(LANGCHAIN_CONVERSATION_ID)
+        or metadata.get(LANGCHAIN_THREAD_ID)
+    ):
         yield SESSION_ID, session_id
     yield METADATA, json.dumps(metadata)
 
