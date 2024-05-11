@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.4...python-openinference-instrumentation-bedrock-v0.1.5) (2024-05-11)
+
+
+### Features
+
+* add support for meta vendor in openinference-instrumentation-bedrock ([#448](https://github.com/Arize-ai/openinference/issues/448)) ([958c385](https://github.com/Arize-ai/openinference/commit/958c385b1d8de70698bc2e8368cef36a8e5acf8f))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.3...python-openinference-instrumentation-bedrock-v0.1.4) (2024-05-10)
 
 
