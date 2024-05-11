@@ -147,6 +147,8 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                         content = str(response_body.get("completion"))
                     elif vendor == "cohere":
                         content = str(response_body.get("generations"))
+                    elif vendor == "meta":
+                        content = str(response_body.get("generation"))
                     else:
                         content = ""
 
