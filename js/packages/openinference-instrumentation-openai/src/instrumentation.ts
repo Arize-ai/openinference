@@ -75,6 +75,16 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     );
     return module;
   }
+
+  /**
+   * Manually instruments the OpenAI module. This is needed when the module is not loaded via require (commonjs)
+   * @param {openai} module
+   */
+  manuallyInstrument(module: typeof openai) {
+    diag.debug(`Manually instrumenting ${MODULE_NAME}`);
+    this.patch(module);
+  }
+
   /**
    * Patches the OpenAI module
    */
