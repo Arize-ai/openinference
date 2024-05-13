@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 0.2.0
+
+### Minor Changes
+
+- 53311f5: Add manual instrumentation for openai node sdk
+
 ## 0.1.4
 
 ### Patch Changes
