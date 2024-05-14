@@ -1,8 +1,3 @@
-# The following line is needed to ensure that other modules using the
-# `openinference.instrumentation` path can be discovered by Bazel. For details,
-# see: https://github.com/Arize-ai/openinference/issues/398
-__path__ = __import__("pkgutil").extend_path(__path__, __name__)
-
 import json
 from contextlib import ContextDecorator
 from typing import Any, Dict, Iterator, List, Optional, Tuple
@@ -18,6 +13,12 @@ from opentelemetry.context import (
 )
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import Self
+
+# The following line is needed to ensure that other modules using the
+# `openinference.instrumentation` path can be discovered by Bazel. For details,
+# see: https://github.com/Arize-ai/openinference/issues/398
+__path__ = __import__("pkgutil").extend_path(__path__, __name__)
+
 
 CONTEXT_ATTRIBUTES = (
     SpanAttributes.SESSION_ID,
