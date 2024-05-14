@@ -78,11 +78,6 @@ def test_callback_llm(
     metadata: Dict[str, Any],
     tags: List[str],
 ) -> None:
-    if status_code == 400 and is_stream:
-        pytest.xfail(
-            "There's been a regression where LlamaIndex does not invoke `on_event_end` "
-            "when streaming and receiving a 400."
-        )
     n = 10  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
@@ -207,15 +202,6 @@ def _check_spans(
         assert query_span.status.status_code == trace_api.StatusCode.OK
         assert not query_span.status.description
         assert query_attributes.pop(OUTPUT_VALUE, None) == answer
-    elif (
-        # FIXME: currently the error is propagated when streaming because we don't rely on
-        # `on_event_end` to set the status code.
-        status_code == 400 and is_stream
-    ):
-        assert query_span.status.status_code == trace_api.StatusCode.ERROR
-        assert query_span.status.description and query_span.status.description.startswith(
-            openai.BadRequestError.__name__,
-        )
 
     if use_context_attributes:
         _check_context_attributes(query_attributes, session_id, user_id, metadata, tags)
@@ -232,15 +218,6 @@ def _check_spans(
         assert synthesize_span.status.status_code == trace_api.StatusCode.OK
         assert not synthesize_span.status.description
         assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
-    elif (
-        # FIXME: currently the error is propagated when streaming because we don't rely on
-        # `on_event_end` to set the status code.
-        status_code == 400 and is_stream
-    ):
-        assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
-        assert query_span.status.description and query_span.status.description.startswith(
-            openai.BadRequestError.__name__,
-        )
     if use_context_attributes:
         _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
     assert synthesize_attributes == {}
