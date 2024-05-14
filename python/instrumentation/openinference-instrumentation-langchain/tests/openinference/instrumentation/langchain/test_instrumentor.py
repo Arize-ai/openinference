@@ -533,9 +533,9 @@ def test_chain_metadata(
             # We will test that these variables do not overwrite the passed variables
             prompt_template_variables=prompt_template_variables,
         ):
-            llm.predict(**langchain_prompt_variables)  # type: ignore
+            llm.predict(**langchain_prompt_variables)
     else:
-        llm.predict(**langchain_prompt_variables)  # type: ignore
+        llm.predict(**langchain_prompt_variables)
     spans = in_memory_span_exporter.get_finished_spans()
     spans_by_name = {span.name: span for span in spans}
 
@@ -658,9 +658,9 @@ def test_read_session_from_metadata(
             # We will test that these variables do not overwrite the passed variables
             prompt_template_variables=prompt_template_variables,
         ):
-            llm.predict(**langchain_prompt_variables)  # type: ignore
+            llm.predict(**langchain_prompt_variables)
     else:
-        llm.predict(**langchain_prompt_variables)  # type: ignore
+        llm.predict(**langchain_prompt_variables)
     spans = in_memory_span_exporter.get_finished_spans()
     spans_by_name = {span.name: span for span in spans}
 
