@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.5...python-openinference-instrumentation-v0.1.6) (2024-05-14)
+
+
+### Bug Fixes
+
+* ensure bazel can discover instrumentation modules in openinference.instrumentations ([#455](https://github.com/Arize-ai/openinference/issues/455)) ([38a3ad6](https://github.com/Arize-ai/openinference/commit/38a3ad6cca3a931ebbe51a57bc78c4a000dcae17))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.4...python-openinference-instrumentation-v0.1.5) (2024-05-06)
 
 
