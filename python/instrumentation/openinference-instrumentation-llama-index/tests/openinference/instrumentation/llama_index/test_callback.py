@@ -78,6 +78,11 @@ def test_callback_llm(
     metadata: Dict[str, Any],
     tags: List[str],
 ) -> None:
+    if status_code == 400 and is_stream:
+        pytest.xfail(
+            "There's been a regression where LlamaIndex does not invoke `on_event_end` "
+            "when streaming and receiving a 400."
+        )
     n = 10  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
