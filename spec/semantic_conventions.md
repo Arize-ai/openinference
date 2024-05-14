@@ -64,7 +64,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 messages = [{"message.role": "user", "message.content": "hello"}, {"message.role": "assistant", "message.content": "hi"}]
 
 for i, obj in enumerate(messages):
-    for key, value in obj:
+    for key, value in obj.items():
         span.set_attribute(f"input.messages.{i}.{key}", value)
 ```
 
