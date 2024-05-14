@@ -8,7 +8,7 @@ operations used by applications. These conventions are used to populate the `att
 The following attributes are reserved and MUST be supported by all OpenInference Tracing SDKs:
 
 | Attribute                              | Type                        | Example                                                                    | Description                                                      |
-| -------------------------------------- |-----------------------------| -------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+|----------------------------------------|-----------------------------|----------------------------------------------------------------------------|------------------------------------------------------------------|
 | `document.content`                     | String                      | `"This is a sample document content."`                                     | The content of a retrieved document                              |
 | `document.id`                          | String/Integer              | `"1234"` or `1`                                                            | Unique identifier for a document                                 |
 | `document.metadata`                    | JSON String                 | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                           | Metadata associated with a document                              |
@@ -58,14 +58,35 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `tool_call.function.name`              | String                      | `get_current_weather`                                                      | The name of the function being invoked by a tool call            |
 | `user.id`                              | String                      | `"9328ae73-7141-4f45-a044-8e06192aa465"`                                   | Unique identifier for a user                                     |
 
-<sup>†</sup> To get a list of objects exported as OpenTelemetry span attributes, flattening of the list is necessary as shown in the example below.
+<sup>†</sup> To get a list of objects exported as OpenTelemetry span attributes, flattening of the list is necessary as
+shown in the examples below.
+
+#### Python
 
 ```python
-messages = [{"message.role": "user", "message.content": "hello"}, {"message.role": "assistant", "message.content": "hi"}]
+messages = [{"message.role": "user", "message.content": "hello"},
+            {"message.role": "assistant", "message.content": "hi"}]
 
 for i, obj in enumerate(messages):
     for key, value in obj.items():
         span.set_attribute(f"input.messages.{i}.{key}", value)
 ```
 
-If the objects are further nested, flattening should continue until the attribute values are either simple values, i.e. `bool, str, bytes, int, float` or simple lists, i.e. `List[bool], List[str], List[bytes], List[int], List[float]` 
+#### JavaScript/TypeScript (ES6)
+
+```javascript
+const messages = [{ "message.role": "user", "message.content": "hello", }, {
+  "message.role": "assistant",
+  "message.content": "hi",
+}];
+
+for (const [i, obj] of messages.entries()) {
+  for (const [key, value] of Object.entries(obj)) {
+    span.setAttribute(`input.messages.${i}.${key}`, value);
+  }
+}
+```
+
+If the objects are further nested, flattening should continue until the attribute values are either simple values,
+i.e. `bool`, `str`, `bytes`, `int`, `float` or simple lists,
+i.e. `List[bool]`, `List[str]`, `List[bytes]`, `List[int]`, `List[float]`. 
