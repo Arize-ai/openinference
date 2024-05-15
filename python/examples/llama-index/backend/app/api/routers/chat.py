@@ -99,20 +99,15 @@ async def chat(
     data: _ChatData,
     chat_engine: BaseChatEngine = Depends(get_chat_engine),
 ):
-    span = tracer.start_span("chat", attributes={SpanAttributes.OPENINFERENCE_SPAN_KIND: "CHAIN"})
-    with trace.use_span(span, end_on_exit=False):
-        last_message_content, messages = await parse_chat_data(data)
-        span.set_attribute(SpanAttributes.INPUT_VALUE, last_message_content)
-        response = await chat_engine.astream_chat(last_message_content, messages)
+    last_message_content, messages = await parse_chat_data(data)
+    response = await chat_engine.astream_chat(last_message_content, messages)
 
-        async def event_generator():
-            full_response = ""
-            async for token in response.async_response_gen():
-                if await request.is_disconnected():
-                    break
-                full_response = full_response + token
-                yield token
-            span.set_attribute(SpanAttributes.OUTPUT_VALUE, full_response)
-            span.end()
+    async def event_generator():
+        full_response = ""
+        async for token in response.async_response_gen():
+            if await request.is_disconnected():
+                break
+            full_response = full_response + token
+            yield token
 
-        return StreamingResponse(event_generator(), media_type="text/plain")
+    return StreamingResponse(event_generator(), media_type="text/plain")
