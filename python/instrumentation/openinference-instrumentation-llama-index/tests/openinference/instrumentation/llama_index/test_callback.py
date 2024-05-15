@@ -87,7 +87,7 @@ def test_callback_llm(
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
     callback_manager = CallbackManager()
     Settings.callback_manager = callback_manager
-    Settings.llm = OpenAI()
+    Settings.llm = OpenAI(max_retries=0, timeout=1)
     query_engine = ListIndex(nodes).as_query_engine(use_async=is_async, streaming=is_stream)
     respx_kwargs: Dict[str, Any] = (
         {

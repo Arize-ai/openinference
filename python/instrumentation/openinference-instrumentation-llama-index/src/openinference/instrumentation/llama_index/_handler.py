@@ -402,7 +402,15 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
         if span := self.open_spans.get(id_):
             if err is not None:
                 span.record_exception(err)
-            span.end(status=trace_api.Status(status_code=trace_api.StatusCode.ERROR))
+            # Follow the format in OTEL SDK for description, see:
+            # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+            description = None if err is None else f"{type(err).__name__}: {err}"
+            span.end(
+                status=trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=description,
+                )
+            )
         return span
 
 

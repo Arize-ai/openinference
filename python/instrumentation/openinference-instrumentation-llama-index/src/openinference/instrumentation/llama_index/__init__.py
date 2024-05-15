@@ -7,8 +7,6 @@ from openinference.instrumentation.llama_index.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 
-_MODULE = "llama_index.core"
-
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -56,6 +54,8 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             llama_index.core.global_handler = self._original_global_handler
             self._original_global_handler = None
         else:
+            if self._event_handler is None:
+                return
             from llama_index.core.instrumentation import get_dispatcher
 
             dispatcher = get_dispatcher()
