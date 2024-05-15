@@ -209,8 +209,6 @@ class _Span(
     def _(self, event: LLMCompletionStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
-        if name := event.model_dict.get("model_name"):
-            self[LLM_MODEL_NAME] = name
         self[LLM_PROMPTS] = [event.prompt]
 
     @process_event.register
