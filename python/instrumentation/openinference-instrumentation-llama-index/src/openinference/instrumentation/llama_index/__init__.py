@@ -1,5 +1,6 @@
+import importlib
 import logging
-from typing import Any, Collection
+from typing import Any, Collection, Optional
 
 from openinference.instrumentation.llama_index.package import _instruments
 from openinference.instrumentation.llama_index.version import __version__
@@ -17,7 +18,10 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     An instrumentor for LlamaIndex
     """
 
-    __slots__ = ("_original_global_handler",)
+    __slots__ = (
+        "_event_handler",
+        "_original_global_handler",  # deprecated; to be removed
+    )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -30,13 +34,42 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             OpenInferenceTraceCallbackHandler,
         )
 
-        import llama_index.core
+        if _legacy_llama_index():
+            import llama_index.core
 
-        self._original_global_handler = llama_index.core.global_handler
-        llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
+            self._original_global_handler = llama_index.core.global_handler
+            llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
+        else:
+            from llama_index.core.instrumentation import get_dispatcher
+
+            from ._handler import EventHandler
+
+            self._event_handler: Optional[EventHandler] = EventHandler(tracer=tracer)
+            dispatcher = get_dispatcher()
+            dispatcher.add_event_handler(self._event_handler)
+            dispatcher.add_span_handler(self._event_handler.span_handler)
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        import llama_index.core
+        if _legacy_llama_index():
+            import llama_index.core
 
-        llama_index.core.global_handler = self._original_global_handler
-        self._original_global_handler = None
+            llama_index.core.global_handler = self._original_global_handler
+            self._original_global_handler = None
+        else:
+            from llama_index.core.instrumentation import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            dispatcher.span_handlers[:] = filter(
+                lambda h: h is not self._event_handler.span_handler,  # type: ignore
+                dispatcher.span_handlers,
+            )
+            dispatcher.event_handlers[:] = filter(
+                lambda h: h is not self._event_handler,
+                dispatcher.event_handlers,
+            )
+            self._event_handler = None
+
+
+def _legacy_llama_index() -> bool:
+    v = importlib.metadata.version("llama-index-core")
+    return tuple(map(int, v.split(".")[:3])) < (0, 10, 36)
