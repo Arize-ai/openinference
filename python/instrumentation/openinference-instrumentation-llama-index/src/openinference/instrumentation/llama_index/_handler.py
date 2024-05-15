@@ -104,14 +104,14 @@ class _Span(
         self._span_kind = None
         self._first_token_timestamp = None
 
-    def _set(self, key: str, value: AttributeValue) -> None:
+    def __setitem__(self, key: str, value: AttributeValue) -> None:
         self._otel_span.set_attribute(key, value)
 
     def record_exception(self, exception: BaseException) -> None:
         self._otel_span.record_exception(exception)
 
     def end(self, status: trace_api.Status) -> None:
-        self._set(OPENINFERENCE_SPAN_KIND, self._span_kind or CHAIN)
+        self[OPENINFERENCE_SPAN_KIND] = self._span_kind or CHAIN
         self._otel_span.set_status(status=status)
         self._otel_span.end()
 
@@ -127,18 +127,18 @@ class _Span(
     def _(self, event: AgentChatWithStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
-        self._set(INPUT_VALUE, event.user_msg)
+        self[INPUT_VALUE] = event.user_msg
 
     @process_event.register
     def _(self, event: AgentChatWithStepEndEvent) -> None:
-        self._set(OUTPUT_VALUE, str(event.response))
+        self[OUTPUT_VALUE] = str(event.response)
 
     @process_event.register
     def _(self, event: AgentRunStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
         if input := event.input:
-            self._set(INPUT_VALUE, input)
+            self[INPUT_VALUE] = input
 
     @process_event.register
     def _(self, event: AgentRunStepEndEvent) -> None:
@@ -149,9 +149,9 @@ class _Span(
     def _(self, event: AgentToolCallEvent) -> None:
         tool = event.tool
         if name := tool.name:
-            self._set(TOOL_NAME, name)
-        self._set(TOOL_DESCRIPTION, tool.description)
-        self._set(TOOL_PARAMETERS, json.dumps(tool.get_parameters_dict()))
+            self[TOOL_NAME] = name
+        self[TOOL_DESCRIPTION] = tool.description
+        self[TOOL_PARAMETERS] = json.dumps(tool.get_parameters_dict())
 
     @process_event.register
     def _(self, event: StreamChatErrorEvent) -> None:
@@ -170,23 +170,23 @@ class _Span(
     @process_event.register
     def _(self, event: EmbeddingEndEvent) -> None:
         for i, (text, vector) in enumerate(zip(event.chunks, event.embeddings)):
-            self._set(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}", text)
-            self._set(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}", vector)
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
 
     @process_event.register
     def _(self, event: LLMPredictStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
-        self._set(LLM_PROMPT_TEMPLATE, event.template.get_template())
+        self[LLM_PROMPT_TEMPLATE] = event.template.get_template()
         vars = event.template.template_vars
         args = {**event.template.kwargs, **(event.template_args if event.template_args else {})}
         template_args = {var: arg for var in vars if (arg := args.get(var)) is not None}
         if template_args:
-            self._set(LLM_PROMPT_TEMPLATE_VARIABLES, json.dumps(template_args))
+            self[LLM_PROMPT_TEMPLATE_VARIABLES] = json.dumps(template_args)
 
     @process_event.register
     def _(self, event: LLMPredictEndEvent) -> None:
-        self._set(OUTPUT_VALUE, event.output)
+        self[OUTPUT_VALUE] = event.output
 
     @process_event.register
     def _(self, event: LLMStructuredPredictStartEvent) -> None:
@@ -195,31 +195,31 @@ class _Span(
 
     @process_event.register
     def _(self, event: LLMStructuredPredictEndEvent) -> None:
-        self._set(OUTPUT_VALUE, event.output.json(exclude_unset=True))
-        self._set(OUTPUT_MIME_TYPE, JSON)
+        self[OUTPUT_VALUE] = event.output.json(exclude_unset=True)
+        self[OUTPUT_MIME_TYPE] = JSON
 
     @process_event.register
     def _(self, event: LLMCompletionStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
         if name := event.model_dict.get("model_name"):
-            self._set(LLM_MODEL_NAME, name)
-        self._set(LLM_PROMPTS, [event.prompt])
+            self[LLM_MODEL_NAME] = name
+        self[LLM_PROMPTS] = [event.prompt]
 
     @process_event.register
     def _(self, event: LLMCompletionEndEvent) -> None:
-        self._set(OUTPUT_VALUE, event.response.text)
+        self[OUTPUT_VALUE] = event.response.text
 
     @process_event.register
     def _(self, event: LLMChatStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
         if name := event.model_dict.get("model_name"):
-            self._set(LLM_MODEL_NAME, name)
+            self[LLM_MODEL_NAME] = name
         for i, message in enumerate(event.messages):
-            self._set(f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", message.role.value)
+            self[f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}"] = message.role.value
             if content := message.content:
-                self._set(f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", str(content))
+                self[f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}"] = str(content)
 
     @process_event.register
     def _(self, event: LLMChatInProgressEvent) -> None:
@@ -228,11 +228,11 @@ class _Span(
 
     @process_event.register
     def _(self, event: LLMChatEndEvent) -> None:
-        self._set(OUTPUT_VALUE, str(event.response))
+        self[OUTPUT_VALUE] = str(event.response)
         for i, message in enumerate(event.messages):
-            self._set(f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", message.role.value)
+            self[f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}"] = message.role.value
             if content := message.content:
-                self._set(f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", str(content))
+                self[f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}"] = str(content)
 
     @process_event.register
     def _(self, event: QueryStartEvent) -> None:
@@ -247,33 +247,27 @@ class _Span(
         if not self._span_kind:
             self._span_kind = RERANKER
         self._process_query_type(event.query)
-        self._set(RERANKER_TOP_K, event.top_n)
-        self._set(RERANKER_MODEL_NAME, event.model_name)
+        self[RERANKER_TOP_K] = event.top_n
+        self[RERANKER_MODEL_NAME] = event.model_name
         for i, node in enumerate(event.nodes):
-            self._set(f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_ID}", node.node_id)
+            self[f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_ID}"] = node.node_id
             if content := node.get_content():
-                self._set(f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", content)
+                self[f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"] = content
             if (score := node.get_score()) is not None:
-                self._set(f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_SCORE}", score)
+                self[f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_SCORE}"] = score
             if metadata := node.metadata:
-                self._set(
-                    f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_METADATA}",
-                    json.dumps(metadata),
-                )
+                self[f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_METADATA}"] = json.dumps(metadata)
 
     @process_event.register
     def _(self, event: ReRankEndEvent) -> None:
         for i, node in enumerate(event.nodes):
-            self._set(f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_ID}", node.node_id)
+            self[f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_ID}"] = node.node_id
             if content := node.get_content():
-                self._set(f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", content)
+                self[f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"] = content
             if (score := node.get_score()) is not None:
-                self._set(f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_SCORE}", score)
+                self[f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_SCORE}"] = score
             if metadata := node.metadata:
-                self._set(
-                    f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_METADATA}",
-                    json.dumps(metadata),
-                )
+                self[f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_METADATA}"] = json.dumps(metadata)
 
     @process_event.register
     def _(self, event: RetrievalStartEvent) -> None:
@@ -284,16 +278,13 @@ class _Span(
     @process_event.register
     def _(self, event: RetrievalEndEvent) -> None:
         for i, node in enumerate(event.nodes):
-            self._set(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_ID}", node.node_id)
+            self[f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_ID}"] = node.node_id
             if content := node.get_content():
-                self._set(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", content)
+                self[f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"] = content
             if (score := node.get_score()) is not None:
-                self._set(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_SCORE}", score)
+                self[f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_SCORE}"] = score
             if metadata := node.metadata:
-                self._set(
-                    f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_METADATA}",
-                    json.dumps(metadata),
-                )
+                self[f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_METADATA}"] = json.dumps(metadata)
 
     @process_event.register
     def _(self, event: SpanDropEvent) -> None:
@@ -314,16 +305,16 @@ class _Span(
     def _(self, event: GetResponseStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = CHAIN
-        self._set(INPUT_VALUE, event.query_str)
+        self[INPUT_VALUE] = event.query_str
 
     @process_event.register
     def _(self, event: GetResponseEndEvent) -> None:
         response = event.response
         if isinstance(response, str):
-            self._set(OUTPUT_VALUE, response)
+            self[OUTPUT_VALUE] = response
         elif isinstance(response, BaseModel):
-            self._set(OUTPUT_VALUE, response.json())
-            self._set(OUTPUT_MIME_TYPE, JSON)
+            self[OUTPUT_VALUE] = response.json()
+            self[OUTPUT_MIME_TYPE] = JSON
         else:
             # FIXME: not sure what to do here
             ...
@@ -332,10 +323,10 @@ class _Span(
         if query is None:
             return
         if isinstance(query, str):
-            self._set(INPUT_VALUE, query)
+            self[INPUT_VALUE] = query
         elif isinstance(query, QueryBundle):
-            self._set(INPUT_VALUE, query.to_json())
-            self._set(INPUT_MIME_TYPE, JSON)
+            self[INPUT_VALUE] = query.to_json()
+            self[INPUT_MIME_TYPE] = JSON
         else:
             assert_never(query)
 
@@ -344,13 +335,13 @@ class _Span(
             return
         if isinstance(response, Response):
             if response.response is not None:
-                self._set(OUTPUT_VALUE, str(response))
+                self[OUTPUT_VALUE] = str(response)
         elif isinstance(response, (StreamingResponse, AsyncStreamingResponse)):
-            self._set(OUTPUT_VALUE, str(response))
+            self[OUTPUT_VALUE] = str(response)
         elif isinstance(response, PydanticResponse):
             if response.response is not None:
-                self._set(OUTPUT_VALUE, str(response))
-                self._set(OUTPUT_MIME_TYPE, JSON)
+                self[OUTPUT_VALUE] = str(response)
+                self[OUTPUT_MIME_TYPE] = JSON
         else:
             assert_never(response)
 

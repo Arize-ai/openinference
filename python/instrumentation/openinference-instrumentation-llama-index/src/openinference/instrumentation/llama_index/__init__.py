@@ -72,4 +72,4 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
 
 def _legacy_llama_index() -> bool:
     v = importlib.metadata.version("llama-index-core")
-    return tuple(map(int, v.split(".")[:3])) < (0, 10, 36)
+    return tuple(map(int, v.split(".")[:3])) < (0, 10, 37)
