@@ -25,6 +25,8 @@ from pydantic import BaseModel, Extra, PrivateAttr
 from typing_extensions import assert_never
 
 from llama_index.core import QueryBundle, Response
+from llama_index.core.base.agent.types import BaseAgent
+from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
 from llama_index.core.base.response.schema import (
@@ -98,10 +100,15 @@ class _Span(
     _span_kind: Optional[str] = PrivateAttr()
     _first_token_timestamp: Optional[datetime] = PrivateAttr()
 
-    def __init__(self, otel_span: trace_api.Span, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        otel_span: trace_api.Span,
+        span_kind: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self._otel_span = otel_span
-        self._span_kind = None
+        self._span_kind = span_kind
         self._first_token_timestamp = None
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
@@ -214,8 +221,6 @@ class _Span(
     def _(self, event: LLMChatStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
-        if name := event.model_dict.get("model_name"):
-            self[LLM_MODEL_NAME] = name
         for i, message in enumerate(event.messages):
             self[f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}"] = message.role.value
             if content := message.content:
@@ -228,11 +233,13 @@ class _Span(
 
     @process_event.register
     def _(self, event: LLMChatEndEvent) -> None:
-        self[OUTPUT_VALUE] = str(event.response)
-        for i, message in enumerate(event.messages):
-            self[f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}"] = message.role.value
-            if content := message.content:
-                self[f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}"] = str(content)
+        if (response := event.response) is None:
+            return
+        self[OUTPUT_VALUE] = str(response)
+        message = response.message
+        self[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}"] = message.role.value
+        if content := message.content:
+            self[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] = str(content)
 
     @process_event.register
     def _(self, event: QueryStartEvent) -> None:
@@ -316,7 +323,7 @@ class _Span(
             self[OUTPUT_VALUE] = response.json()
             self[OUTPUT_MIME_TYPE] = JSON
         else:
-            # FIXME: not sure what to do here
+            # FIXME: not sure what to do here with the generator object
             ...
 
     def _process_query_type(self, query: Optional[QueryType]) -> None:
@@ -325,7 +332,9 @@ class _Span(
         if isinstance(query, str):
             self[INPUT_VALUE] = query
         elif isinstance(query, QueryBundle):
-            self[INPUT_VALUE] = query.to_json()
+            query_dict = query.to_dict()
+            query_dict.pop("embedding", None)  # takes up too much space
+            self[INPUT_VALUE] = json.dumps(query_dict)
             self[INPUT_MIME_TYPE] = JSON
         else:
             assert_never(query)
@@ -373,11 +382,26 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
                 else None
             ),
         )
-        if isinstance(instance, BaseLLM) and (params := instance.metadata):
-            otel_span.set_attribute(LLM_INVOCATION_PARAMETERS, params.json())
-        if isinstance(instance, BaseEmbedding) and (name := instance.model_name):
-            otel_span.set_attribute(EMBEDDING_MODEL_NAME, name)
-        return _Span(otel_span=otel_span, id_=id_, parent_id=parent_span_id)
+        span_kind = None
+        if isinstance(instance, BaseAgent):
+            span_kind = AGENT
+        elif isinstance(instance, BaseLLM):
+            span_kind = LLM
+            if params := instance.metadata:
+                otel_span.set_attribute(LLM_INVOCATION_PARAMETERS, params.json())
+                otel_span.set_attribute(LLM_MODEL_NAME, params.model_name)
+        elif isinstance(instance, BaseRetriever):
+            span_kind = RETRIEVER
+        elif isinstance(instance, BaseEmbedding):
+            span_kind = EMBEDDING
+            if name := instance.model_name:
+                otel_span.set_attribute(EMBEDDING_MODEL_NAME, name)
+        return _Span(
+            otel_span=otel_span,
+            span_kind=span_kind,
+            id_=id_,
+            parent_id=parent_span_id,
+        )
 
     def prepare_to_exit_span(
         self,
@@ -425,7 +449,11 @@ class EventHandler(BaseEventHandler, extra=Extra.allow):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
         if span := self.span_handler.open_spans.get(event.span_id):
-            span.process_event(event)
+            try:
+                span.process_event(event)
+            except Exception:
+                logger.exception(f"Error processing event of type {event.__class__.__qualname__}")
+                pass
         return event
 
 
