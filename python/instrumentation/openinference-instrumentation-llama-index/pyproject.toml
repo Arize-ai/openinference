@@ -39,6 +39,7 @@ instruments = [
   "llama-index-core >= 0.10.5",
 ]
 test = [
+  "llama-index == 0.10.36",
   "llama-index-core == 0.10.36",
   "llama-index-llms-openai",
   "opentelemetry-sdk",
