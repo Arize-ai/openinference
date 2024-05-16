@@ -168,8 +168,11 @@ def test_handler_basic_retrieval(
     for span in spans:
         traces[span.context.trace_id][span.name] = span
 
-    assert len(traces) == n
+    assert len(traces) == n * 2  # includes legacy callback
     for spans_by_name in traces.values():
+        if spans_by_name.pop("query", None) is not None:
+            # traces is from legacy callback, skip.
+            continue
         if is_async:
             assert (query_span := spans_by_name.pop("BaseQueryEngine.aquery")) is not None
         else:
@@ -201,18 +204,26 @@ def test_handler_basic_retrieval(
         #     )
 
         if is_async:
-            assert (_query_span := spans_by_name.pop("RetrieverQueryEngine._aquery")) is not None
+            assert (
+                _query_span := spans_by_name.pop("RetrieverQueryEngine._aquery", None)
+            ) is not None
         else:
-            assert (_query_span := spans_by_name.pop("RetrieverQueryEngine._query")) is not None
+            assert (
+                _query_span := spans_by_name.pop("RetrieverQueryEngine._query", None)
+            ) is not None
 
         if use_context_attributes:
             _check_context_attributes(query_attributes, session_id, user_id, metadata, tags)
         assert query_attributes == {}
 
         if is_async:
-            assert (synthesize_span := spans_by_name.pop("BaseSynthesizer.asynthesize")) is not None
+            assert (
+                synthesize_span := spans_by_name.pop("BaseSynthesizer.asynthesize", None)
+            ) is not None
         else:
-            assert (synthesize_span := spans_by_name.pop("BaseSynthesizer.synthesize")) is not None
+            assert (
+                synthesize_span := spans_by_name.pop("BaseSynthesizer.synthesize", None)
+            ) is not None
         assert synthesize_span.parent is not None
         assert synthesize_span.parent.span_id == _query_span.context.span_id
         assert synthesize_span.context.trace_id == _query_span.context.trace_id
@@ -249,9 +260,9 @@ def test_handler_basic_retrieval(
         assert synthesize_attributes == {}
 
         if is_async:
-            assert (retrieve_span := spans_by_name.pop("BaseRetriever.aretrieve")) is not None
+            assert (retrieve_span := spans_by_name.pop("BaseRetriever.aretrieve", None)) is not None
         else:
-            assert (retrieve_span := spans_by_name.pop("BaseRetriever.retrieve")) is not None
+            assert (retrieve_span := spans_by_name.pop("BaseRetriever.retrieve", None)) is not None
         assert retrieve_span.parent is not None
         assert retrieve_span.parent.span_id == _query_span.context.span_id
         assert retrieve_span.context.trace_id == _query_span.context.trace_id
@@ -430,7 +441,10 @@ def instrument(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
-    LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
+    LlamaIndexInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        with_experimental_instrumentation=True,
+    )
     yield
     LlamaIndexInstrumentor().uninstrument()
     in_memory_span_exporter.clear()

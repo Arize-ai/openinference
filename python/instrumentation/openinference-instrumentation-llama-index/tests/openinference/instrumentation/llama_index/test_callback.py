@@ -198,7 +198,7 @@ def _check_spans(
     metadata: Dict[str, Any],
     tags: List[str],
 ) -> str:
-    assert (query_span := spans_by_name.pop("query")) is not None
+    assert (query_span := spans_by_name.pop("query", None)) is not None
     assert query_span.parent is None
     query_attributes = dict(query_span.attributes or {})
     assert query_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
@@ -227,7 +227,7 @@ def _check_spans(
         _check_context_attributes(query_attributes, session_id, user_id, metadata, tags)
     assert query_attributes == {}
 
-    assert (synthesize_span := spans_by_name.pop("synthesize")) is not None
+    assert (synthesize_span := spans_by_name.pop("synthesize", None)) is not None
     assert synthesize_span.parent is not None
     assert synthesize_span.parent.span_id == query_span.context.span_id
     assert synthesize_span.context.trace_id == query_span.context.trace_id
@@ -256,7 +256,7 @@ def _check_spans(
         _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
     assert synthesize_attributes == {}
 
-    assert (retrieve_span := spans_by_name.pop("retrieve")) is not None
+    assert (retrieve_span := spans_by_name.pop("retrieve", None)) is not None
     assert retrieve_span.parent is not None
     assert retrieve_span.parent.span_id == query_span.context.span_id
     assert retrieve_span.context.trace_id == query_span.context.trace_id

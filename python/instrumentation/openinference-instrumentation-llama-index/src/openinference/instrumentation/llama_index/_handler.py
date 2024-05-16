@@ -226,7 +226,9 @@ class _Span(
 
     @process_event.register
     def _(self, event: LLMChatInProgressEvent) -> None:
-        # FIXME: not sure what to do here
+        # FIXME: Not sure what to do here since we're capturing messages
+        # at the ChatEnd event. Maybe we need to capture messages incrementally
+        # so that if the span drops we don't lose all the messages.
         ...
 
     @process_event.register
@@ -321,7 +323,7 @@ class _Span(
             self[OUTPUT_VALUE] = response.json()
             self[OUTPUT_MIME_TYPE] = JSON
         else:
-            # FIXME: not sure what to do here with the generator object
+            # FIXME: Not sure what to do here because the object is a generator.
             ...
 
     def _process_query_type(self, query: Optional[QueryType]) -> None:
