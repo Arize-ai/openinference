@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.3.0...python-openinference-instrumentation-llama-index-v1.4.0) (2024-05-17)
+
+
+### Features
+
+* support llama-index new instrumentation paradigm under feature flag `use_experimental_instrumentation` ([#462](https://github.com/Arize-ai/openinference/issues/462)) ([e254928](https://github.com/Arize-ai/openinference/commit/e254928bdf08a784df99d2e0f133be060be905bd))
+
 ## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.2.2...python-openinference-instrumentation-llama-index-v1.3.0) (2024-05-04)
 
 
