@@ -1,6 +1,6 @@
 import importlib
 import logging
-from typing import Any, Collection, Optional
+from typing import Any, Collection
 
 from openinference.instrumentation.llama_index.package import _instruments
 from openinference.instrumentation.llama_index.version import __version__
@@ -37,7 +37,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
                     "`with_experimental_instrumentation` feature flag is set. Additional traces "
                     "will be generated using the new instrumentation system in addition to those "
                     "using the legacy callback system. For more information about the new "
-                    "instrumentation system, see "
+                    "instrumentation system, visit "
                     "https://docs.llamaindex.ai/en/stable/module_guides/observability/instrumentation/"  # noqa E501
                 )
             else:
@@ -57,12 +57,13 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_global_handler = llama_index.core.global_handler
         llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
 
+        self._event_handler = None
         if self._with_experimental_instrumentation and not _legacy_llama_index():
             from llama_index.core.instrumentation import get_dispatcher
 
             from ._handler import EventHandler
 
-            self._event_handler: Optional[EventHandler] = EventHandler(tracer=tracer)
+            self._event_handler = EventHandler(tracer=tracer)
             dispatcher = get_dispatcher()
             dispatcher.add_event_handler(self._event_handler)
             dispatcher.add_span_handler(self._event_handler.span_handler)

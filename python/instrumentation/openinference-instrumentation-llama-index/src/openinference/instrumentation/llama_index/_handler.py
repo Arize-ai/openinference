@@ -1,10 +1,9 @@
 import inspect
 import json
 import logging
-from datetime import datetime, timezone
-from functools import singledispatchmethod
+from functools import singledispatch, singledispatchmethod
 from time import time_ns
-from typing import Any, Optional
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
 
 from openinference.instrumentation import get_attributes_from_context
 from openinference.semconv.trace import (
@@ -25,10 +24,11 @@ from pydantic import BaseModel, Extra, PrivateAttr
 from typing_extensions import assert_never
 
 from llama_index.core import QueryBundle, Response
-from llama_index.core.base.agent.types import BaseAgent
+from llama_index.core.base.agent.types import BaseAgent, BaseAgentWorker
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
+from llama_index.core.base.llms.types import ChatMessage, ChatResponse, CompletionResponse
 from llama_index.core.base.response.schema import (
     RESPONSE_TYPE,
     AsyncStreamingResponse,
@@ -46,7 +46,9 @@ from llama_index.core.instrumentation.events.agent import (
 )
 from llama_index.core.instrumentation.events.chat_engine import (
     StreamChatDeltaReceivedEvent,
+    StreamChatEndEvent,
     StreamChatErrorEvent,
+    StreamChatStartEvent,
 )
 from llama_index.core.instrumentation.events.embedding import (
     EmbeddingEndEvent,
@@ -86,7 +88,7 @@ from llama_index.core.instrumentation.events.synthesis import (
 )
 from llama_index.core.instrumentation.span import BaseSpan
 from llama_index.core.instrumentation.span_handlers import BaseSpanHandler
-from llama_index.core.schema import QueryType
+from llama_index.core.schema import NodeWithScore, QueryType
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +100,7 @@ class _Span(
 ):
     _otel_span: trace_api.Span = PrivateAttr()
     _span_kind: Optional[str] = PrivateAttr()
-    _first_token_timestamp: Optional[datetime] = PrivateAttr()
+    _first_token_timestamp: Optional[int] = PrivateAttr()
 
     def __init__(
         self,
@@ -127,6 +129,20 @@ class _Span(
         return trace_api.set_span_in_context(self._otel_span)
 
     @singledispatchmethod
+    def process_instance(self, instance: Any) -> None: ...
+
+    @process_instance.register
+    def _(self, instance: BaseLLM) -> None:
+        if params := instance.metadata:
+            self[LLM_MODEL_NAME] = params.model_name
+            self[LLM_INVOCATION_PARAMETERS] = params.json()
+
+    @process_instance.register
+    def _(self, instance: BaseEmbedding) -> None:
+        if name := instance.model_name:
+            self[EMBEDDING_MODEL_NAME] = name
+
+    @singledispatchmethod
     def process_event(self, event: BaseEvent) -> None:
         logger.warning(f"Unhandled event of type {event.__class__.__qualname__}")
 
@@ -149,7 +165,8 @@ class _Span(
 
     @process_event.register
     def _(self, event: AgentRunStepEndEvent) -> None:
-        # FIXME: not sure what to do here
+        # FIXME: not sure what to do here with interim outputs since
+        # there is no corresponding semantic convention.
         ...
 
     @process_event.register
@@ -158,16 +175,7 @@ class _Span(
         if name := tool.name:
             self[TOOL_NAME] = name
         self[TOOL_DESCRIPTION] = tool.description
-        self[TOOL_PARAMETERS] = json.dumps(tool.get_parameters_dict())
-
-    @process_event.register
-    def _(self, event: StreamChatErrorEvent) -> None:
-        self.record_exception(event.exception)
-
-    @process_event.register
-    def _(self, event: StreamChatDeltaReceivedEvent) -> None:
-        if self._first_token_timestamp is None:
-            self._first_token_timestamp = datetime.now(timezone.utc)
+        self[TOOL_PARAMETERS] = json.dumps(tool.get_parameters_dict(), default=str)
 
     @process_event.register
     def _(self, event: EmbeddingStartEvent) -> None:
@@ -181,15 +189,45 @@ class _Span(
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
 
     @process_event.register
+    def _(self, event: StreamChatStartEvent) -> None:
+        # event is currently empty as of v0.10.37
+        if not self._span_kind:
+            self._span_kind = LLM
+
+    @process_event.register
+    def _(self, event: StreamChatDeltaReceivedEvent) -> None:
+        if self._first_token_timestamp is None:
+            timestamp = time_ns()
+            self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
+            self._first_token_timestamp = timestamp
+
+    @process_event.register
+    def _(self, event: StreamChatErrorEvent) -> None:
+        self.record_exception(event.exception)
+
+    @process_event.register
+    def _(self, event: StreamChatEndEvent) -> None:
+        # event is currently empty as of v0.10.37
+        ...
+
+    @process_event.register
     def _(self, event: LLMPredictStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
-        self[LLM_PROMPT_TEMPLATE] = event.template.get_template()
-        vars = event.template.template_vars
-        args = {**event.template.kwargs, **(event.template_args if event.template_args else {})}
-        template_args = {var: arg for var in vars if (arg := args.get(var)) is not None}
-        if template_args:
-            self[LLM_PROMPT_TEMPLATE_VARIABLES] = json.dumps(template_args)
+        template = event.template
+        self[LLM_PROMPT_TEMPLATE] = template.get_template()
+        variable_names: List[str] = template.template_vars
+        argument_values: Dict[str, str] = {
+            **template.kwargs,
+            **(event.template_args if event.template_args else {}),
+        }
+        template_arguments = {
+            variable_name: argument_value
+            for variable_name in variable_names
+            if (argument_value := argument_values.get(variable_name)) is not None
+        }
+        if template_arguments:
+            self[LLM_PROMPT_TEMPLATE_VARIABLES] = json.dumps(template_arguments, default=str)
 
     @process_event.register
     def _(self, event: LLMPredictEndEvent) -> None:
@@ -214,21 +252,19 @@ class _Span(
     @process_event.register
     def _(self, event: LLMCompletionEndEvent) -> None:
         self[OUTPUT_VALUE] = event.response.text
+        self._extract_token_counts(event.response)
 
     @process_event.register
     def _(self, event: LLMChatStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
-        for i, message in enumerate(event.messages):
-            self[f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}"] = message.role.value
-            if content := message.content:
-                self[f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}"] = str(content)
+        self._process_messages(LLM_INPUT_MESSAGES, *event.messages)
 
     @process_event.register
     def _(self, event: LLMChatInProgressEvent) -> None:
         # FIXME: Not sure what to do here since we're capturing messages
-        # at the ChatEnd event. Maybe we need to capture messages incrementally
-        # so that if the span drops we don't lose all the messages.
+        # at the ChatEnd event. Maybe we should capture messages incrementally
+        # lest the span is dropped and all messages are lost.
         ...
 
     @process_event.register
@@ -236,10 +272,8 @@ class _Span(
         if (response := event.response) is None:
             return
         self[OUTPUT_VALUE] = str(response)
-        message = response.message
-        self[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}"] = message.role.value
-        if content := message.content:
-            self[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] = str(content)
+        self._process_messages(LLM_OUTPUT_MESSAGES, response.message)
+        self._extract_token_counts(response)
 
     @process_event.register
     def _(self, event: QueryStartEvent) -> None:
@@ -256,25 +290,11 @@ class _Span(
         self._process_query_type(event.query)
         self[RERANKER_TOP_K] = event.top_n
         self[RERANKER_MODEL_NAME] = event.model_name
-        for i, node in enumerate(event.nodes):
-            self[f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_ID}"] = node.node_id
-            if content := node.get_content():
-                self[f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"] = content
-            if (score := node.get_score()) is not None:
-                self[f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_SCORE}"] = score
-            if metadata := node.metadata:
-                self[f"{RERANKER_INPUT_DOCUMENTS}.{i}.{DOCUMENT_METADATA}"] = json.dumps(metadata)
+        self._process_nodes(RERANKER_INPUT_DOCUMENTS, *event.nodes)
 
     @process_event.register
     def _(self, event: ReRankEndEvent) -> None:
-        for i, node in enumerate(event.nodes):
-            self[f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_ID}"] = node.node_id
-            if content := node.get_content():
-                self[f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"] = content
-            if (score := node.get_score()) is not None:
-                self[f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_SCORE}"] = score
-            if metadata := node.metadata:
-                self[f"{RERANKER_OUTPUT_DOCUMENTS}.{i}.{DOCUMENT_METADATA}"] = json.dumps(metadata)
+        self._process_nodes(RERANKER_OUTPUT_DOCUMENTS, *event.nodes)
 
     @process_event.register
     def _(self, event: RetrievalStartEvent) -> None:
@@ -284,18 +304,11 @@ class _Span(
 
     @process_event.register
     def _(self, event: RetrievalEndEvent) -> None:
-        for i, node in enumerate(event.nodes):
-            self[f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_ID}"] = node.node_id
-            if content := node.get_content():
-                self[f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"] = content
-            if (score := node.get_score()) is not None:
-                self[f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_SCORE}"] = score
-            if metadata := node.metadata:
-                self[f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_METADATA}"] = json.dumps(metadata)
+        self._process_nodes(RETRIEVAL_DOCUMENTS, *event.nodes)
 
     @process_event.register
     def _(self, event: SpanDropEvent) -> None:
-        # Not needed because `prepare_to_drop_span()` is sufficient.
+        # Not needed because `prepare_to_drop_span()` provides the same information.
         ...
 
     @process_event.register
@@ -324,7 +337,45 @@ class _Span(
             self[OUTPUT_MIME_TYPE] = JSON
         else:
             # FIXME: Not sure what to do here because the object is a generator.
+            # Maybe monkey-patching is necessary, or maybe not.
             ...
+
+    def _extract_token_counts(self, response: Union[ChatResponse, CompletionResponse]) -> None:
+        if (
+            (raw := getattr(response, "raw", None))
+            and hasattr(raw, "get")
+            and (usage := raw.get("usage"))
+        ):
+            for k, v in _get_token_counts(usage):
+                self[k] = v
+        # Look for token counts in additional_kwargs of the completion payload
+        # This is needed for non-OpenAI models
+        if additional_kwargs := getattr(response, "additional_kwargs", None):
+            for k, v in _get_token_counts(additional_kwargs):
+                self[k] = v
+
+    def _process_nodes(self, prefix: str, *nodes: NodeWithScore) -> None:
+        for i, node in enumerate(nodes):
+            self[f"{prefix}.{i}.{DOCUMENT_ID}"] = node.node_id
+            if content := node.get_content():
+                self[f"{prefix}.{i}.{DOCUMENT_CONTENT}"] = content
+            if (score := node.get_score()) is not None:
+                self[f"{prefix}.{i}.{DOCUMENT_SCORE}"] = score
+            if metadata := node.metadata:
+                self[f"{prefix}.{i}.{DOCUMENT_METADATA}"] = json.dumps(metadata, default=str)
+
+    def _process_messages(self, prefix: str, *messages: ChatMessage) -> None:
+        for i, message in enumerate(messages):
+            self[f"{prefix}.{i}.{MESSAGE_ROLE}"] = message.role.value
+            if content := message.content:
+                self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = str(content)
+            additional_kwargs = message.additional_kwargs
+            if name := additional_kwargs.get("name"):
+                self[f"{prefix}.{i}.{MESSAGE_NAME}"] = name
+            if tool_calls := additional_kwargs.get("tool_calls"):
+                for j, tool_call in enumerate(tool_calls):
+                    for k, v in _get_tool_call(tool_call):
+                        self[f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{k}"] = v
 
     def _process_query_type(self, query: Optional[QueryType]) -> None:
         if query is None:
@@ -334,7 +385,7 @@ class _Span(
         elif isinstance(query, QueryBundle):
             query_dict = query.to_dict()
             query_dict.pop("embedding", None)  # takes up too much space
-            self[INPUT_VALUE] = json.dumps(query_dict)
+            self[INPUT_VALUE] = json.dumps(query_dict, default=str)
             self[INPUT_MIME_TYPE] = JSON
         else:
             assert_never(query)
@@ -372,7 +423,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
     ) -> Optional[_Span]:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
-        otel_span: trace_api.Span = self._otel_tracer.start_span(
+        otel_span = self._otel_tracer.start_span(
             name=id_.partition("-")[0],
             start_time=time_ns(),
             attributes=dict(get_attributes_from_context()),
@@ -382,26 +433,14 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
                 else None
             ),
         )
-        span_kind = None
-        if isinstance(instance, BaseAgent):
-            span_kind = AGENT
-        elif isinstance(instance, BaseLLM):
-            span_kind = LLM
-            if params := instance.metadata:
-                otel_span.set_attribute(LLM_INVOCATION_PARAMETERS, params.json())
-                otel_span.set_attribute(LLM_MODEL_NAME, params.model_name)
-        elif isinstance(instance, BaseRetriever):
-            span_kind = RETRIEVER
-        elif isinstance(instance, BaseEmbedding):
-            span_kind = EMBEDDING
-            if name := instance.model_name:
-                otel_span.set_attribute(EMBEDDING_MODEL_NAME, name)
-        return _Span(
+        span = _Span(
             otel_span=otel_span,
-            span_kind=span_kind,
+            span_kind=_init_span_kind(instance),
             id_=id_,
             parent_id=parent_span_id,
         )
+        span.process_instance(instance)
+        return span
 
     def prepare_to_exit_span(
         self,
@@ -411,8 +450,12 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
         result: Optional[Any] = None,
         **kwargs: Any,
     ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return None
         if span := self.open_spans.get(id_):
             span.end(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
+        else:
+            logger.warning(f"Open span is missing for {id_=}")
         return span
 
     def prepare_to_drop_span(
@@ -423,6 +466,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
         err: Optional[BaseException] = None,
         **kwargs: Any,
     ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return None
         if span := self.open_spans.get(id_):
             if err is not None:
                 span.record_exception(err)
@@ -435,6 +480,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
                     description=description,
                 )
             )
+        else:
+            logger.warning(f"Open span is missing for {id_=}")
         return span
 
 
@@ -454,7 +501,74 @@ class EventHandler(BaseEventHandler, extra=Extra.allow):
             except Exception:
                 logger.exception(f"Error processing event of type {event.__class__.__qualname__}")
                 pass
+        else:
+            logger.warning(f"Open span is missing for {event.span_id=}, {event.id_=}")
         return event
+
+
+def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
+    if function := getattr(tool_call, "function", None):
+        if name := getattr(function, "name", None):
+            yield TOOL_CALL_FUNCTION_NAME, name
+        if arguments := getattr(function, "arguments", None):
+            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+
+
+def _get_token_counts(usage: Union[object, Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
+    if isinstance(usage, Mapping):
+        return _get_token_counts_from_mapping(usage)
+    if isinstance(usage, object):
+        return _get_token_counts_from_object(usage)
+
+
+def _get_token_counts_from_object(usage: object) -> Iterator[Tuple[str, Any]]:
+    if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
+        yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+    if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
+        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+
+def _get_token_counts_from_mapping(
+    usage_mapping: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
+    if (prompt_tokens := usage_mapping.get("prompt_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    if (completion_tokens := usage_mapping.get("completion_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+    if (total_tokens := usage_mapping.get("total_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+
+@singledispatch
+def _init_span_kind(_: Any) -> Optional[str]:
+    return None
+
+
+@_init_span_kind.register
+def _(_: BaseAgent) -> Optional[str]:
+    return AGENT
+
+
+@_init_span_kind.register
+def _(_: BaseAgentWorker) -> Optional[str]:
+    return AGENT
+
+
+@_init_span_kind.register
+def _(_: BaseLLM) -> Optional[str]:
+    return LLM
+
+
+@_init_span_kind.register
+def _(_: BaseRetriever) -> Optional[str]:
+    return RETRIEVER
+
+
+@_init_span_kind.register
+def _(_: BaseEmbedding) -> Optional[str]:
+    return EMBEDDING
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
