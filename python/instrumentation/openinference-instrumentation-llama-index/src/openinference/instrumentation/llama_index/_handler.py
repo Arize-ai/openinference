@@ -383,10 +383,13 @@ class _Span(
         if isinstance(query, str):
             self[INPUT_VALUE] = query
         elif isinstance(query, QueryBundle):
-            query_dict = query.to_dict()
-            query_dict.pop("embedding", None)  # takes up too much space
-            self[INPUT_VALUE] = json.dumps(query_dict, default=str)
-            self[INPUT_MIME_TYPE] = JSON
+            query_dict = {k: v for k, v in query.to_dict().items() if v is not None}
+            query_dict.pop("embedding", None)  # because it takes up too much space
+            if len(query_dict) == 1 and query.query_str:
+                self[INPUT_VALUE] = query.query_str
+            else:
+                self[INPUT_VALUE] = json.dumps(query_dict, default=str)
+                self[INPUT_MIME_TYPE] = JSON
         else:
             assert_never(query)
 
@@ -547,27 +550,27 @@ def _init_span_kind(_: Any) -> Optional[str]:
 
 
 @_init_span_kind.register
-def _(_: BaseAgent) -> Optional[str]:
+def _(_: BaseAgent) -> str:
     return AGENT
 
 
 @_init_span_kind.register
-def _(_: BaseAgentWorker) -> Optional[str]:
+def _(_: BaseAgentWorker) -> str:
     return AGENT
 
 
 @_init_span_kind.register
-def _(_: BaseLLM) -> Optional[str]:
+def _(_: BaseLLM) -> str:
     return LLM
 
 
 @_init_span_kind.register
-def _(_: BaseRetriever) -> Optional[str]:
+def _(_: BaseRetriever) -> str:
     return RETRIEVER
 
 
 @_init_span_kind.register
-def _(_: BaseEmbedding) -> Optional[str]:
+def _(_: BaseEmbedding) -> str:
     return EMBEDDING
 
 

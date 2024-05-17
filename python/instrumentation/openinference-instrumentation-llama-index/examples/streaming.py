@@ -12,10 +12,7 @@ endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
-LlamaIndexInstrumentor().instrument(
-    tracer_provider=tracer_provider,
-    with_experimental_instrumentation=True,
-)
+LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 with tempfile.NamedTemporaryFile() as tf:

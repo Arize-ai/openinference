@@ -229,14 +229,7 @@ def test_handler_basic_retrieval(
         assert synthesize_span.context.trace_id == _query_span.context.trace_id
         synthesize_attributes = dict(synthesize_span.attributes or {})
         assert synthesize_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-        assert synthesize_attributes.pop(INPUT_MIME_TYPE, None) == JSON
-        assert synthesize_attributes.pop(INPUT_VALUE, None) == json.dumps(
-            {
-                "query_str": question,
-                "image_path": None,
-                "custom_embedding_strs": None,
-            }
-        )
+        assert synthesize_attributes.pop(INPUT_VALUE, None) == question
         if status_code == 200:
             assert synthesize_span.status.status_code == trace_api.StatusCode.OK
             assert not synthesize_span.status.description
@@ -268,14 +261,7 @@ def test_handler_basic_retrieval(
         assert retrieve_span.context.trace_id == _query_span.context.trace_id
         retrieve_attributes = dict(retrieve_span.attributes or {})
         assert retrieve_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
-        assert retrieve_attributes.pop(INPUT_MIME_TYPE, None) == JSON
-        assert retrieve_attributes.pop(INPUT_VALUE, None) == json.dumps(
-            {
-                "query_str": question,
-                "image_path": None,
-                "custom_embedding_strs": None,
-            }
-        )
+        assert retrieve_attributes.pop(INPUT_VALUE, None) == question
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_ID}", None)
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_ID}", None)
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_SCORE}", 0.0)

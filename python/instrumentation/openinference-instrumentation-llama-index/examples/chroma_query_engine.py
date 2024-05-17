@@ -16,10 +16,7 @@ tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
-LlamaIndexInstrumentor().instrument(
-    tracer_provider=tracer_provider,
-    with_experimental_instrumentation=True,
-)
+LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 chroma_client = chromadb.EphemeralClient()
