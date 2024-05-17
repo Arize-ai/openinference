@@ -20,7 +20,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
 
     __slots__ = (
         "_original_global_handler",
-        "_with_experimental_instrumentation",  # feature flag
+        "_use_experimental_instrumentation",  # feature flag
         "_event_handler",
     )
 
@@ -30,19 +30,18 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        self._with_experimental_instrumentation = kwargs.get("with_experimental_instrumentation")
-        if self._with_experimental_instrumentation:
+        self._use_experimental_instrumentation = kwargs.get("use_experimental_instrumentation")
+        if self._use_experimental_instrumentation:
             if not _legacy_llama_index():
                 print(
-                    "`with_experimental_instrumentation` feature flag is set. Additional traces "
-                    "will be generated using the new instrumentation system in addition to those "
-                    "using the legacy callback system. For more information about the new "
-                    "instrumentation system, visit "
+                    "`use_experimental_instrumentation` feature flag is set. Spans "
+                    "will be generated using the new instrumentation system "
+                    "For more information about the new instrumentation system, visit "
                     "https://docs.llamaindex.ai/en/stable/module_guides/observability/instrumentation/"  # noqa E501
                 )
             else:
                 print(
-                    f"`with_experimental_instrumentation` feature flag is set. But "
+                    f"`use_experimental_instrumentation` feature flag is set. But "
                     f"the version of `llama-index-core` is not "
                     f">={'.'.join(map(str, _ELIGIBLE_VERSION_FOR_NEW_INSTRUMENTATION))}, "
                     f"so the flag is ignored."
@@ -52,13 +51,19 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             OpenInferenceTraceCallbackHandler,
         )
 
-        import llama_index.core
+        if (
+            _legacy_llama_index()
+            or not self._use_experimental_instrumentation
+            or not _legacy_llama_index()
+            and self._use_experimental_instrumentation == "both"
+        ):
+            import llama_index.core
 
-        self._original_global_handler = llama_index.core.global_handler
-        llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
+            self._original_global_handler = llama_index.core.global_handler
+            llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
 
         self._event_handler = None
-        if self._with_experimental_instrumentation and not _legacy_llama_index():
+        if not _legacy_llama_index() and self._use_experimental_instrumentation:
             from llama_index.core.instrumentation import get_dispatcher
 
             from ._handler import EventHandler
@@ -69,12 +74,18 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             dispatcher.add_span_handler(self._event_handler.span_handler)
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        import llama_index.core
+        if (
+            _legacy_llama_index()
+            or not self._use_experimental_instrumentation
+            or not _legacy_llama_index()
+            and self._use_experimental_instrumentation == "both"
+        ):
+            import llama_index.core
 
-        llama_index.core.global_handler = self._original_global_handler
-        self._original_global_handler = None
+            llama_index.core.global_handler = self._original_global_handler
+            self._original_global_handler = None
 
-        if self._with_experimental_instrumentation and not _legacy_llama_index():
+        if not _legacy_llama_index() and self._use_experimental_instrumentation:
             if self._event_handler is None:
                 return
             from llama_index.core.instrumentation import get_dispatcher

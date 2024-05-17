@@ -168,11 +168,8 @@ def test_handler_basic_retrieval(
     for span in spans:
         traces[span.context.trace_id][span.name] = span
 
-    assert len(traces) == n * 2  # includes legacy callback
+    assert len(traces) == n
     for spans_by_name in traces.values():
-        if spans_by_name.pop("query", None) is not None:
-            # traces is from legacy callback, skip.
-            continue
         if is_async:
             assert (query_span := spans_by_name.pop("BaseQueryEngine.aquery")) is not None
         else:
@@ -429,7 +426,7 @@ def instrument(
 ) -> Generator[None, None, None]:
     LlamaIndexInstrumentor().instrument(
         tracer_provider=tracer_provider,
-        with_experimental_instrumentation=True,
+        use_experimental_instrumentation=True,
     )
     yield
     LlamaIndexInstrumentor().uninstrument()
