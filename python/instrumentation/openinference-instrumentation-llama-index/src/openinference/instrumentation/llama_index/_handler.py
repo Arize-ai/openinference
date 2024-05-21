@@ -1,5 +1,4 @@
 import inspect
-import json
 import logging
 from functools import singledispatch, singledispatchmethod
 from time import time_ns
