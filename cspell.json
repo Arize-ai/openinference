@@ -12,6 +12,8 @@
         "Instrumentor",
         "langchain",
         "llms",
+        "nextjs",
+        "openinerence",
         "openinference",
         "otel",
         "OTLP",
