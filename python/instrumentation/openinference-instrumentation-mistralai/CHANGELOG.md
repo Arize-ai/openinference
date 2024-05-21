@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.6...python-openinference-instrumentation-mistralai-v0.0.7) (2024-05-21)
+
+
+### Bug Fixes
+
+* improve mistral support for non-ascii characters ([#479](https://github.com/Arize-ai/openinference/issues/479)) ([14b09a5](https://github.com/Arize-ai/openinference/commit/14b09a5335e7e057312d1d417b5b5ac7e45fd091))
+
 ## [0.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.5...python-openinference-instrumentation-mistralai-v0.0.6) (2024-05-09)
 
 
