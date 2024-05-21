@@ -282,7 +282,7 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
         yield value
     else:
         obj = dict(_replace_nan(obj))
-        yield json.dumps(obj, default=_serialize_json)
+        yield json.dumps(obj, default=_serialize_json, ensure_ascii=False)
         yield OpenInferenceMimeTypeValues.JSON.value
 
 
@@ -465,7 +465,10 @@ def _prompt_template(run: Run) -> Iterator[Tuple[str, Any]]:
                     if (value := run.inputs.get(variable)) is not None:
                         template_variables[variable] = value
                 if template_variables:
-                    yield LLM_PROMPT_TEMPLATE_VARIABLES, json.dumps(template_variables)
+                    yield (
+                        LLM_PROMPT_TEMPLATE_VARIABLES,
+                        json.dumps(template_variables, ensure_ascii=False),
+                    )
             break
 
 
@@ -481,7 +484,7 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
         assert isinstance(
             invocation_parameters, Mapping
         ), f"expected Mapping, found {type(invocation_parameters)}"
-        yield LLM_INVOCATION_PARAMETERS, json.dumps(invocation_parameters)
+        yield LLM_INVOCATION_PARAMETERS, json.dumps(invocation_parameters, ensure_ascii=False)
 
 
 @stop_on_exception
@@ -530,7 +533,7 @@ def _function_calls(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str,
             outputs["generations"][0][0]["message"]["kwargs"]["additional_kwargs"]["function_call"]
         )
         function_call_data["arguments"] = json.loads(function_call_data["arguments"])
-        yield LLM_FUNCTION_CALL, json.dumps(function_call_data)
+        yield LLM_FUNCTION_CALL, json.dumps(function_call_data, ensure_ascii=False)
     except Exception:
         pass
 
@@ -575,7 +578,7 @@ def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
         or metadata.get(LANGCHAIN_THREAD_ID)
     ):
         yield SESSION_ID, session_id
-    yield METADATA, json.dumps(metadata)
+    yield METADATA, json.dumps(metadata, ensure_ascii=False)
 
 
 @stop_on_exception
@@ -585,7 +588,7 @@ def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
         yield DOCUMENT_CONTENT, page_content
     if metadata := getattr(document, "metadata", None):
         assert isinstance(metadata, Mapping), f"expected Mapping, found {type(metadata)}"
-        yield DOCUMENT_METADATA, json.dumps(metadata, cls=_SafeJSONEncoder)
+        yield DOCUMENT_METADATA, json.dumps(metadata, cls=_SafeJSONEncoder, ensure_ascii=False)
 
 
 class _SafeJSONEncoder(json.JSONEncoder):
