@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.5...python-openinference-instrumentation-bedrock-v0.1.6) (2024-05-21)
+
+
+### Bug Fixes
+
+* improve bedrock support for non-ascii characters ([#475](https://github.com/Arize-ai/openinference/issues/475)) ([e6d1f0a](https://github.com/Arize-ai/openinference/commit/e6d1f0acca9ea5d5f00fa10a809a771deb3ff605))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.4...python-openinference-instrumentation-bedrock-v0.1.5) (2024-05-11)
 
 
