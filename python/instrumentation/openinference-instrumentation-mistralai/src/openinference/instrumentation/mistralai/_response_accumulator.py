@@ -1,4 +1,3 @@
-import json
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
@@ -17,6 +16,7 @@ from typing import (
     Type,
 )
 
+from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.mistralai._utils import (
     _as_output_attributes,
     _ValueAndType,
@@ -93,7 +93,7 @@ class _ChatCompletionAccumulator:
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if not (result := self._result()):
             return
-        json_string = json.dumps(result)
+        json_string = safe_json_dumps(result)
         yield from _as_output_attributes(
             _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
         )
