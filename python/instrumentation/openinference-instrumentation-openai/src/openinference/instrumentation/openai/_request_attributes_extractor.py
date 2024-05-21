@@ -1,4 +1,3 @@
-import json
 import logging
 from enum import Enum
 from types import ModuleType
@@ -13,6 +12,7 @@ from typing import (
     Type,
 )
 
+from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 from opentelemetry.util.types import AttributeValue
@@ -58,7 +58,7 @@ class _RequestAttributesExtractor:
             yield from _get_attributes_from_completion_create_param(request_parameters)
         else:
             try:
-                yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(request_parameters)
+                yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_parameters)
             except Exception:
                 logger.exception("Failed to serialize request options")
 
@@ -74,7 +74,7 @@ def _get_attributes_from_chat_completion_create_param(
     invocation_params.pop("messages", None)
     invocation_params.pop("functions", None)
     invocation_params.pop("tools", None)
-    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_params)
+    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
     if (input_messages := params.get("messages")) and isinstance(input_messages, Iterable):
         # Use reversed() to get the last message first. This is because OTEL has a default limit of
         # 128 attributes per span, and flattening increases the number of attributes very quickly.
@@ -101,7 +101,7 @@ def _get_attributes_from_message_param(
         elif isinstance(content, List):
             # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_user_message_param.py#L14  # noqa: E501
             try:
-                json_string = json.dumps(content)
+                json_string = safe_json_dumps(content)
             except Exception:
                 logger.exception("Failed to serialize message content")
             else:
@@ -151,7 +151,7 @@ def _get_attributes_from_completion_create_param(
         return
     invocation_params = dict(params)
     invocation_params.pop("prompt", None)
-    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_params)
+    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
 
 def _get_attributes_from_embedding_create_param(
@@ -163,4 +163,4 @@ def _get_attributes_from_embedding_create_param(
         return
     invocation_params = dict(params)
     invocation_params.pop("input", None)
-    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_params)
+    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
