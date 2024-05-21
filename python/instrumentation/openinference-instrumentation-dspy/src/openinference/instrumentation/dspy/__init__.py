@@ -313,7 +313,7 @@ class _PredictForwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: json.dumps(
+                            OUTPUT_VALUE: safe_json_dumps(
                                 self._prediction_to_output_dict(prediction, signature)
                             ),
                             OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
@@ -567,7 +567,7 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         *args,
         **kwargs,
     )
-    return json.dumps(
+    return safe_json_dumps(
         {
             **{
                 argument_name: argument_value
@@ -629,7 +629,7 @@ def _jsonify_output(response: Any) -> str:
     Converts output to JSON string.
     """
     if _is_google_response(response):
-        return json.dumps(_parse_google_response(response))
+        return safe_json_dumps(_parse_google_response(response))
     return safe_json_dumps(response, cls=SafeJSONEncoder)
 
 
