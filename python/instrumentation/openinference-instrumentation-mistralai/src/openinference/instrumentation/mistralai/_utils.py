@@ -1,7 +1,7 @@
-import json
 import logging
 from typing import Any, Iterator, NamedTuple, Optional, Protocol, Tuple
 
+from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.mistralai._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 from opentelemetry import trace as trace_api
@@ -49,7 +49,7 @@ def _finish_tracing(
 
 def _io_value_and_type(obj: Any) -> _ValueAndType:
     try:
-        return _ValueAndType(json.dumps(obj), OpenInferenceMimeTypeValues.JSON)
+        return _ValueAndType(safe_json_dumps(obj), OpenInferenceMimeTypeValues.JSON)
     except Exception:
         logger.exception("Failed to get input attributes from request parameters.")
     return _ValueAndType(str(obj), OpenInferenceMimeTypeValues.TEXT)
