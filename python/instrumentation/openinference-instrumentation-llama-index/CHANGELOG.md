@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.4.0...python-openinference-instrumentation-llama-index-v1.4.1) (2024-05-21)
+
+
+### Bug Fixes
+
+* further llama-index support for non-ascii characters ([#487](https://github.com/Arize-ai/openinference/issues/487)) ([e28bfc7](https://github.com/Arize-ai/openinference/commit/e28bfc75ccbd3c79d6c69a5b180cdfcefb6b2342))
+* improve llama-index support for non-ascii characters ([#477](https://github.com/Arize-ai/openinference/issues/477)) ([70665cb](https://github.com/Arize-ai/openinference/commit/70665cb9febe13a3f795ee498eb06481f0945a73))
+
 ## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.3.0...python-openinference-instrumentation-llama-index-v1.4.0) (2024-05-17)
 
 
