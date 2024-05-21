@@ -175,7 +175,7 @@ class _Span(
         if name := tool.name:
             self[TOOL_NAME] = name
         self[TOOL_DESCRIPTION] = tool.description
-        self[TOOL_PARAMETERS] = json.dumps(tool.get_parameters_dict(), default=str)
+        self[TOOL_PARAMETERS] = safe_json_dumps(tool.get_parameters_dict())
 
     @process_event.register
     def _(self, event: EmbeddingStartEvent) -> None:
