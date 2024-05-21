@@ -215,7 +215,9 @@ class _LMBasicRequestWrapper(_WithTracer):
                     {
                         OPENINFERENCE_SPAN_KIND: LLM.value,
                         LLM_MODEL_NAME: instance.kwargs.get("model"),
-                        LLM_INVOCATION_PARAMETERS: json.dumps(invocation_parameters),
+                        LLM_INVOCATION_PARAMETERS: json.dumps(
+                            invocation_parameters, ensure_ascii=False
+                        ),
                         INPUT_VALUE: str(prompt),
                         INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
                     }
@@ -383,7 +385,9 @@ class _ModuleForwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: json.dumps(prediction, cls=DSPyJSONEncoder),
+                            OUTPUT_VALUE: json.dumps(
+                                prediction, cls=DSPyJSONEncoder, ensure_ascii=False
+                            ),
                             OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                         }
                     )
@@ -630,7 +634,7 @@ def _jsonify_output(response: Any) -> str:
     """
     if _is_google_response(response):
         return json.dumps(_parse_google_response(response))
-    return json.dumps(response, cls=SafeJSONEncoder)
+    return json.dumps(response, cls=SafeJSONEncoder, ensure_ascii=False, ensure_ascii=False)
 
 
 def _is_google_response(response: Any) -> TypeGuard["GenerateContentResponseType"]:
