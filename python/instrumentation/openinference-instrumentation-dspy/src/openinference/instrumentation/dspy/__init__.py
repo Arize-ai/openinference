@@ -634,7 +634,7 @@ def _jsonify_output(response: Any) -> str:
     """
     if _is_google_response(response):
         return json.dumps(_parse_google_response(response))
-    return json.dumps(response, cls=SafeJSONEncoder, ensure_ascii=False, ensure_ascii=False)
+    return json.dumps(response, cls=SafeJSONEncoder, ensure_ascii=False)
 
 
 def _is_google_response(response: Any) -> TypeGuard["GenerateContentResponseType"]:
