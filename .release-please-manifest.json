@@ -1,6 +1,6 @@
 {
     "python/openinference-semantic-conventions": "0.1.6",
-    "python/instrumentation/openinference-instrumentation-openai": "0.1.5",
+    "python/instrumentation/openinference-instrumentation-openai": "0.1.6",
     "python/instrumentation/openinference-instrumentation-llama-index": "1.4.1",
     "python/instrumentation/openinference-instrumentation-dspy": "0.1.9",
     "python/instrumentation/openinference-instrumentation-langchain": "0.1.16",
