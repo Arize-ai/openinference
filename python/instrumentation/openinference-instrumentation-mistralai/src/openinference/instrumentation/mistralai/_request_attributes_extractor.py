@@ -1,4 +1,3 @@
-import json
 import logging
 from enum import Enum
 from types import ModuleType
@@ -11,6 +10,7 @@ from typing import (
     Tuple,
 )
 
+from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 from opentelemetry.util.types import AttributeValue
 
@@ -49,7 +49,7 @@ def _get_attributes_from_chat_completion_create_param(
     invocation_params.pop("messages", None)
     invocation_params.pop("functions", None)
     invocation_params.pop("tools", None)
-    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_params)
+    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
     if (input_messages := params.get("messages")) and isinstance(input_messages, Iterable):
         # Use reversed() to get the last message first. This is because OTEL has a default limit of
         # 128 attributes per span, and flattening increases the number of attributes very quickly.
@@ -73,7 +73,7 @@ def _get_attributes_from_message_param(
             yield MessageAttributes.MESSAGE_CONTENT, content
         elif isinstance(content, List):
             try:
-                json_string = json.dumps(content)
+                json_string = safe_json_dumps(content)
             except Exception:
                 logger.exception("Failed to serialize message content")
             else:

@@ -16,7 +16,7 @@ from typing import (
     Tuple,
 )
 
-from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.mistralai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -156,7 +156,7 @@ class _WithMistralAI(ABC):
                 elif value is not None:
                     try:
                         # ensure the value is JSON-serializable
-                        json.dumps(value)
+                        safe_json_dumps(value)
                         request_data[key] = value
                     except json.JSONDecodeError:
                         request_data[key] = str(value)

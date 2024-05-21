@@ -1,11 +1,10 @@
 import inspect
-import json
 import logging
 from functools import singledispatch, singledispatchmethod
 from time import time_ns
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
 
-from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -175,7 +174,7 @@ class _Span(
         if name := tool.name:
             self[TOOL_NAME] = name
         self[TOOL_DESCRIPTION] = tool.description
-        self[TOOL_PARAMETERS] = json.dumps(tool.get_parameters_dict(), default=str)
+        self[TOOL_PARAMETERS] = safe_json_dumps(tool.get_parameters_dict())
 
     @process_event.register
     def _(self, event: EmbeddingStartEvent) -> None:
@@ -227,7 +226,7 @@ class _Span(
             if (argument_value := argument_values.get(variable_name)) is not None
         }
         if template_arguments:
-            self[LLM_PROMPT_TEMPLATE_VARIABLES] = json.dumps(template_arguments, default=str)
+            self[LLM_PROMPT_TEMPLATE_VARIABLES] = safe_json_dumps(template_arguments)
 
     @process_event.register
     def _(self, event: LLMPredictEndEvent) -> None:
@@ -362,7 +361,7 @@ class _Span(
             if (score := node.get_score()) is not None:
                 self[f"{prefix}.{i}.{DOCUMENT_SCORE}"] = score
             if metadata := node.metadata:
-                self[f"{prefix}.{i}.{DOCUMENT_METADATA}"] = json.dumps(metadata, default=str)
+                self[f"{prefix}.{i}.{DOCUMENT_METADATA}"] = safe_json_dumps(metadata)
 
     def _process_messages(self, prefix: str, *messages: ChatMessage) -> None:
         for i, message in enumerate(messages):
@@ -388,7 +387,7 @@ class _Span(
             if len(query_dict) == 1 and query.query_str:
                 self[INPUT_VALUE] = query.query_str
             else:
-                self[INPUT_VALUE] = json.dumps(query_dict, default=str)
+                self[INPUT_VALUE] = safe_json_dumps(query_dict)
                 self[INPUT_MIME_TYPE] = JSON
         else:
             assert_never(query)
