@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.8...python-openinference-instrumentation-dspy-v0.1.9) (2024-05-21)
+
+
+### Bug Fixes
+
+* further dspy support for non-ascii characters ([#488](https://github.com/Arize-ai/openinference/issues/488)) ([fe9d2dd](https://github.com/Arize-ai/openinference/commit/fe9d2dd453aadd6758ba3754fd4f0e68342be931))
+* improve dspy support for non-ascii characters ([#478](https://github.com/Arize-ai/openinference/issues/478)) ([344bd13](https://github.com/Arize-ai/openinference/commit/344bd135ec1069d58365f25a5437cbd546b80cf0))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.7...python-openinference-instrumentation-dspy-v0.1.8) (2024-05-09)
 
 
