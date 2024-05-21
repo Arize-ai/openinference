@@ -83,7 +83,7 @@ class _UsingAttributesContextManager(ContextDecorator):
         if self._user_id:
             ctx = set_value(SpanAttributes.USER_ID, self._user_id, ctx)
         if self._metadata:
-            ctx = set_value(SpanAttributes.METADATA, json.dumps(self._metadata, default=str), ctx)
+            ctx = set_value(SpanAttributes.METADATA, safe_json_dumps(self._metadata), ctx)
         if self._tags:
             ctx = set_value(SpanAttributes.TAG_TAGS, self._tags, ctx)
         if self._prompt_template:
@@ -95,7 +95,7 @@ class _UsingAttributesContextManager(ContextDecorator):
         if self._prompt_template_variables:
             ctx = set_value(
                 SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES,
-                json.dumps(self._prompt_template_variables, default=str),
+                safe_json_dumps(self._prompt_template_variables),
                 ctx,
             )
         self._token = attach(ctx)
