@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.5...python-openinference-instrumentation-openai-v0.1.6) (2024-05-21)
+
+
+### Bug Fixes
+
+* improve openai support for non-ascii characters ([#480](https://github.com/Arize-ai/openinference/issues/480)) ([5b9dd64](https://github.com/Arize-ai/openinference/commit/5b9dd64e4063e5d7ecf357fdba0faa70acaa1a25))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.4...python-openinference-instrumentation-openai-v0.1.5) (2024-05-09)
 
 
