@@ -17,7 +17,7 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
-from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
 from openinference.semconv.trace import (
@@ -215,7 +215,7 @@ class _LMBasicRequestWrapper(_WithTracer):
                     {
                         OPENINFERENCE_SPAN_KIND: LLM.value,
                         LLM_MODEL_NAME: instance.kwargs.get("model"),
-                        LLM_INVOCATION_PARAMETERS: json.dumps(invocation_parameters),
+                        LLM_INVOCATION_PARAMETERS: safe_json_dumps(invocation_parameters),
                         INPUT_VALUE: str(prompt),
                         INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
                     }
@@ -383,7 +383,7 @@ class _ModuleForwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: json.dumps(prediction, cls=DSPyJSONEncoder),
+                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
                             OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                         }
                     )
@@ -630,7 +630,7 @@ def _jsonify_output(response: Any) -> str:
     """
     if _is_google_response(response):
         return json.dumps(_parse_google_response(response))
-    return json.dumps(response, cls=SafeJSONEncoder)
+    return safe_json_dumps(response, cls=SafeJSONEncoder)
 
 
 def _is_google_response(response: Any) -> TypeGuard["GenerateContentResponseType"]:
