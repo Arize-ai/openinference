@@ -1,4 +1,3 @@
-import json
 import logging
 import warnings
 from functools import lru_cache
@@ -17,6 +16,7 @@ from typing import (
     cast,
 )
 
+from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 from opentelemetry import trace as trace_api
@@ -50,7 +50,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
     if not isinstance(obj, str) and isinstance(obj, (Sequence, Mapping)):
         try:
-            value = json.dumps(obj)
+            value = safe_json_dumps(obj)
         except Exception:
             logger.exception("Failed to dump json")
         else:
