@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 import pytest
 from openinference.instrumentation import (
     get_attributes_from_context,
+    safe_json_dumps,
     suppress_tracing,
     using_attributes,
     using_metadata,
@@ -226,6 +227,18 @@ def test_get_attributes_from_context(
 
     context_vars = {attr[0]: attr[1] for attr in get_attributes_from_context()}
     assert context_vars == {}
+
+
+def test_safe_json_dumps_encodes_non_serializable_objects() -> None:
+    non_serializable_object = object()
+    assert safe_json_dumps(non_serializable_object) == safe_json_dumps(str(non_serializable_object))
+
+
+def test_safe_json_dumps_encodes_non_ascii_characters_without_escaping() -> None:
+    assert (
+        safe_json_dumps({"naïve façade café": "안녕하세요"})
+        == '{"naïve façade café": "안녕하세요"}'
+    )
 
 
 @pytest.fixture

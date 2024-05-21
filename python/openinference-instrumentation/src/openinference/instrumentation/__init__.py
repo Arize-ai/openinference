@@ -320,3 +320,12 @@ def get_attributes_from_context() -> Iterator[Tuple[str, AttributeValue]]:
     for ctx_attr in CONTEXT_ATTRIBUTES:
         if (val := get_value(ctx_attr)) is not None:
             yield ctx_attr, val
+
+
+def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
+    """
+    A convenience wrapper around `json.dumps` that ensures that any object can
+    be safely encoded without a `TypeError` and that non-ASCII Unicode
+    characters are not escaped.
+    """
+    return json.dumps(obj, default=str, ensure_ascii=False, **kwargs)
