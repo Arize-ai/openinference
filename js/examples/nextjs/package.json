@@ -15,7 +15,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^0.0.9",
     "@arizeai/openinference-instrumentation-langchain": "^0.0.5",
-    "@arizeai/openinference-instrumentation-openai": "^0.1.4",
+    "@arizeai/openinference-instrumentation-openai": "^0.2.0",
     "@langchain/core": "^0.1.62",
     "@langchain/openai": "^0.0.28",
     "@opentelemetry/api": "^1.8.0",

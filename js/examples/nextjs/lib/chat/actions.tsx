@@ -123,13 +123,6 @@ async function confirmPurchase(symbol: string, price: number, amount: number) {
 
 async function submitUserMessage(content: string) {
   'use server'
-  debugger
-  const tracer = trace.getTracer('sample-app')
-  const chatModel = new ChatOpenAI({
-    callbacks: [new LangChainTracer(tracer)]
-  })
-
-  const response = await chatModel.invoke(content)
 
   const aiState = getMutableAIState<typeof AI>()
 
