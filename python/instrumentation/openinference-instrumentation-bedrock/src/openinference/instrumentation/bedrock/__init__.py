@@ -105,7 +105,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 response["body"].reset()
 
                 prompt = request_body.pop("prompt")
-                invocation_parameters = json.dumps(request_body)
+                invocation_parameters = json.dumps(request_body, ensure_ascii=False)
 
                 _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
                 _set_span_attribute(
