@@ -331,8 +331,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       },
     );
 
+    _isOpenInferencePatched = true;
     try {
-      _isOpenInferencePatched = true;
       // This can fail if the module is made immutable via the runtime or bundler
       module.openInferencePatched = true;
     } catch (e) {
@@ -353,8 +353,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     this._unwrap(moduleExports.OpenAI.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
 
+    _isOpenInferencePatched = false;
     try {
-      _isOpenInferencePatched = false;
       // This can fail if the module is made immutable via the runtime or bundler
       moduleExports.openInferencePatched = false;
     } catch (e) {
