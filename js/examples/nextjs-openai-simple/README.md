@@ -19,7 +19,7 @@ Make sure you have `OPENAI_API_KEY` set as an environment variable.
 
 First, start phoenix to trace the application.
 
-````shell
+```shell
 docker run -p 6006:6006 arizephoenix/phoenix:latest
 ```
 
@@ -34,4 +34,3 @@ View the application at `http://localhost:3000` and the traces in the Phoenix UI
 ## Learn More
 
 You can check out [the Phoenix GitHub repository](https://github.com/Arize-ai/phoenix) - your feedback and contributions are welcome!
-````
