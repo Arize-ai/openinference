@@ -3,16 +3,12 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
 import * as OpenAI from "openai";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
-
-// For troubleshooting, set the log level to DiagLogLevel.DEBUG
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
-
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 const provider = new NodeTracerProvider({
   resource: new Resource({
@@ -38,6 +34,4 @@ registerInstrumentations({
 
 provider.register();
 
-const ai = new OpenAI.OpenAI();
-
-console.log("👀 OpenInference initialized");
+diag.info("👀 OpenInference initialized");
