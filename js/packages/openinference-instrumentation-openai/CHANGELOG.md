@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 0.3.0
+
+### Minor Changes
+
+- ab5504f: Add support for patch / unpatch of packages that are made immutable (Deno, webpack)
+
 ## 0.2.0
 
 ### Minor Changes
