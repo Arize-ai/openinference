@@ -1,4 +1,4 @@
-import { OpenAIInstrumentation } from "../src";
+import { isPatched, OpenAIInstrumentation } from "../src";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
@@ -53,6 +53,13 @@ describe("OpenAIInstrumentation", () => {
     expect(
       (OpenAI as { openInferencePatched?: boolean }).openInferencePatched,
     ).toBe(true);
+    expect(isPatched()).toBe(true);
+  });
+  it("sets a patched flag correctly to track whether or not openai is instrumented", () => {
+    instrumentation.disable();
+    expect(isPatched()).toBe(false);
+    instrumentation.enable();
+    expect(isPatched()).toBe(true);
   });
   it("creates a span for chat completions", async () => {
     const response = {
