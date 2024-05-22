@@ -1,0 +1,35 @@
+{
+  "name": "openinference-nextjs-example",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@arizeai/openinference-instrumentation-openai": "^0.2.0",
+    "@arizeai/openinference-semantic-conventions": "^0.4.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.51.1",
+    "@opentelemetry/instrumentation": "^0.51.1",
+    "@opentelemetry/resources": "^1.24.1",
+    "@opentelemetry/sdk-trace-base": "^1.24.1",
+    "@opentelemetry/sdk-trace-node": "^1.24.1",
+    "next": "^13.5.6",
+    "openai": "^4.28.0",
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10",
+    "eslint": "^8",
+    "eslint-config-next": "13.5.6",
+    "postcss": "^8",
+    "tailwindcss": "^3",
+    "typescript": "^5"
+  }
+}
