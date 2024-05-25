@@ -35,6 +35,7 @@ export function isPatched() {
 }
 
 import {
+  MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
@@ -133,27 +134,12 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
             },
           );
           const wrappedPromise = execPromise.then((result) => {
-            // if (isChatCompletionResponse(result)) {
-            //   // Record the results
-            //   span.setAttributes({
-            //     [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
-            //     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-            //     // Override the model from the value sent by the server
-            //     [SemanticConventions.LLM_MODEL_NAME]: result.model,
-            //     ...getChatCompletionLLMOutputMessagesAttributes(result),
-            //     ...getUsageAttributes(result),
-            //   });
-            //   span.setStatus({ code: SpanStatusCode.OK });
-            //   span.end();
-            // } else {
-            //   // This is a streaming response
-            //   // handle the chunks and add them to the span
-            //   // First split the stream via tee
-            //   const [leftStream, rightStream] = result.tee();
-            //   consumeChatCompletionStreamChunks(rightStream, span);
-            //   result = leftStream;
-            // }
-
+            span.setAttributes({
+              [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(
+                result.response,
+              ),
+              [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
+            });
             span.end();
             return result;
           });

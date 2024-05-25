@@ -6,6 +6,8 @@ import { LlamaIndexInstrumentation, isPatched } from "../src/index";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import * as llamaindex from "llamaindex";
 
+const { Document, VectorStoreIndex } = llamaindex;
+
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.register();
 
@@ -40,5 +42,22 @@ describe("LlamaIndexInstrumentation", () => {
   });
   it("is patched", () => {
     expect(isPatched()).toBe(true);
+  });
+  it("should create a span for query engines", async () => {
+    // Create Document object with essay
+    const document = new Document({ text: "lorem ipsum" });
+
+    // Split text and create embeddings. Store them in a VectorStoreIndex
+    const index = await VectorStoreIndex.fromDocuments([document]);
+
+    // Query the index
+    const queryEngine = index.asQueryEngine();
+    const response = await queryEngine.query({
+      query: "What did the author do in college?",
+    });
+
+    // Output response
+    // eslint-disable-next-line no-console
+    console.log(response.toString());
   });
 });
