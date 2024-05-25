@@ -2,7 +2,7 @@ name: Typescript CI
 
 on:
     push:
-        branches: [main, langchainjs]
+        branches: [main, llama-index-ts]
     pull_request:
         paths:
             - "js/**"
