@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [0d1d065]
+  - @arizeai/openinference-semantic-conventions@0.5.0
+
 ## 0.3.0
 
 ### Minor Changes

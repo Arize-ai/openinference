@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.5.0
+
+### Minor Changes
+
+- 0d1d065: Add resource attribute for project name
+
 ## 0.4.0
 
 ### Minor Changes
