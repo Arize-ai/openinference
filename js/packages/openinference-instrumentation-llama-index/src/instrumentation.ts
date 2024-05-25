@@ -21,6 +21,19 @@ import { isTracingSuppressed } from "@opentelemetry/core";
 
 const MODULE_NAME = "llamaindex";
 
+/**
+ * Flag to check if the openai module has been patched
+ * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
+ */
+let _isOpenInferencePatched = false;
+
+/**
+ * function to check if instrumentation is enabled / disabled
+ */
+export function isPatched() {
+  return _isOpenInferencePatched;
+}
+
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
@@ -69,7 +82,10 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
   }
 
   private patch(moduleExports: typeof llamaindex, moduleVersion?: string) {
-    this._diag.debug(`Patching ${MODULE_NAME}@${moduleVersion}`);
+    this._diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
+    if (_isOpenInferencePatched) {
+      return moduleExports;
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: LlamaIndexInstrumentation = this;
@@ -145,11 +161,16 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
         };
       },
     );
+
+    _isOpenInferencePatched = true;
+
     return moduleExports;
   }
 
   private unpatch(moduleExports: typeof llamaindex, moduleVersion?: string) {
     this._diag.debug(`Un-patching ${MODULE_NAME}@${moduleVersion}`);
     this._unwrap(moduleExports.RetrieverQueryEngine.prototype, "query");
+
+    _isOpenInferencePatched = false;
   }
 }
