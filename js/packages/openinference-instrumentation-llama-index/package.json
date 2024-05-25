@@ -17,8 +17,17 @@
   "author": "oss-devs@arize.com",
   "license": "Apache-2.0",
   "dependencies": {
+    "@arizeai/openinference-semantic-conventions": "workspace:*",
     "@opentelemetry/api": "^1.7.0",
-    "@opentelemetry/instrumentation": "^0.46.0",
-    "@arizeai/openinference-semantic-conventions": "workspace:*"
+    "@opentelemetry/core": "^1.23.0",
+    "@opentelemetry/instrumentation": "^0.46.0"
+  },
+  "devDependencies": {
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
+    "@opentelemetry/resources": "^1.19.0",
+    "@opentelemetry/sdk-trace-base": "^1.19.0",
+    "@opentelemetry/sdk-trace-node": "^1.19.0",
+    "@opentelemetry/semantic-conventions": "^1.19.0",
+    "llamaindex": "^0.3.14"
   }
 }
