@@ -8,6 +8,8 @@ import * as llamaindex from "llamaindex";
 
 const { Document, VectorStoreIndex } = llamaindex;
 
+const DUMMY_RESPONSE = "lorem ipsum";
+
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.register();
 
@@ -28,6 +30,7 @@ describe("LlamaIndexInstrumentation", () => {
   // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
   instrumentation._modules[0].moduleExports = llamaindex;
 
+  let openAISpy: jest.SpyInstance;
   beforeAll(() => {
     instrumentation.enable();
   });
@@ -36,6 +39,22 @@ describe("LlamaIndexInstrumentation", () => {
   });
   beforeEach(() => {
     memoryExporter.reset();
+
+    // Use OpenAI and mock out the calls
+    const response: llamaindex.ChatResponse<llamaindex.ToolCallLLMMessageOptions> =
+      {
+        message: {
+          content: DUMMY_RESPONSE,
+          role: "assistant",
+        },
+        raw: null,
+      };
+    // Mock out the chat completions endpoint
+    openAISpy = jest
+      .spyOn(llamaindex.OpenAI.prototype, "chat")
+      .mockImplementation(() => {
+        return Promise.resolve(response);
+      });
   });
   afterEach(() => {
     jest.clearAllMocks();
@@ -56,8 +75,9 @@ describe("LlamaIndexInstrumentation", () => {
       query: "What did the author do in college?",
     });
 
+    expect(openAISpy).toHaveBeenCalledTimes(1);
+
     // Output response
-    // eslint-disable-next-line no-console
-    console.log(response.toString());
+    expect(response.response).toEqual(DUMMY_RESPONSE);
   });
 });
