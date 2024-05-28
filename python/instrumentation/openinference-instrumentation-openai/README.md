@@ -77,7 +77,7 @@ python your_file.py
 ## FAQ
 **Q: How to get token counts when streaming?**
 
-**A:** To get token count when streaming, install `openai>=1.26` and set `stream_options={"include_usage": True}` when calling `create`. See the example shown above. For more info, see [here](https://community.openai.com/t/usage-stats-now-available-when-using-streaming-with-the-chat-completions-api-or-completions-api/738156).
+**A:** To get token counts when streaming, install `openai>=1.26` and set `stream_options={"include_usage": True}` when calling `create`. See the example shown above. For more info, see [here](https://community.openai.com/t/usage-stats-now-available-when-using-streaming-with-the-chat-completions-api-or-completions-api/738156).
 
 ## More Info
 
