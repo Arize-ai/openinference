@@ -19,7 +19,7 @@ In this example we will instrument a small program that uses OpenAI and observe 
 Install packages.
 
 ```shell
-pip install openinference-instrumentation-openai openai arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install openinference-instrumentation-openai "openai>=1.26" arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 Start the phoenix server so that it is ready to collect traces.
@@ -44,9 +44,8 @@ tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 # Optionally, you can also print the spans to the console.
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-trace_api.set_tracer_provider(tracer_provider)
 
-OpenAIInstrumentor().instrument()
+OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 if __name__ == "__main__":
@@ -55,9 +54,12 @@ if __name__ == "__main__":
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": "Write a haiku."}],
         max_tokens=20,
+        stream=True,
+        stream_options={"include_usage": True},
     )
-    print(response.choices[0].message.content)
-
+    for chunk in response:
+        if chunk.choices and (content := chunk.choices[0].delta.content):
+            print(content, end="")
 ```
 
 Since we are using OpenAI, we must set the `OPENAI_API_KEY` environment variable to authenticate with the OpenAI API.
@@ -71,6 +73,11 @@ Now simply run the python file and observe the traces in Phoenix.
 ```shell
 python your_file.py
 ```
+
+## FAQ
+**Q: How to get token counts when streaming?**
+
+**A:** To get token counts when streaming, install `openai>=1.26` and set `stream_options={"include_usage": True}` when calling `create`. See the example shown above. For more info, see [here](https://community.openai.com/t/usage-stats-now-available-when-using-streaming-with-the-chat-completions-api-or-completions-api/738156).
 
 ## More Info
 
