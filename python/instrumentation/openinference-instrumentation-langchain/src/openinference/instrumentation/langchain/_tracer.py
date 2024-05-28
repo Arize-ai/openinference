@@ -192,34 +192,28 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
         else _langchain_run_type_to_span_kind(run.run_type)
     )
     span.set_attribute(OPENINFERENCE_SPAN_KIND, span_kind.value)
-    attributes = dict(
-        _flatten(
-            chain(
-                _as_input(_convert_io(run.inputs)),
-                _as_output(_convert_io(run.outputs)),
-                _prompts(run.inputs),
-                _input_messages(run.inputs),
-                _output_messages(run.outputs),
-                _prompt_template(run),
-                _invocation_parameters(run),
-                _model_name(run.extra),
-                _token_counts(run.outputs),
-                _function_calls(run.outputs),
-                _tools(run),
-                _retrieval_documents(run),
-                _metadata(run),
+    span.set_attributes(dict(get_attributes_from_context()))
+    span.set_attributes(
+        dict(
+            _flatten(
+                chain(
+                    _as_input(_convert_io(run.inputs)),
+                    _as_output(_convert_io(run.outputs)),
+                    _prompts(run.inputs),
+                    _input_messages(run.inputs),
+                    _output_messages(run.outputs),
+                    _prompt_template(run),
+                    _invocation_parameters(run),
+                    _model_name(run.extra),
+                    _token_counts(run.outputs),
+                    _function_calls(run.outputs),
+                    _tools(run),
+                    _retrieval_documents(run),
+                    _metadata(run),
+                )
             )
         )
     )
-    for k, v in get_attributes_from_context():
-        if (existing := attributes.get(k)) is None:
-            attributes[k] = v
-        elif k == METADATA and isinstance(v, str) and isinstance(existing, str):
-            try:
-                attributes[k] = json.dumps({**json.loads(v), **json.loads(existing)})
-            except Exception:
-                pass
-    span.set_attributes(attributes)
 
 
 def _langchain_run_type_to_span_kind(run_type: str) -> OpenInferenceSpanKindValues:
