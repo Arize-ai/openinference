@@ -202,6 +202,7 @@ def test_callback_llm(
     assert oai_attributes.pop(INPUT_VALUE, None) is not None
     assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
     assert oai_attributes.pop(LLM_PROMPTS, None) is not None
+    assert oai_attributes.pop(METADATA, None) == '{"ls_model_type": "chat"}'
     if status_code == 200:
         assert oai_span.status.status_code == trace_api.StatusCode.OK
         assert oai_attributes.pop(OUTPUT_VALUE, None) is not None
@@ -468,7 +469,7 @@ def test_callback_llm_with_context_attributes(
         oai_attributes,
         session_id,
         user_id,
-        metadata,
+        {"ls_model_type": "chat", **metadata},
         tags,
         prompt_template,
         prompt_template_version,
@@ -543,7 +544,9 @@ def test_chain_metadata(
     llm_attributes = dict(llm_chain_span.attributes or {})
     assert llm_attributes
     if use_langchain_metadata:
-        check_metadata = langchain_metadata
+        check_metadata = (
+            {**langchain_metadata, **metadata} if use_context_attributes else langchain_metadata
+        )
     else:
         if use_context_attributes:
             check_metadata = metadata
@@ -673,7 +676,9 @@ def test_read_session_from_metadata(
         attributes=llm_attributes,
         session_id=expected_session_id,
         user_id=user_id if use_context_attributes else None,
-        metadata=langchain_metadata,
+        metadata={**langchain_metadata, **metadata}
+        if use_context_attributes
+        else langchain_metadata,
         tags=tags if use_context_attributes else None,
         prompt_template=langchain_prompt_template,
         prompt_template_version=prompt_template_version if use_context_attributes else None,
