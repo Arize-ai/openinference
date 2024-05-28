@@ -37,7 +37,7 @@ instruments = [
   "mistralai",
 ]
 test = [
-  "mistralai",
+  "mistralai<0.2",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "respx",
