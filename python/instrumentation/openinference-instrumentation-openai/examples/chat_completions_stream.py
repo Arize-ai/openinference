@@ -1,4 +1,5 @@
 import openai
+from openai.types.chat import ChatCompletionStreamOptionsParam
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -21,7 +22,8 @@ if __name__ == "__main__":
         messages=[{"role": "user", "content": "Write a haiku."}],
         max_tokens=20,
         stream=True,
+        stream_options=ChatCompletionStreamOptionsParam(include_usage=True),
     )
     for chunk in response:
-        if content := chunk.choices[0].delta.content:
+        if chunk.choices and (content := chunk.choices[0].delta.content):
             print(content, end="")
