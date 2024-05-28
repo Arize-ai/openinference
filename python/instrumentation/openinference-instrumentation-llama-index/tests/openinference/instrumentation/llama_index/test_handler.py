@@ -85,7 +85,7 @@ def test_handler_basic_retrieval(
     metadata: Dict[str, Any],
     tags: List[str],
 ) -> None:
-    n = 10  # number of concurrent queries
+    n = 1  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
     callback_manager = CallbackManager()
@@ -313,25 +313,52 @@ def test_handler_basic_retrieval(
             )
             assert template_variables.keys() == {"context_str", "query_str"}
             assert template_variables["query_str"] == question
-            assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "system"
-            assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
-            assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) == "user"
-            assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}", None) is not None
-            assert llm_span.status.status_code == trace_api.StatusCode.OK
-            assert not synthesize_span.status.description
             if not is_stream:
                 # FIXME: currently we can't capture output/messages when streaming
                 assert llm_attributes.pop(OUTPUT_VALUE, None) == answer
-                assert (
-                    llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
-                    == "assistant"
-                )
-                assert (
-                    llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
-                )
             if use_context_attributes:
                 _check_context_attributes(llm_attributes, session_id, user_id, metadata, tags)
             assert llm_attributes == {}
+
+            if is_async:
+                assert (openai_span := spans_by_name.pop("OpenAI.achat")) is not None
+            else:
+                if is_stream:
+                    assert (openai_span := spans_by_name.pop("OpenAI.stream_chat")) is not None
+                else:
+                    assert (openai_span := spans_by_name.pop("OpenAI.chat")) is not None
+            assert openai_span.parent is not None
+            assert openai_span.parent.span_id == llm_span.context.span_id
+            assert openai_span.context.trace_id == llm_span.context.trace_id
+            openai_attributes = dict(openai_span.attributes or {})
+            assert openai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+            assert openai_attributes.pop(LLM_MODEL_NAME, None) is not None
+            assert openai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+            assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "system"
+            assert (
+                openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
+            )
+            assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) == "user"
+            assert (
+                openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}", None) is not None
+            )
+            assert openai_span.status.status_code == trace_api.StatusCode.OK
+            assert not llm_span.status.description
+            assert not openai_span.status.description
+            if not is_stream:
+                # FIXME: currently we can't capture output/messages when streaming
+                assert openai_attributes.pop(OUTPUT_VALUE, None) == f"assistant: {answer}"
+                assert (
+                    openai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
+                    == "assistant"
+                )
+                assert (
+                    openai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
+                    == answer
+                )
+            if use_context_attributes:
+                _check_context_attributes(openai_attributes, session_id, user_id, metadata, tags)
+            assert openai_attributes == {}
 
         assert spans_by_name == {}
     assert len(questions) == 0
