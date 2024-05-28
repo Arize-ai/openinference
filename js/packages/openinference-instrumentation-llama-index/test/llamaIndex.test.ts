@@ -5,7 +5,6 @@ import {
 import { LlamaIndexInstrumentation, isPatched } from "../src/index";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import * as llamaindex from "llamaindex";
-import exp from "constants";
 
 const { Document, VectorStoreIndex } = llamaindex;
 
@@ -35,9 +34,14 @@ describe("LlamaIndexInstrumentation", () => {
   let openAIEmbedSpy: jest.SpyInstance;
   beforeAll(() => {
     instrumentation.enable();
+
+    // Setup the OPENAI_API_KEY
+    process.env["OPENAI_API_KEY"] = "fake-api-key";
   });
   afterAll(() => {
     instrumentation.disable();
+    // Delete the OPENAI_API_KEY
+    delete process.env["OPENAI_API_KEY"];
   });
   beforeEach(() => {
     memoryExporter.reset();
