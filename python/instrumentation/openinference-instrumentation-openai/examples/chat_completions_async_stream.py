@@ -1,7 +1,6 @@
 import asyncio
 
 import openai
-from openai.types.chat import ChatCompletionStreamOptionsParam
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry import trace as trace_api
@@ -53,6 +52,6 @@ if __name__ == "__main__":
             messages=[{"role": "user", "content": "Write a haiku."}],
             max_tokens=20,
             stream=True,
-            stream_options=ChatCompletionStreamOptionsParam(include_usage=True),
+            stream_options={"include_usage": True},
         ),
     )
