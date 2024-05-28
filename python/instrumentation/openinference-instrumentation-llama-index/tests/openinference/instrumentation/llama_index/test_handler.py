@@ -85,7 +85,7 @@ def test_handler_basic_retrieval(
     metadata: Dict[str, Any],
     tags: List[str],
 ) -> None:
-    n = 1  # number of concurrent queries
+    n = 10  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
     callback_manager = CallbackManager()
