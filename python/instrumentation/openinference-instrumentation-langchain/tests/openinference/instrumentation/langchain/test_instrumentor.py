@@ -3,6 +3,7 @@ import json
 import logging
 import random
 from contextlib import suppress
+from importlib.metadata import version
 from itertools import count
 from typing import Any, AsyncIterator, Dict, Generator, Iterable, Iterator, List, Optional, Tuple
 
@@ -38,6 +39,8 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.setLevel(logging.DEBUG)
         logger.handlers.clear()
         logger.addHandler(logging.StreamHandler())
+
+LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -202,7 +205,8 @@ def test_callback_llm(
     assert oai_attributes.pop(INPUT_VALUE, None) is not None
     assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
     assert oai_attributes.pop(LLM_PROMPTS, None) is not None
-    assert oai_attributes.pop(METADATA, None) == '{"ls_model_type": "chat"}'
+    if LANGCHAIN_VERSION >= (0, 2):
+        assert oai_attributes.pop(METADATA, None) == '{"ls_model_type": "chat"}'
     if status_code == 200:
         assert oai_span.status.status_code == trace_api.StatusCode.OK
         assert oai_attributes.pop(OUTPUT_VALUE, None) is not None
@@ -469,7 +473,7 @@ def test_callback_llm_with_context_attributes(
         oai_attributes,
         session_id,
         user_id,
-        {"ls_model_type": "chat", **metadata},
+        {"ls_model_type": "chat", **metadata} if LANGCHAIN_VERSION >= (0, 2) else metadata,
         tags,
         prompt_template,
         prompt_template_version,
