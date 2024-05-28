@@ -31,7 +31,8 @@ describe("LlamaIndexInstrumentation", () => {
   instrumentation._modules[0].moduleExports = llamaindex;
 
   let openAISpy: jest.SpyInstance;
-  let openAIEmbedSpy: jest.SpyInstance;
+  let openAITextEmbedSpy: jest.SpyInstance;
+  let openAIQueryEmbedSpy: jest.SpyInstance;
   beforeAll(() => {
     instrumentation.enable();
 
@@ -63,18 +64,25 @@ describe("LlamaIndexInstrumentation", () => {
       });
 
     // Mock out the embeddings response to size 1536 (ada-2)
-    const embeddingsResponse: number[][] = [Array(1536).fill(0)];
+    const fakeEmbedding = Array(1536).fill(0);
     // Mock out the embeddings endpoint
-    openAIEmbedSpy = jest
+    openAITextEmbedSpy = jest
       .spyOn(llamaindex.OpenAIEmbedding.prototype, "getTextEmbeddings")
       .mockImplementation(() => {
-        return Promise.resolve(embeddingsResponse);
+        return Promise.resolve([fakeEmbedding]);
+      });
+
+    openAIQueryEmbedSpy = jest
+      .spyOn(llamaindex.OpenAIEmbedding.prototype, "getQueryEmbedding")
+      .mockImplementation(() => {
+        return Promise.resolve(fakeEmbedding);
       });
   });
   afterEach(() => {
     jest.clearAllMocks();
     openAISpy.mockRestore();
-    openAIEmbedSpy.mockRestore();
+    openAIQueryEmbedSpy.mockRestore();
+    openAITextEmbedSpy.mockRestore();
   });
   it("is patched", () => {
     expect(isPatched()).toBe(true);
@@ -94,7 +102,8 @@ describe("LlamaIndexInstrumentation", () => {
 
     // Verify that the OpenAI chat method was called once during synthesis
     expect(openAISpy).toHaveBeenCalledTimes(1);
-    expect(openAIEmbedSpy).toHaveBeenCalledTimes(1);
+    expect(openAIQueryEmbedSpy).toHaveBeenCalledTimes(1);
+    expect(openAITextEmbedSpy).toHaveBeenCalledTimes(1);
 
     // Output response
     expect(response.response).toEqual(DUMMY_RESPONSE);
