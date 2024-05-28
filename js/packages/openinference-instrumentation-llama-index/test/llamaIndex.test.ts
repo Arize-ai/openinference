@@ -5,6 +5,7 @@ import {
 import { LlamaIndexInstrumentation, isPatched } from "../src/index";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import * as llamaindex from "llamaindex";
+import exp from "constants";
 
 const { Document, VectorStoreIndex } = llamaindex;
 
@@ -31,6 +32,7 @@ describe("LlamaIndexInstrumentation", () => {
   instrumentation._modules[0].moduleExports = llamaindex;
 
   let openAISpy: jest.SpyInstance;
+  let openAIEmbedSpy: jest.SpyInstance;
   beforeAll(() => {
     instrumentation.enable();
   });
@@ -55,9 +57,20 @@ describe("LlamaIndexInstrumentation", () => {
       .mockImplementation(() => {
         return Promise.resolve(response);
       });
+
+    // Mock out the embeddings response to size 1536 (ada-2)
+    const embeddingsResponse: number[][] = [Array(1536).fill(0)];
+    // Mock out the embeddings endpoint
+    openAIEmbedSpy = jest
+      .spyOn(llamaindex.OpenAIEmbedding.prototype, "getTextEmbeddings")
+      .mockImplementation(() => {
+        return Promise.resolve(embeddingsResponse);
+      });
   });
   afterEach(() => {
     jest.clearAllMocks();
+    openAISpy.mockRestore();
+    openAIEmbedSpy.mockRestore();
   });
   it("is patched", () => {
     expect(isPatched()).toBe(true);
@@ -75,9 +88,18 @@ describe("LlamaIndexInstrumentation", () => {
       query: "What did the author do in college?",
     });
 
+    // Verify that the OpenAI chat method was called once during synthesis
     expect(openAISpy).toHaveBeenCalledTimes(1);
+    expect(openAIEmbedSpy).toHaveBeenCalledTimes(1);
 
     // Output response
     expect(response.response).toEqual(DUMMY_RESPONSE);
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBeGreaterThan(0);
+
+    // Expect a span for the query engine
+    const queryEngineSpan = spans.find((span) => span.name.includes("Query"));
+    expect(queryEngineSpan).toBeDefined();
   });
 });
