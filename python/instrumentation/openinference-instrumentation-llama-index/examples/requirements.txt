@@ -1,5 +1,6 @@
 chromadb
-llama-index >= 0.10.0
+llama-index
+llama-index-core >= 0.10.40
 llama-index-agent-openai
 llama-index-llms-openai
 llama-index-vector-stores-chroma

@@ -29,7 +29,7 @@ from llama_index.core.callbacks import CallbackManager
 from llama_index.core.schema import TextNode
 from llama_index.llms.openai import OpenAI  # type: ignore
 from openinference.instrumentation import using_attributes
-from openinference.instrumentation.llama_index import LlamaIndexInstrumentor, _legacy_llama_index
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -53,10 +53,6 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.addHandler(logging.StreamHandler())
 
 
-@pytest.mark.skipif(
-    _legacy_llama_index(),
-    reason="legacy callback system",
-)
 @pytest.mark.parametrize(
     "is_stream,is_async",
     [
@@ -451,10 +447,7 @@ def instrument(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
-    LlamaIndexInstrumentor().instrument(
-        tracer_provider=tracer_provider,
-        use_experimental_instrumentation=True,
-    )
+    LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     LlamaIndexInstrumentor().uninstrument()
     in_memory_span_exporter.clear()

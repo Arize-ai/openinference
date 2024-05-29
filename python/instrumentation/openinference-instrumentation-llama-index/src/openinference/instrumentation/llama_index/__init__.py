@@ -1,4 +1,3 @@
-import importlib
 import logging
 from typing import Any, Collection
 
@@ -10,8 +9,6 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-_ELIGIBLE_VERSION_FOR_NEW_INSTRUMENTATION = (0, 10, 37)
-
 
 class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     """
@@ -19,9 +16,9 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     """
 
     __slots__ = (
-        "_original_global_handler",
-        "_use_experimental_instrumentation",  # feature flag
         "_event_handler",
+        "_use_legacy_callback_handler",  # deprecated
+        "_original_global_handler",  # deprecated
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -30,40 +27,28 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        self._use_experimental_instrumentation = kwargs.get("use_experimental_instrumentation")
-        if self._use_experimental_instrumentation:
-            if not _legacy_llama_index():
-                print(
-                    "`use_experimental_instrumentation` feature flag is set. Spans "
-                    "will be generated using the new instrumentation system "
-                    "For more information about the new instrumentation system, visit "
-                    "https://docs.llamaindex.ai/en/stable/module_guides/observability/instrumentation/"  # noqa E501
-                )
-            else:
-                print(
-                    f"`use_experimental_instrumentation` feature flag is set. But "
-                    f"the version of `llama-index-core` is not "
-                    f">={'.'.join(map(str, _ELIGIBLE_VERSION_FOR_NEW_INSTRUMENTATION))}, "
-                    f"so the flag is ignored."
-                )
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
-        from openinference.instrumentation.llama_index._callback import (
-            OpenInferenceTraceCallbackHandler,
-        )
+        self._use_legacy_callback_handler = kwargs.get("use_legacy_callback_handler")
+        if self._use_legacy_callback_handler:
+            import llama_index.core
 
-        if (
-            _legacy_llama_index()
-            or not self._use_experimental_instrumentation
-            or not _legacy_llama_index()
-            and self._use_experimental_instrumentation == "both"
-        ):
+            if hasattr(llama_index.core, "global_handler"):
+                print("Using legacy callback handler.")
+            else:
+                print("Legacy callback handler is not available.")
+                self._use_legacy_callback_handler = False
+        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        self._event_handler = None
+
+        if self._use_legacy_callback_handler:
+            from openinference.instrumentation.llama_index._callback import (
+                OpenInferenceTraceCallbackHandler,
+            )
+
             import llama_index.core
 
             self._original_global_handler = llama_index.core.global_handler
             llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
-
-        self._event_handler = None
-        if not _legacy_llama_index() and self._use_experimental_instrumentation:
+        else:
             from llama_index.core.instrumentation import get_dispatcher
 
             from ._handler import EventHandler
@@ -74,18 +59,12 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             dispatcher.add_span_handler(self._event_handler.span_handler)
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        if (
-            _legacy_llama_index()
-            or not self._use_experimental_instrumentation
-            or not _legacy_llama_index()
-            and self._use_experimental_instrumentation == "both"
-        ):
+        if self._use_legacy_callback_handler:
             import llama_index.core
 
             llama_index.core.global_handler = self._original_global_handler
             self._original_global_handler = None
-
-        if not _legacy_llama_index() and self._use_experimental_instrumentation:
+        else:
             if self._event_handler is None:
                 return
             from llama_index.core.instrumentation import get_dispatcher
@@ -100,8 +79,3 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
                 dispatcher.event_handlers,
             )
             self._event_handler = None
-
-
-def _legacy_llama_index() -> bool:
-    v = importlib.metadata.version("llama-index-core")
-    return tuple(map(int, v.split(".")[:3])) < _ELIGIBLE_VERSION_FOR_NEW_INSTRUMENTATION

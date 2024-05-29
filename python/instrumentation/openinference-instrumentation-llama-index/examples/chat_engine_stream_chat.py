@@ -26,6 +26,6 @@ index = VectorStoreIndex.from_documents(documents)
 Settings.llm = OpenAI(model="gpt-3.5-turbo")
 
 if __name__ == "__main__":
-    query_engine = index.as_query_engine(streaming=True, similarity_top_k=1)
-    response_stream = query_engine.query("What did the author do growing up?")
+    query_engine = index.as_chat_engine()
+    response_stream = query_engine.stream_chat("What did the author do growing up?")
     response_stream.print_response_stream()
