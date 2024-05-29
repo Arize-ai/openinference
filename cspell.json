@@ -2,6 +2,7 @@
     "version": "0.2",
     "language": "en",
     "words": [
+        "abramov",
         "arize",
         "arizeai",
         "autouse",
@@ -11,6 +12,7 @@
         "instrumentator",
         "Instrumentor",
         "langchain",
+        "llamaindex",
         "llms",
         "nextjs",
         "openinference",

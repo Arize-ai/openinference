@@ -11,14 +11,19 @@
     "prebuild": "rimraf dist & pnpm run version:update",
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
     "version:update": "../../scripts/version-update.js",
-    "type:check": "tsc --noEmit"
+    "type:check": "tsc --noEmit",
+    "test": "jest"
   },
   "keywords": [],
   "author": "oss-devs@arize.com",
   "license": "Apache-2.0",
   "dependencies": {
+    "@arizeai/openinference-semantic-conventions": "workspace:*",
     "@opentelemetry/api": "^1.7.0",
-    "@opentelemetry/instrumentation": "^0.46.0",
-    "@arizeai/openinference-semantic-conventions": "workspace:*"
+    "@opentelemetry/core": "^1.23.0",
+    "@opentelemetry/instrumentation": "^0.46.0"
+  },
+  "devDependencies": {
+    "llamaindex": "^0.3.14"
   }
 }
