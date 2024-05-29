@@ -35,7 +35,6 @@ export function isPatched() {
 }
 
 import {
-  MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
@@ -135,10 +134,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
           );
           const wrappedPromise = execPromise.then((result) => {
             span.setAttributes({
-              [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(
-                result.response,
-              ),
-              [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
+              [SemanticConventions.OUTPUT_VALUE]: result.response,
             });
             span.end();
             return result;
