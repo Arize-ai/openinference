@@ -2,6 +2,7 @@
     "version": "0.2",
     "language": "en",
     "words": [
+        "abramov",
         "arize",
         "arizeai",
         "autouse",
@@ -13,6 +14,7 @@
         "instrumentors",
         "langchain",
         "litellm",
+        "llamaindex",
         "llms",
         "mistralai",
         "nextjs",

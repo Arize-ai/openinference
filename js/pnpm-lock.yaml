@@ -5727,6 +5727,7 @@ snapshots:
 
   node-fetch@2.7.0:
     dependencies:
+      encoding: 0.1.13
       whatwg-url: 5.0.0
 
   node-int64@0.4.0: {}
