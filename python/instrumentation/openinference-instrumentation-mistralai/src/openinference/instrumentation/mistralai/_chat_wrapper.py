@@ -204,7 +204,7 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: "ClientBase",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
@@ -250,7 +250,7 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
     async def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: "ClientBase",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
