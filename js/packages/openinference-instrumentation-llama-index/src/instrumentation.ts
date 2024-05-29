@@ -22,7 +22,7 @@ import { isTracingSuppressed } from "@opentelemetry/core";
 const MODULE_NAME = "llamaindex";
 
 /**
- * Flag to check if the openai module has been patched
+ * Flag to check if the LlamaIndex module has been patched
  * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
  */
 let _isOpenInferencePatched = false;
