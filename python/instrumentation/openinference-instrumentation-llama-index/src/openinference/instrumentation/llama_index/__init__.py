@@ -34,8 +34,11 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             if hasattr(llama_index.core, "global_handler"):
                 print("Using legacy callback handler.")
             else:
-                print("Legacy callback handler is not available. Using new callback handler.")
                 self._use_legacy_callback_handler = False
+                print(
+                    "Legacy callback handler is not available. "
+                    "Using new instrumentation event/span handler instead."
+                )
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
         self._event_handler = None
 
