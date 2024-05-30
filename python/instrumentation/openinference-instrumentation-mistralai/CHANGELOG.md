@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.7...python-openinference-instrumentation-mistralai-v0.0.8) (2024-05-30)
+
+
+### Bug Fixes
+
+* remove unnecessary `MistralClient` instantiation ([#508](https://github.com/Arize-ai/openinference/issues/508)) ([2cb1086](https://github.com/Arize-ai/openinference/commit/2cb108620ec48b119e4aca959207e4f029a6eaf2))
+
 ## [0.0.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.6...python-openinference-instrumentation-mistralai-v0.0.7) (2024-05-21)
 
 
