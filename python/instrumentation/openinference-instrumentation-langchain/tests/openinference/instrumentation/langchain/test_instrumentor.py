@@ -206,7 +206,13 @@ def test_callback_llm(
     assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
     assert oai_attributes.pop(LLM_PROMPTS, None) is not None
     if LANGCHAIN_VERSION >= (0, 2):
-        assert oai_attributes.pop(METADATA, None) == '{"ls_model_type": "chat"}'
+        assert (
+            oai_attributes.pop(METADATA, None) == '{"ls_provider": "openai", '
+            '"ls_model_name": "gpt-3.5-turbo", '
+            '"ls_model_type": "chat", '
+            '"ls_temperature": 0.7}'
+        )
+
     if status_code == 200:
         assert oai_span.status.status_code == trace_api.StatusCode.OK
         assert oai_attributes.pop(OUTPUT_VALUE, None) is not None
@@ -473,7 +479,14 @@ def test_callback_llm_with_context_attributes(
         oai_attributes,
         session_id,
         user_id,
-        metadata if LANGCHAIN_VERSION < (0, 2) else {"ls_model_type": "chat"},
+        metadata
+        if LANGCHAIN_VERSION < (0, 2)
+        else {
+            "ls_model_type": "chat",
+            "ls_model_name": "gpt-3.5-turbo",
+            "ls_provider": "openai",
+            "ls_temperature": 0.7,
+        },
         tags,
         prompt_template,
         prompt_template_version,
