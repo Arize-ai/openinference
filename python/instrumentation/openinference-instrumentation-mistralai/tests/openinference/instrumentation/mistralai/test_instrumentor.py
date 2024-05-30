@@ -1251,12 +1251,12 @@ def prompt_template_variables() -> Dict[str, Any]:
 
 @pytest.fixture(scope="module")
 def mistral_sync_client() -> MistralClient:
-    return MistralClient()
+    return MistralClient(api_key="123")
 
 
 @pytest.fixture(scope="module")
 def mistral_async_client() -> MistralAsyncClient:
-    return MistralAsyncClient()
+    return MistralAsyncClient(api_key="123")
 
 
 @pytest.fixture(scope="module")
