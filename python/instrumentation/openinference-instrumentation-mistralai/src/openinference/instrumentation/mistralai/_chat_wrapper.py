@@ -43,7 +43,7 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
-    from mistralai.client import MistralClient
+    from mistralai.client_base import ClientBase
 
 __all__ = ("_SyncChatWrapper",)
 
@@ -88,14 +88,12 @@ class _WithTracer(ABC):
 
 class _WithMistralAI(ABC):
     __slots__ = (
-        "_mistral_client",
         "_request_attributes_extractor",
         "_response_attributes_extractor",
     )
 
     def __init__(self, mistralai: ModuleType, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._mistral_client = mistralai.client.MistralClient()
         self._request_attributes_extractor = _RequestAttributesExtractor(mistralai)
         self._response_attributes_extractor = _ResponseAttributesExtractor()
 
@@ -132,7 +130,7 @@ class _WithMistralAI(ABC):
     def _parse_args(
         self,
         signature: Signature,
-        mistral_client: "MistralClient",
+        mistral_client: "ClientBase",
         *args: Tuple[Any],
         **kwargs: Mapping[str, Any],
     ) -> Dict[str, Any]:
@@ -206,16 +204,14 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: "ClientBase",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         try:
-            request_parameters = self._parse_args(
-                signature(wrapped), self._mistral_client, *args, **kwargs
-            )
+            request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
             span_name = "MistralClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
@@ -254,16 +250,14 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
     async def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: "ClientBase",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
         try:
-            request_parameters = self._parse_args(
-                signature(wrapped), self._mistral_client, *args, **kwargs
-            )
+            request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
             span_name = "MistralAsyncClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
@@ -302,16 +296,14 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: "ClientBase",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         try:
-            request_parameters = self._parse_args(
-                signature(wrapped), self._mistral_client, *args, **kwargs
-            )
+            request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
             span_name = "MistralAsyncClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
