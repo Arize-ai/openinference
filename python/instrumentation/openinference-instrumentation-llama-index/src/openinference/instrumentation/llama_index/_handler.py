@@ -538,6 +538,7 @@ class _ExportQueue:
                 if (item := q.get()) is END_OF_QUEUE:
                     return
                 if t == item.last_touched_at:
+                    q.put(item)
                     break
                 span = item.span
                 if not span.active:
