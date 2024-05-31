@@ -1,6 +1,4 @@
 from langchain_community.vectorstores import PathwayVectorClient
-from langchain_core.callbacks import CallbackManagerForRetrieverRun
-from langchain_core.retrievers import BaseRetriever, Document
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
