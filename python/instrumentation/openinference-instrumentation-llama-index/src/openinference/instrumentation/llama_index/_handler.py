@@ -497,6 +497,8 @@ class EventHandler(BaseEventHandler, extra=Extra.allow):
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
+        if not event.span_id:
+            return event
         if span := self.span_handler.open_spans.get(event.span_id):
             try:
                 span.process_event(event)

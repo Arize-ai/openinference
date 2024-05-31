@@ -122,9 +122,11 @@ def test_callback_llm(
     elif status_code == 400:
         assert rqa_span.status.status_code == trace_api.StatusCode.ERROR
         assert rqa_span.events[0].name == "exception"
-        assert (rqa_span.events[0].attributes or {}).get(
+        exception_type = (rqa_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
-        ) == "BadRequestError"
+        )
+        assert isinstance(exception_type, str)
+        assert exception_type.endswith("BadRequestError")
 
     assert rqa_attributes == {}
 
@@ -142,9 +144,9 @@ def test_callback_llm(
     elif status_code == 400:
         assert sd_span.status.status_code == trace_api.StatusCode.ERROR
         assert sd_span.events[0].name == "exception"
-        assert (sd_span.events[0].attributes or {}).get(
-            OTELSpanAttributes.EXCEPTION_TYPE
-        ) == "BadRequestError"
+        exception_type = (sd_span.events[0].attributes or {}).get(OTELSpanAttributes.EXCEPTION_TYPE)
+        assert isinstance(exception_type, str)
+        assert exception_type.endswith("BadRequestError")
     assert sd_attributes == {}
 
     assert (retriever_span := spans_by_name.pop("Retriever")) is not None
@@ -175,9 +177,11 @@ def test_callback_llm(
     elif status_code == 400:
         assert llm_span.status.status_code == trace_api.StatusCode.ERROR
         assert llm_span.events[0].name == "exception"
-        assert (llm_span.events[0].attributes or {}).get(
+        exception_type = (llm_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
-        ) == "BadRequestError"
+        )
+        assert isinstance(exception_type, str)
+        assert exception_type.endswith("BadRequestError")
     langchain_prompt_variables = {
         "context": "\n\n".join(documents),
         "question": question,
@@ -240,9 +244,11 @@ def test_callback_llm(
     elif status_code == 400:
         assert oai_span.status.status_code == trace_api.StatusCode.ERROR
         assert oai_span.events[0].name == "exception"
-        assert (oai_span.events[0].attributes or {}).get(
+        exception_type = (oai_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
-        ) == "BadRequestError"
+        )
+        assert isinstance(exception_type, str)
+        assert exception_type.endswith("BadRequestError")
     assert oai_attributes == {}
 
     assert spans_by_name == {}
@@ -336,9 +342,11 @@ def test_callback_llm_with_context_attributes(
     elif status_code == 400:
         assert rqa_span.status.status_code == trace_api.StatusCode.ERROR
         assert rqa_span.events[0].name == "exception"
-        assert (rqa_span.events[0].attributes or {}).get(
+        exception_type = (rqa_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
-        ) == "BadRequestError"
+        )
+        assert isinstance(exception_type, str)
+        assert exception_type.endswith("BadRequestError")
 
     _check_context_attributes(
         rqa_attributes,
@@ -366,9 +374,9 @@ def test_callback_llm_with_context_attributes(
     elif status_code == 400:
         assert sd_span.status.status_code == trace_api.StatusCode.ERROR
         assert sd_span.events[0].name == "exception"
-        assert (sd_span.events[0].attributes or {}).get(
-            OTELSpanAttributes.EXCEPTION_TYPE
-        ) == "BadRequestError"
+        exception_type = (sd_span.events[0].attributes or {}).get(OTELSpanAttributes.EXCEPTION_TYPE)
+        assert isinstance(exception_type, str)
+        assert exception_type.endswith("BadRequestError")
     _check_context_attributes(
         sd_attributes,
         session_id,
@@ -419,9 +427,11 @@ def test_callback_llm_with_context_attributes(
     elif status_code == 400:
         assert llm_span.status.status_code == trace_api.StatusCode.ERROR
         assert llm_span.events[0].name == "exception"
-        assert (llm_span.events[0].attributes or {}).get(
+        exception_type = (llm_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
-        ) == "BadRequestError"
+        )
+        assert isinstance(exception_type, str)
+        assert exception_type.endswith("BadRequestError")
     _check_context_attributes(
         llm_attributes,
         session_id=session_id,
@@ -472,9 +482,11 @@ def test_callback_llm_with_context_attributes(
     elif status_code == 400:
         assert oai_span.status.status_code == trace_api.StatusCode.ERROR
         assert oai_span.events[0].name == "exception"
-        assert (oai_span.events[0].attributes or {}).get(
+        exception_type = (oai_span.events[0].attributes or {}).get(
             OTELSpanAttributes.EXCEPTION_TYPE
-        ) == "BadRequestError"
+        )
+        assert isinstance(exception_type, str)
+        assert exception_type.endswith("BadRequestError")
     _check_context_attributes(
         oai_attributes,
         session_id,
