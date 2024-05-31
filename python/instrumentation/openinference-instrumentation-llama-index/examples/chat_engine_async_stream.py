@@ -3,7 +3,6 @@ import tempfile
 from urllib.request import urlretrieve
 
 from llama_index.core import Settings, SimpleDirectoryReader, VectorStoreIndex
-from llama_index.core.chat_engine.types import StreamingAgentChatResponse
 from llama_index.llms.openai import OpenAI
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -29,10 +28,10 @@ chat_engine = index.as_chat_engine()
 Settings.llm = OpenAI(model="gpt-3.5-turbo")
 
 
-async def main() -> StreamingAgentChatResponse:
-    return await chat_engine.astream_chat("What did the author do growing up?")
+async def main() -> None:
+    response = await chat_engine.astream_chat("What did the author do growing up?")
+    await response.aprint_response_stream()
 
 
 if __name__ == "__main__":
-    response = asyncio.run(main())
-    response.print_response_stream()
+    asyncio.run(main())
