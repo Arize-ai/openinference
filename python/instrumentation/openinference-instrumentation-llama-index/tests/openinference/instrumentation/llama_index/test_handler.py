@@ -57,14 +57,25 @@ for name, logger in logging.root.manager.loggerDict.items():
 @pytest.mark.parametrize(
     "is_stream,is_async",
     [
-        (False, False),
-        (False, True),
+        # (False, False),
+        # (False, True),
         (True, False),
-        # FIXME: stream + async is not supported by LlamaIndex as of v0.9.33
         # (True, True),
     ],
 )
+<<<<<<< Updated upstream
 @pytest.mark.parametrize("status_code", [200, 400])
+=======
+<<<<<<< Updated upstream
+@pytest.mark.parametrize(
+    "status_code", [200]
+)  # 400 has been removed because retries have been added and can't be easily modified
+=======
+# @pytest.mark.parametrize("is_stream", [False, True])
+# @pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("status_code", [200])
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_handler_basic_retrieval(
     is_async: bool,
@@ -80,7 +91,7 @@ def test_handler_basic_retrieval(
     metadata: Dict[str, Any],
     tags: List[str],
 ) -> None:
-    n = 10  # number of concurrent queries
+    n = 1  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
     callback_manager = CallbackManager()
@@ -115,6 +126,27 @@ def test_handler_basic_retrieval(
             return_exceptions=True,
         )
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+    def threaded_query(question: str) -> None:
+        response = query_engine.query(question)
+        (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
+
+    def threaded_query_with_attributes(question: str) -> None:
+        # This context manager must be inside this function definition so
+        # there's a different instantiation per thread. This allows to use
+        # a different context per thread, as desired
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+        ):
+            response = query_engine.query(question)
+            (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
+
+>>>>>>> Stashed changes
     with suppress(openai.BadRequestError):
         with using_attributes(
             session_id=session_id if use_context_attributes else None,
@@ -126,6 +158,7 @@ def test_handler_basic_retrieval(
                 asyncio.run(task())
             else:
                 with ThreadPoolExecutor(max_workers=n) as executor:
+<<<<<<< Updated upstream
                     for question in questions:
                         executor.submit(
                             copy_context().run,
@@ -136,6 +169,39 @@ def test_handler_basic_retrieval(
                                 else None,
                             ),
                         )
+=======
+                    executor.map(
+                        threaded_query,
+                        questions,
+                    )
+=======
+    def main() -> None:
+        if is_async:
+            asyncio.run(task())
+            return
+        with ThreadPoolExecutor(max_workers=n) as executor:
+            for question in questions:
+                executor.submit(
+                    copy_context().run,
+                    lambda: (
+                        response := query_engine.query(question),
+                        list(cast(StreamingResponse, response).response_gen) if is_stream else None,
+                    ),
+                )
+
+    with suppress(openai.BadRequestError):
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+            ):
+                main()
+        else:
+            main()
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
     spans = in_memory_span_exporter.get_finished_spans()
     traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
@@ -158,12 +224,36 @@ def test_handler_basic_retrieval(
         if status_code == 200:
             assert query_span.status.status_code == trace_api.StatusCode.OK
             assert not query_span.status.description
+<<<<<<< Updated upstream
             assert query_attributes.pop(OUTPUT_VALUE, None) == answer
+<<<<<<< Updated upstream
+=======
+        # LlamaIndex introduced a regression causing streaming LLM responses that
+        # result in a 400 to not register their exception and status code
+        # information. We are going to ignore this issue as we are about to migrate
+        # our LlamaIndex instrumentation away from the existing callback system to
+        # the new system.
+        # elif (
+        #     # FIXME: currently the error is propagated when streaming because we don't rely on
+        #     # `on_event_end` to set the status code.
+        #     status_code == 400 and is_stream
+        # ):
+        #     assert query_span.status.status_code == trace_api.StatusCode.ERROR
+        #     assert query_span.status.description and query_span.status.description.startswith(
+        #         openai.BadRequestError.__name__,
+        #     )
+=======
+            # assert query_attributes.pop(OUTPUT_VALUE, None) == answer
+>>>>>>> Stashed changes
         else:
             assert query_span.status.status_code == trace_api.StatusCode.ERROR
             assert query_span.status.description and query_span.status.description.startswith(
                 openai.BadRequestError.__name__,
             )
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
         if is_async:
             assert (

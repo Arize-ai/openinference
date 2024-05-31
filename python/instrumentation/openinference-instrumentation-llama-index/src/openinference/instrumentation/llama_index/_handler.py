@@ -1,8 +1,23 @@
 import inspect
 import logging
+import weakref
+from dataclasses import dataclass
 from functools import singledispatch, singledispatchmethod
-from time import time_ns
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
+from queue import SimpleQueue
+from threading import RLock, Thread
+from time import sleep, time, time_ns
+from typing import (
+    Any,
+    AsyncGenerator,
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
@@ -19,21 +34,27 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.util.types import AttributeValue
-from pydantic import BaseModel, Extra, PrivateAttr
+from pydantic import PrivateAttr
 from typing_extensions import assert_never
+from wrapt import ObjectProxy
 
 from llama_index.core import QueryBundle, Response
 from llama_index.core.base.agent.types import BaseAgent, BaseAgentWorker
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
-from llama_index.core.base.llms.types import ChatMessage, ChatResponse, CompletionResponse
+from llama_index.core.base.llms.types import (
+    ChatMessage,
+    ChatResponse,
+    CompletionResponse,
+)
 from llama_index.core.base.response.schema import (
     RESPONSE_TYPE,
     AsyncStreamingResponse,
     PydanticResponse,
     StreamingResponse,
 )
+from llama_index.core.bridge.pydantic import BaseModel
 from llama_index.core.instrumentation.event_handlers import BaseEventHandler
 from llama_index.core.instrumentation.events import BaseEvent
 from llama_index.core.instrumentation.events.agent import (
@@ -88,18 +109,23 @@ from llama_index.core.instrumentation.events.synthesis import (
 from llama_index.core.instrumentation.span import BaseSpan
 from llama_index.core.instrumentation.span_handlers import BaseSpanHandler
 from llama_index.core.schema import NodeWithScore, QueryType
+from llama_index.core.types import RESPONSE_TEXT_TYPE, TokenAsyncGen, TokenGen
 
 logger = logging.getLogger(__name__)
 
 
 class _Span(
     BaseSpan,
-    extra=Extra.allow,
+    extra="allow",
     keep_untouched=(singledispatchmethod, property),
 ):
     _otel_span: trace_api.Span = PrivateAttr()
     _span_kind: Optional[str] = PrivateAttr()
     _first_token_timestamp: Optional[int] = PrivateAttr()
+
+    end_time: Optional[int] = PrivateAttr(default=None)
+    last_updated_at: float = PrivateAttr(default_factory=time)
+    outstanding_generator_count: int = PrivateAttr(default=0)
 
     def __init__(
         self,
@@ -118,10 +144,14 @@ class _Span(
     def record_exception(self, exception: BaseException) -> None:
         self._otel_span.record_exception(exception)
 
-    def end(self, status: trace_api.Status) -> None:
+    def end(self, status: trace_api.Status = trace_api.Status()) -> None:
         self[OPENINFERENCE_SPAN_KIND] = self._span_kind or CHAIN
         self._otel_span.set_status(status=status)
-        self._otel_span.end()
+        self._otel_span.end(end_time=self.end_time)
+
+    @property
+    def active(self) -> bool:
+        return self._otel_span.is_recording()
 
     @property
     def context(self) -> context_api.Context:
@@ -328,16 +358,7 @@ class _Span(
 
     @process_event.register
     def _(self, event: GetResponseEndEvent) -> None:
-        response = event.response
-        if isinstance(response, str):
-            self[OUTPUT_VALUE] = response
-        elif isinstance(response, BaseModel):
-            self[OUTPUT_VALUE] = response.json()
-            self[OUTPUT_MIME_TYPE] = JSON
-        else:
-            # FIXME: Not sure what to do here because the object is a generator.
-            # Maybe monkey-patching is necessary, or maybe not.
-            ...
+        self._process_response_text_type(event.response)
 
     def _extract_token_counts(self, response: Union[ChatResponse, CompletionResponse]) -> None:
         if (
@@ -395,25 +416,157 @@ class _Span(
     def _process_response_type(self, response: Optional[RESPONSE_TYPE]) -> None:
         if response is None:
             return
-        if isinstance(response, Response):
-            if response.response is not None:
-                self[OUTPUT_VALUE] = str(response)
+        if isinstance(response, (Response, PydanticResponse)):
+            self._process_response_text_type(response.response)
         elif isinstance(response, (StreamingResponse, AsyncStreamingResponse)):
-            self[OUTPUT_VALUE] = str(response)
-        elif isinstance(response, PydanticResponse):
-            if response.response is not None:
-                self[OUTPUT_VALUE] = str(response)
-                self[OUTPUT_MIME_TYPE] = JSON
+            pass
+        else:
+            assert_never(response)
+
+    def _process_response_text_type(self, response: Optional[RESPONSE_TEXT_TYPE]) -> None:
+        if response is None:
+            return
+        if isinstance(response, str):
+            self[OUTPUT_VALUE] = response
+        elif isinstance(response, BaseModel):
+            self[OUTPUT_VALUE] = response.json()
+            self[OUTPUT_MIME_TYPE] = JSON
+        elif isinstance(response, (Generator, AsyncGenerator)):
+            pass
         else:
             assert_never(response)
 
 
-class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
+class _TokenGen(ObjectProxy):  # type: ignore
+    def __init__(self, token_gen: Union[TokenGen, TokenAsyncGen], span: _Span) -> None:
+        super().__init__(token_gen)
+        self._self_tokens: List[str] = []
+        self._self_is_finished = not span.active
+        self._self_span = span
+
+    def __aiter__(self) -> "_TokenGen":
+        return self
+
+    async def __anext__(self) -> str:
+        # pass through mistaken calls
+        if not hasattr(self.__wrapped__, "__anext__"):
+            self.__wrapped__.__next__()
+        try:
+            value: str = await self.__wrapped__.__anext__()
+        except Exception as exception:
+            # Note that the user can still try to iterate on the stream even
+            # after it's consumed (or has errored out), but we don't want to
+            # end the span more than once.
+            if not self._self_is_finished:
+                span = self._self_span
+                if isinstance(exception, StopAsyncIteration):
+                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+                else:
+                    status = trace_api.Status(
+                        status_code=trace_api.StatusCode.ERROR,
+                        # Follow the format in OTEL SDK for description, see:
+                        # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+                        description=f"{type(exception).__name__}: {exception}",
+                    )
+                    span.record_exception(exception)
+                span[SpanAttributes.OUTPUT_VALUE] = "".join(self._self_tokens)
+                span.end(status=status)
+                self._self_is_finished = True
+            raise
+        else:
+            return value
+
+    def __iter__(self) -> "_TokenGen":
+        return self
+
+    def __next__(self) -> str:
+        # pass through mistaken calls
+        if not hasattr(self.__wrapped__, "__next__"):
+            self.__wrapped__.__next__()
+        try:
+            value: str = self.__wrapped__.__next__()
+        except Exception as exception:
+            # Note that the user can still try to iterate on the stream even
+            # after it's consumed (or has errored out), but we don't want to
+            # end the span more than once.
+            if not self._self_is_finished:
+                span = self._self_span
+                if isinstance(exception, StopIteration):
+                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+                else:
+                    status = trace_api.Status(
+                        status_code=trace_api.StatusCode.ERROR,
+                        # Follow the format in OTEL SDK for description, see:
+                        # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+                        description=f"{type(exception).__name__}: {exception}",
+                    )
+                    span.record_exception(exception)
+                span[SpanAttributes.OUTPUT_VALUE] = "".join(self._self_tokens)
+                span.end(status=status)
+                self._self_is_finished = True
+            raise
+        else:
+            self._self_tokens.append(value)
+            return value
+
+
+END_OF_QUEUE = None
+
+
+@dataclass
+class _QueueItem:
+    last_touched_at: float
+    span: _Span
+
+
+class _ExportQueue:
+    def __init__(self) -> None:
+        self.lock: RLock = RLock()
+        self.dict: Dict[str, _Span] = {}
+        self.queue: "SimpleQueue[Optional[_QueueItem]]" = SimpleQueue()
+        weakref.finalize(self, self.queue.put, END_OF_QUEUE)
+        Thread(target=self._inspect, args=(self.queue,), daemon=True).start()
+
+    def add(self, span: _Span) -> None:
+        with self.lock:
+            self.dict[span.id_] = span
+        self.queue.put(_QueueItem(time(), span))
+
+    def get(self, id_: str) -> Optional[_Span]:
+        with self.lock:
+            return self.dict.get(id_)
+
+    def _inspect(self, q: "SimpleQueue[Optional[_QueueItem]]") -> None:
+        while True:
+            t = time()
+            while not q.empty():
+                if (item := q.get()) is END_OF_QUEUE:
+                    return
+                if t == item.last_touched_at:
+                    break
+                span = item.span
+                if not span.active:
+                    with self.lock:
+                        del self.dict[span.id_]
+                    continue
+                if t - span.last_updated_at > 60:
+                    span.end()
+                    with self.lock:
+                        del self.dict[span.id_]
+                    continue
+                item.last_touched_at = t
+                q.put(item)
+            sleep(0.1)
+
+
+class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _otel_tracer: trace_api.Tracer = PrivateAttr()
+    export_queue: _ExportQueue = PrivateAttr()
 
     def __init__(self, tracer: trace_api.Tracer) -> None:
         super().__init__()
         self._otel_tracer = tracer
+        self.export_queue = _ExportQueue()
 
     def new_span(
         self,
@@ -455,6 +608,24 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
         if span := self.open_spans.get(id_):
+            span.end_time = time_ns()
+            if isinstance(
+                result,
+                (StreamingResponse, AsyncStreamingResponse),
+            ) and isinstance(
+                (response_gen := getattr(result, "response_gen", None)),
+                (Generator, AsyncGenerator),
+            ):
+                # Monkey-patch
+                setattr(result, "response_gen", _TokenGen(response_gen, span))
+                self.export_queue.add(span)
+                return span
+            if isinstance(instance, BaseLLM) and isinstance(
+                result,
+                (Generator, AsyncGenerator),
+            ):
+                self.export_queue.add(span)
+                return span
             span.end(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
         else:
             logger.warning(f"Open span is missing for {id_=}")
@@ -471,6 +642,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
         if span := self.open_spans.get(id_):
+            span.end_time = time_ns()
             if err is not None:
                 span.record_exception(err)
             # Follow the format in OTEL SDK for description, see:
@@ -487,7 +659,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
         return span
 
 
-class EventHandler(BaseEventHandler, extra=Extra.allow):
+class EventHandler(BaseEventHandler, extra="allow"):
     span_handler: _SpanHandler = PrivateAttr()
 
     def __init__(self, tracer: trace_api.Tracer) -> None:
@@ -497,14 +669,18 @@ class EventHandler(BaseEventHandler, extra=Extra.allow):
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
-        if span := self.span_handler.open_spans.get(event.span_id):
+        span = self.span_handler.open_spans.get(event.span_id)
+        if span is None:
+            span = self.span_handler.export_queue.get(event.span_id)
+        if span is None:
+            logger.warning(f"Open span is missing for {event.span_id=}, {event.id_=}")
+        else:
+            span.last_updated_at = time()
             try:
                 span.process_event(event)
             except Exception:
                 logger.exception(f"Error processing event of type {event.__class__.__qualname__}")
                 pass
-        else:
-            logger.warning(f"Open span is missing for {event.span_id=}, {event.id_=}")
         return event
 
 
