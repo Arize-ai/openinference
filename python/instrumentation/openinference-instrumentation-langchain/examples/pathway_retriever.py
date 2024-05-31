@@ -1,5 +1,3 @@
-from typing import List
-
 from langchain_community.vectorstores import PathwayVectorClient
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.retrievers import BaseRetriever, Document
