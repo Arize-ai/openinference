@@ -1,7 +1,7 @@
 chromadb
 llama-index >= 0.10.41
-llama-index-agent-openai
-llama-index-llms-openai
+llama-index-agent-openai >= 0.2.6
+llama-index-llms-openai >= 0.1.21
 llama-index-vector-stores-chroma
 openinference-instrumentation-llama-index
 opentelemetry-exporter-otlp
