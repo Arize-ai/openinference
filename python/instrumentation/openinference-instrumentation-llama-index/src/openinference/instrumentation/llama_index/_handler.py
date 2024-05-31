@@ -219,6 +219,10 @@ class _Span(
             self.end()
             self.notify_parent(_StreamingStatus.FINISHED)
         elif isinstance(event, STREAMING_IN_PROGRESS_EVENTS):
+            if self._first_token_timestamp is None:
+                timestamp = time_ns()
+                self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
+                self._first_token_timestamp = timestamp
             self.last_updated_at = time()
             self.notify_parent(_StreamingStatus.IN_PROGRESS)
 
@@ -283,11 +287,7 @@ class _Span(
             self._span_kind = LLM
 
     @_process_event.register
-    def _(self, event: StreamChatDeltaReceivedEvent) -> None:
-        if self._first_token_timestamp is None:
-            timestamp = time_ns()
-            self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
-            self._first_token_timestamp = timestamp
+    def _(self, event: StreamChatDeltaReceivedEvent) -> None: ...
 
     @_process_event.register
     def _(self, event: StreamChatErrorEvent) -> None:
@@ -336,11 +336,7 @@ class _Span(
         self[LLM_PROMPTS] = [event.prompt]
 
     @_process_event.register
-    def _(self, event: LLMCompletionInProgressEvent) -> None:
-        if self._first_token_timestamp is None:
-            timestamp = time_ns()
-            self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
-            self._first_token_timestamp = timestamp
+    def _(self, event: LLMCompletionInProgressEvent) -> None: ...
 
     @_process_event.register
     def _(self, event: LLMCompletionEndEvent) -> None:
@@ -354,11 +350,7 @@ class _Span(
         self._process_messages(LLM_INPUT_MESSAGES, *event.messages)
 
     @_process_event.register
-    def _(self, event: LLMChatInProgressEvent) -> None:
-        if self._first_token_timestamp is None:
-            timestamp = time_ns()
-            self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
-            self._first_token_timestamp = timestamp
+    def _(self, event: LLMChatInProgressEvent) -> None: ...
 
     @_process_event.register
     def _(self, event: LLMChatEndEvent) -> None:
@@ -511,6 +503,12 @@ class _QueueItem:
 
 
 class _ExportQueue:
+    """
+    Container for spans that have ended but are waiting for streaming events. The
+    list is periodically swept to evict items that are no longer active or have not
+    been updated for over 60 seconds.
+    """
+
     def __init__(self) -> None:
         self.lock: RLock = RLock()
         self.spans: Dict[str, _Span] = {}
@@ -538,6 +536,7 @@ class _ExportQueue:
                 if (item := q.get()) is END_OF_QUEUE:
                     return
                 if t == item.last_touched_at:
+                    # we have gone through the whole list
                     q.put(item)
                     break
                 span = item.span
