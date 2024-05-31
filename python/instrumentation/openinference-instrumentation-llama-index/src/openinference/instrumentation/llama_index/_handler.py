@@ -2,6 +2,7 @@ import inspect
 import logging
 import weakref
 from dataclasses import dataclass
+from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
 from queue import SimpleQueue
 from threading import RLock, Thread
@@ -31,12 +32,11 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
 from opentelemetry.util.types import AttributeValue
 from pydantic import PrivateAttr
 from typing_extensions import assert_never
-from wrapt import ObjectProxy
 
 from llama_index.core import QueryBundle, Response
 from llama_index.core.base.agent.types import BaseAgent, BaseAgentWorker
@@ -79,6 +79,7 @@ from llama_index.core.instrumentation.events.llm import (
     LLMChatInProgressEvent,
     LLMChatStartEvent,
     LLMCompletionEndEvent,
+    LLMCompletionInProgressEvent,
     LLMCompletionStartEvent,
     LLMPredictEndEvent,
     LLMPredictStartEvent,
@@ -109,9 +110,27 @@ from llama_index.core.instrumentation.events.synthesis import (
 from llama_index.core.instrumentation.span import BaseSpan
 from llama_index.core.instrumentation.span_handlers import BaseSpanHandler
 from llama_index.core.schema import NodeWithScore, QueryType
-from llama_index.core.types import RESPONSE_TEXT_TYPE, TokenAsyncGen, TokenGen
+from llama_index.core.types import RESPONSE_TEXT_TYPE
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+
+STREAMING_FINISHED_EVENTS = (
+    LLMChatEndEvent,
+    LLMCompletionEndEvent,
+    StreamChatEndEvent,
+)
+STREAMING_IN_PROGRESS_EVENTS = (
+    LLMChatInProgressEvent,
+    LLMCompletionInProgressEvent,
+    StreamChatDeltaReceivedEvent,
+)
+
+
+class _StreamingStatus(Enum):
+    FINISHED = auto()
+    IN_PROGRESS = auto()
 
 
 class _Span(
@@ -119,24 +138,30 @@ class _Span(
     extra="allow",
     keep_untouched=(singledispatchmethod, property),
 ):
-    _otel_span: trace_api.Span = PrivateAttr()
+    _otel_span: Span = PrivateAttr()
+    _active: bool = PrivateAttr()
     _span_kind: Optional[str] = PrivateAttr()
+    _parent: Optional["_Span"] = PrivateAttr()
     _first_token_timestamp: Optional[int] = PrivateAttr()
 
-    end_time: Optional[int] = PrivateAttr(default=None)
-    last_updated_at: float = PrivateAttr(default_factory=time)
-    outstanding_generator_count: int = PrivateAttr(default=0)
+    end_time: Optional[int] = PrivateAttr()
+    last_updated_at: float = PrivateAttr()
 
     def __init__(
         self,
-        otel_span: trace_api.Span,
+        otel_span: Span,
         span_kind: Optional[str] = None,
+        parent: Optional["_Span"] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._otel_span = otel_span
+        self._active = otel_span.is_recording()
         self._span_kind = span_kind
+        self._parent = parent
         self._first_token_timestamp = None
+        self.end_time = None
+        self.last_updated_at = time()
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
         self._otel_span.set_attribute(key, value)
@@ -144,18 +169,33 @@ class _Span(
     def record_exception(self, exception: BaseException) -> None:
         self._otel_span.record_exception(exception)
 
-    def end(self, status: trace_api.Status = trace_api.Status()) -> None:
+    def end(self, exception: Optional[BaseException] = None) -> None:
+        if not self._active:
+            return
+        self._active = False
+        if exception is None:
+            status = Status(status_code=StatusCode.OK)
+        else:
+            self._otel_span.record_exception(exception)
+            # Follow the format in OTEL SDK for description, see:
+            # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+            description = f"{type(exception).__name__}: {exception}"
+            status = Status(status_code=StatusCode.ERROR, description=description)
         self[OPENINFERENCE_SPAN_KIND] = self._span_kind or CHAIN
         self._otel_span.set_status(status=status)
         self._otel_span.end(end_time=self.end_time)
 
     @property
+    def waiting_for_streaming(self) -> bool:
+        return self._active and bool(self.end_time)
+
+    @property
     def active(self) -> bool:
-        return self._otel_span.is_recording()
+        return self._active
 
     @property
     def context(self) -> context_api.Context:
-        return trace_api.set_span_in_context(self._otel_span)
+        return set_span_in_context(self._otel_span)
 
     @singledispatchmethod
     def process_instance(self, instance: Any) -> None: ...
@@ -164,41 +204,61 @@ class _Span(
     def _(self, instance: BaseLLM) -> None:
         if params := instance.metadata:
             self[LLM_MODEL_NAME] = params.model_name
-            self[LLM_INVOCATION_PARAMETERS] = params.json()
+            self[LLM_INVOCATION_PARAMETERS] = params.json(exclude_unset=True)
 
     @process_instance.register
     def _(self, instance: BaseEmbedding) -> None:
         if name := instance.model_name:
             self[EMBEDDING_MODEL_NAME] = name
 
-    @singledispatchmethod
     def process_event(self, event: BaseEvent) -> None:
+        self._process_event(event)
+        if not self.waiting_for_streaming:
+            return
+        if isinstance(event, STREAMING_FINISHED_EVENTS):
+            self.end()
+            self.notify_parent(_StreamingStatus.FINISHED)
+        elif isinstance(event, STREAMING_IN_PROGRESS_EVENTS):
+            self.last_updated_at = time()
+            self.notify_parent(_StreamingStatus.IN_PROGRESS)
+
+    def notify_parent(self, status: _StreamingStatus) -> None:
+        if not (parent := self._parent) or not parent.waiting_for_streaming:
+            return
+        if status is _StreamingStatus.IN_PROGRESS:
+            parent.last_updated_at = time()
+        else:
+            parent.end()
+        parent.notify_parent(status)
+
+    @singledispatchmethod
+    def _process_event(self, event: BaseEvent) -> None:
         logger.warning(f"Unhandled event of type {event.__class__.__qualname__}")
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: AgentChatWithStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
         self[INPUT_VALUE] = event.user_msg
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: AgentChatWithStepEndEvent) -> None:
         self[OUTPUT_VALUE] = str(event.response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: AgentRunStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
         if input := event.input:
             self[INPUT_VALUE] = input
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: AgentRunStepEndEvent) -> None:
         # FIXME: not sure what to do here with interim outputs since
         # there is no corresponding semantic convention.
         ...
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: AgentToolCallEvent) -> None:
         tool = event.tool
         if name := tool.name:
@@ -206,40 +266,37 @@ class _Span(
         self[TOOL_DESCRIPTION] = tool.description
         self[TOOL_PARAMETERS] = safe_json_dumps(tool.get_parameters_dict())
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: EmbeddingStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = EMBEDDING
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: EmbeddingEndEvent) -> None:
         for i, (text, vector) in enumerate(zip(event.chunks, event.embeddings)):
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: StreamChatStartEvent) -> None:
-        # event is currently empty as of v0.10.37
         if not self._span_kind:
             self._span_kind = LLM
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: StreamChatDeltaReceivedEvent) -> None:
         if self._first_token_timestamp is None:
             timestamp = time_ns()
             self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
             self._first_token_timestamp = timestamp
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: StreamChatErrorEvent) -> None:
         self.record_exception(event.exception)
 
-    @process_event.register
-    def _(self, event: StreamChatEndEvent) -> None:
-        # event is currently empty as of v0.10.37
-        ...
+    @_process_event.register
+    def _(self, event: StreamChatEndEvent) -> None: ...
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMPredictStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
@@ -258,45 +315,52 @@ class _Span(
         if template_arguments:
             self[LLM_PROMPT_TEMPLATE_VARIABLES] = safe_json_dumps(template_arguments)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMPredictEndEvent) -> None:
         self[OUTPUT_VALUE] = event.output
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMStructuredPredictStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMStructuredPredictEndEvent) -> None:
         self[OUTPUT_VALUE] = event.output.json(exclude_unset=True)
         self[OUTPUT_MIME_TYPE] = JSON
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMCompletionStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
         self[LLM_PROMPTS] = [event.prompt]
 
-    @process_event.register
+    @_process_event.register
+    def _(self, event: LLMCompletionInProgressEvent) -> None:
+        if self._first_token_timestamp is None:
+            timestamp = time_ns()
+            self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
+            self._first_token_timestamp = timestamp
+
+    @_process_event.register
     def _(self, event: LLMCompletionEndEvent) -> None:
         self[OUTPUT_VALUE] = event.response.text
         self._extract_token_counts(event.response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMChatStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
         self._process_messages(LLM_INPUT_MESSAGES, *event.messages)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMChatInProgressEvent) -> None:
-        # FIXME: Not sure what to do here since we're capturing messages
-        # at the ChatEnd event. Maybe we should capture messages incrementally
-        # lest the span is dropped and all messages are lost.
-        ...
+        if self._first_token_timestamp is None:
+            timestamp = time_ns()
+            self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
+            self._first_token_timestamp = timestamp
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMChatEndEvent) -> None:
         if (response := event.response) is None:
             return
@@ -304,15 +368,15 @@ class _Span(
         self._process_messages(LLM_OUTPUT_MESSAGES, response.message)
         self._extract_token_counts(response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: QueryStartEvent) -> None:
         self._process_query_type(event.query)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: QueryEndEvent) -> None:
         self._process_response_type(event.response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: ReRankStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = RERANKER
@@ -321,42 +385,42 @@ class _Span(
         self[RERANKER_MODEL_NAME] = event.model_name
         self._process_nodes(RERANKER_INPUT_DOCUMENTS, *event.nodes)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: ReRankEndEvent) -> None:
         self._process_nodes(RERANKER_OUTPUT_DOCUMENTS, *event.nodes)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: RetrievalStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = RETRIEVER
         self._process_query_type(event.str_or_query_bundle)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: RetrievalEndEvent) -> None:
         self._process_nodes(RETRIEVAL_DOCUMENTS, *event.nodes)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: SpanDropEvent) -> None:
         # Not needed because `prepare_to_drop_span()` provides the same information.
         ...
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: SynthesizeStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = CHAIN
         self._process_query_type(event.query)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: SynthesizeEndEvent) -> None:
         self._process_response_type(event.response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: GetResponseStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = CHAIN
         self[INPUT_VALUE] = event.query_str
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: GetResponseEndEvent) -> None:
         self._process_response_text_type(event.response)
 
@@ -429,85 +493,12 @@ class _Span(
         if isinstance(response, str):
             self[OUTPUT_VALUE] = response
         elif isinstance(response, BaseModel):
-            self[OUTPUT_VALUE] = response.json()
+            self[OUTPUT_VALUE] = response.json(exclude_unset=True)
             self[OUTPUT_MIME_TYPE] = JSON
         elif isinstance(response, (Generator, AsyncGenerator)):
             pass
         else:
             assert_never(response)
-
-
-class _TokenGen(ObjectProxy):  # type: ignore
-    def __init__(self, token_gen: Union[TokenGen, TokenAsyncGen], span: _Span) -> None:
-        super().__init__(token_gen)
-        self._self_tokens: List[str] = []
-        self._self_is_finished = not span.active
-        self._self_span = span
-
-    def __aiter__(self) -> "_TokenGen":
-        return self
-
-    async def __anext__(self) -> str:
-        # pass through mistaken calls
-        if not hasattr(self.__wrapped__, "__anext__"):
-            self.__wrapped__.__next__()
-        try:
-            value: str = await self.__wrapped__.__anext__()
-        except Exception as exception:
-            # Note that the user can still try to iterate on the stream even
-            # after it's consumed (or has errored out), but we don't want to
-            # end the span more than once.
-            if not self._self_is_finished:
-                span = self._self_span
-                if isinstance(exception, StopAsyncIteration):
-                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
-                else:
-                    status = trace_api.Status(
-                        status_code=trace_api.StatusCode.ERROR,
-                        # Follow the format in OTEL SDK for description, see:
-                        # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
-                        description=f"{type(exception).__name__}: {exception}",
-                    )
-                    span.record_exception(exception)
-                span[SpanAttributes.OUTPUT_VALUE] = "".join(self._self_tokens)
-                span.end(status=status)
-                self._self_is_finished = True
-            raise
-        else:
-            return value
-
-    def __iter__(self) -> "_TokenGen":
-        return self
-
-    def __next__(self) -> str:
-        # pass through mistaken calls
-        if not hasattr(self.__wrapped__, "__next__"):
-            self.__wrapped__.__next__()
-        try:
-            value: str = self.__wrapped__.__next__()
-        except Exception as exception:
-            # Note that the user can still try to iterate on the stream even
-            # after it's consumed (or has errored out), but we don't want to
-            # end the span more than once.
-            if not self._self_is_finished:
-                span = self._self_span
-                if isinstance(exception, StopIteration):
-                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
-                else:
-                    status = trace_api.Status(
-                        status_code=trace_api.StatusCode.ERROR,
-                        # Follow the format in OTEL SDK for description, see:
-                        # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
-                        description=f"{type(exception).__name__}: {exception}",
-                    )
-                    span.record_exception(exception)
-                span[SpanAttributes.OUTPUT_VALUE] = "".join(self._self_tokens)
-                span.end(status=status)
-                self._self_is_finished = True
-            raise
-        else:
-            self._self_tokens.append(value)
-            return value
 
 
 END_OF_QUEUE = None
@@ -522,21 +513,25 @@ class _QueueItem:
 class _ExportQueue:
     def __init__(self) -> None:
         self.lock: RLock = RLock()
-        self.dict: Dict[str, _Span] = {}
+        self.spans: Dict[str, _Span] = {}
         self.queue: "SimpleQueue[Optional[_QueueItem]]" = SimpleQueue()
         weakref.finalize(self, self.queue.put, END_OF_QUEUE)
-        Thread(target=self._inspect, args=(self.queue,), daemon=True).start()
+        Thread(target=self._sweep, args=(self.queue,), daemon=True).start()
 
-    def add(self, span: _Span) -> None:
+    def put(self, span: _Span) -> None:
         with self.lock:
-            self.dict[span.id_] = span
+            self.spans[span.id_] = span
         self.queue.put(_QueueItem(time(), span))
 
-    def get(self, id_: str) -> Optional[_Span]:
+    def find(self, id_: str) -> Optional[_Span]:
         with self.lock:
-            return self.dict.get(id_)
+            return self.spans.get(id_)
 
-    def _inspect(self, q: "SimpleQueue[Optional[_QueueItem]]") -> None:
+    def _del(self, item: _QueueItem) -> None:
+        with self.lock:
+            del self.spans[item.span.id_]
+
+    def _sweep(self, q: "SimpleQueue[Optional[_QueueItem]]") -> None:
         while True:
             t = time()
             while not q.empty():
@@ -546,13 +541,11 @@ class _ExportQueue:
                     break
                 span = item.span
                 if not span.active:
-                    with self.lock:
-                        del self.dict[span.id_]
+                    self._del(item)
                     continue
                 if t - span.last_updated_at > 60:
                     span.end()
-                    with self.lock:
-                        del self.dict[span.id_]
+                    self._del(item)
                     continue
                 item.last_touched_at = t
                 q.put(item)
@@ -560,10 +553,10 @@ class _ExportQueue:
 
 
 class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
-    _otel_tracer: trace_api.Tracer = PrivateAttr()
+    _otel_tracer: Tracer = PrivateAttr()
     export_queue: _ExportQueue = PrivateAttr()
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: Tracer) -> None:
         super().__init__()
         self._otel_tracer = tracer
         self.export_queue = _ExportQueue()
@@ -578,19 +571,17 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     ) -> Optional[_Span]:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
+        parent = self.open_spans.get(parent_span_id) if parent_span_id else None
         otel_span = self._otel_tracer.start_span(
             name=id_.partition("-")[0],
             start_time=time_ns(),
             attributes=dict(get_attributes_from_context()),
-            context=(
-                parent.context
-                if parent_span_id and (parent := self.open_spans.get(parent_span_id))
-                else None
-            ),
+            context=(parent.context if parent else None),
         )
         span = _Span(
             otel_span=otel_span,
             span_kind=_init_span_kind(instance),
+            parent=parent,
             id_=id_,
             parent_id=parent_span_id,
         )
@@ -608,25 +599,14 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
         if span := self.open_spans.get(id_):
-            span.end_time = time_ns()
-            if isinstance(
-                result,
-                (StreamingResponse, AsyncStreamingResponse),
-            ) and isinstance(
-                (response_gen := getattr(result, "response_gen", None)),
-                (Generator, AsyncGenerator),
-            ):
-                # Monkey-patch
-                setattr(result, "response_gen", _TokenGen(response_gen, span))
-                self.export_queue.add(span)
-                return span
             if isinstance(instance, BaseLLM) and isinstance(
                 result,
                 (Generator, AsyncGenerator),
             ):
-                self.export_queue.add(span)
+                span.end_time = time_ns()
+                self.export_queue.put(span)
                 return span
-            span.end(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
+            span.end()
         else:
             logger.warning(f"Open span is missing for {id_=}")
         return span
@@ -642,18 +622,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
         if span := self.open_spans.get(id_):
-            span.end_time = time_ns()
-            if err is not None:
-                span.record_exception(err)
-            # Follow the format in OTEL SDK for description, see:
-            # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
-            description = None if err is None else f"{type(err).__name__}: {err}"
-            span.end(
-                status=trace_api.Status(
-                    status_code=trace_api.StatusCode.ERROR,
-                    description=description,
-                )
-            )
+            span.end(err)
         else:
             logger.warning(f"Open span is missing for {id_=}")
         return span
@@ -662,20 +631,21 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
 class EventHandler(BaseEventHandler, extra="allow"):
     span_handler: _SpanHandler = PrivateAttr()
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: Tracer) -> None:
         super().__init__()
         self.span_handler = _SpanHandler(tracer=tracer)
 
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
+        if not event.span_id:
+            return event
         span = self.span_handler.open_spans.get(event.span_id)
         if span is None:
-            span = self.span_handler.export_queue.get(event.span_id)
+            span = self.span_handler.export_queue.find(event.span_id)
         if span is None:
             logger.warning(f"Open span is missing for {event.span_id=}, {event.id_=}")
         else:
-            span.last_updated_at = time()
             try:
                 span.process_event(event)
             except Exception:

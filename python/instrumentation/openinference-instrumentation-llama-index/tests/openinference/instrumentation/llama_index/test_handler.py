@@ -6,6 +6,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from contextvars import copy_context
+from functools import partial
 from itertools import count
 from typing import (
     Any,
@@ -25,7 +26,6 @@ import openai
 import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
 from llama_index.core import Document, ListIndex, Settings
-from llama_index.core.base.response.schema import StreamingResponse
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.schema import TextNode
 from llama_index.llms.openai import OpenAI  # type: ignore
@@ -46,6 +46,13 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from respx import MockRouter
+from tenacity import wait_none
+
+for k in dir(OpenAI):
+    v = getattr(OpenAI, k)
+    if callable(v) and hasattr(v, "retry") and hasattr(v.retry, "wait"):
+        v.retry.wait = wait_none()
+
 
 for name, logger in logging.root.manager.loggerDict.items():
     if name.startswith("openinference.") and isinstance(logger, logging.Logger):
@@ -54,28 +61,9 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.addHandler(logging.StreamHandler())
 
 
-@pytest.mark.parametrize(
-    "is_stream,is_async",
-    [
-        # (False, False),
-        # (False, True),
-        (True, False),
-        # (True, True),
-    ],
-)
-<<<<<<< Updated upstream
+@pytest.mark.parametrize("is_stream", [False, True])
+@pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
-=======
-<<<<<<< Updated upstream
-@pytest.mark.parametrize(
-    "status_code", [200]
-)  # 400 has been removed because retries have been added and can't be easily modified
-=======
-# @pytest.mark.parametrize("is_stream", [False, True])
-# @pytest.mark.parametrize("is_async", [False, True])
-@pytest.mark.parametrize("status_code", [200])
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_handler_basic_retrieval(
     is_async: bool,
@@ -91,7 +79,10 @@ def test_handler_basic_retrieval(
     metadata: Dict[str, Any],
     tags: List[str],
 ) -> None:
-    n = 1  # number of concurrent queries
+    if status_code == 400 and is_stream:
+        # FIXME: fix llama-index
+        pytest.xfail("pending fix in llama-index because streaming error can't be detected")
+    n = 10  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
     callback_manager = CallbackManager()
@@ -120,74 +111,24 @@ def test_handler_basic_retrieval(
     url = "https://api.openai.com/v1/chat/completions"
     respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
 
+    async def aquery(question: str) -> None:
+        await (await query_engine.aquery(question)).get_response()
+
     async def task() -> None:
-        await asyncio.gather(
-            *(query_engine.aquery(question) for question in questions),
-            return_exceptions=True,
-        )
+        await asyncio.gather(*(aquery(question) for question in questions), return_exceptions=True)
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-    def threaded_query(question: str) -> None:
+    def query(question: str) -> None:
         response = query_engine.query(question)
-        (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
+        if is_stream:
+            response.get_response()
 
-    def threaded_query_with_attributes(question: str) -> None:
-        # This context manager must be inside this function definition so
-        # there's a different instantiation per thread. This allows to use
-        # a different context per thread, as desired
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-        ):
-            response = query_engine.query(question)
-            (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
-
->>>>>>> Stashed changes
-    with suppress(openai.BadRequestError):
-        with using_attributes(
-            session_id=session_id if use_context_attributes else None,
-            user_id=user_id if use_context_attributes else None,
-            metadata=metadata if use_context_attributes else None,
-            tags=tags if use_context_attributes else None,
-        ):
-            if is_async:
-                asyncio.run(task())
-            else:
-                with ThreadPoolExecutor(max_workers=n) as executor:
-<<<<<<< Updated upstream
-                    for question in questions:
-                        executor.submit(
-                            copy_context().run,
-                            lambda: (
-                                response := query_engine.query(question),
-                                list(cast(StreamingResponse, response).response_gen)
-                                if is_stream
-                                else None,
-                            ),
-                        )
-=======
-                    executor.map(
-                        threaded_query,
-                        questions,
-                    )
-=======
     def main() -> None:
         if is_async:
             asyncio.run(task())
             return
-        with ThreadPoolExecutor(max_workers=n) as executor:
+        with ThreadPoolExecutor() as executor:
             for question in questions:
-                executor.submit(
-                    copy_context().run,
-                    lambda: (
-                        response := query_engine.query(question),
-                        list(cast(StreamingResponse, response).response_gen) if is_stream else None,
-                    ),
-                )
+                executor.submit(copy_context().run, partial(query, question))
 
     with suppress(openai.BadRequestError):
         if use_context_attributes:
@@ -200,8 +141,6 @@ def test_handler_basic_retrieval(
                 main()
         else:
             main()
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
     spans = in_memory_span_exporter.get_finished_spans()
     traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
@@ -224,36 +163,16 @@ def test_handler_basic_retrieval(
         if status_code == 200:
             assert query_span.status.status_code == trace_api.StatusCode.OK
             assert not query_span.status.description
-<<<<<<< Updated upstream
-            assert query_attributes.pop(OUTPUT_VALUE, None) == answer
-<<<<<<< Updated upstream
-=======
-        # LlamaIndex introduced a regression causing streaming LLM responses that
-        # result in a 400 to not register their exception and status code
-        # information. We are going to ignore this issue as we are about to migrate
-        # our LlamaIndex instrumentation away from the existing callback system to
-        # the new system.
-        # elif (
-        #     # FIXME: currently the error is propagated when streaming because we don't rely on
-        #     # `on_event_end` to set the status code.
-        #     status_code == 400 and is_stream
-        # ):
-        #     assert query_span.status.status_code == trace_api.StatusCode.ERROR
-        #     assert query_span.status.description and query_span.status.description.startswith(
-        #         openai.BadRequestError.__name__,
-        #     )
-=======
-            # assert query_attributes.pop(OUTPUT_VALUE, None) == answer
->>>>>>> Stashed changes
+            if not is_stream:
+                assert query_attributes.pop(OUTPUT_VALUE, None) == answer
+            else:
+                # FIXME: output should be propagated
+                ...
         else:
             assert query_span.status.status_code == trace_api.StatusCode.ERROR
             assert query_span.status.description and query_span.status.description.startswith(
                 openai.BadRequestError.__name__,
             )
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
         if is_async:
             assert (
@@ -285,7 +204,11 @@ def test_handler_basic_retrieval(
         if status_code == 200:
             assert synthesize_span.status.status_code == trace_api.StatusCode.OK
             assert not synthesize_span.status.description
-            assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
+            if not is_stream:
+                assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
+            else:
+                # FIXME: output should be propagated
+                ...
         else:
             assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
             assert (
@@ -334,7 +257,6 @@ def test_handler_basic_retrieval(
             assert (_ := spans_by_name.pop("CompactAndRefine.get_response", None)) is not None
             assert (refine_span := spans_by_name.pop("Refine.get_response", None)) is not None
 
-        # if status_code == 200:
         if is_async:
             if is_stream:
                 assert (llm_span := spans_by_name.pop("LLM.astream", None)) is not None
@@ -362,9 +284,11 @@ def test_handler_basic_retrieval(
             assert llm_span.status.status_code == trace_api.StatusCode.OK
             assert not llm_span.status.description
             if not is_stream:
-                # FIXME: currently we can't capture output/messages when streaming
                 assert llm_attributes.pop(OUTPUT_VALUE, None) == answer
-        elif not is_stream:
+            else:
+                # FIXME: output should be propagated
+                ...
+        else:
             assert llm_span.status.status_code == trace_api.StatusCode.ERROR
             assert llm_span.status.description and llm_span.status.description.startswith(
                 openai.BadRequestError.__name__,
@@ -374,7 +298,10 @@ def test_handler_basic_retrieval(
         assert llm_attributes == {}  # all attributes should be accounted for
 
         if is_async:
-            assert (openai_span := spans_by_name.pop("OpenAI.achat")) is not None
+            if is_stream:
+                assert (openai_span := spans_by_name.pop("OpenAI.astream_chat")) is not None
+            else:
+                assert (openai_span := spans_by_name.pop("OpenAI.achat")) is not None
         else:
             if is_stream:
                 assert (openai_span := spans_by_name.pop("OpenAI.stream_chat")) is not None
@@ -394,18 +321,15 @@ def test_handler_basic_retrieval(
         if status_code == 200:
             assert openai_span.status.status_code == trace_api.StatusCode.OK
             assert not openai_span.status.description
-            if not is_stream:
-                # FIXME: currently we can't capture output/messages when streaming
-                assert openai_attributes.pop(OUTPUT_VALUE, None) == f"assistant: {answer}"
-                assert (
-                    openai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
-                    == "assistant"
-                )
-                assert (
-                    openai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
-                    == answer
-                )
-        elif not is_stream:
+            assert openai_attributes.pop(OUTPUT_VALUE, None) == f"assistant: {answer}"
+            assert (
+                openai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
+                == "assistant"
+            )
+            assert (
+                openai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
+            )
+        else:
             assert openai_span.status.status_code == trace_api.StatusCode.ERROR
             assert openai_span.status.description and openai_span.status.description.startswith(
                 openai.BadRequestError.__name__,
@@ -415,7 +339,7 @@ def test_handler_basic_retrieval(
         assert openai_attributes == {}  # all attributes should be accounted for
 
         assert spans_by_name == {}  # all spans should be accounted for
-    assert len(questions) == 0
+    assert len(questions) == 0  # all questions should be accounted for
 
 
 def _check_context_attributes(
