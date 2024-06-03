@@ -24,6 +24,8 @@ from typing import (
 from uuid import UUID
 
 import wrapt  # type: ignore
+from langchain_core.load import dumpd
+from langchain_core.messages import BaseMessage
 from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -156,6 +158,38 @@ class OpenInferenceTracer(BaseTracer):
         if event_data:
             _record_exception(event_data.span, error)
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
+
+    def on_chat_model_start(
+        self,
+        serialized: Dict[str, Any],
+        messages: List[List[BaseMessage]],
+        *,
+        run_id: UUID,
+        tags: Optional[List[str]] = None,
+        parent_run_id: Optional[UUID] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Run:
+        """Start a trace for an LLM run."""
+        start_time = datetime.now(timezone.utc)
+        if metadata:
+            kwargs.update({"metadata": metadata})
+        chat_model_run = Run(
+            id=run_id,
+            parent_run_id=parent_run_id,
+            serialized=serialized,
+            inputs={"messages": [[dumpd(msg) for msg in batch] for batch in messages]},
+            extra=kwargs,
+            events=[{"name": "start", "time": start_time}],
+            start_time=start_time,
+            run_type="llm",
+            tags=tags,
+            name=name,  # type: ignore[arg-type]
+        )
+        self._start_trace(chat_model_run)
+        self._on_chat_model_start(chat_model_run)
+        return chat_model_run
 
 
 @audit_timing  # type: ignore
