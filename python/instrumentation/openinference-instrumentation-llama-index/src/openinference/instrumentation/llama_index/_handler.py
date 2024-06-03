@@ -328,6 +328,12 @@ class _Span(
 
     @process_event.register
     def _(self, event: GetResponseEndEvent) -> None:
+        """
+        (2024-06-03) Payload was removed by the following PR.
+        https://github.com/run-llama/llama_index/pull/13901/files
+        """
+        if not hasattr(event, "response"):
+            return
         response = event.response
         if isinstance(response, str):
             self[OUTPUT_VALUE] = response
