@@ -24,6 +24,7 @@ from typing import (
 from uuid import UUID
 
 import wrapt  # type: ignore
+from langchain_core.tracers import LangChainTracer
 from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -156,6 +157,20 @@ class OpenInferenceTracer(BaseTracer):
         if event_data:
             _record_exception(event_data.span, error)
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
+
+    def on_chat_model_start(self, *args: Any, **kwargs: Any) -> Run:
+        """
+        This emulates the behavior of the LangChainTracer.
+        https://github.com/langchain-ai/langchain/blob/c01467b1f4f9beae8f1edb105b17aa4f36bf6573/libs/core/langchain_core/tracers/langchain.py#L115
+
+        Although this method exists on the parent class, i.e. `BaseTracer`,
+        it requires setting `self._schema_format = "original+chat"`.
+        https://github.com/langchain-ai/langchain/blob/c01467b1f4f9beae8f1edb105b17aa4f36bf6573/libs/core/langchain_core/tracers/base.py#L170
+
+        But currently self._schema_format is marked for internal use.
+        https://github.com/langchain-ai/langchain/blob/c01467b1f4f9beae8f1edb105b17aa4f36bf6573/libs/core/langchain_core/tracers/base.py#L60
+        """  # noqa: E501
+        return LangChainTracer.on_chat_model_start(self, *args, **kwargs)  # type: ignore
 
 
 @audit_timing  # type: ignore

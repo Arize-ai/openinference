@@ -208,7 +208,11 @@ def test_callback_llm(
     assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
     assert oai_attributes.pop(INPUT_VALUE, None) is not None
     assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
-    assert oai_attributes.pop(LLM_PROMPTS, None) is not None
+    assert oai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "user"
+    assert (
+        oai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
+        == "\n\n".join(documents) + question
+    )
     if LANGCHAIN_VERSION >= (0, 2):
         assert (
             oai_attributes.pop(METADATA, None) == '{"ls_provider": "openai", '
@@ -454,7 +458,11 @@ def test_callback_llm_with_context_attributes(
     assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
     assert oai_attributes.pop(INPUT_VALUE, None) is not None
     assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
-    assert oai_attributes.pop(LLM_PROMPTS, None) is not None
+    assert oai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "user"
+    assert (
+        oai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
+        == "\n\n".join(documents) + question
+    )
     if status_code == 200:
         assert oai_span.status.status_code == trace_api.StatusCode.OK
         assert oai_attributes.pop(OUTPUT_VALUE, None) is not None
