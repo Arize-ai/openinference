@@ -24,8 +24,7 @@ from typing import (
 from uuid import UUID
 
 import wrapt  # type: ignore
-from langchain_core.load import dumpd
-from langchain_core.messages import BaseMessage
+from langchain_core.tracers import LangChainTracer
 from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -159,37 +158,19 @@ class OpenInferenceTracer(BaseTracer):
             _record_exception(event_data.span, error)
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
 
-    def on_chat_model_start(
-        self,
-        serialized: Dict[str, Any],
-        messages: List[List[BaseMessage]],
-        *,
-        run_id: UUID,
-        tags: Optional[List[str]] = None,
-        parent_run_id: Optional[UUID] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        name: Optional[str] = None,
-        **kwargs: Any,
-    ) -> Run:
-        """Start a trace for an LLM run."""
-        start_time = datetime.now(timezone.utc)
-        if metadata:
-            kwargs.update({"metadata": metadata})
-        chat_model_run = Run(
-            id=run_id,
-            parent_run_id=parent_run_id,
-            serialized=serialized,
-            inputs={"messages": [[dumpd(msg) for msg in batch] for batch in messages]},
-            extra=kwargs,
-            events=[{"name": "start", "time": start_time}],
-            start_time=start_time,
-            run_type="llm",
-            tags=tags,
-            name=name,  # type: ignore[arg-type]
-        )
-        self._start_trace(chat_model_run)
-        self._on_chat_model_start(chat_model_run)
-        return chat_model_run
+    def on_chat_model_start(self, *args: Any, **kwargs: Any) -> Run:
+        """
+        This emulates the behavior of the LangChainTracer.
+        https://github.com/langchain-ai/langchain/blob/c01467b1f4f9beae8f1edb105b17aa4f36bf6573/libs/core/langchain_core/tracers/langchain.py#L115
+
+        Although this method exists on the parent class, i.e. `BaseTracer`,
+        it requires setting `self._schema_format = "original+chat"`.
+        https://github.com/langchain-ai/langchain/blob/c01467b1f4f9beae8f1edb105b17aa4f36bf6573/libs/core/langchain_core/tracers/base.py#L170
+
+        But currently self._schema_format is marked for internal use.
+        https://github.com/langchain-ai/langchain/blob/c01467b1f4f9beae8f1edb105b17aa4f36bf6573/libs/core/langchain_core/tracers/base.py#L60
+        """  # noqa: E501
+        return LangChainTracer.on_chat_model_start(self, *args, **kwargs)  # type: ignore
 
 
 @audit_timing  # type: ignore
