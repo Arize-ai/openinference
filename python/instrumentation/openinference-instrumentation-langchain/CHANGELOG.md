@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.17...python-openinference-instrumentation-langchain-v0.1.18) (2024-06-04)
+
+
+### Bug Fixes
+
+* make tracer a singleton instance ([#517](https://github.com/Arize-ai/openinference/issues/517)) ([202e584](https://github.com/Arize-ai/openinference/commit/202e5842062ec1ca49a802b7a5bf4b80727df3a7))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.16...python-openinference-instrumentation-langchain-v0.1.17) (2024-06-03)
 
 
