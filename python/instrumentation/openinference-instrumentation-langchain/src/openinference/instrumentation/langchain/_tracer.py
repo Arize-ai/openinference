@@ -82,6 +82,10 @@ class _RunMapWithLock(ObjectProxy):  # type: ignore
         with self._self_lock:
             super().__setitem__(key, value)
 
+    def __delitem__(self, key: str) -> None:
+        with self._self_lock:
+            super().__delitem__(key)
+
 
 class _Run(NamedTuple):
     span: trace_api.Span
