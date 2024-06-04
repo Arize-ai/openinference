@@ -2,10 +2,25 @@ import asyncio
 import json
 import logging
 import random
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from contextvars import copy_context
+from functools import partial
 from importlib.metadata import version
 from itertools import count
-from typing import Any, AsyncIterator, Dict, Generator, Iterable, Iterator, List, Optional, Tuple
+from typing import (
+    Any,
+    AsyncIterator,
+    DefaultDict,
+    Dict,
+    Generator,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+)
 
 import numpy as np
 import openai
@@ -29,6 +44,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
@@ -46,10 +62,12 @@ LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
+@pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_callback_llm(
     is_async: bool,
     is_stream: bool,
     status_code: int,
+    use_context_attributes: bool,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     documents: List[str],
@@ -64,9 +82,9 @@ def test_callback_llm(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    question = randstr()
+    n = 10  # number of concurrent queries
+    questions = {randstr() for _ in range(n)}
     langchain_template = "{context}{question}"
-
     langchain_prompt = PromptTemplate(
         input_variables=["context", "question"], template=langchain_template
     )
@@ -102,411 +120,262 @@ def test_callback_llm(
         retriever=retriever,
         chain_type_kwargs={"prompt": langchain_prompt},
     )
-    with suppress(openai.BadRequestError):
+
+    async def task() -> None:
+        await asyncio.gather(
+            *(rqa.ainvoke({"query": question}) for question in questions),
+            return_exceptions=True,
+        )
+
+    def main() -> None:
         if is_async:
-            asyncio.run(rqa.ainvoke({"query": question}))
-        else:
-            rqa.invoke({"query": question})
+            asyncio.run(task())
+            return
+        with ThreadPoolExecutor() as executor:
+            for question in questions:
+                executor.submit(
+                    copy_context().run,
+                    partial(rqa.invoke, {"query": question}),
+                )
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    spans_by_name = {span.name: span for span in spans}
-
-    assert (rqa_span := spans_by_name.pop("RetrievalQA")) is not None
-    assert rqa_span.parent is None
-    rqa_attributes = dict(rqa_span.attributes or {})
-    assert rqa_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-    assert rqa_attributes.pop(INPUT_VALUE, None) == question
-    if status_code == 200:
-        assert rqa_span.status.status_code == trace_api.StatusCode.OK
-        assert rqa_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
-    elif status_code == 400:
-        assert rqa_span.status.status_code == trace_api.StatusCode.ERROR
-        assert rqa_span.events[0].name == "exception"
-        exception_type = (rqa_span.events[0].attributes or {}).get(
-            OTELSpanAttributes.EXCEPTION_TYPE
-        )
-        assert isinstance(exception_type, str)
-        assert exception_type.endswith("BadRequestError")
-
-    assert rqa_attributes == {}
-
-    assert (sd_span := spans_by_name.pop("StuffDocumentsChain")) is not None
-    assert sd_span.parent is not None
-    assert sd_span.parent.span_id == rqa_span.context.span_id
-    assert sd_span.context.trace_id == rqa_span.context.trace_id
-    sd_attributes = dict(sd_span.attributes or {})
-    assert sd_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-    assert sd_attributes.pop(INPUT_VALUE, None) is not None
-    assert sd_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
-    if status_code == 200:
-        assert sd_span.status.status_code == trace_api.StatusCode.OK
-        assert sd_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
-    elif status_code == 400:
-        assert sd_span.status.status_code == trace_api.StatusCode.ERROR
-        assert sd_span.events[0].name == "exception"
-        exception_type = (sd_span.events[0].attributes or {}).get(OTELSpanAttributes.EXCEPTION_TYPE)
-        assert isinstance(exception_type, str)
-        assert exception_type.endswith("BadRequestError")
-    assert sd_attributes == {}
-
-    assert (retriever_span := spans_by_name.pop("Retriever")) is not None
-    assert retriever_span.parent is not None
-    assert retriever_span.parent.span_id == rqa_span.context.span_id
-    assert retriever_span.context.trace_id == rqa_span.context.trace_id
-    retriever_attributes = dict(retriever_span.attributes or {})
-    assert retriever_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
-    assert retriever_attributes.pop(INPUT_VALUE, None) == question
-    assert retriever_attributes.pop(OUTPUT_VALUE, None) is not None
-    assert retriever_attributes.pop(OUTPUT_MIME_TYPE, None) == JSON.value
-    for i, text in enumerate(documents):
-        assert (
-            retriever_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", None) == text
-        )
-    assert retriever_attributes == {}
-
-    assert (llm_span := spans_by_name.pop("LLMChain", None)) is not None
-    assert llm_span.parent is not None
-    assert llm_span.parent.span_id == sd_span.context.span_id
-    assert llm_span.context.trace_id == sd_span.context.trace_id
-    llm_attributes = dict(llm_span.attributes or {})
-    assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-    assert llm_attributes.pop(INPUT_VALUE, None) is not None
-    assert llm_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
-    if status_code == 200:
-        assert llm_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
-    elif status_code == 400:
-        assert llm_span.status.status_code == trace_api.StatusCode.ERROR
-        assert llm_span.events[0].name == "exception"
-        exception_type = (llm_span.events[0].attributes or {}).get(
-            OTELSpanAttributes.EXCEPTION_TYPE
-        )
-        assert isinstance(exception_type, str)
-        assert exception_type.endswith("BadRequestError")
-    langchain_prompt_variables = {
-        "context": "\n\n".join(documents),
-        "question": question,
-    }
-    _check_context_attributes(
-        llm_attributes,
-        session_id=None,
-        user_id=None,
-        metadata=None,
-        tags=None,
-        prompt_template=langchain_template,
-        prompt_template_version=None,
-        prompt_template_variables=langchain_prompt_variables,
-    )
-    assert llm_attributes == {}
-
-    assert (oai_span := spans_by_name.pop("ChatOpenAI", None)) is not None
-    assert oai_span.parent is not None
-    assert oai_span.parent.span_id == llm_span.context.span_id
-    assert oai_span.context.trace_id == llm_span.context.trace_id
-    oai_attributes = dict(oai_span.attributes or {})
-    assert oai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
-    assert oai_attributes.pop(LLM_MODEL_NAME, None) is not None
-    assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
-    assert oai_attributes.pop(INPUT_VALUE, None) is not None
-    assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
-    assert oai_attributes.pop(LLM_PROMPTS, None) is not None
-    if LANGCHAIN_VERSION >= (0, 2):
-        assert (
-            oai_attributes.pop(METADATA, None) == '{"ls_provider": "openai", '
-            '"ls_model_name": "gpt-3.5-turbo", '
-            '"ls_model_type": "chat", '
-            '"ls_temperature": 0.7}'
-        )
-
-    if status_code == 200:
-        assert oai_span.status.status_code == trace_api.StatusCode.OK
-        assert oai_attributes.pop(OUTPUT_VALUE, None) is not None
-        assert oai_attributes.pop(OUTPUT_MIME_TYPE, None) == JSON.value
-        assert (
-            oai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
-            == output_messages[0]["role"]
-        )
-        assert (
-            oai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
-            == output_messages[0]["content"]
-        )
-        if not is_stream:
-            assert (
-                oai_attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
-            )
-            assert (
-                oai_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None)
-                == completion_usage["prompt_tokens"]
-            )
-            assert (
-                oai_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None)
-                == completion_usage["completion_tokens"]
-            )
-    elif status_code == 400:
-        assert oai_span.status.status_code == trace_api.StatusCode.ERROR
-        assert oai_span.events[0].name == "exception"
-        exception_type = (oai_span.events[0].attributes or {}).get(
-            OTELSpanAttributes.EXCEPTION_TYPE
-        )
-        assert isinstance(exception_type, str)
-        assert exception_type.endswith("BadRequestError")
-    assert oai_attributes == {}
-
-    assert spans_by_name == {}
-
-
-@pytest.mark.parametrize("is_async", [False, True])
-@pytest.mark.parametrize("is_stream", [False, True])
-@pytest.mark.parametrize("status_code", [200, 400])
-def test_callback_llm_with_context_attributes(
-    is_async: bool,
-    is_stream: bool,
-    status_code: int,
-    respx_mock: MockRouter,
-    in_memory_span_exporter: InMemorySpanExporter,
-    documents: List[str],
-    chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
-    model_name: str,
-    completion_usage: Dict[str, Any],
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
-) -> None:
-    question = randstr()
-    langchain_template = "{context}{question}"
-
-    langchain_prompt = PromptTemplate(
-        input_variables=["context", "question"], template=langchain_template
-    )
-    output_messages: List[Dict[str, Any]] = (
-        chat_completion_mock_stream[1] if is_stream else [{"role": randstr(), "content": randstr()}]
-    )
-    url = "https://api.openai.com/v1/chat/completions"
-    respx_kwargs: Dict[str, Any] = {
-        **(
-            {"stream": MockByteStream(chat_completion_mock_stream[0])}
-            if is_stream
-            else {
-                "json": {
-                    "choices": [
-                        {"index": i, "message": message, "finish_reason": "stop"}
-                        for i, message in enumerate(output_messages)
-                    ],
-                    "model": model_name,
-                    "usage": completion_usage,
-                }
-            }
-        ),
-    }
-    respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
-    chat_model = ChatOpenAI(model_name="gpt-3.5-turbo", streaming=is_stream)  # type: ignore
-    retriever = KNNRetriever(
-        index=np.ones((len(documents), 2)),
-        texts=documents,
-        embeddings=FakeEmbeddings(size=2),
-    )
-    rqa = RetrievalQA.from_chain_type(
-        llm=chat_model,
-        retriever=retriever,
-        chain_type_kwargs={"prompt": langchain_prompt},
-    )
     with suppress(openai.BadRequestError):
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
-        ):
-            if is_async:
-                asyncio.run(rqa.ainvoke({"query": question}))
-            else:
-                rqa.invoke({"query": question})
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                main()
+        else:
+            main()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    spans_by_name = {span.name: span for span in spans}
+    traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
+    for span in spans:
+        traces[span.context.trace_id][span.name] = span
 
-    assert (rqa_span := spans_by_name.pop("RetrievalQA")) is not None
-    assert rqa_span.parent is None
-    rqa_attributes = dict(rqa_span.attributes or {})
-    assert rqa_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-    assert rqa_attributes.pop(INPUT_VALUE, None) == question
-    if status_code == 200:
-        assert rqa_span.status.status_code == trace_api.StatusCode.OK
-        assert rqa_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
-    elif status_code == 400:
-        assert rqa_span.status.status_code == trace_api.StatusCode.ERROR
-        assert rqa_span.events[0].name == "exception"
-        exception_type = (rqa_span.events[0].attributes or {}).get(
-            OTELSpanAttributes.EXCEPTION_TYPE
-        )
-        assert isinstance(exception_type, str)
-        assert exception_type.endswith("BadRequestError")
+    assert len(traces) == n
+    for spans_by_name in traces.values():
+        assert (rqa_span := spans_by_name.pop("RetrievalQA")) is not None
+        assert rqa_span.parent is None
+        rqa_attributes = dict(rqa_span.attributes or {})
+        assert rqa_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+        question = rqa_attributes.pop(INPUT_VALUE, None)
+        assert isinstance(question, str)
+        assert question in questions
+        questions.remove(question)
+        if status_code == 200:
+            assert rqa_span.status.status_code == trace_api.StatusCode.OK
+            assert rqa_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
+        elif status_code == 400:
+            assert rqa_span.status.status_code == trace_api.StatusCode.ERROR
+            assert rqa_span.events[0].name == "exception"
+            exception_type = (rqa_span.events[0].attributes or {}).get(
+                OTELSpanAttributes.EXCEPTION_TYPE
+            )
+            assert isinstance(exception_type, str)
+            assert exception_type.endswith("BadRequestError")
+        if use_context_attributes:
+            _check_context_attributes(
+                rqa_attributes,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            )
+        assert rqa_attributes == {}
 
-    _check_context_attributes(
-        rqa_attributes,
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    )
-    assert rqa_attributes == {}
+        assert (sd_span := spans_by_name.pop("StuffDocumentsChain")) is not None
+        assert sd_span.parent is not None
+        assert sd_span.parent.span_id == rqa_span.context.span_id
+        assert sd_span.context.trace_id == rqa_span.context.trace_id
+        sd_attributes = dict(sd_span.attributes or {})
+        assert sd_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+        assert sd_attributes.pop(INPUT_VALUE, None) is not None
+        assert sd_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
+        if status_code == 200:
+            assert sd_span.status.status_code == trace_api.StatusCode.OK
+            assert sd_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
+        elif status_code == 400:
+            assert sd_span.status.status_code == trace_api.StatusCode.ERROR
+            assert sd_span.events[0].name == "exception"
+            exception_type = (sd_span.events[0].attributes or {}).get(
+                OTELSpanAttributes.EXCEPTION_TYPE
+            )
+            assert isinstance(exception_type, str)
+            assert exception_type.endswith("BadRequestError")
+        if use_context_attributes:
+            _check_context_attributes(
+                sd_attributes,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            )
+        assert sd_attributes == {}
 
-    assert (sd_span := spans_by_name.pop("StuffDocumentsChain")) is not None
-    assert sd_span.parent is not None
-    assert sd_span.parent.span_id == rqa_span.context.span_id
-    assert sd_span.context.trace_id == rqa_span.context.trace_id
-    sd_attributes = dict(sd_span.attributes or {})
-    assert sd_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-    assert sd_attributes.pop(INPUT_VALUE, None) is not None
-    assert sd_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
-    if status_code == 200:
-        assert sd_span.status.status_code == trace_api.StatusCode.OK
-        assert sd_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
-    elif status_code == 400:
-        assert sd_span.status.status_code == trace_api.StatusCode.ERROR
-        assert sd_span.events[0].name == "exception"
-        exception_type = (sd_span.events[0].attributes or {}).get(OTELSpanAttributes.EXCEPTION_TYPE)
-        assert isinstance(exception_type, str)
-        assert exception_type.endswith("BadRequestError")
-    _check_context_attributes(
-        sd_attributes,
-        session_id,
-        user_id,
-        metadata,
-        tags,
-        prompt_template,
-        prompt_template_version,
-        prompt_template_variables,
-    )
-    assert sd_attributes == {}
-
-    assert (retriever_span := spans_by_name.pop("Retriever")) is not None
-    assert retriever_span.parent is not None
-    assert retriever_span.parent.span_id == rqa_span.context.span_id
-    assert retriever_span.context.trace_id == rqa_span.context.trace_id
-    retriever_attributes = dict(retriever_span.attributes or {})
-    assert retriever_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
-    assert retriever_attributes.pop(INPUT_VALUE, None) == question
-    assert retriever_attributes.pop(OUTPUT_VALUE, None) is not None
-    assert retriever_attributes.pop(OUTPUT_MIME_TYPE, None) == JSON.value
-    for i, text in enumerate(documents):
-        assert (
-            retriever_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", None) == text
-        )
-    _check_context_attributes(
-        retriever_attributes,
-        session_id,
-        user_id,
-        metadata,
-        tags,
-        prompt_template,
-        prompt_template_version,
-        prompt_template_variables,
-    )
-    assert retriever_attributes == {}
-
-    assert (llm_span := spans_by_name.pop("LLMChain", None)) is not None
-    assert llm_span.parent is not None
-    assert llm_span.parent.span_id == sd_span.context.span_id
-    assert llm_span.context.trace_id == sd_span.context.trace_id
-    llm_attributes = dict(llm_span.attributes or {})
-    assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-    assert llm_attributes.pop(INPUT_VALUE, None) is not None
-    assert llm_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
-    if status_code == 200:
-        assert llm_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
-    elif status_code == 400:
-        assert llm_span.status.status_code == trace_api.StatusCode.ERROR
-        assert llm_span.events[0].name == "exception"
-        exception_type = (llm_span.events[0].attributes or {}).get(
-            OTELSpanAttributes.EXCEPTION_TYPE
-        )
-        assert isinstance(exception_type, str)
-        assert exception_type.endswith("BadRequestError")
-    _check_context_attributes(
-        llm_attributes,
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=langchain_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    )
-    assert llm_attributes == {}
-
-    assert (oai_span := spans_by_name.pop("ChatOpenAI", None)) is not None
-    assert oai_span.parent is not None
-    assert oai_span.parent.span_id == llm_span.context.span_id
-    assert oai_span.context.trace_id == llm_span.context.trace_id
-    oai_attributes = dict(oai_span.attributes or {})
-    assert oai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
-    assert oai_attributes.pop(LLM_MODEL_NAME, None) is not None
-    assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
-    assert oai_attributes.pop(INPUT_VALUE, None) is not None
-    assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
-    assert oai_attributes.pop(LLM_PROMPTS, None) is not None
-    if status_code == 200:
-        assert oai_span.status.status_code == trace_api.StatusCode.OK
-        assert oai_attributes.pop(OUTPUT_VALUE, None) is not None
-        assert oai_attributes.pop(OUTPUT_MIME_TYPE, None) == JSON.value
-        assert (
-            oai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
-            == output_messages[0]["role"]
-        )
-        assert (
-            oai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
-            == output_messages[0]["content"]
-        )
-        if not is_stream:
+        assert (retriever_span := spans_by_name.pop("Retriever")) is not None
+        assert retriever_span.parent is not None
+        assert retriever_span.parent.span_id == rqa_span.context.span_id
+        assert retriever_span.context.trace_id == rqa_span.context.trace_id
+        retriever_attributes = dict(retriever_span.attributes or {})
+        assert retriever_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
+        assert retriever_attributes.pop(INPUT_VALUE, None) == question
+        assert retriever_attributes.pop(OUTPUT_VALUE, None) is not None
+        assert retriever_attributes.pop(OUTPUT_MIME_TYPE, None) == JSON.value
+        for i, text in enumerate(documents):
             assert (
-                oai_attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
+                retriever_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", None)
+                == text
+            )
+        if use_context_attributes:
+            _check_context_attributes(
+                retriever_attributes,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            )
+        assert retriever_attributes == {}
+
+        assert (llm_span := spans_by_name.pop("LLMChain", None)) is not None
+        assert llm_span.parent is not None
+        assert llm_span.parent.span_id == sd_span.context.span_id
+        assert llm_span.context.trace_id == sd_span.context.trace_id
+        llm_attributes = dict(llm_span.attributes or {})
+        assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+        assert llm_attributes.pop(INPUT_VALUE, None) is not None
+        assert llm_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
+        if status_code == 200:
+            assert llm_attributes.pop(OUTPUT_VALUE, None) == output_messages[0]["content"]
+        elif status_code == 400:
+            assert llm_span.status.status_code == trace_api.StatusCode.ERROR
+            assert llm_span.events[0].name == "exception"
+            exception_type = (llm_span.events[0].attributes or {}).get(
+                OTELSpanAttributes.EXCEPTION_TYPE
+            )
+            assert isinstance(exception_type, str)
+            assert exception_type.endswith("BadRequestError")
+        langchain_prompt_variables = {
+            "context": "\n\n".join(documents),
+            "question": question,
+        }
+        if use_context_attributes:
+            _check_context_attributes(
+                llm_attributes,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=langchain_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=langchain_prompt_variables,
+            )
+        else:
+            assert (
+                llm_attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == langchain_template
+            )
+            assert isinstance(
+                llm_prompt_template_variables := llm_attributes.pop(
+                    SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None
+                ),
+                str,
+            )
+            assert json.loads(llm_prompt_template_variables) == langchain_prompt_variables
+        assert llm_attributes == {}
+
+        assert (oai_span := spans_by_name.pop("ChatOpenAI", None)) is not None
+        assert oai_span.parent is not None
+        assert oai_span.parent.span_id == llm_span.context.span_id
+        assert oai_span.context.trace_id == llm_span.context.trace_id
+        oai_attributes = dict(oai_span.attributes or {})
+        assert oai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+        assert oai_attributes.pop(LLM_MODEL_NAME, None) is not None
+        assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+        assert oai_attributes.pop(INPUT_VALUE, None) is not None
+        assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
+        assert oai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "user"
+        assert (
+            oai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
+            == "\n\n".join(documents) + question
+        )
+        if status_code == 200:
+            assert oai_span.status.status_code == trace_api.StatusCode.OK
+            assert oai_attributes.pop(OUTPUT_VALUE, None) is not None
+            assert oai_attributes.pop(OUTPUT_MIME_TYPE, None) == JSON.value
+            assert (
+                oai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
+                == output_messages[0]["role"]
             )
             assert (
-                oai_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None)
-                == completion_usage["prompt_tokens"]
+                oai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None)
+                == output_messages[0]["content"]
             )
-            assert (
-                oai_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None)
-                == completion_usage["completion_tokens"]
+            if not is_stream:
+                assert (
+                    oai_attributes.pop(LLM_TOKEN_COUNT_TOTAL, None)
+                    == completion_usage["total_tokens"]
+                )
+                assert (
+                    oai_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None)
+                    == completion_usage["prompt_tokens"]
+                )
+                assert (
+                    oai_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None)
+                    == completion_usage["completion_tokens"]
+                )
+        elif status_code == 400:
+            assert oai_span.status.status_code == trace_api.StatusCode.ERROR
+            assert oai_span.events[0].name == "exception"
+            exception_type = (oai_span.events[0].attributes or {}).get(
+                OTELSpanAttributes.EXCEPTION_TYPE
             )
-    elif status_code == 400:
-        assert oai_span.status.status_code == trace_api.StatusCode.ERROR
-        assert oai_span.events[0].name == "exception"
-        exception_type = (oai_span.events[0].attributes or {}).get(
-            OTELSpanAttributes.EXCEPTION_TYPE
-        )
-        assert isinstance(exception_type, str)
-        assert exception_type.endswith("BadRequestError")
-    _check_context_attributes(
-        oai_attributes,
-        session_id,
-        user_id,
-        metadata
-        if LANGCHAIN_VERSION < (0, 2)
-        else {
-            "ls_model_type": "chat",
-            "ls_model_name": "gpt-3.5-turbo",
-            "ls_provider": "openai",
-            "ls_temperature": 0.7,
-        },
-        tags,
-        prompt_template,
-        prompt_template_version,
-        prompt_template_variables,
-    )
-    assert oai_attributes == {}
+            assert isinstance(exception_type, str)
+            assert exception_type.endswith("BadRequestError")
+        if use_context_attributes:
+            _check_context_attributes(
+                oai_attributes,
+                session_id=session_id,
+                user_id=user_id,
+                metadata={
+                    "ls_provider": "openai",
+                    "ls_model_name": "gpt-3.5-turbo",
+                    "ls_model_type": "chat",
+                    "ls_temperature": 0.7,
+                }
+                if LANGCHAIN_VERSION >= (0, 2)
+                else metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            )
+        else:
+            if LANGCHAIN_VERSION >= (0, 2):
+                assert isinstance(_metadata := oai_attributes.pop(METADATA, None), str)
+                assert json.loads(_metadata) == {
+                    "ls_provider": "openai",
+                    "ls_model_name": "gpt-3.5-turbo",
+                    "ls_model_type": "chat",
+                    "ls_temperature": 0.7,
+                }
+        assert oai_attributes == {}
 
-    assert spans_by_name == {}
+        assert spans_by_name == {}
+    assert len(questions) == 0
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])

@@ -1,9 +1,9 @@
 {
     "python/openinference-semantic-conventions": "0.1.6",
     "python/instrumentation/openinference-instrumentation-openai": "0.1.6",
-    "python/instrumentation/openinference-instrumentation-llama-index": "1.4.1",
+    "python/instrumentation/openinference-instrumentation-llama-index": "1.4.2",
     "python/instrumentation/openinference-instrumentation-dspy": "0.1.9",
-    "python/instrumentation/openinference-instrumentation-langchain": "0.1.16",
+    "python/instrumentation/openinference-instrumentation-langchain": "0.1.18",
     "python/instrumentation/openinference-instrumentation-bedrock": "0.1.6",
     "python/instrumentation/openinference-instrumentation-mistralai": "0.0.8",
     "python/openinference-instrumentation": "0.1.7"

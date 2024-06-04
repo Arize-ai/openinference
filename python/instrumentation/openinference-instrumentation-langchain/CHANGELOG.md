@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.17...python-openinference-instrumentation-langchain-v0.1.18) (2024-06-04)
+
+
+### Bug Fixes
+
+* make tracer a singleton instance ([#517](https://github.com/Arize-ai/openinference/issues/517)) ([202e584](https://github.com/Arize-ai/openinference/commit/202e5842062ec1ca49a802b7a5bf4b80727df3a7))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.16...python-openinference-instrumentation-langchain-v0.1.17) (2024-06-03)
+
+
+### Features
+
+* get messages on chat model start ([#514](https://github.com/Arize-ai/openinference/issues/514)) ([dd8d253](https://github.com/Arize-ai/openinference/commit/dd8d25321741dafee2a8dd5f4abe6ddd04ab0119))
+
+
+### Bug Fixes
+
+* tests for langchain latest @ 2.1 ([#511](https://github.com/Arize-ai/openinference/issues/511)) ([bb99487](https://github.com/Arize-ai/openinference/commit/bb99487333a4e57799d007aed283e5729149ed33))
+
+
+### Documentation
+
+* minimum working example of a custom retriever ([#510](https://github.com/Arize-ai/openinference/issues/510)) ([aa8f655](https://github.com/Arize-ai/openinference/commit/aa8f655c57ba0c7ad93936110d8f275e447309e5))
+
 ## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.15...python-openinference-instrumentation-langchain-v0.1.16) (2024-05-21)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.4.1...python-openinference-instrumentation-llama-index-v1.4.2) (2024-06-03)
+
+
+### Bug Fixes
+
+* `GetResponseEndEvent` payload removal ([#515](https://github.com/Arize-ai/openinference/issues/515)) ([e1e22fd](https://github.com/Arize-ai/openinference/commit/e1e22fd2583184df493ab5900e2089f5ff3c037a))
+
 ## [1.4.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.4.0...python-openinference-instrumentation-llama-index-v1.4.1) (2024-05-21)
 
 
