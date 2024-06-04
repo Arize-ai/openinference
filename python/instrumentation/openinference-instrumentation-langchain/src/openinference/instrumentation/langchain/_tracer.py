@@ -13,6 +13,8 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Generic,
+    Hashable,
     Iterable,
     Iterator,
     List,
@@ -20,6 +22,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypeVar,
     cast,
 )
 from uuid import UUID
@@ -64,24 +67,36 @@ def audit_timing(wrapped: Any, _: Any, args: Any, kwargs: Any) -> Any:
         print(f"{wrapped.__name__}: {latency_ms:.2f}ms")
 
 
-class _DictWithLock(ObjectProxy):  # type: ignore
+K = TypeVar("K", bound=Hashable)
+V = TypeVar("V")
+
+
+class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
     """
     A wrapped dictionary with lock
     """
 
-    def __init__(self, wrapped: Optional[Dict[str, Run]] = None) -> None:
+    def __init__(self, wrapped: Optional[Dict[str, V]] = None) -> None:
         super().__init__(wrapped or {})
         self._self_lock = RLock()
 
-    def __getitem__(self, key: str) -> Run:
+    def get(self, key: K) -> Optional[V]:
         with self._self_lock:
-            return cast(Run, super().__getitem__(key))
+            return cast(Optional[V], self.__wrapped__.get(key))
 
-    def __setitem__(self, key: str, value: Run) -> None:
+    def pop(self, key: K, *args: Any) -> Optional[V]:
+        with self._self_lock:
+            return cast(Optional[V], self.__wrapped__.pop(key, *args))
+
+    def __getitem__(self, key: K) -> V:
+        with self._self_lock:
+            return cast(V, super().__getitem__(key))
+
+    def __setitem__(self, key: K, value: V) -> None:
         with self._self_lock:
             super().__setitem__(key, value)
 
-    def __delitem__(self, key: str) -> None:
+    def __delitem__(self, key: K) -> None:
         with self._self_lock:
             super().__delitem__(key)
 
@@ -103,22 +118,21 @@ class OpenInferenceTracer(BaseTracer):
         super().__init__(*args, **kwargs)
         if TYPE_CHECKING:
             assert self.run_map
-        self.run_map = _DictWithLock(self.run_map)
+        self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
-        self._spans: Dict[str, trace_api.Span] = _DictWithLock()
+        self._spans: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, Run]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
         self._initialized = True
 
     @audit_timing  # type: ignore
     def _start_trace(self, run: Run) -> None:
-        run_id = str(run.id)
-        self.run_map[run_id] = run
+        self.run_map[str(run.id)] = run
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
         with self._lock:
             parent_context = (
                 trace_api.set_span_in_context(parent)
-                if (parent_run_id := str(run.parent_run_id))
+                if (parent_run_id := run.parent_run_id)
                 and (parent := self._spans.get(parent_run_id))
                 else None
             )
@@ -138,15 +152,14 @@ class OpenInferenceTracer(BaseTracer):
         # leaving all future spans as orphans. That is a very bad scenario.
         # token = context_api.attach(context)
         with self._lock:
-            self._spans[run_id] = span
+            self._spans[run.id] = span
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
-        run_id = str(run.id)
-        self.run_map.pop(run_id, None)
+        self.run_map.pop(str(run.id), None)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
-        span = self._spans.pop(run_id, None)
+        span = self._spans.pop(run.id, None)
         if span:
             try:
                 _update_span(span, run)
@@ -161,32 +174,24 @@ class OpenInferenceTracer(BaseTracer):
         pass
 
     def on_llm_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        with self._lock:
-            span = self._spans.get(str(run_id))
-        if span:
+        if span := self._spans.get(run_id):
             _record_exception(span, error)
         return super().on_llm_error(error, *args, run_id=run_id, **kwargs)
 
     def on_chain_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        with self._lock:
-            span = self._spans.get(str(run_id))
-        if span:
+        if span := self._spans.get(run_id):
             _record_exception(span, error)
         return super().on_chain_error(error, *args, run_id=run_id, **kwargs)
 
     def on_retriever_error(
         self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any
     ) -> Run:
-        with self._lock:
-            span = self._spans.get(str(run_id))
-        if span:
+        if span := self._spans.get(run_id):
             _record_exception(span, error)
         return super().on_retriever_error(error, *args, run_id=run_id, **kwargs)
 
     def on_tool_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        with self._lock:
-            span = self._spans.get(str(run_id))
-        if span:
+        if span := self._spans.get(run_id):
             _record_exception(span, error)
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
 
