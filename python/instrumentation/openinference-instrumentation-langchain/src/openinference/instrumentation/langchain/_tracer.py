@@ -9,17 +9,21 @@ from enum import Enum
 from itertools import chain
 from threading import RLock
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
+    Generic,
+    Hashable,
     Iterable,
     Iterator,
     List,
     Mapping,
-    NamedTuple,
     Optional,
     Sequence,
     Tuple,
+    TypeVar,
+    cast,
 )
 from uuid import UUID
 
@@ -43,6 +47,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.util.types import AttributeValue
+from wrapt import ObjectProxy
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -62,30 +67,63 @@ def audit_timing(wrapped: Any, _: Any, args: Any, kwargs: Any) -> Any:
         print(f"{wrapped.__name__}: {latency_ms:.2f}ms")
 
 
-class _Run(NamedTuple):
-    span: trace_api.Span
-    context: context_api.Context
+K = TypeVar("K", bound=Hashable)
+V = TypeVar("V")
+
+
+class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
+    """
+    A wrapped dictionary with lock
+    """
+
+    def __init__(self, wrapped: Optional[Dict[str, V]] = None) -> None:
+        super().__init__(wrapped or {})
+        self._self_lock = RLock()
+
+    def get(self, key: K) -> Optional[V]:
+        with self._self_lock:
+            return cast(Optional[V], self.__wrapped__.get(key))
+
+    def pop(self, key: K, *args: Any) -> Optional[V]:
+        with self._self_lock:
+            return cast(Optional[V], self.__wrapped__.pop(key, *args))
+
+    def __getitem__(self, key: K) -> V:
+        with self._self_lock:
+            return cast(V, super().__getitem__(key))
+
+    def __setitem__(self, key: K, value: V) -> None:
+        with self._self_lock:
+            super().__setitem__(key, value)
+
+    def __delitem__(self, key: K) -> None:
+        with self._self_lock:
+            super().__delitem__(key)
 
 
 class OpenInferenceTracer(BaseTracer):
-    __slots__ = ("_tracer", "_runs")
+    __slots__ = ("_tracer", "_spans_by_run")
 
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        if TYPE_CHECKING:
+            # check that `run_map` still exists in parent class
+            assert self.run_map
+        self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
-        self._runs: Dict[UUID, _Run] = {}
+        self._spans_by_run: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     @audit_timing  # type: ignore
     def _start_trace(self, run: Run) -> None:
-        super()._start_trace(run)
+        self.run_map[str(run.id)] = run
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
         with self._lock:
             parent_context = (
-                parent.context
+                trace_api.set_span_in_context(parent)
                 if (parent_run_id := run.parent_run_id)
-                and (parent := self._runs.get(parent_run_id))
+                and (parent := self._spans_by_run.get(parent_run_id))
                 else None
             )
         # We can't use real time because the handler may be
@@ -96,7 +134,6 @@ class OpenInferenceTracer(BaseTracer):
             context=parent_context,
             start_time=start_time_utc_nano,
         )
-        context = trace_api.set_span_in_context(span)
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
         # that the context will be detached. An error could happen between callbacks leaving
@@ -105,17 +142,15 @@ class OpenInferenceTracer(BaseTracer):
         # leaving all future spans as orphans. That is a very bad scenario.
         # token = context_api.attach(context)
         with self._lock:
-            self._runs[run.id] = _Run(span=span, context=context)
+            self._spans_by_run[run.id] = span
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
-        super()._end_trace(run)
+        self.run_map.pop(str(run.id), None)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
-        with self._lock:
-            event_data = self._runs.pop(run.id, None)
-        if event_data:
-            span = event_data.span
+        span = self._spans_by_run.pop(run.id, None)
+        if span:
             try:
                 _update_span(span, run)
             except Exception:
@@ -129,33 +164,25 @@ class OpenInferenceTracer(BaseTracer):
         pass
 
     def on_llm_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        with self._lock:
-            event_data = self._runs.get(run_id)
-        if event_data:
-            _record_exception(event_data.span, error)
+        if span := self._spans_by_run.get(run_id):
+            _record_exception(span, error)
         return super().on_llm_error(error, *args, run_id=run_id, **kwargs)
 
     def on_chain_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        with self._lock:
-            event_data = self._runs.get(run_id)
-        if event_data:
-            _record_exception(event_data.span, error)
+        if span := self._spans_by_run.get(run_id):
+            _record_exception(span, error)
         return super().on_chain_error(error, *args, run_id=run_id, **kwargs)
 
     def on_retriever_error(
         self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any
     ) -> Run:
-        with self._lock:
-            event_data = self._runs.get(run_id)
-        if event_data:
-            _record_exception(event_data.span, error)
+        if span := self._spans_by_run.get(run_id):
+            _record_exception(span, error)
         return super().on_retriever_error(error, *args, run_id=run_id, **kwargs)
 
     def on_tool_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        with self._lock:
-            event_data = self._runs.get(run_id)
-        if event_data:
-            _record_exception(event_data.span, error)
+        if span := self._spans_by_run.get(run_id):
+            _record_exception(span, error)
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
 
     def on_chat_model_start(self, *args: Any, **kwargs: Any) -> Run:

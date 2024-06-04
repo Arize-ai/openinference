@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Collection, Type
+from typing import TYPE_CHECKING, Any, Callable, Collection
 
 from openinference.instrumentation.langchain.package import _instruments
 from openinference.instrumentation.langchain.version import __version__
@@ -36,7 +36,7 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             module="langchain_core.callbacks",
             name="BaseCallbackManager.__init__",
-            wrapper=_BaseCallbackManagerInit(tracer=tracer, cls=OpenInferenceTracer),
+            wrapper=_BaseCallbackManagerInit(OpenInferenceTracer(tracer)),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -47,11 +47,10 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
 
 
 class _BaseCallbackManagerInit:
-    __slots__ = ("_tracer", "_cls")
+    __slots__ = ("_tracer",)
 
-    def __init__(self, tracer: trace_api.Tracer, cls: Type["OpenInferenceTracer"]):
+    def __init__(self, tracer: "OpenInferenceTracer"):
         self._tracer = tracer
-        self._cls = cls
 
     def __call__(
         self,
@@ -65,7 +64,7 @@ class _BaseCallbackManagerInit:
             # Handlers may be copied when new managers are created, so we
             # don't want to keep adding. E.g. see the following location.
             # https://github.com/langchain-ai/langchain/blob/5c2538b9f7fb64afed2a918b621d9d8681c7ae32/libs/core/langchain_core/callbacks/manager.py#L1876  # noqa: E501
-            if isinstance(handler, self._cls):
+            if isinstance(handler, type(self._tracer)):
                 break
         else:
-            instance.add_handler(self._cls(tracer=self._tracer), True)
+            instance.add_handler(self._tracer, True)
