@@ -102,7 +102,7 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
 
 
 class OpenInferenceTracer(BaseTracer):
-    __slots__ = ("_tracer", "_spans")
+    __slots__ = ("_tracer", "_spans_by_run")
 
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -111,7 +111,7 @@ class OpenInferenceTracer(BaseTracer):
             assert self.run_map
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
-        self._spans: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
+        self._spans_by_run: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     @audit_timing  # type: ignore
@@ -123,7 +123,7 @@ class OpenInferenceTracer(BaseTracer):
             parent_context = (
                 trace_api.set_span_in_context(parent)
                 if (parent_run_id := run.parent_run_id)
-                and (parent := self._spans.get(parent_run_id))
+                and (parent := self._spans_by_run.get(parent_run_id))
                 else None
             )
         # We can't use real time because the handler may be
@@ -142,14 +142,14 @@ class OpenInferenceTracer(BaseTracer):
         # leaving all future spans as orphans. That is a very bad scenario.
         # token = context_api.attach(context)
         with self._lock:
-            self._spans[run.id] = span
+            self._spans_by_run[run.id] = span
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
         self.run_map.pop(str(run.id), None)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
-        span = self._spans.pop(run.id, None)
+        span = self._spans_by_run.pop(run.id, None)
         if span:
             try:
                 _update_span(span, run)
@@ -164,24 +164,24 @@ class OpenInferenceTracer(BaseTracer):
         pass
 
     def on_llm_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        if span := self._spans.get(run_id):
+        if span := self._spans_by_run.get(run_id):
             _record_exception(span, error)
         return super().on_llm_error(error, *args, run_id=run_id, **kwargs)
 
     def on_chain_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        if span := self._spans.get(run_id):
+        if span := self._spans_by_run.get(run_id):
             _record_exception(span, error)
         return super().on_chain_error(error, *args, run_id=run_id, **kwargs)
 
     def on_retriever_error(
         self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any
     ) -> Run:
-        if span := self._spans.get(run_id):
+        if span := self._spans_by_run.get(run_id):
             _record_exception(span, error)
         return super().on_retriever_error(error, *args, run_id=run_id, **kwargs)
 
     def on_tool_error(self, error: BaseException, *args: Any, run_id: UUID, **kwargs: Any) -> Run:
-        if span := self._spans.get(run_id):
+        if span := self._spans_by_run.get(run_id):
             _record_exception(span, error)
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
 
