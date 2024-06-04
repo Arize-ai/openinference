@@ -102,25 +102,15 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
 
 
 class OpenInferenceTracer(BaseTracer):
-    __slots__ = ("_tracer", "_spans", "_initialized")
-    _singleton: Optional["OpenInferenceTracer"] = None
-
-    def __new__(cls, *args: Any, **kwargs: Any) -> "OpenInferenceTracer":
-        if cls._singleton is None:
-            cls._singleton = object.__new__(cls)
-        return cls._singleton
+    __slots__ = ("_tracer", "_spans")
 
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
-        if not hasattr(self, "_initialized"):
-            self._initialized = False
-        if self._initialized:
-            return
         super().__init__(*args, **kwargs)
         if TYPE_CHECKING:
             assert self.run_map
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
-        self._spans: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, Run]()
+        self._spans: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
         self._initialized = True
 
