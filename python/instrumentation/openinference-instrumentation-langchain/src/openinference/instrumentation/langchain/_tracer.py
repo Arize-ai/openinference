@@ -9,6 +9,7 @@ from enum import Enum
 from itertools import chain
 from threading import RLock
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -20,6 +21,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    cast,
 )
 from uuid import UUID
 
@@ -43,6 +45,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.util.types import AttributeValue
+from wrapt import ObjectProxy
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -62,23 +65,55 @@ def audit_timing(wrapped: Any, _: Any, args: Any, kwargs: Any) -> Any:
         print(f"{wrapped.__name__}: {latency_ms:.2f}ms")
 
 
+class _RunMapWithLock(ObjectProxy):  # type: ignore
+    """
+    A wrapped dictionary with lock (for `BaseTracer.run_map`)
+    """
+
+    def __init__(self, wrapped: Dict[str, Run]) -> None:
+        super().__init__(wrapped)
+        self._self_lock = RLock()
+
+    def __getitem__(self, key: str) -> Run:
+        with self._self_lock:
+            return cast(Run, super().__getitem__(key))
+
+    def __setitem__(self, key: str, value: Run) -> None:
+        with self._self_lock:
+            super().__setitem__(key, value)
+
+
 class _Run(NamedTuple):
     span: trace_api.Span
     context: context_api.Context
 
 
 class OpenInferenceTracer(BaseTracer):
-    __slots__ = ("_tracer", "_runs")
+    __slots__ = ("_tracer", "_runs", "_initialized")
+    _singleton: Optional["OpenInferenceTracer"] = None
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "OpenInferenceTracer":
+        if cls._singleton is None:
+            cls._singleton = object.__new__(cls)
+        return cls._singleton
 
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+        if not hasattr(self, "_initialized"):
+            self._initialized = False
+        if self._initialized:
+            return
         super().__init__(*args, **kwargs)
+        if TYPE_CHECKING:
+            assert self.run_map
+        self.run_map = _RunMapWithLock(self.run_map)
         self._tracer = tracer
         self._runs: Dict[UUID, _Run] = {}
         self._lock = RLock()  # handlers may be run in a thread by langchain
+        self._initialized = True
 
     @audit_timing  # type: ignore
     def _start_trace(self, run: Run) -> None:
-        super()._start_trace(run)
+        self.run_map[str(run.id)] = run
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
         with self._lock:
@@ -109,7 +144,7 @@ class OpenInferenceTracer(BaseTracer):
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
-        super()._end_trace(run)
+        self.run_map.pop(str(run.id), None)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
         with self._lock:
