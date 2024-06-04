@@ -107,12 +107,12 @@ class OpenInferenceTracer(BaseTracer):
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         if TYPE_CHECKING:
+            # check that `run_map` still exists in parent class
             assert self.run_map
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
         self._spans: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
-        self._initialized = True
 
     @audit_timing  # type: ignore
     def _start_trace(self, run: Run) -> None:
