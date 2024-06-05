@@ -1,3 +1,4 @@
+import requests
 from langchain import agents
 from langchain.tools import tool
 from langchain_core.prompts import ChatPromptTemplate
@@ -22,13 +23,10 @@ def get_exchange_rate(
     currency_date: str = "latest",
 ):
     """Retrieves the exchange rate between two currencies on a specified date."""
-    import requests
-
-    response = requests.get(
+    return requests.get(
         f"https://api.frankfurter.app/{currency_date}",
         params={"from": currency_from, "to": currency_to},
-    )
-    return response.json()
+    ).json()
 
 
 tools = [get_exchange_rate]
