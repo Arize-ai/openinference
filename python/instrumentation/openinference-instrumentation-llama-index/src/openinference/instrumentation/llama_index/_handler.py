@@ -110,6 +110,7 @@ from llama_index.core.instrumentation.events.synthesis import (
 from llama_index.core.instrumentation.span import BaseSpan
 from llama_index.core.instrumentation.span_handlers import BaseSpanHandler
 from llama_index.core.schema import NodeWithScore, QueryType
+from llama_index.core.tools import BaseTool, ToolOutput
 from llama_index.core.types import RESPONSE_TEXT_TYPE
 
 logger = logging.getLogger(__name__)
@@ -196,6 +197,34 @@ class _Span(
     @property
     def context(self) -> context_api.Context:
         return set_span_in_context(self._otel_span)
+
+    def process_tool_input(
+        self,
+        instance: BaseTool,
+        bound_args: inspect.BoundArguments,
+    ) -> None:
+        metadata = instance.metadata
+        self[TOOL_DESCRIPTION] = metadata.description
+        try:
+            self[TOOL_NAME] = metadata.get_name()
+        except BaseException:
+            pass
+        try:
+            self[TOOL_PARAMETERS] = metadata.fn_schema_str
+        except BaseException:
+            pass
+        try:
+            self[INPUT_VALUE] = safe_json_dumps(bound_args.arguments)
+            self[INPUT_MIME_TYPE] = JSON
+        except BaseException:
+            pass
+
+    def process_tool_output(
+        self,
+        instance: BaseTool,
+        result: ToolOutput,
+    ) -> None:
+        self[OUTPUT_VALUE] = result.content
 
     @singledispatchmethod
     def process_instance(self, instance: Any) -> None: ...
@@ -604,6 +633,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             parent_id=parent_span_id,
         )
         span.process_instance(instance)
+        if isinstance(instance, BaseTool):
+            span.process_tool_input(instance, bound_args)
         return span
 
     def prepare_to_exit_span(
@@ -622,7 +653,9 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         if token:
             detach(token)
         if span:
-            if isinstance(instance, BaseLLM) and isinstance(
+            if isinstance(instance, BaseTool) and isinstance(result, ToolOutput):
+                span.process_tool_output(instance, result)
+            elif isinstance(instance, BaseLLM) and isinstance(
                 result,
                 (Generator, AsyncGenerator),
             ):
@@ -745,6 +778,11 @@ def _(_: BaseRetriever) -> str:
 @_init_span_kind.register
 def _(_: BaseEmbedding) -> str:
     return EMBEDDING
+
+
+@_init_span_kind.register
+def _(_: BaseTool) -> str:
+    return TOOL
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
