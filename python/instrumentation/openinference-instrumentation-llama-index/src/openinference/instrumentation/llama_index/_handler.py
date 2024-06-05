@@ -32,7 +32,7 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry import context as context_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
 from opentelemetry.util.types import AttributeValue
 from pydantic import PrivateAttr
@@ -566,11 +566,13 @@ class _ExportQueue:
 
 
 class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
+    _context_tokens: Dict[str, object] = PrivateAttr()
     _otel_tracer: Tracer = PrivateAttr()
     export_queue: _ExportQueue = PrivateAttr()
 
     def __init__(self, tracer: Tracer) -> None:
         super().__init__()
+        self._context_tokens: Dict[str, object] = {}
         self._otel_tracer = tracer
         self.export_queue = _ExportQueue()
 
@@ -584,13 +586,16 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     ) -> Optional[_Span]:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
-        parent = self.open_spans.get(parent_span_id) if parent_span_id else None
+        with self.lock:
+            parent = self.open_spans.get(parent_span_id) if parent_span_id else None
         otel_span = self._otel_tracer.start_span(
             name=id_.partition("-")[0],
             start_time=time_ns(),
             attributes=dict(get_attributes_from_context()),
             context=(parent.context if parent else None),
         )
+        with self.lock:
+            self._context_tokens[id_] = attach(set_span_in_context(otel_span))
         span = _Span(
             otel_span=otel_span,
             span_kind=_init_span_kind(instance),
@@ -611,7 +616,12 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
-        if span := self.open_spans.get(id_):
+        with self.lock:
+            span = self.open_spans.get(id_)
+            token = self._context_tokens.get(id_)
+        if token:
+            detach(token)
+        if span:
             if isinstance(instance, BaseLLM) and isinstance(
                 result,
                 (Generator, AsyncGenerator),
@@ -634,7 +644,12 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
-        if span := self.open_spans.get(id_):
+        with self.lock:
+            span = self.open_spans.get(id_)
+            token = self._context_tokens.get(id_)
+        if token:
+            detach(token)
+        if span:
             span.end(err)
         else:
             logger.warning(f"Open span is missing for {id_=}")
