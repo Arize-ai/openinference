@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.18...python-openinference-instrumentation-langchain-v0.1.19) (2024-06-05)
+
+
+### Bug Fixes
+
+* handle ToolMessage in LangChain instrumentor ([#520](https://github.com/Arize-ai/openinference/issues/520)) ([2f42080](https://github.com/Arize-ai/openinference/commit/2f42080c0d13f51e6abf6e281a3fd7167a07d625))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.17...python-openinference-instrumentation-langchain-v0.1.18) (2024-06-04)
 
 
