@@ -416,7 +416,7 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
     elif message_class_name.startswith("ChatMessage"):
         role = message_data["kwargs"]["role"]
     elif message_class_name.startswith("ToolMessage"):
-        role = "assistant"
+        role = "tool"
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
     yield MESSAGE_ROLE, role
