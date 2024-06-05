@@ -373,6 +373,7 @@ class _Span(
         if not self._span_kind:
             self._span_kind = RERANKER
         self._process_query_type(event.query)
+        self[RERANKER_QUERY] = event.query.query_str
         self[RERANKER_TOP_K] = event.top_n
         self[RERANKER_MODEL_NAME] = event.model_name
         self._process_nodes(RERANKER_INPUT_DOCUMENTS, *event.nodes)
