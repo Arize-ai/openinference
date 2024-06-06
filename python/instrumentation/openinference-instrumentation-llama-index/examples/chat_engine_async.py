@@ -6,17 +6,17 @@ from llama_index.core import Settings, SimpleDirectoryReader, VectorStoreIndex
 from llama_index.core.chat_engine.types import AgentChatResponse
 from llama_index.llms.openai import OpenAI
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
 LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
-
+OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 with tempfile.NamedTemporaryFile() as tf:
     urlretrieve(

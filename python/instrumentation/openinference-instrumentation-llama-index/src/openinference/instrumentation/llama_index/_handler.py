@@ -109,6 +109,7 @@ from llama_index.core.instrumentation.events.synthesis import (
 )
 from llama_index.core.instrumentation.span import BaseSpan
 from llama_index.core.instrumentation.span_handlers import BaseSpanHandler
+from llama_index.core.multi_modal_llms import MultiModalLLM
 from llama_index.core.schema import NodeWithScore, QueryType
 from llama_index.core.tools import BaseTool, ToolOutput
 from llama_index.core.types import RESPONSE_TEXT_TYPE
@@ -229,11 +230,12 @@ class _Span(
     @singledispatchmethod
     def process_instance(self, instance: Any) -> None: ...
 
-    @process_instance.register
-    def _(self, instance: BaseLLM) -> None:
-        if params := instance.metadata:
-            self[LLM_MODEL_NAME] = params.model_name
-            self[LLM_INVOCATION_PARAMETERS] = params.json(exclude_unset=True)
+    @process_instance.register(BaseLLM)
+    @process_instance.register(MultiModalLLM)
+    def _(self, instance: Union[BaseLLM, MultiModalLLM]) -> None:
+        if metadata := instance.metadata:
+            self[LLM_MODEL_NAME] = metadata.model_name
+            self[LLM_INVOCATION_PARAMETERS] = metadata.json(exclude_unset=True)
 
     @process_instance.register
     def _(self, instance: BaseEmbedding) -> None:
@@ -658,7 +660,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         if span:
             if isinstance(instance, BaseTool) and isinstance(result, ToolOutput):
                 span.process_tool_output(instance, result)
-            elif isinstance(instance, BaseLLM) and isinstance(
+            elif isinstance(instance, (BaseLLM, MultiModalLLM)) and isinstance(
                 result,
                 (Generator, AsyncGenerator),
             ):
