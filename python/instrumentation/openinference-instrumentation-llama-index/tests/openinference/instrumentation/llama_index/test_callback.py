@@ -5,6 +5,7 @@ import random
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from importlib.metadata import version
 from itertools import count
 from typing import (
     Any,
@@ -58,6 +59,8 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.handlers.clear()
         logger.addHandler(logging.StreamHandler())
 
+LLAMA_INDEX_VERSION = tuple(map(int, version("llama-index-core").split(".")[:3]))
+
 
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("is_async", [False, True])
@@ -79,9 +82,8 @@ def test_callback_llm(
 ) -> None:
     if is_stream and is_async:
         pytest.xfail("not supported")
-    if status_code == 400 and is_stream:
-        # FIXME: fix llama-index
-        pytest.xfail("pending fix in llama-index because streaming error can't be detected")
+    if status_code == 400 and is_stream and LLAMA_INDEX_VERSION < (0, 10, 44):
+        pytest.xfail("streaming errors can't be detected")
     n = 10  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
@@ -180,13 +182,6 @@ def test_callback_llm(
             assert not query_span.status.description
             if not (is_async and is_stream):
                 assert query_attributes.pop(OUTPUT_VALUE, None) == answer
-        else:
-            # FIXME: error should be propagated
-            ...
-            # assert query_span.status.status_code == trace_api.StatusCode.ERROR
-            # assert query_span.status.description and query_span.status.description.startswith(
-            #     openai.BadRequestError.__name__,
-            # )
 
         if use_context_attributes:
             _check_context_attributes(query_attributes, session_id, user_id, metadata, tags)
