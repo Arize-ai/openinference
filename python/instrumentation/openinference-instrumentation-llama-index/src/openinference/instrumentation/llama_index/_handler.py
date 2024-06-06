@@ -254,6 +254,9 @@ class _Span(
                 self._first_token_timestamp = timestamp
             self.last_updated_at = time()
             self.notify_parent(_StreamingStatus.IN_PROGRESS)
+        elif hasattr(event, "exception") and isinstance(event.exception, BaseException):
+            self.end(event.exception)
+            self.notify_parent(_StreamingStatus.FINISHED)
 
     def notify_parent(self, status: _StreamingStatus) -> None:
         if not (parent := self._parent) or not parent.waiting_for_streaming:
