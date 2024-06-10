@@ -18,6 +18,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Mapping,
     Optional,
     Tuple,
     cast,
@@ -157,6 +158,7 @@ def test_handler_basic_retrieval(
     else:
         assert len(traces) == n
     for spans_by_name in traces.values():
+        spans_by_id = _spans_by_id(spans_by_name.values())
         if is_stream and len(spans_by_name) == 1:
             # This is the span from the OpenAIInstrumentor. It's on a separate
             # trace because no span is open when the stream iteration starts.
@@ -178,8 +180,11 @@ def test_handler_basic_retrieval(
             if not is_stream:
                 assert query_attributes.pop(OUTPUT_VALUE, None) == answer
             else:
-                # FIXME: output should be propagated
-                ...
+                assert query_attributes.pop(OUTPUT_VALUE, None) is not None
+                assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
+        elif is_stream:
+            assert query_attributes.pop(OUTPUT_VALUE, None) is not None
+            assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
 
         if is_async:
             assert (
@@ -189,48 +194,22 @@ def test_handler_basic_retrieval(
             assert (
                 _query_span := spans_by_name.pop("RetrieverQueryEngine._query", None)
             ) is not None
+        assert _is_descendant(_query_span, query_span, spans_by_id)
 
         if use_context_attributes:
             _check_context_attributes(query_attributes, session_id, user_id, metadata, tags)
         assert query_attributes == {}  # all attributes should be accounted for
 
         if is_async:
-            assert (
-                synthesize_span := spans_by_name.pop("BaseSynthesizer.asynthesize", None)
-            ) is not None
-        else:
-            assert (
-                synthesize_span := spans_by_name.pop("BaseSynthesizer.synthesize", None)
-            ) is not None
-        assert synthesize_span.parent is not None
-        assert synthesize_span.parent.span_id == _query_span.context.span_id
-        assert synthesize_span.context.trace_id == _query_span.context.trace_id
-        synthesize_attributes = dict(synthesize_span.attributes or {})
-        assert synthesize_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-        assert synthesize_attributes.pop(INPUT_VALUE, None) == question
-        if status_code == 200:
-            assert synthesize_span.status.status_code == trace_api.StatusCode.OK
-            assert not synthesize_span.status.description
-            if not is_stream:
-                assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
-            else:
-                # FIXME: output should be propagated
-                ...
-
-        if use_context_attributes:
-            _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
-        assert synthesize_attributes == {}  # all attributes should be accounted for
-
-        if is_async:
             assert (retrieve_span := spans_by_name.pop("BaseRetriever.aretrieve", None)) is not None
         else:
             assert (retrieve_span := spans_by_name.pop("BaseRetriever.retrieve", None)) is not None
-        assert retrieve_span.parent is not None
-        assert retrieve_span.parent.span_id == _query_span.context.span_id
-        assert retrieve_span.context.trace_id == _query_span.context.trace_id
+        assert _is_descendant(retrieve_span, _query_span, spans_by_id)
         retrieve_attributes = dict(retrieve_span.attributes or {})
         assert retrieve_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
         assert retrieve_attributes.pop(INPUT_VALUE, None) == question
+        assert retrieve_attributes.pop(OUTPUT_VALUE, None) is not None
+        assert retrieve_attributes.pop(OUTPUT_MIME_TYPE, None)
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_ID}", None)
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_ID}", None)
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_SCORE}", 0.0)
@@ -251,11 +230,40 @@ def test_handler_basic_retrieval(
         assert retrieve_attributes == {}  # all attributes should be accounted for
 
         if is_async:
+            assert (
+                synthesize_span := spans_by_name.pop("BaseSynthesizer.asynthesize", None)
+            ) is not None
+        else:
+            assert (
+                synthesize_span := spans_by_name.pop("BaseSynthesizer.synthesize", None)
+            ) is not None
+        assert _is_descendant(synthesize_span, _query_span, spans_by_id)
+        synthesize_attributes = dict(synthesize_span.attributes or {})
+        assert synthesize_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+        assert synthesize_attributes.pop(INPUT_VALUE, None) == question
+        if status_code == 200:
+            assert synthesize_span.status.status_code == trace_api.StatusCode.OK
+            assert not synthesize_span.status.description
+            if not is_stream:
+                assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
+            else:
+                assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
+                assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
+        elif is_stream:
+            assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
+            assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
+
+        if use_context_attributes:
+            _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
+        assert synthesize_attributes == {}  # all attributes should be accounted for
+
+        if is_async:
             assert (_ := spans_by_name.pop("CompactAndRefine.aget_response", None)) is not None
             assert (refine_span := spans_by_name.pop("Refine.aget_response", None)) is not None
         else:
             assert (_ := spans_by_name.pop("CompactAndRefine.get_response", None)) is not None
             assert (refine_span := spans_by_name.pop("Refine.get_response", None)) is not None
+        assert _is_descendant(refine_span, synthesize_span, spans_by_id)
 
         if is_async:
             if is_stream:
@@ -267,9 +275,7 @@ def test_handler_basic_retrieval(
                 assert (llm_span := spans_by_name.pop("LLM.stream", None)) is not None
             else:
                 assert (llm_span := spans_by_name.pop("LLM.predict", None)) is not None
-        assert llm_span.parent is not None
-        assert llm_span.parent.span_id == refine_span.context.span_id
-        assert llm_span.context.trace_id == refine_span.context.trace_id
+        assert _is_descendant(llm_span, refine_span, spans_by_id)
         llm_attributes = dict(llm_span.attributes or {})
         assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None
@@ -280,6 +286,8 @@ def test_handler_basic_retrieval(
         )
         assert template_variables.keys() == {"context_str", "query_str"}
         assert template_variables["query_str"] == question
+        assert llm_attributes.pop(INPUT_VALUE, None) is not None
+        assert llm_attributes.pop(INPUT_MIME_TYPE, None)
         if status_code == 200:
             assert llm_span.status.status_code == trace_api.StatusCode.OK
             assert not llm_span.status.description
@@ -303,9 +311,7 @@ def test_handler_basic_retrieval(
                 assert (openai_span := spans_by_name.pop("OpenAI.stream_chat")) is not None
             else:
                 assert (openai_span := spans_by_name.pop("OpenAI.chat")) is not None
-        assert openai_span.parent is not None
-        assert openai_span.parent.span_id == llm_span.context.span_id
-        assert openai_span.context.trace_id == llm_span.context.trace_id
+        assert _is_descendant(openai_span, llm_span, spans_by_id)
         openai_attributes = dict(openai_span.attributes or {})
         assert openai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert openai_attributes.pop(LLM_MODEL_NAME, None) is not None
@@ -314,6 +320,8 @@ def test_handler_basic_retrieval(
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) == "user"
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}", None) is not None
+        assert openai_attributes.pop(INPUT_VALUE, None) is not None
+        assert openai_attributes.pop(INPUT_MIME_TYPE, None)
         if status_code == 200:
             assert openai_span.status.status_code == trace_api.StatusCode.OK
             assert not openai_span.status.description
@@ -334,16 +342,30 @@ def test_handler_basic_retrieval(
             _check_context_attributes(openai_attributes, session_id, user_id, metadata, tags)
         assert openai_attributes == {}  # all attributes should be accounted for
 
-        if not is_stream:
-            # there is one more span from the Openai instrumentor
-            assert len(spans_by_name) == 1
-            assert (
-                _parent := spans_by_name.pop(next(iter(spans_by_name.keys()))).parent
-            ) is not None
-            assert _parent.span_id == openai_span.context.span_id
-
-        assert spans_by_name == {}  # all spans should be accounted for
+        for span in spans_by_name.values():
+            assert _is_descendant(span, query_span, spans_by_id)
     assert len(questions) == 0  # all questions should be accounted for
+
+
+def _spans_by_id(spans: Iterable[ReadableSpan]) -> Dict[int, ReadableSpan]:
+    spans_by_id = {}
+    for span in spans:
+        spans_by_id[span.context.span_id] = span
+    return spans_by_id
+
+
+def _is_descendant(
+    span: Optional[ReadableSpan],
+    ancestor: ReadableSpan,
+    spans_by_id: Mapping[int, ReadableSpan],
+) -> bool:
+    if not ancestor.context:
+        return False
+    while span and span.parent:
+        if span.parent.span_id == ancestor.context.span_id:
+            return True
+        span = spans_by_id.get(span.parent.span_id)
+    return False
 
 
 def _check_context_attributes(
@@ -436,8 +458,8 @@ def instrument(
     LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
     OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
-    LlamaIndexInstrumentor().uninstrument()
     OpenAIInstrumentor().uninstrument()
+    LlamaIndexInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
 
 

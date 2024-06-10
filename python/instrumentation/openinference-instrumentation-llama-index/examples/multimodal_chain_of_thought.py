@@ -16,7 +16,7 @@ LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 
 url = "https://raw.githubusercontent.com/run-llama/llama_index/main/docs/docs/examples/data/gpt4_experiments/llama2_mistral.png"
 
-query = """Based on the image provided. Follow the steps and answer the query - Assuming mistral is available in 7B series. How well does mistral model compared to llama2 model?
+prompt = """Based on the image provided. Follow the steps and answer the query - Assuming mistral is available in 7B series. How well does mistral model compared to llama2 model?
 Examine the Image: Look at the mentioned category in the query in the Image.
 Identify Relevant Data: Note the respective percentages.
 Evaluate: Compare if there is any comparison required as per the query.
@@ -31,7 +31,7 @@ if __name__ == "__main__":
             f.write(requests.get(url).content)
         image_documents = SimpleDirectoryReader(input_files=[tf.name]).load_data()
         response_gen = llm.stream_complete(
-            prompt=query,
+            prompt=prompt,
             image_documents=image_documents,
             stream_options={"include_usage": True},
         )

@@ -15,15 +15,21 @@ pip install openinference-instrumentation-llama-index
 
 | llama-index version | openinference-instrumentation-llama-index version |
 |---------------------|---------------------------------------------------|
-| \>=0.10.0           | \>=1.0.0                                          |
-| \<0.10.0, \>=0.9.14 | 0.1.3                                             |
+| \>=0.10.44          | \>=2.0.0                                          |
+| \>=0.10.0, <0.10.44 | \>=1.0.0, <0.2                                    |
+| \>=0.9.14, <0.10.0  | 0.1.3                                             |
 
 ## Quickstart
 
 Install packages needed for this demonstration.
 
 ```shell
-pip install openinference-instrumentation-llama-index llama-index arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+python -m pip install --upgrade \
+    openinference-instrumentation-llama-index \
+    opentelemetry-sdk \
+    opentelemetry-exporter-otlp \
+    "opentelemetry-proto>=1.12.0" \
+    arize-phoenix
 ```
 
 Start the Phoenix app in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address.
@@ -38,17 +44,15 @@ The following Python code sets up the `LlamaIndexInstrumentor` to trace `llama-i
 
 ```python
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
-trace_api.set_tracer_provider(tracer_provider)
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
-LlamaIndexInstrumentor().instrument()
+LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 ```
 
 To demonstrate tracing, we'll use LlamaIndex below to query a document. 

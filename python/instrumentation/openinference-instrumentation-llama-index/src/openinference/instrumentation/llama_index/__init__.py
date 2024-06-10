@@ -16,6 +16,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     """
 
     __slots__ = (
+        "_span_handler",
         "_event_handler",
         "_use_legacy_callback_handler",  # deprecated
         "_original_global_handler",  # deprecated
@@ -27,7 +28,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        self._use_legacy_callback_handler = kwargs.get("use_legacy_callback_handler")
+        self._use_legacy_callback_handler = bool(kwargs.get("use_legacy_callback_handler"))
         if self._use_legacy_callback_handler:
             import llama_index.core
 
@@ -57,9 +58,18 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             from ._handler import EventHandler
 
             self._event_handler = EventHandler(tracer=tracer)
+            self._span_handler = self._event_handler.span_handler
             dispatcher = get_dispatcher()
-            dispatcher.add_event_handler(self._event_handler)
-            dispatcher.add_span_handler(self._event_handler.span_handler)
+            for span_handler in dispatcher.span_handlers:
+                if isinstance(span_handler, type(self._span_handler)):
+                    break
+            else:
+                dispatcher.add_span_handler(self._span_handler)
+            for event_handler in dispatcher.event_handlers:
+                if isinstance(event_handler, type(self._event_handler)):
+                    break
+            else:
+                dispatcher.add_event_handler(self._event_handler)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._use_legacy_callback_handler:
@@ -74,11 +84,11 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
 
             dispatcher = get_dispatcher()
             dispatcher.span_handlers[:] = filter(
-                lambda h: h is not self._event_handler.span_handler,  # type: ignore
+                lambda h: not isinstance(h, type(self._span_handler)),
                 dispatcher.span_handlers,
             )
             dispatcher.event_handlers[:] = filter(
-                lambda h: h is not self._event_handler,
+                lambda h: not isinstance(h, type(self._event_handler)),
                 dispatcher.event_handlers,
             )
             self._event_handler = None

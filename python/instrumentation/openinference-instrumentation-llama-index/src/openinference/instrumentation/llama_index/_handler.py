@@ -1,13 +1,18 @@
+import copy
+import dataclasses
 import inspect
+import json
 import logging
 import weakref
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
+from importlib.metadata import version
 from queue import SimpleQueue
 from threading import RLock, Thread
 from time import sleep, time, time_ns
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncGenerator,
     Dict,
@@ -16,6 +21,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    SupportsFloat,
     Tuple,
     Union,
 )
@@ -36,9 +42,10 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
 from opentelemetry.util.types import AttributeValue
 from pydantic import PrivateAttr
+from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
 
-from llama_index.core import QueryBundle, Response
+from llama_index.core import QueryBundle
 from llama_index.core.base.agent.types import BaseAgent, BaseAgentWorker
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
@@ -52,6 +59,7 @@ from llama_index.core.base.response.schema import (
     RESPONSE_TYPE,
     AsyncStreamingResponse,
     PydanticResponse,
+    Response,
     StreamingResponse,
 )
 from llama_index.core.bridge.pydantic import BaseModel
@@ -110,13 +118,14 @@ from llama_index.core.instrumentation.events.synthesis import (
 from llama_index.core.instrumentation.span import BaseSpan
 from llama_index.core.instrumentation.span_handlers import BaseSpanHandler
 from llama_index.core.multi_modal_llms import MultiModalLLM
-from llama_index.core.schema import NodeWithScore, QueryType
-from llama_index.core.tools import BaseTool, ToolOutput
+from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
+from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+LLAMA_INDEX_VERSION = tuple(map(int, version("llama-index-core").split(".")[:3]))
 
 STREAMING_FINISHED_EVENTS = (
     LLMChatEndEvent,
@@ -128,6 +137,12 @@ STREAMING_IN_PROGRESS_EVENTS = (
     LLMCompletionInProgressEvent,
     StreamChatDeltaReceivedEvent,
 )
+
+if LLAMA_INDEX_VERSION < (0, 10, 44):
+
+    class ExceptionEvent: ...  # Dummy substitute
+elif not TYPE_CHECKING:
+    from llama_index.core.instrumentation.events.exception import ExceptionEvent
 
 
 class _StreamingStatus(Enum):
@@ -141,6 +156,7 @@ class _Span(
     keep_untouched=(singledispatchmethod, property),
 ):
     _otel_span: Span = PrivateAttr()
+    _attributes: Dict[str, AttributeValue] = PrivateAttr()
     _active: bool = PrivateAttr()
     _span_kind: Optional[str] = PrivateAttr()
     _parent: Optional["_Span"] = PrivateAttr()
@@ -162,11 +178,12 @@ class _Span(
         self._span_kind = span_kind
         self._parent = parent
         self._first_token_timestamp = None
+        self._attributes = {}
         self.end_time = None
         self.last_updated_at = time()
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
-        self._otel_span.set_attribute(key, value)
+        self._attributes[key] = value
 
     def record_exception(self, exception: BaseException) -> None:
         self._otel_span.record_exception(exception)
@@ -185,6 +202,7 @@ class _Span(
             status = Status(status_code=StatusCode.ERROR, description=description)
         self[OPENINFERENCE_SPAN_KIND] = self._span_kind or CHAIN
         self._otel_span.set_status(status=status)
+        self._otel_span.set_attributes(self._attributes)
         self._otel_span.end(end_time=self.end_time)
 
     @property
@@ -199,33 +217,43 @@ class _Span(
     def context(self) -> context_api.Context:
         return set_span_in_context(self._otel_span)
 
-    def process_tool_input(
-        self,
-        instance: BaseTool,
-        bound_args: inspect.BoundArguments,
-    ) -> None:
-        metadata = instance.metadata
-        self[TOOL_DESCRIPTION] = metadata.description
+    def process_input(self, instance: Any, bound_args: inspect.BoundArguments) -> None:
         try:
-            self[TOOL_NAME] = metadata.get_name()
-        except BaseException:
-            pass
-        try:
-            self[TOOL_PARAMETERS] = metadata.fn_schema_str
-        except BaseException:
-            pass
-        try:
-            self[INPUT_VALUE] = safe_json_dumps(bound_args.arguments)
+            self[INPUT_VALUE] = safe_json_dumps(bound_args.arguments, cls=_Encoder)
             self[INPUT_MIME_TYPE] = JSON
-        except BaseException:
+        except BaseException as e:
+            logger.exception(str(e))
             pass
 
-    def process_tool_output(
-        self,
-        instance: BaseTool,
-        result: ToolOutput,
-    ) -> None:
-        self[OUTPUT_VALUE] = result.content
+    def process_output(self, instance: Any, result: Any) -> None:
+        if OUTPUT_VALUE in self._attributes:
+            return
+        if result is None:
+            return
+        if repr_str := _show_repr_str(result):
+            self[OUTPUT_VALUE] = repr_str
+            return
+        if isinstance(result, (Generator, AsyncGenerator)):
+            return
+        if isinstance(instance, (BaseEmbedding,)):
+            # these outputs are too large
+            return
+        if isinstance(result, (str, SupportsFloat, bool)):
+            self[OUTPUT_VALUE] = str(result)
+        elif isinstance(result, BaseModel):
+            try:
+                self[OUTPUT_VALUE] = result.json(exclude_unset=True, encoder=_encoder)
+                self[OUTPUT_MIME_TYPE] = JSON
+            except BaseException as e:
+                logger.exception(str(e))
+                pass
+        else:
+            try:
+                self[OUTPUT_VALUE] = safe_json_dumps(result, cls=_Encoder)
+                self[OUTPUT_MIME_TYPE] = JSON
+            except BaseException as e:
+                logger.exception(str(e))
+                pass
 
     @singledispatchmethod
     def process_instance(self, instance: Any) -> None: ...
@@ -241,6 +269,19 @@ class _Span(
     def _(self, instance: BaseEmbedding) -> None:
         if name := instance.model_name:
             self[EMBEDDING_MODEL_NAME] = name
+
+    @process_instance.register
+    def _(self, instance: BaseTool) -> None:
+        metadata = instance.metadata
+        self[TOOL_DESCRIPTION] = metadata.description
+        try:
+            self[TOOL_NAME] = metadata.get_name()
+        except BaseException:
+            pass
+        try:
+            self[TOOL_PARAMETERS] = metadata.fn_schema_str
+        except BaseException:
+            pass
 
     def process_event(self, event: BaseEvent) -> None:
         self._process_event(event)
@@ -274,10 +315,14 @@ class _Span(
         logger.warning(f"Unhandled event of type {event.__class__.__qualname__}")
 
     @_process_event.register
+    def _(self, event: ExceptionEvent) -> None: ...
+
+    @_process_event.register
     def _(self, event: AgentChatWithStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
         self[INPUT_VALUE] = event.user_msg
+        self._attributes.pop(INPUT_MIME_TYPE, None)
 
     @_process_event.register
     def _(self, event: AgentChatWithStepEndEvent) -> None:
@@ -289,6 +334,7 @@ class _Span(
             self._span_kind = AGENT
         if input := event.input:
             self[INPUT_VALUE] = input
+            self._attributes.pop(INPUT_MIME_TYPE, None)
 
     @_process_event.register
     def _(self, event: AgentRunStepEndEvent) -> None:
@@ -452,6 +498,7 @@ class _Span(
         if not self._span_kind:
             self._span_kind = CHAIN
         self[INPUT_VALUE] = event.query_str
+        self._attributes.pop(INPUT_MIME_TYPE, None)
 
     @_process_event.register
     def _(self, event: GetResponseEndEvent) -> None:
@@ -505,11 +552,13 @@ class _Span(
             return
         if isinstance(query, str):
             self[INPUT_VALUE] = query
+            self._attributes.pop(INPUT_MIME_TYPE, None)
         elif isinstance(query, QueryBundle):
             query_dict = {k: v for k, v in query.to_dict().items() if v is not None}
             query_dict.pop("embedding", None)  # because it takes up too much space
             if len(query_dict) == 1 and query.query_str:
                 self[INPUT_VALUE] = query.query_str
+                self._attributes.pop(INPUT_MIME_TYPE, None)
             else:
                 self[INPUT_VALUE] = safe_json_dumps(query_dict)
                 self[INPUT_MIME_TYPE] = JSON
@@ -638,8 +687,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             parent_id=parent_span_id,
         )
         span.process_instance(instance)
-        if isinstance(instance, BaseTool):
-            span.process_tool_input(instance, bound_args)
+        span.process_input(instance, bound_args)
         return span
 
     def prepare_to_exit_span(
@@ -658,15 +706,16 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         if token:
             detach(token)
         if span:
-            if isinstance(instance, BaseTool) and isinstance(result, ToolOutput):
-                span.process_tool_output(instance, result)
-            elif isinstance(instance, (BaseLLM, MultiModalLLM)) and isinstance(
-                result,
-                (Generator, AsyncGenerator),
+            if isinstance(instance, (BaseLLM, MultiModalLLM)) and (
+                isinstance(result, Generator)
+                and result.gi_frame is not None
+                or isinstance(result, AsyncGenerator)
+                and result.ag_frame is not None
             ):
                 span.end_time = time_ns()
                 self.export_queue.put(span)
                 return span
+            span.process_output(instance, result)
             span.end()
         else:
             logger.warning(f"Open span is missing for {id_=}")
@@ -788,6 +837,76 @@ def _(_: BaseEmbedding) -> str:
 @_init_span_kind.register
 def _(_: BaseTool) -> str:
     return TOOL
+
+
+class _Encoder(json.JSONEncoder):
+    def __init__(self, **kwargs: Any) -> None:
+        kwargs.pop("default", None)
+        super().__init__()
+
+    def default(self, obj: Any) -> Any:
+        return _encoder(obj)
+
+
+def _encoder(obj: Any) -> Any:
+    if repr_str := _show_repr_str(obj):
+        return repr_str
+    if isinstance(obj, QueryBundle):
+        d = obj.to_dict()
+        if obj.embedding:
+            d["embedding"] = f"<{len(obj.embedding)}-dimensional vector>"
+        return d
+    if dataclasses.is_dataclass(obj):
+        return _asdict(obj)
+    try:
+        return pydantic_encoder(obj)
+    except BaseException:
+        return repr(obj)
+
+
+def _show_repr_str(obj: Any) -> Optional[str]:
+    if isinstance(obj, (Generator, AsyncGenerator)):
+        return f"<{obj.__class__.__qualname__} object>"
+    if callable(obj):
+        try:
+            return f"<{obj.__qualname__}{str(inspect.signature(obj))}>"
+        except BaseException:
+            return f"<{obj.__class__.__qualname__} object>"
+    if isinstance(obj, BaseNode):
+        return f"<{obj.__class__.__qualname__}(id_={obj.id_})>"
+    if isinstance(obj, NodeWithScore):
+        return (
+            f"<{obj.__class__.__qualname__}(node={obj.node.__class__.__qualname__}"
+            f"(id_={obj.node.id_}), score={obj.score})>"
+        )
+    return None
+
+
+def _asdict(obj: Any) -> Any:
+    """
+    This is a copy of Python's `_asdict_inner` function (linked below) but modified primarily to
+    not throw exceptions for objects that cannot be deep-copied, e.g. Generators.
+    https://github.com/python/cpython/blob/b134f47574c36e842253266ecf0d144fb6f3b546/Lib/dataclasses.py#L1332
+    """  # noqa: E501
+    if dataclasses.is_dataclass(obj):
+        result = []
+        for f in dataclasses.fields(obj):
+            value = _asdict(getattr(obj, f.name))
+            result.append((f.name, value))
+        return dict(result)
+    elif isinstance(obj, tuple) and hasattr(obj, "_fields"):
+        return type(obj)(*[_asdict(v) for v in obj])
+    elif isinstance(obj, (list, tuple)):
+        return type(obj)(_asdict(v) for v in obj)
+    elif isinstance(obj, dict):
+        return type(obj)((_asdict(k), _asdict(v)) for k, v in obj.items())
+    else:
+        if repr_str := _show_repr_str(obj):
+            return repr_str
+        try:
+            return copy.deepcopy(obj)
+        except BaseException:
+            return repr(obj)
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
