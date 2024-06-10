@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.4.2...python-openinference-instrumentation-llama-index-v2.0.0) (2024-06-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* support new `instrumentation` paradigm ([#507](https://github.com/Arize-ai/openinference/issues/507))
+
+### Features
+
+* support new `instrumentation` paradigm ([#507](https://github.com/Arize-ai/openinference/issues/507)) ([41438f0](https://github.com/Arize-ai/openinference/commit/41438f022ef2a34eda26d1f8c9b0a85c3d9eb0d6))
+
 ## [1.4.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.4.1...python-openinference-instrumentation-llama-index-v1.4.2) (2024-06-03)
 
 
