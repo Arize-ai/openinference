@@ -140,7 +140,8 @@ STREAMING_IN_PROGRESS_EVENTS = (
 
 if LLAMA_INDEX_VERSION < (0, 10, 44):
 
-    class ExceptionEvent: ...  # Dummy substitute
+    class ExceptionEvent:  # Dummy substitute
+        exception: BaseException
 elif not TYPE_CHECKING:
     from llama_index.core.instrumentation.events.exception import ExceptionEvent
 
@@ -297,7 +298,7 @@ class _Span(
                 self._first_token_timestamp = timestamp
             self.last_updated_at = time()
             self.notify_parent(_StreamingStatus.IN_PROGRESS)
-        elif hasattr(event, "exception") and isinstance(event.exception, BaseException):
+        elif isinstance(event, ExceptionEvent):
             self.end(event.exception)
             self.notify_parent(_StreamingStatus.FINISHED)
 
