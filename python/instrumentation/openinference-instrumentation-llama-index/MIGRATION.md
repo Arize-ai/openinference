@@ -2,7 +2,7 @@
 
 ## v1.x to v2.0
 
-- Only supports `llama-index-core>=0.10.44`
+- Only supports `llama-index-core>=0.10.43`
 - v2.0 uses the new LlamaIndex [instrumentation](https://docs.llamaindex.ai/en/stable/module_guides/observability/instrumentation/) system as the default option.
 - The old callback system is deprecated but still works.
 - However, calling the legacy `set_global_handler` method will not activate the new instrumentation system.
