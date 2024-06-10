@@ -1,11 +1,16 @@
+import asyncio
 import tempfile
 from urllib.request import urlretrieve
 
 import chromadb
-from llama_index.core import Settings, SimpleDirectoryReader, StorageContext, VectorStoreIndex
+from llama_index.core import (
+    Settings,
+    SimpleDirectoryReader,
+    StorageContext,
+    VectorStoreIndex,
+)
 from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.chroma import ChromaVectorStore
-from openinference.instrumentation import using_attributes
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -28,29 +33,14 @@ with tempfile.NamedTemporaryFile() as tf:
     )
     documents = SimpleDirectoryReader(input_files=[tf.name]).load_data()
 index = VectorStoreIndex.from_documents(documents, storage_context=storage_context)
+query_engine = index.as_query_engine(use_async=True, streaming=True)
 Settings.llm = OpenAI(model="gpt-3.5-turbo")
 
+
+async def main() -> None:
+    response = await query_engine.aquery("What did the author do growing up?")
+    await response.print_response_stream()
+
+
 if __name__ == "__main__":
-    query_engine = index.as_query_engine()
-    with using_attributes(
-        session_id="my-test-session",
-        user_id="my-test-user",
-        metadata={
-            "test-int": 1,
-            "test-str": "string",
-            "test-list": [1, 2, 3],
-            "test-dict": {
-                "key-1": "val-1",
-                "key-2": "val-2",
-            },
-        },
-        tags=["tag-1", "tag-2"],
-        prompt_template="Who won the soccer match in {city} on {date}",
-        prompt_template_version="v1.0",
-        prompt_template_variables={
-            "city": "Johannesburg",
-            "date": "July 11th",
-        },
-    ):
-        response = query_engine.query("What did the author do growing up?")
-        print(response)
+    asyncio.run(main())

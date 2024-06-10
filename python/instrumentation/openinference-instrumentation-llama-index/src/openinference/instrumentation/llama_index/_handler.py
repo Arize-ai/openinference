@@ -1,8 +1,30 @@
+import copy
+import dataclasses
 import inspect
+import json
 import logging
+import weakref
+from dataclasses import dataclass
+from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
-from time import time_ns
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
+from importlib.metadata import version
+from queue import SimpleQueue
+from threading import RLock, Thread
+from time import sleep, time, time_ns
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncGenerator,
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    SupportsFloat,
+    Tuple,
+    Union,
+)
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
@@ -16,24 +38,31 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
+from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
 from opentelemetry.util.types import AttributeValue
-from pydantic import BaseModel, Extra, PrivateAttr
+from pydantic import PrivateAttr
+from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
 
-from llama_index.core import QueryBundle, Response
+from llama_index.core import QueryBundle
 from llama_index.core.base.agent.types import BaseAgent, BaseAgentWorker
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
-from llama_index.core.base.llms.types import ChatMessage, ChatResponse, CompletionResponse
+from llama_index.core.base.llms.types import (
+    ChatMessage,
+    ChatResponse,
+    CompletionResponse,
+)
 from llama_index.core.base.response.schema import (
     RESPONSE_TYPE,
     AsyncStreamingResponse,
     PydanticResponse,
+    Response,
     StreamingResponse,
 )
+from llama_index.core.bridge.pydantic import BaseModel
 from llama_index.core.instrumentation.event_handlers import BaseEventHandler
 from llama_index.core.instrumentation.events import BaseEvent
 from llama_index.core.instrumentation.events.agent import (
@@ -58,6 +87,7 @@ from llama_index.core.instrumentation.events.llm import (
     LLMChatInProgressEvent,
     LLMChatStartEvent,
     LLMCompletionEndEvent,
+    LLMCompletionInProgressEvent,
     LLMCompletionStartEvent,
     LLMPredictEndEvent,
     LLMPredictStartEvent,
@@ -87,88 +117,233 @@ from llama_index.core.instrumentation.events.synthesis import (
 )
 from llama_index.core.instrumentation.span import BaseSpan
 from llama_index.core.instrumentation.span_handlers import BaseSpanHandler
-from llama_index.core.schema import NodeWithScore, QueryType
+from llama_index.core.multi_modal_llms import MultiModalLLM
+from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
+from llama_index.core.tools import BaseTool
+from llama_index.core.types import RESPONSE_TEXT_TYPE
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+LLAMA_INDEX_VERSION = tuple(map(int, version("llama-index-core").split(".")[:3]))
+
+STREAMING_FINISHED_EVENTS = (
+    LLMChatEndEvent,
+    LLMCompletionEndEvent,
+    StreamChatEndEvent,
+)
+STREAMING_IN_PROGRESS_EVENTS = (
+    LLMChatInProgressEvent,
+    LLMCompletionInProgressEvent,
+    StreamChatDeltaReceivedEvent,
+)
+
+if LLAMA_INDEX_VERSION < (0, 10, 44):
+
+    class ExceptionEvent:  # Dummy substitute
+        exception: BaseException
+elif not TYPE_CHECKING:
+    from llama_index.core.instrumentation.events.exception import ExceptionEvent
+
+
+class _StreamingStatus(Enum):
+    FINISHED = auto()
+    IN_PROGRESS = auto()
 
 
 class _Span(
     BaseSpan,
-    extra=Extra.allow,
+    extra="allow",
     keep_untouched=(singledispatchmethod, property),
 ):
-    _otel_span: trace_api.Span = PrivateAttr()
+    _otel_span: Span = PrivateAttr()
+    _attributes: Dict[str, AttributeValue] = PrivateAttr()
+    _active: bool = PrivateAttr()
     _span_kind: Optional[str] = PrivateAttr()
+    _parent: Optional["_Span"] = PrivateAttr()
     _first_token_timestamp: Optional[int] = PrivateAttr()
+
+    end_time: Optional[int] = PrivateAttr()
+    last_updated_at: float = PrivateAttr()
 
     def __init__(
         self,
-        otel_span: trace_api.Span,
+        otel_span: Span,
         span_kind: Optional[str] = None,
+        parent: Optional["_Span"] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._otel_span = otel_span
+        self._active = otel_span.is_recording()
         self._span_kind = span_kind
+        self._parent = parent
         self._first_token_timestamp = None
+        self._attributes = {}
+        self.end_time = None
+        self.last_updated_at = time()
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
-        self._otel_span.set_attribute(key, value)
+        self._attributes[key] = value
 
     def record_exception(self, exception: BaseException) -> None:
         self._otel_span.record_exception(exception)
 
-    def end(self, status: trace_api.Status) -> None:
+    def end(self, exception: Optional[BaseException] = None) -> None:
+        if not self._active:
+            return
+        self._active = False
+        if exception is None:
+            status = Status(status_code=StatusCode.OK)
+        else:
+            self._otel_span.record_exception(exception)
+            # Follow the format in OTEL SDK for description, see:
+            # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
+            description = f"{type(exception).__name__}: {exception}"
+            status = Status(status_code=StatusCode.ERROR, description=description)
         self[OPENINFERENCE_SPAN_KIND] = self._span_kind or CHAIN
         self._otel_span.set_status(status=status)
-        self._otel_span.end()
+        self._otel_span.set_attributes(self._attributes)
+        self._otel_span.end(end_time=self.end_time)
+
+    @property
+    def waiting_for_streaming(self) -> bool:
+        return self._active and bool(self.end_time)
+
+    @property
+    def active(self) -> bool:
+        return self._active
 
     @property
     def context(self) -> context_api.Context:
-        return trace_api.set_span_in_context(self._otel_span)
+        return set_span_in_context(self._otel_span)
+
+    def process_input(self, instance: Any, bound_args: inspect.BoundArguments) -> None:
+        try:
+            self[INPUT_VALUE] = safe_json_dumps(bound_args.arguments, cls=_Encoder)
+            self[INPUT_MIME_TYPE] = JSON
+        except BaseException as e:
+            logger.exception(str(e))
+            pass
+
+    def process_output(self, instance: Any, result: Any) -> None:
+        if OUTPUT_VALUE in self._attributes:
+            return
+        if result is None:
+            return
+        if repr_str := _show_repr_str(result):
+            self[OUTPUT_VALUE] = repr_str
+            return
+        if isinstance(result, (Generator, AsyncGenerator)):
+            return
+        if isinstance(instance, (BaseEmbedding,)):
+            # these outputs are too large
+            return
+        if isinstance(result, (str, SupportsFloat, bool)):
+            self[OUTPUT_VALUE] = str(result)
+        elif isinstance(result, BaseModel):
+            try:
+                self[OUTPUT_VALUE] = result.json(exclude_unset=True, encoder=_encoder)
+                self[OUTPUT_MIME_TYPE] = JSON
+            except BaseException as e:
+                logger.exception(str(e))
+                pass
+        else:
+            try:
+                self[OUTPUT_VALUE] = safe_json_dumps(result, cls=_Encoder)
+                self[OUTPUT_MIME_TYPE] = JSON
+            except BaseException as e:
+                logger.exception(str(e))
+                pass
 
     @singledispatchmethod
     def process_instance(self, instance: Any) -> None: ...
 
-    @process_instance.register
-    def _(self, instance: BaseLLM) -> None:
-        if params := instance.metadata:
-            self[LLM_MODEL_NAME] = params.model_name
-            self[LLM_INVOCATION_PARAMETERS] = params.json()
+    @process_instance.register(BaseLLM)
+    @process_instance.register(MultiModalLLM)
+    def _(self, instance: Union[BaseLLM, MultiModalLLM]) -> None:
+        if metadata := instance.metadata:
+            self[LLM_MODEL_NAME] = metadata.model_name
+            self[LLM_INVOCATION_PARAMETERS] = metadata.json(exclude_unset=True)
 
     @process_instance.register
     def _(self, instance: BaseEmbedding) -> None:
         if name := instance.model_name:
             self[EMBEDDING_MODEL_NAME] = name
 
-    @singledispatchmethod
+    @process_instance.register
+    def _(self, instance: BaseTool) -> None:
+        metadata = instance.metadata
+        self[TOOL_DESCRIPTION] = metadata.description
+        try:
+            self[TOOL_NAME] = metadata.get_name()
+        except BaseException:
+            pass
+        try:
+            self[TOOL_PARAMETERS] = metadata.fn_schema_str
+        except BaseException:
+            pass
+
     def process_event(self, event: BaseEvent) -> None:
+        self._process_event(event)
+        if not self.waiting_for_streaming:
+            return
+        if isinstance(event, STREAMING_FINISHED_EVENTS):
+            self.end()
+            self.notify_parent(_StreamingStatus.FINISHED)
+        elif isinstance(event, STREAMING_IN_PROGRESS_EVENTS):
+            if self._first_token_timestamp is None:
+                timestamp = time_ns()
+                self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
+                self._first_token_timestamp = timestamp
+            self.last_updated_at = time()
+            self.notify_parent(_StreamingStatus.IN_PROGRESS)
+        elif isinstance(event, ExceptionEvent):
+            self.end(event.exception)
+            self.notify_parent(_StreamingStatus.FINISHED)
+
+    def notify_parent(self, status: _StreamingStatus) -> None:
+        if not (parent := self._parent) or not parent.waiting_for_streaming:
+            return
+        if status is _StreamingStatus.IN_PROGRESS:
+            parent.last_updated_at = time()
+        else:
+            parent.end()
+        parent.notify_parent(status)
+
+    @singledispatchmethod
+    def _process_event(self, event: BaseEvent) -> None:
         logger.warning(f"Unhandled event of type {event.__class__.__qualname__}")
 
-    @process_event.register
+    @_process_event.register
+    def _(self, event: ExceptionEvent) -> None: ...
+
+    @_process_event.register
     def _(self, event: AgentChatWithStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
         self[INPUT_VALUE] = event.user_msg
+        self._attributes.pop(INPUT_MIME_TYPE, None)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: AgentChatWithStepEndEvent) -> None:
         self[OUTPUT_VALUE] = str(event.response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: AgentRunStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
         if input := event.input:
             self[INPUT_VALUE] = input
+            self._attributes.pop(INPUT_MIME_TYPE, None)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: AgentRunStepEndEvent) -> None:
         # FIXME: not sure what to do here with interim outputs since
         # there is no corresponding semantic convention.
         ...
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: AgentToolCallEvent) -> None:
         tool = event.tool
         if name := tool.name:
@@ -176,40 +351,33 @@ class _Span(
         self[TOOL_DESCRIPTION] = tool.description
         self[TOOL_PARAMETERS] = safe_json_dumps(tool.get_parameters_dict())
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: EmbeddingStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = EMBEDDING
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: EmbeddingEndEvent) -> None:
         for i, (text, vector) in enumerate(zip(event.chunks, event.embeddings)):
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: StreamChatStartEvent) -> None:
-        # event is currently empty as of v0.10.37
         if not self._span_kind:
             self._span_kind = LLM
 
-    @process_event.register
-    def _(self, event: StreamChatDeltaReceivedEvent) -> None:
-        if self._first_token_timestamp is None:
-            timestamp = time_ns()
-            self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
-            self._first_token_timestamp = timestamp
+    @_process_event.register
+    def _(self, event: StreamChatDeltaReceivedEvent) -> None: ...
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: StreamChatErrorEvent) -> None:
         self.record_exception(event.exception)
 
-    @process_event.register
-    def _(self, event: StreamChatEndEvent) -> None:
-        # event is currently empty as of v0.10.37
-        ...
+    @_process_event.register
+    def _(self, event: StreamChatEndEvent) -> None: ...
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMPredictStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
@@ -228,45 +396,44 @@ class _Span(
         if template_arguments:
             self[LLM_PROMPT_TEMPLATE_VARIABLES] = safe_json_dumps(template_arguments)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMPredictEndEvent) -> None:
         self[OUTPUT_VALUE] = event.output
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMStructuredPredictStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMStructuredPredictEndEvent) -> None:
         self[OUTPUT_VALUE] = event.output.json(exclude_unset=True)
         self[OUTPUT_MIME_TYPE] = JSON
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMCompletionStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
         self[LLM_PROMPTS] = [event.prompt]
 
-    @process_event.register
+    @_process_event.register
+    def _(self, event: LLMCompletionInProgressEvent) -> None: ...
+
+    @_process_event.register
     def _(self, event: LLMCompletionEndEvent) -> None:
         self[OUTPUT_VALUE] = event.response.text
         self._extract_token_counts(event.response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMChatStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
         self._process_messages(LLM_INPUT_MESSAGES, *event.messages)
 
-    @process_event.register
-    def _(self, event: LLMChatInProgressEvent) -> None:
-        # FIXME: Not sure what to do here since we're capturing messages
-        # at the ChatEnd event. Maybe we should capture messages incrementally
-        # lest the span is dropped and all messages are lost.
-        ...
+    @_process_event.register
+    def _(self, event: LLMChatInProgressEvent) -> None: ...
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: LLMChatEndEvent) -> None:
         if (response := event.response) is None:
             return
@@ -274,59 +441,67 @@ class _Span(
         self._process_messages(LLM_OUTPUT_MESSAGES, response.message)
         self._extract_token_counts(response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: QueryStartEvent) -> None:
         self._process_query_type(event.query)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: QueryEndEvent) -> None:
         self._process_response_type(event.response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: ReRankStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = RERANKER
-        self._process_query_type(event.query)
+        if query := event.query:
+            self._process_query_type(query)
+            if isinstance(query, QueryBundle):
+                self[RERANKER_QUERY] = query.query_str
+            elif isinstance(query, str):
+                self[RERANKER_QUERY] = query
+            else:
+                assert_never(query)
         self[RERANKER_TOP_K] = event.top_n
         self[RERANKER_MODEL_NAME] = event.model_name
         self._process_nodes(RERANKER_INPUT_DOCUMENTS, *event.nodes)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: ReRankEndEvent) -> None:
         self._process_nodes(RERANKER_OUTPUT_DOCUMENTS, *event.nodes)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: RetrievalStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = RETRIEVER
         self._process_query_type(event.str_or_query_bundle)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: RetrievalEndEvent) -> None:
         self._process_nodes(RETRIEVAL_DOCUMENTS, *event.nodes)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: SpanDropEvent) -> None:
         # Not needed because `prepare_to_drop_span()` provides the same information.
         ...
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: SynthesizeStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = CHAIN
         self._process_query_type(event.query)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: SynthesizeEndEvent) -> None:
         self._process_response_type(event.response)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: GetResponseStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = CHAIN
         self[INPUT_VALUE] = event.query_str
+        self._attributes.pop(INPUT_MIME_TYPE, None)
 
-    @process_event.register
+    @_process_event.register
     def _(self, event: GetResponseEndEvent) -> None:
         """
         (2024-06-03) Payload was removed by the following PR.
@@ -334,16 +509,7 @@ class _Span(
         """
         if not hasattr(event, "response"):
             return
-        response = event.response
-        if isinstance(response, str):
-            self[OUTPUT_VALUE] = response
-        elif isinstance(response, BaseModel):
-            self[OUTPUT_VALUE] = response.json()
-            self[OUTPUT_MIME_TYPE] = JSON
-        else:
-            # FIXME: Not sure what to do here because the object is a generator.
-            # Maybe monkey-patching is necessary, or maybe not.
-            ...
+        self._process_response_text_type(event.response)
 
     def _extract_token_counts(self, response: Union[ChatResponse, CompletionResponse]) -> None:
         if (
@@ -387,11 +553,13 @@ class _Span(
             return
         if isinstance(query, str):
             self[INPUT_VALUE] = query
+            self._attributes.pop(INPUT_MIME_TYPE, None)
         elif isinstance(query, QueryBundle):
             query_dict = {k: v for k, v in query.to_dict().items() if v is not None}
             query_dict.pop("embedding", None)  # because it takes up too much space
             if len(query_dict) == 1 and query.query_str:
                 self[INPUT_VALUE] = query.query_str
+                self._attributes.pop(INPUT_MIME_TYPE, None)
             else:
                 self[INPUT_VALUE] = safe_json_dumps(query_dict)
                 self[INPUT_MIME_TYPE] = JSON
@@ -401,25 +569,96 @@ class _Span(
     def _process_response_type(self, response: Optional[RESPONSE_TYPE]) -> None:
         if response is None:
             return
-        if isinstance(response, Response):
-            if response.response is not None:
-                self[OUTPUT_VALUE] = str(response)
+        if isinstance(response, (Response, PydanticResponse)):
+            self._process_response_text_type(response.response)
         elif isinstance(response, (StreamingResponse, AsyncStreamingResponse)):
-            self[OUTPUT_VALUE] = str(response)
-        elif isinstance(response, PydanticResponse):
-            if response.response is not None:
-                self[OUTPUT_VALUE] = str(response)
-                self[OUTPUT_MIME_TYPE] = JSON
+            pass
+        else:
+            assert_never(response)
+
+    def _process_response_text_type(self, response: Optional[RESPONSE_TEXT_TYPE]) -> None:
+        if response is None:
+            return
+        if isinstance(response, str):
+            self[OUTPUT_VALUE] = response
+        elif isinstance(response, BaseModel):
+            self[OUTPUT_VALUE] = response.json(exclude_unset=True)
+            self[OUTPUT_MIME_TYPE] = JSON
+        elif isinstance(response, (Generator, AsyncGenerator)):
+            pass
         else:
             assert_never(response)
 
 
-class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
-    _otel_tracer: trace_api.Tracer = PrivateAttr()
+END_OF_QUEUE = None
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+
+@dataclass
+class _QueueItem:
+    last_touched_at: float
+    span: _Span
+
+
+class _ExportQueue:
+    """
+    Container for spans that have ended but are waiting for streaming events. The
+    list is periodically swept to evict items that are no longer active or have not
+    been updated for over 60 seconds.
+    """
+
+    def __init__(self) -> None:
+        self.lock: RLock = RLock()
+        self.spans: Dict[str, _Span] = {}
+        self.queue: "SimpleQueue[Optional[_QueueItem]]" = SimpleQueue()
+        weakref.finalize(self, self.queue.put, END_OF_QUEUE)
+        Thread(target=self._sweep, args=(self.queue,), daemon=True).start()
+
+    def put(self, span: _Span) -> None:
+        with self.lock:
+            self.spans[span.id_] = span
+        self.queue.put(_QueueItem(time(), span))
+
+    def find(self, id_: str) -> Optional[_Span]:
+        with self.lock:
+            return self.spans.get(id_)
+
+    def _del(self, item: _QueueItem) -> None:
+        with self.lock:
+            del self.spans[item.span.id_]
+
+    def _sweep(self, q: "SimpleQueue[Optional[_QueueItem]]") -> None:
+        while True:
+            t = time()
+            while not q.empty():
+                if (item := q.get()) is END_OF_QUEUE:
+                    return
+                if t == item.last_touched_at:
+                    # we have gone through the whole list
+                    q.put(item)
+                    break
+                span = item.span
+                if not span.active:
+                    self._del(item)
+                    continue
+                if t - span.last_updated_at > 60:
+                    span.end()
+                    self._del(item)
+                    continue
+                item.last_touched_at = t
+                q.put(item)
+            sleep(0.1)
+
+
+class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
+    _context_tokens: Dict[str, object] = PrivateAttr()
+    _otel_tracer: Tracer = PrivateAttr()
+    export_queue: _ExportQueue = PrivateAttr()
+
+    def __init__(self, tracer: Tracer) -> None:
         super().__init__()
+        self._context_tokens: Dict[str, object] = {}
         self._otel_tracer = tracer
+        self.export_queue = _ExportQueue()
 
     def new_span(
         self,
@@ -431,23 +670,25 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
     ) -> Optional[_Span]:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
+        with self.lock:
+            parent = self.open_spans.get(parent_span_id) if parent_span_id else None
         otel_span = self._otel_tracer.start_span(
             name=id_.partition("-")[0],
             start_time=time_ns(),
             attributes=dict(get_attributes_from_context()),
-            context=(
-                parent.context
-                if parent_span_id and (parent := self.open_spans.get(parent_span_id))
-                else None
-            ),
+            context=(parent.context if parent else None),
         )
+        with self.lock:
+            self._context_tokens[id_] = attach(set_span_in_context(otel_span))
         span = _Span(
             otel_span=otel_span,
             span_kind=_init_span_kind(instance),
+            parent=parent,
             id_=id_,
             parent_id=parent_span_id,
         )
         span.process_instance(instance)
+        span.process_input(instance, bound_args)
         return span
 
     def prepare_to_exit_span(
@@ -460,8 +701,23 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
-        if span := self.open_spans.get(id_):
-            span.end(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
+        with self.lock:
+            span = self.open_spans.get(id_)
+            token = self._context_tokens.get(id_)
+        if token:
+            detach(token)
+        if span:
+            if isinstance(instance, (BaseLLM, MultiModalLLM)) and (
+                isinstance(result, Generator)
+                and result.gi_frame is not None
+                or isinstance(result, AsyncGenerator)
+                and result.ag_frame is not None
+            ):
+                span.end_time = time_ns()
+                self.export_queue.put(span)
+                return span
+            span.process_output(instance, result)
+            span.end()
         else:
             logger.warning(f"Open span is missing for {id_=}")
         return span
@@ -476,27 +732,22 @@ class _SpanHandler(BaseSpanHandler[_Span], extra=Extra.allow):
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
-        if span := self.open_spans.get(id_):
-            if err is not None:
-                span.record_exception(err)
-            # Follow the format in OTEL SDK for description, see:
-            # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
-            description = None if err is None else f"{type(err).__name__}: {err}"
-            span.end(
-                status=trace_api.Status(
-                    status_code=trace_api.StatusCode.ERROR,
-                    description=description,
-                )
-            )
+        with self.lock:
+            span = self.open_spans.get(id_)
+            token = self._context_tokens.get(id_)
+        if token:
+            detach(token)
+        if span:
+            span.end(err)
         else:
             logger.warning(f"Open span is missing for {id_=}")
         return span
 
 
-class EventHandler(BaseEventHandler, extra=Extra.allow):
+class EventHandler(BaseEventHandler, extra="allow"):
     span_handler: _SpanHandler = PrivateAttr()
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: Tracer) -> None:
         super().__init__()
         self.span_handler = _SpanHandler(tracer=tracer)
 
@@ -505,14 +756,17 @@ class EventHandler(BaseEventHandler, extra=Extra.allow):
             return None
         if not event.span_id:
             return event
-        if span := self.span_handler.open_spans.get(event.span_id):
+        span = self.span_handler.open_spans.get(event.span_id)
+        if span is None:
+            span = self.span_handler.export_queue.find(event.span_id)
+        if span is None:
+            logger.warning(f"Open span is missing for {event.span_id=}, {event.id_=}")
+        else:
             try:
                 span.process_event(event)
             except Exception:
                 logger.exception(f"Error processing event of type {event.__class__.__qualname__}")
                 pass
-        else:
-            logger.warning(f"Open span is missing for {event.span_id=}, {event.id_=}")
         return event
 
 
@@ -579,6 +833,81 @@ def _(_: BaseRetriever) -> str:
 @_init_span_kind.register
 def _(_: BaseEmbedding) -> str:
     return EMBEDDING
+
+
+@_init_span_kind.register
+def _(_: BaseTool) -> str:
+    return TOOL
+
+
+class _Encoder(json.JSONEncoder):
+    def __init__(self, **kwargs: Any) -> None:
+        kwargs.pop("default", None)
+        super().__init__()
+
+    def default(self, obj: Any) -> Any:
+        return _encoder(obj)
+
+
+def _encoder(obj: Any) -> Any:
+    if repr_str := _show_repr_str(obj):
+        return repr_str
+    if isinstance(obj, QueryBundle):
+        d = obj.to_dict()
+        if obj.embedding:
+            d["embedding"] = f"<{len(obj.embedding)}-dimensional vector>"
+        return d
+    if dataclasses.is_dataclass(obj):
+        return _asdict(obj)
+    try:
+        return pydantic_encoder(obj)
+    except BaseException:
+        return repr(obj)
+
+
+def _show_repr_str(obj: Any) -> Optional[str]:
+    if isinstance(obj, (Generator, AsyncGenerator)):
+        return f"<{obj.__class__.__qualname__} object>"
+    if callable(obj):
+        try:
+            return f"<{obj.__qualname__}{str(inspect.signature(obj))}>"
+        except BaseException:
+            return f"<{obj.__class__.__qualname__} object>"
+    if isinstance(obj, BaseNode):
+        return f"<{obj.__class__.__qualname__}(id_={obj.id_})>"
+    if isinstance(obj, NodeWithScore):
+        return (
+            f"<{obj.__class__.__qualname__}(node={obj.node.__class__.__qualname__}"
+            f"(id_={obj.node.id_}), score={obj.score})>"
+        )
+    return None
+
+
+def _asdict(obj: Any) -> Any:
+    """
+    This is a copy of Python's `_asdict_inner` function (linked below) but modified primarily to
+    not throw exceptions for objects that cannot be deep-copied, e.g. Generators.
+    https://github.com/python/cpython/blob/b134f47574c36e842253266ecf0d144fb6f3b546/Lib/dataclasses.py#L1332
+    """  # noqa: E501
+    if dataclasses.is_dataclass(obj):
+        result = []
+        for f in dataclasses.fields(obj):
+            value = _asdict(getattr(obj, f.name))
+            result.append((f.name, value))
+        return dict(result)
+    elif isinstance(obj, tuple) and hasattr(obj, "_fields"):
+        return type(obj)(*[_asdict(v) for v in obj])
+    elif isinstance(obj, (list, tuple)):
+        return type(obj)(_asdict(v) for v in obj)
+    elif isinstance(obj, dict):
+        return type(obj)((_asdict(k), _asdict(v)) for k, v in obj.items())
+    else:
+        if repr_str := _show_repr_str(obj):
+            return repr_str
+        try:
+            return copy.deepcopy(obj)
+        except BaseException:
+            return repr(obj)
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT

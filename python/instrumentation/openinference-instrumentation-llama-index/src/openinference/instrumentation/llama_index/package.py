@@ -1,2 +1,2 @@
-_instruments = ("llama-index-core >= 0.10.5",)
+_instruments = ("llama-index-core >= 0.10.43",)
 _supports_metrics = False

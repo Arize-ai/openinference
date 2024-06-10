@@ -42,7 +42,7 @@ from typing_extensions import TypeAlias, TypeGuard
 from wrapt import ObjectProxy
 
 from llama_index.core import Response
-from llama_index.core.base.response.schema import StreamingResponse
+from llama_index.core.base.response.schema import AsyncStreamingResponse, StreamingResponse
 from llama_index.core.callbacks import CBEventType, EventPayload
 from llama_index.core.callbacks.base_handler import BaseCallbackHandler
 from llama_index.core.callbacks.schema import BASE_TRACE_EVENT
@@ -561,7 +561,7 @@ def _get_response_output(response: Any) -> Iterator[Tuple[str, Any]]:
     elif isinstance(response, Response):
         if response.response:
             yield OUTPUT_VALUE, response.response
-    elif isinstance(response, StreamingResponse):
+    elif isinstance(response, (StreamingResponse, AsyncStreamingResponse)):
         if response_txt := getattr(response, "response_txt", None):
             yield OUTPUT_VALUE, response_txt
     else:  # if the response has unknown type, make a best-effort attempt to get the output
