@@ -10,12 +10,12 @@ readme = "README.md"
 python = "^3.11,<3.12"
 fastapi = "^0.109.1"
 python-dotenv = "^1.0.0"
-llama-index = "0.10.15"
-llama-index-core = "0.10.15"
-llama-index-agent-openai = "0.1.5"
+llama-index = "0.10.44"
+llama-index-core = "0.10.44"
+llama-index-agent-openai = "0.2.7"
 openinference-semantic-conventions = "*"
-openinference-instrumentation-llama-index = "^1.2.1"
-opentelemetry-exporter-otlp = "^1.24.0"
+openinference-instrumentation-llama-index = "^2.0.0"
+opentelemetry-exporter-otlp = "^1.25.0"
 
 [tool.poetry.dependencies.uvicorn]
 extras = [ "standard" ]
