@@ -4,8 +4,6 @@ from urllib.request import urlretrieve
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.extractors import SummaryExtractor, TitleExtractor
 from llama_index.core.ingestion import IngestionPipeline
-from llama_index.core.instrumentation import get_dispatcher
-from llama_index.core.instrumentation.span_handlers import SimpleSpanHandler
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import MetadataMode
 from llama_index.embeddings.openai import OpenAIEmbedding
@@ -20,9 +18,6 @@ tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
 LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
-
-handler = SimpleSpanHandler()
-get_dispatcher().add_span_handler(handler)
 
 with tempfile.NamedTemporaryFile() as tf:
     urlretrieve(
@@ -43,4 +38,3 @@ pipline = IngestionPipeline(
 
 if __name__ == "__main__":
     nodes = pipline.run(documents=documents)
-    handler.print_trace_trees()
