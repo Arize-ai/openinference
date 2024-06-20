@@ -160,11 +160,11 @@ class MessageContentAttributes:
     """
     CONTENT_TEXT = "content.text"
     """
-    The text content of the message, if the type is `text`.
+    The text content of the message, if the type is "text".
     """
     CONTENT_IMG_URL = "content.image_url"
     """
-    The image content of the message, if the type is `image_url`.
+    The image content of the message, if the type is "image_url".
     An image can be made available to the model by passing a link to
     the image or by passing the base64 encoded image directly in the
     request.
