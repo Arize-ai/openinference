@@ -1,5 +1,8 @@
-langchain_openai
-opentelemetry-sdk
-opentelemetry-exporter-otlp
-openinference-instrumentation-langchain
 langchain
+langchain_openai
+openinference-instrumentation-langchain
+opentelemetry-api >= 1.25.0
+opentelemetry-exporter-otlp >= 1.25.0
+opentelemetry-proto >= 1.25.0
+opentelemetry-sdk >= 1.25.0
+opentelemetry-semantic-conventions >= 0.46b0
