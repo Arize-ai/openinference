@@ -1,5 +1,6 @@
 langchain
 langchain_openai
+langgraph
 openinference-instrumentation-langchain
 opentelemetry-api >= 1.25.0
 opentelemetry-exporter-otlp >= 1.25.0
