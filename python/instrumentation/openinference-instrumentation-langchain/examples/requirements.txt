@@ -1,4 +1,6 @@
 langchain
+langchain-experimental
+langchain_community
 langchain_openai
 langgraph
 openinference-instrumentation-langchain
