@@ -154,15 +154,15 @@ class MessageContentAttributes:
     Attributes for the contents of user messages sent to an LLM
     """
 
-    CONTENT_TYPE = "content.type"
+    MESSAGE_CONTENT_TYPE = "message_content.type"
     """
     The type of the content, such as "text" or "image_url".
     """
-    CONTENT_TEXT = "content.text"
+    MESSAGE_CONTENT_TEXT = "message_content.text"
     """
     The text content of the message, if the type is "text".
     """
-    CONTENT_IMG_URL = "content.image_url"
+    MESSAGE_CONTENT_IMG = "message_content.image"
     """
     The image content of the message, if the type is "image_url".
     An image can be made available to the model by passing a link to
@@ -171,21 +171,14 @@ class MessageContentAttributes:
     """
 
 
-class ImageURLAttributes:
+class ImageAttributes:
     """
-    Attributes for image URL contents in user messages to an LLM
+    Attributes for image contents in user messages to an LLM
     """
 
-    URL = "image_url.url"
+    IMAGE_URL = "url"
     """
     The link to the image or its base64 encoding
-    """
-    DETAIL = "image_url.detail"
-    """
-    Parameter to control over how the model processes the image and
-    generates its textual understanding. There are 3 options: low, high, auto.
-    By default, the model will use the auto setting which will look at the
-    image input size and decide if it should use the low or high setting.
     """
 
 
