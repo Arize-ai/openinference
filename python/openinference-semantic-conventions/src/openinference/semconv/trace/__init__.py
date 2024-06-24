@@ -177,7 +177,7 @@ class MessageContentAttributes:
 
 class ImageAttributes:
     """
-    Attributes for image contents in user messages to an LLM
+    Attributes for images
     """
 
     IMAGE_URL = "image.url"
