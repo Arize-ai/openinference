@@ -129,7 +129,7 @@ class MessageAttributes:
     MESSAGE_CONTENTS = "message.contents"
     """
     The message contents to the llm, it is an array of
-    `message_content` objects.
+    `message_content` prefixed attributes.
     """
     MESSAGE_NAME = "message.name"
     """
