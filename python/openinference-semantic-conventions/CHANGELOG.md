@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.6...python-openinference-semantic-conventions-v0.1.7) (2024-06-24)
+
+
+### Features
+
+* Add vision semantic conventions messages ([#535](https://github.com/Arize-ai/openinference/issues/535)) ([670b8c4](https://github.com/Arize-ai/openinference/commit/670b8c41a4699a25b676f56cb83c5f355fc62a9e))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.5...python-openinference-semantic-conventions-v0.1.6) (2024-04-29)
 
 
