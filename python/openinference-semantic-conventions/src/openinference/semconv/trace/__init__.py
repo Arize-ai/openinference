@@ -124,8 +124,12 @@ class MessageAttributes:
     """
     MESSAGE_CONTENT = "message.content"
     """
-    The content of the message to the llm, can be a string or an array of
-    `content` objects for multimodal applications
+    The content of the message to or from the llm, must be a string.
+    """
+    MESSAGE_CONTENTS = "message.contents"
+    """
+    The message contents to or from the llm, it is an array of
+    `message_content` objects.
     """
     MESSAGE_NAME = "message.name"
     """
@@ -156,7 +160,7 @@ class MessageContentAttributes:
 
     MESSAGE_CONTENT_TYPE = "message_content.type"
     """
-    The type of the content, such as "text" or "image_url".
+    The type of the content, such as "text" or "image".
     """
     MESSAGE_CONTENT_TEXT = "message_content.text"
     """
@@ -164,7 +168,7 @@ class MessageContentAttributes:
     """
     MESSAGE_CONTENT_IMG = "message_content.image"
     """
-    The image content of the message, if the type is "image_url".
+    The image content of the message, if the type is "image".
     An image can be made available to the model by passing a link to
     the image or by passing the base64 encoded image directly in the
     request.
@@ -176,7 +180,7 @@ class ImageAttributes:
     Attributes for image contents in user messages to an LLM
     """
 
-    IMAGE_URL = "url"
+    IMAGE_URL = "image.url"
     """
     The link to the image or its base64 encoding
     """
