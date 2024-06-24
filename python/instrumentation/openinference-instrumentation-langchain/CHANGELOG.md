@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.19...python-openinference-instrumentation-langchain-v0.1.20) (2024-06-20)
+
+
+### Bug Fixes
+
+* **langchain:** message parsing for langgraph ([#534](https://github.com/Arize-ai/openinference/issues/534)) ([ccf0683](https://github.com/Arize-ai/openinference/commit/ccf06837cb054c15bb7bcdccd00daa47911dfcf0))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.18...python-openinference-instrumentation-langchain-v0.1.19) (2024-06-05)
 
 

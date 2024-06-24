@@ -1,0 +1,49 @@
+{
+  "name": "ChatCompletion",
+  "context": {
+    "trace_id": "0x417049dad06c19e1629d8893d21d7ca2",
+    "span_id": "0x5827e76023873f76",
+    "trace_state": "[]"
+  },
+  "kind": "SpanKind.INTERNAL",
+  "parent_id": null,
+  "start_time": "2024-06-24T23:22:54.796895Z",
+  "end_time": "2024-06-24T23:23:05.612099Z",
+  "status": {
+    "status_code": "OK"
+  },
+  "attributes": {
+    "openinference.span.kind": "LLM",
+    "input.value": "{\"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"What\u2019s in this image?\"}, {\"type\": \"image_url\", \"image_url\": {\"url\": \"https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg\"}}]}], \"model\": \"gpt-4o\", \"max_tokens\": 300}",
+    "input.mime_type": "application/json",
+    "output.value": "{\"id\":\"chatcmpl-9dnJSKjM7Mk3VRG3VrKyfSApVFZdq\",\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null,\"message\":{\"content\":\"This image features a serene landscape with a wooden boardwalk leading through a grassy, green field. The sky is bright blue with some scattered clouds, and there are trees and bushes in the distance. This suggests a natural setting, possibly a park or nature reserve, with a path for walking or exploring the area.\",\"role\":\"assistant\"}}],\"created\":1719271378,\"model\":\"gpt-4o-2024-05-13\",\"object\":\"chat.completion\",\"system_fingerprint\":\"fp_66b29dffce\",\"usage\":{\"completion_tokens\":62,\"prompt_tokens\":1118,\"total_tokens\":1180}}",
+    "output.mime_type": "application/json",
+    "session.id": "my-test-session",
+    "user.id": "my-test-user",
+    "metadata": "{\"test-int\": 1, \"test-str\": \"string\", \"test-list\": [1, 2, 3], \"test-dict\": {\"key-1\": \"val-1\", \"key-2\": \"val-2\"}}",
+    "tag.tags": ["tag-1", "tag-2"],
+    "llm.prompt_template.template": "Who won the soccer match in {city} on {date}",
+    "llm.prompt_template.version": "v1.0",
+    "llm.prompt_template.variables": "{\"city\": \"Johannesburg\", \"date\": \"July 11th\"}",
+    "llm.invocation_parameters": "{\"model\": \"gpt-4o\", \"max_tokens\": 300}",
+    "llm.input_messages.0.message.role": "user",
+    "llm.input_messages.0.message.content": "[{\"type\": \"text\", \"text\": \"What\u2019s in this image?\"}, {\"type\": \"image_url\", \"image_url\": {\"url\": \"https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg\"}}]",
+    "llm.model_name": "gpt-4o-2024-05-13",
+    "llm.token_count.total": 1180,
+    "llm.token_count.prompt": 1118,
+    "llm.token_count.completion": 62,
+    "llm.output_messages.0.message.role": "assistant",
+    "llm.output_messages.0.message.content": "This image features a serene landscape with a wooden boardwalk leading through a grassy, green field. The sky is bright blue with some scattered clouds, and there are trees and bushes in the distance. This suggests a natural setting, possibly a park or nature reserve, with a path for walking or exploring the area."
+  },
+  "events": [],
+  "links": [],
+  "resource": {
+    "attributes": {
+      "telemetry.sdk.language": "python",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.version": "1.24.0",
+      "service.name": "unknown_service"
+    },
+    "schema_url": ""
+  }
+}

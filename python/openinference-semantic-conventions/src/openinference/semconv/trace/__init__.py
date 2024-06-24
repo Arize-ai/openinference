@@ -129,7 +129,7 @@ class MessageAttributes:
     MESSAGE_CONTENTS = "message.contents"
     """
     The message contents to the llm, it is an array of
-    `message_content` objects.
+    `message_content` prefixed attributes.
     """
     MESSAGE_NAME = "message.name"
     """
@@ -177,12 +177,12 @@ class MessageContentAttributes:
 
 class ImageAttributes:
     """
-    Attributes for image contents in user messages to an LLM
+    Attributes for images
     """
 
     IMAGE_URL = "image.url"
     """
-    The link to the image or its base64 encoding
+    An http or base64 image url
     """
 
 
