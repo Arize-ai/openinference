@@ -4,14 +4,6 @@ from contextlib import contextmanager
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeAlias
-
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -31,6 +23,13 @@ from openinference.instrumentation.openai._utils import (
     _io_value_and_type,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeAlias
 
 __all__ = (
     "_Request",
@@ -92,9 +91,7 @@ class _WithOpenAI(ABC):
         self._openai = openai
         self._stream_types = (openai.Stream, openai.AsyncStream)
         self._request_attributes_extractor = _RequestAttributesExtractor(openai=openai)
-        self._response_attributes_extractor = _ResponseAttributesExtractor(
-            openai=openai
-        )
+        self._response_attributes_extractor = _ResponseAttributesExtractor(openai=openai)
         self._response_accumulator_factories: Mapping[
             type, Callable[[_RequestParameters], _ResponseAccumulator]
         ] = {
@@ -122,9 +119,7 @@ class _WithOpenAI(ABC):
         cast_to: type,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(
-            cast_to=cast_to
-        )
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
         try:
             yield from _as_input_attributes(_io_value_and_type(request_parameters))
         except Exception:
@@ -193,9 +188,7 @@ class _WithOpenAI(ABC):
         ):
             # For streaming, we need an (optional) accumulator to process each chunk iteration.
             try:
-                response_accumulator_factory = self._response_accumulator_factories.get(
-                    cast_to
-                )
+                response_accumulator_factory = self._response_accumulator_factories.get(cast_to)
                 response_accumulator = (
                     response_accumulator_factory(request_parameters)
                     if response_accumulator_factory
@@ -205,9 +198,7 @@ class _WithOpenAI(ABC):
                 # Note that cast_to may not be hashable.
                 logger.exception(f"Failed to get response accumulator for {cast_to}")
                 response_accumulator = None
-            if hasattr(response, "_parsed") and self._is_streaming(
-                parsed := response._parsed
-            ):
+            if hasattr(response, "_parsed") and self._is_streaming(parsed := response._parsed):
                 # Monkey-patch a private attribute assumed to be caching the output of `.parse()`.
                 response._parsed = _Stream(
                     stream=parsed,
@@ -295,9 +286,7 @@ class _Request(_WithTracer, _WithOpenAI):
                     request_parameters=request_parameters,
                 )
             except Exception:
-                logger.exception(
-                    f"Failed to finalize response of type {type(response)}"
-                )
+                logger.exception(f"Failed to finalize response of type {type(response)}")
                 with_span.finish_tracing()
         return response
 
@@ -351,9 +340,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                     request_parameters=request_parameters,
                 )
             except Exception:
-                logger.exception(
-                    f"Failed to finalize response of type {type(response)}"
-                )
+                logger.exception(f"Failed to finalize response of type {type(response)}")
                 with_span.finish_tracing()
         return response
 
@@ -367,8 +354,7 @@ def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]
     request_parameters: Mapping[str, Any] = (
         json_data
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_models.py#L427  # noqa: E501
-        if hasattr(args[1], "json_data")
-        and isinstance(json_data := args[1].json_data, Mapping)
+        if hasattr(args[1], "json_data") and isinstance(json_data := args[1].json_data, Mapping)
         else {}
     )
     # FIXME: Because request parameters is just a Mapping, it can contain any value as long as it
