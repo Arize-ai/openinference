@@ -182,7 +182,7 @@ class ImageAttributes:
 
     IMAGE_URL = "image.url"
     """
-    The link to the image or its base64 encoding
+    An http or base64 image url
     """
 
 
