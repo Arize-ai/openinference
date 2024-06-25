@@ -139,12 +139,12 @@ class MessageAttributes:
     """
     The function name that is a part of the message list.
     This is populated for role 'function' or 'agent' as a mechanism to identify
-    the function that was called during the execution of a tool
+    the function that was called during the execution of a tool.
     """
     MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = "message.function_call_arguments_json"
     """
     The JSON string representing the arguments passed to the function
-    during a function call
+    during a function call.
     """
 
 
@@ -155,19 +155,19 @@ class DocumentAttributes:
 
     DOCUMENT_ID = "document.id"
     """
-    The id of the document
+    The id of the document.
     """
     DOCUMENT_SCORE = "document.score"
     """
-    The score of the document
+    The score of the document.
     """
     DOCUMENT_CONTENT = "document.content"
     """
-    The content of the document
+    The content of the document.
     """
     DOCUMENT_METADATA = "document.metadata"
     """
-    The metadata of the document represented as a dictionary
+    The metadata of the document represented as a dictionary.
     JSON string, e.g. `"{ 'title': 'foo' }"`
     """
 
