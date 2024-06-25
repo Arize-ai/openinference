@@ -144,18 +144,18 @@ class MessageAttributes:
     """
     The function name that is a part of the message list.
     This is populated for role 'function' or 'agent' as a mechanism to identify
-    the function that was called during the execution of a tool
+    the function that was called during the execution of a tool.
     """
     MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = "message.function_call_arguments_json"
     """
     The JSON string representing the arguments passed to the function
-    during a function call
+    during a function call.
     """
 
 
 class MessageContentAttributes:
     """
-    Attributes for the contents of user messages sent to an LLM
+    Attributes for the contents of user messages sent to an LLM.
     """
 
     MESSAGE_CONTENT_TYPE = "message_content.type"
@@ -188,12 +188,12 @@ class ImageAttributes:
 
 class DocumentAttributes:
     """
-    Attributes for a document
+    Attributes for a document.
     """
 
     DOCUMENT_ID = "document.id"
     """
-    The id of the document
+    The id of the document.
     """
     DOCUMENT_SCORE = "document.score"
     """
@@ -201,7 +201,7 @@ class DocumentAttributes:
     """
     DOCUMENT_CONTENT = "document.content"
     """
-    The content of the document
+    The content of the document.
     """
     DOCUMENT_METADATA = "document.metadata"
     """
