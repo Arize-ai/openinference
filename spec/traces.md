@@ -161,7 +161,7 @@ A status will be attached to a span. Typically, you will set a span status when 
 
 ### Span Kind
 
-When a span is created, it is one of Chain, Retriever, Reranker, LLM, Embedding, Agent, or Tool. This span kind provides a hint to the tracing backend as to how the trace should be assembled.
+When a span is created, it is one of Chain, Retriever, Reranker, LLM, Embedding, Agent, Tool, or Guardrail. This span kind provides a hint to the tracing backend as to how the trace should be assembled.
 
 Note that `span_kind` is a OpenTelemetry concept and thus conflicts with the OpenInference concept of `span_kind`. When OTLP is used as the transport, the OpenInference `span_kind` is stored in the `openinference.span.kind` attribute.
 
@@ -192,3 +192,7 @@ A Tool is a span that represents a call to an external tool such as a calculator
 #### Agent
 
 A span that encompasses calls to LLMs and Tools. An agent describes a reasoning block that acts on tools using the guidance of an LLM.
+
+#### Guardrail
+
+A span that represents calls to a component to protect against jailbreak user input prompts by taking action to modify or reject an LLM's response if it contains undesirable content. For example, a Guardrail span could involve checking if an LLM's output response contains inappropriate language, via a custom or external guardrail library, and then amending the LLM response to remove references to the inappropriate language.
