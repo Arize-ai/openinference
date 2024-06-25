@@ -161,7 +161,7 @@ A status will be attached to a span. Typically, you will set a span status when 
 
 ### Span Kind
 
-When a span is created, it is one of Chain, Retriever, Reranker, LLM, Embedding, Agent, or Tool. This span kind provides a hint to the tracing backend as to how the trace should be assembled.
+When a span is created, it is one of Chain, Retriever, Reranker, LLM, Embedding, Agent, Tool, or Guardrail. This span kind provides a hint to the tracing backend as to how the trace should be assembled.
 
 Note that `span_kind` is a OpenTelemetry concept and thus conflicts with the OpenInference concept of `span_kind`. When OTLP is used as the transport, the OpenInference `span_kind` is stored in the `openinference.span.kind` attribute.
 
