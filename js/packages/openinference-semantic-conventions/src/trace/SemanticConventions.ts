@@ -218,12 +218,13 @@ export const MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON =
 export const MESSAGE_CONTENT =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.content}` as const;
 /**
- * The contents of the message sent to the LLM
+ * The array of contents for the message sent to the LLM. Each element of the array is
+ * an `message_content` object.
  */
 export const MESSAGE_CONTENTS =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.contents}` as const;
 /**
- * The contents of the message sent to the LLM
+ * The type of content sent to the LLM
  */
 export const MESSAGE_CONTENT_TYPE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.type}` as const;
