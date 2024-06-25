@@ -277,6 +277,7 @@ class OpenInferenceSpanKindValues(Enum):
     AGENT = "AGENT"
     RERANKER = "RERANKER"
     UNKNOWN = "UNKNOWN"
+    GUARDRAIL = "GUARDRAIL"
 
 
 class OpenInferenceMimeTypeValues(Enum):

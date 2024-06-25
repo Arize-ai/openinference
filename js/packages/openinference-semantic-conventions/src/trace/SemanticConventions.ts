@@ -380,6 +380,7 @@ export enum OpenInferenceSpanKind {
   RERANKER = "reranker",
   EMBEDDING = "embedding",
   AGENT = "agent",
+  GUARDRAIL = "guardrail",
 }
 
 export enum MimeType {
