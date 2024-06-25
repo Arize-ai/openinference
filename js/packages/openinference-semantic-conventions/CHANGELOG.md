@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.7.0
+
+### Minor Changes
+
+- 9c44b14: Release guardrail span kinds
+
 ## 0.6.0
 
 ### Minor Changes
