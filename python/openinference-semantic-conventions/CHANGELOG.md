@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.7...python-openinference-semantic-conventions-v0.1.8) (2024-06-25)
+
+
+### Features
+
+* **semcov:** guardrail span kind for python ([#548](https://github.com/Arize-ai/openinference/issues/548)) ([09e767e](https://github.com/Arize-ai/openinference/commit/09e767e2e2f48480863dc0f87ae664222dee625f))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.6...python-openinference-semantic-conventions-v0.1.7) (2024-06-24)
 
 
