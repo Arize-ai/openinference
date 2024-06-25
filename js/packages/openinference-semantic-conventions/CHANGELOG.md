@@ -1,5 +1,16 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.6.0
+
+### Minor Changes
+
+- b66bf54: Add Guardrail span kind
+- 60ade67: Add multimodal semantic conventions for llm message contents
+
+### Patch Changes
+
+- fe69250: publish guardrail spankind
+
 ## 0.5.0
 
 ### Minor Changes
