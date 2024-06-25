@@ -8,24 +8,24 @@ query span:
 
 ```json
 {
-  "name": "query",
-  "context": {
-    "trace_id": "ed7b336d-e71a-46f0-a334-5f2e87cb6cfc",
-    "span_id": "f89ebb7c-10f6-4bf8-8a74-57324d2556ef"
-  },
-  "span_kind": "CHAIN",
-  "parent_id": null,
-  "start_time": "2023-09-07T12:54:47.293922-06:00",
-  "end_time": "2023-09-07T12:54:49.322066-06:00",
-  "status_code": "OK",
-  "status_message": "",
-  "attributes": {
-    "input.value": "Is anybody there?",
-    "input.mime_type": "text/plain",
-    "output.value": "Yes, I am here.",
-    "output.mime_type": "text/plain"
-  },
-  "events": []
+    "name": "query",
+    "context": {
+        "trace_id": "ed7b336d-e71a-46f0-a334-5f2e87cb6cfc",
+        "span_id": "f89ebb7c-10f6-4bf8-8a74-57324d2556ef"
+    },
+    "span_kind": "CHAIN",
+    "parent_id": null,
+    "start_time": "2023-09-07T12:54:47.293922-06:00",
+    "end_time": "2023-09-07T12:54:49.322066-06:00",
+    "status_code": "OK",
+    "status_message": "",
+    "attributes": {
+        "input.value": "Is anybody there?",
+        "input.mime_type": "text/plain",
+        "output.value": "Yes, I am here.",
+        "output.mime_type": "text/plain"
+    },
+    "events": []
 }
 ```
 
@@ -35,32 +35,32 @@ LLM span:
 
 ```json
 {
-  "name": "llm",
-  "context": {
-    "trace_id": "ed7b336d-e71a-46f0-a334-5f2e87cb6cfc",
-    "span_id": "ad67332a-38bd-428e-9f62-538ba2fa90d4"
-  },
-  "span_kind": "LLM",
-  "parent_id": "f89ebb7c-10f6-4bf8-8a74-57324d2556ef",
-  "start_time": "2023-09-07T12:54:47.597121-06:00",
-  "end_time": "2023-09-07T12:54:49.321811-06:00",
-  "status_code": "OK",
-  "status_message": "",
-  "attributes": {
-    "llm.input_messages": [
-      {
-        "message.role": "system",
-        "message.content": "You are an expert Q&A system that is trusted around the world.\nAlways answer the query using the provided context information, and not prior knowledge.\nSome rules to follow:\n1. Never directly reference the given context in your answer.\n2. Avoid statements like 'Based on the context, ...' or 'The context information ...' or anything along those lines."
-      },
-      {
-        "message.role": "user",
-        "message.content": "Hello?"
-      }
-    ],
-    "output.value": "assistant: Yes I am here",
-    "output.mime_type": "text/plain"
-  },
-  "events": []
+    "name": "llm",
+    "context": {
+        "trace_id": "ed7b336d-e71a-46f0-a334-5f2e87cb6cfc",
+        "span_id": "ad67332a-38bd-428e-9f62-538ba2fa90d4"
+    },
+    "span_kind": "LLM",
+    "parent_id": "f89ebb7c-10f6-4bf8-8a74-57324d2556ef",
+    "start_time": "2023-09-07T12:54:47.597121-06:00",
+    "end_time": "2023-09-07T12:54:49.321811-06:00",
+    "status_code": "OK",
+    "status_message": "",
+    "attributes": {
+        "llm.input_messages": [
+            {
+                "message.role": "system",
+                "message.content": "You are an expert Q&A system that is trusted around the world.\nAlways answer the query using the provided context information, and not prior knowledge.\nSome rules to follow:\n1. Never directly reference the given context in your answer.\n2. Avoid statements like 'Based on the context, ...' or 'The context information ...' or anything along those lines."
+            },
+            {
+                "message.role": "user",
+                "message.content": "Hello?"
+            }
+        ],
+        "output.value": "assistant: Yes I am here",
+        "output.mime_type": "text/plain"
+    },
+    "events": []
 }
 ```
 
@@ -82,35 +82,35 @@ Trace Exporters send traces to a consumer. This consumer can be standard output 
 
 A span represents a unit of work or operation. Spans are the building blocks of Traces. In OpenInference, they include the following information:
 
-- Name
-- Parent span ID (empty for root spans)
-- Start and End Timestamps
-- Span Context
-- Attributes
-- Span Events
-- Span Status
-- Sample span:
+-   Name
+-   Parent span ID (empty for root spans)
+-   Start and End Timestamps
+-   Span Context
+-   Attributes
+-   Span Events
+-   Span Status
+-   Sample span:
 
 ```json
 {
-  "name": "query",
-  "context": {
-    "trace_id": "ed7b336d-e71a-46f0-a334-5f2e87cb6cfc",
-    "span_id": "f89ebb7c-10f6-4bf8-8a74-57324d2556ef"
-  },
-  "span_kind": "CHAIN",
-  "parent_id": null,
-  "start_time": "2023-09-07T12:54:47.293922-06:00",
-  "end_time": "2023-09-07T12:54:49.322066-06:00",
-  "status_code": "OK",
-  "status_message": "",
-  "attributes": {
-    "input.value": "Hello?",
-    "input.mime_type": "text/plain",
-    "output.value": "I am here.",
-    "output.mime_type": "text/plain"
-  },
-  "events": []
+    "name": "query",
+    "context": {
+        "trace_id": "ed7b336d-e71a-46f0-a334-5f2e87cb6cfc",
+        "span_id": "f89ebb7c-10f6-4bf8-8a74-57324d2556ef"
+    },
+    "span_kind": "CHAIN",
+    "parent_id": null,
+    "start_time": "2023-09-07T12:54:47.293922-06:00",
+    "end_time": "2023-09-07T12:54:49.322066-06:00",
+    "status_code": "OK",
+    "status_message": "",
+    "attributes": {
+        "input.value": "Hello?",
+        "input.mime_type": "text/plain",
+        "output.value": "I am here.",
+        "output.mime_type": "text/plain"
+    },
+    "events": []
 }
 ```
 
@@ -120,8 +120,8 @@ Spans can be nested, as is implied by the presence of a parent span ID: child sp
 
 Span context is an immutable object on every span that contains the following:
 
-- The Trace ID representing the trace that the span is a part of
-- The span's Span ID
+-   The Trace ID representing the trace that the span is a part of
+-   The span's Span ID
 
 Because Span Context contains the Trace ID, it is used when creating Span Links.
 
@@ -133,9 +133,9 @@ For example, if a span invokes an LLM, you can capture the model name, the invoc
 
 Attributes have the following rules:
 
-- Keys must be non-null string values
-- Values must be a non-null string, boolean, floating point value, integer, or an array of these values
-  Additionally, there are Semantic Attributes, which are known naming conventions for metadata that is typically present in common operations. It's helpful to use semantic attribute naming wherever possible so that common kinds of metadata are standardized across systems. See [semantic conventions](./semantic_conventions.md) for more information.
+-   Keys must be non-null string values
+-   Values must be a non-null string, boolean, floating point value, integer, or an array of these values
+    Additionally, there are Semantic Attributes, which are known naming conventions for metadata that is typically present in common operations. It's helpful to use semantic attribute naming wherever possible so that common kinds of metadata are standardized across systems. See [semantic conventions](./semantic_conventions.md) for more information.
 
 ### Span Events
 
@@ -143,8 +143,8 @@ A Span Event can be thought of as a structured log message (or annotation) on a 
 
 For example, consider two scenarios with an LLM:
 
-- Tracking a LLM execution time
-- Denoting when the first token is sent
+-   Tracking a LLM execution time
+-   Denoting when the first token is sent
 
 A Span is best used to the first scenario because it's an operation with a start and an end.
 
@@ -154,14 +154,14 @@ A Span Event is best used to track the second scenario because it represents a m
 
 A status will be attached to a span. Typically, you will set a span status when there is a known error in the application code, such as an exception. A Span Status will be tagged as one of the following values:
 
-- Unset
-- Ok
-- Error
-- When an exception is handled, a Span status can be set to Error.
+-   Unset
+-   Ok
+-   Error
+-   When an exception is handled, a Span status can be set to Error.
 
 ### Span Kind
 
-When a span is created, it is one of Chain, Retriever, Reranker, LLM, Embedding, Agent, Tool or Guardrail. This span kind provides a hint to the tracing backend as to how the trace should be assembled.
+When a span is created, it is one of Chain, Retriever, Reranker, LLM, Embedding, Agent, or Tool. This span kind provides a hint to the tracing backend as to how the trace should be assembled.
 
 Note that `span_kind` is a OpenTelemetry concept and thus conflicts with the OpenInference concept of `span_kind`. When OTLP is used as the transport, the OpenInference `span_kind` is stored in the `openinference.span.kind` attribute.
 
