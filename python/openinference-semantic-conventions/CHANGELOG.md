@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.8...python-openinference-semantic-conventions-v0.1.9) (2024-06-26)
+
+
+### Features
+
+* add evaluator span kind to semantic conventions ([#554](https://github.com/Arize-ai/openinference/issues/554)) ([7db37ff](https://github.com/Arize-ai/openinference/commit/7db37ff0ccd588086e9e49b00f78b207444b2119))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.7...python-openinference-semantic-conventions-v0.1.8) (2024-06-25)
 
 
