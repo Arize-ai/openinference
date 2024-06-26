@@ -106,8 +106,8 @@ class _PromptCallableWrapper(_WithTracer):
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             span.set_attribute("openinference.span.kind", "llm")
-            print(f"PromptCallableWrapper span: {span}")
-            print(f"PromptCallableWrapper TraceID: {span.get_span_context()}")
+            print(f"LLM Invoke span: {span}")
+            print(f"LLM Invoke TraceID: {span.get_span_context()}")
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -150,6 +150,48 @@ class _ParseCallableWrapper(_WithTracer):
             span.set_attribute("openinference.span.kind", "guardrail")
             print(f"PromptCallableWrapper span: {span}")
             print(f"PromptCallableWrapper TraceID: {span.get_span_context()}")
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+        return response
+
+class _PostValidationWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        
+        # Prepare invocation parameters by merging args and kwargs
+        invocation_parameters = {}
+        for arg in args:
+            if arg and isinstance(arg, dict):
+                invocation_parameters.update(arg)
+        invocation_parameters.update(kwargs)
+        
+        span_name = "post_validation"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        "post_validation.invocation.parameters": safe_json_dumps(invocation_parameters),
+                    }
+                )
+            ),
+        ) as span:
+            span.set_attributes(dict(get_attributes_from_context()))
+            span.set_attribute("openinference.span.kind", "guardrail")
+            print(f"post validation span: {span}")
+            print(f"post validation TraceID: {span.get_span_context()}")
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:

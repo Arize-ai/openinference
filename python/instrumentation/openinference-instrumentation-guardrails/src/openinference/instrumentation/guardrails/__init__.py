@@ -6,7 +6,7 @@ from wrapt import wrap_function_wrapper
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from openinference.instrumentation.guardrails.version import __version__
-from openinference.instrumentation.guardrails._wrap_guard_call import _GuardCallWrapper, _ParseCallableWrapper
+from openinference.instrumentation.guardrails._wrap_guard_call import _GuardCallWrapper, _ParseCallableWrapper, _PromptCallableWrapper, _PostValidationWrapper
 import contextvars
 from opentelemetry import context as otel_context
 
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 _instruments = ("guardrails-ai >= 0.4.5",)
 
 _MODULE = "guardrails.guard"
+_VALIDATION_MODULE = "guardrails.validator_service"
 _LLM_PROVIDERS_MODULE = 'guardrails.llm_providers'
 _RUNNER_MODULE = 'guardrails.run'
 
@@ -90,6 +91,20 @@ class GuardrailsInstrumentor(BaseInstrumentor):
             module=_RUNNER_MODULE,
             name="Runner.step",
             wrapper=runner_wrapper,
+        )
+
+        prompt_callable_wrapper = _PromptCallableWrapper(tracer=tracer)
+        wrap_function_wrapper(
+            module=_LLM_PROVIDERS_MODULE,
+            name="PromptCallableBase.__call__",
+            wrapper=prompt_callable_wrapper,
+        )
+
+        post_validator_wrapper = _PostValidationWrapper(tracer=tracer)
+        wrap_function_wrapper(
+            module=_VALIDATION_MODULE,
+            name="ValidatorServiceBase.after_run_validator",
+            wrapper=post_validator_wrapper,
         )
 
         patch_contextvars()
