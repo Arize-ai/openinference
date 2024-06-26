@@ -196,3 +196,7 @@ A span that encompasses calls to LLMs and Tools. An agent describes a reasoning 
 #### Guardrail
 
 A span that represents calls to a component to protect against jailbreak user input prompts by taking action to modify or reject an LLM's response if it contains undesirable content. For example, a Guardrail span could involve checking if an LLM's output response contains inappropriate language, via a custom or external guardrail library, and then amending the LLM response to remove references to the inappropriate language.
+
+#### Evaluator
+
+A span that represents a call to a function/proccess performing an evaluation of the language model's outputs. Examples include assessing the relevance, correctness, or helpfulness of the language model's answers.
