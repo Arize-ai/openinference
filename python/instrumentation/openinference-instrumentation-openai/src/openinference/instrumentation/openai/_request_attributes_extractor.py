@@ -13,8 +13,6 @@ from typing import (
     TypeVar,
 )
 
-from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -23,6 +21,9 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.openai._utils import _get_openai_version
 
 if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
@@ -44,7 +45,9 @@ class _RequestAttributesExtractor:
 
     def __init__(self, openai: ModuleType) -> None:
         self._openai = openai
-        self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
+        self._chat_completion_type: Type["ChatCompletion"] = (
+            openai.types.chat.ChatCompletion
+        )
         self._completion_type: Type["Completion"] = openai.types.Completion
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
             openai.types.CreateEmbeddingResponse
@@ -58,14 +61,18 @@ class _RequestAttributesExtractor:
         if not isinstance(request_parameters, Mapping):
             return
         if cast_to is self._chat_completion_type:
-            yield from _get_attributes_from_chat_completion_create_param(request_parameters)
+            yield from _get_attributes_from_chat_completion_create_param(
+                request_parameters
+            )
         elif cast_to is self._create_embedding_response_type:
             yield from _get_attributes_from_embedding_create_param(request_parameters)
         elif cast_to is self._completion_type:
             yield from _get_attributes_from_completion_create_param(request_parameters)
         else:
             try:
-                yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_parameters)
+                yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(
+                    request_parameters
+                )
             except Exception:
                 logger.exception("Failed to serialize request options")
 
@@ -82,10 +89,10 @@ def _get_attributes_from_chat_completion_create_param(
     invocation_params.pop("functions", None)
     invocation_params.pop("tools", None)
     yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
-    if (input_messages := params.get("messages")) and isinstance(input_messages, Iterable):
-        # Use reversed() to get the last message first. This is because OTEL has a default limit of
-        # 128 attributes per span, and flattening increases the number of attributes very quickly.
-        for index, input_message in reversed(list(enumerate(input_messages))):
+    if (input_messages := params.get("messages")) and isinstance(
+        input_messages, Iterable
+    ):
+        for index, input_message in list(enumerate(input_messages)):
             for key, value in _get_attributes_from_message_param(input_message):
                 yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
 
@@ -113,10 +120,7 @@ def _get_attributes_from_message_param(
         if isinstance(content, str):
             yield MessageAttributes.MESSAGE_CONTENT, content
         elif is_iterable_of(content, dict):
-            # Use reversed() to get the last content first. This is because OTEL
-            # has a default limit of 128 attributes per span, and flattening
-            # increases the number of attributes very quickly.
-            for index, c in reversed(list(enumerate(content))):
+            for index, c in list(enumerate(content)):
                 for key, value in _get_attributes_from_message_content(c):
                     yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
         elif isinstance(content, List):
@@ -129,7 +133,9 @@ def _get_attributes_from_message_param(
                 yield MessageAttributes.MESSAGE_CONTENT, json_string
     if name := message.get("name"):
         yield MessageAttributes.MESSAGE_NAME, name
-    if (function_call := message.get("function_call")) and hasattr(function_call, "get"):
+    if (function_call := message.get("function_call")) and hasattr(
+        function_call, "get"
+    ):
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_assistant_message_param.py#L13  # noqa: E501
         if function_name := function_call.get("name"):
             yield MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, function_name
