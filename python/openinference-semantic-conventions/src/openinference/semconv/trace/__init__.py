@@ -276,9 +276,9 @@ class OpenInferenceSpanKindValues(Enum):
     EMBEDDING = "EMBEDDING"
     AGENT = "AGENT"
     RERANKER = "RERANKER"
-    EVALUATOR = "EVALUATOR"
     UNKNOWN = "UNKNOWN"
     GUARDRAIL = "GUARDRAIL"
+    EVALUATOR = "EVALUATOR"
 
 
 class OpenInferenceMimeTypeValues(Enum):
