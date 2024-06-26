@@ -40,6 +40,10 @@ import { isTracingSuppressed } from "@opentelemetry/core";
 
 const MODULE_NAME = "openai";
 
+type ChatCompletionCreateType =
+  | typeof openai.OpenAI.Chat.Completions.prototype.create
+  | typeof openai.AzureOpenAI.Chat.Completions.prototype.create;
+
 /**
  * Resolves the execution context for the current span
  * If tracing is suppressed, the span is dropped and the current context is returned
@@ -89,86 +93,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: OpenAIInstrumentation = this;
 
-    type ChatCompletionCreateType =
-      typeof module.OpenAI.Chat.Completions.prototype.create;
-
     // Patch create chat completions
     this._wrap(
       module.OpenAI.Chat.Completions.prototype,
       "create",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (original: ChatCompletionCreateType): any => {
-        return function patchedCreate(
-          this: unknown,
-          ...args: Parameters<ChatCompletionCreateType>
-        ) {
-          const body = args[0];
-          const { messages: _messages, ...invocationParameters } = body;
-          const span = instrumentation.tracer.startSpan(
-            `OpenAI Chat Completions`,
-            {
-              kind: SpanKind.INTERNAL,
-              attributes: {
-                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                  OpenInferenceSpanKind.LLM,
-                [SemanticConventions.LLM_MODEL_NAME]: body.model,
-                [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
-                [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-                [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
-                  JSON.stringify(invocationParameters),
-                ...getLLMInputMessagesAttributes(body),
-              },
-            },
-          );
-
-          const execContext = getExecContext(span);
-          const execPromise = safeExecuteInTheMiddle<
-            ReturnType<ChatCompletionCreateType>
-          >(
-            () => {
-              return context.with(execContext, () => {
-                return original.apply(this, args);
-              });
-            },
-            (error) => {
-              // Push the error to the span
-              if (error) {
-                span.recordException(error);
-                span.setStatus({
-                  code: SpanStatusCode.ERROR,
-                  message: error.message,
-                });
-                span.end();
-              }
-            },
-          );
-          const wrappedPromise = execPromise.then((result) => {
-            if (isChatCompletionResponse(result)) {
-              // Record the results
-              span.setAttributes({
-                [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
-                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                // Override the model from the value sent by the server
-                [SemanticConventions.LLM_MODEL_NAME]: result.model,
-                ...getChatCompletionLLMOutputMessagesAttributes(result),
-                ...getUsageAttributes(result),
-              });
-              span.setStatus({ code: SpanStatusCode.OK });
-              span.end();
-            } else {
-              // This is a streaming response
-              // handle the chunks and add them to the span
-              // First split the stream via tee
-              const [leftStream, rightStream] = result.tee();
-              consumeChatCompletionStreamChunks(rightStream, span);
-              result = leftStream;
-            }
-
-            return result;
-          });
-          return context.bind(execContext, wrappedPromise);
-        };
-      },
+      this.wrapChatCompletionCreate(this),
     );
 
     // Patch create completions
@@ -318,6 +247,82 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
     this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
+  }
+
+  private wrapChatCompletionCreate(instrumentation: OpenAIInstrumentation) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (original: ChatCompletionCreateType): any => {
+      return function patchedCreate(
+        this: unknown,
+        ...args: Parameters<ChatCompletionCreateType>
+      ) {
+        const body = args[0];
+        const { messages: _messages, ...invocationParameters } = body;
+        const span = instrumentation.tracer.startSpan(
+          `OpenAI Chat Completions`,
+          {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.LLM,
+              [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
+              [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+              [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+                JSON.stringify(invocationParameters),
+              ...getLLMInputMessagesAttributes(body),
+            },
+          },
+        );
+
+        const execContext = getExecContext(span);
+        const execPromise = safeExecuteInTheMiddle<
+          ReturnType<ChatCompletionCreateType>
+        >(
+          () => {
+            return context.with(execContext, () => {
+              return original.apply(this, args);
+            });
+          },
+          (error) => {
+            // Push the error to the span
+            if (error) {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
+            }
+          },
+        );
+        const wrappedPromise = execPromise.then((result) => {
+          if (isChatCompletionResponse(result)) {
+            // Record the results
+            span.setAttributes({
+              [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
+              [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+              // Override the model from the value sent by the server
+              [SemanticConventions.LLM_MODEL_NAME]: result.model,
+              ...getChatCompletionLLMOutputMessagesAttributes(result),
+              ...getUsageAttributes(result),
+            });
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.end();
+          } else {
+            // This is a streaming response
+            // handle the chunks and add them to the span
+            // First split the stream via tee
+            const [leftStream, rightStream] = result.tee();
+            consumeChatCompletionStreamChunks(rightStream, span);
+            result = leftStream;
+          }
+
+          return result;
+        });
+        return context.bind(execContext, wrappedPromise);
+      };
+    };
   }
 }
 

@@ -36,6 +36,6 @@
     "@opentelemetry/sdk-trace-base": "^1.19.0",
     "@opentelemetry/sdk-trace-node": "^1.19.0",
     "@opentelemetry/semantic-conventions": "^1.19.0",
-    "openai": "^4.24.1"
+    "openai": "^4.41.0"
   }
 }
