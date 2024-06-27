@@ -202,8 +202,6 @@ class _ParseCallableWrapper(_WithTracer):
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             span.set_attribute("openinference.span.kind", "guardrail")
-            print(f"PromptCallableWrapper span: {span}")
-            print(f"PromptCallableWrapper TraceID: {span.get_span_context()}")
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -237,16 +235,26 @@ class _PostValidationWrapper(_WithTracer):
             attributes=dict(
                 _flatten(
                     {
-                        "post_validation.invocation.parameters": safe_json_dumps(invocation_parameters),
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: "guardrails",
                     }
                 )
             ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            span.set_attribute("openinference.span.kind", "guardrail")
-            print(f"post validation span: {span}")
-            print(f"post validation TraceID: {span.get_span_context()}")
             try:
+                validator = args[0]
+                span.set_attribute("validator_name", validator.rail_alias)
+                span.set_attribute("validator_on_fail", validator.on_fail_descriptor)
+
+                validation_result = args[2]
+                span.set_attribute("vaildator_result", validation_result.outcome)
+                span.set_attributes(
+                    dict(
+                        _flatten(
+                            validation_result.metadata,
+                        )
+                    )
+                )
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
