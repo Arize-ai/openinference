@@ -2,15 +2,7 @@ import logging
 from abc import ABC
 from contextlib import contextmanager
 from types import ModuleType
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Iterable,
-    Iterator,
-    Mapping,
-    Tuple,
-)
+from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.openai._request_attributes_extractor import (
@@ -23,10 +15,7 @@ from openinference.instrumentation.openai._response_accumulator import (
 from openinference.instrumentation.openai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.openai._stream import (
-    _ResponseAccumulator,
-    _Stream,
-)
+from openinference.instrumentation.openai._stream import _ResponseAccumulator, _Stream
 from openinference.instrumentation.openai._utils import (
     _as_input_attributes,
     _as_output_attributes,
