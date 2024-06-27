@@ -7,6 +7,23 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from opentelemetry import context as otel_context
+from inspect import signature
+from openinference.semconv.trace import (
+    SpanAttributes,
+)
+
+class SafeJSONEncoder(json.JSONEncoder):
+    """
+    Safely encodes non-JSON-serializable objects.
+    """
+
+    def default(self, o: Any) -> Any:
+        try:
+            return super().default(o)
+        except TypeError:
+            if hasattr(o, "dict") and callable(o.dict):  # pydantic v1 models, e.g., from Cohere
+                return o.dict()
+            return repr(o)
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
     for key, value in mapping.items():
@@ -23,6 +40,40 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
+
+def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
+    """
+    Parses a method call's inputs into a JSON string. Ensures a consistent
+    output regardless of whether the those inputs are passed as positional or
+    keyword arguments.
+    """
+
+    # For typical class methods, the corresponding instance of inspect.Signature
+    # does not include the self parameter. However, the inspect.Signature
+    # instance for __call__ does include the self parameter.
+    method_signature = signature(method)
+    first_parameter_name = next(iter(method_signature.parameters), None)
+    signature_contains_self_parameter = first_parameter_name in ["self"]
+    bound_arguments = method_signature.bind(
+        *(
+            [None]  # the value bound to the method's self argument is discarded below, so pass None
+            if signature_contains_self_parameter
+            else []  # no self parameter, so no need to pass a value
+        ),
+        *args,
+        **kwargs,
+    )
+    return safe_json_dumps(
+        {
+            **{
+                argument_name: argument_value
+                for argument_name, argument_value in bound_arguments.arguments.items()
+                if argument_name not in ["self", "kwargs"]
+            },
+            **bound_arguments.arguments.get("kwargs", {}),
+        },
+        cls=SafeJSONEncoder,
+    )
 
 class _WithTracer(ABC):
     """
@@ -57,13 +108,16 @@ class _GuardCallWrapper(_WithTracer):
             attributes=dict(
                 _flatten(
                     {
-                        "guard.invocation.parameters": safe_json_dumps(invocation_parameters),
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: "guardrail",
+                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
                     }
                 )
             ),
         ) as span:
-            print(f"GuardCallWrapper span: {span}")
-            print(f"GuardCallWrapper spanContext: {span.get_span_context()}")
             span.set_attributes(dict(get_attributes_from_context()))
             span.set_attribute("openinference.span.kind", "guardrail")
             try:
@@ -99,15 +153,17 @@ class _PromptCallableWrapper(_WithTracer):
             attributes=dict(
                 _flatten(
                     {
-                        "invoke_llm.invocation.parameters": safe_json_dumps(invocation_parameters),
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: "llm",
+                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
                     }
                 )
             ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            span.set_attribute("openinference.span.kind", "llm")
-            print(f"LLM Invoke span: {span}")
-            print(f"LLM Invoke TraceID: {span.get_span_context()}")
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -128,20 +184,18 @@ class _ParseCallableWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
-        
-        span_name = "guard_parse"
+        span_name = "guard"
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
-                        "__parse.invocation.parameters": safe_json_dumps(invocation_parameters),
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: "guardrail",
+                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
                     }
                 )
             ),

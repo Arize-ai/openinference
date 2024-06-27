@@ -77,15 +77,6 @@ class GuardrailsInstrumentor(BaseInstrumentor):
             tracer_provider = trace_api.get_trace_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
 
-        guardrails = import_module(_MODULE)
-        self._original_pipeline_run = guardrails.Guard.__call__
-        guard_wrapper = _GuardCallWrapper(tracer=tracer)
-        wrap_function_wrapper(
-            module=_MODULE,
-            name="Guard.__call__",
-            wrapper=guard_wrapper,
-        )
-
         runner_wrapper = _ParseCallableWrapper(tracer=tracer)
         wrap_function_wrapper(
             module=_RUNNER_MODULE,
@@ -111,9 +102,6 @@ class GuardrailsInstrumentor(BaseInstrumentor):
 
 
     def _uninstrument(self, **kwargs):
-        guardrails = import_module(_MODULE)
-        guardrails.Guard.__call__ = self._original_guardrails_guard_call
-
         llm_providers = import_module(_LLM_PROVIDERS_MODULE)
         llm_providers.PromptCallableBase.__call__ = self._original_guardrails_llm_providers_call
 
