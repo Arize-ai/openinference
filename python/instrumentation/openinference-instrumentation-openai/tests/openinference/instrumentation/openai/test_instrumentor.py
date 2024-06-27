@@ -27,7 +27,9 @@ from openinference.instrumentation import using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -497,7 +499,7 @@ def test_chat_completions_with_multiple_message_contents(
     )
     invocation_parameters = {
         "stream": is_stream,
-        "model": randstr(),
+        "model": model_name,
         "temperature": random.random(),
         "n": len(output_messages),
     }
@@ -594,7 +596,31 @@ def test_chat_completions_with_multiple_message_contents(
     ):
         for i, message in enumerate(messages):
             assert attributes.pop(message_role(prefix, i), None) == message.get("role")
-            assert attributes.pop(message_content(prefix, i), None) == message.get("content")
+            expected_content = message.get("content")
+            if isinstance(expected_content, list):
+                for j, expected_content_item in enumerate(expected_content):
+                    content_item_type = attributes.pop(message_contents_type(prefix, i, j), None)
+                    expected_content_item_type = expected_content_item.get("type")
+                    if expected_content_item_type == "image_url":
+                        expected_content_item_type = "image"
+                    assert content_item_type == expected_content_item_type
+                    if content_item_type == "text":
+                        content_item_text = attributes.pop(
+                            message_contents_text(prefix, i, j), None
+                        )
+                        assert content_item_text == expected_content_item.get("text")
+                    elif content_item_type == "image":
+                        content_item_image_url = attributes.pop(
+                            message_contents_image_url(prefix, i, j), None
+                        )
+                        assert content_item_image_url == expected_content_item.get("image_url").get(
+                            "url"
+                        )
+
+            else:
+                content = attributes.pop(message_content(prefix, i), None)
+                assert content == expected_content
+
             if function_call := message.get("function_call"):
                 assert attributes.pop(
                     message_function_call_name(prefix, i), None
@@ -966,11 +992,9 @@ def get_text_content() -> Dict[str, str]:
 
 def get_image_content() -> Dict[str, Any]:
     return {
-        "type": "image",
-        "image": {
-            "image": {
-                "url": randstr(),
-            }
+        "type": "image_url",
+        "image_url": {
+            "url": randstr(),
         },
     }
 
@@ -983,7 +1007,7 @@ def get_messages_with_multiple_contents() -> List[Dict[str, Any]]:
         },
         {
             "role": "user",
-            "contents": [
+            "content": [
                 get_text_content(),
                 get_image_content(),
             ],
@@ -1002,6 +1026,18 @@ def message_role(prefix: str, i: int) -> str:
 
 def message_content(prefix: str, i: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_CONTENT}"
+
+
+def message_contents_type(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TYPE}"
+
+
+def message_contents_text(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TEXT}"
+
+
+def message_contents_image_url(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
 
 
 def message_function_call_name(prefix: str, i: int) -> str:
@@ -1035,6 +1071,11 @@ LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
