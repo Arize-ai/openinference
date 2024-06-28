@@ -48,6 +48,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):
 
         import guardrails as gd
 
+        print("New contextvars installedd!!")
         gd.guard.contextvars = _Contextvars(gd.guard.contextvars)
         gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
         for name in ("pydantic", "string", "rail_string", "rail"):
