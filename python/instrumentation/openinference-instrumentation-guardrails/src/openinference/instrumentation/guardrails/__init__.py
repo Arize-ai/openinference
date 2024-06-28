@@ -42,6 +42,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):
         return _instruments
 
     def _instrument(self, **kwargs):
+        print("hello??")
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_trace_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
