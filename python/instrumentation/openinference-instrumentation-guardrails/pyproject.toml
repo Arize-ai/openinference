@@ -45,7 +45,7 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-haystack"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-guardrails"
 
 [tool.hatch.version]
 path = "src/openinference/instrumentation/guardrails/version.py"
