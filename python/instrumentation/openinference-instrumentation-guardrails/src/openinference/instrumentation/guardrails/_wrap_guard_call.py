@@ -251,7 +251,7 @@ class _PostValidationWrapper(_WithTracer):
                 span.set_attributes(
                     dict(
                         _flatten(
-                            validation_result.metadata,
+                            validation_result.metadata if validation_result.metadata else {},
                         )
                     )
                 )
