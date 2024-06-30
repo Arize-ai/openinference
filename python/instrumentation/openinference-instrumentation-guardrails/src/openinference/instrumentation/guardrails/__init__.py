@@ -42,14 +42,12 @@ class GuardrailsInstrumentor(BaseInstrumentor):
         return _instruments
 
     def _instrument(self, **kwargs):
-        print("hello??")
         if not (tracer_provider := kwargs.get("tracer_provider")):
-            tracer_provider = trace_api.get_trace_provider()
+            tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
 
         import guardrails as gd
 
-        print("New contextvars installedd!!")
         gd.guard.contextvars = _Contextvars(gd.guard.contextvars)
         gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
         for name in ("pydantic", "string", "rail_string", "rail"):
