@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 _instruments = ("guardrails-ai >= 0.4.5",)
 
-_MODULE = "guardrails.guard"
 _VALIDATION_MODULE = "guardrails.validator_service"
 _LLM_PROVIDERS_MODULE = 'guardrails.llm_providers'
 _RUNNER_MODULE = 'guardrails.run'
@@ -36,6 +35,8 @@ class GuardrailsInstrumentor(BaseInstrumentor):
     __slots__ = (
         "_original_guardrails_guard_call",
         "_original_guardrails_llm_providers_call",
+        "_original_guardrails_runner_step",
+        "_original_guardrails_validation_after_run",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -82,3 +83,13 @@ class GuardrailsInstrumentor(BaseInstrumentor):
     def _uninstrument(self, **kwargs):
         llm_providers = import_module(_LLM_PROVIDERS_MODULE)
         llm_providers.PromptCallableBase.__call__ = self._original_guardrails_llm_providers_call
+
+        runner_module = import_module(_RUNNER_MODULE)
+        runner_module.Runner.step = self._original_guardrails_runner_step
+
+        validation_module = import_module(_VALIDATION_MODULE)
+        validation_module.ValidatorServiceBase.after_run_validator = self._original_guardrails_validation_after_run
+
+        import guardrails as gd
+        gd.guard.contextvars = contextvars.Context
+        gd.async_guard.contextvars = contextvars.Context

@@ -9,7 +9,8 @@ from openinference.instrumentation import get_attributes_from_context, safe_json
 from opentelemetry import context as otel_context
 from inspect import signature
 from openinference.semconv.trace import (
-    SpanAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes
 )
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -102,13 +103,13 @@ class _GuardCallWrapper(_WithTracer):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
         
-        span_name = "guard"
+        span_name = "guard_call"
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: "guardrail",
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.GUARDRAIL,
                         SpanAttributes.INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -119,7 +120,6 @@ class _GuardCallWrapper(_WithTracer):
             ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            span.set_attribute("openinference.span.kind", "guardrail")
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -153,8 +153,8 @@ class _PromptCallableWrapper(_WithTracer):
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: "llm",
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM,
+                        INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
                             **kwargs,
@@ -184,14 +184,14 @@ class _ParseCallableWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         
-        span_name = "guard"
+        span_name = "guard_parse"
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: "guardrail",
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.GUARDRAIL,
+                        INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
                             **kwargs,
@@ -201,7 +201,6 @@ class _ParseCallableWrapper(_WithTracer):
             ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            span.set_attribute("openinference.span.kind", "guardrail")
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -232,21 +231,18 @@ class _PostValidationWrapper(_WithTracer):
         span_name = "post_validation"
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: "guardrails",
-                    }
-                )
-            ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             try:
+
                 validator = args[0]
                 span.set_attribute("validator_name", validator.rail_alias)
                 span.set_attribute("validator_on_fail", validator.on_fail_descriptor)
 
                 validation_result = args[2]
+                if validator.rail_alias == "arize/dataset_embeddings":
+                    span.set_attribute(INPUT_VALUE, validation_result.metadata.get("user_message") if validation_result.metadata else "")
+                span.set_attribute(OUTPUT_VALUE, validation_result.outcome)
                 span.set_attribute("vaildator_result", validation_result.outcome)
                 span.set_attributes(
                     dict(
@@ -262,3 +258,7 @@ class _PostValidationWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
         return response
+
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
