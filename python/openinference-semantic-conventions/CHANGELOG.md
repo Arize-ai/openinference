@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.8...python-openinference-semantic-conventions-v0.1.9) (2024-06-26)
+
+
+### Features
+
+* add evaluator span kind to semantic conventions ([#554](https://github.com/Arize-ai/openinference/issues/554)) ([7db37ff](https://github.com/Arize-ai/openinference/commit/7db37ff0ccd588086e9e49b00f78b207444b2119))
+
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.7...python-openinference-semantic-conventions-v0.1.8) (2024-06-25)
+
+
+### Features
+
+* **semcov:** guardrail span kind for python ([#548](https://github.com/Arize-ai/openinference/issues/548)) ([09e767e](https://github.com/Arize-ai/openinference/commit/09e767e2e2f48480863dc0f87ae664222dee625f))
+
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.6...python-openinference-semantic-conventions-v0.1.7) (2024-06-24)
+
+
+### Features
+
+* Add vision semantic conventions messages ([#535](https://github.com/Arize-ai/openinference/issues/535)) ([670b8c4](https://github.com/Arize-ai/openinference/commit/670b8c41a4699a25b676f56cb83c5f355fc62a9e))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.5...python-openinference-semantic-conventions-v0.1.6) (2024-04-29)
 
 

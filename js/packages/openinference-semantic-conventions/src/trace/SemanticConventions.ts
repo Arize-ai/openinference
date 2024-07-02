@@ -19,6 +19,8 @@ export const SemanticAttributePrefixes = {
   session: "session",
   user: "user",
   openinference: "openinference",
+  message_content: "message_content",
+  image: "image",
 } as const;
 
 export const LLMAttributePostfixes = {
@@ -65,10 +67,21 @@ export const ToolAttributePostfixes = {
 export const MessageAttributePostfixes = {
   role: "role",
   content: "content",
+  contents: "contents",
   name: "name",
   function_call_name: "function_call_name",
   function_call_arguments_json: "function_call_arguments_json",
   tool_calls: "tool_calls",
+} as const;
+
+export const MessageContentsAttributePostfixes = {
+  type: "type",
+  text: "text",
+  image: "image",
+} as const;
+
+export const ImageAttributesPostfiexs = {
+  url: "url",
 } as const;
 
 export const ToolCallAttributePostfixes = {
@@ -204,6 +217,32 @@ export const MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON =
  */
 export const MESSAGE_CONTENT =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.content}` as const;
+/**
+ * The array of contents for the message sent to the LLM. Each element of the array is
+ * an `message_content` object.
+ */
+export const MESSAGE_CONTENTS =
+  `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.contents}` as const;
+/**
+ * The type of content sent to the LLM
+ */
+export const MESSAGE_CONTENT_TYPE =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.type}` as const;
+/**
+ * The text content of the message sent to the LLM
+ */
+export const MESSAGE_CONTENT_TEXT =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.text}` as const;
+/**
+ * The image content of the message sent to the LLM
+ */
+export const MESSAGE_CONTENT_IMAGE =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.image}` as const;
+/**
+ * The http or base64 link to the image
+ */
+export const IMAGE_URL =
+  `${SemanticAttributePrefixes.image}.${ImageAttributesPostfiexs.url}` as const;
 
 export const DOCUMENT_ID =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.id}` as const;
@@ -341,6 +380,7 @@ export enum OpenInferenceSpanKind {
   RERANKER = "reranker",
   EMBEDDING = "embedding",
   AGENT = "agent",
+  GUARDRAIL = "guardrail",
 }
 
 export enum MimeType {

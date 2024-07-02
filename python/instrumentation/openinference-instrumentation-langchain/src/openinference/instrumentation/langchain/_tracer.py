@@ -28,6 +28,7 @@ from typing import (
 from uuid import UUID
 
 import wrapt  # type: ignore
+from langchain_core.messages import BaseMessage
 from langchain_core.tracers import LangChainTracer
 from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
@@ -357,11 +358,21 @@ def _input_messages(
     # This will only get the first set of messages.
     if not (first_messages := next(iter(multiple_messages), None)):
         return
-    assert isinstance(first_messages, Iterable), f"expected Iterable, found {type(first_messages)}"
     parsed_messages = []
-    for message_data in first_messages:
-        assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
-        parsed_messages.append(dict(_parse_message_data(message_data)))
+    if isinstance(first_messages, list):
+        for message_data in first_messages:
+            if isinstance(message_data, BaseMessage):
+                parsed_messages.append(dict(_parse_message_data(message_data.to_json())))
+            elif hasattr(message_data, "get"):
+                parsed_messages.append(dict(_parse_message_data(message_data)))
+            else:
+                raise ValueError(f"failed to parse message of type {type(message_data)}")
+    elif isinstance(first_messages, BaseMessage):
+        parsed_messages.append(dict(_parse_message_data(first_messages.to_json())))
+    elif hasattr(first_messages, "get"):
+        parsed_messages.append(dict(_parse_message_data(first_messages)))
+    else:
+        raise ValueError(f"failed to parse messages of type {type(first_messages)}")
     if parsed_messages:
         yield LLM_INPUT_MESSAGES, parsed_messages
 
@@ -390,8 +401,12 @@ def _output_messages(
     for generation in first_generations:
         assert hasattr(generation, "get"), f"expected Mapping, found {type(generation)}"
         if message_data := generation.get("message"):
-            assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
-            parsed_messages.append(dict(_parse_message_data(message_data)))
+            if isinstance(message_data, BaseMessage):
+                parsed_messages.append(dict(_parse_message_data(message_data.to_json())))
+            elif hasattr(message_data, "get"):
+                parsed_messages.append(dict(_parse_message_data(message_data)))
+            else:
+                raise ValueError(f"fail to parse message of type {type(message_data)}")
     if parsed_messages:
         yield LLM_OUTPUT_MESSAGES, parsed_messages
 

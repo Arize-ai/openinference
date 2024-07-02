@@ -27,7 +27,9 @@ from openinference.instrumentation import using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -467,6 +469,204 @@ def test_embeddings(
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_raw", [False, True])
+@pytest.mark.parametrize("is_stream", [False, True])
+@pytest.mark.parametrize("status_code", [200, 400])
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_chat_completions_with_multiple_message_contents(
+    is_async: bool,
+    is_raw: bool,
+    is_stream: bool,
+    status_code: int,
+    use_context_attributes: bool,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
+    model_name: str,
+    chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    input_messages: List[Dict[str, Any]] = get_messages_with_multiple_contents()
+    output_messages: List[Dict[str, Any]] = (
+        chat_completion_mock_stream[1] if is_stream else get_messages()
+    )
+    invocation_parameters = {
+        "stream": is_stream,
+        "model": model_name,
+        "temperature": random.random(),
+        "n": len(output_messages),
+    }
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_kwargs: Dict[str, Any] = {
+        **(
+            {"stream": MockAsyncByteStream(chat_completion_mock_stream[0])}
+            if is_stream
+            else {
+                "json": {
+                    "choices": [
+                        {"index": i, "message": message, "finish_reason": "stop"}
+                        for i, message in enumerate(output_messages)
+                    ],
+                    "model": model_name,
+                    "usage": completion_usage,
+                }
+            }
+        ),
+    }
+    respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
+    create_kwargs = {"messages": input_messages, **invocation_parameters}
+    openai = import_module("openai")
+    completions = (
+        openai.AsyncOpenAI(api_key="sk-").chat.completions
+        if is_async
+        else openai.OpenAI(api_key="sk-").chat.completions
+    )
+    create = completions.with_raw_response.create if is_raw else completions.create
+
+    async def task() -> None:
+        response = await create(**create_kwargs)
+        response = response.parse() if is_raw else response
+        if is_stream:
+            async for _ in response:
+                pass
+
+    with suppress(openai.BadRequestError):
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                if is_async:
+                    asyncio.run(task())
+                else:
+                    response = create(**create_kwargs)
+                    response = response.parse() if is_raw else response
+                    if is_stream:
+                        for _ in response:
+                            pass
+        else:
+            if is_async:
+                asyncio.run(task())
+            else:
+                response = create(**create_kwargs)
+                response = response.parse() if is_raw else response
+                if is_stream:
+                    for _ in response:
+                        pass
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2  # first span should be from the httpx instrumentor
+    span: ReadableSpan = spans[1]
+    if status_code == 200:
+        assert span.status.is_ok
+        assert not span.status.description
+    elif status_code == 400:
+        assert not span.status.is_ok and not span.status.is_unset
+        assert span.status.description and span.status.description.startswith(
+            openai.BadRequestError.__name__
+        )
+        assert len(span.events) == 1
+        event = span.events[0]
+        assert event.name == "exception"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+        == invocation_parameters
+    )
+    for prefix, messages in (
+        (LLM_INPUT_MESSAGES, input_messages),
+        *(((LLM_OUTPUT_MESSAGES, output_messages),) if status_code == 200 else ()),
+    ):
+        for i, message in enumerate(messages):
+            assert attributes.pop(message_role(prefix, i), None) == message.get("role")
+            expected_content = message.get("content")
+            if isinstance(expected_content, list):
+                for j, expected_content_item in enumerate(expected_content):
+                    content_item_type = attributes.pop(message_contents_type(prefix, i, j), None)
+                    expected_content_item_type = expected_content_item.get("type")
+                    if expected_content_item_type == "image_url":
+                        expected_content_item_type = "image"
+                    assert content_item_type == expected_content_item_type
+                    if content_item_type == "text":
+                        content_item_text = attributes.pop(
+                            message_contents_text(prefix, i, j), None
+                        )
+                        assert content_item_text == expected_content_item.get("text")
+                    elif content_item_type == "image":
+                        content_item_image_url = attributes.pop(
+                            message_contents_image_url(prefix, i, j), None
+                        )
+                        assert content_item_image_url == expected_content_item.get("image_url").get(
+                            "url"
+                        )
+
+            else:
+                content = attributes.pop(message_content(prefix, i), None)
+                assert content == expected_content
+
+            if function_call := message.get("function_call"):
+                assert attributes.pop(
+                    message_function_call_name(prefix, i), None
+                ) == function_call.get("name")
+                assert attributes.pop(
+                    message_function_call_arguments(prefix, i), None
+                ) == function_call.get("arguments")
+            if _openai_version() >= (1, 1, 0) and (tool_calls := message.get("tool_calls")):
+                for j, tool_call in enumerate(tool_calls):
+                    if function := tool_call.get("function"):
+                        assert attributes.pop(
+                            tool_call_function_name(prefix, i, j), None
+                        ) == function.get("name")
+                        assert attributes.pop(
+                            tool_call_function_arguments(prefix, i, j), None
+                        ) == function.get("arguments")
+    if status_code == 200:
+        assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
+        assert (
+            OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
+            == OpenInferenceMimeTypeValues.JSON
+        )
+        if not is_stream:
+            # Usage is not available for streaming in general.
+            assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == completion_usage["prompt_tokens"]
+            assert (
+                attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None)
+                == completion_usage["completion_tokens"]
+            )
+            # We left out model_name from our mock stream.
+            assert attributes.pop(LLM_MODEL_NAME, None) == model_name
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+    assert attributes == {}  # test should account for all span attributes
+
+
 def _check_context_attributes(
     attributes: Dict[str, Any],
     session_id: str,
@@ -553,7 +753,9 @@ def in_memory_span_exporter() -> InMemorySpanExporter:
 
 
 @pytest.fixture(scope="module")
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
+def tracer_provider(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> trace_api.TracerProvider:
     resource = Resource(attributes={})
     tracer_provider = trace_sdk.TracerProvider(resource=resource)
     span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
@@ -757,7 +959,10 @@ def get_messages() -> List[Dict[str, Any]]:
     messages: List[Dict[str, Any]] = [
         *[{"role": randstr(), "content": randstr()} for _ in range(2)],
         *[
-            {"role": randstr(), "function_call": {"arguments": randstr(), "name": randstr()}}
+            {
+                "role": randstr(),
+                "function_call": {"arguments": randstr(), "name": randstr()},
+            }
             for _ in range(2)
         ],
         *(
@@ -778,6 +983,39 @@ def get_messages() -> List[Dict[str, Any]]:
     return messages
 
 
+def get_text_content() -> Dict[str, str]:
+    return {
+        "type": "text",
+        "text": randstr(),
+    }
+
+
+def get_image_content() -> Dict[str, Any]:
+    return {
+        "type": "image_url",
+        "image_url": {
+            "url": randstr(),
+        },
+    }
+
+
+def get_messages_with_multiple_contents() -> List[Dict[str, Any]]:
+    messages: List[Dict[str, Any]] = [
+        {
+            "role": "assistant",
+            "content": randstr(),
+        },
+        {
+            "role": "user",
+            "content": [
+                get_text_content(),
+                get_image_content(),
+            ],
+        },
+    ]
+    return messages
+
+
 def _openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
 
@@ -788,6 +1026,18 @@ def message_role(prefix: str, i: int) -> str:
 
 def message_content(prefix: str, i: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_CONTENT}"
+
+
+def message_contents_type(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TYPE}"
+
+
+def message_contents_text(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TEXT}"
+
+
+def message_contents_image_url(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
 
 
 def message_function_call_name(prefix: str, i: int) -> str:
@@ -821,6 +1071,11 @@ LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
