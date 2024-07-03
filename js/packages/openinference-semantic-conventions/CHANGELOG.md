@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.8.0
+
+### Minor Changes
+
+- 9affdf6: fix: correct spelling of image attributes
+
 ## 0.7.0
 
 ### Minor Changes
