@@ -80,7 +80,7 @@ export const MessageContentsAttributePostfixes = {
   image: "image",
 } as const;
 
-export const ImageAttributesPostfiexs = {
+export const ImageAttributesPostfixes = {
   url: "url",
 } as const;
 
