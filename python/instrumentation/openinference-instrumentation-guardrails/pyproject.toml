@@ -31,7 +31,6 @@ dependencies = [
   "openinference-semantic-conventions",
   "wrapt",
   "typing-extensions",
-  "guardrails-ai"
 ]
 
 [project.optional-dependencies]
