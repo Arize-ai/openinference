@@ -243,7 +243,7 @@ class _PostValidationWrapper(_WithTracer):
                 if validator.rail_alias == "arize/dataset_embeddings":
                     span.set_attribute(INPUT_VALUE, validation_result.metadata.get("user_message") if validation_result.metadata else "")
                 span.set_attribute(OUTPUT_VALUE, validation_result.outcome)
-                span.set_attribute("vaildator_result", validation_result.outcome)
+                span.set_attribute("validator_result", validation_result.outcome)
                 span.set_attributes(
                     dict(
                         _flatten(

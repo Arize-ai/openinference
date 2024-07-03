@@ -33,7 +33,6 @@ class GuardrailsInstrumentor(BaseInstrumentor):
     """An instrumentor for the Guardrails framework."""
 
     __slots__ = (
-        "_original_guardrails_guard_call",
         "_original_guardrails_llm_providers_call",
         "_original_guardrails_runner_step",
         "_original_guardrails_validation_after_run",

@@ -29,12 +29,14 @@ def setup_guardrails_instrumentation(tracer_provider: TracerProvider) -> None:
 
 @patch('guardrails.llm_providers.ArbitraryCallable._invoke_llm', return_value=LLMResponse(output="More Than Two"))
 def test_guardrails_instrumentation(mock_invoke_llm, tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter):
-    guard = Guard().use(TwoWords())
 
-    response = guard(
-        llm_api=lambda prompt: "yoo whatever",
-        prompt="oh look im a bad person",
-    )
+    # we expect the guard to raise an exception here because the mock LLMResponse has more than two words
+    guard = Guard().use(TwoWords, on_fail="exception")
+    with pytest.raises(Exception):
+        guard(
+            llm_api=lambda prompt: "yoo whatever",
+            prompt="oh look im a bad person",
+        )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) >= 3  # Expecting at least 3 spans from the guardrails module
@@ -50,13 +52,14 @@ def test_guardrails_instrumentation(mock_invoke_llm, tracer_provider: TracerProv
 
         elif span.name == "post_validation":
             assert span.attributes["validator_name"] == "two-words"
-            assert span.attributes["validator_on_fail"].name == "NOOP"
+            assert span.attributes["validator_on_fail"].name == "EXCEPTION"
             
             # note that validator result should fail because the mock response returns a 3 letter response
             assert span.attributes["validator_result"] == "fail"
-            assert not span.status.is_ok, "post_validation span status should not be OK"
+            # this may be counter intuitive but the exception from the validator actually occurs in the span for guard_parse, not post_validation
+            assert span.status.is_ok, "post_validation span status should be OK"
 
         elif span.name == "guard_parse":
             assert span.attributes["openinference.span.kind"] == "GUARDRAIL"
             assert "input.value" in span.attributes
-            assert span.status.is_ok, "guard_parse span status should be OK"
+            assert not span.status.is_ok, "guard_parse span status should not be OK"
