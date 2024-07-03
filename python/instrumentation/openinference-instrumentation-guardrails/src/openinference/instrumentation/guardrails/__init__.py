@@ -96,5 +96,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):
         validation_module.ValidatorServiceBase.after_run_validator = self._original_guardrails_validation_after_run
 
         import guardrails as gd
-        gd.guard.contextvars = contextvars.Context
-        gd.async_guard.contextvars = contextvars.Context
+        if wrapped := getattr(gd.guard.contextvars, "__wrapped__", None):
+            gd.guard.contextvars = wrapped
+        if wrapped := getattr(gd.async_guard.contextvars, "__wrapped__", None):
+            gd.async_guard.contextvars = wrapped
