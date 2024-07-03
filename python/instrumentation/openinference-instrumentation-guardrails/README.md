@@ -2,9 +2,9 @@
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-guardrails.svg)](https://pypi.org/project/openinference-instrumentation-guardrails/)
 
-Python auto-instrumentation library for implementing guardrails in AI applications.
+Python auto-instrumentation library for LLM applications implemented with Guardrails
 
-These guardrails are fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for monitoring, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix).
+Guards are fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for monitoring, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix).
 
 ## Installation
 
