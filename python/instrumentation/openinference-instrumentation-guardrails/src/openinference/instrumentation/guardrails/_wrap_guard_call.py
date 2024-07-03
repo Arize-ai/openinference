@@ -26,7 +26,9 @@ class SafeJSONEncoder(json.JSONEncoder):
                 return o.dict()
             return repr(o)
 
-def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
+    if not mapping:
+        return
     for key, value in mapping.items():
         if value is None:
             continue
