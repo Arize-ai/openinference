@@ -8,11 +8,17 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.sdk.resources import Resource
 
 @pytest.fixture()
-def tracer_provider() -> TracerProvider:
-    tracer_provider = TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(InMemorySpanExporter()))
+def in_memory_span_exporter() -> InMemorySpanExporter:
+    return InMemorySpanExporter()
+
+@pytest.fixture()
+def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
+    resource = Resource(attributes={})
+    tracer_provider = TracerProvider(resource=resource)
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     return tracer_provider
 
 @pytest.fixture(autouse=True)
@@ -21,8 +27,8 @@ def setup_guardrails_instrumentation(tracer_provider: TracerProvider) -> None:
     yield
     GuardrailsInstrumentor().uninstrument()
 
-@patch('guardrails.llm_providers.ArbitraryCallable._invoke_llm', return_value=LLMResponse(output="hello harrison you so cool"))
-def test_guardrails_instrumentation(mock_invoke_llm, tracer_provider: TracerProvider):
+@patch('guardrails.llm_providers.ArbitraryCallable._invoke_llm', return_value=LLMResponse(output="More Than Two"))
+def test_guardrails_instrumentation(mock_invoke_llm, tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter):
     guard = Guard().use(TwoWords())
 
     response = guard(
@@ -30,4 +36,27 @@ def test_guardrails_instrumentation(mock_invoke_llm, tracer_provider: TracerProv
         prompt="oh look im a bad person",
     )
 
-    print(response)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) >= 3  # Expecting at least 3 spans from the guardrails module
+
+    expected_span_names = {"invoke_llm", "post_validation", "guard_parse"}
+    found_span_names = set(span.name for span in spans)
+    assert expected_span_names.issubset(found_span_names), "Missing expected spans"
+
+    for span in spans:
+        if span.name == "invoke_llm":
+            assert span.attributes["openinference.span.kind"] == "LLM"
+            assert span.status.is_ok
+
+        elif span.name == "post_validation":
+            assert span.attributes["validator_name"] == "two-words"
+            assert span.attributes["validator_on_fail"].name == "NOOP"
+            
+            # note that validator result should fail because the mock response returns a 3 letter response
+            assert span.attributes["validator_result"] == "fail"
+            assert not span.status.is_ok, "post_validation span status should not be OK"
+
+        elif span.name == "guard_parse":
+            assert span.attributes["openinference.span.kind"] == "GUARDRAIL"
+            assert "input.value" in span.attributes
+            assert span.status.is_ok, "guard_parse span status should be OK"

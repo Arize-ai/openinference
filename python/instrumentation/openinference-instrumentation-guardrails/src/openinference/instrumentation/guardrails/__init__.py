@@ -58,6 +58,8 @@ class GuardrailsInstrumentor(BaseInstrumentor):
                 wrapper=lambda f, _, args, kwargs: f(*args, **{**kwargs, "tracer": tracer}),
             )        
 
+        runner_module = import_module(_RUNNER_MODULE)
+        self._original_guardrails_runner_step = runner_module.Runner.step
         runner_wrapper = _ParseCallableWrapper(tracer=tracer)
         wrap_function_wrapper(
             module=_RUNNER_MODULE,
@@ -65,6 +67,8 @@ class GuardrailsInstrumentor(BaseInstrumentor):
             wrapper=runner_wrapper,
         )
 
+        llm_providers_module = import_module(_LLM_PROVIDERS_MODULE)
+        self._original_guardrails_llm_providers_call = llm_providers_module.PromptCallableBase.__call__
         prompt_callable_wrapper = _PromptCallableWrapper(tracer=tracer)
         wrap_function_wrapper(
             module=_LLM_PROVIDERS_MODULE,
@@ -72,6 +76,8 @@ class GuardrailsInstrumentor(BaseInstrumentor):
             wrapper=prompt_callable_wrapper,
         )
 
+        validation_module = import_module(_VALIDATION_MODULE)
+        self._original_guardrails_validation_after_run = validation_module.ValidatorServiceBase.after_run_validator
         post_validator_wrapper = _PostValidationWrapper(tracer=tracer)
         wrap_function_wrapper(
             module=_VALIDATION_MODULE,
