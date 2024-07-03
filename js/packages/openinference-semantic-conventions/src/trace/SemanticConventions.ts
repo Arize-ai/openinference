@@ -242,7 +242,7 @@ export const MESSAGE_CONTENT_IMAGE =
  * The http or base64 link to the image
  */
 export const IMAGE_URL =
-  `${SemanticAttributePrefixes.image}.${ImageAttributesPostfiexs.url}` as const;
+  `${SemanticAttributePrefixes.image}.${ImageAttributesPostfixes.url}` as const;
 
 export const DOCUMENT_ID =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.id}` as const;
