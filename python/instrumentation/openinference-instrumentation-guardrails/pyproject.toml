@@ -41,7 +41,6 @@ instruments = [
 test = [
   "opentelemetry-sdk",
   "responses",
-  "respx==0.20.2",
 ]
 
 [project.urls]
