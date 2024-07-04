@@ -3,19 +3,16 @@ import tempfile
 import requests
 from llama_index.core import SimpleDirectoryReader
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal
-from openinference.instrumentation.openai import OpenAIInstrumentor
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-
-from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
 LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
-OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 url = "https://raw.githubusercontent.com/run-llama/llama_index/main/docs/docs/examples/data/gpt4_experiments/llama2_mistral.png"
 

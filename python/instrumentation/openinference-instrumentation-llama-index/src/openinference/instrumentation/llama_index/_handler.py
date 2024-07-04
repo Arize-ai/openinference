@@ -28,6 +28,27 @@ from typing import (
     Union,
 )
 
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    RerankerAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
+from opentelemetry import context as context_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
+from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
+from opentelemetry.util.types import AttributeValue
+from pydantic import PrivateAttr
+from pydantic.v1.json import pydantic_encoder
+from typing_extensions import assert_never
+
 from llama_index.core import QueryBundle
 from llama_index.core.base.agent.types import BaseAgent, BaseAgentWorker
 from llama_index.core.base.base_retriever import BaseRetriever
@@ -99,27 +120,6 @@ from llama_index.core.multi_modal_llms import MultiModalLLM
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
 from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
-from openinference.semconv.trace import (
-    DocumentAttributes,
-    EmbeddingAttributes,
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    RerankerAttributes,
-    SpanAttributes,
-    ToolCallAttributes,
-)
-from opentelemetry import context as context_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
-from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
-from opentelemetry.util.types import AttributeValue
-from pydantic import PrivateAttr
-from pydantic.v1.json import pydantic_encoder
-from typing_extensions import assert_never
-
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -294,9 +294,7 @@ class _Span(
         elif isinstance(event, STREAMING_IN_PROGRESS_EVENTS):
             if self._first_token_timestamp is None:
                 timestamp = time_ns()
-                self._otel_span.add_event(
-                    "First Token Stream Event", timestamp=timestamp
-                )
+                self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
                 self._first_token_timestamp = timestamp
             self.last_updated_at = time()
             self.notify_parent(_StreamingStatus.IN_PROGRESS)
@@ -513,9 +511,7 @@ class _Span(
             return
         self._process_response_text_type(event.response)
 
-    def _extract_token_counts(
-        self, response: Union[ChatResponse, CompletionResponse]
-    ) -> None:
+    def _extract_token_counts(self, response: Union[ChatResponse, CompletionResponse]) -> None:
         if (
             (raw := getattr(response, "raw", None))
             and hasattr(raw, "get")
@@ -585,9 +581,7 @@ class _Span(
         else:
             assert_never(response)
 
-    def _process_response_text_type(
-        self, response: Optional[RESPONSE_TEXT_TYPE]
-    ) -> None:
+    def _process_response_text_type(self, response: Optional[RESPONSE_TEXT_TYPE]) -> None:
         if response is None:
             return
         if isinstance(response, str):
@@ -776,9 +770,7 @@ class EventHandler(BaseEventHandler, extra="allow"):
             try:
                 span.process_event(event)
             except Exception:
-                logger.exception(
-                    f"Error processing event of type {event.__class__.__qualname__}"
-                )
+                logger.exception(f"Error processing event of type {event.__class__.__qualname__}")
                 pass
         return event
 
@@ -791,9 +783,7 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
             yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
 
 
-def _get_token_counts(
-    usage: Union[object, Mapping[str, Any]]
-) -> Iterator[Tuple[str, Any]]:
+def _get_token_counts(usage: Union[object, Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
     if isinstance(usage, Mapping):
         return _get_token_counts_from_mapping(usage)
     if isinstance(usage, object):
@@ -982,9 +972,7 @@ MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 IMAGE_URL = ImageAttributes.IMAGE_URL
-MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = (
-    MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
-)
+MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
