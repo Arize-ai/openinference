@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.6...python-openinference-instrumentation-openai-v0.1.7) (2024-06-27)
+
+
+### Features
+
+* Add multimodal content arrays to llm messages ([#542](https://github.com/Arize-ai/openinference/issues/542)) ([916040d](https://github.com/Arize-ai/openinference/commit/916040d50bd867c8d9fe34638b2e8b2dfca4d22c))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.5...python-openinference-instrumentation-openai-v0.1.6) (2024-05-21)
 
 
