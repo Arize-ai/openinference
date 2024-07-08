@@ -1,6 +1,6 @@
 import json
 from abc import ABC
-from typing import Any, Callable, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 from enum import Enum
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
