@@ -1,17 +1,15 @@
 import json
 from abc import ABC
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 from enum import Enum
+from inspect import signature
+from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
+
 import opentelemetry.context as context_api
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
-from opentelemetry import context as otel_context
-from inspect import signature
-from openinference.semconv.trace import (
-    OpenInferenceSpanKindValues,
-    SpanAttributes
-)
+
 
 class SafeJSONEncoder(json.JSONEncoder):
     """
@@ -25,6 +23,7 @@ class SafeJSONEncoder(json.JSONEncoder):
             if hasattr(o, "dict") and callable(o.dict):  # pydantic v1 models, e.g., from Cohere
                 return o.dict()
             return repr(o)
+
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
@@ -43,6 +42,7 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
+
 
 def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     """
@@ -78,6 +78,7 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         cls=SafeJSONEncoder,
     )
 
+
 class _WithTracer(ABC):
     """
     Base class for wrappers that need a tracer. Acts as a trait for the wrappers
@@ -86,6 +87,7 @@ class _WithTracer(ABC):
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
+
 
 class _GuardCallWrapper(_WithTracer):
     def __call__(
@@ -97,14 +99,14 @@ class _GuardCallWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        
+
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
         for arg in args:
             if arg and isinstance(arg, dict):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
-        
+
         span_name = "guard_call"
         with self._tracer.start_as_current_span(
             span_name,
@@ -131,6 +133,7 @@ class _GuardCallWrapper(_WithTracer):
             span.set_status(trace_api.StatusCode.OK)
         return response
 
+
 class _PromptCallableWrapper(_WithTracer):
     def __call__(
         self,
@@ -141,14 +144,14 @@ class _PromptCallableWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        
+
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
         for arg in args:
             if arg and isinstance(arg, dict):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
-        
+
         span_name = "invoke_llm"
         with self._tracer.start_as_current_span(
             span_name,
@@ -175,6 +178,7 @@ class _PromptCallableWrapper(_WithTracer):
             span.set_status(trace_api.StatusCode.OK)
         return response
 
+
 class _ParseCallableWrapper(_WithTracer):
     def __call__(
         self,
@@ -185,7 +189,7 @@ class _ParseCallableWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        
+
         span_name = "guard_parse"
         with self._tracer.start_as_current_span(
             span_name,
@@ -212,6 +216,7 @@ class _ParseCallableWrapper(_WithTracer):
             span.set_status(trace_api.StatusCode.OK)
         return response
 
+
 class _PostValidationWrapper(_WithTracer):
     def __call__(
         self,
@@ -222,28 +227,32 @@ class _PostValidationWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        
+
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
         for arg in args:
             if arg and isinstance(arg, dict):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
-        
+
         span_name = "post_validation"
         with self._tracer.start_as_current_span(
             span_name,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             try:
-
                 validator = args[0]
                 span.set_attribute("validator_name", validator.rail_alias)
                 span.set_attribute("validator_on_fail", validator.on_fail_descriptor)
 
                 validation_result = args[2]
                 if validator.rail_alias == "arize/dataset_embeddings":
-                    span.set_attribute(INPUT_VALUE, validation_result.metadata.get("user_message") if validation_result.metadata else "")
+                    span.set_attribute(
+                        INPUT_VALUE,
+                        validation_result.metadata.get("user_message")
+                        if validation_result.metadata
+                        else "",
+                    )
                 span.set_attribute(OUTPUT_VALUE, validation_result.outcome)
                 span.set_attribute("validator_result", validation_result.outcome)
                 span.set_attributes(
@@ -260,6 +269,7 @@ class _PostValidationWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
         return response
+
 
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND

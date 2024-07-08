@@ -1,14 +1,18 @@
+import contextvars
 import logging
 from importlib import import_module
-from typing import Collection, Any
-from wrapt import wrap_function_wrapper
+from typing import Any, Collection
 
+from openinference.instrumentation.guardrails._wrap_guard_call import (
+    _GuardCallWrapper,
+    _ParseCallableWrapper,
+    _PostValidationWrapper,
+    _PromptCallableWrapper,
+)
+from openinference.instrumentation.guardrails.version import __version__
+from opentelemetry import context as otel_context
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
-from openinference.instrumentation.guardrails.version import __version__
-from openinference.instrumentation.guardrails._wrap_guard_call import _GuardCallWrapper, _ParseCallableWrapper, _PromptCallableWrapper, _PostValidationWrapper
-import contextvars
-from opentelemetry import context as otel_context
 from wrapt import ObjectProxy, wrap_function_wrapper
 
 logger = logging.getLogger(__name__)
@@ -16,8 +20,8 @@ logger = logging.getLogger(__name__)
 _instruments = ("guardrails-ai >= 0.4.5",)
 
 _VALIDATION_MODULE = "guardrails.validator_service"
-_LLM_PROVIDERS_MODULE = 'guardrails.llm_providers'
-_RUNNER_MODULE = 'guardrails.run'
+_LLM_PROVIDERS_MODULE = "guardrails.llm_providers"
+_RUNNER_MODULE = "guardrails.run"
 
 
 class _Contextvars(ObjectProxy):  # type: ignore
@@ -55,7 +59,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):
                 module="guardrails.guard",
                 name=f"Guard.from_{name}",
                 wrapper=lambda f, _, args, kwargs: f(*args, **{**kwargs, "tracer": tracer}),
-            )        
+            )
 
         runner_module = import_module(_RUNNER_MODULE)
         self._original_guardrails_runner_step = runner_module.Runner.step
@@ -67,7 +71,9 @@ class GuardrailsInstrumentor(BaseInstrumentor):
         )
 
         llm_providers_module = import_module(_LLM_PROVIDERS_MODULE)
-        self._original_guardrails_llm_providers_call = llm_providers_module.PromptCallableBase.__call__
+        self._original_guardrails_llm_providers_call = (
+            llm_providers_module.PromptCallableBase.__call__
+        )
         prompt_callable_wrapper = _PromptCallableWrapper(tracer=tracer)
         wrap_function_wrapper(
             module=_LLM_PROVIDERS_MODULE,
@@ -76,14 +82,15 @@ class GuardrailsInstrumentor(BaseInstrumentor):
         )
 
         validation_module = import_module(_VALIDATION_MODULE)
-        self._original_guardrails_validation_after_run = validation_module.ValidatorServiceBase.after_run_validator
+        self._original_guardrails_validation_after_run = (
+            validation_module.ValidatorServiceBase.after_run_validator
+        )
         post_validator_wrapper = _PostValidationWrapper(tracer=tracer)
         wrap_function_wrapper(
             module=_VALIDATION_MODULE,
             name="ValidatorServiceBase.after_run_validator",
             wrapper=post_validator_wrapper,
         )
-
 
     def _uninstrument(self, **kwargs):
         llm_providers = import_module(_LLM_PROVIDERS_MODULE)
@@ -93,9 +100,12 @@ class GuardrailsInstrumentor(BaseInstrumentor):
         runner_module.Runner.step = self._original_guardrails_runner_step
 
         validation_module = import_module(_VALIDATION_MODULE)
-        validation_module.ValidatorServiceBase.after_run_validator = self._original_guardrails_validation_after_run
+        validation_module.ValidatorServiceBase.after_run_validator = (
+            self._original_guardrails_validation_after_run
+        )
 
         import guardrails as gd
+
         if wrapped := getattr(gd.guard.contextvars, "__wrapped__", None):
             gd.guard.contextvars = wrapped
         if wrapped := getattr(gd.async_guard.contextvars, "__wrapped__", None):
