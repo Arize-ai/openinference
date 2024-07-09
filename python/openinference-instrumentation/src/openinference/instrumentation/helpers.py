@@ -6,4 +6,4 @@ def str_span_id(span: Span) -> str:
 
 
 def str_trace_id(span: Span) -> str:
-    return span.get_span_context().span_id.to_bytes(16, "big").hex()
+    return span.get_span_context().trace_id.to_bytes(16, "big").hex()
