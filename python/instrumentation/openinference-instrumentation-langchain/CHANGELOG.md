@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.20...python-openinference-instrumentation-langchain-v0.1.21) (2024-07-09)
+
+
+### Features
+
+* helper function to `get_current_span()` for langchain ([#578](https://github.com/Arize-ai/openinference/issues/578)) ([b4d78b0](https://github.com/Arize-ai/openinference/commit/b4d78b0c2e48558c4e55ba3345badef22034f693))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.19...python-openinference-instrumentation-langchain-v0.1.20) (2024-06-20)
 
 
