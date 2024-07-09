@@ -1,5 +1,4 @@
 import logging
-from importlib.metadata import version
 from typing import TYPE_CHECKING, Any, Callable, Collection, Optional
 from uuid import UUID
 
@@ -94,13 +93,3 @@ def get_current_span() -> Optional[Span]:
     if not run_id:
         return None
     return LangChainInstrumentor().get_span(run_id)
-
-
-def __getattr__(name: str) -> Any:
-    if name == get_current_span.__name__:
-        if tuple(map(int, version("langchain-core").split(".")[:3])) < (0, 1, 47):
-            raise ImportError("get_current_span requires langchain-core>=0.1.47")
-        return get_current_span
-    if name == LangChainInstrumentor.__name__:
-        return LangChainInstrumentor
-    raise AttributeError(name)
