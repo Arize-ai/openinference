@@ -61,6 +61,11 @@ for name, logger in logging.root.manager.loggerDict.items():
 LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
 
 
+@pytest.mark.skipif(
+    LANGCHAIN_VERSION < (0, 1, 47),
+    reason="var_child_runnable_config was added by this commit: "
+    "https://github.com/langchain-ai/langchain/commit/4e4b11961432203f4b53a63cc428ea631d7cc970",
+)
 @pytest.mark.parametrize("is_async", [False, True])
 async def test_get_current_span(
     in_memory_span_exporter: InMemorySpanExporter,
