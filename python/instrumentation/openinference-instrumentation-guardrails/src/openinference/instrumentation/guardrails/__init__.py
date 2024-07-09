@@ -4,16 +4,16 @@ from importlib import import_module
 from typing import Any, Collection
 
 from openinference.instrumentation.guardrails._wrap_guard_call import (
-    _GuardCallWrapper,
     _ParseCallableWrapper,
     _PostValidationWrapper,
     _PromptCallableWrapper,
 )
 from openinference.instrumentation.guardrails.version import __version__
-from opentelemetry import context as otel_context
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from wrapt import ObjectProxy, wrap_function_wrapper
+
+import guardrails as gd
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +49,6 @@ class GuardrailsInstrumentor(BaseInstrumentor):
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
-
-        import guardrails as gd
 
         gd.guard.contextvars = _Contextvars(gd.guard.contextvars)
         gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
@@ -94,17 +92,18 @@ class GuardrailsInstrumentor(BaseInstrumentor):
 
     def _uninstrument(self, **kwargs):
         llm_providers = import_module(_LLM_PROVIDERS_MODULE)
-        llm_providers.PromptCallableBase.__call__ = self._original_guardrails_llm_providers_call
+        if hasattr(llm_providers.PromptCallableBase.__call__, "__wrapped__"):
+            llm_providers.PromptCallableBase.__call__ = self._original_guardrails_llm_providers_call
 
         runner_module = import_module(_RUNNER_MODULE)
-        runner_module.Runner.step = self._original_guardrails_runner_step
+        if hasattr(runner_module.Runner.step, "__wrapped__"):
+            runner_module.Runner.step = self._original_guardrails_runner_step
 
         validation_module = import_module(_VALIDATION_MODULE)
-        validation_module.ValidatorServiceBase.after_run_validator = (
-            self._original_guardrails_validation_after_run
-        )
-
-        import guardrails as gd
+        if hasattr(validation_module.ValidatorServiceBase.after_run_validator, "__wrapped__"):
+            validation_module.ValidatorServiceBase.after_run_validator = (
+                self._original_guardrails_validation_after_run
+            )
 
         if wrapped := getattr(gd.guard.contextvars, "__wrapped__", None):
             gd.guard.contextvars = wrapped

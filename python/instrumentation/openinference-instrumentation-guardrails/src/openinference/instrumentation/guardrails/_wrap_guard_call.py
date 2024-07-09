@@ -100,10 +100,7 @@ class _GuardCallWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        if instance:
-            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
-        else:
-            span_name = wrapped.__name__
+        span_name = "parse"
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(

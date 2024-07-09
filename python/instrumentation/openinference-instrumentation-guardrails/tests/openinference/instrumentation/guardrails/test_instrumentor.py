@@ -63,3 +63,20 @@ def test_guardrails_instrumentation(mock_invoke_llm, tracer_provider: TracerProv
             assert span.attributes["openinference.span.kind"] == "GUARDRAIL"
             assert "input.value" in span.attributes
             assert not span.status.is_ok, "guard_parse span status should not be OK"
+
+def test_guardrails_uninstrumentation(tracer_provider: TracerProvider):
+    # Instrument the Guardrails to wrap methods
+    GuardrailsInstrumentor().instrument(tracer_provider=tracer_provider)
+    
+    # Ensure methods are wrapped
+    assert hasattr(guardrails.llm_providers.PromptCallableBase.__call__, "__wrapped__"), "Expected PromptCallableBase.__call__ to be wrapped"
+    assert hasattr(guardrails.runner.Runner.step, "__wrapped__"), "Expected Runner.step to be wrapped"
+    assert hasattr(guardrails.validator_service.ValidatorServiceBase.after_run_validator, "__wrapped__"), "Expected ValidatorServiceBase.after_run_validator to be wrapped"
+    
+    # Uninstrument the Guardrails to unwrap methods
+    GuardrailsInstrumentor().uninstrument()
+    
+    # Ensure methods are unwrapped
+    assert not hasattr(guardrails.llm_providers.PromptCallableBase.__call__, "__wrapped__"), "Expected PromptCallableBase.__call__ to be unwrapped"
+    assert not hasattr(guardrails.runner.Runner.step, "__wrapped__"), "Expected Runner.step to be unwrapped"
+    assert not hasattr(guardrails.validator_service.ValidatorServiceBase.after_run_validator, "__wrapped__"), "Expected ValidatorServiceBase.after_run_validator to be unwrapped"
