@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import sys
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
@@ -30,9 +31,10 @@ from langchain.chains import LLMChain, RetrievalQA
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
 from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import RunnableLambda
 from langchain_openai import ChatOpenAI
 from openinference.instrumentation import using_attributes
-from openinference.instrumentation.langchain import LangChainInstrumentor
+from openinference.instrumentation.langchain import LangChainInstrumentor, get_current_span
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -48,6 +50,7 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.trace import Span
 from respx import MockRouter
 
 for name, logger in logging.root.manager.loggerDict.items():
@@ -57,6 +60,37 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.addHandler(logging.StreamHandler())
 
 LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_get_current_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    is_async: bool,
+) -> None:
+    if is_async and sys.version_info < (3, 11):
+        pytest.xfail("async test fails in older Python")
+    n = 10
+    loop = asyncio.get_running_loop()
+    if is_async:
+
+        async def f(_: Any) -> Optional[Span]:
+            await asyncio.sleep(0.001)
+            return get_current_span()
+
+        results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))  # type: ignore[arg-type]
+    else:
+        results = await asyncio.gather(
+            *(
+                loop.run_in_executor(None, RunnableLambda(lambda _: get_current_span()).invoke, ...)
+                for _ in range(n)
+            )
+        )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == n
+    assert {id(span.get_span_context()) for span in results if isinstance(span, Span)} == {
+        id(span.get_span_context())  # type: ignore[no-untyped-call]
+        for span in spans
+    }
 
 
 @pytest.mark.parametrize("is_async", [False, True])
