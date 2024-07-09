@@ -1,10 +1,12 @@
 import json
+from importlib.metadata import version
 from typing import (
     Any,
     Dict,
     Generator,
     List,
     Mapping,
+    Tuple,
     cast,
 )
 from unittest.mock import Mock, patch
@@ -39,6 +41,8 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
+
+VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy-ai").split(".")[:3])))
 
 
 @pytest.fixture()
@@ -470,9 +474,13 @@ def test_rag_module(
 
     assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 6
+    if VERSION < (2, 4, 12):
+        assert len(spans) == 6
+    else:
+        assert len(spans) == 7
+    it = iter(spans)
 
-    span = spans[0]
+    span = next(it)
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert span.name == "ColBERTv2.__call__"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
@@ -502,7 +510,7 @@ def test_rag_module(
         )
     assert attributes == {}
 
-    span = spans[1]
+    span = next(it)
     assert span.name == "Retrieve.forward"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
@@ -529,7 +537,7 @@ def test_rag_module(
         )
     assert attributes == {}
 
-    span = spans[2]
+    span = next(it)
     assert span.name == "GPT3.request"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
@@ -568,7 +576,7 @@ def test_rag_module(
         )
     assert attributes == {}
 
-    span = spans[3]
+    span = next(it)
     assert span.name == "GPT3.request"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
@@ -607,8 +615,15 @@ def test_rag_module(
         )
     assert attributes == {}
 
-    span = spans[4]
-    assert span.name == "ChainOfThought(BasicQA).forward"
+    if VERSION >= (2, 4, 12):
+        span = next(it)
+        assert span.name == "Predict(StringSignature).forward"
+
+    span = next(it)
+    if VERSION < (2, 4, 12):
+        assert span.name == "ChainOfThought(BasicQA).forward"
+    else:
+        assert span.name == "ChainOfThought.forward"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     input_value = attributes.pop(INPUT_VALUE)
@@ -623,8 +638,14 @@ def test_rag_module(
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
     output_value_data = json.loads(output_value)
-    assert set(output_value_data.keys()) == {"answer"}
-    assert output_value_data["answer"] == "Washington, D.C."
+    if VERSION < (2, 4, 12):
+        assert set(output_value_data.keys()) == {"answer"}
+        assert output_value_data["answer"] == "Washington, D.C."
+    else:
+        assert (
+            output_value_data
+            == "Prediction(\n    rationale='Washington, D.C.',\n    answer='Washington, D.C.'\n)"
+        )
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -642,7 +663,7 @@ def test_rag_module(
         )
     assert attributes == {}
 
-    span = spans[5]
+    span = next(it)
     assert span.name == "RAG.forward"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
