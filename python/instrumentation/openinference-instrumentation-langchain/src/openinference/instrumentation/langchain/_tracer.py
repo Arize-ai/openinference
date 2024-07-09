@@ -29,8 +29,7 @@ from uuid import UUID
 
 import wrapt  # type: ignore
 from langchain_core.messages import BaseMessage
-from langchain_core.tracers import LangChainTracer
-from langchain_core.tracers.base import BaseTracer
+from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
@@ -114,6 +113,9 @@ class OpenInferenceTracer(BaseTracer):
         self._tracer = tracer
         self._spans_by_run: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
+
+    def get_span(self, run_id: UUID) -> Optional[trace_api.Span]:
+        return self._spans_by_run.get(run_id)
 
     @audit_timing  # type: ignore
     def _start_trace(self, run: Run) -> None:
