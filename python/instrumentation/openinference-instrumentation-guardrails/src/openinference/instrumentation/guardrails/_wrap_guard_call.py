@@ -100,14 +100,10 @@ class _GuardCallWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
-
-        span_name = "guard_call"
+        if instance:
+            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
+        else:
+            span_name = wrapped.__name__
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -145,14 +141,10 @@ class _PromptCallableWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
-
-        span_name = "invoke_llm"
+        if instance:
+            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
+        else:
+            span_name = wrapped.__name__
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -190,7 +182,10 @@ class _ParseCallableWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        span_name = "guard_parse"
+        if instance:
+            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
+        else:
+            span_name = wrapped.__name__
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -228,14 +223,10 @@ class _PostValidationWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
-
-        span_name = "post_validation"
+        if instance:
+            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
+        else:
+            span_name = wrapped.__name__
         with self._tracer.start_as_current_span(
             span_name,
         ) as span:
@@ -254,7 +245,6 @@ class _PostValidationWrapper(_WithTracer):
                         else "",
                     )
                 span.set_attribute(OUTPUT_VALUE, validation_result.outcome)
-                span.set_attribute("validator_result", validation_result.outcome)
                 span.set_attributes(
                     dict(
                         _flatten(
