@@ -231,7 +231,7 @@ class _PostValidationWrapper(_WithTracer):
             try:
                 validator = args[0]
                 span.set_attribute("validator_name", validator.rail_alias)
-                span.set_attribute("validator_on_fail", validator.on_fail_descriptor)
+                span.set_attribute("validator_on_fail", validator.on_fail_descriptor.name)
 
                 validation_result = args[2]
                 if validator.rail_alias == "arize/dataset_embeddings":

@@ -72,7 +72,7 @@ def test_guardrails_instrumentation(
 
         elif span.name == "AsyncValidatorService.after_run_validator":
             assert span.attributes.get("validator_name") == "two-words"
-            assert span.attributes.get("validator_on_fail").name == "EXCEPTION"
+            assert span.attributes.get("validator_on_fail") == "EXCEPTION"
             # 3 letter response
             assert span.attributes["output.value"] == "fail"
             # this may be counter intuitive but the exception from the validator actually
