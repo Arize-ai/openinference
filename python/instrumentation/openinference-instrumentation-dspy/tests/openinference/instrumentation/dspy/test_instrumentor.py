@@ -42,7 +42,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 
-_VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy-ai").split(".")[:3])))
+VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy-ai").split(".")[:3])))
 
 
 @pytest.fixture()
@@ -474,7 +474,7 @@ def test_rag_module(
 
     assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
-    if _VERSION < (2, 4, 12):
+    if VERSION < (2, 4, 12):
         assert len(spans) == 6
     else:
         assert len(spans) == 7
@@ -615,12 +615,12 @@ def test_rag_module(
         )
     assert attributes == {}
 
-    if _VERSION >= (2, 4, 12):
+    if VERSION >= (2, 4, 12):
         span = next(it)
         assert span.name == "Predict(StringSignature).forward"
 
     span = next(it)
-    if _VERSION < (2, 4, 12):
+    if VERSION < (2, 4, 12):
         assert span.name == "ChainOfThought(BasicQA).forward"
     else:
         assert span.name == "ChainOfThought.forward"
@@ -637,10 +637,15 @@ def test_rag_module(
     )
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    if _VERSION < (2, 4, 12):
-        output_value_data = json.loads(output_value)
+    output_value_data = json.loads(output_value)
+    if VERSION < (2, 4, 12):
         assert set(output_value_data.keys()) == {"answer"}
         assert output_value_data["answer"] == "Washington, D.C."
+    else:
+        assert (
+            output_value_data
+            == "Prediction(\n    rationale='Washington, D.C.',\n    answer='Washington, D.C.'\n)"
+        )
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
