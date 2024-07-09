@@ -74,7 +74,7 @@ async def test_get_current_span(
     if is_async:
 
         async def f(_: Any) -> Optional[Span]:
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.001)
             return get_current_span()
 
         results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))  # type: ignore[arg-type]
