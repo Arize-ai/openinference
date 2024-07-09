@@ -91,7 +91,8 @@ class GuardrailsInstrumentor(BaseInstrumentor):
         )
 
     def _uninstrument(self, **kwargs):
-        # not unwrapping by checking and using the __wrap__ attribute below because the original package itself also uses wrapping
+        # not unwrapping by checking and using the __wrap__ attribute below because the
+        # original package itself also uses wrapping
         if self._original_guardrails_llm_providers_call is not None:
             llm_providers = import_module(_LLM_PROVIDERS_MODULE)
             llm_providers.PromptCallableBase.__call__ = self._original_guardrails_llm_providers_call

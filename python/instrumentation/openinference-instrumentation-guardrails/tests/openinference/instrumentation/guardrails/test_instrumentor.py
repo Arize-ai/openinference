@@ -42,7 +42,8 @@ def test_guardrails_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_guardrails_instrumentation,
 ):
-    # we expect the guard to raise an exception here because the mock LLMResponse has more than two words
+    # we expect the guard to raise an exception here because the mock LLMResponse has more
+    # than two words
     guard = Guard().use(TwoWords, on_fail="exception")
     with pytest.raises(Exception):
         guard(
@@ -70,9 +71,11 @@ def test_guardrails_instrumentation(
             assert span.attributes["validator_name"] == "two-words"
             assert span.attributes["validator_on_fail"].name == "EXCEPTION"
 
-            # note that validator result should fail because the mock response returns a 3 letter response
+            # note that validator result should fail because the mock response returns a
+            # 3 letter response
             assert span.attributes["output.value"] == "fail"
-            # this may be counter intuitive but the exception from the validator actually occurs in the span for guard_parse, not post_validation
+            # this may be counter intuitive but the exception from the validator actually
+            # occurs in the span for guard_parse, not post_validation
             assert span.status.is_ok, "post_validation span status should be OK"
 
         elif span.name == "Runner.step":
