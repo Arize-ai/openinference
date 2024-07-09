@@ -27,12 +27,13 @@ import openai
 import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
 from langchain.chains import LLMChain, RetrievalQA
+from langchain.tools import tool
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from openinference.instrumentation import using_attributes
-from openinference.instrumentation.langchain import LangChainInstrumentor
+from openinference.instrumentation.langchain import LangChainInstrumentor, get_current_span
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -48,6 +49,7 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.trace import Span
 from respx import MockRouter
 
 for name, logger in logging.root.manager.loggerDict.items():
@@ -57,6 +59,34 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.addHandler(logging.StreamHandler())
 
 LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_get_current_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    is_async: bool,
+) -> None:
+    @tool
+    def t(x: Any) -> Optional[Span]:
+        """"""
+        return get_current_span()
+
+    n = 10
+    loop = asyncio.get_running_loop()
+    results = await asyncio.gather(
+        *(
+            t.ainvoke({"x": ...})  # type: ignore[attr-defined]
+            if is_async
+            else loop.run_in_executor(None, t.invoke, {"x": ...})  # type: ignore[attr-defined]
+            for _ in range(n)
+        )
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == n
+    assert {id(span.get_span_context()) for span in results if isinstance(span, Span)} == {
+        id(span.get_span_context())  # type: ignore[no-untyped-call]
+        for span in spans
+    }
 
 
 @pytest.mark.parametrize("is_async", [False, True])
