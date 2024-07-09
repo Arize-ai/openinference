@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.7...python-openinference-instrumentation-v0.1.8) (2024-07-09)
+
+
+### Features
+
+* helper functions to convert OTEL IDs for spans and traces to strings ([#579](https://github.com/Arize-ai/openinference/issues/579)) ([dc60a92](https://github.com/Arize-ai/openinference/commit/dc60a92f8690243b5277cfba4c7e68a2056e293f))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.6...python-openinference-instrumentation-v0.1.7) (2024-05-21)
 
 
