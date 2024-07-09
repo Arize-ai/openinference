@@ -91,19 +91,23 @@ class GuardrailsInstrumentor(BaseInstrumentor):
         )
 
     def _uninstrument(self, **kwargs):
-        llm_providers = import_module(_LLM_PROVIDERS_MODULE)
-        if hasattr(llm_providers.PromptCallableBase.__call__, "__wrapped__"):
+        # not unwrapping by checking and using the __wrap__ attribute below because the original package itself also uses wrapping
+        if self._original_guardrails_llm_providers_call is not None:
+            llm_providers = import_module(_LLM_PROVIDERS_MODULE)
             llm_providers.PromptCallableBase.__call__ = self._original_guardrails_llm_providers_call
+            self._original_guardrails_llm_providers_call = None
 
-        runner_module = import_module(_RUNNER_MODULE)
-        if hasattr(runner_module.Runner.step, "__wrapped__"):
+        if self._original_guardrails_runner_step is not None:
+            runner_module = import_module(_RUNNER_MODULE)
             runner_module.Runner.step = self._original_guardrails_runner_step
+            self._original_guardrails_runner_step = None
 
-        validation_module = import_module(_VALIDATION_MODULE)
-        if hasattr(validation_module.ValidatorServiceBase.after_run_validator, "__wrapped__"):
+        if self._original_guardrails_validation_after_run is not None:
+            validation_module = import_module(_VALIDATION_MODULE)
             validation_module.ValidatorServiceBase.after_run_validator = (
                 self._original_guardrails_validation_after_run
             )
+            self._original_guardrails_validation_after_run = None
 
         if wrapped := getattr(gd.guard.contextvars, "__wrapped__", None):
             gd.guard.contextvars = wrapped
