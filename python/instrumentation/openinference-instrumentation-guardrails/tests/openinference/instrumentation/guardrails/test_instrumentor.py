@@ -66,26 +66,27 @@ def test_guardrails_instrumentation(
     assert expected_span_names.issubset(found_span_names), "Missing expected spans"
 
     for span in spans:
+        attributes = dict(span.attributes or dict())
         if span.name == "ArbitraryCallable.__call__":
-            assert span.attributes.get("openinference.span.kind") == "LLM"
+            assert attributes.get("openinference.span.kind") == "LLM"
             assert span.status.is_ok
 
         elif span.name == "AsyncValidatorService.after_run_validator":
-            assert span.attributes.get("validator_name") == "two-words"
-            assert span.attributes.get("validator_on_fail") == "EXCEPTION"
+            assert attributes.get("validator_name") == "two-words"
+            assert attributes.get("validator_on_fail") == "EXCEPTION"
             # 3 letter response
-            assert span.attributes["output.value"] == "fail"
+            assert attributes["output.value"] == "fail"
             # this may be counter intuitive but the exception from the validator actually
             # occurs in the span for guard_parse, not post_validation
             assert span.status.is_ok, "post_validation span status should be OK"
 
         elif span.name == "Runner.step":
-            assert span.attributes["openinference.span.kind"] == "GUARDRAIL"
-            assert "input.value" in span.attributes
+            assert attributes["openinference.span.kind"] == "GUARDRAIL"
+            assert "input.value" in attributes
             assert not span.status.is_ok, "guard_parse span status should not be OK"
 
 
-def test_guardrails_uninstrumentation(tracer_provider: TracerProvider):
+def test_guardrails_uninstrumentation(tracer_provider: TracerProvider) -> None:
     # Store references to the original functions
     original_prompt_callable_base_call = guardrails.llm_providers.PromptCallableBase.__call__
     original_runner_step = guardrails.run.Runner.step
