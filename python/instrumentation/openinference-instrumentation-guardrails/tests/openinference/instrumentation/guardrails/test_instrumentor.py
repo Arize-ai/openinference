@@ -1,3 +1,4 @@
+from typing import Any, Generator
 from unittest.mock import patch
 
 import guardrails
@@ -26,7 +27,9 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
 
 
 @pytest.fixture()
-def setup_guardrails_instrumentation(tracer_provider: TracerProvider) -> None:
+def setup_guardrails_instrumentation(
+    tracer_provider: TracerProvider,
+) -> Generator[None, None, None]:
     GuardrailsInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     GuardrailsInstrumentor().uninstrument()
@@ -37,11 +40,11 @@ def setup_guardrails_instrumentation(tracer_provider: TracerProvider) -> None:
     return_value=LLMResponse(output="More Than Two"),
 )
 def test_guardrails_instrumentation(
-    mock_invoke_llm,
+    mock_invoke_llm: Any,
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-    setup_guardrails_instrumentation,
-):
+    setup_guardrails_instrumentation: Any,
+) -> None:
     # we expect the guard to raise an exception here because the mock LLMResponse has more
     # than two words
     guard = Guard().use(TwoWords, on_fail="exception")
@@ -64,14 +67,12 @@ def test_guardrails_instrumentation(
 
     for span in spans:
         if span.name == "ArbitraryCallable.__call__":
-            assert span.attributes["openinference.span.kind"] == "LLM"
+            assert span.attributes.get("openinference.span.kind") == "LLM"
             assert span.status.is_ok
 
         elif span.name == "AsyncValidatorService.after_run_validator":
-            assert span.attributes["validator_name"] == "two-words"
-            assert span.attributes["validator_on_fail"].name == "EXCEPTION"
-
-            # note that validator result should fail because the mock response returns a
+            assert span.attributes.get("validator_name") == "two-words"
+            assert span.attributes.get("validator_on_fail").name == "EXCEPTION"
             # 3 letter response
             assert span.attributes["output.value"] == "fail"
             # this may be counter intuitive but the exception from the validator actually
