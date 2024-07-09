@@ -10,7 +10,7 @@ from openinference.instrumentation.guardrails._wrap_guard_call import (
 )
 from openinference.instrumentation.guardrails.version import __version__
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import ObjectProxy, wrap_function_wrapper
 
 import guardrails as gd
@@ -33,7 +33,7 @@ class _Contextvars(ObjectProxy):  # type: ignore
         return contextvars.copy_context()
 
 
-class GuardrailsInstrumentor(BaseInstrumentor):
+class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
     """An instrumentor for the Guardrails framework."""
 
     __slots__ = (
@@ -45,7 +45,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
-    def _instrument(self, **kwargs):
+    def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
@@ -90,7 +90,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):
             wrapper=post_validator_wrapper,
         )
 
-    def _uninstrument(self, **kwargs):
+    def _uninstrument(self, **kwargs: Any) -> None:
         # not unwrapping by checking and using the __wrap__ attribute below because the
         # original package itself also uses wrapping
         if self._original_guardrails_llm_providers_call is not None:

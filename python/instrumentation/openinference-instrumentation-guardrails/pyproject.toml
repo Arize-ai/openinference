@@ -69,6 +69,7 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "guardrails",
   "wrapt",
 ]
 

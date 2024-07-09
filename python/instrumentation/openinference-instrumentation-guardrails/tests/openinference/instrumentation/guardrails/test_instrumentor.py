@@ -3,8 +3,8 @@ from unittest.mock import patch
 import guardrails
 import pytest
 from guardrails import Guard
-from guardrails.utils.llm_response import LLMResponse
-from guardrails.validators import TwoWords
+from guardrails.utils.llm_response import LLMResponse  # type: ignore
+from guardrails.validators import TwoWords  # type: ignore
 from openinference.instrumentation.guardrails import GuardrailsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
