@@ -58,6 +58,9 @@ include = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [tool.mypy]
 strict = true
 explicit_package_bases = true
@@ -83,7 +86,6 @@ target-version = "py38"
 "*.ipynb" = ["E402", "E501"]
 
 [tool.ruff.lint]
-ignore-init-module-imports = true
 select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
