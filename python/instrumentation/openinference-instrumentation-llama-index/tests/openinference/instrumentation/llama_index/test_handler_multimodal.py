@@ -147,7 +147,7 @@ def test_handler_multimodal(
     async def achat(message: ChatMessage) -> None:
         if is_stream:
             resp_gen = await llm.astream_chat([message])
-            x = [r async for r in resp_gen]
+            _ = [r async for r in resp_gen]
         else:
             _ = await llm.achat([message])
 

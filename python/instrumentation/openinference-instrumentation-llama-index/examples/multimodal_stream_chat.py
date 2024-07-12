@@ -4,7 +4,6 @@ from llama_index.multi_modal_llms.openai.utils import (
     generate_openai_multi_modal_chat_message,
 )
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -17,7 +16,6 @@ tracer_provider.add_span_processor(
 )
 
 LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
-OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 IMAGE_URLS = [
