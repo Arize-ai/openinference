@@ -95,9 +95,11 @@ def test_handler_basic_retrieval(
     query_engine = ListIndex(nodes).as_query_engine(use_async=is_async, streaming=is_stream)
     respx_kwargs: Dict[str, Any] = (
         {
-            "stream": MockAsyncByteStream(chat_completion_mock_stream[0])
-            if is_async
-            else MockSyncByteStream(chat_completion_mock_stream[0])
+            "stream": (
+                MockAsyncByteStream(chat_completion_mock_stream[0])
+                if is_async
+                else MockSyncByteStream(chat_completion_mock_stream[0])
+            )
         }
         if is_stream
         else {
@@ -444,7 +446,9 @@ def in_memory_span_exporter() -> InMemorySpanExporter:
 
 
 @pytest.fixture(scope="module")
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
+def tracer_provider(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> trace_api.TracerProvider:
     tracer_provider = trace_sdk.TracerProvider()
     tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     return tracer_provider
