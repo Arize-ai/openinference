@@ -17,12 +17,14 @@ from typing import (
     AsyncGenerator,
     Dict,
     Generator,
+    Iterable,
     Iterator,
     List,
     Mapping,
     Optional,
     SupportsFloat,
     Tuple,
+    TypeVar,
     Union,
 )
 
@@ -30,7 +32,9 @@ from openinference.instrumentation import get_attributes_from_context, safe_json
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -94,10 +98,7 @@ from llama_index.core.instrumentation.events.llm import (
     LLMStructuredPredictEndEvent,
     LLMStructuredPredictStartEvent,
 )
-from llama_index.core.instrumentation.events.query import (
-    QueryEndEvent,
-    QueryStartEvent,
-)
+from llama_index.core.instrumentation.events.query import QueryEndEvent, QueryStartEvent
 from llama_index.core.instrumentation.events.rerank import (
     ReRankEndEvent,
     ReRankStartEvent,
@@ -106,9 +107,7 @@ from llama_index.core.instrumentation.events.retrieval import (
     RetrievalEndEvent,
     RetrievalStartEvent,
 )
-from llama_index.core.instrumentation.events.span import (
-    SpanDropEvent,
-)
+from llama_index.core.instrumentation.events.span import SpanDropEvent
 from llama_index.core.instrumentation.events.synthesis import (
     GetResponseEndEvent,
     GetResponseStartEvent,
@@ -142,6 +141,7 @@ if LLAMA_INDEX_VERSION < (0, 10, 44):
 
     class ExceptionEvent:  # Dummy substitute
         exception: BaseException
+
 elif not TYPE_CHECKING:
     from llama_index.core.instrumentation.events.exception import ExceptionEvent
 
@@ -539,7 +539,12 @@ class _Span(
         for i, message in enumerate(messages):
             self[f"{prefix}.{i}.{MESSAGE_ROLE}"] = message.role.value
             if content := message.content:
-                self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = str(content)
+                if isinstance(content, str):
+                    self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = str(content)
+                elif is_iterable_of(content, dict):
+                    for j, c in list(enumerate(content)):
+                        for key, value in _get_attributes_from_message_content(c):
+                            self[f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{key}"] = value
             additional_kwargs = message.additional_kwargs
             if name := additional_kwargs.get("name"):
                 self[f"{prefix}.{i}.{MESSAGE_NAME}"] = name
@@ -910,6 +915,36 @@ def _asdict(obj: Any) -> Any:
             return repr(obj)
 
 
+def _get_attributes_from_message_content(
+    content: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    content = dict(content)
+    type_ = content.get("type")
+    if type_ == "text":
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+        if text := content.pop("text"):
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+    elif type_ == "image_url":
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+        if image := content.pop("image_url"):
+            for key, value in _get_attributes_from_image(image):
+                yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+
+
+def _get_attributes_from_image(
+    image: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if url := image.get("url"):
+        yield f"{ImageAttributes.IMAGE_URL}", url
+
+
+T = TypeVar("T", bound=type)
+
+
+def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
+    return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)
+
+
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
 DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
@@ -931,6 +966,11 @@ LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
