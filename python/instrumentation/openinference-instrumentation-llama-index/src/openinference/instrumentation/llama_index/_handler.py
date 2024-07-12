@@ -262,12 +262,16 @@ class _Span(
     @process_instance.register(BaseLLM)
     @process_instance.register(MultiModalLLM)
     def _(self, instance: Union[BaseLLM, MultiModalLLM]) -> None:
+        print("MultiModalLLM or BaseLLM")
+        print(f"{instance.metadata=}")
+        print(f"{LLM_MODEL_NAME=}")
         if metadata := instance.metadata:
             self[LLM_MODEL_NAME] = metadata.model_name
             self[LLM_INVOCATION_PARAMETERS] = metadata.json(exclude_unset=True)
 
     @process_instance.register
     def _(self, instance: BaseEmbedding) -> None:
+        print("BaseEmbedding")
         if name := instance.model_name:
             self[EMBEDDING_MODEL_NAME] = name
 
