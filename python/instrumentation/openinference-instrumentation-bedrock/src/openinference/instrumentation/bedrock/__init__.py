@@ -1,6 +1,6 @@
 import io
 import json
-from functools import wraps
+from functools import partial, wraps
 from importlib import import_module
 from inspect import signature
 from typing import IO, Any, Callable, Collection, Dict, Optional, Tuple, TypeVar, cast
@@ -34,6 +34,9 @@ class InstrumentedClient(BaseClient):  # type: ignore
 
     invoke_model: Callable[..., Any]
     _unwrapped_invoke_model: Callable[..., Any]
+
+    converse: Callable[..., Any]
+    _unwrapped_converse: Callable[..., Any]
 
 
 class BufferedStreamingBody(StreamingBody):  # type: ignore
@@ -74,8 +77,12 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[ClientCreator], Client
 
         if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
             client = cast(InstrumentedClient, client)
+
             client._unwrapped_invoke_model = client.invoke_model
-            client.invoke_model = _model_invocation_wrapper(tracer)(client)
+            client.invoke_model = _model_invocation_wrapper(tracer)(client)("invoke_model")
+
+            client._unwrapped_converse = client.converse
+            client.converse = _model_invocation_wrapper(tracer)(client)("converse")
         return client
 
     return _client_wrapper  # type: ignore
@@ -83,10 +90,10 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[ClientCreator], Client
 
 def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Callable[..., Any]]:
     def _invocation_wrapper(wrapped_client: InstrumentedClient) -> Callable[..., Any]:
-        """Instruments a bedrock client's `invoke_model` method."""
+        """Instruments a bedrock client's `invoke_model` or `converse` method."""
 
         @wraps(wrapped_client.invoke_model)
-        def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        def instrumented_response_invoke(*args: Any, **kwargs: Any) -> Dict[str, Any]:
             if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
                 return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
 
@@ -106,7 +113,6 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
 
                 prompt = request_body.pop("prompt")
                 invocation_parameters = safe_json_dumps(request_body)
-
                 _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
                 _set_span_attribute(
                     span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
@@ -158,7 +164,74 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 span.set_attributes(dict(get_attributes_from_context()))
                 return response  # type: ignore
 
-        return instrumented_response
+        @wraps(wrapped_client.converse)
+        def instrumented_response_converse(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
+
+            with tracer.start_as_current_span("bedrock.converse") as span:
+                span.set_attribute(
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                    OpenInferenceSpanKindValues.LLM.value,
+                )
+
+                if model_id := kwargs.get("modelId"):
+                    _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
+
+                if request_messages := kwargs.get("messages"):
+                    # Extract the most recent request message in message history list
+                    current_request_message = request_messages[-1]
+
+                    if request_content := current_request_message.pop("content", ""):
+                        # Currently only supports single text-based data
+                        # Future implementation can be extended to handle different media types
+                        if prompt := request_content[-1].get("text"):
+                            _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
+
+                    invocation_parameters = safe_json_dumps(current_request_message)
+                    _set_span_attribute(
+                        span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
+                    )
+
+                    # Add content back after setting invocation parameters
+                    if request_content:
+                        current_request_message["content"] = request_content
+
+                response = wrapped_client._unwrapped_converse(*args, **kwargs)
+                if (response_content :=
+                        response.get("output", {}).get("message", {}).get("content", [])):
+                    current_content = response_content[-1]
+                    if response_text := current_content.get("text"):
+                        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
+
+                if usage := response.get("usage"):
+                    if input_token_count := usage.get("inputTokens"):
+                        _set_span_attribute(
+                            span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count
+                        )
+                    if response_token_count := usage.get("outputTokens"):
+                        _set_span_attribute(
+                            span,
+                            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
+                            response_token_count,
+                        )
+                    if total_token_count := usage.get("totalTokens"):
+                        _set_span_attribute(
+                            span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
+                        )
+
+                span.set_attributes(dict(get_attributes_from_context()))
+            return response  # type: ignore
+
+        def dispatcher(method_name):
+            if method_name == "invoke_model":
+                return instrumented_response_invoke
+            elif method_name == "converse":
+                return instrumented_response_converse
+            else:
+                raise ValueError(f"Unsupported method: {method_name}")
+
+        return dispatcher
 
     return _invocation_wrapper
 
