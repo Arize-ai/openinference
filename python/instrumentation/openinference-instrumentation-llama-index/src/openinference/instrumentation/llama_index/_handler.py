@@ -934,8 +934,7 @@ def _get_attributes_from_message_content(
 def _get_attributes_from_image(
     image: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    image = dict(image)
-    if url := image.pop("url"):
+    if url := image.get("url"):
         yield f"{ImageAttributes.IMAGE_URL}", url
 
 
