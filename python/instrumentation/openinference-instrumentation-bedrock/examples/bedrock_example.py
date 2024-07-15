@@ -52,7 +52,7 @@ def invoke_example():
 def converse_example():
     message1 = {
             "role": "user",
-            "content": [{"text": "Create a list of 3 pop songs."}]
+            "content": [{"text": "hello there?"}]
     }
     message2 = {
             "role": "user",
@@ -96,7 +96,8 @@ def converse_example():
         )
         out = response['output']['message']
         print(response)
+        print(out.get("content", {}).get("text"))
 
 if __name__ == "__main__":
-    # invoke_example()
+    invoke_example()
     converse_example()

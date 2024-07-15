@@ -201,6 +201,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 if (response_content :=
                         response.get("output", {}).get("message", {}).get("content", [])):
                     current_content = response_content[-1]
+                    # Currently only supports single text-based data
                     if response_text := current_content.get("text"):
                         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
 

@@ -271,6 +271,208 @@ def test_invoke_client_with_missing_tokens(
         )
     assert attributes == {}
 
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_converse(
+    use_context_attributes: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    output = {
+        "message": {
+            "role": "assistant",
+            "content": [{
+                "text": "Hello! How can I assist you today? \
+                    Feel free to ask any questions or let me know if you need help with anything."
+            }]
+        }
+    }
+    mock_response = {
+        "ResponseMetadata": {
+            "RequestId": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
+            "HTTPStatusCode": 200,
+            "HTTPHeaders": {
+                "date": "Sun, 21 Jan 2024 20:00:00 GMT",
+                "content-type": "application/json",
+                "content-length": "74",
+                "connection": "keep-alive",
+                "x-amzn-requestid": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
+                "x-amzn-bedrock-invocation-latency": "425",
+                "x-amzn-bedrock-output-token-count": "6",
+                "x-amzn-bedrock-input-token-count": "12",
+            },
+            "RetryAttempts": 0,
+        },
+        "output": output,
+        'usage': {
+            'inputTokens': 12,
+            'outputTokens': 6,
+            'totalTokens': 18
+    },
+    }
+    session = boto3.session.Session()
+    client = session.client("bedrock-runtime", region_name="us-east-1")
+    # instead of mocking the HTTP response, we mock the boto client method directly to avoid
+    # complexities with mocking auth
+    client._unwrapped_converse = MagicMock(return_value=mock_response)
+    message = {
+            "role": "user",
+            "content": [{"text": "hello there?"}]
+    }
+    model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            client.converse(
+                modelId=model_name,
+                messages=[message],
+            )
+    else:
+        client.converse(
+            modelId=model_name,
+            messages=[message],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.is_ok
+    attributes = dict(span.attributes or dict())
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(INPUT_VALUE) == message.get("content")[0].get("text")
+    assert attributes.pop(OUTPUT_VALUE) == output.get("message").get("content")[0].get("text")
+    assert attributes.pop(LLM_MODEL_NAME) == model_name
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 12
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 6
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 18
+    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters_str) == {
+        "role": "user",
+    }
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+    assert attributes == {}
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_converse_with_missing_tokens(
+    use_context_attributes: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    output = {
+        "message": {
+            "role": "assistant",
+            "content": [{
+                "text": "Hello! How can I assist you today? \
+                    Feel free to ask any questions or let me know if you need help with anything."
+            }]
+        }
+    }
+    mock_response = {
+        "ResponseMetadata": {
+            "RequestId": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
+            "HTTPStatusCode": 200,
+            "HTTPHeaders": {
+                "date": "Sun, 21 Jan 2024 20:00:00 GMT",
+                "content-type": "application/json",
+                "content-length": "74",
+                "connection": "keep-alive",
+                "x-amzn-requestid": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
+                "x-amzn-bedrock-invocation-latency": "425",
+                "x-amzn-bedrock-output-token-count": "6",
+            },
+            "RetryAttempts": 0,
+        },
+        "output": output,
+        'usage': {
+            'outputTokens': 6
+    },
+    }
+    session = boto3.session.Session()
+    client = session.client("bedrock-runtime", region_name="us-east-1")
+
+    # instead of mocking the HTTP response, we mock the boto client method directly to avoid
+    # complexities with mocking auth
+    client._unwrapped_converse = MagicMock(return_value=mock_response)
+    message = {
+            "role": "user",
+            "content": [{"text": "hello there?"}]
+    }
+    model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            client.converse(
+                modelId=model_name,
+                messages=[message],
+            )
+    else:
+            client.converse(
+                modelId=model_name,
+                messages=[message],
+            )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.is_ok
+    attributes = dict(span.attributes or dict())
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(INPUT_VALUE) == message.get("content")[0].get("text")
+    assert attributes.pop(OUTPUT_VALUE) == output.get("message").get("content")[0].get("text")
+    assert attributes.pop(LLM_MODEL_NAME) == model_name
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 6
+    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters_str) == {
+        "role": "user",
+    }
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+    assert attributes == {}
+
 
 def _check_context_attributes(
     attributes: Dict[str, Any],
