@@ -14,6 +14,9 @@ pip install openinference-instrumentation-bedrock
 
 ## Quickstart
 
+> **NOTE**:
+> OpenInference for AWS Bedrock supports both [`invoke_model`](https://botocore.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/invoke_model.html#BedrockRuntime.Client.invoke_model) and [`converse`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#). For models that use the Messages API, such as Anthropic Claude 3 and Anthropic Claude 3.5, you can use the [Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) instead.
+
 In a notebook environment (`jupyter`, `colab`, etc.) install `openinference-instrumentation-bedrock`, `arize-phoenix` and `boto3`.
 
 [You can test out this quickstart guide in Google Colab!](https://colab.research.google.com/github/Arize-ai/phoenix/blob/main/tutorials/integrations/bedrock_tracing_tutorial.ipynb)
@@ -57,9 +60,6 @@ Instrumenting `boto3` is simple:
 BedrockInstrumentor().instrument()
 ```
 
-> **NOTE**:
-> OpenInference supports both [`invoke_model`](https://botocore.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/invoke_model.html#BedrockRuntime.Client.invoke_model) and [`converse`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#). For models that use the Messages API, such as Anthropic Claude 3 and Anthropic Claude 3.5, please use the [Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) instead.
-
 Now, all calls to `invoke_model` are instrumented and can be viewed in the `phoenix` UI.
 
 ```python
@@ -71,7 +71,7 @@ response_body = json.loads(response.get("body").read())
 print(response_body["completion"])
 ```
 
-Now, all calls to `converse` are instrumented and can be viewed in the `phoenix` UI.
+Alternatively, all calls to `converse` are instrumented and can be viewed in the `phoenix` UI.
 
 ```python
 session = boto3.session.Session()
