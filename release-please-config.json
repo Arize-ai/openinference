@@ -34,6 +34,10 @@
         "python/instrumentation/openinference-instrumentation-langchain": {
             "package-name": "python-openinference-instrumentation-langchain",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-guardrails": {
+            "package-name": "python-openinference-instrumentation-guardrails",
+            "release-type": "python"
         }
     }
 }
