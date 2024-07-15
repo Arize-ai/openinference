@@ -52,7 +52,7 @@ def invoke_example():
 def converse_example():
     message1 = {
             "role": "user",
-            "content": [{"text": "hello there?"}]
+            "content": [{"text": "Create a list of 3 pop songs."}]
     }
     message2 = {
             "role": "user",
@@ -85,7 +85,7 @@ def converse_example():
             modelId="anthropic.claude-3-5-sonnet-20240620-v1:0",
             messages=messages
         )
-        out = response['output']['message']
+        out = response["output"]["message"]
         messages.append(out)
         print(out.get("content")[-1].get("text"))
 
@@ -95,8 +95,7 @@ def converse_example():
             messages=messages
         )
         out = response['output']['message']
-        print(response)
-        print(out.get("content", {}).get("text"))
+        print(out.get("content")[-1].get("text"))
 
 if __name__ == "__main__":
     invoke_example()
