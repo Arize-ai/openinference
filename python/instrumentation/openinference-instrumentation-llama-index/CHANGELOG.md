@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.0.0...python-openinference-instrumentation-llama-index-v2.1.0) (2024-07-15)
+
+
+### Features
+
+* Add vision instrumentation ([#575](https://github.com/Arize-ai/openinference/issues/575)) ([e3d83a5](https://github.com/Arize-ai/openinference/commit/e3d83a5cdcbcf394c44b2456f99dcf9d4193de98))
+
 ## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v1.4.2...python-openinference-instrumentation-llama-index-v2.0.0) (2024-06-10)
 
 
