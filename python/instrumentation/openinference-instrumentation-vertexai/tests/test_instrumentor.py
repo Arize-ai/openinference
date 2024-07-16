@@ -19,6 +19,7 @@ from typing import (
 
 import grpc
 import pytest
+from google.auth.api_key import Credentials
 from google.cloud.aiplatform_v1 import (
     Candidate,
     Content,
@@ -111,6 +112,7 @@ async def test_instrumentor(
             tools=[tool],
         )
     )
+    credentials = Credentials("123")  # type: ignore[no-untyped-call]
     with contextlib.suppress(Error):
         if is_async:
             if is_stream:
@@ -122,7 +124,7 @@ async def test_instrumentor(
                         tracer_provider=tracer_provider,
                     )
                 ):
-                    async_client = PredictionServiceAsyncClient()
+                    async_client = PredictionServiceAsyncClient(credentials=credentials)
                     stream_async_func = async_client.stream_generate_content
                     _ = [_ async for _ in await stream_async_func(request)]
             else:
@@ -134,7 +136,7 @@ async def test_instrumentor(
                         tracer_provider=tracer_provider,
                     )
                 ):
-                    async_client = PredictionServiceAsyncClient()
+                    async_client = PredictionServiceAsyncClient(credentials=credentials)
                     await async_client.generate_content(request)
         else:
             if is_stream:
@@ -146,7 +148,7 @@ async def test_instrumentor(
                         tracer_provider=tracer_provider,
                     )
                 ):
-                    client = PredictionServiceClient()
+                    client = PredictionServiceClient(credentials=credentials)
                     _ = [_ for _ in client.stream_generate_content(request)]
             else:
                 with patch_grpc_transport_generate_content(
@@ -157,7 +159,7 @@ async def test_instrumentor(
                         tracer_provider=tracer_provider,
                     )
                 ):
-                    client = PredictionServiceClient()
+                    client = PredictionServiceClient(credentials=credentials)
                     client.generate_content(request)
 
     spans = sorted(
