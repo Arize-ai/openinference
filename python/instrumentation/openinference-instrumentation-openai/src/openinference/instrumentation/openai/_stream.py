@@ -8,6 +8,7 @@ from typing import (
     Protocol,
     Tuple,
     Union,
+    cast,
 )
 
 from openinference.instrumentation.openai._utils import _finish_tracing
@@ -109,6 +110,24 @@ class _Stream(ObjectProxy):  # type: ignore
         else:
             self._process_chunk(chunk)
             return chunk
+
+    def __enter__(self) -> "Stream[Any]":
+        obj = self.__wrapped__.__enter__()
+        if obj is self.__wrapped__:
+            return cast("Stream[Any]", self)
+        return cast("Stream[Any]", obj)
+
+    def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        self.__wrapped__.__exit__(*args, **kwargs)
+
+    async def __aenter__(self) -> "AsyncStream[Any]":
+        obj = await self.__wrapped__.__aenter__()
+        if obj is self.__wrapped__:
+            return cast("AsyncStream[Any]", self)
+        return cast("AsyncStream[Any]", obj)
+
+    async def __aexit__(self, *args: Any, **kwargs: Any) -> None:
+        await self.__wrapped__.__aexit__(*args, **kwargs)
 
     def _process_chunk(self, chunk: Any) -> None:
         if not self._self_iteration_count:
