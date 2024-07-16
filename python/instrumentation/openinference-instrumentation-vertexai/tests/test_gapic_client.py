@@ -173,12 +173,9 @@ async def mock_async_stream_generate_content(
     stack: ExitStack,
     tracer: Tracer,
 ) -> None:
-    patch = MockAsyncStreamGenerateContent(
-        mock_async_generate_content_response_gen(
-            mock_generate_content_response_gen(response, tracer, has_error),
-        ),
-        tracer,
-    )
+    gen = mock_generate_content_response_gen(response, tracer, has_error)
+    response_gen = mock_async_generate_content_response_gen(gen)
+    patch = MockAsyncStreamGenerateContent(response_gen, tracer)
     stack.enter_context(patch_grpc_asyncio_transport_stream_generate_content(patch))
     credentials = Credentials("123")  # type: ignore[no-untyped-call]
     client = PredictionServiceAsyncClient(credentials=credentials)
@@ -192,10 +189,8 @@ def mock_stream_generate_content(
     stack: ExitStack,
     tracer: Tracer,
 ) -> None:
-    patch = MockStreamGenerateContent(
-        mock_generate_content_response_gen(response, tracer, has_error),
-        tracer,
-    )
+    response_gen = mock_generate_content_response_gen(response, tracer, has_error)
+    patch = MockStreamGenerateContent(response_gen, tracer)
     stack.enter_context(patch_grpc_transport_stream_generate_content(patch))
     credentials = Credentials("123")  # type: ignore[no-untyped-call]
     client = PredictionServiceClient(credentials=credentials)
@@ -238,7 +233,7 @@ def mock_generate_content(
 
 @pytest.fixture
 def metadata() -> Dict[str, Any]:
-    return {"a": [{"b": "c"}]}
+    return {"1": [{"2": 3}]}
 
 
 @pytest.fixture
