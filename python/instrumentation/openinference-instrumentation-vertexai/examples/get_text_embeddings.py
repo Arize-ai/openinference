@@ -1,7 +1,4 @@
-"""
-This use-case is not yet supported.
-"""
-
+# FIXME: This use-case is not yet supported.
 from typing import List, Optional
 
 import vertexai

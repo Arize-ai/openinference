@@ -1,7 +1,3 @@
-"""
-pip install -Uqqq google-cloud-aiplatform
-"""
-
 import asyncio
 import os
 
@@ -28,12 +24,11 @@ VertexAIInstrumentor().instrument(tracer_provider=tracer_provider)
 location = "us-central1"
 project = os.environ["CLOUD_ML_PROJECT_ID"]
 model = "gemini-1.5-flash"
-
 request = GenerateContentRequest(
     {
-        "contents": [Content({"role": "user", "parts": [Part({"text": "Write a haiku."})]})],
+        "contents": [Content(dict(role="user", parts=[Part(dict(text="Write a haiku."))]))],
         "model": f"projects/{project}/locations/{location}/publishers/google/models/{model}",
-        "generation_config": GenerationConfig({"max_output_tokens": 20}),
+        "generation_config": GenerationConfig(dict(max_output_tokens=20)),
     }
 )
 
