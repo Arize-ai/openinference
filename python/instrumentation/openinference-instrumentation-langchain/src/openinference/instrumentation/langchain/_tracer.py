@@ -247,7 +247,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
                     _prompts(run.inputs),
                     _input_messages(run.inputs),
                     _output_messages(run.outputs),
-                    _parse_prompt_template(run.inputs, run.serialized),
+                    _prompt_template(run),
                     _invocation_parameters(run),
                     _model_name(run.extra),
                     _token_counts(run.outputs),
@@ -481,6 +481,11 @@ def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str
         if arguments := function.get("arguments"):
             assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
             yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+
+
+@stop_on_exception
+def _prompt_template(run: Run) -> Iterator[Tuple[str, AttributeValue]]:
+    yield from _parse_prompt_template(run.inputs, run.serialized)
 
 
 @stop_on_exception
