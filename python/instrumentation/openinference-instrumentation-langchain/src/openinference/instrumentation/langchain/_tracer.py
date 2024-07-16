@@ -247,7 +247,7 @@ def _update_span(span: trace_api.Span, run: Run) -> None:
                     _prompts(run.inputs),
                     _input_messages(run.inputs),
                     _output_messages(run.outputs),
-                    _prompt_template(run),
+                    _parse_prompt_template(run.inputs, run.serialized),
                     _invocation_parameters(run),
                     _model_name(run.extra),
                     _token_counts(run.outputs),
@@ -484,44 +484,46 @@ def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str
 
 
 @stop_on_exception
-def _prompt_template(run: Run) -> Iterator[Tuple[str, Any]]:
-    """
-    A best-effort attempt to locate the PromptTemplate object among the
-    keyword arguments of a serialized object, e.g. an LLMChain object.
-    """
-    serialized: Optional[Mapping[str, Any]] = run.serialized
-    if not serialized:
+def _parse_prompt_template(
+    inputs: Mapping[str, str],
+    serialized: Optional[Mapping[str, Any]],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if (
+        not serialized
+        or not isinstance(serialized, Mapping)
+        or not (kwargs := serialized.get("kwargs"))
+        or not isinstance(kwargs, Mapping)
+    ):
         return
-    assert hasattr(serialized, "get"), f"expected Mapping, found {type(serialized)}"
-    if not (kwargs := serialized.get("kwargs")):
-        return
-    assert isinstance(kwargs, dict), f"expected dict, found {type(kwargs)}"
-    for obj in kwargs.values():
-        if not hasattr(obj, "get") or not (id_ := obj.get("id")):
-            continue
-        # The `id` field of the object is a list indicating the path to the
-        # object's class in the LangChain package, e.g. `PromptTemplate` in
-        # the `langchain.prompts.prompt` module is represented as
-        # ["langchain", "prompts", "prompt", "PromptTemplate"]
-        assert isinstance(id_, Sequence), f"expected list, found {type(id_)}"
-        if id_[-1].endswith("PromptTemplate"):
-            if not (kwargs := obj.get("kwargs")):
-                continue
-            assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
-            if not (template := kwargs.get("template", "")):
-                continue
-            yield LLM_PROMPT_TEMPLATE, template
-            if input_variables := kwargs.get("input_variables"):
-                assert isinstance(
-                    input_variables, list
-                ), f"expected list, found {type(input_variables)}"
-                template_variables = {}
-                for variable in input_variables:
-                    if (value := run.inputs.get(variable)) is not None:
-                        template_variables[variable] = value
-                if template_variables:
-                    yield LLM_PROMPT_TEMPLATE_VARIABLES, safe_json_dumps(template_variables)
-            break
+    if _get_id(prompt := kwargs.get("prompt")).endswith("PromptTemplate"):
+        yield from _parse_prompt_template(inputs, prompt)
+    elif _get_id(serialized).endswith("ChatPromptTemplate"):
+        messages = kwargs.get("messages")
+        assert isinstance(messages, Sequence), f"expected list, found {type(messages)}"
+        # FIXME: Multiple templates are possible (and the templated messages can also be
+        # interleaved with user massages), but we only have room for one template.
+        message = messages[0]
+        assert isinstance(message, Mapping), f"expected dict, found {type(message)}"
+        if partial_variables := kwargs.get("partial_variables"):
+            assert isinstance(
+                partial_variables, Mapping
+            ), f"expected dict, found {type(partial_variables)}"
+            inputs = {**partial_variables, **inputs}
+        yield from _parse_prompt_template(inputs, message)
+    elif _get_id(serialized).endswith("PromptTemplate") and isinstance(
+        (template := kwargs.get("template")), str
+    ):
+        yield LLM_PROMPT_TEMPLATE, template
+        if input_variables := kwargs.get("input_variables"):
+            assert isinstance(
+                input_variables, list
+            ), f"expected list, found {type(input_variables)}"
+            template_variables = {}
+            for variable in input_variables:
+                if (value := inputs.get(variable)) is not None:
+                    template_variables[variable] = value
+            if template_variables:
+                yield LLM_PROMPT_TEMPLATE_VARIABLES, safe_json_dumps(template_variables)
 
 
 @stop_on_exception
@@ -645,6 +647,18 @@ def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
 
 def _as_utc_nano(dt: datetime) -> int:
     return int(dt.astimezone(timezone.utc).timestamp() * 1_000_000_000)
+
+
+def _get_id(serialized: Optional[Mapping[str, Any]]) -> str:
+    if serialized is None or not hasattr(serialized, "get"):
+        return ""
+    # The `id` field of the object is a list indicating the path to the
+    # object's class in the LangChain package, e.g. `PromptTemplate` in
+    # the `langchain.prompts.prompt` module is represented as
+    # ["langchain", "prompts", "prompt", "PromptTemplate"]
+    if (id_ := serialized.get("id")) and isinstance(id_, list) and isinstance(id_[-1], str):
+        return id_[-1]
+    return ""
 
 
 LANGCHAIN_SESSION_ID = "session_id"
