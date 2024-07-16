@@ -38,6 +38,7 @@ from google.cloud.aiplatform_v1.services.prediction_service.transports import (
     PredictionServiceGrpcAsyncIOTransport,
     PredictionServiceGrpcTransport,
 )
+from openinference.instrumentation import using_attributes
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -50,7 +51,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import TracerProvider
+from opentelemetry.trace import Tracer, TracerProvider
 from opentelemetry.util.types import AttributeValue
 
 
@@ -113,54 +114,59 @@ async def test_instrumentor(
         )
     )
     credentials = Credentials("123")  # type: ignore[no-untyped-call]
-    with contextlib.suppress(Error):
+    tracer = tracer_provider.get_tracer(__name__)
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(contextlib.suppress(Error))
+        stack.enter_context(using_attributes(metadata={"a": [{"b": "c"}]}))
         if is_async:
             if is_stream:
-                with patch_grpc_asyncio_transport_stream_generate_content(
-                    MockAsyncStreamGenerateContent(
-                        response_gen=mock_async_generate_content_response_gen_with_error
-                        if has_error
-                        else mock_async_generate_content_response_gen,
-                        tracer_provider=tracer_provider,
+                stack.enter_context(
+                    patch_grpc_asyncio_transport_stream_generate_content(
+                        MockAsyncStreamGenerateContent(
+                            mock_async_generate_content_response_gen_with_error
+                            if has_error
+                            else mock_async_generate_content_response_gen,
+                            tracer,
+                        )
                     )
-                ):
-                    async_client = PredictionServiceAsyncClient(credentials=credentials)
-                    stream_async_func = async_client.stream_generate_content
-                    _ = [_ async for _ in await stream_async_func(request)]
+                )
+                async_client = PredictionServiceAsyncClient(credentials=credentials)
+                stream_async_func = async_client.stream_generate_content
+                _ = [_ async for _ in await stream_async_func(request)]
             else:
-                with patch_grpc_asyncio_transport_generate_content(
-                    MockAsyncGenerateContentWithError(tracer_provider=tracer_provider)
-                    if has_error
-                    else MockAsyncGenerateContent(
-                        response=mock_generate_content_response,
-                        tracer_provider=tracer_provider,
+                stack.enter_context(
+                    patch_grpc_asyncio_transport_generate_content(
+                        MockAsyncGenerateContentWithError(tracer)
+                        if has_error
+                        else MockAsyncGenerateContent(mock_generate_content_response, tracer)
                     )
-                ):
-                    async_client = PredictionServiceAsyncClient(credentials=credentials)
-                    await async_client.generate_content(request)
+                )
+                async_client = PredictionServiceAsyncClient(credentials=credentials)
+                await async_client.generate_content(request)
         else:
             if is_stream:
-                with patch_grpc_transport_stream_generate_content(
-                    MockStreamGenerateContent(
-                        response_gen=mock_generate_content_response_gen_with_error
-                        if has_error
-                        else mock_generate_content_response_gen,
-                        tracer_provider=tracer_provider,
+                stack.enter_context(
+                    patch_grpc_transport_stream_generate_content(
+                        MockStreamGenerateContent(
+                            mock_generate_content_response_gen_with_error
+                            if has_error
+                            else mock_generate_content_response_gen,
+                            tracer,
+                        )
                     )
-                ):
-                    client = PredictionServiceClient(credentials=credentials)
-                    _ = [_ for _ in client.stream_generate_content(request)]
+                )
+                client = PredictionServiceClient(credentials=credentials)
+                _ = [_ for _ in client.stream_generate_content(request)]
             else:
-                with patch_grpc_transport_generate_content(
-                    MockGenerateContentWithError(tracer_provider=tracer_provider)
-                    if has_error
-                    else MockGenerateContent(
-                        response=mock_generate_content_response,
-                        tracer_provider=tracer_provider,
+                stack.enter_context(
+                    patch_grpc_transport_generate_content(
+                        MockGenerateContentWithError(tracer)
+                        if has_error
+                        else MockGenerateContent(mock_generate_content_response, tracer)
                     )
-                ):
-                    client = PredictionServiceClient(credentials=credentials)
-                    client.generate_content(request)
+                )
+                client = PredictionServiceClient(credentials=credentials)
+                client.generate_content(request)
 
     spans = sorted(
         in_memory_span_exporter.get_finished_spans(),
@@ -169,6 +175,7 @@ async def test_instrumentor(
     assert spans
     span = spans[0]
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(METADATA, None) == '{"a": [{"b": "c"}]}'
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert attributes.pop(INPUT_MIME_TYPE, None) == JSON
@@ -391,69 +398,56 @@ RequestType = TypeVar("RequestType")
 ResponseType = TypeVar("ResponseType")
 
 
-class HasTracerProvider:
-    def __init__(self, tracer_provider: TracerProvider) -> None:
-        self._tracer_provider = tracer_provider
+class HasTracer:
+    def __init__(self, tracer: Tracer) -> None:
+        self._tracer = tracer
 
 
-class MockGenerateContentWithError(HasTracerProvider):
+class MockGenerateContentWithError(HasTracer):
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        with self._tracer_provider.get_tracer(__name__).start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span("TEST"):
             raise Error(ERR_MSG)
 
 
-class MockGenerateContent(HasTracerProvider):
-    def __init__(
-        self,
-        response: GenerateContentResponse,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
+class MockGenerateContent(HasTracer):
+    def __init__(self, response: GenerateContentResponse, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._response = response
 
     def __call__(self, *args: Any, **kwargs: Any) -> GenerateContentResponse:
-        with self._tracer_provider.get_tracer(__name__).start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span("TEST"):
             return self._response
 
 
 class MockStreamGenerateContent(
-    HasTracerProvider,
+    HasTracer,
     grpc.UnaryStreamMultiCallable,  # type: ignore[misc]
 ):
     def __init__(
-        self,
-        response_gen: Iterator[GenerateContentResponse],
-        *args: Any,
-        **kwargs: Any,
+        self, response_gen: Iterator[GenerateContentResponse], *args: Any, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
         self._response_gen = response_gen
 
     def __call__(self, *args: Any, **kwargs: Any) -> Iterator[GenerateContentResponse]:
-        with self._tracer_provider.get_tracer(__name__).start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span("TEST"):
             return self._response_gen
 
 
 class MockAsyncGenerateContentWithError(
-    HasTracerProvider,
+    HasTracer,
     grpc.aio.UnaryUnaryMultiCallable[RequestType, ResponseType],  # type: ignore[misc]
 ):
     def __call__(self, request: RequestType, **kwargs: Any) -> Any:
-        with self._tracer_provider.get_tracer(__name__).start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span("TEST"):
             raise Error(ERR_MSG)
 
 
 class MockAsyncGenerateContent(
-    HasTracerProvider,
+    HasTracer,
     grpc.aio.UnaryUnaryMultiCallable[RequestType, ResponseType],  # type: ignore[misc]
 ):
-    def __init__(
-        self,
-        response: GenerateContentResponse,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, response: GenerateContentResponse, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._response = response
 
@@ -462,22 +456,16 @@ class MockAsyncGenerateContent(
         request: RequestType,
         **kwargs: Any,
     ) -> grpc.aio.UnaryUnaryCall[RequestType, ResponseType]:
-        with self._tracer_provider.get_tracer(__name__).start_as_current_span("TEST"):
-            return MockUnaryUnaryCall(
-                response=self._response,
-                tracer_provider=self._tracer_provider,
-            )
+        with self._tracer.start_as_current_span("TEST"):
+            return MockUnaryUnaryCall(self._response, self._tracer)
 
 
 class MockAsyncStreamGenerateContent(
-    HasTracerProvider,
+    HasTracer,
     grpc.aio.UnaryStreamMultiCallable[RequestType, ResponseType],  # type: ignore[misc]
 ):
     def __init__(
-        self,
-        response_gen: AsyncIterator[ResponseType],
-        *args: Any,
-        **kwargs: Any,
+        self, response_gen: AsyncIterator[ResponseType], *args: Any, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
         self._response_gen = response_gen
@@ -485,11 +473,8 @@ class MockAsyncStreamGenerateContent(
     def __call__(
         self, request: RequestType, **kwargs: Any
     ) -> grpc.aio.UnaryStreamCall[RequestType, ResponseType]:
-        with self._tracer_provider.get_tracer(__name__).start_as_current_span("TEST"):
-            return MockUnaryStreamCall(
-                response_gen=self._response_gen,
-                tracer_provider=self._tracer_provider,
-            )
+        with self._tracer.start_as_current_span("TEST"):
+            return MockUnaryStreamCall(self._response_gen, self._tracer)
 
 
 class MockAsyncRpcContext(grpc.aio.RpcContext):  # type: ignore[misc]
@@ -521,42 +506,34 @@ class MockAsyncCall(MockAsyncRpcContext, grpc.aio.Call):  # type: ignore[misc]
 
 
 class MockUnaryUnaryCall(
-    HasTracerProvider,
+    HasTracer,
     MockAsyncCall,
     grpc.aio.UnaryUnaryCall[RequestType, ResponseType],  # type: ignore[misc]
 ):
-    def __init__(
-        self,
-        response: ResponseType,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, response: ResponseType, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._response = response
 
     def __await__(self) -> Generator[Any, None, ResponseType]:
-        with self._tracer_provider.get_tracer(__name__).start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span("TEST"):
             yield from asyncio.sleep(0).__await__()
-        with self._tracer_provider.get_tracer(__name__).start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span("TEST"):
             return self._response
 
 
 class MockUnaryStreamCall(
-    HasTracerProvider,
+    HasTracer,
     MockAsyncCall,
     grpc.aio.UnaryStreamCall[RequestType, ResponseType],  # type: ignore[misc]
 ):
     def __init__(
-        self,
-        response_gen: AsyncIterator[ResponseType],
-        *args: Any,
-        **kwargs: Any,
+        self, response_gen: AsyncIterator[ResponseType], *args: Any, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
         self._response_gen = response_gen
 
     def __aiter__(self) -> AsyncIterator[ResponseType]:
-        with self._tracer_provider.get_tracer(__name__).start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span("TEST"):
             return self._response_gen
 
     async def read(self) -> Any: ...

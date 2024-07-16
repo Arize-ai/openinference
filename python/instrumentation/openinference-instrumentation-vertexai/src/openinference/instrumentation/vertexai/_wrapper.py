@@ -26,7 +26,7 @@ import proto
 import wrapt
 from google.cloud import aiplatform_v1 as v1  # Stable
 from google.cloud import aiplatform_v1beta1 as v1beta1  # Supports latest preview features
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.vertexai import _status
 from openinference.instrumentation.vertexai._accumulator import (
     _IndexedAccumulator,
@@ -98,7 +98,8 @@ class _Wrapper:
         ):
             return wrapped(*args, **kwargs)
         span_name = inspect.stack()[1].function
-        span = self._tracer.start_span(name=span_name)
+        attributes = dict(get_attributes_from_context())
+        span = self._tracer.start_span(name=span_name, attributes=attributes)
         span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
         if isinstance(request, proto.Message):
             span.set_attribute(INPUT_VALUE, safe_json_dumps(request.__class__.to_dict(request)))
@@ -114,12 +115,7 @@ class _Wrapper:
                 result = wrapped(*args, **kwargs)
         except BaseException as exc:
             span.record_exception(exc)
-            span.set_status(
-                Status(
-                    StatusCode.ERROR,
-                    f"{type(exc).__name__}: {exc}",
-                )
-            )
+            span.set_status(Status(StatusCode.ERROR, f"{type(exc).__name__}: {exc}"))
             span.end()
             raise
         if isinstance(result, Awaitable):
@@ -231,7 +227,7 @@ class _GenerateContentResponseAccumulator:
     def result(self) -> Optional[proto.Message]:
         if self._is_null:
             return None
-        if not self._cached_result:
+        if self._cached_result is None:
             obj = dict(self._kv)
             # Note that directly calling `cls(obj)` would fail to handle nested
             # `google.protobuf.struct_pb2.Struct`, e.g. inside `tool.FunctionCall`.
