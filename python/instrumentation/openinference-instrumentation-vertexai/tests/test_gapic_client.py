@@ -13,6 +13,7 @@ from typing import (
     Mapping,
     Optional,
     Tuple,
+    TypeVar,
     cast,
 )
 
@@ -38,6 +39,7 @@ from google.cloud.aiplatform_v1.services.prediction_service.transports import (
     PredictionServiceGrpcTransport,
 )
 from openinference.instrumentation import using_attributes
+from openinference.instrumentation.vertexai._wrapper import _role
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -109,7 +111,7 @@ async def test_instrumentor(
     )
     contents = request.contents
     for i, content in enumerate(contents[:-1], 1):
-        assert attributes.pop(message_role(prefix, i), None) == ("user" if i % 2 else "assistant")
+        assert attributes.pop(message_role(prefix, i), None) == _role(content.role)
         assert attributes.pop(message_contents_text(prefix, i, 0), None) == content.parts[0].text
         assert attributes.pop(message_contents_image_url(prefix, i, 1), None) == img_base64
     function_response = contents[-1].parts[0].function_response
@@ -173,12 +175,11 @@ async def mock_async_stream_generate_content(
     stack: ExitStack,
     tracer: Tracer,
 ) -> None:
-    gen = mock_generate_content_response_gen(response, tracer, has_error)
+    gen = _may_err(has_error, tracer, mock_generate_content_response_gen(response))
     response_gen = mock_async_generate_content_response_gen(gen)
     patch = MockAsyncStreamGenerateContent(response_gen, tracer)
     stack.enter_context(patch_grpc_asyncio_transport_stream_generate_content(patch))
-    credentials = Credentials("123")  # type: ignore[no-untyped-call]
-    client = PredictionServiceAsyncClient(credentials=credentials)
+    client = PredictionServiceAsyncClient(credentials=CREDENTIALS)
     _ = [_ async for _ in await client.stream_generate_content(request)]
 
 
@@ -189,11 +190,10 @@ def mock_stream_generate_content(
     stack: ExitStack,
     tracer: Tracer,
 ) -> None:
-    response_gen = mock_generate_content_response_gen(response, tracer, has_error)
-    patch = MockStreamGenerateContent(response_gen, tracer)
+    response_gen = _may_err(has_error, tracer, mock_generate_content_response_gen(response))
+    patch = MockStreamGenerateContent(response_gen)
     stack.enter_context(patch_grpc_transport_stream_generate_content(patch))
-    credentials = Credentials("123")  # type: ignore[no-untyped-call]
-    client = PredictionServiceClient(credentials=credentials)
+    client = PredictionServiceClient(credentials=CREDENTIALS)
     _ = [_ for _ in client.stream_generate_content(request)]
 
 
@@ -204,14 +204,9 @@ async def mock_async_generate_content(
     stack: ExitStack,
     tracer: Tracer,
 ) -> None:
-    patch = (
-        MockAsyncGenerateContentWithError(tracer)
-        if has_error
-        else MockAsyncGenerateContent(response, tracer)
-    )
+    patch = _may_err(has_error, tracer, MockAsyncGenerateContent(response, tracer))
     stack.enter_context(patch_grpc_asyncio_transport_generate_content(patch))
-    credentials = Credentials("123")  # type: ignore[no-untyped-call]
-    client = PredictionServiceAsyncClient(credentials=credentials)
+    client = PredictionServiceAsyncClient(credentials=CREDENTIALS)
     await client.generate_content(request)
 
 
@@ -222,12 +217,9 @@ def mock_generate_content(
     stack: ExitStack,
     tracer: Tracer,
 ) -> None:
-    patch = (
-        MockGenerateContentWithError(tracer) if has_error else MockGenerateContent(response, tracer)
-    )
+    patch = _may_err(has_error, tracer, lambda *_, **__: response)
     stack.enter_context(patch_grpc_transport_generate_content(patch))
-    credentials = Credentials("123")  # type: ignore[no-untyped-call]
-    client = PredictionServiceClient(credentials=credentials)
+    client = PredictionServiceClient(credentials=CREDENTIALS)
     client.generate_content(request)
 
 
@@ -367,28 +359,19 @@ def mock_generate_content_response(
 
 def mock_generate_content_response_gen(
     response: GenerateContentResponse,
-    tracer: Tracer,
-    has_error: bool = False,
 ) -> Iterator[GenerateContentResponse]:
     for index, candidate in reversed(list(enumerate(response.candidates))):
         for part in candidate.content.parts:
             if part.text:
                 for t in part.text:
                     content = dict(role="model", parts=[dict(text=t)])
-                    with tracer.start_as_current_span(TEST):
-                        yield GenerateContentResponse(
-                            dict(candidates=[dict(index=index, content=content)])
-                        )
-            else:
-                content = dict(role="model", parts=[part])
-                with tracer.start_as_current_span(TEST):
                     yield GenerateContentResponse(
                         dict(candidates=[dict(index=index, content=content)])
                     )
+            else:
+                content = dict(role="model", parts=[part])
+                yield GenerateContentResponse(dict(candidates=[dict(index=index, content=content)]))
     yield GenerateContentResponse(dict(usage_metadata=response.usage_metadata))
-    if has_error:
-        with tracer.start_as_current_span(TEST):
-            raise Err(MSG)
 
 
 async def mock_async_generate_content_response_gen(
@@ -403,44 +386,14 @@ class HasTracer:
         self._tracer = tracer
 
 
-class MockGenerateContentWithError(HasTracer):
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        with self._tracer.start_as_current_span(TEST):
-            raise Err(MSG)
-
-
-class MockGenerateContent(HasTracer):
-    def __init__(self, response: GenerateContentResponse, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._response = response
-
-    def __call__(self, *args: Any, **kwargs: Any) -> GenerateContentResponse:
-        with self._tracer.start_as_current_span(TEST):
-            return self._response
-
-
 class MockStreamGenerateContent(
-    HasTracer,
     grpc.UnaryStreamMultiCallable,  # type: ignore[misc]
 ):
-    def __init__(
-        self, response_gen: Iterator[GenerateContentResponse], *args: Any, **kwargs: Any
-    ) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, response_gen: Iterator[GenerateContentResponse]) -> None:
         self._response_gen = response_gen
 
     def __call__(self, *args: Any, **kwargs: Any) -> Iterator[GenerateContentResponse]:
-        with self._tracer.start_as_current_span(TEST):
-            return self._response_gen
-
-
-class MockAsyncGenerateContentWithError(
-    HasTracer,
-    grpc.aio.UnaryUnaryMultiCallable[GenerateContentRequest, GenerateContentResponse],  # type: ignore[misc]
-):
-    def __call__(self, request: GenerateContentRequest, **kwargs: Any) -> Any:
-        with self._tracer.start_as_current_span(TEST):
-            raise Err(MSG)
+        return self._response_gen
 
 
 class MockAsyncGenerateContent(
@@ -454,8 +407,7 @@ class MockAsyncGenerateContent(
     def __call__(
         self, request: GenerateContentRequest, **kwargs: Any
     ) -> grpc.aio.UnaryUnaryCall[GenerateContentRequest, GenerateContentResponse]:
-        with self._tracer.start_as_current_span(TEST):
-            return MockUnaryUnaryCall(self._response, self._tracer)
+        return MockUnaryUnaryCall(self._response, self._tracer)
 
 
 class MockAsyncStreamGenerateContent(
@@ -471,8 +423,7 @@ class MockAsyncStreamGenerateContent(
     def __call__(
         self, request: GenerateContentRequest, **kwargs: Any
     ) -> grpc.aio.UnaryStreamCall[GenerateContentRequest, GenerateContentResponse]:
-        with self._tracer.start_as_current_span(TEST):
-            return MockUnaryStreamCall(self._response_gen, self._tracer)
+        return MockUnaryStreamCall(self._response_gen, self._tracer)
 
 
 class MockAsyncRpcContext(grpc.aio.RpcContext):  # type: ignore[misc]
@@ -634,11 +585,39 @@ def tool_call_function_arguments(prefix: str, i: int, j: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
 
+CREDENTIALS = Credentials("123")  # type: ignore[no-untyped-call]
 MSG = "MSG"
 TEST = "TEST"
 
 
 class Err(BaseException): ...
+
+
+F = TypeVar("F", Callable[..., Any], Iterator[GenerateContentResponse])
+
+
+def _may_err(has_error: bool, tracer: Tracer, obj: F) -> F:
+    if isinstance(obj, Iterator):
+
+        def gen() -> Iterator[GenerateContentResponse]:
+            for item in obj:
+                with tracer.start_as_current_span(TEST):
+                    yield item
+            if has_error:
+                with tracer.start_as_current_span(TEST):
+                    raise Err(MSG)
+
+        return gen()
+
+    def fn(*args: Any, **kwargs: Any) -> Any:
+        with tracer.start_as_current_span(TEST):
+            ans = obj(*args, **kwargs)
+        if has_error:
+            with tracer.start_as_current_span(TEST):
+                raise Err(MSG)
+        return ans
+
+    return fn
 
 
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
