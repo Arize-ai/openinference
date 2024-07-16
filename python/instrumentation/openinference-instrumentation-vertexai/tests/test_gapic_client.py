@@ -490,36 +490,40 @@ class MockUnaryStreamCall(
 
 @contextmanager
 def patch_grpc_transport_generate_content(patch: Any) -> Iterator[None]:
+    replacement = property(lambda *_, **__: patch)
     cls = PredictionServiceGrpcTransport
     original = cls.generate_content
-    setattr(cls, "generate_content", property(lambda _: patch))
+    setattr(cls, "generate_content", replacement)
     yield
     setattr(cls, "generate_content", original)
 
 
 @contextmanager
 def patch_grpc_transport_stream_generate_content(patch: Any) -> Iterator[None]:
+    replacement = property(lambda *_, **__: patch)
     cls = PredictionServiceGrpcTransport
     original = cls.stream_generate_content
-    setattr(cls, "stream_generate_content", property(lambda _: patch))
+    setattr(cls, "stream_generate_content", replacement)
     yield
     setattr(cls, "stream_generate_content", original)
 
 
 @contextmanager
 def patch_grpc_asyncio_transport_generate_content(patch: Any) -> Iterator[None]:
+    replacement = property(lambda *_, **__: patch)
     cls = PredictionServiceGrpcAsyncIOTransport
     original = cls.generate_content
-    setattr(cls, "generate_content", property(lambda _: patch))
+    setattr(cls, "generate_content", replacement)
     yield
     setattr(cls, "generate_content", original)
 
 
 @contextmanager
 def patch_grpc_asyncio_transport_stream_generate_content(patch: Any) -> Iterator[None]:
+    replacement = property(lambda *_, **__: patch)
     cls = PredictionServiceGrpcAsyncIOTransport
     original = cls.stream_generate_content
-    setattr(cls, "stream_generate_content", property(lambda _: patch))
+    setattr(cls, "stream_generate_content", replacement)
     yield
     setattr(cls, "stream_generate_content", original)
 
