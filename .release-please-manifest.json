@@ -6,5 +6,6 @@
     "python/instrumentation/openinference-instrumentation-langchain": "0.1.21",
     "python/instrumentation/openinference-instrumentation-bedrock": "0.1.6",
     "python/instrumentation/openinference-instrumentation-mistralai": "0.0.8",
-    "python/openinference-instrumentation": "0.1.8"
+    "python/openinference-instrumentation": "0.1.8",
+    "python/instrumentation/openinference-instrumentation-guardrails": "0.1.0"
 }
