@@ -64,13 +64,13 @@ async def test_instrumentor(
     mock_generate_content_request: GenerateContentRequest,
     mock_generate_content_response: GenerateContentResponse,
     mock_img: Tuple[bytes, str, str],
-    tracer: Tracer,
     metadata: Dict[str, Any],
+    tracer: Tracer,
 ) -> None:
     request = mock_generate_content_request
     response = mock_generate_content_response
     with ExitStack() as stack:
-        stack.enter_context(suppress(Error))
+        stack.enter_context(suppress(Err))
         stack.enter_context(using_attributes(metadata=metadata))
         args = (request, response, has_error, stack, tracer)
         if is_async:
@@ -124,11 +124,11 @@ async def test_instrumentor(
         assert not status.is_ok
         assert not status.is_unset
         assert status.description
-        assert status.description.endswith(ERR_MSG)
+        assert status.description.endswith(MSG)
         assert span.events
         event = span.events[0]
         assert event.attributes
-        assert event.attributes.get("exception.message") == ERR_MSG
+        assert event.attributes.get("exception.message") == MSG
         assert attributes == {}
         return
     assert status.is_ok
@@ -380,20 +380,20 @@ def mock_generate_content_response_gen(
             if part.text:
                 for t in part.text:
                     content = dict(role="model", parts=[dict(text=t)])
-                    with tracer.start_as_current_span("TEST"):
+                    with tracer.start_as_current_span(TEST):
                         yield GenerateContentResponse(
                             dict(candidates=[dict(index=index, content=content)])
                         )
             else:
                 content = dict(role="model", parts=[part])
-                with tracer.start_as_current_span("TEST"):
+                with tracer.start_as_current_span(TEST):
                     yield GenerateContentResponse(
                         dict(candidates=[dict(index=index, content=content)])
                     )
     yield GenerateContentResponse(dict(usage_metadata=response.usage_metadata))
     if has_error:
-        with tracer.start_as_current_span("TEST"):
-            raise Error(ERR_MSG)
+        with tracer.start_as_current_span(TEST):
+            raise Err(MSG)
 
 
 async def mock_async_generate_content_response_gen(
@@ -410,8 +410,8 @@ class HasTracer:
 
 class MockGenerateContentWithError(HasTracer):
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        with self._tracer.start_as_current_span("TEST"):
-            raise Error(ERR_MSG)
+        with self._tracer.start_as_current_span(TEST):
+            raise Err(MSG)
 
 
 class MockGenerateContent(HasTracer):
@@ -420,7 +420,7 @@ class MockGenerateContent(HasTracer):
         self._response = response
 
     def __call__(self, *args: Any, **kwargs: Any) -> GenerateContentResponse:
-        with self._tracer.start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span(TEST):
             return self._response
 
 
@@ -435,7 +435,7 @@ class MockStreamGenerateContent(
         self._response_gen = response_gen
 
     def __call__(self, *args: Any, **kwargs: Any) -> Iterator[GenerateContentResponse]:
-        with self._tracer.start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span(TEST):
             return self._response_gen
 
 
@@ -444,8 +444,8 @@ class MockAsyncGenerateContentWithError(
     grpc.aio.UnaryUnaryMultiCallable[GenerateContentRequest, GenerateContentResponse],  # type: ignore[misc]
 ):
     def __call__(self, request: GenerateContentRequest, **kwargs: Any) -> Any:
-        with self._tracer.start_as_current_span("TEST"):
-            raise Error(ERR_MSG)
+        with self._tracer.start_as_current_span(TEST):
+            raise Err(MSG)
 
 
 class MockAsyncGenerateContent(
@@ -459,7 +459,7 @@ class MockAsyncGenerateContent(
     def __call__(
         self, request: GenerateContentRequest, **kwargs: Any
     ) -> grpc.aio.UnaryUnaryCall[GenerateContentRequest, GenerateContentResponse]:
-        with self._tracer.start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span(TEST):
             return MockUnaryUnaryCall(self._response, self._tracer)
 
 
@@ -476,7 +476,7 @@ class MockAsyncStreamGenerateContent(
     def __call__(
         self, request: GenerateContentRequest, **kwargs: Any
     ) -> grpc.aio.UnaryStreamCall[GenerateContentRequest, GenerateContentResponse]:
-        with self._tracer.start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span(TEST):
             return MockUnaryStreamCall(self._response_gen, self._tracer)
 
 
@@ -518,9 +518,9 @@ class MockUnaryUnaryCall(
         self._response = response
 
     def __await__(self) -> Generator[Any, None, GenerateContentResponse]:
-        with self._tracer.start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span(TEST):
             yield from asyncio.sleep(0).__await__()
-        with self._tracer.start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span(TEST):
             return self._response
 
 
@@ -536,7 +536,7 @@ class MockUnaryStreamCall(
         self._response_gen = response_gen
 
     def __aiter__(self) -> AsyncIterator[GenerateContentResponse]:
-        with self._tracer.start_as_current_span("TEST"):
+        with self._tracer.start_as_current_span(TEST):
             return self._response_gen
 
     async def read(self) -> Any: ...
@@ -639,10 +639,11 @@ def tool_call_function_arguments(prefix: str, i: int, j: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
 
-ERR_MSG = "ERR_MSG"
+MSG = "MSG"
+TEST = "TEST"
 
 
-class Error(RuntimeError): ...
+class Err(BaseException): ...
 
 
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS

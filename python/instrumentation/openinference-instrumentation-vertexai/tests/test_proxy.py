@@ -25,7 +25,7 @@ class Err(BaseException): ...
 T = TypeVar("T")
 Item = Optional[Union[str, int, bool]]
 ITEMS: List[Item] = ["a", "", None, False, 0, 1]
-XYZ = "XYZ"
+MSG = "MSG"
 
 
 class ItemsIterable:
@@ -44,7 +44,7 @@ class ItemsIteratorWithError:
         try:
             return next(self._it)
         except StopIteration:
-            raise Err(XYZ)
+            raise Err(MSG)
 
 
 class ItemsIterableWithError:
@@ -98,7 +98,7 @@ async def test_coroutine(
     elif isinstance(items, ItemsIterableWithError):
         with pytest.raises(Err) as e:
             await p
-        assert str(e.value) == XYZ
+        assert str(e.value) == MSG
         if isinstance(cb, SimpleCallback):
             assert cb.result == e.value
 
@@ -187,7 +187,7 @@ def test_generator(
     elif isinstance(items, ItemsIterableWithError):
         with pytest.raises(Err) as e:
             list_fn(p)
-        assert str(e.value) == XYZ
+        assert str(e.value) == MSG
         if isinstance(cb, AppendCallback):
             assert cb.result[:-1] == ITEMS
             assert cb.result[-1] is e.value
@@ -215,7 +215,7 @@ def test_iterator(
     elif isinstance(items, ItemsIterableWithError):
         with pytest.raises(Err) as e:
             list_fn(p)
-        assert str(e.value) == XYZ
+        assert str(e.value) == MSG
         if isinstance(cb, AppendCallback):
             assert cb.result[:-1] == ITEMS
             assert cb.result[-1] is e.value
@@ -243,7 +243,7 @@ def test_iterable(
     elif isinstance(items, ItemsIterableWithError):
         with pytest.raises(Err) as e:
             list_fn(p)
-        assert str(e.value) == XYZ
+        assert str(e.value) == MSG
         if isinstance(cb, AppendCallback):
             assert cb.result[:-1] == ITEMS
             assert cb.result[-1] is e.value
@@ -275,7 +275,7 @@ async def test_async_generator(
     elif isinstance(items, ItemsIterableWithError):
         with pytest.raises(Err) as e:
             await list_fn(p)
-        assert str(e.value) == XYZ
+        assert str(e.value) == MSG
         if isinstance(cb, AppendCallback):
             assert cb.result[:-1] == ITEMS
             assert cb.result[-1] is e.value
@@ -312,7 +312,7 @@ async def test_async_iterator(
     elif isinstance(items, ItemsIterableWithError):
         with pytest.raises(Err) as e:
             await list_fn(p)
-        assert str(e.value) == XYZ
+        assert str(e.value) == MSG
         if isinstance(cb, AppendCallback):
             assert cb.result[:-1] == ITEMS
             assert cb.result[-1] is e.value
@@ -350,7 +350,7 @@ async def test_async_iterable(
     elif isinstance(items, ItemsIterableWithError):
         with pytest.raises(Err) as e:
             await list_fn(p)
-        assert str(e.value) == XYZ
+        assert str(e.value) == MSG
         if isinstance(cb, AppendCallback):
             assert cb.result[:-1] == ITEMS
             assert cb.result[-1] is e.value

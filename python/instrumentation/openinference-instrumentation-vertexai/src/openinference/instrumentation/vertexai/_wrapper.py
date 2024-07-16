@@ -55,6 +55,26 @@ __all__ = ("_Wrapper",)
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+T = TypeVar("T")
+
+# https://cloud.google.com/vertex-ai/docs/reference#versions
+# - v1: Stable
+# - v1beta1: Supports latest preview features
+Content: TypeAlias = Union[v1.Content, v1beta1.Content]
+Candidate: TypeAlias = Union[v1.Candidate, v1beta1.Candidate]
+Part: TypeAlias = Union[v1.Part, v1beta1.Part]
+UsageMetadata: TypeAlias = Union[
+    v1.GenerateContentResponse.UsageMetadata,
+    v1beta1.GenerateContentResponse.UsageMetadata,
+]
+GenerateContentRequest: TypeAlias = Union[
+    v1.GenerateContentRequest,
+    v1beta1.GenerateContentRequest,
+]
+GenerateContentResponse: TypeAlias = Union[
+    v1.GenerateContentResponse,
+    v1beta1.GenerateContentResponse,
+]
 
 _PREDICTION_SERVICE_REQUESTS = sorted(
     {
@@ -107,7 +127,7 @@ class _Wrapper:
         else:
             span.set_attribute(INPUT_VALUE, str(request))
         try:
-            update_span(request, span)
+            _update_span(request, span)
         except BaseException:
             pass
         try:
@@ -126,9 +146,6 @@ class _Wrapper:
         return result
 
 
-T = TypeVar("T")
-
-
 class _CallbackForAwaitable:
     def __init__(self, request: proto.Message, span: Span) -> None:
         self._request = request
@@ -145,16 +162,8 @@ class _CallbackForAwaitable:
 
 class _CallbackForIterable:
     def __init__(self, request: proto.Message, span: Span) -> None:
-        self._request = request
         self._span = span
-        self._accumulator: Union[
-            _ResponseAccumulator[v1.GenerateContentResponse, v1.GenerateContentResponse],
-            _ResponseAccumulator[v1beta1.GenerateContentResponse, v1beta1.GenerateContentResponse],
-        ] = _NoOpResponseAccumulator()
-        if isinstance(request, v1.GenerateContentRequest):
-            self._accumulator = _GenerateContentResponseAccumulator(v1.GenerateContentResponse)
-        elif isinstance(request, v1beta1.GenerateContentRequest):
-            self._accumulator = _GenerateContentResponseAccumulator(v1beta1.GenerateContentResponse)
+        self._accumulator = _get_response_accumulator(request)
 
     def __call__(self, obj: T) -> T:
         span = self._span
@@ -163,7 +172,8 @@ class _CallbackForIterable:
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
             try:
                 result = self._accumulator.result
-            except BaseException:
+            except BaseException as exc:
+                logger.exception(str(exc))
                 result = None
             _finish(span, result)
         elif isinstance(obj, BaseException):
@@ -182,6 +192,16 @@ class _ResponseAccumulator(Protocol[_IncrementType, _ResultType]):
     def accumulate(self, _: _IncrementType) -> None: ...
 
 
+def _get_response_accumulator(
+    request: proto.Message,
+) -> _ResponseAccumulator[proto.Message, proto.Message]:
+    if isinstance(request, v1.GenerateContentRequest):
+        return _GenerateContentResponseAccumulator(v1.GenerateContentResponse)
+    if isinstance(request, v1beta1.GenerateContentRequest):
+        return _GenerateContentResponseAccumulator(v1beta1.GenerateContentResponse)
+    return _NoOpResponseAccumulator()
+
+
 class _NoOpResponseAccumulator:
     def accumulate(self, _: Any) -> None: ...
 
@@ -190,13 +210,23 @@ class _NoOpResponseAccumulator:
         return None
 
 
+_GenerateContentResponseT = TypeVar(
+    "_GenerateContentResponseT",
+    v1.GenerateContentResponse,
+    v1beta1.GenerateContentResponse,
+)
+
+
 class _GenerateContentResponseAccumulator:
     _kv: _KeyValuesAccumulator
 
-    def __init__(self, cls: Type[proto.Message]) -> None:
-        self._cls = cls
+    def __init__(self, cls: Type[_GenerateContentResponseT]) -> None:
+        self._cls: Union[
+            Type[v1.GenerateContentResponse],
+            Type[v1beta1.GenerateContentResponse],
+        ] = cls
         self._is_null = True
-        self._cached_result: Optional[proto.Message] = None
+        self._cached_result: Optional[_GenerateContentResponseT] = None
         self._kv = _KeyValuesAccumulator(
             candidates=_IndexedAccumulator(
                 lambda: _KeyValuesAccumulator(
@@ -217,14 +247,14 @@ class _GenerateContentResponseAccumulator:
             ),
         )
 
-    def accumulate(self, increment: proto.Message) -> None:
+    def accumulate(self, increment: _GenerateContentResponseT) -> None:
         self._is_null = False
         self._cached_result = None
         kv = increment.__class__.to_dict(increment)
         self._kv += kv
 
     @property
-    def result(self) -> Optional[proto.Message]:
+    def result(self) -> Optional[_GenerateContentResponseT]:
         if self._is_null:
             return None
         if self._cached_result is None:
@@ -238,18 +268,14 @@ class _GenerateContentResponseAccumulator:
 
 
 def _use_span(span: Span) -> Callable[[], ContextManager[Span]]:
+    # Need to be a factory because `use_span(...)` can't be entered more than once.
     return lambda: cast(ContextManager[Span], use_span(span, False, False, False))
 
 
 def _finish(span: Span, result: Any) -> None:
     if isinstance(result, BaseException):
         span.record_exception(result)
-        span.set_status(
-            Status(
-                StatusCode.ERROR,
-                f"{type(result).__name__}: {result}",
-            )
-        )
+        span.set_status(Status(StatusCode.ERROR, f"{type(result).__name__}: {result}"))
         span.end()
         return
     if isinstance(result, proto.Message):
@@ -258,9 +284,9 @@ def _finish(span: Span, result: Any) -> None:
     elif result is not None:
         span.set_attribute(OUTPUT_VALUE, str(result))
     try:
-        update_span(result, span)
-    except BaseException:
-        pass
+        _update_span(result, span)
+    except BaseException as exc:
+        logger.exception(str(exc))
     span.set_status(Status(StatusCode.OK))
     span.end()
 
@@ -272,32 +298,12 @@ def _get_prediction_service_request(args: Iterable[Any]) -> Optional[proto.Messa
     return None
 
 
-# https://cloud.google.com/vertex-ai/docs/reference#versions
-# - v1: Stable
-# - v1beta1: Supports latest preview features
-Content: TypeAlias = Union[v1.Content, v1beta1.Content]
-Candidate: TypeAlias = Union[v1.Candidate, v1beta1.Candidate]
-Part: TypeAlias = Union[v1.Part, v1beta1.Part]
-UsageMetadata: TypeAlias = Union[
-    v1.GenerateContentResponse.UsageMetadata,
-    v1beta1.GenerateContentResponse.UsageMetadata,
-]
-GenerateContentRequest: TypeAlias = Union[
-    v1.GenerateContentRequest,
-    v1beta1.GenerateContentRequest,
-]
-GenerateContentResponse: TypeAlias = Union[
-    v1.GenerateContentResponse,
-    v1beta1.GenerateContentResponse,
-]
-
-
 @singledispatch
-def update_span(obj: Any, span: Span) -> None: ...
+def _update_span(obj: Any, span: Span) -> None: ...
 
 
-@update_span.register(v1.GenerateContentRequest)
-@update_span.register(v1beta1.GenerateContentRequest)
+@_update_span.register(v1.GenerateContentRequest)
+@_update_span.register(v1beta1.GenerateContentRequest)
 def _(req: GenerateContentRequest, span: Span) -> None:
     span.set_attribute(LLM_MODEL_NAME, req.model)
     span.set_attribute(
@@ -323,8 +329,8 @@ def _(req: GenerateContentRequest, span: Span) -> None:
             span.set_attribute(k, v)
 
 
-@update_span.register(v1.GenerateContentResponse)
-@update_span.register(v1beta1.GenerateContentResponse)
+@_update_span.register(v1.GenerateContentResponse)
+@_update_span.register(v1beta1.GenerateContentResponse)
 def _(resp: GenerateContentResponse, span: Span) -> None:
     for k, v in _parse_usage_metadata(resp.usage_metadata):
         span.set_attribute(k, v)
@@ -334,6 +340,17 @@ def _(resp: GenerateContentResponse, span: Span) -> None:
             span.set_attribute(k, v)
 
 
+def stop_on_exception(it: Callable[..., Iterator[T]]) -> Callable[..., Iterator[T]]:
+    def _(*args: Any, **kwargs: Any) -> Iterator[T]:
+        try:
+            yield from it(*args, **kwargs)
+        except Exception as exc:
+            logger.exception(str(exc))
+
+    return _
+
+
+@stop_on_exception
 def _parse_usage_metadata(
     usage_metadata: UsageMetadata,
 ) -> Iterator[Tuple[str, AttributeValue]]:
@@ -345,6 +362,7 @@ def _parse_usage_metadata(
         yield LLM_TOKEN_COUNT_TOTAL, total_token_count
 
 
+@stop_on_exception
 def _parse_content(
     content: Content,
     prefix: str = "",
@@ -369,6 +387,7 @@ def _parse_content(
     yield from _parse_tool_calls(parts, prefix)
 
 
+@stop_on_exception
 def _parse_tool_calls(
     parts: Iterable[Part],
     prefix: str = "",
@@ -388,6 +407,7 @@ def _parse_tool_calls(
             )
 
 
+@stop_on_exception
 def _parse_parts(
     parts: Iterable[Part],
     prefix: str = "",
@@ -398,6 +418,7 @@ def _parse_parts(
             yield k, v
 
 
+@stop_on_exception
 def _parse_part(
     part: Part,
     prefix: str = "",

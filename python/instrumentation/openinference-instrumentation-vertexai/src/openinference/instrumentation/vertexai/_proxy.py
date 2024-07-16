@@ -275,6 +275,12 @@ class _NoErr(wrapt.ObjectProxy):  # type: ignore[misc]
         return ans
 
 
+def _no_err(obj: Optional[_T_co]) -> _T_co:
+    if getattr(obj, _SELF_IS_NO_ERR, False):
+        return cast(_T_co, obj)
+    return _NoErr(obj)
+
+
 def _call(self: _Proxy, *args: Any, **kwargs: Any) -> Any:
     name = inspect.stack()[1].function
     fn = getattr(self.__wrapped__, name)
@@ -287,12 +293,6 @@ def _call(self: _Proxy, *args: Any, **kwargs: Any) -> Any:
         callback(exc)  # type: ignore[arg-type]
         raise
     return callback(ans)
-
-
-def _no_err(obj: Optional[_T_co]) -> _T_co:
-    if getattr(obj, _SELF_IS_NO_ERR, False):
-        return cast(_T_co, obj)
-    return _NoErr(obj)
 
 
 _SUFFIX = f"_{getrandbits(64).to_bytes(8, 'big').hex()}"
