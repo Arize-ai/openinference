@@ -1,9 +1,9 @@
 import logging
-from typing import Generator
+from typing import Generator, cast
 
 import pytest
 from openinference.instrumentation.vertexai import VertexAIInstrumentor
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import Tracer, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -25,6 +25,11 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
         SimpleSpanProcessor(in_memory_span_exporter)
     )
     return tracer_provider
+
+
+@pytest.fixture
+def tracer(tracer_provider: TracerProvider) -> Tracer:
+    return cast(Tracer, tracer_provider.get_tracer(__name__))
 
 
 @pytest.fixture(autouse=True)
