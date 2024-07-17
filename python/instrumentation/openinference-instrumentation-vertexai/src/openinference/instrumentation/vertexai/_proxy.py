@@ -14,6 +14,7 @@ from typing import (
     Iterable,
     Iterator,
     Optional,
+    TypeAlias,
     TypeVar,
     cast,
 )
@@ -25,10 +26,9 @@ logger.addHandler(logging.NullHandler())
 
 __all__ = ("_proxy",)
 
-
-S = TypeVar("S")
-T = TypeVar("T")
-
+_AnyT = TypeVar("_AnyT")
+_CallbackT: TypeAlias = Callable[[_AnyT], _AnyT]
+_WrappedT = TypeVar("_WrappedT")
 _T_co = TypeVar("_T_co", covariant=True)
 _YieldT_co = TypeVar("_YieldT_co", covariant=True)
 _SendT_contra = TypeVar("_SendT_contra", contravariant=True)
@@ -36,10 +36,10 @@ _ReturnT_co = TypeVar("_ReturnT_co", covariant=True)
 
 
 def _proxy(
-    obj: S,
-    callback: Optional[Callable[[T], T]] = None,
+    obj: _WrappedT,
+    callback: Optional[_CallbackT[_AnyT]] = None,
     context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
-) -> S:
+) -> _WrappedT:
     if callback is None and context_manager_factory is None:
         return obj
     if getattr(obj, _SELF_IS_PROXY, False):
@@ -64,13 +64,13 @@ def _proxy(
 class _Proxy(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(
         self,
-        wrapped: Any,
-        callback: Optional[Callable[[T], T]] = None,
+        wrapped: _WrappedT,
+        callback: Optional[_CallbackT[_AnyT]] = None,
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(wrapped)
         setattr(self, _SELF_IS_PROXY, True)
-        self._self_callback: Callable[[T], T] = _no_err(callback)
+        self._self_callback: _CallbackT[_AnyT] = _no_err(callback)
         # The `use_span` context manager can't be entered more than once. It would err here:
         # https://github.com/open-telemetry/opentelemetry-python/blob/b1e99c1555721f818e578d7457587693e767e182/opentelemetry-api/src/opentelemetry/util/_decorator.py#L56  # noqa E501
         # So we need a factory.
@@ -83,7 +83,7 @@ class _Awaitable(_Proxy, Awaitable[_T_co], Generic[_T_co]):
     def __init__(
         self,
         wrapped: Awaitable[_T_co],
-        callback: Optional[Callable[[T], T]] = None,
+        callback: Optional[_CallbackT[_AnyT]] = None,
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(wrapped, callback, context_manager_factory)
@@ -113,7 +113,7 @@ class _Iterable(_Proxy, Iterable[_T_co], Generic[_T_co]):
     def __init__(
         self,
         wrapped: Iterable[_T_co],
-        callback: Optional[Callable[[T], T]] = None,
+        callback: Optional[_CallbackT[_AnyT]] = None,
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(wrapped, callback, context_manager_factory)
@@ -131,7 +131,7 @@ class _Iterator(_Iterable[_T_co], Iterator[_T_co], Generic[_T_co]):
     def __init__(
         self,
         wrapped: Iterator[_T_co],
-        callback: Optional[Callable[[T], T]] = None,
+        callback: Optional[_CallbackT[_AnyT]] = None,
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(wrapped, callback, context_manager_factory)
@@ -148,7 +148,7 @@ class _Generator(
     def __init__(
         self,
         wrapped: Generator[_YieldT_co, _SendT_contra, _ReturnT_co],
-        callback: Optional[Callable[[T], T]] = None,
+        callback: Optional[_CallbackT[_AnyT]] = None,
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(wrapped, callback, context_manager_factory)
@@ -172,7 +172,7 @@ class _AsyncIterable(_Proxy, AsyncIterable[_T_co], Generic[_T_co]):
     def __init__(
         self,
         wrapped: AsyncIterable[_T_co],
-        callback: Optional[Callable[[T], T]] = None,
+        callback: Optional[_CallbackT[_AnyT]] = None,
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(wrapped, callback, context_manager_factory)
@@ -190,7 +190,7 @@ class _AsyncIterator(_AsyncIterable[_T_co], AsyncIterator[_T_co], Generic[_T_co]
     def __init__(
         self,
         wrapped: AsyncIterator[_T_co],
-        callback: Optional[Callable[[T], T]] = None,
+        callback: Optional[_CallbackT[_AnyT]] = None,
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(wrapped, callback, context_manager_factory)
@@ -212,7 +212,7 @@ class _AsyncGenerator(
     def __init__(
         self,
         wrapped: AsyncGenerator[_YieldT_co, _SendT_contra],
-        callback: Optional[Callable[[T], T]] = None,
+        callback: Optional[_CallbackT[_AnyT]] = None,
         context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(wrapped, callback, context_manager_factory)

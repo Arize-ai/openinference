@@ -1,3 +1,7 @@
+"""
+Accumulators for streaming responses, e.g. concatenating incremental string fragments.
+"""
+
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
@@ -11,6 +15,7 @@ from typing import (
     Mapping,
     Optional,
     Tuple,
+    Union,
 )
 
 __all__ = (
@@ -49,18 +54,11 @@ class _KeyValuesAccumulator:
             if (v := values.get(k)) is None:
                 continue
             self_value = self._kv[k]
-            if isinstance(self_value, _KeyValuesAccumulator):
-                if isinstance(v, Mapping):
-                    self_value += v
-            elif isinstance(self_value, _StringAccumulator):
-                if isinstance(v, str):
-                    self_value += v
-            elif isinstance(self_value, _IndexedAccumulator):
-                if isinstance(v, Iterable):
-                    for v in v:
-                        self_value += v
-                else:
-                    self_value += v
+            if isinstance(
+                self_value,
+                (_KeyValuesAccumulator, _StringAccumulator, _IndexedAccumulator),
+            ):
+                self_value += v
             elif isinstance(self_value, List) and isinstance(v, Iterable):
                 self_value.extend(v)
             else:
@@ -101,9 +99,15 @@ class _IndexedAccumulator:
         for _, values in sorted(self._indexed.items()):
             yield dict(values)
 
-    def __iadd__(self, values: Optional[Mapping[str, Any]]) -> "_IndexedAccumulator":
-        if not values or not hasattr(values, "get"):
+    def __iadd__(
+        self,
+        values: Optional[Union[Mapping[str, Any], Iterable[Mapping[str, Any]]]],
+    ) -> "_IndexedAccumulator":
+        if not values:
             return self
-        index = values.get("index") or 0
-        self._indexed[index] += values
+        if isinstance(values, Mapping):
+            values = [values]
+        for v in values:
+            if v and hasattr(v, "get"):
+                self._indexed[v.get("index") or 0] += v
         return self
