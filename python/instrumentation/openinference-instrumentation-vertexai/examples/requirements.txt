@@ -1,0 +1,2 @@
+openinference-instrumentation-vertexai
+vertexai >= 1.49.0
