@@ -55,7 +55,7 @@ __all__ = ("_Wrapper",)
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-T = TypeVar("T")
+_AnyT = TypeVar("_AnyT")
 
 # https://cloud.google.com/vertex-ai/docs/reference#versions
 # - v1: Stable
@@ -136,7 +136,7 @@ class _Wrapper:
         except BaseException:
             pass
         try:
-            with _use_span(span)():
+            with use_span(span, False, False, False):
                 result = wrapped(*args, **kwargs)
         except BaseException as exc:
             span.record_exception(exc)
@@ -152,25 +152,37 @@ class _Wrapper:
 
 
 class _CallbackForAwaitable:
+    """
+    Callback function for the proxy object when wrapping an Awaitable. This is how we get notified
+    when the Awaitable returns: the proxy will invoke this callback with the returned value of the
+    Awaitable or when an exception is raised.
+    """
+
     def __init__(self, request: proto.Message, span: Span) -> None:
         self._request = request
         self._span = span
 
-    def __call__(self, obj: T) -> T:
+    def __call__(self, obj: _AnyT) -> _AnyT:
         request, span = self._request, self._span
         if isinstance(obj, (Iterable, AsyncIterable)):
-            obj = cast(T, _proxy(obj, _CallbackForIterable(request, span), _use_span(span)))
+            obj = cast(_AnyT, _proxy(obj, _CallbackForIterable(request, span), _use_span(span)))
         else:
             _finish(span, obj)
         return obj
 
 
 class _CallbackForIterable:
+    """
+    Callback function for the proxy object when wrapping an Iterable. This is how we get notified
+    when the Iterable is being iterated on: the proxy will invoke this callback with the returned
+    value of each iteration, as well as when the iteration is done or when an exception is raised.
+    """
+
     def __init__(self, request: proto.Message, span: Span) -> None:
         self._span = span
         self._accumulator = _get_response_accumulator(request)
 
-    def __call__(self, obj: T) -> T:
+    def __call__(self, obj: _AnyT) -> _AnyT:
         span = self._span
         if isinstance(obj, proto.Message):
             self._accumulator.accumulate(obj)
@@ -183,7 +195,7 @@ class _CallbackForIterable:
             _finish(span, result)
         elif isinstance(obj, BaseException):
             _finish(span, obj)
-        return cast(T, obj)
+        return cast(_AnyT, obj)
 
 
 _IncrementType = TypeVar("_IncrementType", contravariant=True)
@@ -347,8 +359,8 @@ def _(resp: GenerateContentResponse, span: Span) -> None:
             span.set_attribute(k, v)
 
 
-def stop_on_exception(it: Callable[..., Iterator[T]]) -> Callable[..., Iterator[T]]:
-    def _(*args: Any, **kwargs: Any) -> Iterator[T]:
+def stop_on_exception(it: Callable[..., Iterator[_AnyT]]) -> Callable[..., Iterator[_AnyT]]:
+    def _(*args: Any, **kwargs: Any) -> Iterator[_AnyT]:
         try:
             yield from it(*args, **kwargs)
         except Exception as exc:
@@ -375,6 +387,19 @@ def _parse_content(
     prefix: str = "",
     role_override: Optional[str] = None,
 ) -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Extract semantic convention span attributes as key-value pairs.
+
+    Args:
+        content: a `Content` proto.Message
+        prefix: optional prefix for the keys, useful when flattening a list,
+            e.g. "llm.input_messages.0.", "llm.input_messages.1.", etc.
+        role_override: useful for overriding the role attribute, e.g. returning
+            "system" even though the raw value is "user".
+
+    Returns:
+        Iterator: semantic convention key-value pairs for span attributes.
+    """
     yield f"{prefix}{MESSAGE_ROLE}", role_override or _role(content.role)
     parts = cast(Iterable[Part], content.parts)
     for part in parts:
@@ -399,6 +424,17 @@ def _parse_tool_calls(
     parts: Iterable[Part],
     prefix: str = "",
 ) -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Extract semantic convention span attributes as key-value pairs.
+
+    Args:
+        parts: an iterable of the `Part` proto.Message
+        prefix: optional prefix for the keys, useful when flattening a list,
+            e.g. "llm.input_messages.0.", "llm.input_messages.1.", etc.
+
+    Returns:
+        Iterator: semantic convention key-value pairs for span attributes.
+    """
     idx = -1
     for part in parts:
         if part.function_call.name:
@@ -419,6 +455,17 @@ def _parse_parts(
     parts: Iterable[Part],
     prefix: str = "",
 ) -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Extract semantic convention span attributes as key-value pairs.
+
+    Args:
+        parts: an iterable of the `Part` proto.Message
+        prefix: optional prefix for the keys, useful when flattening a list,
+            e.g. "llm.input_messages.0.", "llm.input_messages.1.", etc.
+
+    Returns:
+        Iterator: semantic convention key-value pairs for span attributes.
+    """
     for j, part in enumerate(parts):
         inner_prefix = f"{prefix}{MESSAGE_CONTENTS}.{j}."
         for k, v in _parse_part(part, inner_prefix):
@@ -430,6 +477,17 @@ def _parse_part(
     part: Part,
     prefix: str = "",
 ) -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Extract semantic convention span attributes as key-value pairs.
+
+    Args:
+        part: a `Part` proto.Message
+        prefix: optional prefix for the keys, useful when flattening a list,
+            e.g. "llm.input_messages.0.", "llm.input_messages.1.", etc.
+
+    Returns:
+        Iterator: semantic convention key-value pairs for span attributes.
+    """
     if part.text:
         yield f"{prefix}{MESSAGE_CONTENT_TEXT}", part.text
     elif part.inline_data.mime_type.startswith("image"):
