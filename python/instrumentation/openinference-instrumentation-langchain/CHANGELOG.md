@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.21...python-openinference-instrumentation-langchain-v0.1.22) (2024-07-17)
+
+
+### Bug Fixes
+
+* **langchain:** missing partial variables for chat prompt template ([#593](https://github.com/Arize-ai/openinference/issues/593)) ([1cf1889](https://github.com/Arize-ai/openinference/commit/1cf18892c636cb44428e98583d7c8f00be81dc17))
+
 ## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.20...python-openinference-instrumentation-langchain-v0.1.21) (2024-07-09)
 
 
