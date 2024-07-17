@@ -1,16 +1,53 @@
-from typing import Any, Generator
+from importlib.metadata import version
+from typing import Any, Generator, Tuple, cast
 from unittest.mock import patch
 
 import guardrails
 import pytest
 from guardrails import Guard
-from guardrails.utils.llm_response import LLMResponse  # type: ignore
-from guardrails.validators import TwoWords  # type: ignore
+from guardrails.validator_base import (  # type: ignore[import-untyped]
+    FailResult,
+    PassResult,
+    ValidationResult,
+    Validator,
+    register_validator,
+)
 from openinference.instrumentation.guardrails import GuardrailsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydash.strings import words as _words
+
+GUARDRAILS_VERSION = cast(
+    Tuple[int, int, int],
+    tuple(map(int, version("guardrails-ai").split(".")[:3])),
+)
+
+if GUARDRAILS_VERSION < (0, 5, 0):
+    from guardrails.utils.llm_response import LLMResponse  # type: ignore
+else:
+    from guardrails.classes.llm.llm_response import LLMResponse  # type: ignore
+
+
+@register_validator(name="two-words", data_type="string")
+class TwoWords(Validator):  # type: ignore[misc]
+    def _get_fix_value(self, value: str) -> str:
+        words = value.split()
+        if len(words) == 1:
+            words = _words(value)
+        if len(words) == 1:
+            value = f"{value} {value}"
+            words = value.split()
+        return " ".join(words[:2])
+
+    def validate(self, value: Any, *args: Any, **kwargs: Any) -> ValidationResult:
+        if len(value.split()) != 2:
+            return FailResult(
+                error_message="must be exactly two words",
+                fix_value=self._get_fix_value(str(value)),
+            )
+        return PassResult()
 
 
 @pytest.fixture()
