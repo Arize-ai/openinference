@@ -38,7 +38,7 @@ instruments = [
   "guardrails-ai >= 0.4.5",
 ]
 test = [
-  "guardrails-ai",
+  "guardrails-ai == 0.4.5",
   "opentelemetry-sdk",
   "responses",
 ]
@@ -81,7 +81,6 @@ target-version = "py38"
 "*.ipynb" = ["E402", "E501"]
 
 [tool.ruff.lint]
-ignore-init-module-imports = true
 select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
