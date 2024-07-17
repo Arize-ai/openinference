@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Collection
 
-from openinference.instrumentation.vertexai import _status
+from openinference.instrumentation.vertexai import _instrumentation_status
 from openinference.instrumentation.vertexai.package import _instruments
 from openinference.instrumentation.vertexai.version import __version__
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
@@ -17,7 +17,7 @@ class VertexAIInstrumentor(BaseInstrumentor):  # type: ignore
     An instrumentor for `google-cloud-aiplatform` or the `vertexai` SDK
     """
 
-    _status = _status
+    _status = _instrumentation_status
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments

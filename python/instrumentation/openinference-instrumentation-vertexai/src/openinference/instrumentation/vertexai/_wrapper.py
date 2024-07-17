@@ -27,7 +27,7 @@ import wrapt
 from google.cloud import aiplatform_v1 as v1  # Stable
 from google.cloud import aiplatform_v1beta1 as v1beta1  # Supports latest preview features
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
-from openinference.instrumentation.vertexai import _status
+from openinference.instrumentation.vertexai import _instrumentation_status
 from openinference.instrumentation.vertexai._accumulator import (
     _IndexedAccumulator,
     _KeyValuesAccumulator,
@@ -97,7 +97,12 @@ _PREDICTION_SERVICE_REQUESTS = sorted(
 
 
 class _Wrapper:
-    _status = _status
+    _status = _instrumentation_status
+    """
+    We can't track all the functions that have been monkey-patched. Instead, all
+    monkey-patched functions are inactivated or activated by setting the global
+    variable `_instrumentation_status._IS_INSTRUMENTED` to False or True, respectively.
+    """
 
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
