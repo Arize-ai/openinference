@@ -117,8 +117,13 @@ def test_chat_completions(
         response = await create(**create_kwargs)
         response = response.parse() if is_raw else response
         if is_stream:
-            async for _ in response:
-                pass
+            if _openai_version() >= (1, 6, 0):
+                async with response as iterator:
+                    async for _ in iterator:
+                        pass
+            else:
+                async for _ in response:
+                    pass
 
     with suppress(openai.BadRequestError):
         if use_context_attributes:
@@ -137,8 +142,13 @@ def test_chat_completions(
                     response = create(**create_kwargs)
                     response = response.parse() if is_raw else response
                     if is_stream:
-                        for _ in response:
-                            pass
+                        if _openai_version() >= (1, 6, 0):
+                            with response as iterator:
+                                for _ in iterator:
+                                    pass
+                        else:
+                            for _ in response:
+                                pass
         else:
             if is_async:
                 asyncio.run(task())
@@ -146,8 +156,13 @@ def test_chat_completions(
                 response = create(**create_kwargs)
                 response = response.parse() if is_raw else response
                 if is_stream:
-                    for _ in response:
-                        pass
+                    if _openai_version() >= (1, 6, 0):
+                        with response as iterator:
+                            for _ in iterator:
+                                pass
+                    else:
+                        for _ in response:
+                            pass
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2  # first span should be from the httpx instrumentor
     span: ReadableSpan = spans[1]
