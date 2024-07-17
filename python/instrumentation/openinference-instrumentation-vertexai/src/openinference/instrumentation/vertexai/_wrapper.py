@@ -268,7 +268,9 @@ class _GenerateContentResponseAccumulator:
 
 
 def _use_span(span: Span) -> Callable[[], ContextManager[Span]]:
-    # Need to be a factory because `use_span(...)` can't be entered more than once.
+    # The `use_span` context manager can't be entered more than once. It would err here:
+    # https://github.com/open-telemetry/opentelemetry-python/blob/b1e99c1555721f818e578d7457587693e767e182/opentelemetry-api/src/opentelemetry/util/_decorator.py#L56  # noqa E501
+    # So we need a factory.
     return lambda: cast(ContextManager[Span], use_span(span, False, False, False))
 
 

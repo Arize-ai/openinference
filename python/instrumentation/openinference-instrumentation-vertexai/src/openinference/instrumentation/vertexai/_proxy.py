@@ -71,6 +71,9 @@ class _Proxy(wrapt.ObjectProxy):  # type: ignore[misc]
         super().__init__(wrapped)
         setattr(self, _SELF_IS_PROXY, True)
         self._self_callback: Callable[[T], T] = _no_err(callback)
+        # The `use_span` context manager can't be entered more than once. It would err here:
+        # https://github.com/open-telemetry/opentelemetry-python/blob/b1e99c1555721f818e578d7457587693e767e182/opentelemetry-api/src/opentelemetry/util/_decorator.py#L56  # noqa E501
+        # So we need a factory.
         self._self_context_manager_factory: Callable[[], ContextManager[Any]] = _no_err(
             context_manager_factory
         )
