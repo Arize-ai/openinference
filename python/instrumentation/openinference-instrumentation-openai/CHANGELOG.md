@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.7...python-openinference-instrumentation-openai-v0.1.8) (2024-07-17)
+
+
+### Bug Fixes
+
+* **openai:** missing span when stream response is used as context manager ([#591](https://github.com/Arize-ai/openinference/issues/591)) ([ee1fd0e](https://github.com/Arize-ai/openinference/commit/ee1fd0ecfc4616c481a3b81e3e2eebf5858e5d8a))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.6...python-openinference-instrumentation-openai-v0.1.7) (2024-06-27)
 
 
