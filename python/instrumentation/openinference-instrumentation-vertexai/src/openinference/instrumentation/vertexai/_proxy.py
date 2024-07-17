@@ -14,12 +14,12 @@ from typing import (
     Iterable,
     Iterator,
     Optional,
-    TypeAlias,
     TypeVar,
     cast,
 )
 
 import wrapt
+from typing_extensions import TypeAlias
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
