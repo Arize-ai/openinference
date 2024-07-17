@@ -500,9 +500,9 @@ def _parse_prompt_template(
         or not isinstance(kwargs, Mapping)
     ):
         return
-    if _get_id(prompt := kwargs.get("prompt")).endswith("PromptTemplate"):
+    if _get_cls_name(prompt := kwargs.get("prompt")).endswith("PromptTemplate"):
         yield from _parse_prompt_template(inputs, prompt)
-    elif _get_id(serialized).endswith("ChatPromptTemplate"):
+    elif _get_cls_name(serialized).endswith("ChatPromptTemplate"):
         messages = kwargs.get("messages")
         assert isinstance(messages, Sequence), f"expected list, found {type(messages)}"
         # FIXME: Multiple templates are possible (and the templated messages can also be
@@ -515,7 +515,7 @@ def _parse_prompt_template(
             ), f"expected dict, found {type(partial_variables)}"
             inputs = {**partial_variables, **inputs}
         yield from _parse_prompt_template(inputs, message)
-    elif _get_id(serialized).endswith("PromptTemplate") and isinstance(
+    elif _get_cls_name(serialized).endswith("PromptTemplate") and isinstance(
         (template := kwargs.get("template")), str
     ):
         yield LLM_PROMPT_TEMPLATE, template
@@ -654,13 +654,16 @@ def _as_utc_nano(dt: datetime) -> int:
     return int(dt.astimezone(timezone.utc).timestamp() * 1_000_000_000)
 
 
-def _get_id(serialized: Optional[Mapping[str, Any]]) -> str:
+def _get_cls_name(serialized: Optional[Mapping[str, Any]]) -> str:
+    """
+    For a `Serializable` object, its class name, i.e. `cls.__name__`, is the last element of
+    its `lc_id`. See https://github.com/langchain-ai/langchain/blob/9e4a0e76f6aa9796ad7baa7f623ba98274676c6f/libs/core/langchain_core/load/serializable.py#L159
+
+    For example, for the class `langchain.llms.openai.OpenAI`, the id is
+    ["langchain", "llms", "openai", "OpenAI"], and `cls.__name__` is "OpenAI".
+    """  # noqa E501
     if serialized is None or not hasattr(serialized, "get"):
         return ""
-    # The `id` field of the object is a list indicating the path to the
-    # object's class in the LangChain package, e.g. `PromptTemplate` in
-    # the `langchain.prompts.prompt` module is represented as
-    # ["langchain", "prompts", "prompt", "PromptTemplate"]
     if (id_ := serialized.get("id")) and isinstance(id_, list) and isinstance(id_[-1], str):
         return id_[-1]
     return ""
