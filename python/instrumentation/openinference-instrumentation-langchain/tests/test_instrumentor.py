@@ -9,13 +9,11 @@ from contextlib import suppress
 from contextvars import copy_context
 from functools import partial
 from importlib.metadata import version
-from itertools import count
 from typing import (
     Any,
     AsyncIterator,
     DefaultDict,
     Dict,
-    Generator,
     Iterable,
     Iterator,
     List,
@@ -34,7 +32,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda
 from langchain_openai import ChatOpenAI
 from openinference.instrumentation import using_attributes
-from openinference.instrumentation.langchain import LangChainInstrumentor, get_current_span
+from openinference.instrumentation.langchain import get_current_span
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -45,9 +43,7 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
@@ -728,49 +724,6 @@ def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
         ],
         [{"role": "assistant", "content": "ABC"}],
     )
-
-
-@pytest.fixture(scope="module")
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture(scope="module")
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
-    tracer_provider = trace_sdk.TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    LangChainInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
-
-
-@pytest.fixture(autouse=True)
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-")
-
-
-@pytest.fixture(scope="module")
-def seed() -> Iterator[int]:
-    """
-    Use rolling seeds to help debugging, because the rolling pseudo-random values
-    allow conditional breakpoints to be hit precisely (and repeatably).
-    """
-    return count()
-
-
-@pytest.fixture(autouse=True)
-def set_seed(seed: Iterator[int]) -> Iterator[None]:
-    random.seed(next(seed))
-    yield
 
 
 @pytest.fixture
