@@ -111,6 +111,12 @@ class _Stream(ObjectProxy):  # type: ignore
             return chunk
 
     def __enter__(self) -> Any:
+        # Stream response can be used as a context manager. For example, see here
+        # https://github.com/langchain-ai/langchain/blob/dc42279eb55fbb8ec5175d24c7b30fe7b502b6d1/libs/partners/openai/langchain_openai/chat_models/base.py#L513  # noqa E501
+        # in LangChain. When that happens, the __enter__ method on the wrapped
+        # object is called and the stream object escapes our wrapper. See here
+        # https://github.com/openai/openai-python/blob/435a5805ccbd5939a68f7f359ab72e937ef86e59/src/openai/_streaming.py#L103-L104  # noqa E501
+        # We override the __enter__ method so the wrapped object does not escape.
         obj = self.__wrapped__.__enter__()
         if obj is self.__wrapped__:
             return self
