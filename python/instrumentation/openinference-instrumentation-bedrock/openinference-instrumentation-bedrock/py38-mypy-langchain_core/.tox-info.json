@@ -1,6 +1,0 @@
-{
-  "ToxEnv": {
-    "name": "py38-mypy-langchain_core",
-    "type": "VirtualEnvRunner"
-  }
-}

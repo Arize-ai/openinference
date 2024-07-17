@@ -1,6 +1,0 @@
-{
-  "ToxEnv": {
-    "name": "py38-ci-openai-latest",
-    "type": "VirtualEnvRunner"
-  }
-}

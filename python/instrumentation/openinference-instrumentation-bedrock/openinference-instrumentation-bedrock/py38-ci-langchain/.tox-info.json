@@ -1,6 +1,0 @@
-{
-  "ToxEnv": {
-    "name": "py38-ci-langchain",
-    "type": "VirtualEnvRunner"
-  }
-}
