@@ -1,0 +1,6 @@
+{
+  "ToxEnv": {
+    "name": "py38-ci-bedrock",
+    "type": "VirtualEnvRunner"
+  }
+}

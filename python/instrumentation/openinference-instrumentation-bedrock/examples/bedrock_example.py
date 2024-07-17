@@ -19,7 +19,8 @@ trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 BedrockInstrumentor().instrument()
 
 session = boto3.session.Session()
-client = session.client("bedrock-runtime")
+client = session.client("bedrock-runtime", "us-east-1")
+
 
 def invoke_example():
     prompt = (
@@ -49,15 +50,15 @@ def invoke_example():
     response_body = json.loads(response.get("body").read())
     print(response_body["completion"])
 
+
 def converse_example():
-    message1 = {
-            "role": "user",
-            "content": [{"text": "Create a list of 3 pop songs."}]
+    system_prompt = [{"text": "You are an expert at creating music playlists"}]
+    inital_message = {"role": "user", "content": [{"text": "Create a list of 3 pop songs."}]}
+    clarifying_message = {
+        "role": "user",
+        "content": [{"text": "Make sure the songs are by artists from the United Kingdom."}],
     }
-    message2 = {
-            "role": "user",
-            "content": [{"text": "Make sure the songs are by artists from the United Kingdom."}]
-    }
+    inference_config = {"maxTokens": 1024, "temperature": 0.0}
     messages = []
 
     with using_attributes(
@@ -80,22 +81,27 @@ def converse_example():
             "date": "July 11th",
         },
     ):
-        messages.append(message1)
+        messages.append(inital_message)
         response = client.converse(
             modelId="anthropic.claude-3-5-sonnet-20240620-v1:0",
-            messages=messages
+            messages=messages,
+            system=system_prompt,
+            inferenceConfig=inference_config
         )
         out = response["output"]["message"]
         messages.append(out)
         print(out.get("content")[-1].get("text"))
 
-        messages.append(message2)
+        messages.append(clarifying_message)
         response = client.converse(
             modelId="anthropic.claude-v2:1",
-            messages=messages
+            messages=messages,
+            system=system_prompt,
+            inferenceConfig=inference_config
         )
-        out = response['output']['message']
+        out = response["output"]["message"]
         print(out.get("content")[-1].get("text"))
+
 
 if __name__ == "__main__":
     invoke_example()

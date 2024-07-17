@@ -178,31 +178,57 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 if model_id := kwargs.get("modelId"):
                     _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
 
-                if request_messages := kwargs.get("messages"):
-                    # Extract the most recent request message in message history list
-                    current_request_message = request_messages[-1]
-
-                    if request_content := current_request_message.pop("content", ""):
-                        # Currently only supports single text-based data
-                        # Future implementation can be extended to handle different media types
-                        if prompt := request_content[-1].get("text"):
-                            _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
-
-                    invocation_parameters = safe_json_dumps(current_request_message)
+                if inference_config := kwargs.get("inferenceConfig"):
+                    invocation_parameters = safe_json_dumps(inference_config)
                     _set_span_attribute(
                         span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
                     )
 
-                    # Add content back after setting invocation parameters
-                    if request_content:
-                        current_request_message["content"] = request_content
+                if system_prompts := kwargs.get("system", []):
+                    if system_messages := " ".join(prompt.get("text", "") for prompt in system_prompts):
+                        span_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.{0}"
+                        _set_span_attribute(
+                            span,
+                            f"{span_prefix}.message.role",
+                            "system"
+                        )
+                        _set_span_attribute(
+                            span,
+                            f"{span_prefix}.message.content",
+                            system_messages
+                        )
+
+                if message_history := kwargs.get("messages"):
+                    for idx, request_msg in enumerate(message_history):
+                        # Currently only supports single text-based data
+                        # Future implementation can be extended to handle different media types
+                        if (
+                            isinstance(request_msg, dict) and
+                            (request_msg_role := request_msg.get("role")) and
+                            (request_msg_content := request_msg.get("content", [None])[0]) and
+                            (request_msg_prompt := request_msg_content.get("text"))
+                        ):
+                            span_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx + 1}"
+                            _set_span_attribute(
+                                span,
+                                f"{span_prefix}.message.role",
+                                request_msg_role,
+                            )
+                            _set_span_attribute(
+                                span,
+                                f"{span_prefix}.message.content",
+                                request_msg_prompt
+                            )
+
 
                 response = wrapped_client._unwrapped_converse(*args, **kwargs)
-                if (response_content :=
-                        response.get("output", {}).get("message", {}).get("content", [])):
-                    current_content = response_content[-1]
+                if (
+                    response_content := response.get("output", {})
+                    .get("message", {})
+                    .get("content", [None])[0]
+                ):
                     # Currently only supports single text-based data
-                    if response_text := current_content.get("text"):
+                    if response_text := response_content.get("text"):
                         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
 
                 if usage := response.get("usage"):
