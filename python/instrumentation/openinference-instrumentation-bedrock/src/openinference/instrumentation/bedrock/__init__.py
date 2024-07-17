@@ -1,6 +1,6 @@
 import io
 import json
-from functools import partial, wraps
+from functools import wraps
 from importlib import import_module
 from inspect import signature
 from typing import IO, Any, Callable, Collection, Dict, Optional, Tuple, TypeVar, cast
@@ -185,51 +185,49 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                     )
 
                 if system_prompts := kwargs.get("system", []):
-                    if system_messages := " ".join(prompt.get("text", "") for prompt in system_prompts):
+                    input_buffer = 1
+                    if system_messages := " ".join(
+                        prompt.get("text", "") for prompt in system_prompts
+                    ):
                         span_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.{0}"
-                        _set_span_attribute(
-                            span,
-                            f"{span_prefix}.message.role",
-                            "system"
-                        )
-                        _set_span_attribute(
-                            span,
-                            f"{span_prefix}.message.content",
-                            system_messages
-                        )
+                        _set_span_attribute(span, f"{span_prefix}.message.role", "system")
+                        _set_span_attribute(span, f"{span_prefix}.message.content", system_messages)
+                else:
+                    input_buffer = 0
 
                 if message_history := kwargs.get("messages"):
                     for idx, request_msg in enumerate(message_history):
                         # Currently only supports single text-based data
                         # Future implementation can be extended to handle different media types
                         if (
-                            isinstance(request_msg, dict) and
-                            (request_msg_role := request_msg.get("role")) and
-                            (request_msg_content := request_msg.get("content", [None])[0]) and
-                            (request_msg_prompt := request_msg_content.get("text"))
+                            isinstance(request_msg, dict)
+                            and (request_msg_role := request_msg.get("role"))
+                            and (request_msg_content := request_msg.get("content", [None])[0])
+                            and (request_msg_prompt := request_msg_content.get("text"))
                         ):
-                            span_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx + 1}"
-                            _set_span_attribute(
-                                span,
-                                f"{span_prefix}.message.role",
-                                request_msg_role,
+                            span_prefix = (
+                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx + input_buffer}"
                             )
                             _set_span_attribute(
-                                span,
-                                f"{span_prefix}.message.content",
-                                request_msg_prompt
+                                span, f"{span_prefix}.message.role", request_msg_role
                             )
-
+                            _set_span_attribute(
+                                span, f"{span_prefix}.message.content", request_msg_prompt
+                            )
 
                 response = wrapped_client._unwrapped_converse(*args, **kwargs)
-                if (
-                    response_content := response.get("output", {})
-                    .get("message", {})
-                    .get("content", [None])[0]
+                if (response_message := response.get("output", {}).get("message")) and (
+                    response_content := response_message.get("content", [None])[0]
                 ):
                     # Currently only supports single text-based data
-                    if response_text := response_content.get("text"):
+                    if (response_role := response_message.get("role")) and (
+                        response_text := response_content.get("text")
+                    ):
                         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
+
+                        span_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+                        _set_span_attribute(span, f"{span_prefix}.message.role", response_role)
+                        _set_span_attribute(span, f"{span_prefix}.message.content", response_text)
 
                 if usage := response.get("usage"):
                     if input_token_count := usage.get("inputTokens"):

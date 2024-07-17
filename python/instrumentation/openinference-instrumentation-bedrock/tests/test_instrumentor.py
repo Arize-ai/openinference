@@ -271,6 +271,7 @@ def test_invoke_client_with_missing_tokens(
         )
     assert attributes == {}
 
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_converse(
     use_context_attributes: bool,
@@ -288,11 +289,7 @@ def test_converse(
     output = {
         "message": {
             "role": "assistant",
-            "content": [
-                {
-                    "text": "Hi there! How can I assist you today?"
-                }
-            ],
+            "content": [{"text": "Hi there! How can I assist you today?"}],
         }
     }
     mock_response = {
@@ -312,7 +309,7 @@ def test_converse(
             "RetryAttempts": 0,
         },
         "output": output,
-        'usage': {'inputTokens': 12, 'outputTokens': 6, 'totalTokens': 18},
+        "usage": {"inputTokens": 12, "outputTokens": 6, "totalTokens": 18},
     }
     session = boto3.session.Session()
     client = session.client("bedrock-runtime", region_name="us-east-1")
@@ -335,25 +332,16 @@ def test_converse(
                 modelId=model_name,
                 system=system,
                 messages=[message],
-                inferenceConfig=inference_config
+                inferenceConfig=inference_config,
             )
     else:
         client.converse(
-            modelId=model_name,
-            system=system,
-            messages=[message],
-            inferenceConfig=inference_config
+            modelId=model_name, system=system, messages=[message], inferenceConfig=inference_config
         )
 
     llm_input_messages_truths = [
-        {
-            "role": "system",
-            "content": system[0]["text"]
-        },
-        {
-            "role": message["role"],
-            "content": message["content"][0]["text"]
-        }
+        {"role": "system", "content": system[0]["text"]},
+        {"role": message["role"], "content": message["content"][0]["text"]},
     ]
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -372,8 +360,9 @@ def test_converse(
         output=output,
         model_name=model_name,
         token_counts=mock_response["usage"],
-        invocation_parameters=inference_config
+        invocation_parameters=inference_config,
     )
+
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_converse_multiple(
@@ -390,11 +379,7 @@ def test_converse_multiple(
     first_output = {
         "message": {
             "role": "assistant",
-            "content": [
-                {
-                    "text": "Hi there! How can I assist you today?"
-                }
-            ],
+            "content": [{"text": "Hi there! How can I assist you today?"}],
         }
     }
     first_mock_response = {
@@ -414,7 +399,7 @@ def test_converse_multiple(
             "RetryAttempts": 0,
         },
         "output": first_output,
-        'usage': {'inputTokens': 12, 'outputTokens': 6, 'totalTokens': 18},
+        "usage": {"inputTokens": 12, "outputTokens": 6, "totalTokens": 18},
     }
 
     session = boto3.session.Session()
@@ -423,7 +408,7 @@ def test_converse_multiple(
     # complexities with mocking auth
     client._unwrapped_converse = MagicMock(return_value=first_mock_response)
 
-    system =[{"text": "return a short response."}, {"text": "clarify your responses."}]
+    system = [{"text": "return a short response."}, {"text": "clarify your responses."}]
     inference_config = {"maxTokens": 1024, "temperature": 0.0}
     first_msg = {"role": "user", "content": [{"text": "hello there?"}]}
     second_msg = {"role": "user", "content": [{"text": "how are you?"}]}
@@ -443,21 +428,18 @@ def test_converse_multiple(
                 modelId=model_name,
                 system=system,
                 messages=messages,
-                inferenceConfig=inference_config
+                inferenceConfig=inference_config,
             )
     else:
         response = client.converse(
-            modelId=model_name,
-            system=system,
-            messages=messages,
-            inferenceConfig=inference_config
+            modelId=model_name, system=system, messages=messages, inferenceConfig=inference_config
         )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     llm_input_messages_truths = [
         {"role": "system", "content": f"{system[0]["text"]} {system[1]["text"]}"},
-        {"role": first_msg["role"], "content": first_msg["content"][0]["text"]}
+        {"role": first_msg["role"], "content": first_msg["content"][0]["text"]},
     ]
     _run_converse_checks(
         use_context_attributes,
@@ -473,16 +455,14 @@ def test_converse_multiple(
         output=first_output,
         model_name=model_name,
         token_counts=first_mock_response["usage"],
-        invocation_parameters=inference_config
+        invocation_parameters=inference_config,
     )
 
     second_output = {
         "message": {
             "role": "assistant",
             "content": [
-                {
-                    "text": "I'm functioning well, thank you for asking. How are you doing today?"
-                }
+                {"text": "I'm functioning well, thank you for asking. How are you doing today?"},
             ],
         }
     }
@@ -503,7 +483,7 @@ def test_converse_multiple(
             "RetryAttempts": 0,
         },
         "output": second_output,
-        'usage': {'inputTokens': 12, 'outputTokens': 6, 'totalTokens': 18},
+        "usage": {"inputTokens": 12, "outputTokens": 6, "totalTokens": 18},
     }
     client._unwrapped_converse = MagicMock(return_value=second_mock_response)
     messages.extend([response["output"]["message"], second_msg])
@@ -521,25 +501,24 @@ def test_converse_multiple(
                 modelId=model_name,
                 system=system,
                 messages=messages,
-                inferenceConfig=inference_config
-        )
+                inferenceConfig=inference_config,
+            )
     else:
         client.converse(
-            modelId=model_name,
-            system=system,
-            messages=messages,
-            inferenceConfig=inference_config
+            modelId=model_name, system=system, messages=messages, inferenceConfig=inference_config
         )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
-    llm_input_messages_truths.extend([
-        {
-            "role": first_output["message"]["role"],
-            "content": first_output["message"]["content"][0]["text"]
-        },
-        {"role": second_msg["role"], "content": second_msg["content"][0]["text"]}
-    ])
+    llm_input_messages_truths.extend(
+        [
+            {
+                "role": first_output["message"]["role"],
+                "content": first_output["message"]["content"][0]["text"],
+            },
+            {"role": second_msg["role"], "content": second_msg["content"][0]["text"]},
+        ]
+    )
     _run_converse_checks(
         use_context_attributes,
         session_id,
@@ -554,7 +533,7 @@ def test_converse_multiple(
         output=second_output,
         model_name=model_name,
         token_counts=second_mock_response["usage"],
-        invocation_parameters=inference_config
+        invocation_parameters=inference_config,
     )
 
 
@@ -575,11 +554,7 @@ def test_converse_with_missing_tokens(
     output = {
         "message": {
             "role": "assistant",
-            "content": [
-                {
-                    "text": "Hi there! How can I assist you today?"
-                }
-            ],
+            "content": [{"text": "Hi there! How can I assist you today?"}],
         }
     }
     mock_response = {
@@ -598,7 +573,7 @@ def test_converse_with_missing_tokens(
             "RetryAttempts": 0,
         },
         "output": output,
-        'usage': {'outputTokens': 6},
+        "usage": {"outputTokens": 6},
     }
     session = boto3.session.Session()
     client = session.client("bedrock-runtime", region_name="us-east-1")
@@ -621,21 +596,18 @@ def test_converse_with_missing_tokens(
                 modelId=model_name,
                 system=system,
                 messages=[message],
-                inferenceConfig=inference_config
+                inferenceConfig=inference_config,
             )
     else:
         client.converse(
-            modelId=model_name,
-            system=system,
-            messages=[message],
-            inferenceConfig=inference_config
+            modelId=model_name, system=system, messages=[message], inferenceConfig=inference_config
         )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     llm_input_messages_truths = [
         {"role": "system", "content": system[0]["text"]},
-        {"role": message["role"], "content": message["content"][0]["text"]}
+        {"role": message["role"], "content": message["content"][0]["text"]},
     ]
     _run_converse_checks(
         use_context_attributes,
@@ -651,7 +623,105 @@ def test_converse_with_missing_tokens(
         output=output,
         model_name=model_name,
         token_counts=mock_response["usage"],
-        invocation_parameters=inference_config
+        invocation_parameters=inference_config,
+    )
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "mistral.mistral-7b-instruct-v0:2",
+        "mistral.mixtral-8x7b-instruct-v0:1",
+        "mistral.mistral-large-2402-v1:0",
+        "mistral.mistral-small-2402-v1:0",
+        "meta.llama3-8b-instruct-v1:0",
+        "meta.llama3-70b-instruct-v1:0",
+    ],
+)
+def test_converse_multiple_models(
+    use_context_attributes: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+    model_id: str,
+) -> None:
+    inference_config = {"maxTokens": 1024, "temperature": 0.0}
+    output = {
+        "message": {
+            "role": "assistant",
+            "content": [{"text": "Hi there! How can I assist you today?"}],
+        }
+    }
+    mock_response = {
+        "ResponseMetadata": {
+            "RequestId": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
+            "HTTPStatusCode": 200,
+            "HTTPHeaders": {
+                "date": "Sun, 21 Jan 2024 20:00:00 GMT",
+                "content-type": "application/json",
+                "content-length": "74",
+                "connection": "keep-alive",
+                "x-amzn-requestid": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
+                "x-amzn-bedrock-invocation-latency": "425",
+                "x-amzn-bedrock-output-token-count": "6",
+                "x-amzn-bedrock-input-token-count": "12",
+            },
+            "RetryAttempts": 0,
+        },
+        "output": output,
+        "usage": {"inputTokens": 12, "outputTokens": 6, "totalTokens": 18},
+    }
+    session = boto3.session.Session()
+    client = session.client("bedrock-runtime", region_name="us-east-1")
+    # instead of mocking the HTTP response, we mock the boto client method directly to avoid
+    # complexities with mocking auth
+    client._unwrapped_converse = MagicMock(return_value=mock_response)
+    message = {"role": "user", "content": [{"text": "hello there?"}]}
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            client.converse(
+                modelId=model_id,
+                messages=[message],
+                inferenceConfig=inference_config,
+            )
+    else:
+        client.converse(modelId=model_id, messages=[message], inferenceConfig=inference_config)
+
+    llm_input_messages_truths = [
+        {"role": message["role"], "content": message["content"][0]["text"]},
+    ]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    _run_converse_checks(
+        use_context_attributes,
+        session_id,
+        user_id,
+        metadata,
+        tags,
+        prompt_template,
+        prompt_template_version,
+        prompt_template_variables,
+        span=spans[0],
+        llm_input_messages_truth=llm_input_messages_truths,
+        output=output,
+        model_name=model_id,
+        token_counts=mock_response["usage"],
+        invocation_parameters=inference_config,
     )
 
 
@@ -699,7 +769,7 @@ def _run_converse_checks(
     output: Dict[str, Any],
     model_name: str,
     token_counts: Dict[str, int],
-    invocation_parameters: Dict[str, Any]
+    invocation_parameters: Dict[str, Any],
 ) -> None:
     assert span.status.is_ok
     attributes = dict(span.attributes or dict())
@@ -718,7 +788,9 @@ def _run_converse_checks(
         role_key = f"llm.input_messages.{msg_idx}.message.role"
         content_key = f"llm.input_messages.{msg_idx}.message.content"
         assert attributes.pop(role_key) == msg["role"], f"Role mismatch for message {msg_idx}."
-        assert attributes.pop(content_key) == msg["content"], f"Content mismatch for message {msg_idx}."
+        assert (
+            attributes.pop(content_key) == msg["content"]
+        ), f"Content mismatch for message {msg_idx}."
 
     if use_context_attributes:
         _check_context_attributes(

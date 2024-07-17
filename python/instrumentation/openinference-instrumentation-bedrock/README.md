@@ -6,6 +6,26 @@ This package implements OpenInference tracing for `invoke_model` and `converse` 
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-bedrock.svg)](https://pypi.org/project/openinference-instrumentation-bedrock/)
 
+## Supported Models
+
+Find the list of Bedrock-supported models and their IDs [here](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html#model-ids-arns).
+
+> **NOTE**: Future testing is planned for additional models.
+
+| Model                               | Supported Methods    |
+| ----------------------------------- | -------------------- |
+| `Anthropic Claude 2.0`              | converse, invoke     |
+| `Anthropic Claude 2.1`              | converse, invoke     |
+| `Anthropic Claude 3 Sonnet 1.0`     | converse             |
+| `Anthropic Claude 3.5 Sonnet`       | converse             |
+| `Anthropic Claude 3 Haiku`          | converse             |
+| `Meta Llama 3 8b Instruct`          | converse             |
+| `Meta Llama 3 70b Instruct`         | converse             |
+| `Mistral AI Mistral 7B Instruct`    | converse             |
+| `Mistral AI Mixtral 8X7B Instruct`  | converse             |
+| `Mistral AI Mistral Large`          | converse             |
+| `Mistral AI Mistral Small`          | converse             |
+
 ## Installation
 
 ```shell

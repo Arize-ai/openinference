@@ -84,9 +84,9 @@ def converse_example():
         messages.append(inital_message)
         response = client.converse(
             modelId="anthropic.claude-3-5-sonnet-20240620-v1:0",
-            messages=messages,
             system=system_prompt,
-            inferenceConfig=inference_config
+            messages=messages,
+            inferenceConfig=inference_config,
         )
         out = response["output"]["message"]
         messages.append(out)
@@ -94,10 +94,10 @@ def converse_example():
 
         messages.append(clarifying_message)
         response = client.converse(
-            modelId="anthropic.claude-v2:1",
-            messages=messages,
+            modelId="anthropic.claude-v2",
             system=system_prompt,
-            inferenceConfig=inference_config
+            messages=messages,
+            inferenceConfig=inference_config,
         )
         out = response["output"]["message"]
         print(out.get("content")[-1].get("text"))
