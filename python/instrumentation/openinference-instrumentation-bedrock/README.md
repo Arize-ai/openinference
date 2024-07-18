@@ -6,11 +6,12 @@ This package implements OpenInference tracing for `invoke_model` and `converse` 
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-bedrock.svg)](https://pypi.org/project/openinference-instrumentation-bedrock/)
 
+> [!NOTE]\
+> The Converse API was introduced in botocore [v1.34.116](https://github.com/boto/botocore/blob/develop/CHANGELOG.rst). Please use v1.34.116 or above to utilize converse.
+
 ## Supported Models
 
-Find the list of Bedrock-supported models and their IDs [here](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html#model-ids-arns).
-
-> **NOTE**: Future testing is planned for additional models.
+Find the list of Bedrock-supported models and their IDs [here](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html#model-ids-arns). Future testing is planned for additional models.
 
 | Model                               | Supported Methods    |
 | ----------------------------------- | -------------------- |
@@ -34,7 +35,7 @@ pip install openinference-instrumentation-bedrock
 
 ## Quickstart
 
-> **NOTE**:
+> [!IMPORTANT]\
 > OpenInference for AWS Bedrock supports both [`invoke_model`](https://botocore.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/invoke_model.html#BedrockRuntime.Client.invoke_model) and [`converse`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#). For models that use the Messages API, such as Anthropic Claude 3 and Anthropic Claude 3.5, use the [Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) instead.
 
 In a notebook environment (`jupyter`, `colab`, etc.) install `openinference-instrumentation-bedrock`, `arize-phoenix` and `boto3`.

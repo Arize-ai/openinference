@@ -226,6 +226,11 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
                             content_input.get("text", "")  # type: ignore
                             for content_input in request_msg_content
                         )
+                        if idx == len(aggregated_messages) - 1:
+                            _set_span_attribute(
+                                span, SpanAttributes.INPUT_VALUE, request_msg_prompt
+                            )
+
                         span_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}"
                         _set_span_attribute(span, f"{span_prefix}.message.role", request_msg_role)
                         _set_span_attribute(

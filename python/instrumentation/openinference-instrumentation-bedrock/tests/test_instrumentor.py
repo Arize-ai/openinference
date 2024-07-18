@@ -365,6 +365,7 @@ def test_converse(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
+        input=message["content"][0]["text"],  # type: ignore
         output=output,
         model_name=model_name,
         token_counts=mock_response["usage"],  # type: ignore
@@ -466,6 +467,7 @@ def test_converse_multiple(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
+        input=first_msg["content"][0]["text"],  # type: ignore
         output=first_output,
         model_name=model_name,
         token_counts=first_mock_response["usage"],  # type: ignore
@@ -544,6 +546,7 @@ def test_converse_multiple(
         prompt_template_variables,
         span=spans[1],
         llm_input_messages_truth=llm_input_messages_truths,
+        input=second_msg["content"][0]["text"],  # type: ignore
         output=second_output,
         model_name=model_name,
         token_counts=second_mock_response["usage"],  # type: ignore
@@ -639,6 +642,7 @@ def test_converse_with_missing_tokens(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
+        input=message["content"][0]["text"],  # type: ignore
         output=output,
         model_name=model_name,
         token_counts=mock_response["usage"],  # type: ignore
@@ -742,6 +746,7 @@ def test_converse_multiple_models(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
+        input=message["content"][0]["text"],  # type: ignore
         output=output,
         model_name=model_id,
         token_counts=mock_response["usage"],  # type: ignore
@@ -790,6 +795,7 @@ def _run_converse_checks(
     prompt_template_variables: Dict[str, Any],
     span: trace_sdk.ReadableSpan,
     llm_input_messages_truth: List[Dict[str, str]],
+    input: str,
     output: Dict[str, Any],
     model_name: str,
     token_counts: Dict[Any, Any],
@@ -814,6 +820,7 @@ def _run_converse_checks(
         == output["message"]["content"][0]["text"]
     )
 
+    assert attributes.pop(INPUT_VALUE) == input
     for msg_idx, msg in enumerate(llm_input_messages_truth):
         role_key = f"llm.input_messages.{msg_idx}.message.role"
         content_key = f"llm.input_messages.{msg_idx}.message.content"
