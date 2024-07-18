@@ -450,8 +450,9 @@ def test_converse_multiple(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
+    system_prompt1, system_prompt2 = system[0].get("text"), system[1].get("text")
     llm_input_messages_truths = [
-        {"role": "system", "content": f"{system[0].get("text")} {system[1].get("text")}"},
+        {"role": "system", "content": f"{system_prompt1} {system_prompt2}"},
         {"role": first_msg["role"], "content": first_msg["content"][0]["text"]},  # type: ignore
     ]
     _run_converse_checks(
