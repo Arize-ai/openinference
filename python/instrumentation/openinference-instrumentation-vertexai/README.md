@@ -16,7 +16,12 @@ Install `openinference-instrumentation-vertexai` and `arize-phoenix`.
 
 
 ```shell
-pip install -Uqqq openinference-instrumentation-vertexai arize-phoenix
+pip install -Uqqq \
+    openinference-instrumentation-vertexai \
+    arize-phoenix \
+    opentelemetry-sdk \
+    opentelemetry-exporter-otlp \
+    "opentelemetry-proto>=1.12.0"
 ```
 
 Start the `phoenix` server so that it is ready to receive traces.
