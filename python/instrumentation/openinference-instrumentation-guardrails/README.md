@@ -19,13 +19,19 @@ This quickstart shows you how to instrument your guardrailed LLM application
 Install required packages.
 
 ```shell
-pip install openinference-instrumentation-dspy guardrails-ai arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install openinference-instrumentation-guardrails guardrails-ai arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 Start Phoenix in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address. (Phoenix does not send data over the internet. It only operates locally on your machine.)
 
 ```shell
 python -m phoenix.server.main serve
+```
+
+Install the TwoWords validator that's used in the Guard.
+
+```shell
+guardrails hub install hub://guardrails/two_words
 ```
 
 Set up `GuardrailsInstrumentor` to trace your guardrails application and sends the traces to Phoenix at the endpoint defined below.
@@ -51,7 +57,7 @@ GuardrailsInstrumentor().instrument()
 Set up a simple example of LLM call using a Guard
 ```python
 from guardrails import Guard
-from guardrails.validators import TwoWords
+from guardrails.hub import TwoWords
 import openai
 
 guard = Guard().use(
