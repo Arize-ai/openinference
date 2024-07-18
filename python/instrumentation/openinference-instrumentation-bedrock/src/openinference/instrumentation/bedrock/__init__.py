@@ -27,7 +27,7 @@ ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
 _MODULE = "botocore.client"
 
 
-class InstrumentedClient(BaseClient):
+class InstrumentedClient(BaseClient):  # type: ignore
     """
     Proxy class representing an instrumented boto client.
     """
@@ -39,7 +39,7 @@ class InstrumentedClient(BaseClient):
     _unwrapped_converse: Callable[..., Any]
 
 
-class BufferedStreamingBody(StreamingBody):
+class BufferedStreamingBody(StreamingBody):  # type: ignore
     _raw_stream: IO[bytes]
 
     def __init__(self, raw_stream: IO[bytes], content_length: int) -> None:
@@ -271,7 +271,7 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = ("_original_client_creator",)
 
     def instrumentation_dependencies(self) -> Collection[str]:
-        return _instruments  # type: ignore
+        return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):

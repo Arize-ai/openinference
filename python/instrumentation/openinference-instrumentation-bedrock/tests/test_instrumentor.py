@@ -1,6 +1,6 @@
 import io
 import json
-from typing import Any, Dict, Generator, List, cast
+from typing import Any, Dict, Generator, List
 from unittest.mock import MagicMock
 
 import boto3
@@ -359,7 +359,7 @@ def test_converse(
         llm_input_messages_truth=llm_input_messages_truths,
         output=output,
         model_name=model_name,
-        token_counts=cast(dict, mock_response["usage"]),
+        token_counts=mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
     )
 
@@ -454,7 +454,7 @@ def test_converse_multiple(
         llm_input_messages_truth=llm_input_messages_truths,
         output=first_output,
         model_name=model_name,
-        token_counts=cast(dict, first_mock_response["usage"]),
+        token_counts=first_mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
     )
 
@@ -532,7 +532,7 @@ def test_converse_multiple(
         llm_input_messages_truth=llm_input_messages_truths,
         output=second_output,
         model_name=model_name,
-        token_counts=cast(dict, second_mock_response["usage"]),
+        token_counts=second_mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
     )
 
@@ -622,7 +622,7 @@ def test_converse_with_missing_tokens(
         llm_input_messages_truth=llm_input_messages_truths,
         output=output,
         model_name=model_name,
-        token_counts=cast(dict, mock_response["usage"]),
+        token_counts=mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
     )
 
@@ -720,7 +720,7 @@ def test_converse_multiple_models(
         llm_input_messages_truth=llm_input_messages_truths,
         output=output,
         model_name=model_id,
-        token_counts=cast(dict, mock_response["usage"]),
+        token_counts=mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
     )
 
@@ -764,11 +764,11 @@ def _run_converse_checks(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
-    span: trace_sdk.ReadableSpan,  # type: ignore
+    span: trace_sdk.ReadableSpan,
     llm_input_messages_truth: List[Dict[str, str]],
     output: Dict[str, Any],
     model_name: str,
-    token_counts: Dict[str, int],
+    token_counts: Dict[Any, Any],
     invocation_parameters: Dict[str, Any],
 ) -> None:
     assert span.status.is_ok
