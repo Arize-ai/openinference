@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.6...python-openinference-instrumentation-bedrock-v0.1.7) (2024-07-18)
+
+
+### Features
+
+* **bedrock:** add converse api support for bedrock ([#585](https://github.com/Arize-ai/openinference/issues/585)) ([b41cab7](https://github.com/Arize-ai/openinference/commit/b41cab7ebc1abd730cf26f8e9d7cafce39b59054))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.5...python-openinference-instrumentation-bedrock-v0.1.6) (2024-05-21)
 
 
