@@ -7,7 +7,10 @@ import boto3
 import pytest
 from botocore.response import StreamingBody
 from openinference.instrumentation import using_attributes
-from openinference.instrumentation.bedrock import BedrockInstrumentor
+from openinference.instrumentation.bedrock import (
+    _MINIMUM_CONVERSE_BOTOCORE_VERSION,
+    BedrockInstrumentor,
+)
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -284,6 +287,11 @@ def test_converse(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
+    if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+        pytest.xfail(
+            f"Botocore {version} does not support the Converse API. "
+            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
+        )
     system = [{"text": "return a short response"}]
     inference_config = {"maxTokens": 1024, "temperature": 0.0}
     output = {
@@ -376,6 +384,11 @@ def test_converse_multiple(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
+    if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+        pytest.xfail(
+            f"Botocore {version} does not support the Converse API. "
+            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
+        )
     first_output = {
         "message": {
             "role": "assistant",
@@ -549,6 +562,11 @@ def test_converse_with_missing_tokens(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
+    if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+        pytest.xfail(
+            f"Botocore {version} does not support the Converse API. "
+            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
+        )
     system = [{"text": "return a short response"}]
     inference_config = {"maxTokens": 1024, "temperature": 0.0}
     output = {
@@ -651,6 +669,11 @@ def test_converse_multiple_models(
     prompt_template_variables: Dict[str, Any],
     model_id: str,
 ) -> None:
+    if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+        pytest.xfail(
+            f"Botocore {version} does not support the Converse API. "
+            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
+        )
     inference_config = {"maxTokens": 1024, "temperature": 0.0}
     output = {
         "message": {

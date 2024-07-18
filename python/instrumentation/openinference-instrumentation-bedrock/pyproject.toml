@@ -35,7 +35,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "boto3 >= 11.28.57",
+  "boto3 >= 1.28.57",
 ]
 test = [
   "boto3 == 1.28.57",

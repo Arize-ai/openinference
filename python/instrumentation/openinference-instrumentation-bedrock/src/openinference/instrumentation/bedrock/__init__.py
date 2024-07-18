@@ -25,6 +25,8 @@ from wrapt import wrap_function_wrapper
 ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
 
 _MODULE = "botocore.client"
+_BASE_MODULE = "botocore"
+_MINIMUM_CONVERSE_BOTOCORE_VERSION = "1.34.116"
 
 
 class InstrumentedClient(BaseClient):  # type: ignore
@@ -59,7 +61,9 @@ class BufferedStreamingBody(StreamingBody):  # type: ignore
             self._buffer.seek(0)
 
 
-def _client_creation_wrapper(tracer: Tracer) -> Callable[[ClientCreator], ClientCreator]:
+def _client_creation_wrapper(
+    tracer: Tracer, module_version: str
+) -> Callable[[ClientCreator], ClientCreator]:
     def _client_wrapper(
         wrapped: ClientCreator,
         instance: Optional[Any],
@@ -81,8 +85,9 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[ClientCreator], Client
             client._unwrapped_invoke_model = client.invoke_model
             client.invoke_model = _model_invocation_wrapper(tracer)(client)
 
-            client._unwrapped_converse = client.converse
-            client.converse = _model_converse_wrapper(tracer)(client)
+            if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+                client._unwrapped_converse = client.converse
+                client.converse = _model_converse_wrapper(tracer)(client)
         return client
 
     return _client_wrapper  # type: ignore
@@ -279,12 +284,13 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
 
         boto = import_module(_MODULE)
+        botocore = import_module(_BASE_MODULE)
         self._original_client_creator = boto.ClientCreator.create_client
 
         wrap_function_wrapper(
             module=_MODULE,
             name="ClientCreator.create_client",
-            wrapper=_client_creation_wrapper(tracer=tracer),
+            wrapper=_client_creation_wrapper(tracer=tracer, module_version=botocore.__version__),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
