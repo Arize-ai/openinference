@@ -16,7 +16,7 @@ Install `openinference-instrumentation-vertexai` and `arize-phoenix`.
 
 
 ```shell
-pip install -Uqqq \
+pip install -U \
     openinference-instrumentation-vertexai \
     arize-phoenix \
     opentelemetry-sdk \
