@@ -2,9 +2,30 @@
 
 Python autoinstrumentation library for AWS Bedrock calls made using `boto3`.
 
-This package implements OpenInference tracing for `invoke_model` calls made using a `boto3` `bedrock-runtime` client. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
+This package implements OpenInference tracing for `invoke_model` and `converse` calls made using a `boto3` `bedrock-runtime` client. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-bedrock.svg)](https://pypi.org/project/openinference-instrumentation-bedrock/)
+
+> [!NOTE]\
+> The Converse API was introduced in botocore [v1.34.116](https://github.com/boto/botocore/blob/develop/CHANGELOG.rst). Please use v1.34.116 or above to utilize converse.
+
+## Supported Models
+
+Find the list of Bedrock-supported models and their IDs [here](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html#model-ids-arns). Future testing is planned for additional models.
+
+| Model                               | Supported Methods    |
+| ----------------------------------- | -------------------- |
+| `Anthropic Claude 2.0`              | converse, invoke     |
+| `Anthropic Claude 2.1`              | converse, invoke     |
+| `Anthropic Claude 3 Sonnet 1.0`     | converse             |
+| `Anthropic Claude 3.5 Sonnet`       | converse             |
+| `Anthropic Claude 3 Haiku`          | converse             |
+| `Meta Llama 3 8b Instruct`          | converse             |
+| `Meta Llama 3 70b Instruct`         | converse             |
+| `Mistral AI Mistral 7B Instruct`    | converse             |
+| `Mistral AI Mixtral 8X7B Instruct`  | converse             |
+| `Mistral AI Mistral Large`          | converse             |
+| `Mistral AI Mistral Small`          | converse             |
 
 ## Installation
 
@@ -13,6 +34,9 @@ pip install openinference-instrumentation-bedrock
 ```
 
 ## Quickstart
+
+> [!IMPORTANT]\
+> OpenInference for AWS Bedrock supports both [`invoke_model`](https://botocore.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/invoke_model.html#BedrockRuntime.Client.invoke_model) and [`converse`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#). For models that use the Messages API, such as Anthropic Claude 3 and Anthropic Claude 3.5, use the [Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) instead.
 
 In a notebook environment (`jupyter`, `colab`, etc.) install `openinference-instrumentation-bedrock`, `arize-phoenix` and `boto3`.
 
@@ -66,6 +90,40 @@ prompt = b'{"prompt": "Human: Hello there, how are you? Assistant:", "max_tokens
 response = client.invoke_model(modelId="anthropic.claude-v2", body=prompt)
 response_body = json.loads(response.get("body").read())
 print(response_body["completion"])
+```
+
+Alternatively, all calls to `converse` are instrumented and can be viewed in the `phoenix` UI.
+
+```python
+session = boto3.session.Session()
+client = session.client("bedrock-runtime")
+
+message1 = {
+            "role": "user",
+            "content": [{"text": "Create a list of 3 pop songs."}]
+}
+message2 = {
+        "role": "user",
+        "content": [{"text": "Make sure the songs are by artists from the United Kingdom."}]
+}
+messages = []
+
+messages.append(message1)
+response = client.converse(
+    modelId="anthropic.claude-3-5-sonnet-20240620-v1:0",
+    messages=messages
+)
+out = response["output"]["message"]
+messages.append(out)
+print(out.get("content")[-1].get("text"))
+
+messages.append(message2)
+response = client.converse(
+    modelId="anthropic.claude-v2:1",
+    messages=messages
+)
+out = response['output']['message']
+print(out.get("content")[-1].get("text"))
 ```
 
 ## More Info
