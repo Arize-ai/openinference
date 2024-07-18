@@ -1,6 +1,6 @@
 import io
 import json
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator, List, cast
 from unittest.mock import MagicMock
 
 import boto3
@@ -341,7 +341,7 @@ def test_converse(
 
     llm_input_messages_truths = [
         {"role": "system", "content": system[0]["text"]},
-        {"role": message["role"], "content": message["content"][0]["text"]},
+        {"role": message.get("role"), "content": message.get("content", [{}])[0].get("text")},  # type: ignore
     ]
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -359,7 +359,7 @@ def test_converse(
         llm_input_messages_truth=llm_input_messages_truths,
         output=output,
         model_name=model_name,
-        token_counts=mock_response["usage"],
+        token_counts=cast(dict, mock_response["usage"]),
         invocation_parameters=inference_config,
     )
 
@@ -439,7 +439,7 @@ def test_converse_multiple(
     assert len(spans) == 1
     llm_input_messages_truths = [
         {"role": "system", "content": f"{system[0]["text"]} {system[1]["text"]}"},
-        {"role": first_msg["role"], "content": first_msg["content"][0]["text"]},
+        {"role": first_msg["role"], "content": first_msg["content"][0]["text"]},  # type: ignore
     ]
     _run_converse_checks(
         use_context_attributes,
@@ -454,7 +454,7 @@ def test_converse_multiple(
         llm_input_messages_truth=llm_input_messages_truths,
         output=first_output,
         model_name=model_name,
-        token_counts=first_mock_response["usage"],
+        token_counts=cast(dict, first_mock_response["usage"]),
         invocation_parameters=inference_config,
     )
 
@@ -514,9 +514,9 @@ def test_converse_multiple(
         [
             {
                 "role": first_output["message"]["role"],
-                "content": first_output["message"]["content"][0]["text"],
+                "content": first_output["message"]["content"][0]["text"],  # type: ignore
             },
-            {"role": second_msg["role"], "content": second_msg["content"][0]["text"]},
+            {"role": second_msg["role"], "content": second_msg["content"][0]["text"]},  # type: ignore
         ]
     )
     _run_converse_checks(
@@ -532,7 +532,7 @@ def test_converse_multiple(
         llm_input_messages_truth=llm_input_messages_truths,
         output=second_output,
         model_name=model_name,
-        token_counts=second_mock_response["usage"],
+        token_counts=cast(dict, second_mock_response["usage"]),
         invocation_parameters=inference_config,
     )
 
@@ -607,7 +607,7 @@ def test_converse_with_missing_tokens(
     assert len(spans) == 1
     llm_input_messages_truths = [
         {"role": "system", "content": system[0]["text"]},
-        {"role": message["role"], "content": message["content"][0]["text"]},
+        {"role": message["role"], "content": message["content"][0]["text"]},  # type: ignore
     ]
     _run_converse_checks(
         use_context_attributes,
@@ -622,7 +622,7 @@ def test_converse_with_missing_tokens(
         llm_input_messages_truth=llm_input_messages_truths,
         output=output,
         model_name=model_name,
-        token_counts=mock_response["usage"],
+        token_counts=cast(dict, mock_response["usage"]),
         invocation_parameters=inference_config,
     )
 
@@ -702,7 +702,7 @@ def test_converse_multiple_models(
         client.converse(modelId=model_id, messages=[message], inferenceConfig=inference_config)
 
     llm_input_messages_truths = [
-        {"role": message["role"], "content": message["content"][0]["text"]},
+        {"role": message["role"], "content": message["content"][0]["text"]},  # type: ignore
     ]
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -720,7 +720,7 @@ def test_converse_multiple_models(
         llm_input_messages_truth=llm_input_messages_truths,
         output=output,
         model_name=model_id,
-        token_counts=mock_response["usage"],
+        token_counts=cast(dict, mock_response["usage"]),
         invocation_parameters=inference_config,
     )
 
@@ -764,7 +764,7 @@ def _run_converse_checks(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
-    span: trace_api.Span,
+    span: trace_sdk.ReadableSpan,  # type: ignore
     llm_input_messages_truth: List[Dict[str, str]],
     output: Dict[str, Any],
     model_name: str,
@@ -784,6 +784,12 @@ def _run_converse_checks(
     assert json.loads(invocation_parameters_str) == invocation_parameters
 
     assert attributes.pop(OUTPUT_VALUE) == output["message"]["content"][0]["text"]
+    assert attributes.pop("llm.output_messages.0.message.role") == output["message"]["role"]
+    assert (
+        attributes.pop("llm.output_messages.0.message.content")
+        == output["message"]["content"][0]["text"]
+    )
+
     for msg_idx, msg in enumerate(llm_input_messages_truth):
         role_key = f"llm.input_messages.{msg_idx}.message.role"
         content_key = f"llm.input_messages.{msg_idx}.message.content"

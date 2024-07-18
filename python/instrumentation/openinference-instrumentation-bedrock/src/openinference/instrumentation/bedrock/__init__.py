@@ -27,7 +27,7 @@ ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
 _MODULE = "botocore.client"
 
 
-class InstrumentedClient(BaseClient):  # type: ignore
+class InstrumentedClient(BaseClient):
     """
     Proxy class representing an instrumented boto client.
     """
@@ -39,7 +39,7 @@ class InstrumentedClient(BaseClient):  # type: ignore
     _unwrapped_converse: Callable[..., Any]
 
 
-class BufferedStreamingBody(StreamingBody):  # type: ignore
+class BufferedStreamingBody(StreamingBody):
     _raw_stream: IO[bytes]
 
     def __init__(self, raw_stream: IO[bytes], content_length: int) -> None:
@@ -79,10 +79,10 @@ def _client_creation_wrapper(tracer: Tracer) -> Callable[[ClientCreator], Client
             client = cast(InstrumentedClient, client)
 
             client._unwrapped_invoke_model = client.invoke_model
-            client.invoke_model = _model_invocation_wrapper(tracer)(client)("invoke_model")
+            client.invoke_model = _model_invocation_wrapper(tracer)(client)
 
             client._unwrapped_converse = client.converse
-            client.converse = _model_invocation_wrapper(tracer)(client)("converse")
+            client.converse = _model_converse_wrapper(tracer)(client)
         return client
 
     return _client_wrapper  # type: ignore
@@ -93,7 +93,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
         """Instruments a bedrock client's `invoke_model` or `converse` method."""
 
         @wraps(wrapped_client.invoke_model)
-        def instrumented_response_invoke(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
             if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
                 return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
 
@@ -164,8 +164,17 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 span.set_attributes(dict(get_attributes_from_context()))
                 return response  # type: ignore
 
+        return instrumented_response
+
+    return _invocation_wrapper
+
+
+def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Callable[..., Any]]:
+    def _converse_wrapper(wrapped_client: InstrumentedClient) -> Callable[..., Any]:
+        """Instruments a bedrock client's `converse` method."""
+
         @wraps(wrapped_client.converse)
-        def instrumented_response_converse(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
             if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
                 return wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
 
@@ -184,50 +193,55 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                         span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
                     )
 
-                if system_prompts := kwargs.get("system", []):
-                    input_buffer = 1
-                    if system_messages := " ".join(
-                        prompt.get("text", "") for prompt in system_prompts
-                    ):
-                        span_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.{0}"
-                        _set_span_attribute(span, f"{span_prefix}.message.role", "system")
-                        _set_span_attribute(span, f"{span_prefix}.message.content", system_messages)
-                else:
-                    input_buffer = 0
+                aggregated_messages = []
+                if system_prompts := kwargs.get("system"):
+                    aggregated_messages.append(
+                        {
+                            "role": "system",
+                            "content": [
+                                {
+                                    "text": " ".join(
+                                        prompt.get("text", "") for prompt in system_prompts
+                                    )
+                                }
+                            ],
+                        }
+                    )
 
-                if message_history := kwargs.get("messages"):
-                    for idx, request_msg in enumerate(message_history):
-                        # Currently only supports single text-based data
-                        # Future implementation can be extended to handle different media types
-                        if (
-                            isinstance(request_msg, dict)
-                            and (request_msg_role := request_msg.get("role"))
-                            and (request_msg_content := request_msg.get("content", [None])[0])
-                            and (request_msg_prompt := request_msg_content.get("text"))
-                        ):
-                            span_prefix = (
-                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx + input_buffer}"
-                            )
-                            _set_span_attribute(
-                                span, f"{span_prefix}.message.role", request_msg_role
-                            )
-                            _set_span_attribute(
-                                span, f"{span_prefix}.message.content", request_msg_prompt
-                            )
+                aggregated_messages.extend(kwargs.get("messages", []))
+                for idx, request_msg in enumerate(aggregated_messages):
+                    # Currently only supports text-based data
+                    # Future implementation can be extended to handle different media types
+                    if (
+                        isinstance(request_msg, dict)
+                        and (request_msg_role := str(request_msg.get("role")))
+                        and (request_msg_content := request_msg.get("content"))
+                    ):
+                        request_msg_prompt = "\n".join(
+                            content_input.get("text", "")  # type: ignore
+                            for content_input in request_msg_content
+                        )
+                        span_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}"
+                        _set_span_attribute(span, f"{span_prefix}.message.role", request_msg_role)
+                        _set_span_attribute(
+                            span, f"{span_prefix}.message.content", request_msg_prompt
+                        )
 
                 response = wrapped_client._unwrapped_converse(*args, **kwargs)
-                if (response_message := response.get("output", {}).get("message")) and (
-                    response_content := response_message.get("content", [None])[0]
+                if (
+                    (response_message := response.get("output", {}).get("message"))
+                    and (response_role := response_message.get("role"))
+                    and (response_content := response_message.get("content", []))
                 ):
-                    # Currently only supports single text-based data
-                    if (response_role := response_message.get("role")) and (
-                        response_text := response_content.get("text")
-                    ):
-                        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
+                    # Currently only supports text-based data
+                    response_text = "\n".join(
+                        content_input.get("text", "") for content_input in response_content
+                    )
+                    _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
 
-                        span_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
-                        _set_span_attribute(span, f"{span_prefix}.message.role", response_role)
-                        _set_span_attribute(span, f"{span_prefix}.message.content", response_text)
+                    span_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+                    _set_span_attribute(span, f"{span_prefix}.message.role", response_role)
+                    _set_span_attribute(span, f"{span_prefix}.message.content", response_text)
 
                 if usage := response.get("usage"):
                     if input_token_count := usage.get("inputTokens"):
@@ -248,24 +262,16 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 span.set_attributes(dict(get_attributes_from_context()))
             return response  # type: ignore
 
-        def dispatcher(method_name):
-            if method_name == "invoke_model":
-                return instrumented_response_invoke
-            elif method_name == "converse":
-                return instrumented_response_converse
-            else:
-                raise ValueError(f"Unsupported method: {method_name}")
+        return instrumented_response
 
-        return dispatcher
-
-    return _invocation_wrapper
+    return _converse_wrapper
 
 
 class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = ("_original_client_creator",)
 
     def instrumentation_dependencies(self) -> Collection[str]:
-        return _instruments
+        return _instruments  # type: ignore
 
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
