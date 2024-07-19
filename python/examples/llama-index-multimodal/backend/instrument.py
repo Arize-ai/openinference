@@ -9,7 +9,7 @@ import os
 
 def instrument():
     collector_endpoint = os.getenv("COLLECTOR_ENDPOINT")
-    print(collector_endpoint)
+    print(f"{collector_endpoint=}")
     resource = Resource(attributes={})
     tracer_provider = trace_sdk.TracerProvider(resource=resource)
     span_exporter = OTLPSpanExporter(endpoint=collector_endpoint)
