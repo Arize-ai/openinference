@@ -49,29 +49,6 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
-
-        gd.guard.contextvars = _Contextvars(gd.guard.contextvars)
-        gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
-        for name in ("pydantic", "string", "rail_string", "rail"):
-            wrap_function_wrapper(
-                module="guardrails.guard",
-                name=f"Guard.from_{name}",
-                wrapper=lambda f, _, args, kwargs: f(*args, **{**kwargs, "tracer": tracer}),
-            )
-
-        runner_module = import_module(_RUNNER_MODULE)
-        self._original_guardrails_runner_step = runner_module.Runner.step
-        runner_wrapper = _ParseCallableWrapper(tracer=tracer)
-        wrap_function_wrapper(
-            module=_RUNNER_MODULE,
-            name="Runner.step",
-            wrapper=runner_wrapper,
-        )
-
-        llm_providers_module = import_module(_LLM_PROVIDERS_MODULE)
-        self._original_guardrails_llm_providers_call = (
-            llm_providers_module.PromptCallableBase.__call__
-        )
         prompt_callable_wrapper = _PromptCallableWrapper(tracer=tracer)
         wrap_function_wrapper(
             module=_LLM_PROVIDERS_MODULE,
