@@ -47,7 +47,7 @@ test = [
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-crewai"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/crewai/version.py"
+path = "src/openinference/instrumentation/openinference-instrumentation-crewai/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
