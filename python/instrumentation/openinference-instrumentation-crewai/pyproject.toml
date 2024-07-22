@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-guardrails"
+name = "openinference-instrumentation-crewai"
 dynamic = ["version"]
-description = "OpenInference Guardrails Instrumentation"
+description = "OpenInference Crewai Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9, <3.13"
@@ -35,19 +35,19 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "guardrails-ai >= 0.4.5",
+  "crewai-ai >= 0.4.5",
 ]
 test = [
-  "guardrails-ai == 0.4.5",
+  "crewai-ai == 0.4.5",
   "opentelemetry-sdk",
   "responses",
 ]
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-guardrails"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-crewai"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/guardrails/version.py"
+path = "src/openinference/instrumentation/crewai/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -69,7 +69,7 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
-  "guardrails",
+  "crewai",
   "wrapt",
 ]
 
