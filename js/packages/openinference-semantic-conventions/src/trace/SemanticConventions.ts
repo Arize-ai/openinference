@@ -373,14 +373,14 @@ export const SemanticConventions = {
 } as const;
 
 export enum OpenInferenceSpanKind {
-  LLM = "llm",
-  CHAIN = "chain",
-  TOOL = "tool",
-  RETRIEVER = "retriever",
-  RERANKER = "reranker",
-  EMBEDDING = "embedding",
-  AGENT = "agent",
-  GUARDRAIL = "guardrail",
+  LLM = "LLM",
+  CHAIN = "CHAIN",
+  TOOL = "TOOL",
+  RETRIEVER = "RETRIEVER",
+  RERANKER = "RERANKER",
+  EMBEDDING = "EMBEDDING",
+  AGENT = "AGENT",
+  GUARDRAIL = "GUARDRAIL",
 }
 
 export enum MimeType {
