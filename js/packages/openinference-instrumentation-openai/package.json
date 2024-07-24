@@ -32,10 +32,6 @@
   "author": "oss-devs@arize.com",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@opentelemetry/resources": "^1.19.0",
-    "@opentelemetry/sdk-trace-base": "^1.19.0",
-    "@opentelemetry/sdk-trace-node": "^1.19.0",
-    "@opentelemetry/semantic-conventions": "^1.19.0",
     "openai": "^4.24.1"
   }
 }
