@@ -1,0 +1,9 @@
+{
+  "pipeline" : {
+    "module" : "haystack.core.pipeline.pipeline",
+    "name" : "Pipeline.run"
+  },
+  "link_content_fetcher" : {
+    "haystack.components.fetchers.link_content" : "LinkContentFetcher.run"
+  }
+}
