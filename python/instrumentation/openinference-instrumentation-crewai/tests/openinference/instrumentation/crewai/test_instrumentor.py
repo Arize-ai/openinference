@@ -35,4 +35,5 @@ def test_crewai_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_crewai_instrumentation: Any,
 ) -> None:
+    # TODO(harrison) Figure out how to unit test this beast
     assert True
