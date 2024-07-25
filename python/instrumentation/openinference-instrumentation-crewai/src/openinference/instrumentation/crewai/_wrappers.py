@@ -81,7 +81,13 @@ class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
-    def __call__(self, wrapped: Callable[..., Any], instance: Any, args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> Any:
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
         if instance:
             span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
         else:
@@ -130,7 +136,13 @@ class _KickoffWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
-    def __call__(self, wrapped: Callable[..., Any], instance: Any, args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> Any:
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
         span_name = f"{instance.__class__.__name__}.kickoff"
         with self._tracer.start_as_current_span(span_name) as span:
             try:
