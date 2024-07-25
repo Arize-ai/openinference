@@ -697,11 +697,11 @@ def _get_first_value(
     mapping: Mapping[KeyType, ValueType], keys: Iterable[KeyType]
 ) -> Optional[ValueType]:
     """
-    Returns the value corresponding to the first matching key, or None if no key
-    is present.
+    Returns the first non-null value corresponding to an input key, or None if
+    no non-null value is found.
     """
     return next(
-        (mapping[key] for key in keys if key in mapping),
+        (value for key in keys if (value := mapping.get(key)) is not None),
         None,
     )
 
