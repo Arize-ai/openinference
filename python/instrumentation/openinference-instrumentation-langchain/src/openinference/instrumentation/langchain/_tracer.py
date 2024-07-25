@@ -569,15 +569,35 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
     if not (llm_output := outputs.get("llm_output")):
         return
     assert hasattr(llm_output, "get"), f"expected Mapping, found {type(llm_output)}"
-    if not (token_usage := llm_output.get("token_usage")):
+    if not (
+        token_usage := _get_first_value(
+            llm_output,
+            (
+                "token_usage",
+                "usage",  # Anthropic-specific key
+            ),
+        )
+    ):
         return
     assert hasattr(token_usage, "get"), f"expected Mapping, found {type(token_usage)}"
-    for attribute_name, key in [
-        (LLM_TOKEN_COUNT_PROMPT, "prompt_tokens"),
-        (LLM_TOKEN_COUNT_COMPLETION, "completion_tokens"),
-        (LLM_TOKEN_COUNT_TOTAL, "total_tokens"),
+    for attribute_name, keys in [
+        (
+            LLM_TOKEN_COUNT_PROMPT,
+            (
+                "prompt_tokens",
+                "input_tokens",  # Anthropic-specific key
+            ),
+        ),
+        (
+            LLM_TOKEN_COUNT_COMPLETION,
+            (
+                "completion_tokens",
+                "output_tokens",  # Anthropic-specific key
+            ),
+        ),
+        (LLM_TOKEN_COUNT_TOTAL, ("total_tokens",)),
     ]:
-        if (token_count := token_usage.get(key)) is not None:
+        if (token_count := _get_first_value(token_usage, keys)) is not None:
             yield attribute_name, token_count
 
 
@@ -667,6 +687,23 @@ def _get_cls_name(serialized: Optional[Mapping[str, Any]]) -> str:
     if (id_ := serialized.get("id")) and isinstance(id_, list) and isinstance(id_[-1], str):
         return id_[-1]
     return ""
+
+
+KeyType = TypeVar("KeyType")
+ValueType = TypeVar("ValueType")
+
+
+def _get_first_value(
+    mapping: Mapping[KeyType, ValueType], keys: Iterable[KeyType]
+) -> Optional[ValueType]:
+    """
+    Returns the value corresponding to the first matching key, or None if no key
+    is present.
+    """
+    return next(
+        (mapping[key] for key in keys if key in mapping),
+        None,
+    )
 
 
 LANGCHAIN_SESSION_ID = "session_id"
