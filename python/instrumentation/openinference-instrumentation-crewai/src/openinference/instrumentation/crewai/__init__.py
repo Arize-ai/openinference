@@ -92,7 +92,21 @@ class _ExecuteCoreWrapper:
             span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
         else:
             span_name = wrapped.__name__
-        with self._tracer.start_as_current_span(span_name) as span:
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
+                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                    }
+                )
+            ),
+        ) as span:
             try:
                 agent = args[0]  # Assuming the first argument is the instance
                 crew = agent.crew if agent else None
@@ -114,6 +128,7 @@ class _ExecuteCoreWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
+            span.set_attribute(OUTPUT_VALUE, response)
         return response
 
 
@@ -169,27 +184,6 @@ class _KickoffWrapper:
                 raise
             span.set_status(trace_api.StatusCode.OK)
         return response
-
-
-class _CrewExecution:
-    def __init__(self, tracer):
-        self._tracer = tracer
-
-    def __call__(self, wrapped, instance, args, kwargs):
-        if instance:
-            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
-        else:
-            span_name = wrapped.__name__
-        with self._tracer.start_as_current_span(span_name) as span:
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-        return response
-
 
 class _ToolUseWrapper:
     def __init__(self, tracer):
