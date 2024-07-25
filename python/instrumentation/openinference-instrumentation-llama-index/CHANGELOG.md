@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.1.0...python-openinference-instrumentation-llama-index-v2.1.1) (2024-07-25)
+
+
+### Bug Fixes
+
+* allow `raw` to be dict or object for llama-index v0.10.58 ([#628](https://github.com/Arize-ai/openinference/issues/628)) ([21732ba](https://github.com/Arize-ai/openinference/commit/21732ba74d3b1b87bbe833278ea72b8f2d16ad5c))
+
 ## [2.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.0.0...python-openinference-instrumentation-llama-index-v2.1.0) (2024-07-15)
 
 
