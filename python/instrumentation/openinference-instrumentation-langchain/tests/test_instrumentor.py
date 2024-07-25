@@ -779,7 +779,9 @@ def model_name() -> str:
 
 @pytest.fixture
 def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-1234567890")
+    api_key = "sk-1234567890"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", api_key)
+    return api_key
 
 
 def randstr() -> str:
