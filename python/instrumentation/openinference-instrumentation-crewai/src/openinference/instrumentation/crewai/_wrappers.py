@@ -7,6 +7,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from openinference.instrumentation import safe_json_dumps
 
+
 class SafeJSONEncoder(json.JSONEncoder):
     """
     Safely encodes non-JSON-serializable objects.
