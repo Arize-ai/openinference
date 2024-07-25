@@ -1,12 +1,14 @@
 import logging
-import json
 from importlib import import_module
-from typing import Any, Callable, Collection, Iterator, Mapping, List, Optional, Tuple
+from typing import Any, Collection
 
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
-
-from opentelemetry import trace as trace_api
+from openinference.instrumentation.crewai._wrappers import (
+    _ExecuteCoreWrapper,
+    _KickoffWrapper,
+    _ToolUseWrapper,
+)
 from openinference.instrumentation.crewai.version import __version__
+from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import wrap_function_wrapper
 
@@ -47,7 +49,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         use_wrapper = _ToolUseWrapper(tracer=tracer)
-        self._original_tool_use = getattr(import_module("crewai.tools.tool_usage").ToolUsage, "_use", None)
+        self._original_tool_use = getattr(
+            import_module("crewai.tools.tool_usage").ToolUsage, "_use", None
+        )
         wrap_function_wrapper(
             module="crewai.tools.tool_usage",
             name="ToolUsage._use",
