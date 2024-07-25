@@ -127,9 +127,8 @@ def payload_to_semantic_attributes(
     if response := (payload.get(EventPayload.RESPONSE) or payload.get(EventPayload.COMPLETION)):
         attributes.update(_get_response_output(response))
         if raw := getattr(response, "raw", None):
-            assert hasattr(raw, "get"), f"raw must be Mapping, found {type(raw)}"
             attributes.update(_get_output_messages(raw))
-            if usage := raw.get("usage"):
+            if usage := raw.get("usage") if hasattr(raw, "get") else getattr(raw, "usage", None):
                 # OpenAI token counts are available on raw.usage but can also be
                 # found in additional_kwargs. Thus the duplicate handling.
                 attributes.update(_get_token_counts(usage))
@@ -587,9 +586,9 @@ def _get_message(message: object) -> Iterator[Tuple[str, Any]]:
             yield MESSAGE_TOOL_CALLS, message_tool_calls
 
 
-def _get_output_messages(raw: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    assert hasattr(raw, "get"), f"raw must be Mapping, found {type(raw)}"
-    if not (choices := raw.get("choices")):
+def _get_output_messages(raw: Any) -> Iterator[Tuple[str, Any]]:
+    choices = raw.get("choices") if hasattr(raw, "get") else getattr(raw, "choices", None)
+    if not choices:
         return
     assert isinstance(choices, Iterable), f"choices must be Iterable, found {type(choices)}"
     if messages := [
