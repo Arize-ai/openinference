@@ -78,10 +78,10 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
 
 
 class _ExecuteCoreWrapper:
-    def __init__(self, tracer):
+    def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
-    def __call__(self, wrapped, instance, args, kwargs):
+    def __call__(self, wrapped: Callable[..., Any], instance: Any, args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> Any:
         if instance:
             span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
         else:
@@ -127,10 +127,10 @@ class _ExecuteCoreWrapper:
 
 
 class _KickoffWrapper:
-    def __init__(self, tracer):
+    def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
-    def __call__(self, wrapped, instance, args, kwargs):
+    def __call__(self, wrapped: Callable[..., Any], instance: Any, args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> Any:
         span_name = f"{instance.__class__.__name__}.kickoff"
         with self._tracer.start_as_current_span(span_name) as span:
             try:
@@ -193,7 +193,7 @@ class _KickoffWrapper:
 
 
 class _ToolUseWrapper:
-    def __init__(self, tracer):
+    def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
