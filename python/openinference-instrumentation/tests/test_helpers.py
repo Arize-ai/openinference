@@ -1,4 +1,4 @@
-from openinference.instrumentation.helpers import get_span_id, get_trace_id
+from openinference.instrumentation.utils.helpers import get_span_id, get_trace_id
 from opentelemetry.trace import NonRecordingSpan, SpanContext
 
 
