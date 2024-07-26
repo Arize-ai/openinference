@@ -1,13 +1,15 @@
-from dataclasses import dataclass
-from .utils.logging import logger
 import os
-from typing import Optional, Any
+from dataclasses import dataclass
+from typing import Any, Optional
+
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     attach,
     detach,
     set_value,
 )
+
+from .logging import logger
 
 
 class suppress_tracing:
