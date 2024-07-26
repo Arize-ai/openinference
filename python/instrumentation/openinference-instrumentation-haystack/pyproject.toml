@@ -37,11 +37,11 @@ dependencies = [
 [project.optional-dependencies]
 instruments = [
     #"guardrails-ai >= 0.4.5",
-    "haystack"
+    #"haystack"
 ]
 test = [
     #"guardrails-ai == 0.4.5",
-    "haystack",
+    #"haystack",
     "opentelemetry-sdk",
     "responses",
 ]

@@ -1,40 +1,45 @@
-from typing import (
-    Generator,
-)
-from typing import Any, Dict, Optional
-import pytest
+from typing import Any, Dict, Generator, List, Optional, Union
 
-from openinference.instrumentation.haystack import HaystackInstrumentor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from haystack.core.pipeline.pipeline import Pipeline
-from haystack.components.generators import OpenAIGenerator
-from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.document_stores.in_memory import InMemoryDocumentStore
+import pytest
 from datasets import load_dataset
 from haystack import Document
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder
-from haystack.components.embedders import SentenceTransformersTextEmbedder
+from haystack.components.builders.prompt_builder import PromptBuilder
+from haystack.components.embedders import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
+from haystack.components.generators import OpenAIGenerator
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+from haystack.core.pipeline.pipeline import Pipeline
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
+from openinference.instrumentation.haystack import HaystackInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
-def fake_run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+def fake_run(
+    self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None
+) -> Dict[str, List[Union[str, Dict[str, Any]]]]:
     return {
         "replies": ["sorry, i have zero clue"],
-        "meta": [{"model" : "parth",
-                  "usage" : {"completion_tokens" : 10, "prompt_tokens" : 5, "total_tokens" : 15},
-                  "awesome_attribute" : True,
-                  "another_attribute" : 7
-                  }
-                 ],
-        }
+        "meta": [
+            {
+                "model": "parth",
+                "usage": {"completion_tokens": 10, "prompt_tokens": 5, "total_tokens": 15},
+                "awesome_attribute": True,
+                "another_attribute": 7,
+            }
+        ],
+    }
+
 
 @pytest.fixture()
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
+
 
 @pytest.fixture()
 def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
@@ -46,18 +51,18 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
 
 @pytest.fixture()
 def setup_haystack_instrumentation(
-        tracer_provider: TracerProvider,
+    tracer_provider: TracerProvider,
 ) -> Generator[None, None, None]:
     HaystackInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     HaystackInstrumentor().uninstrument()
 
-def test_haystack_instrumentation(
-        tracer_provider: TracerProvider,
-        in_memory_span_exporter: InMemorySpanExporter,
-        setup_haystack_instrumentation: Any,
-) -> None:
 
+def test_haystack_instrumentation(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
     # Configure document store and load dataset
     document_store = InMemoryDocumentStore()
 
@@ -66,7 +71,9 @@ def test_haystack_instrumentation(
     docs = [Document(content=doc["content"], meta=doc["meta"]) for doc in dataset]
 
     # Configure document embedder and store documents from dataset
-    doc_embedder = SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
+    doc_embedder = SentenceTransformersDocumentEmbedder(
+        model="sentence-transformers/all-MiniLM-L6-v2"
+    )
     doc_embedder.warm_up()
     docs_with_embeddings = doc_embedder.run(docs)
 
@@ -80,12 +87,10 @@ def test_haystack_instrumentation(
 
     template = """
     Given the following information, answer the question.
-    
     Context:
     {% for document in documents %}
         {{ document.content }}
     {% endfor %}
-    
     Question: {{question}}
     Answer:
     """
@@ -111,27 +116,26 @@ def test_haystack_instrumentation(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert [span.name for span in spans] == ['SentenceTransformersTextEmbedder',
-                                             'InMemoryEmbeddingRetriever',
-                                             'PromptBuilder',
-                                             'OpenAIGenerator',
-                                             'Pipeline']
+    assert [span.name for span in spans] == [
+        "SentenceTransformersTextEmbedder",
+        "InMemoryEmbeddingRetriever",
+        "PromptBuilder",
+        "OpenAIGenerator",
+        "Pipeline",
+    ]
 
-
-    assert [dict(span.attributes).get("openinference.span.kind") for span in spans] == ['EMBEDDING',
-                                                                                        'RETRIEVER',
-                                                                                        'CHAIN',
-                                                                                        'LLM',
-                                                                                        'CHAIN']
+    assert [dict(span.attributes).get("openinference.span.kind") for span in spans] == [
+        "EMBEDDING",
+        "RETRIEVER",
+        "CHAIN",
+        "LLM",
+        "CHAIN",
+    ]
 
 
 def test_haystack_uninstrumentation(
-        tracer_provider: TracerProvider,
+    tracer_provider: TracerProvider,
 ) -> None:
-    # Storing original Pipeline and Component run functions
-    original_run = Pipeline.run
-    original_run_component = Pipeline._run_component
-
     # Instrumenting Haystack
     HaystackInstrumentor().instrument(tracer_provider=tracer_provider)
 

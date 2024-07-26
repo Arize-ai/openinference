@@ -1,17 +1,17 @@
-from haystack.components.builders import PromptBuilder
-from haystack.components.generators import OpenAIGenerator
-from haystack.document_stores.in_memory import InMemoryDocumentStore
 from datasets import load_dataset
-from haystack import Document
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder
-from haystack.components.embedders import SentenceTransformersTextEmbedder
+from haystack import Document, Pipeline
+from haystack.components.builders import PromptBuilder
+from haystack.components.embedders import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
+from haystack.components.generators import OpenAIGenerator
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
-from haystack import Pipeline
-
-from openinference.instrumentation.haystack import HaystackInstrumentor # CHANGE
+from haystack.document_stores.in_memory import InMemoryDocumentStore
+from openinference.instrumentation.haystack import HaystackInstrumentor  # CHANGE
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
 # Configure HaystackInstrumentor with Phoenix endpoint
 endpoint = "http://127.0.0.1:6006/v1/traces"

@@ -1,4 +1,4 @@
-'''
+"""
 from _wrappers import (
         _PipelineWrapper,
         _FetcherWrapper,
@@ -22,4 +22,4 @@ wrapper_classes = {
         "_InMemoryEmbeddingRetrieverWrapper": _InMemoryEmbeddingRetrieverWrapper,
         "_InMemoryDocumentStoreWrapper": _InMemoryDocumentStoreWrapper
 }
-'''
+"""
