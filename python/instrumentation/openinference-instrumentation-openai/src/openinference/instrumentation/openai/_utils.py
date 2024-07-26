@@ -1,4 +1,5 @@
 import logging
+from openinference.instrumentation import REDACTED_VALUE
 import warnings
 from functools import lru_cache
 from importlib.metadata import version
@@ -60,10 +61,14 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
 
 def _as_input_attributes(
     value_and_type: Optional[_ValueAndType],
+    hide_input_value: bool,
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not value_and_type:
         return
-    yield SpanAttributes.INPUT_VALUE, value_and_type.value
+
+    value = REDACTED_VALUE if hide_input_value else value_and_type.value
+    yield SpanAttributes.INPUT_VALUE, value
+
     # It's assumed to be TEXT by default, so we can skip to save one attribute.
     if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
         yield SpanAttributes.INPUT_MIME_TYPE, value_and_type.type.value
@@ -71,10 +76,12 @@ def _as_input_attributes(
 
 def _as_output_attributes(
     value_and_type: Optional[_ValueAndType],
+    hide_output_value: bool,
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not value_and_type:
         return
-    yield SpanAttributes.OUTPUT_VALUE, value_and_type.value
+    value = REDACTED_VALUE if hide_output_value else value_and_type.value
+    yield SpanAttributes.OUTPUT_VALUE, value
     # It's assumed to be TEXT by default, so we can skip to save one attribute.
     if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
         yield SpanAttributes.OUTPUT_MIME_TYPE, value_and_type.type.value

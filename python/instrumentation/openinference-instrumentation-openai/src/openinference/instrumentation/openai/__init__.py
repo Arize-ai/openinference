@@ -6,6 +6,7 @@ from openinference.instrumentation.openai._request import (
     _AsyncRequest,
     _Request,
 )
+from openinference.instrumentation import TracingConfig
 from openinference.instrumentation.openai.package import _instruments
 from openinference.instrumentation.openai.version import __version__
 from opentelemetry import trace as trace_api
@@ -34,6 +35,8 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
+        if not (config := kwargs.get("config")):
+            config = TracingConfig()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
         openai = import_module(_MODULE)
         self._original_request = openai.OpenAI.request
@@ -41,12 +44,12 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             module=_MODULE,
             name="OpenAI.request",
-            wrapper=_Request(tracer=tracer, openai=openai),
+            wrapper=_Request(tracer=tracer, openai=openai, config=config),
         )
         wrap_function_wrapper(
             module=_MODULE,
             name="AsyncOpenAI.request",
-            wrapper=_AsyncRequest(tracer=tracer, openai=openai),
+            wrapper=_AsyncRequest(tracer=tracer, openai=openai, config=config),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
