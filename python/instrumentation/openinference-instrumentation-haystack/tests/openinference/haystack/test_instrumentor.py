@@ -2,10 +2,9 @@ from typing import (
     Generator,
 )
 from typing import Any, Dict, Optional
-
 import pytest
-from _init import HaystackInstrumentor
 
+from openinference.instrumentation.haystack import HaystackInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace import TracerProvider
@@ -25,7 +24,12 @@ from haystack.utils.auth import Secret
 def fake_run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
     return {
         "replies": ["sorry, i have zero clue"],
-        "meta": [{"usage" : "test", "awesome_attribute" : True, "another_attribute" : 7}],
+        "meta": [{"model" : "parth",
+                  "usage" : {"completion_tokens" : 10, "prompt_tokens" : 5, "total_tokens" : 15},
+                  "awesome_attribute" : True,
+                  "another_attribute" : 7
+                  }
+                 ],
         }
 
 @pytest.fixture()
@@ -103,7 +107,7 @@ def test_haystack_instrumentation(
 
     q = "What's Natural Language Processing? Be brief."
 
-    res = basic_rag_pipeline.run({"text_embedder": {"text": q}, "prompt_builder": {"question": q}})
+    basic_rag_pipeline.run({"text_embedder": {"text": q}, "prompt_builder": {"question": q}})
 
     spans = in_memory_span_exporter.get_finished_spans()
 
@@ -113,7 +117,13 @@ def test_haystack_instrumentation(
                                              'OpenAIGenerator',
                                              'Pipeline']
 
-    assert spans
+
+    assert [dict(span.attributes).get("openinference.span.kind") for span in spans] == ['EMBEDDING',
+                                                                                        'RETRIEVER',
+                                                                                        'CHAIN',
+                                                                                        'LLM',
+                                                                                        'CHAIN']
+
 
 def test_haystack_uninstrumentation(
         tracer_provider: TracerProvider,

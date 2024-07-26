@@ -3,12 +3,11 @@ from importlib import import_module
 from typing import Collection
 from wrapt import wrap_function_wrapper
 
-from version import __version__                 # CHANGE
-#from openinference.instrumentation.haystack.version import __version__
+from openinference.instrumentation.haystack.version import __version__
+from openinference.instrumentation.haystack._wrappers import _ComponentWrapper, _PipelineWrapper
 from opentelemetry.trace import get_tracer
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from opentelemetry import trace as trace_api
-from _wrappers import _ComponentWrapper, _PipelineWrapper
 
 logger = logging.getLogger(__name__)
 
