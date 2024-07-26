@@ -1,6 +1,5 @@
 from contextlib import ContextDecorator
 from typing import Any, Dict, Iterator, List, Optional, Tuple
-from .utils.helpers import safe_json_dumps
 
 from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
@@ -12,6 +11,8 @@ from opentelemetry.context import (
 )
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import Self
+
+from .helpers import safe_json_dumps
 
 CONTEXT_ATTRIBUTES = (
     SpanAttributes.SESSION_ID,

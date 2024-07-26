@@ -1,3 +1,4 @@
+from .config import REDACTED_VALUE, TraceConfig, suppress_tracing
 from .context_attributes import (
     get_attributes_from_context,
     using_attributes,
@@ -7,8 +8,7 @@ from .context_attributes import (
     using_tags,
     using_user,
 )
-from .utils.helpers import safe_json_dumps
-from .config import suppress_tracing, TracingConfig, REDACTED_VALUE
+from .helpers import safe_json_dumps
 
 # The following line is needed to ensure that other modules using the
 # `openinference.instrumentation` path can be discovered by Bazel. For details,
@@ -25,6 +25,6 @@ __all__ = [
     "using_user",
     "safe_json_dumps",
     "suppress_tracing",
-    "TracingConfig",
+    "TraceConfig",
     "REDACTED_VALUE",
 ]
