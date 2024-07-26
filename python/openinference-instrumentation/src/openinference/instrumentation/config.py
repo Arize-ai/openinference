@@ -73,7 +73,7 @@ DEFAULT_BASE64_IMAGE_MAX_LENGTH = 32_000
 
 
 @dataclass(frozen=True)
-class TracingConfig:
+class TraceConfig:
     hide_inputs: Optional[bool] = None
     hide_outputs: Optional[bool] = None
     hide_input_messages: Optional[bool] = None

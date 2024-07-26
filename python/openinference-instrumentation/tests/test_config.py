@@ -1,7 +1,7 @@
 import os
 import random
 
-from openinference.instrumentation import TracingConfig
+from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.config import (
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
     DEFAULT_HIDE_INPUT_IMAGES,
@@ -23,7 +23,7 @@ from openinference.instrumentation.config import (
 
 
 def test_default_settings() -> None:
-    config = TracingConfig()
+    config = TraceConfig()
     assert config.hide_inputs == DEFAULT_HIDE_INPUTS
     assert config.hide_outputs == DEFAULT_HIDE_OUTPUTS
     assert config.hide_input_messages == DEFAULT_HIDE_INPUT_MESSAGES
@@ -44,7 +44,7 @@ def test_settings_from_env_vars() -> None:
     os.environ[OPENINFERENCE_HIDE_OUTPUT_TEXT] = str(random.choice([True, False]))
     os.environ[OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH] = str(10_000)
 
-    config = TracingConfig()
+    config = TraceConfig()
     assert config.hide_inputs == bool(os.getenv(OPENINFERENCE_HIDE_INPUTS))
     assert config.hide_outputs == bool(os.getenv(OPENINFERENCE_HIDE_OUTPUTS))
     assert config.hide_input_messages == bool(os.getenv(OPENINFERENCE_HIDE_INPUT_MESSAGES))
@@ -76,7 +76,7 @@ def test_settings_from_code() -> None:
     hide_input_text = random.choice([True, False])
     hide_output_text = random.choice([True, False])
     base64_image_max_length = 10_000
-    config = TracingConfig(
+    config = TraceConfig(
         hide_inputs=hide_inputs,
         hide_outputs=hide_outputs,
         hide_input_messages=hide_input_messages,
