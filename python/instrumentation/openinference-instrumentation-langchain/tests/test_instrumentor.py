@@ -408,6 +408,41 @@ def test_callback_llm(
     assert len(questions) == 0
 
 
+def test_anthropic_token_counts(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    anthropic_api_key: str,
+) -> None:
+    langchain_anthropic = pytest.importorskip(
+        "langchain_anthropic", reason="`langchain-anthropic` is not installed"
+    )  # langchain-anthropic is not in pyproject.toml because it conflicts with pinned test deps
+
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "id": "msg_015kYHnmPtpzZbXpwMmziqju",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-5-sonnet-20240620",
+                "content": [{"type": "text", "text": "Argentina."}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 22, "output_tokens": 5},
+            },
+        )
+    )
+    model = langchain_anthropic.ChatAnthropic(model="claude-3-5-sonnet-20240620")
+    model.invoke("Who won the World Cup in 2022? Answer in one word.")
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    llm_attributes = dict(span.attributes or {})
+    assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+    assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == 22
+    assert llm_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == 5
+
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 @pytest.mark.parametrize("use_langchain_metadata", [False, True])
 def test_chain_metadata(
@@ -740,6 +775,13 @@ def completion_usage() -> Dict[str, Any]:
 @pytest.fixture
 def model_name() -> str:
     return randstr()
+
+
+@pytest.fixture
+def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
+    api_key = "sk-1234567890"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", api_key)
+    return api_key
 
 
 def randstr() -> str:

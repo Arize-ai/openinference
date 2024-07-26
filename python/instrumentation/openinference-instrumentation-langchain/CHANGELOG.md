@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.22...python-openinference-instrumentation-langchain-v0.1.23) (2024-07-25)
+
+
+### Bug Fixes
+
+* include token counts from langchain ChatAnthropic model ([#625](https://github.com/Arize-ai/openinference/issues/625)) ([131c4a1](https://github.com/Arize-ai/openinference/commit/131c4a13927bfbab65814b83a2e6065e5341d133))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.21...python-openinference-instrumentation-langchain-v0.1.22) (2024-07-17)
 
 
