@@ -24,8 +24,7 @@ If you are working in Python, and want to set up a configuration different than 
 2. Define the configuration in code as shown below, passing it to the `instrument()` method of your instrumentator (the example below is demonstrating using the OpenAiInstrumentator)
     ```python
     from openinference.instrumentation import TraceConfig
-    config = TraceConfig(
-        base64_image_max_length=...,
+    config = TraceConfig(        
         hide_inputs=...,
         hide_outputs=...,
         hide_input_messages=...,
@@ -34,6 +33,7 @@ If you are working in Python, and want to set up a configuration different than 
         hide_input_text=...,
         hide_output_text=...,
         hide_embedding_vectors=...,
+        base64_image_max_length=...,
     )
 
     from openinference.instrumentation.openai import OpenAIInstrumentor
