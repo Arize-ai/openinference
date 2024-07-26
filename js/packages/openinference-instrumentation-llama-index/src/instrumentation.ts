@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type * as llamaindex from "llamaindex";
 
 import {
@@ -16,8 +15,17 @@ import {
   context,
   diag,
   trace,
+  Tracer,
 } from "@opentelemetry/api";
-import { isTracingSuppressed } from "@opentelemetry/core";
+import { isAttributeValue, isTracingSuppressed } from "@opentelemetry/core";
+
+import {
+  ChromaVectorStore,
+  Document,
+  VectorStoreIndex,
+  storageContextFromDefaults,
+  TextNode
+} from "llamaindex";
 
 const MODULE_NAME = "llamaindex";
 
@@ -37,7 +45,26 @@ export function isPatched() {
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
+  RetrievalAttributePostfixes,
+  SemanticAttributePrefixes,
 } from "@arizeai/openinference-semantic-conventions";
+
+// TODO: Type imports
+import {
+  GenericFunction,
+  LLMMessage,
+  LLMMessageFunctionCall,
+  LLMMessageToolCalls,
+  LLMMessagesAttributes,
+  LLMParameterAttributes,
+  PromptTemplateAttributes,
+  RetrievalDocument,
+  SafeFunction,
+  TokenCountAttributes,
+  ToolAttributes,
+} from "./types";
+
+import { Attributes } from "@opentelemetry/api";
 
 /**
  * Resolves the execution context for the current span
@@ -56,9 +83,30 @@ function getExecContext(span: Span) {
   }
   return execContext;
 }
-export class LlamaIndexInstrumentation extends InstrumentationBase<
-  typeof llamaindex
-> {
+
+/**
+ * Wraps a function with a try-catch block to catch and log any errors.
+ * @param fn - A function to wrap with a try-catch block.
+ * @returns A function that returns null if an error is thrown.
+ */
+export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
+  return (...args) => {
+    try {
+      return fn(...args);
+    } catch (error) {
+      diag.error(`Failed to get attributes for span: ${error}`);
+      return null;
+    }
+  };
+}
+
+const safelyJSONStringify = withSafety(JSON.stringify);
+
+export const RETRIEVAL_DOCUMENTS =
+  `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
+
+export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamaindex> {
+
   constructor(config?: InstrumentationConfig) {
     super(
       "@arizeai/openinference-instrumentation-llama-index",
@@ -66,7 +114,8 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       Object.assign({}, config),
     );
   }
-  manuallyInstrument(module: typeof llamaindex) {
+
+  public manuallyInstrument(module: typeof llamaindex) {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
   }
@@ -87,7 +136,6 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       return moduleExports;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: LlamaIndexInstrumentation = this;
 
     type RetrieverQueryEngineQueryType =
@@ -101,7 +149,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
           this: unknown,
           ...args: Parameters<RetrieverQueryEngineQueryType>
         ) {
-          const span = instrumentation.tracer.startSpan(`Query`, {
+          const span = instrumentation.tracer.startSpan(`query`, {
             kind: SpanKind.INTERNAL,
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
@@ -132,6 +180,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
               }
             },
           );
+
           const wrappedPromise = execPromise.then((result) => {
             span.setAttributes({
               [SemanticConventions.OUTPUT_VALUE]: result.response,
@@ -144,6 +193,18 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       },
     );
 
+    this._wrap(
+      moduleExports.VectorIndexRetriever.prototype,
+      "retrieve",
+      (original): any => {
+        return this.patchRetrieveMethod(
+          original,
+          moduleExports,
+          instrumentation
+        );
+      },
+    )
+
     _isOpenInferencePatched = true;
 
     return moduleExports;
@@ -154,5 +215,85 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     this._unwrap(moduleExports.RetrieverQueryEngine.prototype, "query");
 
     _isOpenInferencePatched = false;
+  }
+
+  // RETRIEVAL
+  // parse the retrieval document
+    // content
+    // ID
+    // score
+    // metadata
+
+  // iterate through documents array
+    // parse
+    // set correct document attributes
+  private patchRetrieveMethod(
+    original: typeof module.VectorIndexRetriever.prototype.retrieve,
+    module: typeof llamaindex,
+    instrumentation: LlamaIndexInstrumentation
+  ) {
+    return function patchedRetrieve(
+      this: unknown,
+      ...args: Parameters<typeof module.VectorIndexRetriever.prototype.retrieve>
+    ) {
+
+      const span = instrumentation.tracer.startSpan(`retrieve`, {
+        kind: SpanKind.INTERNAL,
+        attributes: {
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.RETRIEVER,
+          [SemanticConventions.INPUT_VALUE]: args[0].query,
+        },
+      });
+
+      const execContext = getExecContext(span);
+
+      const execPromise = safeExecuteInTheMiddle<
+        ReturnType<typeof module.VectorIndexRetriever.prototype.retrieve>
+      >(
+        () => {
+          return context.with(execContext, () => {
+            return original.apply(this, args);
+          });
+        },
+        (error) => {
+          // Push the error to the span
+          if (error) {
+            span.recordException(error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
+            });
+            span.end();
+          }
+        },
+      );
+
+      const wrappedPromise = execPromise.then((result) => {
+        console.log(result);
+
+        const docs: Attributes = {};
+        result.forEach((document, index) => {
+          const { node, score } = document;
+
+          if (node instanceof TextNode) {
+            const textNode = node as TextNode;
+            const nodeId = textNode.id_;
+            const nodeText = textNode.getContent();
+            const nodeMetadata = textNode.metadata;
+
+            docs[`${RETRIEVAL_DOCUMENTS}.${index}.document.id`] = nodeId;
+            docs[`${RETRIEVAL_DOCUMENTS}.${index}.document.score`] = score;
+            docs[`${RETRIEVAL_DOCUMENTS}.${index}.document.content`] = nodeText;
+            docs[`${RETRIEVAL_DOCUMENTS}.${index}.document.metadata`] = safelyJSONStringify(nodeMetadata) ?? undefined;
+          }
+        });
+        span.setAttributes(docs);
+
+        span.end();
+        return result;
+      });
+      return context.bind(execContext, wrappedPromise);
+    };
   }
 }
