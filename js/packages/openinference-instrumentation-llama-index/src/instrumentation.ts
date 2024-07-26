@@ -145,51 +145,11 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
       moduleExports.RetrieverQueryEngine.prototype,
       "query",
       (original: RetrieverQueryEngineQueryType): any => {
-        return function patchedQuery(
-          this: unknown,
-          ...args: Parameters<RetrieverQueryEngineQueryType>
-        ) {
-          const span = instrumentation.tracer.startSpan(`query`, {
-            kind: SpanKind.INTERNAL,
-            attributes: {
-              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                OpenInferenceSpanKind.CHAIN,
-              [SemanticConventions.INPUT_VALUE]: args[0].query,
-            },
-          });
-
-          const execContext = getExecContext(span);
-
-          const execPromise = safeExecuteInTheMiddle<
-            ReturnType<RetrieverQueryEngineQueryType>
-          >(
-            () => {
-              return context.with(execContext, () => {
-                return original.apply(this, args);
-              });
-            },
-            (error) => {
-              // Push the error to the span
-              if (error) {
-                span.recordException(error);
-                span.setStatus({
-                  code: SpanStatusCode.ERROR,
-                  message: error.message,
-                });
-                span.end();
-              }
-            },
-          );
-
-          const wrappedPromise = execPromise.then((result) => {
-            span.setAttributes({
-              [SemanticConventions.OUTPUT_VALUE]: result.response,
-            });
-            span.end();
-            return result;
-          });
-          return context.bind(execContext, wrappedPromise);
-        };
+        return this.patchQueryMethod(
+          original,
+          moduleExports,
+          instrumentation
+        );
       },
     );
 
@@ -215,6 +175,58 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
     this._unwrap(moduleExports.RetrieverQueryEngine.prototype, "query");
 
     _isOpenInferencePatched = false;
+  }
+
+  private patchQueryMethod(
+    original: typeof module.RetrieverQueryEngine.prototype.query,
+    module: typeof llamaindex,
+    instrumentation: LlamaIndexInstrumentation
+  ) {
+    return function patchedQuery(
+      this: unknown,
+      ...args: Parameters<typeof module.RetrieverQueryEngine.prototype.query>
+    ) {
+      const span = instrumentation.tracer.startSpan(`query`, {
+        kind: SpanKind.INTERNAL,
+        attributes: {
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.CHAIN,
+          [SemanticConventions.INPUT_VALUE]: args[0].query,
+        },
+      });
+
+      const execContext = getExecContext(span);
+
+      const execPromise = safeExecuteInTheMiddle<
+        ReturnType<typeof module.RetrieverQueryEngine.prototype.query>
+      >(
+        () => {
+          return context.with(execContext, () => {
+            return original.apply(this, args);
+          });
+        },
+        (error) => {
+          // Push the error to the span
+          if (error) {
+            span.recordException(error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
+            });
+            span.end();
+          }
+        },
+      );
+
+      const wrappedPromise = execPromise.then((result) => {
+        span.setAttributes({
+          [SemanticConventions.OUTPUT_VALUE]: result.response,
+        });
+        span.end();
+        return result;
+      });
+      return context.bind(execContext, wrappedPromise);
+    };
   }
 
   // RETRIEVAL
