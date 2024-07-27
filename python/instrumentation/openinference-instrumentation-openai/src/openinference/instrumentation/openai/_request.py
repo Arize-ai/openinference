@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
-from openinference.instrumentation import get_attributes_from_context, TracingConfig
+from openinference.instrumentation import get_attributes_from_context, TraceConfig
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -86,9 +86,7 @@ class _WithOpenAI(ABC):
         "_response_accumulator_factories",
     )
 
-    def __init__(
-        self, openai: ModuleType, config: TracingConfig, *args: Any, **kwargs: Any
-    ) -> None:
+    def __init__(self, openai: ModuleType, config: TraceConfig, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._openai = openai
         self._config = config
@@ -391,7 +389,7 @@ class _ResponseAttributes:
         response: Any,
         request_parameters: Mapping[str, Any],
         response_attributes_extractor: _ResponseAttributesExtractor,
-        config: TracingConfig,
+        config: TraceConfig,
     ) -> None:
         if hasattr(response, "parse") and callable(response.parse):
             # E.g. see https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_base_client.py#L518  # noqa: E501

@@ -1,5 +1,5 @@
 import base64
-from openinference.instrumentation import TracingConfig, REDACTED_VALUE
+from openinference.instrumentation import TraceConfig, REDACTED_VALUE
 import logging
 from importlib import import_module
 from types import ModuleType
@@ -49,7 +49,7 @@ class _ResponseAttributesExtractor:
         "_create_embedding_response_type",
     )
 
-    def __init__(self, openai: ModuleType, config: TracingConfig) -> None:
+    def __init__(self, openai: ModuleType, config: TraceConfig) -> None:
         self._openai = openai
         self._config = config
         self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion

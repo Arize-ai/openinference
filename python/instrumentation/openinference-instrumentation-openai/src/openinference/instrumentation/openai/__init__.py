@@ -6,7 +6,7 @@ from openinference.instrumentation.openai._request import (
     _AsyncRequest,
     _Request,
 )
-from openinference.instrumentation import TracingConfig
+from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.openai.package import _instruments
 from openinference.instrumentation.openai.version import __version__
 from opentelemetry import trace as trace_api
@@ -36,7 +36,7 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
-            config = TracingConfig()
+            config = TraceConfig()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
         openai = import_module(_MODULE)
         self._original_request = openai.OpenAI.request
