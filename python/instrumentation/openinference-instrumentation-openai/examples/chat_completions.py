@@ -37,7 +37,7 @@ if __name__ == "__main__":
     ):
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Write a short story about a tiger."}],
+            messages=[{"role": "user", "content": "Write a haiku."}],
             max_tokens=20,
         )
         print(response.choices[0].message.content)

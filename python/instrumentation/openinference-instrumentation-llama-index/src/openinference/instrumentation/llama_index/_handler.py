@@ -752,7 +752,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
 class EventHandler(BaseEventHandler, extra="allow"):
     span_handler: _SpanHandler = PrivateAttr()
 
-    def  __init__(self, tracer: Tracer) -> None:
+    def __init__(self, tracer: Tracer) -> None:
         super().__init__()
         self.span_handler = _SpanHandler(tracer=tracer)
 

@@ -171,7 +171,7 @@ def test_chat_completions(
         assert not span.status.description
     elif status_code == 400:
         assert not span.status.is_ok and not span.status.is_unset
-        assert span.status.description and span .status.description.startswith(
+        assert span.status.description and span.status.description.startswith(
             openai.BadRequestError.__name__
         )
         assert len(span.events) == 1
