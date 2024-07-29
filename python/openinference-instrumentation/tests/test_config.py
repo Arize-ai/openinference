@@ -107,9 +107,9 @@ def test_settings_from_env_vars_and_code(
 
 def parse_bool_from_env(env_var: str) -> Optional[bool]:
     env_value = os.getenv(env_var)
-    if env_value == "True" or env_value == "true":
+    if isinstance(env_value, str) and env_value.lower() == "true":
         return True
-    elif env_value == "False" or env_value == "false":
+    elif isinstance(env_value, str) and env_value.lower() == "false":
         return False
     else:
         return None

@@ -207,9 +207,9 @@ class TraceConfig:
         cast_to: Any,
     ) -> None:
         if cast_to is bool:
-            if value == "True" or value == "true":
+            if isinstance(value, str) and value.lower() == "true":
                 return True
-            elif value == "False" or value == "false":
+            if isinstance(value, str) and value.lower() == "false":
                 return False
             raise
         else:
