@@ -74,15 +74,35 @@ DEFAULT_BASE64_IMAGE_MAX_LENGTH = 32_000
 
 @dataclass(frozen=True)
 class TraceConfig:
+    """
+    TraceConfig helps you modify the observability level of your tracing.
+    For instance, you may want to keep sensitive information from being logged
+    for security reasons, or you may want to limit the size of the base64
+    encoded images to reduce payloads.
+
+    For those attributes not passed, this object tries to read from designated
+    environment variables and, if not found, has default values that maximize
+    observability.
+    """
+
     hide_inputs: Optional[bool] = None
+    """Hides input value & messages"""
     hide_outputs: Optional[bool] = None
+    """Hides output value & messages"""
     hide_input_messages: Optional[bool] = None
+    """Hides all input messages"""
     hide_output_messages: Optional[bool] = None
+    """Hides all output messages"""
     hide_input_images: Optional[bool] = None
+    """Hides images from input messages"""
     hide_input_text: Optional[bool] = None
+    """Hides text from input messages"""
     hide_output_text: Optional[bool] = None
+    """Hides text from output messages"""
     hide_embedding_vectors: Optional[bool] = None
+    """Hides returned embedding vectors"""
     base64_image_max_length: Optional[int] = None
+    """Limits characters of a base64 encoding of an image"""
 
     def __post_init__(self) -> None:
         self._parse_value(
