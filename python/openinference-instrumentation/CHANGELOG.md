@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.8...python-openinference-instrumentation-v0.1.9) (2024-07-29)
+
+
+### Features
+
+* Add TracingConfig for configuration settings in instrumentations ([#639](https://github.com/Arize-ai/openinference/issues/639)) ([fcea7f9](https://github.com/Arize-ai/openinference/commit/fcea7f99e505f104543d3a51a9b3b0f25cba8072))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.7...python-openinference-instrumentation-v0.1.8) (2024-07-09)
 
 
