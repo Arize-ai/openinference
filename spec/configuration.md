@@ -1,8 +1,8 @@
 # OpenInference Configuration
 
-In some situations, you may need to modify the observability level of your tracing. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to avoid performance degradation.
+In some situations, you may need to modify the observability level of your tracing. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
 
-The OpenInference Specification defines a set of environment variables that you can configure to suit your observability needs. In addition the OpenInference Instrumentation Python package also offers convenience functions to do this in code without having to set environment variables, if that's what you prefer.
+The OpenInference Specification defines a set of environment variables you can configure to suit your observability needs. In addition, the OpenInference Instrumentation Python package also offers convenience functions to do this in code without having to set environment variables, if that's what you prefer.
 
 The possible settings are:
 | Environment Variable Name             | Effect                                             | Type | Default |
@@ -20,8 +20,8 @@ The possible settings are:
 ## Setup a Configuration in Python
 
 If you are working in Python, and want to set up a configuration different than the default values you can:
-1. Create the environment variables with the desired values, or
-2. Define the configuration in code as shown below, passing it to the `instrument()` method of your instrumentator (the example below is demonstrating using the OpenAiInstrumentator)
+- Create the environment variables with the desired values, or
+- Define the configuration in code as shown below, passing it to the `instrument()` method of your instrumentator (the example below demonstrates using the OpenAiInstrumentator)
     ```python
     from openinference.instrumentation import TraceConfig
     config = TraceConfig(        
@@ -42,4 +42,4 @@ If you are working in Python, and want to set up a configuration different than 
         config=config,
     )
     ```
-3. Do nothing and the default values will be used.
+- Do nothing and the default values will be used.

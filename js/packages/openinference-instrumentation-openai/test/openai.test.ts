@@ -112,7 +112,7 @@ describe("OpenAIInstrumentation", () => {
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
         "llm.token_count.total": 17,
-        "openinference.span.kind": "llm",
+        "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
       }
@@ -158,7 +158,7 @@ describe("OpenAIInstrumentation", () => {
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
         "llm.token_count.total": 17,
-        "openinference.span.kind": "llm",
+        "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",
         "output.value": "This is a test",
       }
@@ -195,7 +195,7 @@ describe("OpenAIInstrumentation", () => {
         "embedding.model_name": "text-embedding-ada-002",
         "input.mime_type": "text/plain",
         "input.value": "A happy moment",
-        "openinference.span.kind": "embedding",
+        "openinference.span.kind": "EMBEDDING",
       }
     `);
   });
@@ -240,7 +240,7 @@ describe("OpenAIInstrumentation", () => {
         "llm.model_name": "gpt-3.5-turbo",
         "llm.output_messages.0.message.content": "This is a test.",
         "llm.output_messages.0.message.role": "assistant",
-        "openinference.span.kind": "llm",
+        "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",
         "output.value": "This is a test.",
       }
@@ -395,7 +395,7 @@ describe("OpenAIInstrumentation", () => {
         "llm.token_count.completion": 7,
         "llm.token_count.prompt": 70,
         "llm.token_count.total": 77,
-        "openinference.span.kind": "llm",
+        "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8hhqZDFTRD0vzExhqWnMLE7viVl7E","object":"chat.completion","created":1705427343,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}"}}]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":70,"completion_tokens":7,"total_tokens":77},"system_fingerprint":null}",
       }
@@ -422,7 +422,7 @@ describe("OpenAIInstrumentation", () => {
         "llm.token_count.completion": 15,
         "llm.token_count.prompt": 86,
         "llm.token_count.total": 101,
-        "openinference.span.kind": "llm",
+        "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8hhsP9eAplUFYB3mHUJxBkq7IwnjZ","object":"chat.completion","created":1705427457,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"name":"getWeather","arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}"}}]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101},"system_fingerprint":null}",
       }
@@ -453,7 +453,7 @@ describe("OpenAIInstrumentation", () => {
         "llm.token_count.completion": 20,
         "llm.token_count.prompt": 121,
         "llm.token_count.total": 141,
-        "openinference.span.kind": "llm",
+        "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8hhtfzSD33tsG7XJiBg4F9MqnXKDp","object":"chat.completion","created":1705427535,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"The weather in Boston this week is expected to be rainy with a temperature of 52 degrees."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":121,"completion_tokens":20,"total_tokens":141},"system_fingerprint":null}",
       }
@@ -580,7 +580,7 @@ describe("OpenAIInstrumentation", () => {
   "llm.output_messages.0.message.role": "assistant",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{}",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "getWeather",
-  "openinference.span.kind": "llm",
+  "openinference.span.kind": "LLM",
   "output.mime_type": "text/plain",
   "output.value": "",
 }
@@ -692,7 +692,7 @@ describe("OpenAIInstrumentation", () => {
         "llm.output_messages.0.message.function_call_arguments_json": "{}",
         "llm.output_messages.0.message.function_call_name": "getWeather",
         "llm.output_messages.0.message.role": "assistant",
-        "openinference.span.kind": "llm",
+        "openinference.span.kind": "LLM",
         "output.mime_type": "text/plain",
         "output.value": "",
       }
