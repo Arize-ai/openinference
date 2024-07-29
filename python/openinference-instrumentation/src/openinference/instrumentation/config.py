@@ -174,7 +174,7 @@ class TraceConfig:
         env_var: str,
         default_value: Any,
     ) -> None:
-        init_value = getattr(self, field_name)
+        init_value = getattr(self, field_name, None)
         if init_value is None:
             env_value = os.getenv(env_var)
             if env_value is None:
