@@ -1,7 +1,5 @@
 # OpenInference Haystack Instrumentation
 
-[![pypi](https://badge.fury.io/py/openinference-instrumentation-guardrails.svg)](https://pypi.org/project/openinference-instrumentation-guardrails/)
-
 Python auto-instrumentation library for LLM applications implemented with [Haystack](https://haystack.deepset.ai/).
 
 Haystack [Pipelines](https://docs.haystack.deepset.ai/docs/pipelines) and [Components](https://docs.haystack.deepset.ai/docs/components) (ex. PromptBuilder, OpenAIGenerator, etc.) are fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for monitoring, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix).

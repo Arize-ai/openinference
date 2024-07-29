@@ -21,7 +21,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 
 def fake_run(
-    self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None
+    self: Any, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None
 ) -> Dict[str, List[Union[str, Dict[str, Any]]]]:
     return {
         "replies": ["sorry, i have zero clue"],
@@ -124,7 +124,9 @@ def test_haystack_instrumentation(
         "Pipeline",
     ]
 
-    assert [dict(span.attributes).get("openinference.span.kind") for span in spans] == [
+    assert [
+        span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
+    ] == [
         "EMBEDDING",
         "RETRIEVER",
         "CHAIN",

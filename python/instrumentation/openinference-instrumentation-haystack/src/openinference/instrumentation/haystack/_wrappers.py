@@ -86,97 +86,94 @@ class _ComponentWrapper(_WithTracer):
                     }
                 )
             )
-            match args[0]:
-                case "llm":
-                    attributes = dict(
-                        _flatten(
-                            {
-                                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM,
-                                SpanAttributes.LLM_MODEL_NAME: response["meta"][0]["model"],
-                                SpanAttributes.INPUT_VALUE: safe_json_dumps(args[1]),
-                                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response["meta"][0][
-                                    "usage"
-                                ]["completion_tokens"],
-                                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response["meta"][0]["usage"][
-                                    "prompt_tokens"
-                                ],
-                                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response["meta"][0]["usage"][
-                                    "total_tokens"
-                                ],
-                                SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"],
-                                SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
-                                    "prompt_builder"
-                                ]["instance"]._template_string,
-                            }
-                        )
+            if args[0] == "llm":
+                attributes = dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
+                            SpanAttributes.LLM_MODEL_NAME: response["meta"][0]["model"],
+                            SpanAttributes.INPUT_VALUE: safe_json_dumps(args[1]),
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response["meta"][0]["usage"][
+                                "completion_tokens"
+                            ],
+                            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response["meta"][0]["usage"][
+                                "prompt_tokens"
+                            ],
+                            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response["meta"][0]["usage"][
+                                "total_tokens"
+                            ],
+                            SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"],
+                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
+                                "prompt_builder"
+                            ]["instance"]._template_string,
+                        }
                     )
-                case "text_embedder":
-                    attributes = dict(
-                        _flatten(
-                            {
-                                SpanAttributes.EMBEDDING_MODEL_NAME: component.model,
-                                f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}": f"<{len(response['embedding'])} dimensional vector>",
-                                f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}": invocation_parameters[
-                                    "text"
-                                ],
-                                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.EMBEDDING,
-                                SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            }
-                        )
+                )
+            elif args[0] == "text_embedder":
+                emb_len = len(response["embedding"])
+                attributes = dict(
+                    _flatten(
+                        {
+                            SpanAttributes.EMBEDDING_MODEL_NAME: component.model,
+                            f"{EMB_VEC_0}{EMBEDDING_VECTOR}": f"<{emb_len} dimensional vector>",
+                            f"{EMB_VEC_0}{EMBEDDING_TEXT}": invocation_parameters["text"],
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: EMBEDDING,
+                            SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                        }
                     )
-                case "retriever":
-                    attributes = dict(
-                        _flatten(
-                            {
-                                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.RETRIEVER,
-                                # Display full vector?
-                                SpanAttributes.INPUT_VALUE: safe_json_dumps(
-                                    {
-                                        "dimensions": len(args[1]["query_embedding"]),
-                                        "embedding": args[1]["query_embedding"],
-                                    }
-                                ),
-                                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                                SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response["documents"]),
-                                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            }
-                        )
+                )
+            elif args[0] == "retriever":
+                attributes = dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: RETRIEVER,
+                            SpanAttributes.INPUT_VALUE: safe_json_dumps(
+                                {
+                                    "dimensions": len(args[1]["query_embedding"]),
+                                    "embedding": args[1]["query_embedding"],
+                                }
+                            ),
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response["documents"]),
+                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                        }
                     )
+                )
 
-                    i = 0
-                    for document in response["documents"]:
-                        attributes[
-                            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_CONTENT}"
-                        ] = document.content
-                        attributes[
-                            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_ID}"
-                        ] = document.id
-                        attributes[
-                            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_SCORE}"
-                        ] = document.score
-                        attributes[
-                            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_METADATA}"
-                        ] = safe_json_dumps(document.meta)
-                        i += 1
+                i = 0
+                for document in response["documents"]:
+                    attributes[
+                        f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_CONTENT}"
+                    ] = document.content
+                    attributes[
+                        f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_ID}"
+                    ] = document.id
+                    attributes[
+                        f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_SCORE}"
+                    ] = document.score
+                    attributes[
+                        f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_METADATA}"
+                    ] = safe_json_dumps(document.meta)
+                    i += 1
 
-                case "prompt_builder":
-                    attributes = dict(
-                        _flatten(
-                            {
-                                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
-                                SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
-                                    "prompt_builder"
-                                ]["instance"]._template_string,
-                                SpanAttributes.INPUT_VALUE: attributes["parameters"],
-                                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                                SpanAttributes.RETRIEVAL_DOCUMENTS: safe_json_dumps(
-                                    invocation_parameters["documents"]
-                                ),
-                            }
-                        )
+            elif args[0] == "prompt_builder":
+                attributes = dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
+                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
+                                "prompt_builder"
+                            ]["instance"]._template_string,
+                            SpanAttributes.INPUT_VALUE: attributes["parameters"],
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            SpanAttributes.RETRIEVAL_DOCUMENTS: safe_json_dumps(
+                                invocation_parameters["documents"]
+                            ),
+                        }
                     )
+                )
 
             span.set_attributes(attributes)
 
@@ -220,7 +217,7 @@ class _PipelineWrapper(_WithTracer):
             attributes = dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
                         SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
                         SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                     }
@@ -229,3 +226,12 @@ class _PipelineWrapper(_WithTracer):
             span.set_attributes(attributes)
 
         return response
+
+
+CHAIN = OpenInferenceSpanKindValues.CHAIN
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
+LLM = OpenInferenceSpanKindValues.LLM
+EMB_VEC_0 = f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0."
+EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT

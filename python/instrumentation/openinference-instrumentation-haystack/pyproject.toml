@@ -24,6 +24,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
+    "datasets",
     "opentelemetry-api",
     "opentelemetry-instrumentation",
     "opentelemetry-semantic-conventions",
@@ -36,14 +37,13 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    #"guardrails-ai >= 0.4.5",
-    #"haystack"
+    "haystack-ai >= 0.2.3",
 ]
 test = [
-    #"guardrails-ai == 0.4.5",
-    #"haystack",
+    "haystack-ai >= 0.2.3",
     "opentelemetry-sdk",
     "responses",
+    "sentence-transformers"
 ]
 
 [project.urls]
@@ -55,6 +55,8 @@ path = "src/openinference/instrumentation/haystack/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
     "/src",
+    "/tests",
+    "/examples",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -72,8 +74,9 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
-    #"guardrails",
-    "haystack",
+    "haystack.*",
+    "datasets",
+    "openinference.instrumentation.haystack.*",
     "wrapt",
 ]
 
