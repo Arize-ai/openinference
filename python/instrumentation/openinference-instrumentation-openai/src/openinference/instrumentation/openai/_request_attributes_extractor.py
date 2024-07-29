@@ -113,7 +113,7 @@ class _RequestAttributesExtractor:
                 yield MessageAttributes.MESSAGE_CONTENT, value
             elif is_iterable_of(content, dict):
                 for index, c in list(enumerate(content)):
-                    for key, value in self._get_attributes_from_message_content(c):
+                    for key, value in self._get_attributes_from_message_content(c):  # type:ignore
                         yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
             elif isinstance(content, List):
                 if self._config.hide_input_text:
@@ -184,7 +184,7 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         image = dict(image)
         if url := image.pop("url"):
-            if is_base64_url(url) and len(url) > self._config.base64_image_max_length:
+            if is_base64_url(url) and len(url) > self._config.base64_image_max_length:  # type:ignore
                 yield f"{ImageAttributes.IMAGE_URL}", REDACTED_VALUE
             else:
                 yield f"{ImageAttributes.IMAGE_URL}", url

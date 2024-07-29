@@ -80,6 +80,7 @@ _RequestParameters: TypeAlias = Mapping[str, Any]
 class _WithOpenAI(ABC):
     __slots__ = (
         "_openai",
+        "_config",
         "_stream_types",
         "_request_attributes_extractor",
         "_response_attributes_extractor",
@@ -105,11 +106,13 @@ class _WithOpenAI(ABC):
                 request_parameters=request_parameters,
                 completion_type=openai.types.Completion,
                 response_attributes_extractor=self._response_attributes_extractor,
+                config=config,
             ),
             openai.types.chat.ChatCompletion: lambda request_parameters: _ChatCompletionAccumulator(
                 request_parameters=request_parameters,
                 chat_completion_type=openai.types.chat.ChatCompletion,
                 response_attributes_extractor=self._response_attributes_extractor,
+                config=config,
             ),
         }
 
