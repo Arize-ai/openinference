@@ -95,7 +95,6 @@ class _WithOpenAI(ABC):
         self._request_attributes_extractor = _RequestAttributesExtractor(
             openai=openai, config=config
         )
-        # HERE
         self._response_attributes_extractor = _ResponseAttributesExtractor(
             openai=openai, config=config
         )

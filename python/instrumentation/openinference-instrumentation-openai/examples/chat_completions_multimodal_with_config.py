@@ -23,7 +23,6 @@ if __name__ == "__main__":
     if img_response.status_code != 200:
         raise ValueError("Error: Could not retrieve image from URL.")
     base64str = base64.b64encode(img_response.content).decode("utf-8")
-
     # Set up environment variables:
     os.environ["OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"] = str(
         10_000
