@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field, fields
 from typing import Any, Optional
 
 from opentelemetry.context import (
@@ -85,83 +85,96 @@ class TraceConfig:
     observability.
     """
 
-    hide_inputs: Optional[bool] = None
+    hide_inputs: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_INPUTS,
+            "default_value": DEFAULT_HIDE_INPUTS,
+        },
+    )
     """Hides input value & messages"""
-    hide_outputs: Optional[bool] = None
+    hide_outputs: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_OUTPUTS,
+            "default_value": DEFAULT_HIDE_OUTPUTS,
+        },
+    )
     """Hides output value & messages"""
-    hide_input_messages: Optional[bool] = None
+    hide_input_messages: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_INPUT_MESSAGES,
+            "default_value": DEFAULT_HIDE_INPUT_MESSAGES,
+        },
+    )
     """Hides all input messages"""
-    hide_output_messages: Optional[bool] = None
+    hide_output_messages: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_OUTPUT_MESSAGES,
+            "default_value": DEFAULT_HIDE_OUTPUT_MESSAGES,
+        },
+    )
     """Hides all output messages"""
-    hide_input_images: Optional[bool] = None
+    hide_input_images: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_INPUT_IMAGES,
+            "default_value": DEFAULT_HIDE_INPUT_IMAGES,
+        },
+    )
     """Hides images from input messages"""
-    hide_input_text: Optional[bool] = None
+    hide_input_text: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_INPUT_TEXT,
+            "default_value": DEFAULT_HIDE_INPUT_TEXT,
+        },
+    )
     """Hides text from input messages"""
-    hide_output_text: Optional[bool] = None
+    hide_output_text: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_OUTPUT_TEXT,
+            "default_value": DEFAULT_HIDE_OUTPUT_TEXT,
+        },
+    )
     """Hides text from output messages"""
-    hide_embedding_vectors: Optional[bool] = None
+    hide_embedding_vectors: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_EMBEDDING_VECTORS,
+            "default_value": DEFAULT_HIDE_EMBEDDING_VECTORS,
+        },
+    )
     """Hides embedding vectors"""
-    base64_image_max_length: Optional[int] = None
+    base64_image_max_length: Optional[int] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
+            "default_value": DEFAULT_BASE64_IMAGE_MAX_LENGTH,
+        },
+    )
     """Limits characters of a base64 encoding of an image"""
 
     def __post_init__(self) -> None:
-        self._parse_value(
-            "hide_inputs",
-            bool,
-            OPENINFERENCE_HIDE_INPUTS,
-            DEFAULT_HIDE_INPUTS,
-        )
-        self._parse_value(
-            "hide_outputs",
-            bool,
-            OPENINFERENCE_HIDE_OUTPUTS,
-            DEFAULT_HIDE_OUTPUTS,
-        )
-        self._parse_value(
-            "hide_input_messages",
-            bool,
-            OPENINFERENCE_HIDE_INPUT_MESSAGES,
-            DEFAULT_HIDE_INPUT_MESSAGES,
-        )
-        self._parse_value(
-            "hide_output_messages",
-            bool,
-            OPENINFERENCE_HIDE_OUTPUT_MESSAGES,
-            DEFAULT_HIDE_OUTPUT_MESSAGES,
-        )
-        self._parse_value(
-            "hide_input_images",
-            bool,
-            OPENINFERENCE_HIDE_INPUT_IMAGES,
-            DEFAULT_HIDE_INPUT_IMAGES,
-        )
-        self._parse_value(
-            "hide_input_text",
-            bool,
-            OPENINFERENCE_HIDE_INPUT_TEXT,
-            DEFAULT_HIDE_INPUT_TEXT,
-        )
-        self._parse_value(
-            "hide_output_text",
-            bool,
-            OPENINFERENCE_HIDE_OUTPUT_TEXT,
-            DEFAULT_HIDE_OUTPUT_TEXT,
-        )
-        self._parse_value(
-            "hide_embedding_vectors",
-            bool,
-            OPENINFERENCE_HIDE_EMBEDDING_VECTORS,
-            DEFAULT_HIDE_EMBEDDING_VECTORS,
-        )
-        self._parse_value(
-            "base64_image_max_length",
-            int,
-            OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
-            DEFAULT_BASE64_IMAGE_MAX_LENGTH,
-        )
+        for f in fields(self):
+            self._parse_value(
+                f.name,
+                f.type,
+                f.metadata["env_var"],
+                f.metadata["default_value"],
+            )
 
-    def _parse_value(self, field_name: str, cast_to: Any, env_var: str, default_value: Any) -> None:
-        init_value = object.__getattribute__(self, field_name)
+    def _parse_value(
+        self,
+        field_name: str,
+        cast_to: Any,
+        env_var: str,
+        default_value: Any,
+    ) -> None:
+        init_value = getattr(self, field_name)
         if init_value is None:
             env_value = os.getenv(env_var)
             if env_value is None:
