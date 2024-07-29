@@ -35,10 +35,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "nemoguardrails >= 0.9.1.1",
+  "nemoguardrails >= 0.9.1",
 ]
 test = [
-  "nemoguardrails == 0.9.1.1",
+  "nemoguardrails == 0.9.1",
   "opentelemetry-sdk",
   "responses",
 ]

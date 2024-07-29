@@ -89,86 +89,7 @@ class _WithTracer(ABC):
         self._tracer = tracer
 
 
-class _GuardCallWrapper(_WithTracer):
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
-
-        span_name = "parse"
-        with self._tracer.start_as_current_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.GUARDRAIL,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
-        ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-        return response
-
-
-class _PromptCallableWrapper(_WithTracer):
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
-
-        if instance:
-            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
-        else:
-            span_name = wrapped.__name__
-        with self._tracer.start_as_current_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM,
-                        INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
-        ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-        return response
-
-
-class _ParseCallableWrapper(_WithTracer):
+class _ExecuteActionWrapper(_WithTracer):
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -198,57 +119,9 @@ class _ParseCallableWrapper(_WithTracer):
                 )
             ),
         ) as span:
+            print("HARRISON IM HEREEEEE")
             span.set_attributes(dict(get_attributes_from_context()))
             try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-        return response
-
-
-class _PostValidationWrapper(_WithTracer):
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
-
-        if instance:
-            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
-        else:
-            span_name = wrapped.__name__
-        with self._tracer.start_as_current_span(
-            span_name,
-        ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
-            try:
-                validator = args[0]
-                span.set_attribute("validator_name", validator.rail_alias)
-                span.set_attribute("validator_on_fail", validator.on_fail_descriptor.name)
-
-                validation_result = args[2]
-                if validator.rail_alias == "arize/dataset_embeddings":
-                    span.set_attribute(
-                        INPUT_VALUE,
-                        validation_result.metadata.get("user_message")
-                        if validation_result.metadata
-                        else "",
-                    )
-                span.set_attribute(OUTPUT_VALUE, validation_result.outcome)
-                span.set_attributes(
-                    dict(
-                        _flatten(
-                            validation_result.metadata if validation_result.metadata else {},
-                        )
-                    )
-                )
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
