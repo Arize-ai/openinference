@@ -11,13 +11,13 @@ from openinference.semconv.trace import (
 import json
 import inspect
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
-from typing import Collection
+from typing import Collection, Dict, Any, Optional, Callable
 
 
 class LiteLLMInstrumentor(BaseInstrumentor):
-    original_litellm_funcs = {}  # dictionary for original uninstrumented liteLLM functions (used when uninstrumenting functions)
+    original_litellm_funcs: Dict[str, Callable] = {}  # Dictionary for original uninstrumented liteLLM functions (used when uninstrumenting functions)
 
-    def __init__(self, tracer_provider: TracerProvider = None):
+    def __init__(self, tracer_provider: Optional[TracerProvider] = None):
         super().__init__()
         self.tracer_provider = tracer_provider
         if self.tracer_provider:
@@ -28,8 +28,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         if value is not None and value != "":
             span.set_attribute(name, value)
 
-    def _common_wrapper(self, func, span_name):
-        def _handle_span(span, span_name, kwargs):
+    def _common_wrapper(self, func: Callable, span_name: str) -> Callable:
+        def _handle_span(span: trace.Span, span_name: str, kwargs: Dict[str, Any]) -> None:
             if "embedding" in span_name:
                 self._instrument_func_type_embedding(span, kwargs)
             elif "completion" in span_name:
@@ -37,14 +37,14 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             elif "image_generation" in span_name:
                 self._instrument_func_type_image_generation(span, kwargs)
 
-        def _sync_wrapper(*args, **kwargs):
+        def _sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             with self.tracer.start_as_current_span(span_name) as span:
                 _handle_span(span, span_name, kwargs)
                 result = func(*args, **kwargs)
                 self._finalize_span(span, result)
             return result
 
-        async def _async_wrapper(*args, **kwargs):
+        async def _async_wrapper(*args: Any, **kwargs: Any) -> Any:
             with self.tracer.start_as_current_span(span_name) as span:
                 _handle_span(span, span_name, kwargs)
                 result = await func(*args, **kwargs)
@@ -56,7 +56,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         else:
             return _sync_wrapper
 
-    def _instrument_func_type_completion(self, span, kwargs):
+    def _instrument_func_type_completion(self, span: trace.Span, kwargs: Dict[str, Any]) -> None:
         """
         Currently instruments the functions:
             litellm.completion()
@@ -84,7 +84,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             span, SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_params)
         )
 
-    def _instrument_func_type_embedding(self, span, kwargs):
+    def _instrument_func_type_embedding(self, span: trace.Span, kwargs: Dict[str, Any]) -> None:
         """
         Currently instruments the functions:
             litellm.embedding()
@@ -101,7 +101,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         self._set_span_attribute(span, EmbeddingAttributes.EMBEDDING_TEXT, kwargs.get("input"))
         self._set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("input")))
 
-    def _instrument_func_type_image_generation(self, span, kwargs):
+    def _instrument_func_type_image_generation(self, span: trace.Span, kwargs: Dict[str, Any]) -> None:
         """
         Currently instruments the functions:
             litellm.image_generation()
@@ -115,8 +115,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         )
         self._set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("prompt")))
 
-
-    def _finalize_span(self, span, result):
+    def _finalize_span(self, span: trace.Span, result: Any) -> None:
         if isinstance(result, litellm.ModelResponse):
             self._set_span_attribute(
                 span, SpanAttributes.OUTPUT_VALUE, result.choices[0].message.content
@@ -146,7 +145,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
                 span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, result.usage['total_tokens']
             )
 
-    def _instrument(self, tracer_provider: TracerProvider = None):
+    def _instrument(self, tracer_provider: Optional[TracerProvider] = None) -> None:
         if tracer_provider:
             self.tracer_provider = tracer_provider
             trace.set_tracer_provider(tracer_provider)
@@ -167,11 +166,11 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             if hasattr(litellm, func_name):
                 original_func = getattr(litellm, func_name)
                 LiteLLMInstrumentor.original_litellm_funcs[func_name] = (
-                    original_func  # add original liteLLM function to dictionary
+                    original_func  # Add original liteLLM function to dictionary
                 )
                 setattr(litellm, func_name, self._common_wrapper(original_func, span_name))
 
-    def _uninstrument(self, **kwargs):
+    def _uninstrument(self, **kwargs: Any) -> None:
         for func_name, original_func in LiteLLMInstrumentor.original_litellm_funcs.items():
             setattr(litellm, func_name, original_func)
         LiteLLMInstrumentor.original_litellm_funcs.clear()
@@ -179,8 +178,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):
     def instrumentation_dependencies(self) -> Collection[str]:
         return ["litellm"]
 
-    def instrument(self, **kwargs):
+    def instrument(self, **kwargs: Any) -> None:
         super().instrument(**kwargs)
 
-    def uninstrument(self, **kwargs):
+    def uninstrument(self, **kwargs: Any) -> None:
         super().uninstrument(**kwargs)
