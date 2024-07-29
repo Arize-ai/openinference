@@ -180,9 +180,3 @@ class LiteLLMInstrumentor(BaseInstrumentor):
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return ["litellm"]
-
-    def instrument(self, **kwargs: Any) -> None:
-        super().instrument(**kwargs)
-
-    def uninstrument(self, **kwargs: Any) -> None:
-        super().uninstrument(**kwargs)
