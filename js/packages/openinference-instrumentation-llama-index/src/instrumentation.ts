@@ -15,17 +15,21 @@ import {
   context,
   diag,
   trace,
-  Tracer,
 } from "@opentelemetry/api";
-import { isAttributeValue, isTracingSuppressed } from "@opentelemetry/core";
+import { isTracingSuppressed } from "@opentelemetry/core";
 
 import {
-  ChromaVectorStore,
-  Document,
-  VectorStoreIndex,
-  storageContextFromDefaults,
   TextNode
 } from "llamaindex";
+
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+  RetrievalAttributePostfixes,
+  SemanticAttributePrefixes,
+} from "@arizeai/openinference-semantic-conventions";
+
+import { Attributes } from "@opentelemetry/api";
 
 const MODULE_NAME = "llamaindex";
 
@@ -41,30 +45,6 @@ let _isOpenInferencePatched = false;
 export function isPatched() {
   return _isOpenInferencePatched;
 }
-
-import {
-  OpenInferenceSpanKind,
-  SemanticConventions,
-  RetrievalAttributePostfixes,
-  SemanticAttributePrefixes,
-} from "@arizeai/openinference-semantic-conventions";
-
-// TODO: Type imports
-import {
-  GenericFunction,
-  LLMMessage,
-  LLMMessageFunctionCall,
-  LLMMessageToolCalls,
-  LLMMessagesAttributes,
-  LLMParameterAttributes,
-  PromptTemplateAttributes,
-  RetrievalDocument,
-  SafeFunction,
-  TokenCountAttributes,
-  ToolAttributes,
-} from "./types";
-
-import { Attributes } from "@opentelemetry/api";
 
 /**
  * Resolves the execution context for the current span
@@ -83,24 +63,6 @@ function getExecContext(span: Span) {
   }
   return execContext;
 }
-
-/**
- * Wraps a function with a try-catch block to catch and log any errors.
- * @param fn - A function to wrap with a try-catch block.
- * @returns A function that returns null if an error is thrown.
- */
-export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
-  return (...args) => {
-    try {
-      return fn(...args);
-    } catch (error) {
-      diag.error(`Failed to get attributes for span: ${error}`);
-      return null;
-    }
-  };
-}
-
-const safelyJSONStringify = withSafety(JSON.stringify);
 
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
@@ -136,19 +98,14 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
       return moduleExports;
     }
 
-    const instrumentation: LlamaIndexInstrumentation = this;
-
-    type RetrieverQueryEngineQueryType =
-      typeof moduleExports.RetrieverQueryEngine.prototype.query;
-
     this._wrap(
       moduleExports.RetrieverQueryEngine.prototype,
       "query",
-      (original: RetrieverQueryEngineQueryType): any => {
+      (original): any => {
         return this.patchQueryMethod(
           original,
           moduleExports,
-          instrumentation
+          this
         );
       },
     );
@@ -160,19 +117,19 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
         return this.patchRetrieveMethod(
           original,
           moduleExports,
-          instrumentation
+          this
         );
       },
     )
 
     _isOpenInferencePatched = true;
-
     return moduleExports;
   }
 
   private unpatch(moduleExports: typeof llamaindex, moduleVersion?: string) {
     this._diag.debug(`Un-patching ${MODULE_NAME}@${moduleVersion}`);
     this._unwrap(moduleExports.RetrieverQueryEngine.prototype, "query");
+    this._unwrap(moduleExports.VectorIndexRetriever.prototype, "retrieve");
 
     _isOpenInferencePatched = false;
   }
@@ -229,16 +186,6 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
     };
   }
 
-  // RETRIEVAL
-  // parse the retrieval document
-    // content
-    // ID
-    // score
-    // metadata
-
-  // iterate through documents array
-    // parse
-    // set correct document attributes
   private patchRetrieveMethod(
     original: typeof module.VectorIndexRetriever.prototype.retrieve,
     module: typeof llamaindex,
@@ -249,6 +196,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
       ...args: Parameters<typeof module.VectorIndexRetriever.prototype.retrieve>
     ) {
 
+      // Start the span with initial attributes: kind, span_kind, input
       const span = instrumentation.tracer.startSpan(`retrieve`, {
         kind: SpanKind.INTERNAL,
         attributes: {
@@ -282,8 +230,6 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
       );
 
       const wrappedPromise = execPromise.then((result) => {
-        console.log(result);
-
         const docs: Attributes = {};
         result.forEach((document, index) => {
           const { node, score } = document;
@@ -297,7 +243,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
             docs[`${RETRIEVAL_DOCUMENTS}.${index}.document.id`] = nodeId;
             docs[`${RETRIEVAL_DOCUMENTS}.${index}.document.score`] = score;
             docs[`${RETRIEVAL_DOCUMENTS}.${index}.document.content`] = nodeText;
-            docs[`${RETRIEVAL_DOCUMENTS}.${index}.document.metadata`] = safelyJSONStringify(nodeMetadata) ?? undefined;
+            docs[`${RETRIEVAL_DOCUMENTS}.${index}.document.metadata`] = JSON.stringify(nodeMetadata) ?? undefined;
           }
         });
         span.setAttributes(docs);
