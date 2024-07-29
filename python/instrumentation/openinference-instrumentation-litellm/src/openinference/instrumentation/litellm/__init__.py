@@ -1,21 +1,25 @@
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.util.types import AttributeValue
-import litellm
+import inspect
+import json
+from typing import Any, Callable, Collection, Dict, Optional
+
 from openinference.semconv.trace import (
-    SpanAttributes,
     EmbeddingAttributes,
     ImageAttributes,
     OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
-import json
-import inspect
+from opentelemetry import trace
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
-from typing import Collection, Dict, Any, Optional, Callable
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.util.types import AttributeValue
+
+import litellm
 
 
 class LiteLLMInstrumentor(BaseInstrumentor):
-    original_litellm_funcs: Dict[str, Callable] = {}  # Dictionary for original uninstrumented liteLLM functions (used when uninstrumenting functions)
+    original_litellm_funcs: Dict[
+        str, Callable
+    ] = {}  # Dictionary for original uninstrumented liteLLM functions
 
     def __init__(self, tracer_provider: Optional[TracerProvider] = None):
         super().__init__()
@@ -101,18 +105,18 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         self._set_span_attribute(span, EmbeddingAttributes.EMBEDDING_TEXT, kwargs.get("input"))
         self._set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("input")))
 
-    def _instrument_func_type_image_generation(self, span: trace.Span, kwargs: Dict[str, Any]) -> None:
+    def _instrument_func_type_image_generation(
+        self, span: trace.Span, kwargs: Dict[str, Any]
+    ) -> None:
         """
         Currently instruments the functions:
             litellm.image_generation()
             litellm.aimage_generation() (async version of image_generation)
-        """      
+        """
         self._set_span_attribute(
             span, SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
         )
-        self._set_span_attribute(
-            span, SpanAttributes.LLM_MODEL_NAME, kwargs.get("model")
-        )
+        self._set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, kwargs.get("model"))
         self._set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("prompt")))
 
     def _finalize_span(self, span: trace.Span, result: Any) -> None:
@@ -131,18 +135,16 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         elif isinstance(result, litellm.ImageResponse):
             if len(result.data) > 0:
                 self._set_span_attribute(span, ImageAttributes.IMAGE_URL, result.data[0]["url"])
-                self._set_span_attribute(
-                    span, SpanAttributes.OUTPUT_VALUE, result.data[0]["url"]
-                )
+                self._set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, result.data[0]["url"])
         if hasattr(result, "usage"):
             self._set_span_attribute(
-                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, result.usage['prompt_tokens']
+                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, result.usage["prompt_tokens"]
             )
             self._set_span_attribute(
-                span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, result.usage['completion_tokens']
+                span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, result.usage["completion_tokens"]
             )
             self._set_span_attribute(
-                span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, result.usage['total_tokens']
+                span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, result.usage["total_tokens"]
             )
 
     def _instrument(self, tracer_provider: Optional[TracerProvider] = None) -> None:
@@ -155,7 +157,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             "completion": "completion",
             "acompletion": "acompletion",
             "completion_with_retries": "completion_with_retries",
-            # 'acompletion_with_retries': 'acompletion_with_retries', # Bug report filed on GitHub for acompletion_with_retries: https://github.com/BerriAI/litellm/issues/4908
+            # Bug report filed on GitHub for acompletion_with_retries: https://github.com/BerriAI/litellm/issues/4908
+            # 'acompletion_with_retries': 'acompletion_with_retries',
             "embedding": "embedding",
             "aembedding": "aembedding",
             "image_generation": "image_generation",

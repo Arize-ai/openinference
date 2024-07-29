@@ -1,6 +1,7 @@
+import json
+
 import litellm
 import pytest
-import json
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -10,7 +11,6 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import SpanKind
 
 
 @pytest.fixture(scope="class")
@@ -60,7 +60,7 @@ class TestLiteLLMInstrumentor:
                 {"content": "Hello, I can pull up some recipes for cakes.", "role": "assistant"},
                 {"content": "No actually I want to make a pie", "role": "user"},
             ],
-            temperature=0.7
+            temperature=0.7,
         )
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -69,17 +69,17 @@ class TestLiteLLMInstrumentor:
         assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-3.5-turbo"
         assert span.attributes[SpanAttributes.INPUT_VALUE] == "Hello, I want to bake a cake"
         assert SpanAttributes.LLM_INVOCATION_PARAMETERS in span.attributes
-        assert span.attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS] == json.dumps({
-            "temperature": 0.7
-        })
+        assert span.attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS] == json.dumps(
+            {"temperature": 0.7}
+        )
 
     async def test_acompletion(tracer_provider, in_memory_span_exporter, instrumentor):
         in_memory_span_exporter.clear()
 
         await litellm.acompletion(
-                model="gpt-3.5-turbo",
-                messages=[{"content": "What's the capital of China?", "role": "user"}],
-            )
+            model="gpt-3.5-turbo",
+            messages=[{"content": "What's the capital of China?", "role": "user"}],
+        )
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -106,13 +106,16 @@ class TestLiteLLMInstrumentor:
 
     # Bug report filed on GitHub for acompletion_with_retries: https://github.com/BerriAI/litellm/issues/4908
     # Until litellm fixes acompletion_with_retries keep this test commented
-    # async def test_acompletion_with_retries(tracer_provider, in_memory_span_exporter, instrumentor):
-    #     await litellm.acompletion_with_retries(model="gpt-3.5-turbo", messages=[{"content": "What's the capital of China?", "role": "user"}]))
+    # async def test_acompletion_with_retries(tracer_provider, in_memory_span_exporter):
+    #     await litellm.acompletion_with_retries(
+    #         model="gpt-3.5-turbo",
+    #         messages=[{"content": "What's the capital of China?", "role": "user"}],
+    #     )
     #     spans = in_memory_span_exporter.get_finished_spans()
     #     assert len(spans) == 1
     #     span = spans[0]
-    #     assert span.name == 'acompletion_with_retries'
-    #     assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == 'gpt-3.5-turbo'
+    #     assert span.name == "acompletion_with_retries"
+    #     assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-3.5-turbo"
     #     assert span.attributes[SpanAttributes.INPUT_VALUE] == "What's the capital of China?"
     #     assert SpanAttributes.LLM_INVOCATION_PARAMETERS in span.attributes
 
@@ -133,7 +136,9 @@ class TestLiteLLMInstrumentor:
 
     async def test_aembedding(tracer_provider, in_memory_span_exporter, instrumentor):
         in_memory_span_exporter.clear()
-        await litellm.aembedding(model="text-embedding-ada-002", input=["good morning from litellm"])
+        await litellm.aembedding(
+            model="text-embedding-ada-002", input=["good morning from litellm"]
+        )
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
