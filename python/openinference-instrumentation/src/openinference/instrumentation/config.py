@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass, field, fields
-from typing import Any, Optional
+from typing import Any, Optional, get_args
 
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
@@ -160,9 +160,12 @@ class TraceConfig:
 
     def __post_init__(self) -> None:
         for f in fields(self):
+            expected_type = get_args(f.type)[0]
+            # Optional is Union[T,NoneType]. get_args()returns (T, NoneType).
+            # We collect the first type
             self._parse_value(
                 f.name,
-                f.type,
+                expected_type,
                 f.metadata["env_var"],
                 f.metadata["default_value"],
             )
@@ -170,10 +173,11 @@ class TraceConfig:
     def _parse_value(
         self,
         field_name: str,
-        cast_to: Any,
+        expected_type: Any,
         env_var: str,
         default_value: Any,
     ) -> None:
+        type_name = expected_type.__name__
         init_value = getattr(self, field_name, None)
         if init_value is None:
             env_value = os.getenv(env_var)
@@ -181,18 +185,32 @@ class TraceConfig:
                 object.__setattr__(self, field_name, default_value)
             else:
                 try:
-                    env_value = cast_to(env_value)
+                    env_value = self._cast_value(env_value, expected_type)
                     object.__setattr__(self, field_name, env_value)
                 except Exception:
                     logger.warning(
-                        f"Could not parse '{env_value}' to {cast_to.__name__} "
+                        f"Could not parse '{env_value}' to {type_name} "
                         f"for the environment variable '{env_var}'. "
                         f"Using default value instead: {default_value}."
                     )
                     object.__setattr__(self, field_name, default_value)
         else:
-            if not isinstance(init_value, cast_to):
+            if not isinstance(init_value, expected_type):
                 raise TypeError(
-                    f"The field {field_name} must be of type "
-                    f"{cast_to.__name__} but '{type(init_value)}' was found."
+                    f"The field {field_name} must be of type '{type_name}' "
+                    f"but '{type(init_value).__name__}' was found."
                 )
+
+    def _cast_value(
+        self,
+        value: Any,
+        cast_to: Any,
+    ) -> None:
+        if cast_to is bool:
+            if value == "True" or value == "true":
+                return True
+            elif value == "False" or value == "false":
+                return False
+            raise
+        else:
+            return cast_to(value)
