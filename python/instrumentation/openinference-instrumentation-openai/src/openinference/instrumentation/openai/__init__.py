@@ -37,6 +37,8 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
             config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
         openai = import_module(_MODULE)
         self._original_request = openai.OpenAI.request
