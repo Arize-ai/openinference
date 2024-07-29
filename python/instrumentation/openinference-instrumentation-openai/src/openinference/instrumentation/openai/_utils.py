@@ -1,5 +1,4 @@
 import logging
-from openinference.instrumentation import REDACTED_VALUE
 import warnings
 from functools import lru_cache
 from importlib.metadata import version
@@ -17,7 +16,7 @@ from typing import (
     cast,
 )
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import REDACTED_VALUE, safe_json_dumps
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 from opentelemetry import trace as trace_api

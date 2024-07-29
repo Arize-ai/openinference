@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
-from openinference.instrumentation import get_attributes_from_context, TraceConfig
+from openinference.instrumentation import TraceConfig, get_attributes_from_context
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )

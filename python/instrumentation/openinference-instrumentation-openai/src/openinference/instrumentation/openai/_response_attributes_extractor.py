@@ -1,5 +1,4 @@
 import base64
-from openinference.instrumentation import TraceConfig, REDACTED_VALUE
 import logging
 from importlib import import_module
 from types import ModuleType
@@ -15,6 +14,7 @@ from typing import (
     Type,
 )
 
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig
 from openinference.instrumentation.openai._utils import _get_openai_version, _get_texts
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -113,9 +113,9 @@ class _ResponseAttributesExtractor:
         if usage := getattr(completion, "usage", None):
             yield from self._get_attributes_from_completion_usage(usage)
         if model_prompt := request_parameters.get("prompt"):
-            # FIXME: this step should move to request attributes extractor if decoding is not necessary.
+            # FIXME: this step should move to request attributes extractor if decoding is not necessary.# noqa: E501
             # prompt: Required[Union[str, List[str], List[int], List[List[int]], None]]
-            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_create_params.py#L38  # noqa: E501
+            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_create_params.py#L38
             # FIXME: tokens (List[int], List[List[int]]) can't be decoded reliably because model
             # names are not reliable (across OpenAI and Azure).
             if prompts := list(_get_texts(model_prompt, model)):
@@ -146,9 +146,9 @@ class _ResponseAttributesExtractor:
         )
         embedding_input = request_parameters.get("input")
         for index, text in enumerate(_get_texts(embedding_input, model)):
-            # FIXME: this step should move to request attributes extractor if decoding is not necessary.
+            # FIXME: this step should move to request attributes extractor if decoding is not necessary.# noqa: E501
             # input: Required[Union[str, List[str], List[int], List[List[int]]]]
-            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/embedding_create_params.py#L12  # noqa: E501
+            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/embedding_create_params.py#L12
             # FIXME: tokens (List[int], List[List[int]]) can't be decoded reliably because model
             # names are not reliable (across OpenAI and Azure).
             value = REDACTED_VALUE if should_hide_emb_text else text

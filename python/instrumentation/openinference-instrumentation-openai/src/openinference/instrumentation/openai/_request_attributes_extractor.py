@@ -1,5 +1,4 @@
 import logging
-from openinference.instrumentation import REDACTED_VALUE, TraceConfig
 from enum import Enum
 from types import ModuleType
 from typing import (
@@ -14,7 +13,7 @@ from typing import (
     TypeVar,
 )
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, safe_json_dumps
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
     ImageAttributes,

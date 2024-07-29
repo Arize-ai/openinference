@@ -2,11 +2,11 @@ import logging
 from importlib import import_module
 from typing import Any, Collection
 
+from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.openai._request import (
     _AsyncRequest,
     _Request,
 )
-from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.openai.package import _instruments
 from openinference.instrumentation.openai.version import __version__
 from opentelemetry import trace as trace_api
