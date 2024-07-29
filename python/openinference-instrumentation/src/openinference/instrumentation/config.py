@@ -52,7 +52,7 @@ OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT"
 OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT"
 # Hides text from output messages
 OPENINFERENCE_HIDE_EMBEDDING_VECTORS = "OPENINFERENCE_HIDE_EMBEDDING_VECTORS"
-# Hides returned embedding vectors
+# Hides embedding vectors
 OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"
 # Limits characters of a base64 encoding of an image
 REDACTED_VALUE = "__REDACTED__"
@@ -100,7 +100,7 @@ class TraceConfig:
     hide_output_text: Optional[bool] = None
     """Hides text from output messages"""
     hide_embedding_vectors: Optional[bool] = None
-    """Hides returned embedding vectors"""
+    """Hides embedding vectors"""
     base64_image_max_length: Optional[int] = None
     """Limits characters of a base64 encoding of an image"""
 
