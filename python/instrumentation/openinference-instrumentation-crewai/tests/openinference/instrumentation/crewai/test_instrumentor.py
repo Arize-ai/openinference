@@ -1,4 +1,6 @@
 from typing import Any, Generator
+from crewai_tools import BaseTool
+from crewai import Agent, Crew, Task
 
 import pytest
 from openinference.instrumentation.crewai import CrewAIInstrumentor
@@ -29,11 +31,34 @@ def setup_crewai_instrumentation(
     yield
     CrewAIInstrumentor().uninstrument()
 
+class HelloWorldTool(BaseTool):
+    name: str = "HelloWorldTool"
+    description: str = "Tool that tells you helloworld for testing"
+
+    def _run(self, argument: str) -> str:
+        return "Hello World"
 
 def test_crewai_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_crewai_instrumentation: Any,
 ) -> None:
-    # TODO(harrison) Figure out how to unit test this beast
-    assert True
+    hello_world_tool = HelloWorldTool()
+    greeter_agent = Agent(
+        role="hello world greeter",
+        goal="say hello world",
+        tools = [hello_world_tool]
+    )
+    greeting_task = Task(
+        description="get someone to greet the caller",
+        expected_output="a greeting",
+        agent=greeter_agent,
+    )
+    crew = Crew(
+        agents=[greeter_agent],
+        tasks=[
+            greeting_task,
+        ]
+    )
+    result = crew.kickoff()
+    print(result)
