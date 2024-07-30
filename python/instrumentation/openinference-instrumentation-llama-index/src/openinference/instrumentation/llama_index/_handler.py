@@ -28,7 +28,12 @@ from typing import (
     Union,
 )
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    safe_json_dumps,
+    TraceConfig,
+    REDACTED_VALUE,
+)
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -157,6 +162,7 @@ class _Span(
     keep_untouched=(singledispatchmethod, property),
 ):
     _otel_span: Span = PrivateAttr()
+    _config: TraceConfig = PrivateAttr()
     _attributes: Dict[str, AttributeValue] = PrivateAttr()
     _active: bool = PrivateAttr()
     _span_kind: Optional[str] = PrivateAttr()
@@ -169,12 +175,14 @@ class _Span(
     def __init__(
         self,
         otel_span: Span,
+        config: TraceConfig,
         span_kind: Optional[str] = None,
         parent: Optional["_Span"] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._otel_span = otel_span
+        self._config = config
         self._active = otel_span.is_recording()
         self._span_kind = span_kind
         self._parent = parent
@@ -219,17 +227,25 @@ class _Span(
         return set_span_in_context(self._otel_span)
 
     def process_input(self, instance: Any, bound_args: inspect.BoundArguments) -> None:
-        try:
-            self[INPUT_VALUE] = safe_json_dumps(bound_args.arguments, cls=_Encoder)
-            self[INPUT_MIME_TYPE] = JSON
-        except BaseException as e:
-            logger.exception(str(e))
-            pass
+        if self._config.hide_inputs:
+            self[INPUT_VALUE] = REDACTED_VALUE
+        else:
+            try:
+                self[INPUT_VALUE] = safe_json_dumps(bound_args.arguments, cls=_Encoder)
+                self[INPUT_MIME_TYPE] = JSON
+            except BaseException as e:
+                logger.exception(str(e))
+                pass
 
     def process_output(self, instance: Any, result: Any) -> None:
         if OUTPUT_VALUE in self._attributes:
+            # If the output value was set up by event handling, we don't
+            # need to continue
             return
         if result is None:
+            return
+        if self._config.hide_outputs:
+            self[OUTPUT_VALUE] = REDACTED_VALUE
             return
         if repr_str := _show_repr_str(result):
             self[OUTPUT_VALUE] = repr_str
@@ -327,14 +343,14 @@ class _Span(
 
     @_process_event.register
     def _(self, event: AgentChatWithStepEndEvent) -> None:
-        self[OUTPUT_VALUE] = str(event.response)
+        self[OUTPUT_VALUE] = REDACTED_VALUE if self._config.hide_outputs else str(event.response)
 
     @_process_event.register
     def _(self, event: AgentRunStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
         if input := event.input:
-            self[INPUT_VALUE] = input
+            self[INPUT_VALUE] = REDACTED_VALUE if self._config.hide_inputs else input
             self._attributes.pop(INPUT_MIME_TYPE, None)
 
     @_process_event.register
@@ -360,7 +376,8 @@ class _Span(
     def _(self, event: EmbeddingEndEvent) -> None:
         for i, (text, vector) in enumerate(zip(event.chunks, event.embeddings)):
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
-            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
+            if not self._config.hide_embedding_vectors:
+                self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
 
     @_process_event.register
     def _(self, event: StreamChatStartEvent) -> None:
@@ -398,7 +415,7 @@ class _Span(
 
     @_process_event.register
     def _(self, event: LLMPredictEndEvent) -> None:
-        self[OUTPUT_VALUE] = event.output
+        self[OUTPUT_VALUE] = REDACTED_VALUE if self._config.hide_outputs else event.output
 
     @_process_event.register
     def _(self, event: LLMStructuredPredictStartEvent) -> None:
@@ -407,8 +424,11 @@ class _Span(
 
     @_process_event.register
     def _(self, event: LLMStructuredPredictEndEvent) -> None:
-        self[OUTPUT_VALUE] = event.output.json(exclude_unset=True)
-        self[OUTPUT_MIME_TYPE] = JSON
+        if self._config.hide_outputs:
+            self[OUTPUT_VALUE] = REDACTED_VALUE
+        else:
+            self[OUTPUT_VALUE] = event.output.json(exclude_unset=True)
+            self[OUTPUT_MIME_TYPE] = JSON
 
     @_process_event.register
     def _(self, event: LLMCompletionStartEvent) -> None:
@@ -421,13 +441,15 @@ class _Span(
 
     @_process_event.register
     def _(self, event: LLMCompletionEndEvent) -> None:
-        self[OUTPUT_VALUE] = event.response.text
+        self[OUTPUT_VALUE] = REDACTED_VALUE if self._config.hide_outputs else event.response.text
         self._extract_token_counts(event.response)
 
     @_process_event.register
     def _(self, event: LLMChatStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
+        if self._config.hide_inputs or self._config.hide_input_messages:
+            return
         self._process_messages(LLM_INPUT_MESSAGES, *event.messages)
 
     @_process_event.register
@@ -437,9 +459,11 @@ class _Span(
     def _(self, event: LLMChatEndEvent) -> None:
         if (response := event.response) is None:
             return
-        self[OUTPUT_VALUE] = str(response)
-        self._process_messages(LLM_OUTPUT_MESSAGES, response.message)
+        self[OUTPUT_VALUE] = REDACTED_VALUE if self._config.hide_outputs else str(response)
         self._extract_token_counts(response)
+        if self._config.hide_outputs or self._config.hide_output_messages:
+            return
+        self._process_messages(LLM_OUTPUT_MESSAGES, response.message)
 
     @_process_event.register
     def _(self, event: QueryStartEvent) -> None:
@@ -498,7 +522,7 @@ class _Span(
     def _(self, event: GetResponseStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = CHAIN
-        self[INPUT_VALUE] = event.query_str
+        self[INPUT_VALUE] = REDACTED_VALUE if self._config.hide_inputs else event.query_str
         self._attributes.pop(INPUT_MIME_TYPE, None)
 
     @_process_event.register
@@ -540,10 +564,12 @@ class _Span(
             self[f"{prefix}.{i}.{MESSAGE_ROLE}"] = message.role.value
             if content := message.content:
                 if isinstance(content, str):
-                    self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = str(content)
+                    self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = (
+                        REDACTED_VALUE if self._config.hide_input_text else str(content)
+                    )
                 elif is_iterable_of(content, dict):
                     for j, c in list(enumerate(content)):
-                        for key, value in _get_attributes_from_message_content(c):
+                        for key, value in self._get_attributes_from_message_content(c):
                             self[f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{key}"] = value
             additional_kwargs = message.additional_kwargs
             if name := additional_kwargs.get("name"):
@@ -657,12 +683,14 @@ class _ExportQueue:
 class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _context_tokens: Dict[str, object] = PrivateAttr()
     _otel_tracer: Tracer = PrivateAttr()
+    _config: TraceConfig = PrivateAttr()
     export_queue: _ExportQueue = PrivateAttr()
 
-    def __init__(self, tracer: Tracer) -> None:
+    def __init__(self, tracer: Tracer, config: TraceConfig) -> None:
         super().__init__()
         self._context_tokens: Dict[str, object] = {}
         self._otel_tracer = tracer
+        self._config = config
         self.export_queue = _ExportQueue()
 
     def new_span(
@@ -687,6 +715,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             self._context_tokens[id_] = attach(set_span_in_context(otel_span))
         span = _Span(
             otel_span=otel_span,
+            config=self._config,
             span_kind=_init_span_kind(instance),
             parent=parent,
             id_=id_,
@@ -752,9 +781,9 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
 class EventHandler(BaseEventHandler, extra="allow"):
     span_handler: _SpanHandler = PrivateAttr()
 
-    def __init__(self, tracer: Tracer) -> None:
+    def __init__(self, tracer: Tracer, config: TraceConfig) -> None:
         super().__init__()
-        self.span_handler = _SpanHandler(tracer=tracer)
+        self.span_handler = _SpanHandler(tracer=tracer, config=config)
 
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -914,28 +943,35 @@ def _asdict(obj: Any) -> Any:
         except BaseException:
             return repr(obj)
 
+    def _get_attributes_from_message_content(
+        self,
+        content: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        content = dict(content)
+        type_ = content.get("type")
+        if type_ == "text":
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+            if text := content.pop("text"):
+                yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", (
+                    REDACTED_VALUE if self._config.hide_input_text else text
+                )
+        elif type_ == "image_url":
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+            if (image := content.pop("image_url")) and not self._config.hide_input_images:
+                for key, value in self._get_attributes_from_image(image):
+                    yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
 
-def _get_attributes_from_message_content(
-    content: Mapping[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    content = dict(content)
-    type_ = content.get("type")
-    if type_ == "text":
-        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-        if text := content.pop("text"):
-            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
-    elif type_ == "image_url":
-        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
-        if image := content.pop("image_url"):
-            for key, value in _get_attributes_from_image(image):
-                yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
-
-
-def _get_attributes_from_image(
-    image: Mapping[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    if url := image.get("url"):
-        yield f"{ImageAttributes.IMAGE_URL}", url
+    def _get_attributes_from_image(
+        self,
+        image: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if url := image.get("url"):
+            if (
+                is_base64_url(url) and len(url) > self._config.base64_image_max_length
+            ):  # type:ignore
+                yield f"{ImageAttributes.IMAGE_URL}", REDACTED_VALUE
+            else:
+                yield f"{ImageAttributes.IMAGE_URL}", url
 
 
 T = TypeVar("T", bound=type)
@@ -943,6 +979,10 @@ T = TypeVar("T", bound=type)
 
 def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
     return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)
+
+
+def is_base64_url(url: str) -> bool:
+    return url.startswith("data:image/") and "base64" in url
 
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
