@@ -1,12 +1,11 @@
 import json
+from unittest.mock import patch
 
 import litellm
 import pytest
+from litellm.llms.openai import OpenAIChatCompletion
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    SpanAttributes,
-)
+from openinference.semconv.trace import EmbeddingAttributes, ImageAttributes, SpanAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -189,7 +188,16 @@ class TestLiteLLMInstrumentor:
     def test_embedding(tracer_provider, in_memory_span_exporter, instrumentor):
         in_memory_span_exporter.clear()
 
-        litellm.embedding(model="text-embedding-ada-002", input=["good morning from litellm"])
+        mock_response = litellm.EmbeddingResponse(
+            model="text-embedding-ada-002",
+            data=[{"embedding": [0.1, 0.2, 0.3], "index": 0, "object": "embedding"}],
+            object="list",
+            usage={"completion_tokens": 1, "prompt_tokens": 6, "total_tokens": 6},
+        )
+
+        with patch.object(OpenAIChatCompletion, "embedding", return_value=mock_response):
+            litellm.embedding(model="text-embedding-ada-002", input=["good morning from litellm"])
+
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
@@ -201,11 +209,25 @@ class TestLiteLLMInstrumentor:
         )
         assert span.attributes[SpanAttributes.INPUT_VALUE] == str(["good morning from litellm"])
 
+        assert span.attributes[EmbeddingAttributes.EMBEDDING_VECTOR] == str([0.1, 0.2, 0.3])
+        assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 6
+        assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 1
+        assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 6
+
     async def test_aembedding(tracer_provider, in_memory_span_exporter, instrumentor):
         in_memory_span_exporter.clear()
-        await litellm.aembedding(
-            model="text-embedding-ada-002", input=["good morning from litellm"]
+
+        mock_response = litellm.EmbeddingResponse(
+            model="text-embedding-ada-002",
+            data=[{"embedding": [0.1, 0.2, 0.3], "index": 0, "object": "embedding"}],
+            object="list",
+            usage={"completion_tokens": 1, "prompt_tokens": 6, "total_tokens": 6},
         )
+
+        with patch.object(OpenAIChatCompletion, "aembedding", return_value=mock_response):
+            await litellm.aembedding(
+                model="text-embedding-ada-002", input=["good morning from litellm"]
+            )
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -218,14 +240,25 @@ class TestLiteLLMInstrumentor:
         )
         assert span.attributes[SpanAttributes.INPUT_VALUE] == str(["good morning from litellm"])
 
+        assert span.attributes[EmbeddingAttributes.EMBEDDING_VECTOR] == str([0.1, 0.2, 0.3])
+        assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 6
+        assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 1
+        assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 6
+
     def test_image_generation(tracer_provider, in_memory_span_exporter, instrumentor):
         in_memory_span_exporter.clear()
 
-        litellm.image_generation(
-            model="dall-e-2",
-            prompt="a sunrise over the mountains",
-            mock_response="mock response url",
+        mock_response = litellm.ImageResponse(
+            created=1722359754,
+            data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
         )
+
+        with patch.object(OpenAIChatCompletion, "image_generation", return_value=mock_response):
+            litellm.image_generation(
+                model="dall-e-2",
+                prompt="a sunrise over the mountains",
+            )
+
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
@@ -233,13 +266,21 @@ class TestLiteLLMInstrumentor:
         assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "dall-e-2"
         assert span.attributes[SpanAttributes.INPUT_VALUE] == "a sunrise over the mountains"
 
+        assert span.attributes[ImageAttributes.IMAGE_URL] == "https://dummy-url"
+        assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "https://dummy-url"
+
     async def test_aimage_generation(tracer_provider, in_memory_span_exporter, instrumentor):
         in_memory_span_exporter.clear()
-        await litellm.aimage_generation(
-            model="dall-e-2",
-            prompt="a sunrise over the mountains",
-            mock_response="mock response url",
+        mock_response = litellm.ImageResponse(
+            created=1722359754,
+            data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
         )
+
+        with patch.object(OpenAIChatCompletion, "aimage_generation", return_value=mock_response):
+            await litellm.aimage_generation(
+                model="dall-e-2",
+                prompt="a sunrise over the mountains",
+            )
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -247,6 +288,9 @@ class TestLiteLLMInstrumentor:
         assert span.name == "aimage_generation"
         assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "dall-e-2"
         assert span.attributes[SpanAttributes.INPUT_VALUE] == "a sunrise over the mountains"
+
+        assert span.attributes[ImageAttributes.IMAGE_URL] == "https://dummy-url"
+        assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "https://dummy-url"
 
     def test_uninstrument(tracer_provider):
         func_names = [
