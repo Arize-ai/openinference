@@ -31,12 +31,14 @@ def setup_crewai_instrumentation(
     yield
     CrewAIInstrumentor().uninstrument()
 
+
 class HelloWorldTool(BaseTool):
     name: str = "HelloWorldTool"
     description: str = "Tool that tells you helloworld for testing"
 
     def _run(self, argument: str) -> str:
         return "Hello World"
+
 
 def test_crewai_instrumentation(
     tracer_provider: TracerProvider,
@@ -45,9 +47,7 @@ def test_crewai_instrumentation(
 ) -> None:
     hello_world_tool = HelloWorldTool()
     greeter_agent = Agent(
-        role="hello world greeter",
-        goal="say hello world",
-        tools = [hello_world_tool]
+        role="hello world greeter", goal="say hello world", tools=[hello_world_tool]
     )
     greeting_task = Task(
         description="get someone to greet the caller",
@@ -58,7 +58,7 @@ def test_crewai_instrumentation(
         agents=[greeter_agent],
         tasks=[
             greeting_task,
-        ]
+        ],
     )
     result = crew.kickoff()
     print(result)
