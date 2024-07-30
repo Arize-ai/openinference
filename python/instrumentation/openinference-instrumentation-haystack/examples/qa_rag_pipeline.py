@@ -8,7 +8,7 @@ from haystack.components.embedders import (
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from openinference.instrumentation.haystack import HaystackInstrumentor  # CHANGE
+from openinference.instrumentation.haystack import HaystackInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -76,4 +76,5 @@ basic_rag_pipeline.connect("prompt_builder", "llm")
 # Define the question and run the pipeline
 if __name__ == "__main__":
     q = "What is the location of the Hanging Gardens of Babylon?"
-    basic_rag_pipeline.run({"text_embedder": {"text": q}, "prompt_builder": {"question": q}})
+    res = basic_rag_pipeline.run({"text_embedder": {"text": q}, "prompt_builder": {"question": q}})
+    print(res)

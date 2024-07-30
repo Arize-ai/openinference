@@ -28,17 +28,15 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = get_tracer(__name__, __version__, tracer_provider)
-        haystack = import_module("haystack.core.pipeline.pipeline")
+        pipeline = import_module("haystack.core.pipeline.pipeline")
 
-        # Creating a parent span for the Pipeline
-        self._original_pipeline_run = haystack.Pipeline.run
+        self._original_pipeline_run = pipeline.Pipeline.run
         wrap_function_wrapper(
             module="haystack.core.pipeline.pipeline",
             name="Pipeline.run",
             wrapper=_PipelineWrapper(tracer=tracer),
         )
-        # Creating child spans for every Component in the Pipeline
-        self._original_pipeline_run_component = haystack.Pipeline._run_component
+        self._original_pipeline_run_component = pipeline.Pipeline._run_component
         wrap_function_wrapper(
             module="haystack.core.pipeline.pipeline",
             name="Pipeline._run_component",

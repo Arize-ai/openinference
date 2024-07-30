@@ -20,11 +20,17 @@ Through your *terminal*, install required packages.
 pip install openinference-instrumentation-haystack haystack arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
+You can install Phoenix and start it with the following terminal commands:
+```shell
+pip install arize-phoenix
+python -m phoenix.server.main serve
+````
 Start Phoenix in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address. (Phoenix does not send data over the internet. It only operates locally on your machine.)
+
 
 Try the following in a *Python file*.
 
-Set up `HaystackInstrumentor` to trace your guardrails application and sends the traces to Phoenix at the endpoint defined below.
+Set up `HaystackInstrumentor` to trace your application and sends the traces to Phoenix at the endpoint defined below.
 
 ```python
 from openinference.instrumentation.haystack import HaystackInstrumentor
@@ -69,5 +75,5 @@ response = pipeline.run({"llm": {"prompt": question}})
 
 print(response)
 ```
-
+Now, on the Phoenix UI on your browser, you should see the traces from your Haystack application. Specifically, you can see attributes from the execution of the OpenAIGenerator.
 

@@ -34,7 +34,7 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
 
 class _WithTracer(ABC):
     """
-    Base class for wrappers that need a tracer. Acts as a trait for the wrappers
+    Base class for wrappers that need a tracer.
     """
 
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
@@ -55,8 +55,11 @@ class _ComponentWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        # Diving into the instance to retrieve the Component name
-        component = instance.graph.nodes._nodes[args[0]]["instance"]
+        component_type = args[0]
+        input_data = args[1]
+
+        # Diving into the instance to retrieve the Component instance
+        component = instance.graph.nodes._nodes[component_type]["instance"]
 
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
@@ -71,6 +74,63 @@ class _ComponentWrapper(_WithTracer):
         span_name = component.__class__.__name__
 
         with self._tracer.start_as_current_span(span_name, attributes={}) as span:
+            if component_type == "llm":
+                attributes = dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
+                            SpanAttributes.INPUT_VALUE: safe_json_dumps(input_data),
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
+                                "prompt_builder"
+                            ]["instance"]._template_string,
+                        }
+                    )
+                )
+            elif component_type == "text_embedder":
+                attributes = dict(
+                    _flatten(
+                        {
+                            SpanAttributes.EMBEDDING_MODEL_NAME: component.model,
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: EMBEDDING,
+                            SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                        }
+                    )
+                )
+            elif component_type == "retriever":
+                attributes = dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: RETRIEVER,
+                            SpanAttributes.INPUT_VALUE: safe_json_dumps(
+                                {
+                                    "dimensions": len(input_data["query_embedding"]),
+                                    "embedding": input_data["query_embedding"],
+                                }
+                            ),
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                        }
+                    )
+                )
+
+            elif component_type == "prompt_builder":
+                attributes = dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
+                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
+                                "prompt_builder"
+                            ]["instance"]._template_string,
+                            SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            SpanAttributes.RETRIEVAL_DOCUMENTS: safe_json_dumps(
+                                invocation_parameters["documents"]
+                            ),
+                        }
+                    )
+                )
+
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -79,6 +139,7 @@ class _ComponentWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
 
+            """
             attributes = dict(
                 _flatten(
                     {
@@ -86,14 +147,12 @@ class _ComponentWrapper(_WithTracer):
                     }
                 )
             )
-            if args[0] == "llm":
-                attributes = dict(
+            """
+            if component_type == "llm":
+                attributes.update(
                     _flatten(
                         {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
                             SpanAttributes.LLM_MODEL_NAME: response["meta"][0]["model"],
-                            SpanAttributes.INPUT_VALUE: safe_json_dumps(args[1]),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                             SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response["meta"][0]["usage"][
                                 "completion_tokens"
                             ],
@@ -104,46 +163,32 @@ class _ComponentWrapper(_WithTracer):
                                 "total_tokens"
                             ],
                             SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"],
-                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
-                                "prompt_builder"
-                            ]["instance"]._template_string,
                         }
                     )
                 )
-            elif args[0] == "text_embedder":
+            elif component_type == "text_embedder":
                 emb_len = len(response["embedding"])
-                attributes = dict(
+                emb_vec_0 = f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0."
+
+                attributes.update(
                     _flatten(
                         {
-                            SpanAttributes.EMBEDDING_MODEL_NAME: component.model,
-                            f"{EMB_VEC_0}{EMBEDDING_VECTOR}": f"<{emb_len} dimensional vector>",
-                            f"{EMB_VEC_0}{EMBEDDING_TEXT}": invocation_parameters["text"],
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: EMBEDDING,
-                            SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            f"{emb_vec_0}{EMBEDDING_VECTOR}": f"<{emb_len} dimensional vector>",
+                            f"{emb_vec_0}{EMBEDDING_TEXT}": invocation_parameters["text"],
                         }
                     )
                 )
-            elif args[0] == "retriever":
-                attributes = dict(
+            elif component_type == "retriever":
+                attributes.update(
                     _flatten(
                         {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: RETRIEVER,
-                            SpanAttributes.INPUT_VALUE: safe_json_dumps(
-                                {
-                                    "dimensions": len(args[1]["query_embedding"]),
-                                    "embedding": args[1]["query_embedding"],
-                                }
-                            ),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                             SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response["documents"]),
                             SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
                 )
 
-                i = 0
-                for document in response["documents"]:
+                for i, document in enumerate(response["documents"]):
                     attributes[
                         f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_CONTENT}"
                     ] = document.content
@@ -156,24 +201,6 @@ class _ComponentWrapper(_WithTracer):
                     attributes[
                         f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_METADATA}"
                     ] = safe_json_dumps(document.meta)
-                    i += 1
-
-            elif args[0] == "prompt_builder":
-                attributes = dict(
-                    _flatten(
-                        {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
-                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
-                                "prompt_builder"
-                            ]["instance"]._template_string,
-                            SpanAttributes.INPUT_VALUE: attributes["parameters"],
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            SpanAttributes.RETRIEVAL_DOCUMENTS: safe_json_dumps(
-                                invocation_parameters["documents"]
-                            ),
-                        }
-                    )
-                )
 
             span.set_attributes(attributes)
 
@@ -204,7 +231,18 @@ class _PipelineWrapper(_WithTracer):
         invocation_parameters.update(kwargs)
 
         span_name = "Pipeline"
-        with self._tracer.start_as_current_span(span_name, attributes={}) as span:
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
+                        SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                        SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                    }
+                )
+            ),
+        ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             try:
                 response = wrapped(*args, **kwargs)
@@ -214,17 +252,6 @@ class _PipelineWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
 
-            attributes = dict(
-                _flatten(
-                    {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
-                        SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                        SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                    }
-                )
-            )
-            span.set_attributes(attributes)
-
         return response
 
 
@@ -232,6 +259,5 @@ CHAIN = OpenInferenceSpanKindValues.CHAIN
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
 LLM = OpenInferenceSpanKindValues.LLM
-EMB_VEC_0 = f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0."
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT

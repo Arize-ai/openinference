@@ -18,6 +18,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -36,10 +37,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    "haystack-ai >= 0.2.3",
+    "haystack-ai >= 2.0.0",
 ]
 test = [
-    "haystack-ai >= 0.2.3",
+    "haystack-ai >= 2.0.0",
     "opentelemetry-sdk",
     "responses",
 ]
@@ -53,8 +54,6 @@ path = "src/openinference/instrumentation/haystack/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
     "/src",
-    "/tests",
-    "/examples",
 ]
 
 [tool.hatch.build.targets.wheel]
