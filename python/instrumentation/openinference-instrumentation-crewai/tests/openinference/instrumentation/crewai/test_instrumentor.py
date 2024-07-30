@@ -1,8 +1,8 @@
 from typing import Any, Generator
-from crewai_tools import BaseTool
-from crewai import Agent, Crew, Task
 
 import pytest
+from crewai import Agent, Crew, Task
+from crewai_tools import BaseTool
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
