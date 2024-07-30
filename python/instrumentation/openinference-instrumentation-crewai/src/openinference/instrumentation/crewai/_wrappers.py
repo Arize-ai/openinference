@@ -106,22 +106,23 @@ class _ExecuteCoreWrapper:
                     }
                 )
             ),
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
+            agent = args[0] if args else None
+            crew = agent.crew if agent else None
+            task = instance
+
+            if crew:
+                span.set_attribute("crew_key", crew.key)
+                span.set_attribute("crew_id", str(crew.id))
+            span.set_attribute("task_key", task.key)
+            span.set_attribute("task_id", str(task.id))
+
+            if crew and crew.share_crew:
+                span.set_attribute("formatted_description", task.description)
+                span.set_attribute("formatted_expected_output", task.expected_output)
             try:
-                agent = args[0]  # Assuming the first argument is the instance
-                crew = agent.crew if agent else None
-                task = instance
-
-                if crew:
-                    span.set_attribute("crew_key", crew.key)
-                    span.set_attribute("crew_id", str(crew.id))
-                span.set_attribute("task_key", task.key)
-                span.set_attribute("task_id", str(task.id))
-
-                if crew and crew.share_crew:
-                    span.set_attribute("formatted_description", task.description)
-                    span.set_attribute("formatted_expected_output", task.expected_output)
-
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
@@ -144,7 +145,11 @@ class _KickoffWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         span_name = f"{instance.__class__.__name__}.kickoff"
-        with self._tracer.start_as_current_span(span_name) as span:
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
             try:
                 crew = instance
                 inputs = kwargs.get("inputs", None) or (args[0] if args else None)
@@ -233,6 +238,8 @@ class _ToolUseWrapper:
                     }
                 )
             ),
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
             tool = kwargs.get("tool")
             tool_name = ""
