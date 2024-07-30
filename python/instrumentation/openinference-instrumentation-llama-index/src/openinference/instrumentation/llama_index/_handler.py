@@ -29,10 +29,10 @@ from typing import (
 )
 
 from openinference.instrumentation import (
+    REDACTED_VALUE,
+    TraceConfig,
     get_attributes_from_context,
     safe_json_dumps,
-    TraceConfig,
-    REDACTED_VALUE,
 )
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -450,7 +450,12 @@ class _Span(
             self._span_kind = LLM
         if self._config.hide_inputs or self._config.hide_input_messages:
             return
-        self._process_messages(LLM_INPUT_MESSAGES, *event.messages)
+        self._process_messages(
+            LLM_INPUT_MESSAGES,
+            *event.messages,
+            hide_text=self._config.hide_input_text,  # type:ignore
+            hide_images=self._config.hide_input_images,  # type:ignore
+        )
 
     @_process_event.register
     def _(self, event: LLMChatInProgressEvent) -> None: ...
@@ -463,7 +468,11 @@ class _Span(
         self._extract_token_counts(response)
         if self._config.hide_outputs or self._config.hide_output_messages:
             return
-        self._process_messages(LLM_OUTPUT_MESSAGES, response.message)
+        self._process_messages(
+            LLM_OUTPUT_MESSAGES,
+            response.message,
+            hide_text=self._config.hide_output_text,  # type:ignore
+        )
 
     @_process_event.register
     def _(self, event: QueryStartEvent) -> None:
@@ -559,17 +568,25 @@ class _Span(
             if metadata := node.metadata:
                 self[f"{prefix}.{i}.{DOCUMENT_METADATA}"] = safe_json_dumps(metadata)
 
-    def _process_messages(self, prefix: str, *messages: ChatMessage) -> None:
+    def _process_messages(
+        self,
+        prefix: str,
+        *messages: ChatMessage,
+        hide_text: bool = False,
+        hide_images: bool = False,
+    ) -> None:
         for i, message in enumerate(messages):
             self[f"{prefix}.{i}.{MESSAGE_ROLE}"] = message.role.value
             if content := message.content:
                 if isinstance(content, str):
                     self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = (
-                        REDACTED_VALUE if self._config.hide_input_text else str(content)
+                        REDACTED_VALUE if hide_text else str(content)
                     )
                 elif is_iterable_of(content, dict):
                     for j, c in list(enumerate(content)):
-                        for key, value in self._get_attributes_from_message_content(c):
+                        for key, value in self._get_attributes_from_message_content(
+                            c, hide_text=hide_text, hide_image=hide_images
+                        ):
                             self[f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{key}"] = value
             additional_kwargs = message.additional_kwargs
             if name := additional_kwargs.get("name"):
@@ -619,6 +636,37 @@ class _Span(
             pass
         else:
             assert_never(response)
+
+    def _get_attributes_from_message_content(
+        self,
+        content: Mapping[str, Any],
+        hide_text: bool,
+        hide_image: bool,
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        content = dict(content)
+        type_ = content.get("type")
+        if type_ == "text":
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+            if text := content.pop("text"):
+                yield (
+                    f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                    (REDACTED_VALUE if hide_text else text),
+                )
+        elif type_ == "image_url":
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+            if (image := content.pop("image_url")) and not hide_image:
+                for key, value in self._get_attributes_from_image(image):
+                    yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+
+    def _get_attributes_from_image(
+        self,
+        image: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if url := image.get("url"):
+            if is_base64_url(url) and len(url) > self._config.base64_image_max_length:  # type:ignore
+                yield f"{ImageAttributes.IMAGE_URL}", REDACTED_VALUE
+            else:
+                yield f"{ImageAttributes.IMAGE_URL}", url
 
 
 END_OF_QUEUE = None
@@ -942,36 +990,6 @@ def _asdict(obj: Any) -> Any:
             return copy.deepcopy(obj)
         except BaseException:
             return repr(obj)
-
-    def _get_attributes_from_message_content(
-        self,
-        content: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        content = dict(content)
-        type_ = content.get("type")
-        if type_ == "text":
-            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-            if text := content.pop("text"):
-                yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", (
-                    REDACTED_VALUE if self._config.hide_input_text else text
-                )
-        elif type_ == "image_url":
-            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
-            if (image := content.pop("image_url")) and not self._config.hide_input_images:
-                for key, value in self._get_attributes_from_image(image):
-                    yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
-
-    def _get_attributes_from_image(
-        self,
-        image: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        if url := image.get("url"):
-            if (
-                is_base64_url(url) and len(url) > self._config.base64_image_max_length
-            ):  # type:ignore
-                yield f"{ImageAttributes.IMAGE_URL}", REDACTED_VALUE
-            else:
-                yield f"{ImageAttributes.IMAGE_URL}", url
 
 
 T = TypeVar("T", bound=type)

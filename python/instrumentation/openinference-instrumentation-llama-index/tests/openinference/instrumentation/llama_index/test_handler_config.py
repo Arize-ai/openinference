@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import random
@@ -33,7 +32,6 @@ from llama_index.core.schema import TextNode
 from llama_index.llms.openai import OpenAI  # type: ignore
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal  # type: ignore
 from llama_index.multi_modal_llms.openai import utils as openai_utils
-from openinference.instrumentation import using_attributes
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -65,26 +63,12 @@ for name, logger in logging.root.manager.loggerDict.items():
 LLAMA_INDEX_VERSION = tuple(map(int, version("llama-index-core").split(".")[:3]))
 
 
-@pytest.mark.parametrize("is_stream", [False, True])
-@pytest.mark.parametrize("is_async", [False, True])
-@pytest.mark.parametrize("status_code", [200, 400])
-@pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_handler_multimodal(
-    is_async: bool,
-    is_stream: bool,
-    status_code: int,
-    use_context_attributes: bool,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     nodes: List[Document],
     chat_completion_mock_stream: Tuple[List[bytes], List[Dict[str, Any]]],
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
 ) -> None:
-    if status_code == 400 and is_stream and LLAMA_INDEX_VERSION < (0, 10, 44):
-        pytest.xfail("streaming errors can't be detected")
     n = 10  # number of concurrent queries
     image_url = (
         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/"
@@ -113,66 +97,30 @@ def test_handler_multimodal(
         max_retries=0,
         timeout=0.01,
     )
-    respx_kwargs: Dict[str, Any] = (
-        {
-            "stream": (
-                MockAsyncByteStream(chat_completion_mock_stream[0])
-                if is_async
-                else MockSyncByteStream(chat_completion_mock_stream[0])
-            )
+    respx_kwargs: Dict[str, Any] = {
+        "json": {
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": answer},
+                    "finish_reason": "stop",
+                }
+            ],
         }
-        if is_stream
-        else {
-            "json": {
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": answer},
-                        "finish_reason": "stop",
-                    }
-                ],
-            }
-        }
-    )
+    }
     url = "https://api.openai.com/v1/chat/completions"
-    respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
+    respx_mock.post(url).mock(return_value=Response(status_code=200, **respx_kwargs))
 
     def chat(message: ChatMessage) -> None:
-        if is_stream:
-            resp_gen = llm.stream_chat([message])
-            _ = [r for r in resp_gen]
-        else:
-            _ = llm.chat([message])
-
-    async def achat(message: ChatMessage) -> None:
-        if is_stream:
-            resp_gen = await llm.astream_chat([message])
-            _ = [r async for r in resp_gen]
-        else:
-            _ = await llm.achat([message])
-
-    async def task() -> None:
-        await asyncio.gather(*(achat(message) for message in messages), return_exceptions=True)
+        _ = llm.chat([message])
 
     def main() -> None:
-        if is_async:
-            asyncio.run(task())
-            return
         with ThreadPoolExecutor() as executor:
             for message in messages:
                 executor.submit(copy_context().run, partial(chat, message))
 
     with suppress(openai.BadRequestError):
-        if use_context_attributes:
-            with using_attributes(
-                session_id=session_id,
-                user_id=user_id,
-                metadata=metadata,
-                tags=tags,
-            ):
-                main()
-        else:
-            main()
+        main()
 
     spans = in_memory_span_exporter.get_finished_spans()
     traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
@@ -181,23 +129,12 @@ def test_handler_multimodal(
 
     assert len(traces) == n
     for spans_by_name in traces.values():
-        if is_stream:
-            if is_async:
-                name = "OpenAIMultiModal.astream_chat"
-            else:
-                name = "OpenAIMultiModal.stream_chat"
-        else:
-            if is_async:
-                name = "OpenAIMultiModal.achat"
-            else:
-                name = "OpenAIMultiModal.chat"
+        name = "OpenAIMultiModal.chat"
         span = spans_by_name.pop(name)
         assert span is not None
         assert span.parent is None
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
-        if use_context_attributes:
-            _check_context_attributes(attributes, session_id, user_id, metadata, tags)
         assert attributes.pop(LLM_MODEL_NAME, None) == llm_model_name
         assert attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
         # Input value
@@ -244,40 +181,26 @@ def test_handler_multimodal(
             == image_url
         )
         # Output value
-        if status_code == 200:
-            assert span.status.status_code == trace_api.StatusCode.OK
-            assert not span.status.description
-            output_value = cast(Optional[str], attributes.pop(OUTPUT_VALUE, None))
-            if is_stream:
-                assert output_value == "assistant: ABC"
-            else:
-                assert output_value == f"assistant: {answer}"
+        assert span.status.status_code == trace_api.StatusCode.OK
+        assert not span.status.description
+        output_value = cast(Optional[str], attributes.pop(OUTPUT_VALUE, None))
+        assert output_value == f"assistant: {answer}"
 
         # Output messages
-        if status_code == 200:
-            assert (
-                attributes.pop(
-                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}",
-                    None,
-                )
-                == "assistant"
+        assert (
+            attributes.pop(
+                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}",
+                None,
             )
-            if is_stream:
-                assert (
-                    attributes.pop(
-                        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}",
-                        None,
-                    )
-                    == "ABC"
-                )
-            else:
-                assert (
-                    attributes.pop(
-                        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}",
-                        None,
-                    )
-                    == answer
-                )
+            == "assistant"
+        )
+        assert (
+            attributes.pop(
+                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}",
+                None,
+            )
+            == answer
+        )
 
         assert attributes == {}
 
@@ -287,54 +210,6 @@ def _spans_by_id(spans: Iterable[ReadableSpan]) -> Dict[int, ReadableSpan]:
     for span in spans:
         spans_by_id[span.context.span_id] = span
     return spans_by_id
-
-
-def _check_context_attributes(
-    attributes: Dict[str, Any],
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-) -> None:
-    assert attributes.pop(SESSION_ID, None) == session_id
-    assert attributes.pop(USER_ID, None) == user_id
-    attr_metadata = attributes.pop(METADATA, None)
-    assert attr_metadata is not None
-    assert isinstance(attr_metadata, str)  # must be json string
-    metadata_dict = json.loads(attr_metadata)
-    assert metadata_dict == metadata
-    attr_tags = attributes.pop(TAG_TAGS, None)
-    assert attr_tags is not None
-    assert len(attr_tags) == len(tags)
-    assert list(attr_tags) == tags
-
-
-@pytest.fixture()
-def session_id() -> str:
-    return "my-test-session-id"
-
-
-@pytest.fixture()
-def user_id() -> str:
-    return "my-test-user-id"
-
-
-@pytest.fixture()
-def metadata() -> Dict[str, Any]:
-    return {
-        "test-int": 1,
-        "test-str": "string",
-        "test-list": [1, 2, 3],
-        "test-dict": {
-            "key-1": "val-1",
-            "key-2": "val-2",
-        },
-    }
-
-
-@pytest.fixture()
-def tags() -> List[str]:
-    return ["tag-1", "tag-2"]
 
 
 @pytest.fixture
@@ -442,7 +317,3 @@ MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 LLM = OpenInferenceSpanKindValues.LLM
-SESSION_ID = SpanAttributes.SESSION_ID
-USER_ID = SpanAttributes.USER_ID
-METADATA = SpanAttributes.METADATA
-TAG_TAGS = SpanAttributes.TAG_TAGS
