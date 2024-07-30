@@ -47,23 +47,23 @@ def test_crewai_instrumentation(
     setup_crewai_instrumentation: Any,
 ) -> None:
     pass
-    #hello_world_tool = HelloWorldTool()
-    #greeter_agent = Agent(
+    # hello_world_tool = HelloWorldTool()
+    # greeter_agent = Agent(
     #    role="hello world greeter",
     #    goal="say hello world",
     #    backstory="you were born a greeter",
     #    tools=[hello_world_tool],
-    #)
-    #greeting_task = Task(
+    # )
+    # greeting_task = Task(
     #    description="get someone to greet the caller",
     #    expected_output="a greeting",
     #    agent=greeter_agent,
-    #)
-    #crew = Crew(
+    # )
+    # crew = Crew(
     #    agents=[greeter_agent],
     #    tasks=[
     #        greeting_task,
     #    ],
-    #)
-    #result = crew.kickoff()
-    #print(result)
+    # )
+    # result = crew.kickoff()
+    # print(result)
