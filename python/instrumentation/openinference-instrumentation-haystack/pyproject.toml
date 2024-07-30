@@ -24,7 +24,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "datasets",
     "opentelemetry-api",
     "opentelemetry-instrumentation",
     "opentelemetry-semantic-conventions",
@@ -43,7 +42,6 @@ test = [
     "haystack-ai >= 0.2.3",
     "opentelemetry-sdk",
     "responses",
-    "sentence-transformers"
 ]
 
 [project.urls]
