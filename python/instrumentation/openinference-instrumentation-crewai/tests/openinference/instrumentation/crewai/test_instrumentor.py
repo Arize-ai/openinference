@@ -32,7 +32,7 @@ def setup_crewai_instrumentation(
     CrewAIInstrumentor().uninstrument()
 
 
-class HelloWorldTool(BaseTool): # type: ignore[misc]
+class HelloWorldTool(BaseTool):  # type: ignore[misc]
     name: str = "HelloWorldTool"
     description: str = "Tool that tells you helloworld for testing"
 
