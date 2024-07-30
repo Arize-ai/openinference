@@ -2,7 +2,7 @@ from typing import Any, Generator
 
 import pytest
 from crewai import Agent, Crew, Task
-from crewai_tools import BaseTool
+from crewai_tools import BaseTool  # type: ignore[import-untyped]
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -32,7 +32,7 @@ def setup_crewai_instrumentation(
     CrewAIInstrumentor().uninstrument()
 
 
-class HelloWorldTool(BaseTool):
+class HelloWorldTool(BaseTool): # type: ignore[misc]
     name: str = "HelloWorldTool"
     description: str = "Tool that tells you helloworld for testing"
 

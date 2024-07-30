@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Crewai Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.13"
+requires-python = ">=3.10, <3.13"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,7 +18,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -38,6 +37,8 @@ instruments = [
   "crewai >= 0.41.1",
 ]
 test = [
+  "crewai == 0.41.1",
+  "crewai-tools == 0.4.26",
   "opentelemetry-sdk",
   "responses",
 ]
@@ -74,7 +75,7 @@ module = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
