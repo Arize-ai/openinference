@@ -12,7 +12,6 @@ describe("session", () => {
     context.disable();
   });
   it("should set session id in the context", () => {
-    debugger;
     context.with(setSessionId(context.active(), "session-id"), async () => {
       expect(getSessionId(context.active())).toBe("session-id");
     });
