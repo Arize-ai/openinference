@@ -139,15 +139,6 @@ class _ComponentWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
 
-            """
-            attributes = dict(
-                _flatten(
-                    {
-                        "parameters": safe_json_dumps(invocation_parameters),
-                    }
-                )
-            )
-            """
             if component_type == "llm":
                 attributes.update(
                     _flatten(
