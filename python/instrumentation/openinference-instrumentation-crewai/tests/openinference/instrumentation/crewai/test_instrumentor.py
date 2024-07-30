@@ -1,5 +1,6 @@
 from typing import Any, Generator
 
+import os
 import pytest
 from crewai import Agent, Crew, Task
 from crewai_tools import BaseTool  # type: ignore[import-untyped]
@@ -45,6 +46,7 @@ def test_crewai_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_crewai_instrumentation: Any,
 ) -> None:
+    os.environ["OPENAI_API_KEY"] = "fake"
     hello_world_tool = HelloWorldTool()
     greeter_agent = Agent(
         role="hello world greeter", goal="say hello world", tools=[hello_world_tool]

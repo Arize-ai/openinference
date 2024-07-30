@@ -151,7 +151,7 @@ class _KickoffWrapper:
 
                 span.set_attribute("crew_key", crew.key)
                 span.set_attribute("crew_id", str(crew.id))
-                span.set_attribute("crew_inputs", json.dumps(inputs) if inputs else None)
+                span.set_attribute("crew_inputs", json.dumps(inputs) if inputs else "")
                 span.set_attribute(
                     "crew_agents",
                     json.dumps(
