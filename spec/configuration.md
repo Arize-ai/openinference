@@ -5,6 +5,7 @@ In some situations, you may need to modify the observability level of your traci
 The OpenInference Specification defines a set of environment variables you can configure to suit your observability needs. In addition, the OpenInference Instrumentation Python package also offers convenience functions to do this in code without having to set environment variables, if that's what you prefer.
 
 The possible settings are:
+
 | Environment Variable Name             | Effect                                                       | Type | Default |
 |---------------------------------------|--------------------------------------------------------------|------|---------|
 | OPENINFERENCE_HIDE_INPUTS             | Hides input value, all input messages & embedding input text | bool | False   |
