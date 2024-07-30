@@ -248,4 +248,43 @@ class TestLiteLLMInstrumentor:
         assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "dall-e-2"
         assert span.attributes[SpanAttributes.INPUT_VALUE] == "a sunrise over the mountains"
 
-    
+    def test_uninstrument(tracer_provider):
+        func_names = [
+            "completion",
+            "acompletion",
+            "completion_with_retries",
+            # "acompletion_with_retries",
+            "embedding",
+            "aembedding",
+            "image_generation",
+            "aimage_generation",
+        ]
+
+        # Instrument functions
+        instrumentor = LiteLLMInstrumentor(tracer_provider=tracer_provider)
+        instrumentor.instrument()
+
+        # Check that the functions are instrumented
+        for func_name in func_names:
+            instrumented_func = getattr(litellm, func_name)
+            assert (
+                instrumented_func.__name__ == "_sync_wrapper"
+                or instrumented_func.__name__ == "_async_wrapper"
+            )
+
+        instrumentor.uninstrument()
+
+        # Test that liteLLM functions are uninstrumented
+        for func_name in func_names:
+            uninstrumented_func = getattr(litellm, func_name)
+            assert uninstrumented_func.__name__ == func_name
+
+        instrumentor.instrument()
+
+        # Check that the functions are re-instrumented
+        for func_name in func_names:
+            instrumented_func = getattr(litellm, func_name)
+            assert (
+                instrumented_func.__name__ == "_sync_wrapper"
+                or instrumented_func.__name__ == "_async_wrapper"
+            )
