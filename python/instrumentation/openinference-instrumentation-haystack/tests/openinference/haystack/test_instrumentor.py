@@ -1,7 +1,6 @@
 from typing import Any, Dict, Generator, List, Optional, Union
 
 import pytest
-from datasets import load_dataset
 from haystack import Document
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.embedders import (
@@ -66,7 +65,20 @@ def test_haystack_instrumentation(
     # Configure document store and load dataset
     document_store = InMemoryDocumentStore()
 
-    dataset = load_dataset("bilgeyucel/seven-wonders", split="train")
+    dataset = [
+        {
+            "content": "The first wonder of the world is the Great Pyramid of Giza",
+            "meta": {"id": 1},
+        },
+        {
+            "content": "The second wonder of the world is the Hanging Gardens of Babylon",
+            "meta": {"id": 2},
+        },
+        {
+            "content": "The third wonder of the world is the Statue of Zeus at Olympia",
+            "meta": {"id": 3},
+        },
+    ]
 
     docs = [Document(content=doc["content"], meta=doc["meta"]) for doc in dataset]
 
