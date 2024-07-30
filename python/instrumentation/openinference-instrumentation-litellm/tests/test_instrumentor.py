@@ -183,7 +183,7 @@ class TestLiteLLMInstrumentor:
 
     # Unlike the completion() functions, liteLLM does not offer a mock_response parameter
     # for embeddings or image gen yet
-    # For now the following test functions make real calls that require Internet connection
+    # For now the following tests monkeypatch OpenAIChatCompletion functions
 
     def test_embedding(tracer_provider, in_memory_span_exporter, instrumentor):
         in_memory_span_exporter.clear()
