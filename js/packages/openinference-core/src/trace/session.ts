@@ -1,7 +1,7 @@
 import { SESSION_ID } from "@arizeai/openinference-semantic-conventions";
 import { Context, createContextKey } from "@opentelemetry/api";
 
-const SESSION_ID_KEY = createContextKey(
+export const SESSION_ID_KEY = createContextKey(
   `OpenInference SDK Context Key ${SESSION_ID}`,
 );
 
