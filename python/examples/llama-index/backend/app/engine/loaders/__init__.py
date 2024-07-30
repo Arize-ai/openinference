@@ -20,7 +20,9 @@ def get_documents():
     documents = []
     config = load_configs()
     for loader_type, loader_config in config.items():
-        logger.info(f"Loading documents from loader: {loader_type}, config: {loader_config}")
+        logger.info(
+            f"Loading documents from loader: {loader_type}, config: {loader_config}"
+        )
         match loader_type:
             case "file":
                 document = get_file_documents(FileLoaderConfig(**loader_config))
