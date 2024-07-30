@@ -32,7 +32,9 @@
   "bugs": {
     "url": "https://github.com/Arize-ai/openinference/issues"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@arizeai/openinference-semantic-conventions": "workspace:*"
+  },
   "peerDependencies": {
     "@opentelemetry/api": ">=1.0.0 <1.9.0"
   },
