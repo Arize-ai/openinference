@@ -1,3 +1,3 @@
 # OpenInference liteLLM Instrumentation
 
-Python autoinstrumentation library for liteLLM calls
+Python autoinstrumentation library for the liteLLM package
