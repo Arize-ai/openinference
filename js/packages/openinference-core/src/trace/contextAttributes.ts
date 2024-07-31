@@ -1,11 +1,3 @@
-// export function getContextAttributes(context: Context): ContextAttributes {
-//   const maybeContextAttributes = context.getValue(CONTEXT_ATTRIBUTES_KEY);
-//   if (maybeContextAttributes instanceof Object) {
-//     return maybeContextAttributes;
-//   }
-//   return {};
-// }
-
 import {
   PROMPT_TEMPLATE_TEMPLATE,
   PROMPT_TEMPLATE_VARIABLES,
