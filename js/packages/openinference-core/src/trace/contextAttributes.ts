@@ -36,7 +36,7 @@ export type PromptTemplateAttributes = {
   variables?: Record<string, unknown>;
   version?: string;
 };
-export function setPromptTemplateAttributes(
+export function setPromptTemplate(
   context: Context,
   attributes: PromptTemplateAttributes,
 ): Context {
@@ -54,16 +54,14 @@ export function setPromptTemplateAttributes(
   return context;
 }
 
-export function clearPromptTemplateAttributes(context: Context): Context {
+export function clearPromptTemplate(context: Context): Context {
   context = context.deleteValue(PROMPT_TEMPLATE_TEMPLATE_KEY);
   context = context.deleteValue(PROMPT_TEMPLATE_VARIABLES_KEY);
   context = context.deleteValue(PROMPT_TEMPLATE_VERSION_KEY);
   return context;
 }
 
-export function getPromptTemplateAttributes(
-  context: Context,
-): Attributes | undefined {
+export function getPromptTemplate(context: Context): Attributes | undefined {
   const maybeTemplate = context.getValue(PROMPT_TEMPLATE_TEMPLATE_KEY);
   const maybeVariables = context.getValue(PROMPT_TEMPLATE_VARIABLES_KEY);
   const maybeVersion = context.getValue(PROMPT_TEMPLATE_VERSION_KEY);
@@ -89,7 +87,7 @@ export type SessionAttributes = {
   sessionId: string;
 };
 
-export function setSessionId(
+export function setSession(
   context: Context,
   attributes: SessionAttributes,
 ): Context {
@@ -97,7 +95,7 @@ export function setSessionId(
   return context.setValue(SESSION_ID_KEY, sessionId);
 }
 
-export function clearSessionId(context: Context): Context {
+export function clearSession(context: Context): Context {
   return context.deleteValue(SESSION_ID_KEY);
 }
 
