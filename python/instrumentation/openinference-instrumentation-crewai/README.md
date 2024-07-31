@@ -19,7 +19,7 @@ This quickstart shows you how to instrument your guardrailed LLM application
 Install required packages.
 
 ```shell
-pip install openinference-instrumentation-crewai crewai arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install crewai crewai-tools  arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 Start Phoenix in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address. (Phoenix does not send data over the internet. It only operates locally on your machine.)
