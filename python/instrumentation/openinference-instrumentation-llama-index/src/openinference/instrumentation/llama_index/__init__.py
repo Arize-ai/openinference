@@ -39,7 +39,9 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
             import llama_index.core
 
             if hasattr(llama_index.core, "global_handler"):
-                print("Using legacy callback handler.")
+                print(
+                    "Using legacy callback handler. TraceConfig not supported for callback handlers."
+                )
             else:
                 self._use_legacy_callback_handler = False
                 print(
