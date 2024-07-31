@@ -338,7 +338,7 @@ class _Span(
     def _(self, event: AgentChatWithStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
-        self[INPUT_VALUE] = event.user_msg
+        self[INPUT_VALUE] = REDACTED_VALUE if self._config.hide_inputs else event.user_msg
         self._attributes.pop(INPUT_MIME_TYPE, None)
 
     @_process_event.register
@@ -599,6 +599,9 @@ class _Span(
     def _process_query_type(self, query: Optional[QueryType]) -> None:
         if query is None:
             return
+        if self._config.hide_inputs:
+            self[INPUT_VALUE] = REDACTED_VALUE
+            return
         if isinstance(query, str):
             self[INPUT_VALUE] = query
             self._attributes.pop(INPUT_MIME_TYPE, None)
@@ -626,6 +629,9 @@ class _Span(
 
     def _process_response_text_type(self, response: Optional[RESPONSE_TEXT_TYPE]) -> None:
         if response is None:
+            return
+        if self._config.hide_outputs:
+            self[OUTPUT_VALUE] = REDACTED_VALUE
             return
         if isinstance(response, str):
             self[OUTPUT_VALUE] = response
