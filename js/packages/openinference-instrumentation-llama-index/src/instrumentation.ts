@@ -1,9 +1,6 @@
 import type * as llamaindex from "llamaindex";
 
 import {
-  LLM,
-} from "llamaindex";
-import {
   InstrumentationBase,
   InstrumentationConfig,
   InstrumentationModuleDefinition,
@@ -55,14 +52,6 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
       this.unpatch.bind(this),
     );
     return module;
-  }
-
-  private isLLM(llm: unknown): llm is LLM {
-    return (
-      llm != null &&
-      (llm as LLM).complete != null &&
-      (llm as LLM).chat != null
-    );
   }
 
   private patch(moduleExports: typeof llamaindex, moduleVersion?: string) {
