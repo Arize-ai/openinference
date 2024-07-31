@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Collection
 
+from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.llama_index.package import _instruments
 from openinference.instrumentation.llama_index.version import __version__
 from opentelemetry import trace as trace_api
@@ -16,6 +17,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     """
 
     __slots__ = (
+        "_config",
         "_span_handler",
         "_event_handler",
         "_use_legacy_callback_handler",  # deprecated
@@ -28,12 +30,19 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
         self._use_legacy_callback_handler = bool(kwargs.get("use_legacy_callback_handler"))
         if self._use_legacy_callback_handler:
             import llama_index.core
 
             if hasattr(llama_index.core, "global_handler"):
-                print("Using legacy callback handler.")
+                print(
+                    "Using legacy callback handler. "
+                    "TraceConfig not supported for callback handlers."
+                )
             else:
                 self._use_legacy_callback_handler = False
                 print(
@@ -57,7 +66,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
 
             from ._handler import EventHandler
 
-            self._event_handler = EventHandler(tracer=tracer)
+            self._event_handler = EventHandler(tracer=tracer, config=config)
             self._span_handler = self._event_handler.span_handler
             dispatcher = get_dispatcher()
             for span_handler in dispatcher.span_handlers:
