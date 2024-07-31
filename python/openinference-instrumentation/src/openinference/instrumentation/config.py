@@ -194,66 +194,66 @@ class TraceConfig:
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> Optional[Union[AttributeValue, Callable[[], AttributeValue]]]:
-        if key == SpanAttributes.INPUT_VALUE and self.hide_inputs:
+        if self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
             value = REDACTED_VALUE
-        elif key == SpanAttributes.INPUT_MIME_TYPE and self.hide_inputs:
+        elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
             return
-        elif key == SpanAttributes.OUTPUT_VALUE and self.hide_outputs:
+        elif self.hide_outputs and key == SpanAttributes.OUTPUT_VALUE:
             value = REDACTED_VALUE
-        elif key == SpanAttributes.OUTPUT_MIME_TYPE and self.hide_outputs:
+        elif self.hide_outputs and key == SpanAttributes.OUTPUT_MIME_TYPE:
             return
-        elif SpanAttributes.LLM_INPUT_MESSAGES in key and (
+        elif (
             self.hide_inputs or self.hide_input_messages
-        ):
+        ) and SpanAttributes.LLM_INPUT_MESSAGES in key:
             return
-        elif SpanAttributes.LLM_OUTPUT_MESSAGES in key and (
+        elif (
             self.hide_outputs or self.hide_output_messages
-        ):
+        ) and SpanAttributes.LLM_OUTPUT_MESSAGES in key:
             return
         elif (
-            SpanAttributes.LLM_INPUT_MESSAGES in key
+            self.hide_input_text
+            and SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageAttributes.MESSAGE_CONTENT in key
             and MessageAttributes.MESSAGE_CONTENTS not in key
-            and self.hide_input_text
         ):
             value = REDACTED_VALUE
         elif (
-            SpanAttributes.LLM_OUTPUT_MESSAGES in key
+            self.hide_output_text
+            and SpanAttributes.LLM_OUTPUT_MESSAGES in key
             and MessageAttributes.MESSAGE_CONTENT in key
             and MessageAttributes.MESSAGE_CONTENTS not in key
-            and self.hide_output_text
         ):
             value = REDACTED_VALUE
         elif (
-            SpanAttributes.LLM_INPUT_MESSAGES in key
+            self.hide_input_text
+            and SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
-            and self.hide_input_text
         ):
             value = REDACTED_VALUE
         elif (
-            SpanAttributes.LLM_OUTPUT_MESSAGES in key
+            self.hide_output_text
+            and SpanAttributes.LLM_OUTPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
-            and self.hide_output_text
         ):
             value = REDACTED_VALUE
         elif (
-            SpanAttributes.LLM_INPUT_MESSAGES in key
+            self.hide_input_images
+            and SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
-            and self.hide_input_images
         ):
             return
         elif (
-            SpanAttributes.LLM_INPUT_MESSAGES in key
+            is_base64_url(value)  # type:ignore
+            and len(value) > self.base64_image_max_length  # type:ignore
+            and SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
             and key.endswith(ImageAttributes.IMAGE_URL)
-            and is_base64_url(value)  # type:ignore
-            and len(value) > self.base64_image_max_length  # type:ignore
         ):
             value = REDACTED_VALUE
         elif (
-            SpanAttributes.EMBEDDING_EMBEDDINGS in key
+            self.hide_embedding_vectors
+            and SpanAttributes.EMBEDDING_EMBEDDINGS in key
             and EmbeddingAttributes.EMBEDDING_VECTOR in key
-            and self.hide_embedding_vectors
         ):
             return
         return value
