@@ -44,6 +44,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [MistralAI SDK](python/instrumentation/openinference-instrumentation-mistralai/examples/)      | MistraAI Python SDK                                                                          | Beginner         |
 | [VertexAI SDK](python/instrumentation/openinference-instrumentation-vertexai/examples/)        | VertexAI Python SDK                                                                          | Beginner         |
 | [LlamaIndex](python/instrumentation/openinference-instrumentation-llama-index/examples/)       | LlamaIndex query engines                                                                     | Beginner         |
+| [LiteLLM Proxy Server](python/instrumentation/openinference-instrumentation-llama-index/examples/) | Proxy server to call 100+ LLMs in OpenAI format and log to Arize                   | Beginner         |
 | [DSPy](python/instrumentation/openinference-instrumentation-dspy/examples/)                    | DSPy primitives and custom RAG modules                                                       | Beginner         |
 | [Boto3 Bedrock Client](python/instrumentation/openinference-instrumentation-bedrock/examples/) | Boto3 Bedrock client                                                                         | Beginner         |
 | [LangChain](python/instrumentation/openinference-instrumentation-langchain/examples/)          | LangChain primitives and simple chains                                                       | Beginner         |
