@@ -10,4 +10,4 @@ Resolves # (issue)
 
 - [ ] Follows OpenInference configuration to hide sensitive info
 - [ ] Spans properly inherit from [context attributes](https://github.com/Arize-ai/openinference/blob/main/python/openinference-instrumentation/src/openinference/instrumentation/context_attributes.py)
-- [ ] Properly respects supress tracing context
+- [ ] Properly respects suppress tracing context
