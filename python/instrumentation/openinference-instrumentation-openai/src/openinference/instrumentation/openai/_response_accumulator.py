@@ -17,7 +17,7 @@ from typing import (
     Type,
 )
 
-from openinference.instrumentation import TraceConfig, safe_json_dumps
+from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
     _ValueAndType,
@@ -45,7 +45,6 @@ class _CanGetAttributesFromResponse(Protocol):
 
 class _ChatCompletionAccumulator:
     __slots__ = (
-        "_config",
         "_is_null",
         "_values",
         "_cached_result",
@@ -56,12 +55,10 @@ class _ChatCompletionAccumulator:
 
     def __init__(
         self,
-        config: TraceConfig,
         request_parameters: Mapping[str, Any],
         chat_completion_type: Type["ChatCompletion"],
         response_attributes_extractor: Optional[_CanGetAttributesFromResponse] = None,
     ) -> None:
-        self._config = config
         self._chat_completion_type = chat_completion_type
         self._request_parameters = request_parameters
         self._response_attributes_extractor = response_attributes_extractor
@@ -108,7 +105,6 @@ class _ChatCompletionAccumulator:
         json_string = safe_json_dumps(result)
         yield from _as_output_attributes(
             _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON),
-            hide_output_value=self._config.hide_outputs,
         )
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
@@ -123,7 +119,6 @@ class _ChatCompletionAccumulator:
 
 class _CompletionAccumulator:
     __slots__ = (
-        "_config",
         "_is_null",
         "_values",
         "_cached_result",
@@ -134,12 +129,10 @@ class _CompletionAccumulator:
 
     def __init__(
         self,
-        config: TraceConfig,
         request_parameters: Mapping[str, Any],
         completion_type: Type["Completion"],
         response_attributes_extractor: Optional[_CanGetAttributesFromResponse] = None,
     ) -> None:
-        self._config = config
         self._completion_type = completion_type
         self._request_parameters = request_parameters
         self._response_attributes_extractor = response_attributes_extractor
@@ -171,7 +164,6 @@ class _CompletionAccumulator:
         json_string = safe_json_dumps(result)
         yield from _as_output_attributes(
             _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON),
-            hide_output_value=self._config.hide_outputs,
         )
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
