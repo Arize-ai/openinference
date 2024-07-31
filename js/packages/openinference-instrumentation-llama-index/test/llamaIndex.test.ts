@@ -112,7 +112,7 @@ describe("LlamaIndexInstrumentation", () => {
     expect(spans.length).toBeGreaterThan(0);
 
     // Expect a span for the query engine
-    const queryEngineSpan = spans.find((span) => span.name.includes("Query"));
+    const queryEngineSpan = spans.find((span) => span.name.includes("query"));
     expect(queryEngineSpan).toBeDefined();
   });
 });
