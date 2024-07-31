@@ -1,6 +1,34 @@
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    RerankerAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
+import wrapt
 import os
+from contextlib import contextmanager
+from opentelemetry import trace as trace_api
+from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
+from abc import ABC
 from dataclasses import dataclass, field, fields
-from typing import Any, Optional, get_args
+from typing import (
+    Any,
+    Union,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    Tuple,
+    Optional,
+    get_args,
+)
 
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
@@ -170,6 +198,76 @@ class TraceConfig:
                 f.metadata["default_value"],
             )
 
+    def censor(
+        self,
+        key: str,
+        value: Union[AttributeValue, Callable[[], AttributeValue]],
+    ) -> Optional[Union[AttributeValue, Callable[[], AttributeValue]]]:
+        if key == SpanAttributes.INPUT_VALUE and self.hide_inputs:
+            value = REDACTED_VALUE
+        if key == SpanAttributes.INPUT_MIME_TYPE and self.hide_inputs:
+            return
+        if key == SpanAttributes.OUTPUT_VALUE and self.hide_outputs:
+            value = REDACTED_VALUE
+        if key == SpanAttributes.OUTPUT_MIME_TYPE and self.hide_outputs:
+            return
+        if SpanAttributes.LLM_INPUT_MESSAGES in key and (
+            self.hide_inputs or self.hide_input_messages
+        ):
+            return
+        if SpanAttributes.LLM_OUTPUT_MESSAGES in key and (
+            self.hide_outputs or self.hide_output_messages
+        ):
+            return
+        if (
+            SpanAttributes.LLM_INPUT_MESSAGES in key
+            and MemoryError.MESSAGE_CONTENT in key
+            and MemoryError.MESSAGE_CONTENTS not in key
+            and self.hide_input_text
+        ):
+            value = REDACTED_VALUE
+        if (
+            SpanAttributes.LLM_OUTPUT_MESSAGES in key
+            and MemoryError.MESSAGE_CONTENT in key
+            and MemoryError.MESSAGE_CONTENTS not in key
+            and self.hide_output_text
+        ):
+            value = REDACTED_VALUE
+        if (
+            SpanAttributes.LLM_INPUT_MESSAGES in key
+            and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+            and self.hide_input_text
+        ):
+            value = REDACTED_VALUE
+        if (
+            SpanAttributes.LLM_OUTPUT_MESSAGES in key
+            and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
+            and self.hide_output_text
+        ):
+            value = REDACTED_VALUE
+        if (
+            SpanAttributes.LLM_INPUT_MESSAGES in key
+            and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
+            and self.hide_input_images
+        ):
+            return
+        if (
+            SpanAttributes.LLM_INPUT_MESSAGES in key
+            and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
+            and key.endswith(ImageAttributes.IMAGE_URL)
+            and is_base64_url(value)  # type:ignore
+            and len(value) > self.base64_image_max_length  # type:ignore
+        ):
+            value = REDACTED_VALUE
+        if (
+            SpanAttributes.EMBEDDING_EMBEDDINGS in key
+            and EmbeddingAttributes.EMBEDDING_VECTOR in key
+            and self.hide_embedding_vectors
+        ):
+            return
+
+        return value
+
     def _parse_value(
         self,
         field_name: str,
@@ -214,3 +312,44 @@ class TraceConfig:
             raise
         else:
             return cast_to(value)
+
+
+class CensoredSpan(wrapt.ObjectProxy):  # type: ignore[misc]
+    def __init__(self, wrapped: trace_api.Span, config: TraceConfig) -> None:
+        super().__init__(wrapped)
+        self._self_config = config
+
+    def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
+        for k, v in attributes.items():
+            self.set_attribute(k, v)
+
+    def set_attribute(
+        self,
+        key: str,
+        value: Union[AttributeValue, Callable[[], AttributeValue]],
+    ) -> None:
+        value = self._self_config.censor(key, value)
+        if value is not None:
+            span = self.__wrapped__
+            span.set_attribute(key, value)
+
+
+class ConfigTracer(wrapt.ObjectProxy):  # type: ignore[misc]
+    def __init__(self, wrapped: trace_api.Tracer, config: TraceConfig) -> None:
+        super().__init__(wrapped)
+        self._self_config = config
+
+    @contextmanager
+    def start_as_current_span(self, *args, **kwargs) -> Iterator[trace_api.Span]:
+        with self.__wrapped__.start_as_current_span(*args, **kwargs) as span:
+            yield CensoredSpan(span, self._self_config)
+
+    def start_span(self, *args, **kwargs) -> trace_api.Span:
+        return CensoredSpan(
+            self.__wrapped__.start_span(*args, **kwargs),
+            config=self._self_config,
+        )
+
+
+def is_base64_url(url: str) -> bool:
+    return url.startswith("data:image/") and "base64" in url

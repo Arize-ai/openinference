@@ -29,7 +29,6 @@ from typing import (
 )
 
 from openinference.instrumentation import (
-    REDACTED_VALUE,
     TraceConfig,
     get_attributes_from_context,
     safe_json_dumps,
@@ -162,7 +161,6 @@ class _Span(
     keep_untouched=(singledispatchmethod, property),
 ):
     _otel_span: Span = PrivateAttr()
-    _config: TraceConfig = PrivateAttr()
     _attributes: Dict[str, AttributeValue] = PrivateAttr()
     _active: bool = PrivateAttr()
     _span_kind: Optional[str] = PrivateAttr()
@@ -182,7 +180,6 @@ class _Span(
     ) -> None:
         super().__init__(**kwargs)
         self._otel_span = otel_span
-        self._config = config
         self._active = otel_span.is_recording()
         self._span_kind = span_kind
         self._parent = parent
@@ -192,68 +189,6 @@ class _Span(
         self.last_updated_at = time()
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
-        if key == INPUT_VALUE and self._config.hide_inputs:
-            value = REDACTED_VALUE
-        if key == INPUT_MIME_TYPE and self._config.hide_inputs:
-            return
-        if key == OUTPUT_VALUE and self._config.hide_outputs:
-            value = REDACTED_VALUE
-        if key == OUTPUT_MIME_TYPE and self._config.hide_outputs:
-            return
-        if LLM_INPUT_MESSAGES in key and (
-            self._config.hide_inputs or self._config.hide_input_messages
-        ):
-            return
-        if LLM_OUTPUT_MESSAGES in key and (
-            self._config.hide_outputs or self._config.hide_output_messages
-        ):
-            return
-        if (
-            LLM_INPUT_MESSAGES in key
-            and MESSAGE_CONTENT in key
-            and MESSAGE_CONTENTS not in key
-            and self._config.hide_input_text
-        ):
-            value = REDACTED_VALUE
-        if (
-            LLM_OUTPUT_MESSAGES in key
-            and MESSAGE_CONTENT in key
-            and MESSAGE_CONTENTS not in key
-            and self._config.hide_output_text
-        ):
-            value = REDACTED_VALUE
-        if (
-            LLM_INPUT_MESSAGES in key
-            and MESSAGE_CONTENT_TEXT in key
-            and self._config.hide_input_text
-        ):
-            value = REDACTED_VALUE
-        if (
-            LLM_OUTPUT_MESSAGES in key
-            and MESSAGE_CONTENT_TEXT in key
-            and self._config.hide_output_text
-        ):
-            value = REDACTED_VALUE
-        if (
-            LLM_INPUT_MESSAGES in key
-            and MESSAGE_CONTENT_IMAGE in key
-            and self._config.hide_input_images
-        ):
-            return
-        if (
-            LLM_INPUT_MESSAGES in key
-            and MESSAGE_CONTENT_IMAGE in key
-            and key.endswith(ImageAttributes.IMAGE_URL)
-            and is_base64_url(value)  # type:ignore
-            and len(value) > self._config.base64_image_max_length  # type:ignore
-        ):
-            value = REDACTED_VALUE
-        if (
-            EMBEDDING_EMBEDDINGS in key
-            and EMBEDDING_VECTOR in key
-            and self._config.hide_embedding_vectors
-        ):
-            return
         self._attributes[key] = value
 
     def record_exception(self, exception: BaseException) -> None:
@@ -272,6 +207,7 @@ class _Span(
             description = f"{type(exception).__name__}: {exception}"
             status = Status(status_code=StatusCode.ERROR, description=description)
         self[OPENINFERENCE_SPAN_KIND] = self._span_kind or CHAIN
+        print(type(self._otel_span))
         self._otel_span.set_status(status=status)
         self._otel_span.set_attributes(self._attributes)
         self._otel_span.end(end_time=self.end_time)
@@ -764,14 +700,12 @@ class _ExportQueue:
 class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _context_tokens: Dict[str, object] = PrivateAttr()
     _otel_tracer: Tracer = PrivateAttr()
-    _config: TraceConfig = PrivateAttr()
     export_queue: _ExportQueue = PrivateAttr()
 
     def __init__(self, tracer: Tracer, config: TraceConfig) -> None:
         super().__init__()
         self._context_tokens: Dict[str, object] = {}
         self._otel_tracer = tracer
-        self._config = config
         self.export_queue = _ExportQueue()
 
     def new_span(
@@ -796,7 +730,6 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             self._context_tokens[id_] = attach(set_span_in_context(otel_span))
         span = _Span(
             otel_span=otel_span,
-            config=self._config,
             span_kind=_init_span_kind(instance),
             parent=parent,
             id_=id_,
