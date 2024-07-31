@@ -50,7 +50,8 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [DSPy](python/instrumentation/openinference-instrumentation-dspy/examples/)                    | DSPy primitives and custom RAG modules                                                       | Beginner         |
 | [Boto3 Bedrock Client](python/instrumentation/openinference-instrumentation-bedrock/examples/) | Boto3 Bedrock client                                                                         | Beginner         |
 | [LangChain](python/instrumentation/openinference-instrumentation-langchain/examples/)          | LangChain primitives and simple chains                                                       | Beginner         |
-| [LiteLLM](python/instrumentation/openinference-instrumentation-litellm/)            | A lightweight LiteLLM framework                                                 | Beginner     |
+| [LiteLLM](python/instrumentation/openinference-instrumentation-litellm/examples)            | LiteLLM Python SDK
+| [LiteLLM Proxy](python/instrumentation/openinference-instrumentation-litellm/examples/litellm-proxy/)            | LiteLLM Proxy to log OpenAI, Azure, Vertex, Bedrock (100+ LLMs) to Arize
 | [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                   | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
 | [LangServe](python/examples/langserve/)                                                        | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
 | [DSPy](python/examples/dspy-rag-fastapi/)                                                      | A DSPy RAG application using FastAPI, Weaviate, and Cohere                                   | Intermediate     |
