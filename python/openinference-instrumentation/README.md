@@ -1,5 +1,5 @@
-# OpenInference Mistral AI Instrumentation
-[![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-mistralai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-mistralai) 
+# OpenInference Instrumentation
+[![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation.svg)](https://pypi.python.org/pypi/openinference-instrumentation) 
 
 Utility functions for OpenInference instrumentation.
 
