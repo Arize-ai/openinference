@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0 (2024-07-31)
+
+
+### Features
+
+* **liteLLM:** instrumentation ([#641](https://github.com/Arize-ai/openinference/issues/641)) ([9870286](https://github.com/Arize-ai/openinference/commit/9870286e8ea757ca3afa2568bd286231fbaee577))
+
 ## 0.1.0 (2024-07-29)
 
 ### Features
