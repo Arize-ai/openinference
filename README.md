@@ -37,6 +37,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`openinference-instrumentation-vertexai`](./python/instrumentation/openinference-instrumentation-vertexai)       | OpenInference Instrumentation for VertexAI.    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-vertexai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-vertexai)       |
 | [`openinference-instrumentation-crewai`](./python/instrumentation/openinference-instrumentation-crewai)           | OpenInference Instrumentation for CrewAI.      | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-crewai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-crewai)           |
 | [`openinference-instrumentation-haystack`](./python/instrumentation/openinference-instrumentation-haystack)       | OpenInference Instrumentation for Haystack.    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-haystack.svg)](https://pypi.python.org/pypi/openinference-instrumentation-haystack)       |
+| [`openinference-instrumentation-litellm`](./python/instrumentation/openinference-instrumentation-litellm)       | OpenInference Instrumentation for liteLLM.    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-litellm.svg)](https://pypi.python.org/pypi/openinference-instrumentation-litellm)       |
 
 ### Examples
 
@@ -49,6 +50,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [DSPy](python/instrumentation/openinference-instrumentation-dspy/examples/)                    | DSPy primitives and custom RAG modules                                                       | Beginner         |
 | [Boto3 Bedrock Client](python/instrumentation/openinference-instrumentation-bedrock/examples/) | Boto3 Bedrock client                                                                         | Beginner         |
 | [LangChain](python/instrumentation/openinference-instrumentation-langchain/examples/)          | LangChain primitives and simple chains                                                       | Beginner         |
+| [LiteLLM](python/instrumentation/openinference-instrumentation-litellm/)            | A lightweight LiteLLM framework                                                 | Beginner     |
 | [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                   | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
 | [LangServe](python/examples/langserve/)                                                        | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
 | [DSPy](python/examples/dspy-rag-fastapi/)                                                      | A DSPy RAG application using FastAPI, Weaviate, and Cohere                                   | Intermediate     |
