@@ -1,4 +1,4 @@
-from .config import REDACTED_VALUE, TraceConfig, suppress_tracing
+from .config import REDACTED_VALUE, ConfigTracer, TraceConfig, suppress_tracing
 from .context_attributes import (
     get_attributes_from_context,
     using_attributes,
@@ -26,5 +26,6 @@ __all__ = [
     "safe_json_dumps",
     "suppress_tracing",
     "TraceConfig",
+    "ConfigTracer",
     "REDACTED_VALUE",
 ]
