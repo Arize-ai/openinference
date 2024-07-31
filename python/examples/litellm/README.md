@@ -54,6 +54,9 @@ curl -i http://localhost:4000/v1/chat/completions \
 }'
 ```
 
+## Additional Resources
+- [LiteLLM Arize AI docs](https://docs.litellm.ai/docs/observability/arize_integration)
+
 ## Expected output on Arize AI below:
 
 <img width="1283" alt="Xnapper-2024-07-23-17 07 34" src="https://github.com/user-attachments/assets/7460bc2b-7f4f-4ec4-b966-2bf33a26ded5">
