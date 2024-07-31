@@ -820,16 +820,11 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
                 hide_text=hide_output_text,
             )
 
-    output_value = attributes.pop(OUTPUT_VALUE, None)
-    assert output_value is not None
-    if hide_outputs:
-        output_value == REDACTED_VALUE
-    else:
-        assert isinstance(output_value, str)
-        assert (
-            OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
-            == OpenInferenceMimeTypeValues.JSON
-        )
+    assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
+        == OpenInferenceMimeTypeValues.JSON
+    )
     # Usage is not available for streaming in general.
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == completion_usage["prompt_tokens"]
@@ -866,6 +861,7 @@ def _check_llm_message(
                 else:
                     assert content_item_text == expected_content_item.get("text")
             elif content_item_type == "image":
+                print(attributes.keys())
                 content_item_image_url = attributes.pop(
                     message_contents_image_url(prefix, i, j), None
                 )

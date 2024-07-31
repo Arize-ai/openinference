@@ -13,7 +13,7 @@ from typing import (
     TypeVar,
 )
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, safe_json_dumps
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -37,13 +37,15 @@ logger.addHandler(logging.NullHandler())
 class _RequestAttributesExtractor:
     __slots__ = (
         "_openai",
+        "_config",
         "_chat_completion_type",
         "_completion_type",
         "_create_embedding_response_type",
     )
 
-    def __init__(self, openai: ModuleType) -> None:
+    def __init__(self, openai: ModuleType, config: TraceConfig) -> None:
         self._openai = openai
+        self._config = config
         self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
         self._completion_type: Type["Completion"] = openai.types.Completion
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
@@ -83,6 +85,9 @@ class _RequestAttributesExtractor:
         invocation_params.pop("tools", None)
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
+        if self._config.hide_inputs or self._config.hide_input_messages:
+            return
+
         if (input_messages := params.get("messages")) and isinstance(input_messages, Iterable):
             for index, input_message in list(enumerate(input_messages)):
                 for key, value in self._get_attributes_from_message_param(input_message):
@@ -104,17 +109,21 @@ class _RequestAttributesExtractor:
 
         if content := message.get("content"):
             if isinstance(content, str):
-                yield MessageAttributes.MESSAGE_CONTENT, content
+                value = REDACTED_VALUE if self._config.hide_input_text else content
+                yield MessageAttributes.MESSAGE_CONTENT, value
             elif is_iterable_of(content, dict):
                 for index, c in list(enumerate(content)):
-                    for key, value in self._get_attributes_from_message_content(c):
+                    for key, value in self._get_attributes_from_message_content(c):  # type:ignore
                         yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
             elif isinstance(content, List):
-                # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_user_message_param.py#L14  # noqa: E501
-                try:
-                    value = safe_json_dumps(content)
-                except Exception:
-                    logger.exception("Failed to serialize message content")
+                if self._config.hide_input_text:
+                    value = REDACTED_VALUE
+                else:
+                    # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_user_message_param.py#L14  # noqa: E501
+                    try:
+                        value = safe_json_dumps(content)
+                    except Exception:
+                        logger.exception("Failed to serialize message content")
                 yield MessageAttributes.MESSAGE_CONTENT, value
 
         if name := message.get("name"):
@@ -161,10 +170,11 @@ class _RequestAttributesExtractor:
         if type_ == "text":
             yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
             if text := content.pop("text"):
-                yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+                value = REDACTED_VALUE if self._config.hide_input_text else text
+                yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", value
         elif type_ == "image_url":
             yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
-            if image := content.pop("image_url"):
+            if (image := content.pop("image_url")) and not self._config.hide_input_images:
                 for key, value in self._get_attributes_from_image(image):
                     yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
 
@@ -174,7 +184,10 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         image = dict(image)
         if url := image.pop("url"):
-            yield f"{ImageAttributes.IMAGE_URL}", url
+            if is_base64_url(url) and len(url) > self._config.base64_image_max_length:  # type:ignore
+                yield f"{ImageAttributes.IMAGE_URL}", REDACTED_VALUE
+            else:
+                yield f"{ImageAttributes.IMAGE_URL}", url
 
 
 def _get_attributes_from_completion_create_param(
