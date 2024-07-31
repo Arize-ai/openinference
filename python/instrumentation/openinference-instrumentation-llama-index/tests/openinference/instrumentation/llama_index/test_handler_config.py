@@ -313,7 +313,6 @@ def test_chat_with_config_hiding_outputs(
             assert output_value == f"assistant: {answer}"
 
         # Output messages
-        print(f"{attributes=}")
         if not hide_outputs and not hide_output_messages:
             _check_llm_message(
                 LLM_OUTPUT_MESSAGES,
