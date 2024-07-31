@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.8...python-openinference-instrumentation-openai-v0.1.9) (2024-07-30)
+
+
+### Features
+
+* Add TraceConfig handling  ([#640](https://github.com/Arize-ai/openinference/issues/640)) ([008f956](https://github.com/Arize-ai/openinference/commit/008f956d867fc3effaa0b75019159a15f4709322))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.7...python-openinference-instrumentation-openai-v0.1.8) (2024-07-17)
 
 
