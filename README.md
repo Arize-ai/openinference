@@ -35,6 +35,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`openinference-instrumentation-mistralai`](./python/instrumentation/openinference-instrumentation-mistralai)     | OpenInference Instrumentation for MistralAI.   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-mistralai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-mistralai)     |
 | [`openinference-instrumentation-guardrails`](./python/instrumentation/openinference-instrumentation-guardrails)   | OpenInference Instrumentation for Guardrails.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-guardrails.svg)](https://pypi.python.org/pypi/openinference-instrumentation-guardrails)   |
 | [`openinference-instrumentation-vertexai`](./python/instrumentation/openinference-instrumentation-vertexai)       | OpenInference Instrumentation for VertexAI.    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-vertexai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-vertexai)       |
+| [`openinference-instrumentation-crewai`](./python/instrumentation/openinference-instrumentation-crewai)   | OpenInference Instrumentation for CrewAI.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-crewai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-crewai)   |
 
 ### Examples
 
