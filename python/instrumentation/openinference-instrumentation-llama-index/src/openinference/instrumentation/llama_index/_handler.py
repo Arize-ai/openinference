@@ -29,7 +29,6 @@ from typing import (
 )
 
 from openinference.instrumentation import (
-    TraceConfig,
     get_attributes_from_context,
     safe_json_dumps,
 )
@@ -173,7 +172,6 @@ class _Span(
     def __init__(
         self,
         otel_span: Span,
-        config: TraceConfig,
         span_kind: Optional[str] = None,
         parent: Optional["_Span"] = None,
         **kwargs: Any,
@@ -207,7 +205,6 @@ class _Span(
             description = f"{type(exception).__name__}: {exception}"
             status = Status(status_code=StatusCode.ERROR, description=description)
         self[OPENINFERENCE_SPAN_KIND] = self._span_kind or CHAIN
-        print(type(self._otel_span))
         self._otel_span.set_status(status=status)
         self._otel_span.set_attributes(self._attributes)
         self._otel_span.end(end_time=self.end_time)
@@ -702,7 +699,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _otel_tracer: Tracer = PrivateAttr()
     export_queue: _ExportQueue = PrivateAttr()
 
-    def __init__(self, tracer: Tracer, config: TraceConfig) -> None:
+    def __init__(self, tracer: Tracer) -> None:
         super().__init__()
         self._context_tokens: Dict[str, object] = {}
         self._otel_tracer = tracer
@@ -795,9 +792,9 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
 class EventHandler(BaseEventHandler, extra="allow"):
     span_handler: _SpanHandler = PrivateAttr()
 
-    def __init__(self, tracer: Tracer, config: TraceConfig) -> None:
+    def __init__(self, tracer: Tracer) -> None:
         super().__init__()
-        self.span_handler = _SpanHandler(tracer=tracer, config=config)
+        self.span_handler = _SpanHandler(tracer=tracer)
 
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):

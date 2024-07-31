@@ -221,15 +221,15 @@ class TraceConfig:
             return
         if (
             SpanAttributes.LLM_INPUT_MESSAGES in key
-            and MemoryError.MESSAGE_CONTENT in key
-            and MemoryError.MESSAGE_CONTENTS not in key
+            and MessageAttributes.MESSAGE_CONTENT in key
+            and MessageAttributes.MESSAGE_CONTENTS not in key
             and self.hide_input_text
         ):
             value = REDACTED_VALUE
         if (
             SpanAttributes.LLM_OUTPUT_MESSAGES in key
-            and MemoryError.MESSAGE_CONTENT in key
-            and MemoryError.MESSAGE_CONTENTS not in key
+            and MessageAttributes.MESSAGE_CONTENT in key
+            and MessageAttributes.MESSAGE_CONTENTS not in key
             and self.hide_output_text
         ):
             value = REDACTED_VALUE
@@ -265,7 +265,6 @@ class TraceConfig:
             and self.hide_embedding_vectors
         ):
             return
-
         return value
 
     def _parse_value(
