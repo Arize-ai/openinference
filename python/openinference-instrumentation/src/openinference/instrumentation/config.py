@@ -196,53 +196,53 @@ class TraceConfig:
     ) -> Optional[Union[AttributeValue, Callable[[], AttributeValue]]]:
         if key == SpanAttributes.INPUT_VALUE and self.hide_inputs:
             value = REDACTED_VALUE
-        if key == SpanAttributes.INPUT_MIME_TYPE and self.hide_inputs:
+        elif key == SpanAttributes.INPUT_MIME_TYPE and self.hide_inputs:
             return
-        if key == SpanAttributes.OUTPUT_VALUE and self.hide_outputs:
+        elif key == SpanAttributes.OUTPUT_VALUE and self.hide_outputs:
             value = REDACTED_VALUE
-        if key == SpanAttributes.OUTPUT_MIME_TYPE and self.hide_outputs:
+        elif key == SpanAttributes.OUTPUT_MIME_TYPE and self.hide_outputs:
             return
-        if SpanAttributes.LLM_INPUT_MESSAGES in key and (
+        elif SpanAttributes.LLM_INPUT_MESSAGES in key and (
             self.hide_inputs or self.hide_input_messages
         ):
             return
-        if SpanAttributes.LLM_OUTPUT_MESSAGES in key and (
+        elif SpanAttributes.LLM_OUTPUT_MESSAGES in key and (
             self.hide_outputs or self.hide_output_messages
         ):
             return
-        if (
+        elif (
             SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageAttributes.MESSAGE_CONTENT in key
             and MessageAttributes.MESSAGE_CONTENTS not in key
             and self.hide_input_text
         ):
             value = REDACTED_VALUE
-        if (
+        elif (
             SpanAttributes.LLM_OUTPUT_MESSAGES in key
             and MessageAttributes.MESSAGE_CONTENT in key
             and MessageAttributes.MESSAGE_CONTENTS not in key
             and self.hide_output_text
         ):
             value = REDACTED_VALUE
-        if (
+        elif (
             SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
             and self.hide_input_text
         ):
             value = REDACTED_VALUE
-        if (
+        elif (
             SpanAttributes.LLM_OUTPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
             and self.hide_output_text
         ):
             value = REDACTED_VALUE
-        if (
+        elif (
             SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
             and self.hide_input_images
         ):
             return
-        if (
+        elif (
             SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
             and key.endswith(ImageAttributes.IMAGE_URL)
@@ -250,7 +250,7 @@ class TraceConfig:
             and len(value) > self.base64_image_max_length  # type:ignore
         ):
             value = REDACTED_VALUE
-        if (
+        elif (
             SpanAttributes.EMBEDDING_EMBEDDINGS in key
             and EmbeddingAttributes.EMBEDDING_VECTOR in key
             and self.hide_embedding_vectors
@@ -304,7 +304,7 @@ class TraceConfig:
             return cast_to(value)
 
 
-class CensoredSpan(wrapt.ObjectProxy):  # type: ignore[misc]
+class _CensoredSpan(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(self, wrapped: trace_api.Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
@@ -332,10 +332,10 @@ class ConfigTracer(wrapt.ObjectProxy):  # type: ignore[misc]
     @contextmanager
     def start_as_current_span(self, *args, **kwargs) -> Iterator[trace_api.Span]:
         with self.__wrapped__.start_as_current_span(*args, **kwargs) as span:
-            yield CensoredSpan(span, self._self_config)
+            yield _CensoredSpan(span, self._self_config)
 
     def start_span(self, *args, **kwargs) -> trace_api.Span:
-        return CensoredSpan(
+        return _CensoredSpan(
             self.__wrapped__.start_span(*args, **kwargs),
             config=self._self_config,
         )
