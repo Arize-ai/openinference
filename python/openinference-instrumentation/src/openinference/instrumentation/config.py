@@ -1,41 +1,32 @@
+import os
+from contextlib import contextmanager
+from dataclasses import dataclass, field, fields
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    Optional,
+    Union,
+    get_args,
+)
+
+import wrapt
 from openinference.semconv.trace import (
-    DocumentAttributes,
     EmbeddingAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    RerankerAttributes,
     SpanAttributes,
-    ToolCallAttributes,
 )
-import wrapt
-import os
-from contextlib import contextmanager
 from opentelemetry import trace as trace_api
-from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
-from abc import ABC
-from dataclasses import dataclass, field, fields
-from typing import (
-    Any,
-    Union,
-    Callable,
-    Dict,
-    Iterable,
-    Iterator,
-    Tuple,
-    Optional,
-    get_args,
-)
-
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     attach,
     detach,
     set_value,
 )
+from opentelemetry.util.types import AttributeValue
 
 from .logging import logger
 

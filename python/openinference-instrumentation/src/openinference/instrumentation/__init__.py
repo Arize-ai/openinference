@@ -1,4 +1,4 @@
-from .config import REDACTED_VALUE, TraceConfig, ConfigTracer, suppress_tracing
+from .config import REDACTED_VALUE, ConfigTracer, TraceConfig, suppress_tracing
 from .context_attributes import (
     get_attributes_from_context,
     using_attributes,
