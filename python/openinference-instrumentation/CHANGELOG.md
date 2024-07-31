@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.9...python-openinference-instrumentation-v0.1.10) (2024-07-31)
+
+
+### Features
+
+* Config settings concentrated in common instrumentation package ([#673](https://github.com/Arize-ai/openinference/issues/673)) ([3e34897](https://github.com/Arize-ai/openinference/commit/3e348979e9db5a73ba7f8edac49e1c01816d89e7))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.8...python-openinference-instrumentation-v0.1.9) (2024-07-29)
 
 
