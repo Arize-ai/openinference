@@ -333,7 +333,7 @@ def test_uninstrument(tracer_provider):
     # Check that the functions are instrumented
     for func_name in func_names:
         instrumented_func = getattr(litellm, func_name)
-        assert instrumented_func.is_wrapper == True
+        assert instrumented_func.is_wrapper
 
     instrumentor.uninstrument()
 
@@ -347,4 +347,4 @@ def test_uninstrument(tracer_provider):
     # Check that the functions are re-instrumented
     for func_name in func_names:
         instrumented_func = getattr(litellm, func_name)
-        assert instrumented_func.is_wrapper == True
+        assert instrumented_func.is_wrapper

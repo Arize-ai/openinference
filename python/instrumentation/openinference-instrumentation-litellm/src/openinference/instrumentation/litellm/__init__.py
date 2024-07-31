@@ -182,7 +182,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             result = await self.original_litellm_funcs["aimage_generation"](*args, **kwargs)
             _finalize_span(span, result)
         return result
-    
+
     def _set_wrapper_attr(self, func_wrapper):
         func_wrapper.__func__.is_wrapper = True
 
