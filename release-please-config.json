@@ -46,6 +46,10 @@
         "python/instrumentation/openinference-instrumentation-crewai": {
             "package-name": "python-openinference-instrumentation-crewai",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-haystack": {
+            "package-name": "python-openinference-instrumentation-haystack",
+            "release-type": "python"
         }
     }
 }
