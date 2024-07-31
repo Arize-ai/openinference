@@ -2,11 +2,11 @@ import type * as llamaindex from 'llamaindex';
 
 import {
     TextNode
-  } from "llamaindex";
-  import {
+} from "llamaindex";
+import {
     safeExecuteInTheMiddle,
-  } from "@opentelemetry/instrumentation";
-  import {
+} from "@opentelemetry/instrumentation";
+import {
     Attributes,
     Span,
     SpanKind,
@@ -14,13 +14,13 @@ import {
     context,
     trace,
     Tracer
-  } from "@opentelemetry/api";
-  import { isTracingSuppressed } from "@opentelemetry/core";
-  import {
+} from "@opentelemetry/api";
+import { isTracingSuppressed } from "@opentelemetry/core";
+import {
     MimeType,
     OpenInferenceSpanKind,
     SemanticConventions,
-  } from "@arizeai/openinference-semantic-conventions";
+} from "@arizeai/openinference-semantic-conventions";
 
 /**
  * Resolves the execution context for the current span
