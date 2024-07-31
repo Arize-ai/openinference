@@ -342,4 +342,6 @@ class ConfigTracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
 
 def is_base64_url(url: str) -> bool:
+    if not isinstance(url, str):
+        return False
     return url.startswith("data:image/") and "base64" in url
