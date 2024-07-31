@@ -4,19 +4,32 @@ import {
   PROMPT_TEMPLATE_VERSION,
   SESSION_ID,
 } from "@arizeai/openinference-semantic-conventions";
-import { Attributes, Context, createContextKey } from "@opentelemetry/api";
+import {
+  Attributes,
+  Context,
+  createContextKey,
+  AttributeValue,
+} from "@opentelemetry/api";
 
-export const PROMPT_TEMPLATE_TEMPLATE_KEY = createContextKey(
-  `OpenInference SDK Context Key ${PROMPT_TEMPLATE_TEMPLATE}`,
-);
+const ContextAttributes = {
+  [PROMPT_TEMPLATE_TEMPLATE]: createContextKey(
+    `OpenInference SDK Context Key ${PROMPT_TEMPLATE_TEMPLATE}`,
+  ),
+  [PROMPT_TEMPLATE_VARIABLES]: createContextKey(
+    `OpenInference SDK Context Key ${PROMPT_TEMPLATE_VARIABLES}`,
+  ),
+  [PROMPT_TEMPLATE_VERSION]: createContextKey(
+    `OpenInference SDK Context Key ${PROMPT_TEMPLATE_VERSION}`,
+  ),
+  [SESSION_ID]: createContextKey(`OpenInference SDK Context Key ${SESSION_ID}`),
+} as const;
 
-export const PROMPT_TEMPLATE_VARIABLES_KEY = createContextKey(
-  `OpenInference SDK Context Key ${PROMPT_TEMPLATE_VARIABLES}`,
-);
-
-export const PROMPT_TEMPLATE_VERSION_KEY = createContextKey(
-  `OpenInference SDK Context Key ${PROMPT_TEMPLATE_VERSION}`,
-);
+const {
+  [PROMPT_TEMPLATE_TEMPLATE]: PROMPT_TEMPLATE_TEMPLATE_KEY,
+  [PROMPT_TEMPLATE_VARIABLES]: PROMPT_TEMPLATE_VARIABLES_KEY,
+  [PROMPT_TEMPLATE_VERSION]: PROMPT_TEMPLATE_VERSION_KEY,
+  [SESSION_ID]: SESSION_ID_KEY,
+} = ContextAttributes;
 
 export type PromptTemplateAttributes = {
   template: string;
@@ -72,10 +85,6 @@ export function getPromptTemplateAttributes(
   return attributes;
 }
 
-export const SESSION_ID_KEY = createContextKey(
-  `OpenInference SDK Context Key ${SESSION_ID}`,
-);
-
 export type SessionAttributes = {
   sessionId: string;
 };
@@ -102,4 +111,17 @@ export function getSessionId(context: Context): string | undefined {
   if (typeof maybeSessionId === "string") {
     return maybeSessionId;
   }
+}
+
+export function getAttributesFromContext(context: Context): Attributes {
+  const attributes: Attributes = {};
+  Object.entries(ContextAttributes).forEach(([key, symbol]) => {
+    const maybeValue = context.getValue(symbol);
+    if (maybeValue != null) {
+      // TODO add a type guard for attribute values
+      attributes[key] = maybeValue as AttributeValue;
+    }
+  });
+
+  return attributes;
 }
