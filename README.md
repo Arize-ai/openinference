@@ -25,7 +25,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 ### Libraries
 
 | Package                                                                                                           | Description                                    | Version                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------------------------------| ---------------------------------------------- |------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|-------------------------------------------------------------------------------------------------------------------|------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [`openinference-semantic-conventions`](./python/openinference-semantic-conventions)                               | Semantic conventions for tracing of LLM Apps.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)               |
 | [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai)           | OpenInference Instrumentation for OpenAI SDK.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai)           |
 | [`openinference-instrumentation-llama-index`](./python/instrumentation/openinference-instrumentation-llama-index) | OpenInference Instrumentation for LlamaIndex.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-llama-index.svg)](https://pypi.python.org/pypi/openinference-instrumentation-llama-index) |
@@ -35,11 +35,12 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`openinference-instrumentation-mistralai`](./python/instrumentation/openinference-instrumentation-mistralai)     | OpenInference Instrumentation for MistralAI.   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-mistralai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-mistralai)     |
 | [`openinference-instrumentation-guardrails`](./python/instrumentation/openinference-instrumentation-guardrails)   | OpenInference Instrumentation for Guardrails.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-guardrails.svg)](https://pypi.python.org/pypi/openinference-instrumentation-guardrails)   |
 | [`openinference-instrumentation-vertexai`](./python/instrumentation/openinference-instrumentation-vertexai)       | OpenInference Instrumentation for VertexAI.    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-vertexai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-vertexai)       |
+| [`openinference-instrumentation-haystack`](./python/instrumentation/openinference-instrumentation-haystack)       | OpenInference Instrumentation for Haystack.    | 0.0.1                                                                                                                                                                  |
 
 ### Examples
 
 | Name                                                                                           | Description                                                                                  | Complexity Level |
-|------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------| ---------------- |
+|------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------|
 | [OpenAI SDK](python/instrumentation/openinference-instrumentation-openai/examples/)            | OpenAI Python SDK, including chat completions and embeddings                                 | Beginner         |
 | [MistralAI SDK](python/instrumentation/openinference-instrumentation-mistralai/examples/)      | MistraAI Python SDK                                                                          | Beginner         |
 | [VertexAI SDK](python/instrumentation/openinference-instrumentation-vertexai/examples/)        | VertexAI Python SDK                                                                          | Beginner         |
@@ -50,6 +51,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                   | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
 | [LangServe](python/examples/langserve/)                                                        | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
 | [DSPy](python/examples/dspy-rag-fastapi/)                                                      | A DSPy RAG application using FastAPI, Weaviate, and Cohere                                   | Intermediate     |
+| [Haystack](python/instrumentation/openinference-instrumentation-haystack/examples/)            | A Haystack QA RAG application                                                                | Intermediate     |
 
 ## JavaScript
 
