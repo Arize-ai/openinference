@@ -1,4 +1,5 @@
 import json
+from functools import wraps
 from typing import Any, Callable, Collection, Dict, Optional
 
 from openinference.semconv.trace import (
@@ -118,6 +119,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             trace.set_tracer_provider(self.tracer_provider)
         self.tracer = trace.get_tracer(__name__)
 
+    @wraps(litellm.completion)
     def _completion_wrapper(self, *args: Any, **kwargs: Any):
         with self.tracer.start_as_current_span("completion") as span:
             _instrument_func_type_completion(span, kwargs)
@@ -125,6 +127,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             _finalize_span(span, result)
         return result
 
+    @wraps(litellm.acompletion)
     async def _acompletion_wrapper(self, *args: Any, **kwargs: Any):
         with self.tracer.start_as_current_span("acompletion") as span:
             _instrument_func_type_completion(span, kwargs)
@@ -132,6 +135,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             _finalize_span(span, result)
         return result
 
+    @wraps(litellm.completion_with_retries)
     def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any):
         with self.tracer.start_as_current_span("completion_with_retries") as span:
             _instrument_func_type_completion(span, kwargs)
@@ -139,6 +143,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             _finalize_span(span, result)
         return result
 
+    @wraps(litellm.acompletion_with_retries)
     async def _acompletion_with_retries_wrapper(self, *args: Any, **kwargs: Any):
         with self.tracer.start_as_current_span("acompletion_with_retries") as span:
             _instrument_func_type_completion(span, kwargs)
@@ -146,6 +151,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             _finalize_span(span, result)
         return result
 
+    @wraps(litellm.embedding)
     def _embedding_wrapper(self, *args: Any, **kwargs: Any):
         with self.tracer.start_as_current_span("embedding") as span:
             _instrument_func_type_embedding(span, kwargs)
@@ -153,6 +159,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             _finalize_span(span, result)
         return result
 
+    @wraps(litellm.aembedding)
     async def _aembedding_wrapper(self, *args: Any, **kwargs: Any):
         with self.tracer.start_as_current_span("aembedding") as span:
             _instrument_func_type_embedding(span, kwargs)
@@ -160,6 +167,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             _finalize_span(span, result)
         return result
 
+    @wraps(litellm.image_generation)
     def _image_generation_wrapper(self, *args: Any, **kwargs: Any):
         with self.tracer.start_as_current_span("image_generation") as span:
             _instrument_func_type_image_generation(span, kwargs)
@@ -167,12 +175,16 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             _finalize_span(span, result)
         return result
 
+    @wraps(litellm.aimage_generation)
     async def _aimage_generation_wrapper(self, *args: Any, **kwargs: Any):
         with self.tracer.start_as_current_span("aimage_generation") as span:
             _instrument_func_type_image_generation(span, kwargs)
             result = await self.original_litellm_funcs["aimage_generation"](*args, **kwargs)
             _finalize_span(span, result)
         return result
+    
+    def _set_wrapper_attr(self, func_wrapper):
+        func_wrapper.__func__.is_wrapper = True
 
     def _instrument(self, tracer_provider: Optional[TracerProvider] = None) -> None:
         if tracer_provider:
@@ -201,6 +213,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
                 setattr(
                     litellm, func_name, func_wrapper
                 )  # Monkey patch each function with their respective wrapper
+                self._set_wrapper_attr(func_wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         for func_name, original_func in LiteLLMInstrumentor.original_litellm_funcs.items():
