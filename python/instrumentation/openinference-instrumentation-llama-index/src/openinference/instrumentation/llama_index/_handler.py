@@ -192,6 +192,68 @@ class _Span(
         self.last_updated_at = time()
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
+        if key == INPUT_VALUE and self._config.hide_inputs:
+            value = REDACTED_VALUE
+        if key == INPUT_MIME_TYPE and self._config.hide_inputs:
+            return
+        if key == OUTPUT_VALUE and self._config.hide_outputs:
+            value = REDACTED_VALUE
+        if key == OUTPUT_MIME_TYPE and self._config.hide_outputs:
+            return
+        if LLM_INPUT_MESSAGES in key and (
+            self._config.hide_inputs or self._config.hide_input_messages
+        ):
+            return
+        if LLM_OUTPUT_MESSAGES in key and (
+            self._config.hide_outputs or self._config.hide_output_messages
+        ):
+            return
+        if (
+            LLM_INPUT_MESSAGES in key
+            and MESSAGE_CONTENT in key
+            and MESSAGE_CONTENTS not in key
+            and self._config.hide_input_text
+        ):
+            value = REDACTED_VALUE
+        if (
+            LLM_OUTPUT_MESSAGES in key
+            and MESSAGE_CONTENT in key
+            and MESSAGE_CONTENTS not in key
+            and self._config.hide_output_text
+        ):
+            value = REDACTED_VALUE
+        if (
+            LLM_INPUT_MESSAGES in key
+            and MESSAGE_CONTENT_TEXT in key
+            and self._config.hide_input_text
+        ):
+            value = REDACTED_VALUE
+        if (
+            LLM_OUTPUT_MESSAGES in key
+            and MESSAGE_CONTENT_TEXT in key
+            and self._config.hide_output_text
+        ):
+            value = REDACTED_VALUE
+        if (
+            LLM_INPUT_MESSAGES in key
+            and MESSAGE_CONTENT_IMAGE in key
+            and self._config.hide_input_images
+        ):
+            return
+        if (
+            LLM_INPUT_MESSAGES in key
+            and MESSAGE_CONTENT_IMAGE in key
+            and key.endswith(ImageAttributes.IMAGE_URL)
+            and is_base64_url(value)  # type:ignore
+            and len(value) > self._config.base64_image_max_length  # type:ignore
+        ):
+            value = REDACTED_VALUE
+        if (
+            EMBEDDING_EMBEDDINGS in key
+            and EMBEDDING_VECTOR in key
+            and self._config.hide_embedding_vectors
+        ):
+            return
         self._attributes[key] = value
 
     def record_exception(self, exception: BaseException) -> None:
@@ -227,15 +289,12 @@ class _Span(
         return set_span_in_context(self._otel_span)
 
     def process_input(self, instance: Any, bound_args: inspect.BoundArguments) -> None:
-        if self._config.hide_inputs:
-            self[INPUT_VALUE] = REDACTED_VALUE
-        else:
-            try:
-                self[INPUT_VALUE] = safe_json_dumps(bound_args.arguments, cls=_Encoder)
-                self[INPUT_MIME_TYPE] = JSON
-            except BaseException as e:
-                logger.exception(str(e))
-                pass
+        try:
+            self[INPUT_VALUE] = safe_json_dumps(bound_args.arguments, cls=_Encoder)
+            self[INPUT_MIME_TYPE] = JSON
+        except BaseException as e:
+            logger.exception(str(e))
+            pass
 
     def process_output(self, instance: Any, result: Any) -> None:
         if OUTPUT_VALUE in self._attributes:
@@ -243,9 +302,6 @@ class _Span(
             # need to continue
             return
         if result is None:
-            return
-        if self._config.hide_outputs:
-            self[OUTPUT_VALUE] = REDACTED_VALUE
             return
         if repr_str := _show_repr_str(result):
             self[OUTPUT_VALUE] = repr_str
@@ -338,19 +394,19 @@ class _Span(
     def _(self, event: AgentChatWithStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
-        self[INPUT_VALUE] = REDACTED_VALUE if self._config.hide_inputs else event.user_msg
+        self[INPUT_VALUE] = event.user_msg
         self._attributes.pop(INPUT_MIME_TYPE, None)
 
     @_process_event.register
     def _(self, event: AgentChatWithStepEndEvent) -> None:
-        self[OUTPUT_VALUE] = REDACTED_VALUE if self._config.hide_outputs else str(event.response)
+        self[OUTPUT_VALUE] = str(event.response)
 
     @_process_event.register
     def _(self, event: AgentRunStepStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = AGENT
         if input := event.input:
-            self[INPUT_VALUE] = REDACTED_VALUE if self._config.hide_inputs else input
+            self[INPUT_VALUE] = input
             self._attributes.pop(INPUT_MIME_TYPE, None)
 
     @_process_event.register
@@ -376,8 +432,7 @@ class _Span(
     def _(self, event: EmbeddingEndEvent) -> None:
         for i, (text, vector) in enumerate(zip(event.chunks, event.embeddings)):
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
-            if not self._config.hide_embedding_vectors:
-                self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
 
     @_process_event.register
     def _(self, event: StreamChatStartEvent) -> None:
@@ -415,7 +470,7 @@ class _Span(
 
     @_process_event.register
     def _(self, event: LLMPredictEndEvent) -> None:
-        self[OUTPUT_VALUE] = REDACTED_VALUE if self._config.hide_outputs else event.output
+        self[OUTPUT_VALUE] = event.output
 
     @_process_event.register
     def _(self, event: LLMStructuredPredictStartEvent) -> None:
@@ -424,11 +479,8 @@ class _Span(
 
     @_process_event.register
     def _(self, event: LLMStructuredPredictEndEvent) -> None:
-        if self._config.hide_outputs:
-            self[OUTPUT_VALUE] = REDACTED_VALUE
-        else:
-            self[OUTPUT_VALUE] = event.output.json(exclude_unset=True)
-            self[OUTPUT_MIME_TYPE] = JSON
+        self[OUTPUT_VALUE] = event.output.json(exclude_unset=True)
+        self[OUTPUT_MIME_TYPE] = JSON
 
     @_process_event.register
     def _(self, event: LLMCompletionStartEvent) -> None:
@@ -441,20 +493,16 @@ class _Span(
 
     @_process_event.register
     def _(self, event: LLMCompletionEndEvent) -> None:
-        self[OUTPUT_VALUE] = REDACTED_VALUE if self._config.hide_outputs else event.response.text
+        self[OUTPUT_VALUE] = event.response.text
         self._extract_token_counts(event.response)
 
     @_process_event.register
     def _(self, event: LLMChatStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
-        if self._config.hide_inputs or self._config.hide_input_messages:
-            return
         self._process_messages(
             LLM_INPUT_MESSAGES,
             *event.messages,
-            hide_text=self._config.hide_input_text,  # type:ignore
-            hide_images=self._config.hide_input_images,  # type:ignore
         )
 
     @_process_event.register
@@ -464,14 +512,11 @@ class _Span(
     def _(self, event: LLMChatEndEvent) -> None:
         if (response := event.response) is None:
             return
-        self[OUTPUT_VALUE] = REDACTED_VALUE if self._config.hide_outputs else str(response)
+        self[OUTPUT_VALUE] = str(response)
         self._extract_token_counts(response)
-        if self._config.hide_outputs or self._config.hide_output_messages:
-            return
         self._process_messages(
             LLM_OUTPUT_MESSAGES,
             response.message,
-            hide_text=self._config.hide_output_text,  # type:ignore
         )
 
     @_process_event.register
@@ -531,7 +576,7 @@ class _Span(
     def _(self, event: GetResponseStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = CHAIN
-        self[INPUT_VALUE] = REDACTED_VALUE if self._config.hide_inputs else event.query_str
+        self[INPUT_VALUE] = event.query_str
         self._attributes.pop(INPUT_MIME_TYPE, None)
 
     @_process_event.register
@@ -572,20 +617,16 @@ class _Span(
         self,
         prefix: str,
         *messages: ChatMessage,
-        hide_text: bool = False,
-        hide_images: bool = False,
     ) -> None:
         for i, message in enumerate(messages):
             self[f"{prefix}.{i}.{MESSAGE_ROLE}"] = message.role.value
             if content := message.content:
                 if isinstance(content, str):
-                    self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = (
-                        REDACTED_VALUE if hide_text else str(content)
-                    )
+                    self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = str(content)
                 elif is_iterable_of(content, dict):
                     for j, c in list(enumerate(content)):
                         for key, value in self._get_attributes_from_message_content(
-                            c, hide_text=hide_text, hide_image=hide_images
+                            c,
                         ):
                             self[f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{key}"] = value
             additional_kwargs = message.additional_kwargs
@@ -598,9 +639,6 @@ class _Span(
 
     def _process_query_type(self, query: Optional[QueryType]) -> None:
         if query is None:
-            return
-        if self._config.hide_inputs:
-            self[INPUT_VALUE] = REDACTED_VALUE
             return
         if isinstance(query, str):
             self[INPUT_VALUE] = query
@@ -630,9 +668,6 @@ class _Span(
     def _process_response_text_type(self, response: Optional[RESPONSE_TEXT_TYPE]) -> None:
         if response is None:
             return
-        if self._config.hide_outputs:
-            self[OUTPUT_VALUE] = REDACTED_VALUE
-            return
         if isinstance(response, str):
             self[OUTPUT_VALUE] = response
         elif isinstance(response, BaseModel):
@@ -646,21 +681,16 @@ class _Span(
     def _get_attributes_from_message_content(
         self,
         content: Mapping[str, Any],
-        hide_text: bool,
-        hide_image: bool,
     ) -> Iterator[Tuple[str, AttributeValue]]:
         content = dict(content)
         type_ = content.get("type")
         if type_ == "text":
             yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
             if text := content.pop("text"):
-                yield (
-                    f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
-                    (REDACTED_VALUE if hide_text else text),
-                )
+                yield (f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text)
         elif type_ == "image_url":
             yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
-            if (image := content.pop("image_url")) and not hide_image:
+            if image := content.pop("image_url"):
                 for key, value in self._get_attributes_from_image(image):
                     yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
 
@@ -669,10 +699,7 @@ class _Span(
         image: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if url := image.get("url"):
-            if is_base64_url(url) and len(url) > self._config.base64_image_max_length:  # type:ignore
-                yield f"{ImageAttributes.IMAGE_URL}", REDACTED_VALUE
-            else:
-                yield f"{ImageAttributes.IMAGE_URL}", url
+            yield f"{ImageAttributes.IMAGE_URL}", url
 
 
 END_OF_QUEUE = None
