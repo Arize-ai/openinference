@@ -22,7 +22,7 @@ pip install openinference-instrumentation-litellm
 
 ## Quickstart
 
-In a notebook environment (`jupyter`, `colab`, etc.) install `openinference-instrumentation-litellm` and `arize-phoenix`.
+In a notebook environment (`jupyter`, `colab`, etc.) install `openinference-instrumentation-litellm` if you haven't already as well as `arize-phoenix` and `litellm`.
 
 
 ```shell
@@ -36,22 +36,26 @@ import litellm
 import phoenix as px
 
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
-from opentelemetry import trace as trace_api
+
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 ```
 
 Next, we'll start a `phoenix` server and set it as a collector.
 
 ```python
-px.launch_app()
-session_url = px.active_session().url
-phoenix_otlp_endpoint = urljoin(session_url, "v1/traces")
-phoenix_exporter = OTLPSpanExporter(endpoint=phoenix_otlp_endpoint)
-tracer_provider = trace_sdk.TracerProvider()
-tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=phoenix_exporter))
-trace_api.set_tracer_provider(tracer_provider=tracer_provider)
+session = px.launch_app()
+endpoint = "http://127.0.0.1:6006/v1/traces"
+tracer_provider = TracerProvider()
+tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
+```
+
+Set up any API keys needed in you API calls. For example:
+
+```python
+import os
+os.environ["OPENAI_API_KEY"] = "PASTE_YOUR_API_KEY_HERE"
 ```
 
 Instrumenting `litellm` is simple:
@@ -61,12 +65,6 @@ LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 ```
 
 Now, all calls to `litellm` functions are instrumented and can be viewed in the `phoenix` UI.
-
-```python
-completion_response = litellm.completion(model="gpt-3.5-turbo", 
-                   messages=[{"content": "What's the capital of China?", "role": "user"}])
-print(completion_response)
-```
 
 ```python
 completion_response = litellm.completion(model="gpt-3.5-turbo", 
@@ -95,6 +93,12 @@ print(embedding_response)
 image_gen_response = litellm.image_generation(model='dall-e-2', prompt="cute baby otter")
 print(image_gen_response)
 ```
+
+You can also uninstrument the functions as follows
+```python
+LiteLLMInstrumentor().uninstrument(tracer_provider=tracer_provider)
+```
+Now any liteLLM function calls you make will not send traces to Phoenix until instrumented again
 
 ## More Info
 
