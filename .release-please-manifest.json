@@ -8,7 +8,7 @@
     "python/instrumentation/openinference-instrumentation-mistralai": "0.0.8",
     "python/openinference-instrumentation": "0.1.12",
     "python/instrumentation/openinference-instrumentation-guardrails": "0.1.0",
-    "python/instrumentation/openinference-instrumentation-vertexai": "0.1.1",
+    "python/instrumentation/openinference-instrumentation-vertexai": "0.1.2",
     "python/instrumentation/openinference-instrumentation-crewai": "0.1.0",
     "python/instrumentation/openinference-instrumentation-haystack": "0.1.0",
     "python/instrumentation/openinference-instrumentation-litellm": "0.1.0"
