@@ -2,7 +2,9 @@ import asyncio
 from typing import (
     Any,
     Generator,
+    Optional,
     Type,
+    Union,
     cast,
 )
 
@@ -56,12 +58,12 @@ def _mock_post(
     path: str = "fake/url",
     *,
     cast_to: Type[ResponseT],
-    body: Body | None = None,
+    body: Optional[Body] = None,
     options: RequestOptions = {},
-    files: RequestFiles | None = None,
+    files: Optional[RequestFiles] = None,
     stream: bool = False,
-    stream_cls: type[_StreamT] | None = None,
-) -> ResponseT | _StreamT:
+    stream_cls: Optional[type[_StreamT]] = None,
+) -> Union[ResponseT, _StreamT]:
     """
     opts = FinalRequestOptions.construct(
         method="post", url=path, json_data=body, files=to_httpx_files(files), **options
@@ -76,12 +78,12 @@ async def _async_mock_post(
     path: str = "fake/url",
     *,
     cast_to: Type[ResponseT],
-    body: Body | None = None,
+    body: Optional[Body] = None,
     options: RequestOptions = {},
-    files: RequestFiles | None = None,
+    files: Optional[RequestFiles] = None,
     stream: bool = False,
-    stream_cls: type[_StreamT] | None = None,
-) -> ResponseT | _StreamT:
+    stream_cls: Optional[type[_StreamT]] = None,  # type:ignore[type-arg]
+) -> Union[ResponseT, _StreamT]:
     """
     opts = FinalRequestOptions.construct(
         method="post", url=path, json_data=body, files=to_httpx_files(files), **options
