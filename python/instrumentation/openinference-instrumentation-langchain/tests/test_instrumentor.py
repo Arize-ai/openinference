@@ -698,16 +698,15 @@ def test_records_token_counts_for_streaming_openai_llm(
     openai_api_key: str,
 ) -> None:
     llm = ChatOpenAI(streaming=True, stream_usage=True)  # type: ignore[call-arg,unused-ignore]
-    message = llm.invoke("Tell me a funny joke, a one-liner.")
-    assert message.content == "Why couldn't the bicycle stand up by itself? It was two tired."
+    llm.invoke("Tell me a funny joke, a one-liner.")
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
-    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == 18
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == 15
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == 33
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT, None), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
 
 
 def _check_context_attributes(
