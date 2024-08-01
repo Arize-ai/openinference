@@ -1,9 +1,7 @@
 import asyncio
 import base64
 import json
-from openinference.instrumentation.vertexai import VertexAIInstrumentor
 from contextlib import ExitStack, contextmanager, suppress
-from opentelemetry import trace as trace_api
 from typing import (
     Any,
     AsyncIterator,
@@ -40,7 +38,8 @@ from google.cloud.aiplatform_v1.services.prediction_service.transports import (
     PredictionServiceGrpcAsyncIOTransport,
     PredictionServiceGrpcTransport,
 )
-from openinference.instrumentation import using_attributes, TraceConfig, REDACTED_VALUE
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
+from openinference.instrumentation.vertexai import VertexAIInstrumentor
 from openinference.instrumentation.vertexai._wrapper import _role
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -52,6 +51,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan, Tracer
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
@@ -221,7 +221,7 @@ async def test_instrumentor_config_hiding_inputs(
     assert json.loads(metadata_json_str) == metadata
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
-    assert (invocation_parameters := cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+    assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == usage_metadata.prompt_token_count
@@ -344,7 +344,7 @@ async def test_instrumentor_config_hiding_outputs(
     assert json.loads(metadata_json_str) == metadata
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
-    assert (invocation_parameters := cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+    assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == usage_metadata.prompt_token_count

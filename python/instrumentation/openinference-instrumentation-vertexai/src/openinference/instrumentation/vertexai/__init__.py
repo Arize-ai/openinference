@@ -1,5 +1,6 @@
 import logging
 from typing import Any, Collection
+
 from openinference.instrumentation import ConfigTracer, TraceConfig
 from openinference.instrumentation.vertexai import _instrumentation_status
 from openinference.instrumentation.vertexai.package import _instruments
