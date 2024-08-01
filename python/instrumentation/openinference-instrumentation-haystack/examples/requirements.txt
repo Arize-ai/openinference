@@ -1,5 +1,5 @@
 datasets
-haystack
+haystack-ai
 openinference-instrumentation-haystack
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
