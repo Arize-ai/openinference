@@ -57,6 +57,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       return moduleExports;
     }
 
+    // TODO: Support streaming
     this._wrap(
       moduleExports.RetrieverQueryEngine.prototype,
       "query",

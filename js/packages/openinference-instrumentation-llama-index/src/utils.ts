@@ -10,6 +10,7 @@ import {
   context,
   trace,
   Tracer,
+  diag,
 } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
 import {
@@ -17,6 +18,25 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+import { GenericFunction, SafeFunction } from "./types";
+
+/**
+ * Wraps a function with a try-catch block to catch and log any errors.
+ * @param fn - A function to wrap with a try-catch block.
+ * @returns A function that returns null if an error is thrown.
+ */
+export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
+  return (...args) => {
+    try {
+      return fn(...args);
+    } catch (error) {
+      diag.error(`Failed to get attributes for span: ${error}`);
+      return null;
+    }
+  };
+}
+
+const safelyJSONStringify = withSafety(JSON.stringify);
 
 /**
  * Resolves the execution context for the current span
@@ -133,7 +153,7 @@ export function patchRetrieveMethod(
     );
 
     const wrappedPromise = execPromise.then((result) => {
-      span.setAttributes(formatRetrievalDocuments(result));
+      span.setAttributes(documentAttributes(result));
       span.end();
       return result;
     });
@@ -141,7 +161,7 @@ export function patchRetrieveMethod(
   };
 }
 
-function formatRetrievalDocuments(
+function documentAttributes(
   output: llamaindex.NodeWithScore<llamaindex.Metadata>[],
 ) {
   const docs: Attributes = {};
@@ -158,7 +178,7 @@ function formatRetrievalDocuments(
       docs[`${prefix}.${SemanticConventions.DOCUMENT_SCORE}`] = score;
       docs[`${prefix}.${SemanticConventions.DOCUMENT_CONTENT}`] = nodeText;
       docs[`${prefix}.${SemanticConventions.DOCUMENT_METADATA}`] =
-        JSON.stringify(nodeMetadata) ?? undefined;
+        safelyJSONStringify(nodeMetadata) ?? undefined;
     }
   });
   return docs;
