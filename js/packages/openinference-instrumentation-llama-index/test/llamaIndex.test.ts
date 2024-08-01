@@ -10,7 +10,6 @@ import {
   OpenInferenceSpanKind,
   RETRIEVAL_DOCUMENTS,
 } from "@arizeai/openinference-semantic-conventions";
-import { NodeWithScore, TextNode } from "llamaindex";
 
 const { Document, VectorStoreIndex } = llamaindex;
 
