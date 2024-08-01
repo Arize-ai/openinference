@@ -78,7 +78,7 @@ module = [
 ]
 
 [tool.ruff]
-line-length = 100
+line-length = 140
 target-version = "py38"
 
 [tool.ruff.lint.per-file-ignores]
