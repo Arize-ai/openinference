@@ -1,7 +1,5 @@
 import logging
-from importlib import import_module
 from typing import Any, Collection
-import haystack
 
 from openinference.instrumentation.haystack._wrappers import _ComponentWrapper, _PipelineWrapper
 from openinference.instrumentation.haystack.version import __version__
@@ -11,6 +9,8 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 )
 from opentelemetry.trace import get_tracer
 from wrapt import wrap_function_wrapper
+
+import haystack
 
 logger = logging.getLogger(__name__)
 
