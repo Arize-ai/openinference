@@ -1,11 +1,12 @@
-langchain
-langchain-experimental
-langchain_community
-langchain_openai
-langgraph
-openinference-instrumentation-langchain
-opentelemetry-api >= 1.25.0
-opentelemetry-exporter-otlp >= 1.25.0
-opentelemetry-proto >= 1.25.0
-opentelemetry-sdk >= 1.25.0
-opentelemetry-semantic-conventions >= 0.46b0
+langchain >=0.2.11
+langchain-experimental >=0.0.63
+langchain_community >=0.2.10
+langchain-openai >=0.1.19
+langchain-google-vertexai >=1.0.7
+langgraph >=0.1.16
+openinference-instrumentation-langchain >=0.1.24
+opentelemetry-api >=1.25.0
+opentelemetry-exporter-otlp >=1.25.0
+opentelemetry-proto >=1.25.0
+opentelemetry-sdk >=1.25.0
+opentelemetry-semantic-conventions >=0.46b0

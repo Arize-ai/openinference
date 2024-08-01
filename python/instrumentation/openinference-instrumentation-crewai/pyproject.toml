@@ -3,12 +3,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-openai"
+name = "openinference-instrumentation-crewai"
 dynamic = ["version"]
-description = "OpenInference OpenAI Instrumentation"
+description = "OpenInference Crewai Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8, <3.13"
+requires-python = ">=3.10, <3.13"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,8 +18,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -28,41 +26,36 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.9",
-  "openinference-semantic-conventions>=0.1.7",
-  "typing-extensions",
+  "openinference-instrumentation>=0.1.7",
+  "openinference-semantic-conventions",
   "wrapt",
+  "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "openai >= 1.0.0",
+  "crewai >= 0.41.1",
 ]
 test = [
-  "openai == 1.0.0",
+  "crewai == 0.36.0",
+  "crewai-tools == 0.4.26",
   "opentelemetry-sdk",
-  "opentelemetry-instrumentation-httpx",
-  "respx",
-  "numpy",
+  "responses",
 ]
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openai"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-crewai"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/openai/version.py"
+path = "src/openinference/instrumentation/crewai/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
 
 [tool.mypy]
 strict = true
@@ -76,12 +69,13 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "crewai",
   "wrapt",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
