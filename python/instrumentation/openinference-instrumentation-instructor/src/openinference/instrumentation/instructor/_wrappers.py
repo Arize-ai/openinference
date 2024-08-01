@@ -1,7 +1,8 @@
 import json
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
+from pydantic import BaseModel
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
@@ -40,6 +41,31 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
+
+
+def pydantic_to_dict(model: BaseModel) -> Dict[str, Any]:
+    """
+    Transform a Pydantic model into a dictionary, including its class name.
+    This function uses model.dict() and does not handle nested Pydantic models.
+
+    Args:
+        model (BaseModel): The Pydantic model to transform.
+
+    Returns:
+        Dict[str, Any]: A dictionary representation of the model, including its class name.
+
+    Example:
+        class User(BaseModel):
+            name: str
+            age: int
+
+        user = User(name="John Doe", age=30)
+        result = simple_pydantic_to_dict(user)
+    """
+    return {
+        "__class__": model.__class__.__name__,
+        **model.dict()
+    }
 
 
 def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
@@ -111,13 +137,24 @@ class _HandleResponseWrapper:
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
+                response_model = response[0]
+                span.set_attribute(
+                    "response_model_name",
+                    response_model.__name__
+                    if response_model is not None and hasattr(response_model, "__name__")
+                    else "Unknown"
+                )
+                if response_model is not None and hasattr(response_model, "model_json_schema"):
+                    span.set_attribute(
+                        "response_model_json",
+                        json.dumps(response_model.model_json_schema())
+                    )
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            print("HARRISON RESPONSE {}".format(response))
-            span.set_attribute(OUTPUT_VALUE, response[1])
+            span.set_attribute(OUTPUT_VALUE, response)
         return response
 
 
