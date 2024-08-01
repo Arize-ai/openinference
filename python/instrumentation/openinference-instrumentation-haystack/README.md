@@ -17,7 +17,7 @@ This quickstart shows you how to instrument your Haystack-orchestrated LLM appli
 Through your *terminal*, install required packages.
 
 ```shell
-pip install openinference-instrumentation-haystack haystack arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install openinference-instrumentation-haystack haystack-ai arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 You can install Phoenix and start it with the following terminal commands:
