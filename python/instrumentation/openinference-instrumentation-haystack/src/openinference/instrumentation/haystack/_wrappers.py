@@ -81,12 +81,13 @@ class _ComponentWrapper(_WithTracer):
                             SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
                             SpanAttributes.INPUT_VALUE: safe_json_dumps(input_data),
                             SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
-                                "prompt_builder"
-                            ]["instance"]._template_string,
                         }
                     )
                 )
+                if "prompt_builder" in str(instance):
+                    attributes[SpanAttributes.LLM_PROMPT_TEMPLATE] = instance.graph.nodes._nodes["prompt_builder"][
+                        "instance"
+                    ]._template_string
             elif component_type == "text_embedder":
                 attributes = dict(
                     _flatten(
@@ -119,17 +120,14 @@ class _ComponentWrapper(_WithTracer):
                     _flatten(
                         {
                             SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
-                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
-                                "prompt_builder"
-                            ]["instance"]._template_string,
+                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes["prompt_builder"]["instance"]._template_string,
                             SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
                             SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            SpanAttributes.RETRIEVAL_DOCUMENTS: safe_json_dumps(
-                                invocation_parameters["documents"]
-                            ),
                         }
                     )
                 )
+                if "documents" in invocation_parameters:
+                    attributes[SpanAttributes.RETRIEVAL_DOCUMENTS] = safe_json_dumps(invocation_parameters["documents"])
 
             try:
                 response = wrapped(*args, **kwargs)
@@ -144,15 +142,9 @@ class _ComponentWrapper(_WithTracer):
                     _flatten(
                         {
                             SpanAttributes.LLM_MODEL_NAME: response["meta"][0]["model"],
-                            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response["meta"][0]["usage"][
-                                "completion_tokens"
-                            ],
-                            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response["meta"][0]["usage"][
-                                "prompt_tokens"
-                            ],
-                            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response["meta"][0]["usage"][
-                                "total_tokens"
-                            ],
+                            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response["meta"][0]["usage"]["completion_tokens"],
+                            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response["meta"][0]["usage"]["prompt_tokens"],
+                            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response["meta"][0]["usage"]["total_tokens"],
                             SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"],
                         }
                     )
@@ -180,18 +172,12 @@ class _ComponentWrapper(_WithTracer):
                 )
 
                 for i, document in enumerate(response["documents"]):
-                    attributes[
-                        f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_CONTENT}"
-                    ] = document.content
-                    attributes[
-                        f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_ID}"
-                    ] = document.id
-                    attributes[
-                        f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_SCORE}"
-                    ] = document.score
-                    attributes[
-                        f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_METADATA}"
-                    ] = safe_json_dumps(document.meta)
+                    attributes[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_CONTENT}"] = document.content
+                    attributes[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_ID}"] = document.id
+                    attributes[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_SCORE}"] = document.score
+                    attributes[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}.{DocumentAttributes.DOCUMENT_METADATA}"] = safe_json_dumps(
+                        document.meta
+                    )
 
             span.set_attributes(attributes)
 
