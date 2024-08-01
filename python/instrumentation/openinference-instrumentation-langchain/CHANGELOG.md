@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.25...python-openinference-instrumentation-langchain-v0.1.26) (2024-08-01)
+
+
+### Bug Fixes
+
+* Rename base tracer and masked span ([#693](https://github.com/Arize-ai/openinference/issues/693)) ([861ea4b](https://github.com/Arize-ai/openinference/commit/861ea4ba45cf02a1d0519a7cd2c5c6ca5d74115b))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.24...python-openinference-instrumentation-langchain-v0.1.25) (2024-08-01)
 
 

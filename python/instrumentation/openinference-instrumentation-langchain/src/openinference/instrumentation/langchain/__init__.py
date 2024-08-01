@@ -2,7 +2,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Callable, Collection, Optional
 from uuid import UUID
 
-from openinference.instrumentation import ConfigTracer, TraceConfig
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.langchain.package import _instruments
 from openinference.instrumentation.langchain.version import __version__
 from opentelemetry import trace as trace_api
@@ -39,7 +39,7 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         import langchain_core
         from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 
-        tracer = ConfigTracer(
+        tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )

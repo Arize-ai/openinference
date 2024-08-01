@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Collection
 
-from openinference.instrumentation import ConfigTracer, TraceConfig
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.vertexai import _instrumentation_status
 from openinference.instrumentation.vertexai.package import _instruments
 from openinference.instrumentation.vertexai.version import __version__
@@ -30,7 +30,7 @@ class VertexAIInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        tracer = ConfigTracer(
+        tracer = OITracer(
             get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
