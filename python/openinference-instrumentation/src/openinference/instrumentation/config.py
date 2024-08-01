@@ -189,7 +189,7 @@ class TraceConfig:
                 f.metadata["default_value"],
             )
 
-    def censor(
+    def mask(
         self,
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
@@ -318,7 +318,7 @@ class _MaskedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> None:
-        value = self._self_config.censor(key, value)
+        value = self._self_config.mask(key, value)
         if value is not None:
             span = self.__wrapped__
             span.set_attribute(key, value)
