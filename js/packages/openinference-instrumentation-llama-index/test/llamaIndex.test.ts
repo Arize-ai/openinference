@@ -5,6 +5,11 @@ import {
 import { LlamaIndexInstrumentation, isPatched } from "../src/index";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import * as llamaindex from "llamaindex";
+import {
+  SemanticConventions,
+  OpenInferenceSpanKind,
+  RETRIEVAL_DOCUMENTS,
+} from "@arizeai/openinference-semantic-conventions";
 
 const { Document, VectorStoreIndex } = llamaindex;
 
@@ -69,7 +74,7 @@ describe("LlamaIndexInstrumentation", () => {
     openAITextEmbedSpy = jest
       .spyOn(llamaindex.OpenAIEmbedding.prototype, "getTextEmbeddings")
       .mockImplementation(() => {
-        return Promise.resolve([fakeEmbedding]);
+        return Promise.resolve([fakeEmbedding, fakeEmbedding, fakeEmbedding]);
       });
 
     openAIQueryEmbedSpy = jest
@@ -112,7 +117,88 @@ describe("LlamaIndexInstrumentation", () => {
     expect(spans.length).toBeGreaterThan(0);
 
     // Expect a span for the query engine
-    const queryEngineSpan = spans.find((span) => span.name.includes("Query"));
+    const queryEngineSpan = spans.find((span) => span.name.includes("query"));
     expect(queryEngineSpan).toBeDefined();
+
+    // Verify query span attributes
+    expect(
+      queryEngineSpan?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
+    ).toEqual(OpenInferenceSpanKind.CHAIN);
+    expect(
+      queryEngineSpan?.attributes[SemanticConventions.INPUT_VALUE],
+    ).toEqual("What did the author do in college?");
+    expect(
+      queryEngineSpan?.attributes[SemanticConventions.OUTPUT_VALUE],
+    ).toEqual(DUMMY_RESPONSE);
+  });
+  it("should create a span for retrieve method", async () => {
+    // Create Document objects with essays
+    const documents = [
+      new Document({ text: "lorem ipsum 1" }),
+      new Document({ text: "lorem ipsum 2" }),
+      new Document({ text: "lorem ipsum 3" }),
+    ];
+
+    // Split text and create embeddings. Store them in a VectorStoreIndex
+    const index = await VectorStoreIndex.fromDocuments(documents);
+
+    // Retrieve documents from the index
+    const retriever = index.asRetriever();
+
+    const response = await retriever.retrieve({
+      query: "What did the author do in college?",
+    });
+
+    // OpenAI Chat method should not be called
+    expect(openAISpy).toHaveBeenCalledTimes(0);
+    expect(openAIQueryEmbedSpy).toHaveBeenCalledTimes(1);
+    expect(openAITextEmbedSpy).toHaveBeenCalledTimes(1);
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBeGreaterThan(0);
+
+    // Expect a span for the retrieve method
+    const retrievalSpan = spans.find((span) => span.name.includes("retrieve"));
+    expect(retrievalSpan).toBeDefined();
+
+    // Verify query span attributes
+    expect(
+      retrievalSpan?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
+    ).toEqual(OpenInferenceSpanKind.RETRIEVER);
+    expect(retrievalSpan?.attributes[SemanticConventions.INPUT_VALUE]).toEqual(
+      "What did the author do in college?",
+    );
+
+    // Check document attributes
+    response.forEach((document, index) => {
+      const { node, score } = document;
+
+      if (node instanceof llamaindex.TextNode) {
+        const nodeId = node.id_;
+        const nodeText = node.getContent();
+        const nodeMetadata = node.metadata;
+
+        expect(
+          retrievalSpan?.attributes[
+            `${RETRIEVAL_DOCUMENTS}.${index}.document.id`
+          ],
+        ).toEqual(nodeId);
+        expect(
+          retrievalSpan?.attributes[
+            `${RETRIEVAL_DOCUMENTS}.${index}.document.score`
+          ],
+        ).toEqual(score);
+        expect(
+          retrievalSpan?.attributes[
+            `${RETRIEVAL_DOCUMENTS}.${index}.document.content`
+          ],
+        ).toEqual(nodeText);
+        expect(
+          retrievalSpan?.attributes[
+            `${RETRIEVAL_DOCUMENTS}.${index}.document.metadata`
+          ],
+        ).toEqual(JSON.stringify(nodeMetadata));
+      }
+    });
   });
 });
