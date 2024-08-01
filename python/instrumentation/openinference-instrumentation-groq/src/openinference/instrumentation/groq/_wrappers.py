@@ -41,7 +41,6 @@ class _WithTracer(ABC):
         self._tracer = tracer
 
 
-
 class _CompletionsWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
@@ -49,11 +48,11 @@ class _CompletionsWrapper(_WithTracer):
     """
 
     def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any],
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
     ) -> Any:
         llm_invocation_params = kwargs
         llm_messages = dict(kwargs).pop("messages", None)
@@ -68,18 +67,17 @@ class _CompletionsWrapper(_WithTracer):
         invocation_parameters.update(kwargs)
 
         span_name = "Completions"
-        with self._tracer.start_as_current_span(
-                span_name,
-                attributes= {}
-        ) as span:
+        with self._tracer.start_as_current_span(span_name, attributes={}) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
-            attributes=dict(
+            attributes = dict(
                 _flatten(
                     {
                         SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
                         SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
-                        SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(llm_invocation_params),
+                        SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                            llm_invocation_params
+                        ),
                         SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
                         SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                     }
@@ -108,18 +106,19 @@ class _CompletionsWrapper(_WithTracer):
 
         return response
 
-class _BothCompletionsWrapper(_WithTracer):
+
+class _AsyncCompletionsWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
     """
 
     async def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any],
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
     ) -> Any:
         comp_type = instance.__class__.__name__
         llm_invocation_params = kwargs
@@ -137,32 +136,25 @@ class _BothCompletionsWrapper(_WithTracer):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
 
-        if comp_type == "Completions":
-            span_name = "Completions"
-        elif comp_type == "AsyncCompletions":
-            span_name = "AsyncCompletions"
-        with self._tracer.start_as_current_span(
-                span_name,
-                attributes= {}
-        ) as span:
+        span_name = "AsyncCompletions"
+        with self._tracer.start_as_current_span(span_name, attributes={}) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
-            attributes=dict(
+            attributes = dict(
                 _flatten(
                     {
                         SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
                         SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
-                        SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(llm_invocation_params),
+                        SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                            llm_invocation_params
+                        ),
                         SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
                         SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                     }
                 )
             )
             try:
-                if comp_type == "Completions":
-                    response = wrapped(*args, **kwargs)
-                elif comp_type == "AsyncCompletions":
-                    response = await wrapped(*args, **kwargs)
+                response = await wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
