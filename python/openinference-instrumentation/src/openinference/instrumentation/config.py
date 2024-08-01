@@ -324,7 +324,7 @@ class _MaskedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
             span.set_attribute(key, value)
 
 
-class OpenInferenceTracer(wrapt.ObjectProxy):  # type: ignore[misc]
+class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(self, wrapped: trace_api.Tracer, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config

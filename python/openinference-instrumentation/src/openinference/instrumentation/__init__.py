@@ -1,4 +1,4 @@
-from .config import REDACTED_VALUE, OpenInferenceTracer, TraceConfig, suppress_tracing
+from .config import REDACTED_VALUE, OITracer, TraceConfig, suppress_tracing
 from .context_attributes import (
     get_attributes_from_context,
     using_attributes,
@@ -26,6 +26,6 @@ __all__ = [
     "safe_json_dumps",
     "suppress_tracing",
     "TraceConfig",
-    "OpenInferenceTracer",
+    "OITracer",
     "REDACTED_VALUE",
 ]
