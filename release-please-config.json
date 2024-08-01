@@ -42,6 +42,18 @@
         "python/instrumentation/openinference-instrumentation-guardrails": {
             "package-name": "python-openinference-instrumentation-guardrails",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-crewai": {
+            "package-name": "python-openinference-instrumentation-crewai",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-haystack": {
+            "package-name": "python-openinference-instrumentation-haystack",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-litellm": {
+            "package-name": "python-openinference-instrumentation-litellm",
+            "release-type": "python"
         }
     }
 }

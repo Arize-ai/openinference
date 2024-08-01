@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-openai"
+name = "openinference-instrumentation-litellm"
 dynamic = ["version"]
-description = "OpenInference OpenAI Instrumentation"
+description = "OpenInference liteLLM Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.8, <3.13"
@@ -28,29 +28,21 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.11",
-  "openinference-semantic-conventions>=0.1.7",
-  "typing-extensions",
+  "openinference-instrumentation>=0.1.7",
+  "openinference-semantic-conventions",
   "wrapt",
 ]
 
-[project.optional-dependencies]
-instruments = [
-  "openai >= 1.0.0",
-]
 test = [
-  "openai == 1.0.0",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
-  "respx",
-  "numpy",
 ]
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openai"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-litellm"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/openai/version.py"
+path = "src/openinference/instrumentation/litellm/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [

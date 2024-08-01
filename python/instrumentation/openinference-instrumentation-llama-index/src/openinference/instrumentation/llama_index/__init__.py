@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Collection
 
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.llama_index.package import _instruments
 from openinference.instrumentation.llama_index.version import __version__
 from opentelemetry import trace as trace_api
@@ -16,6 +17,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     """
 
     __slots__ = (
+        "_config",
         "_span_handler",
         "_event_handler",
         "_use_legacy_callback_handler",  # deprecated
@@ -28,19 +30,29 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
         self._use_legacy_callback_handler = bool(kwargs.get("use_legacy_callback_handler"))
         if self._use_legacy_callback_handler:
             import llama_index.core
 
             if hasattr(llama_index.core, "global_handler"):
-                print("Using legacy callback handler.")
+                print(
+                    "Using legacy callback handler. "
+                    "TraceConfig not supported for callback handlers."
+                )
             else:
                 self._use_legacy_callback_handler = False
                 print(
                     "Legacy callback handler is not available. "
                     "Using new instrumentation event/span handler instead."
                 )
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
         self._event_handler = None
 
         if self._use_legacy_callback_handler:
