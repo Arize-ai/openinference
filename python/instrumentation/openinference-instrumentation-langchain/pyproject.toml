@@ -44,6 +44,7 @@ test = [
   "langchain-community == 0.0.10",
   "opentelemetry-sdk",
   "respx",
+  "pytest-recording",
 ]
 type-check = [
   "langchain_core == 0.1.5",
