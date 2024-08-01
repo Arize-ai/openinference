@@ -9,7 +9,7 @@ from typing import (
 
 import pytest
 from httpx import Response
-from langchain_core.messages import HumanMessage, BaseMessage
+from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig
 from openinference.instrumentation.langchain import LangChainInstrumentor
@@ -17,8 +17,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
-    OpenInferenceSpanKindValues,
     OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 from opentelemetry import trace as trace_api
@@ -65,7 +65,7 @@ def test_chat_with_config_hiding_inputs(
         dict(type="text", text=question),
         dict(type="image_url", image_url=dict(url=base64_image_url)),
     ]
-    message = HumanMessage(content=content)
+    message = HumanMessage(content=content)  # type: ignore[arg-type]
     url = "https://api.openai.com/v1/chat/completions"
     returned_message = dict(role="assistant", content=answer)
     choice = dict(index=0, message=returned_message, finish_reason="stop")
@@ -75,7 +75,7 @@ def test_chat_with_config_hiding_inputs(
             json=dict(choices=[choice]),
         ),
     )
-    ChatOpenAI(model=model_name).invoke([message])  # type: ignore[arg-type]
+    ChatOpenAI(model=model_name).invoke([message])
     assert (spans := in_memory_span_exporter.get_finished_spans())
     span = spans[0]
     assert span is not None
@@ -163,7 +163,7 @@ def test_chat_with_config_hiding_outputs(
         dict(type="text", text=question),
         dict(type="image_url", image_url=dict(url=base64_image_url)),
     ]
-    message = HumanMessage(content=content)
+    message = HumanMessage(content=content)  # type: ignore[arg-type]
     url = "https://api.openai.com/v1/chat/completions"
     returned_message = dict(role="assistant", content=answer)
     choice = dict(index=0, message=returned_message, finish_reason="stop")
@@ -173,7 +173,7 @@ def test_chat_with_config_hiding_outputs(
             json=dict(choices=[choice]),
         ),
     )
-    ChatOpenAI(model=model_name).invoke([message])  # type: ignore[arg-type]
+    ChatOpenAI(model=model_name).invoke([message])
     assert (spans := in_memory_span_exporter.get_finished_spans())
     span = spans[0]
     assert span is not None
