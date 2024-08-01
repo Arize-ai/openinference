@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.23...python-openinference-instrumentation-langchain-v0.1.24) (2024-08-01)
+
+
+### Features
+
+* **langchain:** capture image in chat message ([#645](https://github.com/Arize-ai/openinference/issues/645)) ([32fdd6b](https://github.com/Arize-ai/openinference/commit/32fdd6bea1e40d81ae7c4ebada9fbdb3fc860701))
+* **langchain:** Enable configuration using common instrumentation pkg ([#685](https://github.com/Arize-ai/openinference/issues/685)) ([a6feda3](https://github.com/Arize-ai/openinference/commit/a6feda3683365de59b3d225a892749aedce16ff2))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.22...python-openinference-instrumentation-langchain-v0.1.23) (2024-07-25)
 
 
