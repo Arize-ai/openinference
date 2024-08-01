@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Collection
 
-from openinference.instrumentation import ConfigTracer, TraceConfig
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.llama_index.package import _instruments
 from openinference.instrumentation.llama_index.version import __version__
 from opentelemetry import trace as trace_api
@@ -49,7 +49,7 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
                     "Legacy callback handler is not available. "
                     "Using new instrumentation event/span handler instead."
                 )
-        tracer = ConfigTracer(
+        tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
