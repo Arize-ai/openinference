@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.24...python-openinference-instrumentation-langchain-v0.1.25) (2024-08-01)
+
+
+### Bug Fixes
+
+* add token counts for langchain streaming ([#669](https://github.com/Arize-ai/openinference/issues/669)) ([06975ed](https://github.com/Arize-ai/openinference/commit/06975eda7734477e34610bc28c184aaf8992fb4f))
+
 ## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.23...python-openinference-instrumentation-langchain-v0.1.24) (2024-08-01)
 
 
