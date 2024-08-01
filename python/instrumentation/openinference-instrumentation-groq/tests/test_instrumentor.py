@@ -62,7 +62,7 @@ def _mock_post(
     options: RequestOptions = {},
     files: Optional[RequestFiles] = None,
     stream: bool = False,
-    stream_cls: Optional[type[_StreamT]] = None,
+    stream_cls: Optional[Type[_StreamT]] = None,
 ) -> Union[ResponseT, _StreamT]:
     """
     opts = FinalRequestOptions.construct(
@@ -82,7 +82,7 @@ async def _async_mock_post(
     options: RequestOptions = {},
     files: Optional[RequestFiles] = None,
     stream: bool = False,
-    stream_cls: Optional[type[_StreamT]] = None,  # type:ignore[type-arg]
+    stream_cls: Optional[Type[_StreamT]] = None,
 ) -> Union[ResponseT, _StreamT]:
     """
     opts = FinalRequestOptions.construct(
