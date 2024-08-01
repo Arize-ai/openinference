@@ -636,6 +636,7 @@ def _parse_token_usage_for_streaming_outputs(
         and hasattr(outputs, "get")
         and (generations := outputs.get("generations"))
         and hasattr(generations, "__getitem__")
+        and generations[0]
         and hasattr(generations[0], "__getitem__")
         and (generation := generations[0][0])
         and hasattr(generation, "get")
