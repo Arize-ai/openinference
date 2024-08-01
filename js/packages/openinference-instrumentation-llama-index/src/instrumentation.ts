@@ -6,13 +6,8 @@ import {
   InstrumentationModuleDefinition,
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
-import {
-  diag,
-} from "@opentelemetry/api";
-import {
-  patchQueryMethod,
-  patchRetrieveMethod
-} from "./utils";
+import { diag } from "@opentelemetry/api";
+import { patchQueryMethod, patchRetrieveMethod } from "./utils";
 import { VERSION } from "./version";
 
 const MODULE_NAME = "llamaindex";
@@ -30,7 +25,9 @@ export function isPatched() {
   return _isOpenInferencePatched;
 }
 
-export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamaindex> {
+export class LlamaIndexInstrumentation extends InstrumentationBase<
+  typeof llamaindex
+> {
   constructor(config?: InstrumentationConfig) {
     super(
       "@arizeai/openinference-instrumentation-llama-index",
@@ -65,11 +62,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
       "query",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (original): any => {
-        return patchQueryMethod(
-          original,
-          moduleExports,
-          this.tracer
-        );
+        return patchQueryMethod(original, moduleExports, this.tracer);
       },
     );
 
@@ -77,13 +70,9 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<typeof llamai
       moduleExports.VectorIndexRetriever.prototype,
       "retrieve",
       (original) => {
-        return patchRetrieveMethod(
-          original,
-          moduleExports,
-          this.tracer
-        );
+        return patchRetrieveMethod(original, moduleExports, this.tracer);
       },
-    )
+    );
 
     _isOpenInferencePatched = true;
     return moduleExports;
