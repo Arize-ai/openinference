@@ -304,7 +304,7 @@ class TraceConfig:
             return cast_to(value)
 
 
-class _CensoredSpan(wrapt.ObjectProxy):  # type: ignore[misc]
+class _MaskedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(self, wrapped: trace_api.Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
@@ -324,7 +324,7 @@ class _CensoredSpan(wrapt.ObjectProxy):  # type: ignore[misc]
             span.set_attribute(key, value)
 
 
-class ConfigTracer(wrapt.ObjectProxy):  # type: ignore[misc]
+class OpenInferenceTracer(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(self, wrapped: trace_api.Tracer, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
@@ -332,10 +332,10 @@ class ConfigTracer(wrapt.ObjectProxy):  # type: ignore[misc]
     @contextmanager
     def start_as_current_span(self, *args, **kwargs) -> Iterator[trace_api.Span]:
         with self.__wrapped__.start_as_current_span(*args, **kwargs) as span:
-            yield _CensoredSpan(span, self._self_config)
+            yield _MaskedSpan(span, self._self_config)
 
     def start_span(self, *args, **kwargs) -> trace_api.Span:
-        return _CensoredSpan(
+        return _MaskedSpan(
             self.__wrapped__.start_span(*args, **kwargs),
             config=self._self_config,
         )
