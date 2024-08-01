@@ -600,7 +600,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
 
 def _parse_token_usage_for_non_streaming_outputs(
     outputs: Optional[Mapping[str, Any]],
-) -> Optional[Dict[str, int]]:
+) -> Any:
     """
     Parses output to get token usage information for non-streaming LLMs, i.e.,
     when `stream_usage` is set to false.
@@ -626,7 +626,7 @@ def _parse_token_usage_for_non_streaming_outputs(
 
 def _parse_token_usage_for_streaming_outputs(
     outputs: Optional[Mapping[str, Any]],
-) -> Optional[Dict[str, int]]:
+) -> Any:
     """
     Parses output to get token usage information for streaming LLMs, i.e., when
     `stream_usage` is set to true.
@@ -749,7 +749,7 @@ def _get_first_value(
     no non-null value is found.
     """
     if not hasattr(mapping, "get"):
-        return
+        return None
     return next(
         (value for key in keys if (value := mapping.get(key)) is not None),
         None,

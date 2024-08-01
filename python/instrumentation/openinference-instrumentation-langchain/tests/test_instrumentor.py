@@ -651,6 +651,64 @@ def test_read_session_from_metadata(
     assert llm_attributes == {}
 
 
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
+
+
+@pytest.mark.skipif(
+    condition=tuple(map(int, version("langchain-openai").split("."))) < (0, 1, 9),
+    reason="The stream_usage parameter was introduced in langchain-openai==0.1.9",
+    # https://github.com/langchain-ai/langchain/releases/tag/langchain-openai%3D%3D0.1.9
+)
+@pytest.mark.vcr(
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_records_token_counts_for_streaming_openai_llm(
+    in_memory_span_exporter: InMemorySpanExporter,
+    openai_api_key: str,
+) -> None:
+    llm = ChatOpenAI(streaming=True, stream_usage=True)  # type: ignore[call-arg,unused-ignore]
+    message = llm.invoke("Tell me a funny joke, a one-liner.")
+    assert message.content == "Why couldn't the bicycle stand up by itself? It was two tired."
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == 18
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == 15
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == 33
+
+
 def _check_context_attributes(
     attributes: Dict[str, Any],
     session_id: Optional[str],
