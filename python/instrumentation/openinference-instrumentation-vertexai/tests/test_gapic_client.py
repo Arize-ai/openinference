@@ -38,7 +38,8 @@ from google.cloud.aiplatform_v1.services.prediction_service.transports import (
     PredictionServiceGrpcAsyncIOTransport,
     PredictionServiceGrpcTransport,
 )
-from openinference.instrumentation import using_attributes
+from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
+from openinference.instrumentation.vertexai import VertexAIInstrumentor
 from openinference.instrumentation.vertexai._wrapper import _role
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -50,6 +51,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan, Tracer
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
@@ -158,6 +160,254 @@ async def test_instrumentor(
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == usage_metadata.prompt_token_count
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == usage_metadata.candidates_token_count
+    assert attributes == {}
+
+    assert len(spans) > 1
+    spans_by_id = {}
+    for span in spans:
+        spans_by_id[span.context.span_id] = span
+    for span in spans[1:]:
+        assert is_descendant(span, spans[0], spans_by_id)
+
+
+@pytest.mark.parametrize("hide_inputs", [False, True])
+@pytest.mark.parametrize("hide_input_messages", [False, True])
+@pytest.mark.parametrize("hide_input_images", [False, True])
+@pytest.mark.parametrize("hide_input_text", [False, True])
+@pytest.mark.parametrize("base64_image_max_length", [0, 100_000])
+async def test_instrumentor_config_hiding_inputs(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    mock_generate_content_response: GenerateContentResponse,
+    mock_img: Tuple[bytes, str, str],
+    metadata: Dict[str, Any],
+    tracer: Tracer,
+    hide_inputs: bool,
+    hide_input_messages: bool,
+    hide_input_images: bool,
+    hide_input_text: bool,
+    base64_image_max_length: int,
+) -> None:
+    VertexAIInstrumentor().uninstrument()
+    config = TraceConfig(
+        hide_inputs=hide_inputs,
+        hide_input_messages=hide_input_messages,
+        hide_input_images=hide_input_images,
+        hide_input_text=hide_input_text,
+        base64_image_max_length=base64_image_max_length,
+    )
+    assert config.hide_inputs is hide_inputs
+    assert config.hide_input_messages is hide_input_messages
+    assert config.hide_input_images is hide_input_images
+    assert config.hide_input_text is hide_input_text
+    assert config.base64_image_max_length is base64_image_max_length
+    VertexAIInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
+    request = mock_generate_content_request
+    response = mock_generate_content_response
+    with ExitStack() as stack:
+        stack.enter_context(suppress(Err))
+        stack.enter_context(using_attributes(metadata=metadata))
+        args = (request, response, False, stack, tracer)
+        mock_generate_content(*args)
+    spans = sorted(
+        in_memory_span_exporter.get_finished_spans(),
+        key=lambda _: cast(int, _.start_time),
+    )
+    assert spans
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert isinstance(metadata_json_str := attributes.pop(METADATA, None), str)
+    assert json.loads(metadata_json_str) == metadata
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
+    usage_metadata = response.usage_metadata
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == usage_metadata.prompt_token_count
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == usage_metadata.candidates_token_count
+    # Input value
+    input_value = attributes.pop(INPUT_VALUE, None)
+    assert input_value is not None
+    if hide_inputs:
+        assert input_value == REDACTED_VALUE
+    else:
+        assert isinstance(input_value, str)
+        assert attributes.pop(INPUT_MIME_TYPE, None) == JSON
+    # Input messages
+    if not hide_inputs and not hide_input_messages:
+        prefix = LLM_INPUT_MESSAGES
+        _, _, img_base64 = mock_img
+        assert attributes.pop(message_role(prefix, 0), None) == "system"
+        msg_contents_text = attributes.pop(message_contents_text(prefix, 0, 0), None)
+        expected_contents_text = (
+            REDACTED_VALUE if hide_input_text else request.system_instruction.parts[0].text
+        )
+        assert msg_contents_text == expected_contents_text
+
+        contents = request.contents
+        for i, content in enumerate(contents[:-1], 1):
+            assert attributes.pop(message_role(prefix, i), None) == _role(content.role)
+            msg_contents_text = attributes.pop(message_contents_text(prefix, i, 0), None)
+            expected_contents_text = REDACTED_VALUE if hide_input_text else content.parts[0].text
+            assert msg_contents_text == expected_contents_text
+            if not hide_input_images:
+                expected_img_url = (
+                    REDACTED_VALUE if len(img_base64) > base64_image_max_length else img_base64
+                )
+                img_url = attributes.pop(message_contents_image_url(prefix, i, 1), None)
+                assert img_url == expected_img_url
+
+        function_response = contents[-1].parts[0].function_response
+        assert attributes.pop(message_role(prefix, len(contents)), None) == "tool"
+        assert attributes.pop(message_name(prefix, len(contents)), None) == function_response.name
+        response_json_str = attributes.pop(message_content(prefix, len(contents)), None)
+        assert isinstance(response_json_str, str)
+        if hide_input_text:
+            assert response_json_str == REDACTED_VALUE
+        else:
+            assert (
+                json.loads(response_json_str)
+                == FunctionResponse.to_dict(function_response)["response"]
+            )
+
+    # Output value
+    assert isinstance((output_value := attributes.pop(OUTPUT_VALUE, None)), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE, None) == JSON
+    assert json.loads(output_value)
+    # Output messages
+    prefix = LLM_OUTPUT_MESSAGES
+    candidates = response.candidates
+    for i, candidate in enumerate(candidates):
+        assert attributes.pop(message_role(prefix, i), None) == "assistant"
+        for j, part in enumerate(candidate.content.parts):
+            if part.text:
+                assert attributes.pop(message_contents_text(prefix, i, j), None) == part.text
+            elif part.function_call.name:
+                assert (
+                    attributes.pop(tool_call_function_name(prefix, i, j), None)
+                    == part.function_call.name
+                )
+                args_json_str = attributes.pop(tool_call_function_arguments(prefix, i, j), None)
+                assert isinstance(args_json_str, str)
+                assert json.loads(args_json_str) == FunctionCall.to_dict(part.function_call)["args"]
+    assert attributes == {}
+
+    assert len(spans) > 1
+    spans_by_id = {}
+    for span in spans:
+        spans_by_id[span.context.span_id] = span
+    for span in spans[1:]:
+        assert is_descendant(span, spans[0], spans_by_id)
+
+
+@pytest.mark.parametrize("hide_outputs", [False, True])
+@pytest.mark.parametrize("hide_output_messages", [False, True])
+@pytest.mark.parametrize("hide_output_text", [False, True])
+async def test_instrumentor_config_hiding_outputs(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    mock_generate_content_response: GenerateContentResponse,
+    mock_img: Tuple[bytes, str, str],
+    metadata: Dict[str, Any],
+    tracer: Tracer,
+    hide_outputs: bool,
+    hide_output_messages: bool,
+    hide_output_text: bool,
+) -> None:
+    VertexAIInstrumentor().uninstrument()
+    config = TraceConfig(
+        hide_outputs=hide_outputs,
+        hide_output_messages=hide_output_messages,
+        hide_output_text=hide_output_text,
+    )
+    assert config.hide_outputs is hide_outputs
+    assert config.hide_output_messages is hide_output_messages
+    assert config.hide_output_text is hide_output_text
+    VertexAIInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
+    request = mock_generate_content_request
+    response = mock_generate_content_response
+    with ExitStack() as stack:
+        stack.enter_context(suppress(Err))
+        stack.enter_context(using_attributes(metadata=metadata))
+        args = (request, response, False, stack, tracer)
+        mock_generate_content(*args)
+    spans = sorted(
+        in_memory_span_exporter.get_finished_spans(),
+        key=lambda _: cast(int, _.start_time),
+    )
+    assert spans
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert isinstance(metadata_json_str := attributes.pop(METADATA, None), str)
+    assert json.loads(metadata_json_str) == metadata
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
+    usage_metadata = response.usage_metadata
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == usage_metadata.prompt_token_count
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == usage_metadata.candidates_token_count
+    # Input value
+    input_value = attributes.pop(INPUT_VALUE, None)
+    assert input_value is not None
+    assert isinstance(input_value, str)
+    assert attributes.pop(INPUT_MIME_TYPE, None) == JSON
+    # Input messages
+    prefix = LLM_INPUT_MESSAGES
+    _, _, img_base64 = mock_img
+    assert attributes.pop(message_role(prefix, 0), None) == "system"
+    msg_contents_text = attributes.pop(message_contents_text(prefix, 0, 0), None)
+    expected_contents_text = request.system_instruction.parts[0].text
+    assert msg_contents_text == expected_contents_text
+
+    contents = request.contents
+    for i, content in enumerate(contents[:-1], 1):
+        assert attributes.pop(message_role(prefix, i), None) == _role(content.role)
+        msg_contents_text = attributes.pop(message_contents_text(prefix, i, 0), None)
+        expected_contents_text = content.parts[0].text
+        assert msg_contents_text == expected_contents_text
+        img_url = attributes.pop(message_contents_image_url(prefix, i, 1), None)
+        assert img_url == img_base64
+
+    function_response = contents[-1].parts[0].function_response
+    assert attributes.pop(message_role(prefix, len(contents)), None) == "tool"
+    assert attributes.pop(message_name(prefix, len(contents)), None) == function_response.name
+    response_json_str = attributes.pop(message_content(prefix, len(contents)), None)
+    assert isinstance(response_json_str, str)
+    assert json.loads(response_json_str) == FunctionResponse.to_dict(function_response)["response"]
+
+    # Output value
+    output_value = attributes.pop(OUTPUT_VALUE, None)
+    assert output_value is not None
+    assert isinstance(output_value, str)
+    if hide_outputs:
+        assert output_value == REDACTED_VALUE
+    else:
+        assert attributes.pop(OUTPUT_MIME_TYPE, None) == JSON
+        assert json.loads(output_value)
+    # Output messages
+    if not hide_outputs and not hide_output_messages:
+        prefix = LLM_OUTPUT_MESSAGES
+        candidates = response.candidates
+        for i, candidate in enumerate(candidates):
+            assert attributes.pop(message_role(prefix, i), None) == "assistant"
+            for j, part in enumerate(candidate.content.parts):
+                if part.text:
+                    expected = REDACTED_VALUE if hide_output_text else part.text
+                    assert attributes.pop(message_contents_text(prefix, i, j), None) == expected
+                elif part.function_call.name:
+                    expected_name = part.function_call.name
+                    assert (
+                        attributes.pop(tool_call_function_name(prefix, i, j), None) == expected_name
+                    )
+                    args_json_str = attributes.pop(tool_call_function_arguments(prefix, i, j), None)
+                    assert isinstance(args_json_str, str)
+                    assert (
+                        json.loads(args_json_str)
+                        == FunctionCall.to_dict(part.function_call)["args"]
+                    )
     assert attributes == {}
 
     assert len(spans) > 1
@@ -547,6 +797,50 @@ def is_descendant(
             return True
         span = spans_by_id.get(span.parent.span_id)
     return False
+
+
+def _check_llm_message(
+    prefix: str,
+    i: int,
+    attributes: Dict[str, Any],
+    message: Dict[str, Any],
+    hide_text: bool = False,
+    hide_images: bool = False,
+    image_limit: Optional[int] = None,
+) -> None:
+    assert attributes.pop(message_role(prefix, i), None) == message.get("role")
+    expected_content = message.get("content")
+    if isinstance(expected_content, list):
+        for j, expected_content_item in enumerate(expected_content):
+            content_item_type = attributes.pop(message_contents_type(prefix, i, j), None)
+            expected_content_item_type = expected_content_item.get("type")
+            if expected_content_item_type == "image_url":
+                expected_content_item_type = "image"
+            assert content_item_type == expected_content_item_type
+            if content_item_type == "text":
+                content_item_text = attributes.pop(message_contents_text(prefix, i, j), None)
+                if hide_text:
+                    assert content_item_text == REDACTED_VALUE
+                else:
+                    assert content_item_text == expected_content_item.get("text")
+            elif content_item_type == "image":
+                content_item_image_url = attributes.pop(
+                    message_contents_image_url(prefix, i, j), None
+                )
+                if hide_images:
+                    assert content_item_image_url is None
+                else:
+                    expected_url = expected_content_item.get("image_url").get("url")
+                    if image_limit is not None and len(expected_url) > image_limit:
+                        assert content_item_image_url == REDACTED_VALUE
+                    else:
+                        assert content_item_image_url == expected_url
+    else:
+        content = attributes.pop(message_content(prefix, i), None)
+        if expected_content is not None and hide_text:
+            assert content == REDACTED_VALUE
+        else:
+            assert content == expected_content
 
 
 def message_name(prefix: str, i: int) -> str:

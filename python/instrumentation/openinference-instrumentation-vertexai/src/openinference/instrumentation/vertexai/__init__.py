@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Collection
 
+from openinference.instrumentation import ConfigTracer, TraceConfig
 from openinference.instrumentation.vertexai import _instrumentation_status
 from openinference.instrumentation.vertexai.package import _instruments
 from openinference.instrumentation.vertexai.version import __version__
@@ -25,7 +26,14 @@ class VertexAIInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = get_tracer_provider()
-        tracer = get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        tracer = ConfigTracer(
+            get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
         self._status._IS_INSTRUMENTED = True
         import google.api_core.gapic_v1 as gapic
         from openinference.instrumentation.vertexai._wrapper import _Wrapper
