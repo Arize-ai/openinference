@@ -88,6 +88,8 @@ def test_chat_with_config_hiding_inputs(
     )
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None) == model_name
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS, None) is not None
+    if LANGCHAIN_VERSION >= (0, 2):
+        assert attributes.pop(SpanAttributes.METADATA, None)
     # Input value
     input_value = attributes.pop(SpanAttributes.INPUT_VALUE, None)
     assert input_value is not None
@@ -186,6 +188,8 @@ def test_chat_with_config_hiding_outputs(
     )
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None) == model_name
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS, None) is not None
+    if LANGCHAIN_VERSION >= (0, 2):
+        assert attributes.pop(SpanAttributes.METADATA, None)
     # Input value
     input_value = attributes.pop(SpanAttributes.INPUT_VALUE, None)
     assert input_value is not None
