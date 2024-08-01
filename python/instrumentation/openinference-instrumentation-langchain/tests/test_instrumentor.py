@@ -56,6 +56,7 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.addHandler(logging.StreamHandler())
 
 LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
+LANGCHAIN_OPENAI_VERSION = tuple(map(int, version("langchain-openai").split(".")[:3]))
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -649,6 +650,63 @@ def test_read_session_from_metadata(
     assert llm_attributes.pop(INPUT_VALUE, None) == langchain_prompt_variables["adjective"]
     assert llm_attributes.pop(OUTPUT_VALUE, None) == output_val
     assert llm_attributes == {}
+
+
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
+
+
+@pytest.mark.skipif(
+    condition=LANGCHAIN_OPENAI_VERSION < (0, 1, 9),
+    reason="The stream_usage parameter was introduced in langchain-openai==0.1.9",
+    # https://github.com/langchain-ai/langchain/releases/tag/langchain-openai%3D%3D0.1.9
+)
+@pytest.mark.vcr(
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_records_token_counts_for_streaming_openai_llm(
+    in_memory_span_exporter: InMemorySpanExporter,
+    openai_api_key: str,
+) -> None:
+    llm = ChatOpenAI(streaming=True, stream_usage=True)  # type: ignore[call-arg,unused-ignore]
+    llm.invoke("Tell me a funny joke, a one-liner.")
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT, None), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
 
 
 def _check_context_attributes(

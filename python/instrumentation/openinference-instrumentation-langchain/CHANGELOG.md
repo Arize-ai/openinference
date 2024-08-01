@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.24...python-openinference-instrumentation-langchain-v0.1.25) (2024-08-01)
+
+
+### Bug Fixes
+
+* add token counts for langchain streaming ([#669](https://github.com/Arize-ai/openinference/issues/669)) ([06975ed](https://github.com/Arize-ai/openinference/commit/06975eda7734477e34610bc28c184aaf8992fb4f))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.23...python-openinference-instrumentation-langchain-v0.1.24) (2024-08-01)
+
+
+### Features
+
+* **langchain:** capture image in chat message ([#645](https://github.com/Arize-ai/openinference/issues/645)) ([32fdd6b](https://github.com/Arize-ai/openinference/commit/32fdd6bea1e40d81ae7c4ebada9fbdb3fc860701))
+* **langchain:** Enable configuration using common instrumentation pkg ([#685](https://github.com/Arize-ai/openinference/issues/685)) ([a6feda3](https://github.com/Arize-ai/openinference/commit/a6feda3683365de59b3d225a892749aedce16ff2))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.22...python-openinference-instrumentation-langchain-v0.1.23) (2024-07-25)
 
 

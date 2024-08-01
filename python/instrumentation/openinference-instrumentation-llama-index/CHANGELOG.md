@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.1.1...python-openinference-instrumentation-llama-index-v2.2.0) (2024-07-31)
+
+
+### Features
+
+* Add config handling to instrumentation ([#653](https://github.com/Arize-ai/openinference/issues/653)) ([7d60bb1](https://github.com/Arize-ai/openinference/commit/7d60bb155291e576ab25c583f387213ac47979c8))
+* Move attribute censorship based on config to common instrumentation ([#679](https://github.com/Arize-ai/openinference/issues/679)) ([04f885a](https://github.com/Arize-ai/openinference/commit/04f885a5934af6fe885e7498332785da110cb500))
+
 ## [2.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.1.0...python-openinference-instrumentation-llama-index-v2.1.1) (2024-07-25)
 
 
