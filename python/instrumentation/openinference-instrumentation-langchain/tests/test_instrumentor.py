@@ -56,6 +56,7 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.addHandler(logging.StreamHandler())
 
 LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
+LANGCHAIN_OPENAI_VERSION = tuple(map(int, version("langchain-openai").split(".")[:3]))
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -684,7 +685,7 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @pytest.mark.skipif(
-    condition=tuple(map(int, version("langchain-openai").split("."))) < (0, 1, 9),
+    condition=LANGCHAIN_OPENAI_VERSION < (0, 1, 9),
     reason="The stream_usage parameter was introduced in langchain-openai==0.1.9",
     # https://github.com/langchain-ai/langchain/releases/tag/langchain-openai%3D%3D0.1.9
 )
