@@ -18,7 +18,7 @@ from typing import (
 
 import opentelemetry.context as context_api
 from openinference.instrumentation import (
-    ConfigTracer,
+    OITracer,
     TraceConfig,
     get_attributes_from_context,
     safe_json_dumps,
@@ -68,7 +68,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        tracer = ConfigTracer(
+        tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )

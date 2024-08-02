@@ -4,7 +4,7 @@ from typing import (
     Collection,
 )
 
-from openinference.instrumentation import ConfigTracer, TraceConfig
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.mistralai._chat_wrapper import (
     _AsyncChatWrapper,
     _AsyncStreamChatWrapper,
@@ -44,7 +44,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        tracer = ConfigTracer(
+        tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
