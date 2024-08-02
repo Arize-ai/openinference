@@ -67,7 +67,10 @@ class _CompletionsWrapper(_WithTracer):
         invocation_parameters.update(kwargs)
 
         span_name = "Completions"
-        with self._tracer.start_as_current_span(span_name, attributes={}) as span:
+        with self._tracer.start_as_current_span(span_name,
+                                                record_exception=False,
+                                                set_status_on_exception=False,
+                                                ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
             attributes = dict(
@@ -137,7 +140,10 @@ class _AsyncCompletionsWrapper(_WithTracer):
         invocation_parameters.update(kwargs)
 
         span_name = "AsyncCompletions"
-        with self._tracer.start_as_current_span(span_name, attributes={}) as span:
+        with self._tracer.start_as_current_span(span_name,
+                                                record_exception=False,
+                                                set_status_on_exception=False,
+                                                ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
             attributes = dict(
