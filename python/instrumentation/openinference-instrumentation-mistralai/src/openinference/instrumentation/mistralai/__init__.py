@@ -28,6 +28,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
     """
 
     __slots__ = (
+        "_tracer",
         "_original_sync_chat_method",
         "_original_sync_stream_chat_method",
         "_original_async_chat_method",
@@ -44,7 +45,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        tracer = OITracer(
+        self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
@@ -65,22 +66,22 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             module=_MODULE,
             name="client.MistralClient.chat",
-            wrapper=_SyncChatWrapper(tracer, mistralai),
+            wrapper=_SyncChatWrapper(self._tracer, mistralai),
         )
         wrap_function_wrapper(
             module=_MODULE,
             name="client.MistralClient.chat_stream",
-            wrapper=_SyncChatWrapper(tracer, mistralai),
+            wrapper=_SyncChatWrapper(self._tracer, mistralai),
         )
         wrap_function_wrapper(
             module=_MODULE,
             name="async_client.MistralAsyncClient.chat",
-            wrapper=_AsyncChatWrapper(tracer, mistralai),
+            wrapper=_AsyncChatWrapper(self._tracer, mistralai),
         )
         wrap_function_wrapper(
             module=_MODULE,
             name="async_client.MistralAsyncClient.chat_stream",
-            wrapper=_AsyncStreamChatWrapper(tracer, mistralai),
+            wrapper=_AsyncStreamChatWrapper(self._tracer, mistralai),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

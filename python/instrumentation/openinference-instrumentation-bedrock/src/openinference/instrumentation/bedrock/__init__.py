@@ -283,7 +283,10 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
 
 
 class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
-    __slots__ = ("_original_client_creator",)
+    __slots__ = (
+        "_tracer",
+        "_original_client_creator",
+    )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -295,7 +298,7 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        tracer = OITracer(
+        self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
@@ -307,7 +310,9 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             module=_MODULE,
             name="ClientCreator.create_client",
-            wrapper=_client_creation_wrapper(tracer=tracer, module_version=botocore.__version__),
+            wrapper=_client_creation_wrapper(
+                tracer=self._tracer, module_version=botocore.__version__
+            ),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

@@ -68,7 +68,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        tracer = OITracer(
+        self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
@@ -84,7 +84,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 module=_DSP_MODULE,
                 name=lm.__name__ + ".basic_request",
                 factory=CopyableFunctionWrapper,
-                args=(_LMBasicRequestWrapper(tracer),),
+                args=(_LMBasicRequestWrapper(self._tracer),),
             )
 
         # Predict is a concrete (non-abstract) class that may be invoked
@@ -95,7 +95,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSPY_MODULE,
             name="Predict.forward",
             factory=CopyableFunctionWrapper,
-            args=(_PredictForwardWrapper(tracer),),
+            args=(_PredictForwardWrapper(self._tracer),),
         )
 
         predict_subclasses = Predict.__subclasses__()
@@ -104,14 +104,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".forward",
                 factory=CopyableFunctionWrapper,
-                args=(_PredictForwardWrapper(tracer),),
+                args=(_PredictForwardWrapper(self._tracer),),
             )
 
         wrap_object(
             module=_DSPY_MODULE,
             name="Retrieve.forward",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverForwardWrapper(tracer),),
+            args=(_RetrieverForwardWrapper(self._tracer),),
         )
 
         wrap_object(
@@ -121,7 +121,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             # forward method and invokes that method using __call__.
             name="Module.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_ModuleForwardWrapper(tracer),),
+            args=(_ModuleForwardWrapper(self._tracer),),
         )
 
         # At this time, there is no common parent class for retriever models as
@@ -131,7 +131,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSP_MODULE,
             name="ColBERTv2.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverModelCallWrapper(tracer),),
+            args=(_RetrieverModelCallWrapper(self._tracer),),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
