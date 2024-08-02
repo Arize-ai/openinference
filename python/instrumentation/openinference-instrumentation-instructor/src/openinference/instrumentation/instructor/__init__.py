@@ -4,6 +4,7 @@ from typing import Any, Collection
 
 from openinference.instrumentation.instructor._wrappers import (
     _HandleResponseWrapper,
+    _RetrySyncWrapper,
 )
 from openinference.instrumentation.instructor.version import __version__
 from opentelemetry import trace as trace_api
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_handle_response_model",
+        "_original_retry_sync",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -40,6 +42,14 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
             "instructor.patch",
             "handle_response_model",
             process_resp_wrapper
+        )
+
+        self._original_retry_sync = getattr(import_module("instructor.patch"), "retry_sync", None)
+        retry_sync_wrapper = _RetrySyncWrapper(tracer=tracer)
+        wrap_function_wrapper(
+            "instructor.patch",
+            "retry_sync",
+            retry_sync_wrapper
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

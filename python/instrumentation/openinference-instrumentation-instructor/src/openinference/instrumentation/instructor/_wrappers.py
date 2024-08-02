@@ -135,6 +135,7 @@ class _HandleResponseWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
+            print(f"Current handle response span context: {span.get_span_context()}")
             try:
                 response = wrapped(*args, **kwargs)
                 response_model = response[0]
@@ -147,8 +148,40 @@ class _HandleResponseWrapper:
                 if response_model is not None and hasattr(response_model, "model_json_schema"):
                     span.set_attribute(
                         "response_model_json",
-                        json.dumps(response_model.model_json_schema())
+                        json.dumps(response_model.model_json_schema(), indent=4)
                     )
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attribute(OUTPUT_VALUE, response)
+        return response
+
+
+class _RetrySyncWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if instance:
+            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
+        else:
+            span_name = wrapped.__name__
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+                print(f"Current retry span context: {span.get_span_context()}")
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
