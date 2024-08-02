@@ -54,10 +54,11 @@ class _CompletionsWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        llm_invocation_params = kwargs
-        llm_messages = dict(kwargs).pop("messages", None)
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+
+        llm_invocation_params = kwargs
+        llm_messages = dict(kwargs).pop("messages", None)
 
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
@@ -67,10 +68,11 @@ class _CompletionsWrapper(_WithTracer):
         invocation_parameters.update(kwargs)
 
         span_name = "Completions"
-        with self._tracer.start_as_current_span(span_name,
-                                                record_exception=False,
-                                                set_status_on_exception=False,
-                                                ) as span:
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
             attributes = dict(
@@ -123,14 +125,11 @@ class _AsyncCompletionsWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        comp_type = instance.__class__.__name__
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
         llm_invocation_params = kwargs
         llm_messages = dict(kwargs).pop("messages", None)
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            if comp_type == "Completions":
-                return wrapped(*args, **kwargs)
-            elif comp_type == "AsyncCompletions":
-                return await wrapped(*args, **kwargs)
 
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
@@ -140,10 +139,11 @@ class _AsyncCompletionsWrapper(_WithTracer):
         invocation_parameters.update(kwargs)
 
         span_name = "AsyncCompletions"
-        with self._tracer.start_as_current_span(span_name,
-                                                record_exception=False,
-                                                set_status_on_exception=False,
-                                                ) as span:
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
             attributes = dict(
