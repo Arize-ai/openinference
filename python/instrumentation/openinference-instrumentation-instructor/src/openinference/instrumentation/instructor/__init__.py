@@ -11,15 +11,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import wrap_function_wrapper
 
-from functools import wraps
-from typing import Union, Callable, TypeVar, ParamSpec
-
-from openai import OpenAI, AsyncOpenAI
-
-# (TODO)fix this
 _instruments = ("instructor >= 0.0.1",)
-
-logger = logging.getLogger(__name__)
 
 
 class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
