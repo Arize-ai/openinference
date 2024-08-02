@@ -35,11 +35,15 @@ def fake_OpenAIGenerator_run(
     }
 
 
-def fake_SentenceTransformersTextEmbedder_run(self: Any, text: str, **kwargs: Any) -> Dict[str, Any]:
+def fake_SentenceTransformersTextEmbedder_run(
+    self: Any, text: str, **kwargs: Any
+) -> Dict[str, Any]:
     return {"embedding": [0.1, 0.2, 0.3]}
 
 
-def fake_SentenceTransformersDocumentEmbedder_run(self: Any, documents: List[Document], **kwargs: Any) -> Dict[str, Any]:
+def fake_SentenceTransformersDocumentEmbedder_run(
+    self: Any, documents: List[Document], **kwargs: Any
+) -> Dict[str, Any]:
     return {"documents": [Document(content="I love pizza!", embedding=[0.1, 0.2, 0.3])]}
 
 
@@ -96,18 +100,26 @@ def test_haystack_instrumentation(
 
     # Configure document embedder and store documents from dataset
     doc_embedder = SentenceTransformersDocumentEmbedder(model="fake_model")
-    doc_embedder.warm_up = fake_SentenceTransformersEmbedder_warm_up.__get__(doc_embedder, SentenceTransformersDocumentEmbedder)
+    doc_embedder.warm_up = fake_SentenceTransformersEmbedder_warm_up.__get__(
+        doc_embedder, SentenceTransformersDocumentEmbedder
+    )
 
     doc_embedder.warm_up()
-    doc_embedder.run = fake_SentenceTransformersDocumentEmbedder_run.__get__(doc_embedder, SentenceTransformersDocumentEmbedder)
+    doc_embedder.run = fake_SentenceTransformersDocumentEmbedder_run.__get__(
+        doc_embedder, SentenceTransformersDocumentEmbedder
+    )
     docs_with_embeddings = doc_embedder.run(docs)
 
     document_store.write_documents(docs_with_embeddings["documents"])
 
     # Configure text embedder (prompt)
     text_embedder = SentenceTransformersTextEmbedder(model="fake_model")
-    text_embedder.warm_up = fake_SentenceTransformersEmbedder_warm_up.__get__(text_embedder, SentenceTransformersDocumentEmbedder)
-    text_embedder.run = fake_SentenceTransformersTextEmbedder_run.__get__(text_embedder, SentenceTransformersTextEmbedder)
+    text_embedder.warm_up = fake_SentenceTransformersEmbedder_warm_up.__get__(
+        text_embedder, SentenceTransformersDocumentEmbedder
+    )
+    text_embedder.run = fake_SentenceTransformersTextEmbedder_run.__get__(
+        text_embedder, SentenceTransformersTextEmbedder
+    )
 
     # Configure retriever
     retriever = InMemoryEmbeddingRetriever(document_store)
@@ -152,7 +164,9 @@ def test_haystack_instrumentation(
         "Pipeline",
     ]
 
-    assert [span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes] == [
+    assert [
+        span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
+    ] == [
         "EMBEDDING",
         "RETRIEVER",
         "CHAIN",
