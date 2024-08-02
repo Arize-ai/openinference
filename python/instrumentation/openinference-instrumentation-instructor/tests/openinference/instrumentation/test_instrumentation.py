@@ -8,7 +8,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExpor
 
 tracer_provider = TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-os.environ["OPENAI_API_KEY"] = ""
+os.environ["OPENAI_API_KEY"] = "GETYOUROWNDAMNKEY"
 from openinference.instrumentation.instructor import InstructorInstrumentor
 from openinference.instrumentation.openai import OpenAIInstrumentor
 

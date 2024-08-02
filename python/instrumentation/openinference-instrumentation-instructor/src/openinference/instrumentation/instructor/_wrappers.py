@@ -9,7 +9,6 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
-
 class SafeJSONEncoder(json.JSONEncoder):
     """
     Safely encodes non-JSON-serializable objects.
@@ -22,7 +21,6 @@ class SafeJSONEncoder(json.JSONEncoder):
             if hasattr(o, "dict") and callable(o.dict):  # pydantic v1 models, e.g., from Cohere
                 return o.dict()
             return repr(o)
-
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
@@ -41,32 +39,6 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
-
-
-def pydantic_to_dict(model: BaseModel) -> Dict[str, Any]:
-    """
-    Transform a Pydantic model into a dictionary, including its class name.
-    This function uses model.dict() and does not handle nested Pydantic models.
-
-    Args:
-        model (BaseModel): The Pydantic model to transform.
-
-    Returns:
-        Dict[str, Any]: A dictionary representation of the model, including its class name.
-
-    Example:
-        class User(BaseModel):
-            name: str
-            age: int
-
-        user = User(name="John Doe", age=30)
-        result = simple_pydantic_to_dict(user)
-    """
-    return {
-        "__class__": model.__class__.__name__,
-        **model.dict()
-    }
-
 
 def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     """
@@ -103,6 +75,49 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     )
 
 
+class _PatchWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        new_func = wrapped(*args, **kwargs)
+
+        def patched_new_func(*args, **kwargs):
+            span_name = "instructor.patch"
+            with self._tracer.start_as_current_span(
+                    span_name,
+                    attributes=dict(
+                        _flatten(
+                            {
+                                OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
+                                INPUT_VALUE_MIME_TYPE: "application/json",
+                                # TODO(harrison): figure out why i cant use args with _get_input_value
+                                INPUT_VALUE: kwargs,
+                            }
+                        )
+                    ),
+                    record_exception=False,
+                    set_status_on_exception=False,
+            ) as span:
+                resp = new_func(*args, **kwargs)
+                if resp is not None and hasattr(resp, "dict"):
+                    span.set_attribute(
+                        OUTPUT_VALUE,
+                        json.dumps(resp.dict())
+                    )
+                    span.set_attribute(
+                        OUTPUT_MIME_TYPE,
+                        "application/json"
+                    )
+        return patched_new_func
+
+
 class _HandleResponseWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -124,7 +139,8 @@ class _HandleResponseWrapper:
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE_MIME_TYPE: "application/json",
+                        INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
                             **kwargs,
@@ -135,20 +151,22 @@ class _HandleResponseWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            print(f"Current handle response span context: {span.get_span_context()}")
             try:
                 response = wrapped(*args, **kwargs)
                 response_model = response[0]
-                span.set_attribute(
-                    "response_model_name",
+                response_model_name = (
                     response_model.__name__
                     if response_model is not None and hasattr(response_model, "__name__")
                     else "Unknown"
                 )
                 if response_model is not None and hasattr(response_model, "model_json_schema"):
                     span.set_attribute(
-                        "response_model_json",
-                        json.dumps(response_model.model_json_schema(), indent=4)
+                        OUTPUT_VALUE,
+                        json.dumps(response_model.model_json_schema())
+                    )
+                    span.set_attribute(
+                        OUTPUT_MIME_TYPE,
+                        "application/json"
                     )
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
@@ -159,38 +177,8 @@ class _HandleResponseWrapper:
         return response
 
 
-class _RetrySyncWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
-        self._tracer = tracer
-
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if instance:
-            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
-        else:
-            span_name = wrapped.__name__
-        with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
-        ) as span:
-            try:
-                response = wrapped(*args, **kwargs)
-                print(f"Current retry span context: {span.get_span_context()}")
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
-        return response
-
-
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
+INPUT_VALUE_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE

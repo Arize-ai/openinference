@@ -4,7 +4,7 @@ from typing import Any, Collection
 
 from openinference.instrumentation.instructor._wrappers import (
     _HandleResponseWrapper,
-    _RetrySyncWrapper,
+    _PatchWrapper,
 )
 from openinference.instrumentation.instructor.version import __version__
 from opentelemetry import trace as trace_api
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_handle_response_model",
-        "_original_retry_sync",
+        "_original_patch",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -36,20 +36,20 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
 
+        self._original_patch = getattr(import_module("instructor"), "patch", None)
+        patch_wrapper = _PatchWrapper(tracer=tracer)
+        wrap_function_wrapper(
+            "instructor",
+            "patch",
+            patch_wrapper
+        )
+
         self._original_handle_response_model = getattr(import_module("instructor.patch"), "handle_response_model", None)
         process_resp_wrapper = _HandleResponseWrapper(tracer=tracer)
         wrap_function_wrapper(
             "instructor.patch",
             "handle_response_model",
             process_resp_wrapper
-        )
-
-        self._original_retry_sync = getattr(import_module("instructor.patch"), "retry_sync", None)
-        retry_sync_wrapper = _RetrySyncWrapper(tracer=tracer)
-        wrap_function_wrapper(
-            "instructor.patch",
-            "retry_sync",
-            retry_sync_wrapper
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
