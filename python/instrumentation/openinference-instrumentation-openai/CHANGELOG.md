@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.11...python-openinference-instrumentation-openai-v0.1.12) (2024-08-02)
+
+
+### Bug Fixes
+
+* set higher lower-bound for OpenInference dependency ([#739](https://github.com/Arize-ai/openinference/issues/739)) ([08f9bef](https://github.com/Arize-ai/openinference/commit/08f9bef9391856b5d4f4dbb69a2c2867fd47bc51))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.10...python-openinference-instrumentation-openai-v0.1.11) (2024-08-01)
 
 

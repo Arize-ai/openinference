@@ -3,6 +3,7 @@ import logging
 from importlib import import_module
 from typing import Any, Collection
 
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.guardrails._wrap_guard_call import (
     _ParseCallableWrapper,
     _PostValidationWrapper,
@@ -37,6 +38,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
     """An instrumentor for the Guardrails framework."""
 
     __slots__ = (
+        "_tracer",
         "_original_guardrails_llm_providers_call",
         "_original_guardrails_runner_step",
         "_original_guardrails_validation_after_run",
@@ -48,7 +50,14 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        self._tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
 
         gd.guard.contextvars = _Contextvars(gd.guard.contextvars)
         gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
@@ -56,12 +65,12 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
             wrap_function_wrapper(
                 module="guardrails.guard",
                 name=f"Guard.from_{name}",
-                wrapper=lambda f, _, args, kwargs: f(*args, **{**kwargs, "tracer": tracer}),
+                wrapper=lambda f, _, args, kwargs: f(*args, **{**kwargs, "tracer": self._tracer}),
             )
 
         runner_module = import_module(_RUNNER_MODULE)
         self._original_guardrails_runner_step = runner_module.Runner.step
-        runner_wrapper = _ParseCallableWrapper(tracer=tracer)
+        runner_wrapper = _ParseCallableWrapper(tracer=self._tracer)
         wrap_function_wrapper(
             module=_RUNNER_MODULE,
             name="Runner.step",
@@ -72,7 +81,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_guardrails_llm_providers_call = (
             llm_providers_module.PromptCallableBase.__call__
         )
-        prompt_callable_wrapper = _PromptCallableWrapper(tracer=tracer)
+        prompt_callable_wrapper = _PromptCallableWrapper(tracer=self._tracer)
         wrap_function_wrapper(
             module=_LLM_PROVIDERS_MODULE,
             name="PromptCallableBase.__call__",
@@ -83,7 +92,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_guardrails_validation_after_run = (
             validation_module.ValidatorServiceBase.after_run_validator
         )
-        post_validator_wrapper = _PostValidationWrapper(tracer=tracer)
+        post_validator_wrapper = _PostValidationWrapper(tracer=self._tracer)
         wrap_function_wrapper(
             module=_VALIDATION_MODULE,
             name="ValidatorServiceBase.after_run_validator",
