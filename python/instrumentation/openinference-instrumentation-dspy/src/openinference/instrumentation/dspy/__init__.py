@@ -17,7 +17,12 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    get_attributes_from_context,
+    safe_json_dumps,
+)
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
 from openinference.semconv.trace import (
@@ -59,7 +64,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        self._tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
 
         # Instrument LM (language model) calls
         from dsp.modules.lm import LM
@@ -72,7 +84,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 module=_DSP_MODULE,
                 name=lm.__name__ + ".basic_request",
                 factory=CopyableFunctionWrapper,
-                args=(_LMBasicRequestWrapper(tracer),),
+                args=(_LMBasicRequestWrapper(self._tracer),),
             )
 
         # Predict is a concrete (non-abstract) class that may be invoked
@@ -83,7 +95,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSPY_MODULE,
             name="Predict.forward",
             factory=CopyableFunctionWrapper,
-            args=(_PredictForwardWrapper(tracer),),
+            args=(_PredictForwardWrapper(self._tracer),),
         )
 
         predict_subclasses = Predict.__subclasses__()
@@ -92,14 +104,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".forward",
                 factory=CopyableFunctionWrapper,
-                args=(_PredictForwardWrapper(tracer),),
+                args=(_PredictForwardWrapper(self._tracer),),
             )
 
         wrap_object(
             module=_DSPY_MODULE,
             name="Retrieve.forward",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverForwardWrapper(tracer),),
+            args=(_RetrieverForwardWrapper(self._tracer),),
         )
 
         wrap_object(
@@ -109,7 +121,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             # forward method and invokes that method using __call__.
             name="Module.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_ModuleForwardWrapper(tracer),),
+            args=(_ModuleForwardWrapper(self._tracer),),
         )
 
         # At this time, there is no common parent class for retriever models as
@@ -119,7 +131,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSP_MODULE,
             name="ColBERTv2.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverModelCallWrapper(tracer),),
+            args=(_RetrieverModelCallWrapper(self._tracer),),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

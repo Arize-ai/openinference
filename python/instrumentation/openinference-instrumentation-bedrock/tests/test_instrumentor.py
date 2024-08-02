@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import boto3
 import pytest
 from botocore.response import StreamingBody
-from openinference.instrumentation import using_attributes
+from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.bedrock import (
     _MINIMUM_CONVERSE_BOTOCORE_VERSION,
     BedrockInstrumentor,
@@ -96,6 +96,11 @@ def instrument(
     yield
     BedrockInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
+
+
+# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
+def test_oitracer() -> None:
+    assert isinstance(BedrockInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
