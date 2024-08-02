@@ -7,7 +7,12 @@ from typing import IO, Any, Callable, Collection, Dict, Optional, Tuple, TypeVar
 
 from botocore.client import BaseClient
 from botocore.response import StreamingBody
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    get_attributes_from_context,
+    safe_json_dumps,
+)
 from openinference.instrumentation.bedrock.package import _instruments
 from openinference.instrumentation.bedrock.version import __version__
 from openinference.semconv.trace import (
@@ -278,7 +283,10 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
 
 
 class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
-    __slots__ = ("_original_client_creator",)
+    __slots__ = (
+        "_tracer",
+        "_original_client_creator",
+    )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -286,7 +294,14 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        self._tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
 
         boto = import_module(_MODULE)
         botocore = import_module(_BASE_MODULE)
@@ -295,7 +310,9 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             module=_MODULE,
             name="ClientCreator.create_client",
-            wrapper=_client_creation_wrapper(tracer=tracer, module_version=botocore.__version__),
+            wrapper=_client_creation_wrapper(
+                tracer=self._tracer, module_version=botocore.__version__
+            ),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
