@@ -44,6 +44,7 @@ tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 # Optionally, you can also print the spans to the console.
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+trace_api.set_tracer_provider(tracer_provider)
 
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
