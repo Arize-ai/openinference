@@ -17,7 +17,12 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    ConfigTracer,
+    TraceConfig,
+    get_attributes_from_context,
+    safe_json_dumps,
+)
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
 from openinference.semconv.trace import (
@@ -59,7 +64,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        tracer = ConfigTracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
 
         # Instrument LM (language model) calls
         from dsp.modules.lm import LM

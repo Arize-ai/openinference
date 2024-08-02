@@ -3,6 +3,8 @@ import logging
 from importlib import import_module
 from typing import Any, Collection
 
+from openinference.instrumentation import ConfigTracer, TraceConfig
+
 from openinference.instrumentation.guardrails._wrap_guard_call import (
     _ParseCallableWrapper,
     _PostValidationWrapper,
@@ -48,7 +50,14 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        tracer = ConfigTracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
 
         gd.guard.contextvars = _Contextvars(gd.guard.contextvars)
         gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
