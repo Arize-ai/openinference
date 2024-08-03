@@ -34,7 +34,6 @@ In a python file, setup the `OpenAIInstrumentor` and configure the tracer to sen
 ```python
 import openai
 from openinference.instrumentation.openai import OpenAIInstrumentor
-from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -44,7 +43,6 @@ tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 # Optionally, you can also print the spans to the console.
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-trace_api.set_tracer_provider(tracer_provider)
 
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
