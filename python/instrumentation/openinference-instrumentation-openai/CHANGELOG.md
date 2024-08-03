@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.12...python-openinference-instrumentation-openai-v0.1.13) (2024-08-03)
+
+
+### Documentation
+
+* update openai readme ([#751](https://github.com/Arize-ai/openinference/issues/751)) ([10f20c2](https://github.com/Arize-ai/openinference/commit/10f20c2dd68f0ee8c90d8e43c0d71b408230dd66))
+* update openai readme ([#754](https://github.com/Arize-ai/openinference/issues/754)) ([4b8b967](https://github.com/Arize-ai/openinference/commit/4b8b96799b255d46d95a201dd7188f545c9d1228))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.11...python-openinference-instrumentation-openai-v0.1.12) (2024-08-02)
 
 
