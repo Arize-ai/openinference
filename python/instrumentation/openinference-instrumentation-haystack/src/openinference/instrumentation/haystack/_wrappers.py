@@ -140,13 +140,22 @@ class _ComponentWrapper(_WithTracer):
                                 ]["instance"]._template_string,
                                 SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
                                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                                SpanAttributes.RETRIEVAL_DOCUMENTS: safe_json_dumps(
-                                    invocation_parameters["documents"]
-                                ),
                             }
                         )
                     )
                 )
+                if "documents" in invocation_parameters:
+                    span.set_attributes(
+                        dict(
+                            _flatten(
+                                {
+                                    SpanAttributes.RETRIEVAL_DOCUMENTS: safe_json_dumps(
+                                        invocation_parameters["documents"]
+                                    ),
+                                }
+                            )
+                        )
+                    )
 
             try:
                 response = wrapped(*args, **kwargs)
@@ -217,8 +226,6 @@ class _ComponentWrapper(_WithTracer):
                             ),
                         }
                     )
-            # span.set_attributes(attributes)
-
         return response
 
 
