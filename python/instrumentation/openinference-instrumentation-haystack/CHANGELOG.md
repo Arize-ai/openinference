@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.1...python-openinference-instrumentation-haystack-v0.1.2) (2024-08-03)
+
+
+### Bug Fixes
+
+* **haystack:** keep ruff guides consistent across instrumentors ([#705](https://github.com/Arize-ai/openinference/issues/705)) ([4293b48](https://github.com/Arize-ai/openinference/commit/4293b48f0124fafff1295e42bd5e20eb2d503a75))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.0...python-openinference-instrumentation-haystack-v0.1.1) (2024-08-01)
 
 
