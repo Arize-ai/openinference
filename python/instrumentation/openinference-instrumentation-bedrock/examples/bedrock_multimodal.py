@@ -1,8 +1,8 @@
-import requests
 import os
-
 from typing import Tuple
+
 import boto3
+import requests
 from openinference.instrumentation.bedrock import BedrockInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter

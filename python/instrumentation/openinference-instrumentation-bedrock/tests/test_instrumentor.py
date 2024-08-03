@@ -828,11 +828,10 @@ def _run_converse_checks(
     assert attributes.pop(INPUT_VALUE) == input
     for msg_idx, msg in enumerate(llm_input_messages_truth):
         role_key = f"llm.input_messages.{msg_idx}.message.role"
-        content_key = f"llm.input_messages.{msg_idx}.message.content"
+        content_key = f"llm.input_messages.{msg_idx}.message.contents"
         assert attributes.pop(role_key) == msg["role"], f"Role mismatch for message {msg_idx}."
-        assert (
-            attributes.pop(content_key) == msg["content"]
-        ), f"Content mismatch for message {msg_idx}."
+        assert attributes.pop(f"{content_key}.0.message_content.type") == "text"
+        assert attributes.pop(f"{content_key}.0.message_content.text") == msg["content"]
 
     if use_context_attributes:
         _check_context_attributes(

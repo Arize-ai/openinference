@@ -1,19 +1,19 @@
-import io
-from enum import Enum
 import base64
-import logging
+import io
 import json
+import logging
+from enum import Enum
 from functools import wraps
 from importlib import import_module
 from inspect import signature
 from typing import (
     IO,
     Any,
-    Iterable,
     Callable,
     Collection,
-    Iterator,
     Dict,
+    Iterable,
+    Iterator,
     List,
     Optional,
     Tuple,
@@ -32,11 +32,11 @@ from openinference.instrumentation import (
 from openinference.instrumentation.bedrock.package import _instruments
 from openinference.instrumentation.bedrock.version import __version__
 from openinference.semconv.trace import (
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
+    ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
-    ImageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -395,7 +395,10 @@ def _get_attributes_from_image(
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if (source := image.get("source")) and (img_bytes := source.get("bytes")):
         base64_img = base64.b64encode(img_bytes).decode("utf-8")
-        yield f"{ImageAttributes.IMAGE_URL}", f"data:image/jpeg;base64,{base64_img}",
+        yield (
+            f"{ImageAttributes.IMAGE_URL}",
+            f"data:image/jpeg;base64,{base64_img}",
+        )
 
 
 T = TypeVar("T", bound=type)
