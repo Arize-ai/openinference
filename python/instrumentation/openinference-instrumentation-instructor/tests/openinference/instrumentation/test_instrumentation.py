@@ -5,7 +5,7 @@ import os
 import pytest
 import vcr
 from pydantic import BaseModel
-from openai
+import openai
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -34,7 +34,7 @@ def setup_instructor_instrumentation(
 test_vcr = vcr.VCR(
     serializer='yaml',
     cassette_library_dir='fixtures/cassettes/',
-    record_mode='none',
+    record_mode='never',
     match_on=['uri', 'method'],
 )
 class UserInfo(BaseModel):
@@ -57,16 +57,10 @@ async def test_async_instrumentation(
     setup_instructor_instrumentation: Any,
 ):
     os.environ["OPENAI_API_KEY"] = "fake_key"
-    with test_vcr.use_cassette('instructor_instrumentation.yaml', filter_headers=['authorization']):
-        client = instructor.from_openai(openai.OpenAI())
-        user_info = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            response_model=UserInfo,
-            messages=[{"role": "user", "content": "John Doe is 30 years old."}],
-        )
-        user = await extract()
+    with test_vcr.use_cassette('async_instructor_instrumentation.yaml', filter_headers=['authorization']):
+        user_info = await extract()
         assert user_info.name == "John Doe"
-        assert user_info.age == 30
+        assert user_info.age == 25
 
         spans = in_memory_span_exporter.get_finished_spans()
 
@@ -87,10 +81,9 @@ def test_instructor_instrumentation(
         record_mode='none',
         match_on=['uri', 'method'],
     )
-    import os
     os.environ["OPENAI_API_KEY"] = "fake_key"
     with test_vcr.use_cassette('instructor_instrumentation.yaml', filter_headers=['authorization']):
-        client = instructor.from_openai(OpenAI())
+        client = instructor.from_openai(openai.OpenAI())
         user_info = client.chat.completions.create(
             model="gpt-3.5-turbo",
             response_model=UserInfo,
