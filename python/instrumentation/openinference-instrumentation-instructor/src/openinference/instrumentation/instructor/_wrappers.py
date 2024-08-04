@@ -1,8 +1,8 @@
 import json
 from enum import Enum
 from inspect import signature
+from instructor.utils import is_async
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
-from pydantic import BaseModel
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
@@ -86,24 +86,35 @@ class _PatchWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+
+        create = kwargs.get('create')
+        client = kwargs.get('client')
+
+        if create is not None:
+            func = create
+        elif client is not None:
+            func = client.chat.completions.create
+        else:
+            raise ValueError("Either client or create must be provided")
         new_func = wrapped(*args, **kwargs)
+        func_is_async = is_async(func)
 
         def patched_new_func(*args, **kwargs):
             span_name = "instructor.patch"
             with self._tracer.start_as_current_span(
-                    span_name,
-                    attributes=dict(
-                        _flatten(
-                            {
-                                OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
-                                INPUT_VALUE_MIME_TYPE: "application/json",
-                                # TODO(harrison): figure out why i cant use args with _get_input_value
-                                INPUT_VALUE: kwargs,
-                            }
-                        )
-                    ),
-                    record_exception=False,
-                    set_status_on_exception=False,
+                span_name,
+                attributes=dict(
+                    _flatten(
+                        {
+                            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
+                            INPUT_VALUE_MIME_TYPE: "application/json",
+                            # TODO(harrison): figure out why i cant use args with _get_input_value
+                            INPUT_VALUE: kwargs,
+                        }
+                    )
+                ),
+                record_exception=False,
+                set_status_on_exception=False,
             ) as span:
                 resp = new_func(*args, **kwargs)
                 if resp is not None and hasattr(resp, "dict"):
@@ -116,8 +127,43 @@ class _PatchWrapper:
                         "application/json"
                     )
                 return resp
-        return patched_new_func
 
+        async def async_patched_new_func(*args, **kwargs):
+            span_name = "instructor.async_patch"
+            with self._tracer.start_as_current_span(
+                span_name,
+                attributes=dict(
+                    _flatten(
+                        {
+                            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
+                            INPUT_VALUE_MIME_TYPE: "application/json",
+                            # TODO(harrison): figure out why i cant use args with _get_input_value
+                            INPUT_VALUE: kwargs,
+                        }
+                    )
+                ),
+                record_exception=False,
+                set_status_on_exception=False,
+            ) as span:
+                resp = await new_func(*args, **kwargs)
+                if resp is not None and hasattr(resp, "dict"):
+                    span.set_attribute(
+                        OUTPUT_VALUE,
+                        json.dumps(resp.dict())
+                    )
+                    span.set_attribute(
+                        OUTPUT_MIME_TYPE,
+                        "application/json"
+                    )
+                return resp
+
+        new_create = async_patched_new_func if func_is_async else patched_new_func
+
+        if client is not None:
+            client.chat.completions.create = new_create
+            return client
+        else:
+            return new_create
 
 class _HandleResponseWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
