@@ -1,0 +1,230 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Create a user"}], "model": "gpt-4-turbo-preview",
+      "tool_choice": {"type": "function", "function": {"name": "UserInfo"}}, "tools":
+      [{"type": "function", "function": {"name": "UserInfo", "description": "Correctly
+      extracted `UserInfo` with all the required parameters with correct types", "parameters":
+      {"properties": {"name": {"title": "Name", "type": "string"}, "age": {"title":
+      "Age", "type": "integer"}}, "required": ["age", "name"], "type": "object"}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '499'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.38.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.38.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.9.6
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        fake_key. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8ae11b628b540f73-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '258'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Sun, 04 Aug 2024 19:55:47 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=38caz3tRwoWLkXrjRV1yyTumeBYYPJc7Zg_9nCC2Q9s-1722801347-1.0.1.1-WTK5lXeZmelQARdCB1eT012OfiSQRLTagmo6mEQcSCdQniuGMIFPTYfebjt_VDP978_0bEunEswb4n6LDR8A2g;
+        path=/; expires=Sun, 04-Aug-24 20:25:47 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=mh3E9yzbRuJBMhrCOLYqqQc5brxcst0DLkK8TQAIK8g-1722801347049-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      strict-transport-security:
+      - max-age=15552000; includeSubDomains; preload
+      vary:
+      - Origin
+      x-request-id:
+      - req_f494d0378580527c88f9aaac3215dfb8
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"messages": [{"role": "user", "content": "Create a user"}], "model": "gpt-4-turbo-preview",
+      "tool_choice": {"type": "function", "function": {"name": "UserInfo"}}, "tools":
+      [{"type": "function", "function": {"name": "UserInfo", "description": "Correctly
+      extracted `UserInfo` with all the required parameters with correct types", "parameters":
+      {"properties": {"name": {"title": "Name", "type": "string"}, "age": {"title":
+      "Age", "type": "integer"}}, "required": ["age", "name"], "type": "object"}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '499'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=38caz3tRwoWLkXrjRV1yyTumeBYYPJc7Zg_9nCC2Q9s-1722801347-1.0.1.1-WTK5lXeZmelQARdCB1eT012OfiSQRLTagmo6mEQcSCdQniuGMIFPTYfebjt_VDP978_0bEunEswb4n6LDR8A2g;
+        _cfuvid=mh3E9yzbRuJBMhrCOLYqqQc5brxcst0DLkK8TQAIK8g-1722801347049-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.38.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.38.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.9.6
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        fake_key. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8ae11b632c0f0f73-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '258'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Sun, 04 Aug 2024 19:55:47 GMT
+      Server:
+      - cloudflare
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      strict-transport-security:
+      - max-age=15552000; includeSubDomains; preload
+      vary:
+      - Origin
+      x-request-id:
+      - req_d657e872ee13580b6e95fc568243cee3
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"messages": [{"role": "user", "content": "Create a user"}], "model": "gpt-4-turbo-preview",
+      "tool_choice": {"type": "function", "function": {"name": "UserInfo"}}, "tools":
+      [{"type": "function", "function": {"name": "UserInfo", "description": "Correctly
+      extracted `UserInfo` with all the required parameters with correct types", "parameters":
+      {"properties": {"name": {"title": "Name", "type": "string"}, "age": {"title":
+      "Age", "type": "integer"}}, "required": ["age", "name"], "type": "object"}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '499'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=38caz3tRwoWLkXrjRV1yyTumeBYYPJc7Zg_9nCC2Q9s-1722801347-1.0.1.1-WTK5lXeZmelQARdCB1eT012OfiSQRLTagmo6mEQcSCdQniuGMIFPTYfebjt_VDP978_0bEunEswb4n6LDR8A2g;
+        _cfuvid=mh3E9yzbRuJBMhrCOLYqqQc5brxcst0DLkK8TQAIK8g-1722801347049-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.38.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.38.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.9.6
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        fake_key. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8ae11b63bcbd0f73-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '258'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Sun, 04 Aug 2024 19:55:47 GMT
+      Server:
+      - cloudflare
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      strict-transport-security:
+      - max-age=15552000; includeSubDomains; preload
+      vary:
+      - Origin
+      x-request-id:
+      - req_d884d2606a0d36ab1e38d7d02a8a093e
+    status:
+      code: 401
+      message: Unauthorized
+version: 1
