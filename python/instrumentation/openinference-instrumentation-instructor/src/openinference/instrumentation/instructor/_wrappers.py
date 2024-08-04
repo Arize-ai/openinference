@@ -102,7 +102,7 @@ class _PatchWrapper:
         new_func = wrapped(*args, **kwargs)
         func_is_async = is_async(func)
 
-        def patched_new_func(*args, **kwargs):
+        def patched_new_func(*args: Any, **kwargs: Any) -> Any:
             span_name = "instructor.patch"
             with self._tracer.start_as_current_span(
                 span_name,
@@ -125,7 +125,7 @@ class _PatchWrapper:
                     span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
                 return resp
 
-        async def async_patched_new_func(*args, **kwargs):
+        async def async_patched_new_func(*args: Any, **kwargs: Any) -> Any:
             span_name = "instructor.async_patch"
             with self._tracer.start_as_current_span(
                 span_name,
