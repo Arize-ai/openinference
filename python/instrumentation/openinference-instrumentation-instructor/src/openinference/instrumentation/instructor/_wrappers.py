@@ -115,6 +115,7 @@ class _PatchWrapper:
                         OUTPUT_MIME_TYPE,
                         "application/json"
                     )
+                return resp
         return patched_new_func
 
 

@@ -1,5 +1,4 @@
 from typing import Any, Generator
-from unittest.mock import patch
 
 import instructor
 import pytest
@@ -33,6 +32,29 @@ def setup_instructor_instrumentation(
 class UserInfo(BaseModel):
     name: str
     age: int
+async def extract():
+    import openai
+    import os
+    client = instructor.from_openai(openai.AsyncOpenAI())
+    return await client.chat.completions.create(
+        model="gpt-4-turbo-preview",
+        messages=[
+            {"role": "user", "content": "Create a user"},
+        ],
+        response_model=UserInfo,
+    )
+
+
+@pytest.mark.asyncio
+async def test_extract(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_instructor_instrumentation: Any,
+):
+    user = await extract()
+    print(user)
+    assert user.name == "John Doe"
+    assert user.age == 30
 
 def test_instructor_instrumentation(
     tracer_provider: TracerProvider,
