@@ -45,4 +45,12 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        pass
+        if self._original_patch is not None:
+            instructor_module = import_module("instructor")
+            instructor_module.patch = self._original_patch
+            self._original_patch = None
+
+        if self._original_handle_response_model is not None:
+            patch_module = import_module("instructor.patch")
+            patch_module.handle_response_model = self._original_handle_response_model
+            self._original_handle_response_model = None
