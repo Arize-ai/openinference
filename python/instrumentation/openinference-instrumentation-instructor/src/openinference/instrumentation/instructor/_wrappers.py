@@ -1,13 +1,14 @@
 import json
 from enum import Enum
 from inspect import signature
-from instructor.utils import is_async
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
+
+from instructor.utils import is_async
 
 
 class SafeJSONEncoder(json.JSONEncoder):

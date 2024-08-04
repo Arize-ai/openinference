@@ -1,16 +1,16 @@
+import os
 from typing import Any, Generator
 
 import instructor
-import os
+import openai
 import pytest
 import vcr
-from pydantic import BaseModel
-import openai
+from openinference.instrumentation.instructor import InstructorInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from openinference.instrumentation.instructor import InstructorInstrumentor
+from pydantic import BaseModel
 
 
 @pytest.fixture()
