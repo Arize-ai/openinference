@@ -30,19 +30,13 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
 
         self._original_patch = getattr(import_module("instructor"), "patch", None)
         patch_wrapper = _PatchWrapper(tracer=tracer)
-        wrap_function_wrapper(
-            "instructor",
-            "patch",
-            patch_wrapper
-        )
+        wrap_function_wrapper("instructor", "patch", patch_wrapper)
 
-        self._original_handle_response_model = getattr(import_module("instructor.patch"), "handle_response_model", None)
-        process_resp_wrapper = _HandleResponseWrapper(tracer=tracer)
-        wrap_function_wrapper(
-            "instructor.patch",
-            "handle_response_model",
-            process_resp_wrapper
+        self._original_handle_response_model = getattr(
+            import_module("instructor.patch"), "handle_response_model", None
         )
+        process_resp_wrapper = _HandleResponseWrapper(tracer=tracer)
+        wrap_function_wrapper("instructor.patch", "handle_response_model", process_resp_wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_patch is not None:

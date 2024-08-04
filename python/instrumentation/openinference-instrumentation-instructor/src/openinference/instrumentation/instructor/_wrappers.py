@@ -9,6 +9,7 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
+
 class SafeJSONEncoder(json.JSONEncoder):
     """
     Safely encodes non-JSON-serializable objects.
@@ -21,6 +22,7 @@ class SafeJSONEncoder(json.JSONEncoder):
             if hasattr(o, "dict") and callable(o.dict):  # pydantic v1 models, e.g., from Cohere
                 return o.dict()
             return repr(o)
+
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
@@ -39,6 +41,7 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
+
 
 def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     """
@@ -86,9 +89,8 @@ class _PatchWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-
-        create = kwargs.get('create')
-        client = kwargs.get('client')
+        create = kwargs.get("create")
+        client = kwargs.get("client")
 
         if create is not None:
             func = create
@@ -118,14 +120,8 @@ class _PatchWrapper:
             ) as span:
                 resp = new_func(*args, **kwargs)
                 if resp is not None and hasattr(resp, "dict"):
-                    span.set_attribute(
-                        OUTPUT_VALUE,
-                        json.dumps(resp.dict())
-                    )
-                    span.set_attribute(
-                        OUTPUT_MIME_TYPE,
-                        "application/json"
-                    )
+                    span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
+                    span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
                 return resp
 
         async def async_patched_new_func(*args, **kwargs):
@@ -147,14 +143,8 @@ class _PatchWrapper:
             ) as span:
                 resp = await new_func(*args, **kwargs)
                 if resp is not None and hasattr(resp, "dict"):
-                    span.set_attribute(
-                        OUTPUT_VALUE,
-                        json.dumps(resp.dict())
-                    )
-                    span.set_attribute(
-                        OUTPUT_MIME_TYPE,
-                        "application/json"
-                    )
+                    span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
+                    span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
                 return resp
 
         new_create = async_patched_new_func if func_is_async else patched_new_func
@@ -164,6 +154,7 @@ class _PatchWrapper:
             return client
         else:
             return new_create
+
 
 class _HandleResponseWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
@@ -207,14 +198,8 @@ class _HandleResponseWrapper:
                     else "Unknown"
                 )
                 if response_model is not None and hasattr(response_model, "model_json_schema"):
-                    span.set_attribute(
-                        OUTPUT_VALUE,
-                        json.dumps(response_model.model_json_schema())
-                    )
-                    span.set_attribute(
-                        OUTPUT_MIME_TYPE,
-                        "application/json"
-                    )
+                    span.set_attribute(OUTPUT_VALUE, json.dumps(response_model.model_json_schema()))
+                    span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
