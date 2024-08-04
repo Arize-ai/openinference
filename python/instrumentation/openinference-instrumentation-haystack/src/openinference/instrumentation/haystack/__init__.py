@@ -1,5 +1,4 @@
 import logging
-from importlib import import_module
 from typing import Any, Collection
 
 from openinference.instrumentation.haystack._wrappers import _ComponentWrapper, _PipelineWrapper
@@ -10,6 +9,8 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 )
 from opentelemetry.trace import get_tracer
 from wrapt import wrap_function_wrapper
+
+import haystack
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +29,14 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = get_tracer(__name__, __version__, tracer_provider)
-        pipeline = import_module("haystack.core.pipeline.pipeline")
 
-        self._original_pipeline_run = pipeline.Pipeline.run
+        self._original_pipeline_run = haystack.Pipeline.run
         wrap_function_wrapper(
             module="haystack.core.pipeline.pipeline",
             name="Pipeline.run",
             wrapper=_PipelineWrapper(tracer=tracer),
         )
-        self._original_pipeline_run_component = pipeline.Pipeline._run_component
+        self._original_pipeline_run_component = haystack.Pipeline._run_component
         wrap_function_wrapper(
             module="haystack.core.pipeline.pipeline",
             name="Pipeline._run_component",
@@ -44,8 +44,6 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        haystack = import_module("haystack.core.pipeline.pipeline")
-
         if self._original_pipeline_run is not None:
             haystack.Pipeline.run = self._original_pipeline_run
 

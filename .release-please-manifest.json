@@ -1,15 +1,16 @@
 {
     "python/openinference-semantic-conventions": "0.1.9",
-    "python/instrumentation/openinference-instrumentation-openai": "0.1.10",
-    "python/instrumentation/openinference-instrumentation-llama-index": "2.2.0",
-    "python/instrumentation/openinference-instrumentation-dspy": "0.1.9",
-    "python/instrumentation/openinference-instrumentation-langchain": "0.1.25",
-    "python/instrumentation/openinference-instrumentation-bedrock": "0.1.7",
-    "python/instrumentation/openinference-instrumentation-mistralai": "0.0.8",
-    "python/openinference-instrumentation": "0.1.11",
-    "python/instrumentation/openinference-instrumentation-guardrails": "0.1.0",
-    "python/instrumentation/openinference-instrumentation-vertexai": "0.1.1",
+    "python/instrumentation/openinference-instrumentation-openai": "0.1.12",
+    "python/instrumentation/openinference-instrumentation-llama-index": "2.2.1",
+    "python/instrumentation/openinference-instrumentation-dspy": "0.1.10",
+    "python/instrumentation/openinference-instrumentation-langchain": "0.1.26",
+    "python/instrumentation/openinference-instrumentation-bedrock": "0.1.8",
+    "python/instrumentation/openinference-instrumentation-mistralai": "0.0.9",
+    "python/openinference-instrumentation": "0.1.12",
+    "python/instrumentation/openinference-instrumentation-guardrails": "0.1.1",
+    "python/instrumentation/openinference-instrumentation-vertexai": "0.1.2",
     "python/instrumentation/openinference-instrumentation-crewai": "0.1.0",
-    "python/instrumentation/openinference-instrumentation-haystack": "0.1.0",
-    "python/instrumentation/openinference-instrumentation-litellm": "0.1.0"
+    "python/instrumentation/openinference-instrumentation-haystack": "0.1.1",
+    "python/instrumentation/openinference-instrumentation-litellm": "0.1.0",
+    "python/instrumentation/openinference-instrumentation-groq": "0.1.0"
 }

@@ -81,12 +81,13 @@ class _ComponentWrapper(_WithTracer):
                             SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
                             SpanAttributes.INPUT_VALUE: safe_json_dumps(input_data),
                             SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
-                                "prompt_builder"
-                            ]["instance"]._template_string,
                         }
                     )
                 )
+                if "prompt_builder" in str(instance):
+                    attributes[SpanAttributes.LLM_PROMPT_TEMPLATE] = instance.graph.nodes._nodes[
+                        "prompt_builder"
+                    ]["instance"]._template_string
             elif component_type == "text_embedder":
                 attributes = dict(
                     _flatten(
@@ -124,12 +125,13 @@ class _ComponentWrapper(_WithTracer):
                             ]["instance"]._template_string,
                             SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
                             SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            SpanAttributes.RETRIEVAL_DOCUMENTS: safe_json_dumps(
-                                invocation_parameters["documents"]
-                            ),
                         }
                     )
                 )
+                if "documents" in invocation_parameters:
+                    attributes[SpanAttributes.RETRIEVAL_DOCUMENTS] = safe_json_dumps(
+                        invocation_parameters["documents"]
+                    )
 
             try:
                 response = wrapped(*args, **kwargs)
