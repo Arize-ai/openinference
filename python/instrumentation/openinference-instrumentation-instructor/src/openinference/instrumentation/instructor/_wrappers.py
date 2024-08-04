@@ -193,11 +193,6 @@ class _HandleResponseWrapper:
             try:
                 response = wrapped(*args, **kwargs)
                 response_model = response[0]
-                response_model_name = (
-                    response_model.__name__
-                    if response_model is not None and hasattr(response_model, "__name__")
-                    else "Unknown"
-                )
                 if response_model is not None and hasattr(response_model, "model_json_schema"):
                     span.set_attribute(OUTPUT_VALUE, json.dumps(response_model.model_json_schema()))
                     span.set_attribute(OUTPUT_MIME_TYPE, "application/json")

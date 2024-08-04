@@ -87,12 +87,6 @@ def test_instructor_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_instructor_instrumentation: Any,
 ) -> None:
-    my_vcr = vcr.VCR(
-        serializer="yaml",
-        cassette_library_dir="fixtures/cassettes/",
-        record_mode="none",
-        match_on=["uri", "method"],
-    )
     os.environ["OPENAI_API_KEY"] = "fake_key"
     with test_vcr.use_cassette("instructor_instrumentation.yaml", filter_headers=["authorization"]):
         client = instructor.from_openai(openai.OpenAI())
