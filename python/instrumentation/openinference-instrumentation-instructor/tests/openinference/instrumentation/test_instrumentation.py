@@ -4,7 +4,7 @@ from typing import Any, Generator
 import instructor
 import openai
 import pytest
-import vcr
+import vcr  # type: ignore
 from openinference.instrumentation.instructor import InstructorInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -48,7 +48,7 @@ class UserInfo(BaseModel):
     age: int
 
 
-async def extract():
+async def extract() -> UserInfo:
     client = instructor.from_openai(openai.AsyncOpenAI())
     return await client.chat.completions.create(
         model="gpt-4-turbo-preview",
@@ -64,7 +64,7 @@ async def test_async_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_instructor_instrumentation: Any,
-):
+) -> None:
     os.environ["OPENAI_API_KEY"] = "fake_key"
     with test_vcr.use_cassette(
         "async_instructor_instrumentation.yaml", filter_headers=["authorization"]
