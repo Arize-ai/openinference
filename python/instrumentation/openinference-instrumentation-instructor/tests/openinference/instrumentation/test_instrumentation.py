@@ -1,9 +1,11 @@
 from typing import Any, Generator
 
 import instructor
+import os
 import pytest
+import vcr
 from pydantic import BaseModel
-from openai import OpenAI
+from openai
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -29,12 +31,16 @@ def setup_instructor_instrumentation(
     yield
     InstructorInstrumentor().uninstrument()
 
+test_vcr = vcr.VCR(
+    serializer='yaml',
+    cassette_library_dir='fixtures/cassettes/',
+    record_mode='none',
+    match_on=['uri', 'method'],
+)
 class UserInfo(BaseModel):
     name: str
     age: int
 async def extract():
-    import openai
-    import os
     client = instructor.from_openai(openai.AsyncOpenAI())
     return await client.chat.completions.create(
         model="gpt-4-turbo-preview",
@@ -44,39 +50,59 @@ async def extract():
         response_model=UserInfo,
     )
 
-
 @pytest.mark.asyncio
-async def test_extract(
+async def test_async_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_instructor_instrumentation: Any,
 ):
-    user = await extract()
-    print(user)
-    assert user.name == "John Doe"
-    assert user.age == 30
+    os.environ["OPENAI_API_KEY"] = "fake_key"
+    with test_vcr.use_cassette('instructor_instrumentation.yaml', filter_headers=['authorization']):
+        client = instructor.from_openai(openai.OpenAI())
+        user_info = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            response_model=UserInfo,
+            messages=[{"role": "user", "content": "John Doe is 30 years old."}],
+        )
+        user = await extract()
+        assert user_info.name == "John Doe"
+        assert user_info.age == 30
+
+        spans = in_memory_span_exporter.get_finished_spans()
+
+        # We should have 2 spans for what we consider "TOOL" calling
+        assert len(spans) == 2
+        for span in spans:
+            attributes = dict(span.attributes or dict())
+            assert attributes.get("openinference.span.kind") in ["TOOL"]
 
 def test_instructor_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_instructor_instrumentation: Any,
 ) -> None:
-    # Patch the OpenAI client
-    client = instructor.from_openai(OpenAI())
-
-    # Extract structured data from natural language
-    user_info = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        response_model=UserInfo,
-        messages=[{"role": "user", "content": "John Doe is 30 years old."}],
+    my_vcr = vcr.VCR(
+        serializer='yaml',
+        cassette_library_dir='fixtures/cassettes/',
+        record_mode='none',
+        match_on=['uri', 'method'],
     )
+    import os
+    os.environ["OPENAI_API_KEY"] = "fake_key"
+    with test_vcr.use_cassette('instructor_instrumentation.yaml', filter_headers=['authorization']):
+        client = instructor.from_openai(OpenAI())
+        user_info = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            response_model=UserInfo,
+            messages=[{"role": "user", "content": "John Doe is 30 years old."}],
+        )
+        assert user_info.name == "John Doe"
+        assert user_info.age == 30
 
-    assert user_info.name == "John Doe"
-    assert user_info.age == 30
+        spans = in_memory_span_exporter.get_finished_spans()
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) > 0  # Ensure that spans are created
-
-    for span in spans:
-        attributes = dict(span.attributes or dict())
-        assert attributes.get("openinference.span.kind") in ["LLM", "INSTRUCTOR"]
+        # We should have 2 spans for what we consider "TOOL" calling
+        assert len(spans) == 2
+        for span in spans:
+            attributes = dict(span.attributes or dict())
+            assert attributes.get("openinference.span.kind") in ["TOOL"]
