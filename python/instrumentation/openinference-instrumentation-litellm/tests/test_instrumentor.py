@@ -1,15 +1,18 @@
 import json
+from typing import Any, Dict, List, Mapping, cast
 from unittest.mock import patch
 
 import litellm
 import pytest
 from litellm.llms.openai import OpenAIChatCompletion
+from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import EmbeddingAttributes, ImageAttributes, SpanAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
 
 
 @pytest.fixture(scope="module")
@@ -25,16 +28,49 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
     return tracer_provider
 
 
-def test_completion(tracer_provider, in_memory_span_exporter):
+# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
+def test_oitracer() -> None:
+    assert isinstance(LiteLLMInstrumentor().tracer, OITracer)
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_completion(
+    tracer_provider,
+    in_memory_span_exporter,
+    use_context_attributes,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+):
     in_memory_span_exporter.clear()
     instrumentor = LiteLLMInstrumentor(tracer_provider=tracer_provider)
     instrumentor.instrument()
 
-    litellm.completion(
-        model="gpt-3.5-turbo",
-        messages=[{"content": "What's the capital of China?", "role": "user"}],
-        mock_response="Beijing",
-    )
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=[{"content": "What's the capital of China?", "role": "user"}],
+                mock_response="Beijing",
+            )
+    else:
+        litellm.completion(
+            model="gpt-3.5-turbo",
+            messages=[{"content": "What's the capital of China?", "role": "user"}],
+            mock_response="Beijing",
+        )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -47,6 +83,19 @@ def test_completion(tracer_provider, in_memory_span_exporter):
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
 
 
 def test_completion_with_parameters(tracer_provider, in_memory_span_exporter):
@@ -119,16 +168,43 @@ def test_completion_with_multiple_messages(tracer_provider, in_memory_span_expor
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
 
 
-async def test_acompletion(tracer_provider, in_memory_span_exporter):
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+async def test_acompletion(
+    tracer_provider,
+    in_memory_span_exporter,
+    use_context_attributes,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+):
     in_memory_span_exporter.clear()
     instrumentor = LiteLLMInstrumentor(tracer_provider=tracer_provider)
     instrumentor.instrument()
-
-    await litellm.acompletion(
-        model="gpt-3.5-turbo",
-        messages=[{"content": "What's the capital of China?", "role": "user"}],
-        mock_response="Beijing",
-    )
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            await litellm.acompletion(
+                model="gpt-3.5-turbo",
+                messages=[{"content": "What's the capital of China?", "role": "user"}],
+                mock_response="Beijing",
+            )
+    else:
+        await litellm.acompletion(
+            model="gpt-3.5-turbo",
+            messages=[{"content": "What's the capital of China?", "role": "user"}],
+            mock_response="Beijing",
+        )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -142,17 +218,57 @@ async def test_acompletion(tracer_provider, in_memory_span_exporter):
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
 
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
 
-def test_completion_with_retries(tracer_provider, in_memory_span_exporter):
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_completion_with_retries(
+    tracer_provider,
+    in_memory_span_exporter,
+    use_context_attributes,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+):
     in_memory_span_exporter.clear()
     instrumentor = LiteLLMInstrumentor(tracer_provider=tracer_provider)
     instrumentor.instrument()
-
-    litellm.completion_with_retries(
-        model="gpt-3.5-turbo",
-        messages=[{"content": "What's the capital of China?", "role": "user"}],
-        mock_response="Beijing",
-    )
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            litellm.completion_with_retries(
+                model="gpt-3.5-turbo",
+                messages=[{"content": "What's the capital of China?", "role": "user"}],
+                mock_response="Beijing",
+            )
+    else:
+        litellm.completion_with_retries(
+            model="gpt-3.5-turbo",
+            messages=[{"content": "What's the capital of China?", "role": "user"}],
+            mock_response="Beijing",
+        )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
@@ -164,6 +280,19 @@ def test_completion_with_retries(tracer_provider, in_memory_span_exporter):
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
 
 
 # Bug report filed on GitHub for acompletion_with_retries: https://github.com/BerriAI/litellm/issues/4908
@@ -192,7 +321,19 @@ def test_completion_with_retries(tracer_provider, in_memory_span_exporter):
 # For now the following tests monkeypatch OpenAIChatCompletion functions
 
 
-def test_embedding(tracer_provider, in_memory_span_exporter):
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_embedding(
+    tracer_provider,
+    in_memory_span_exporter,
+    use_context_attributes,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+):
     in_memory_span_exporter.clear()
     instrumentor = LiteLLMInstrumentor(tracer_provider=tracer_provider)
     instrumentor.instrument()
@@ -205,7 +346,21 @@ def test_embedding(tracer_provider, in_memory_span_exporter):
     )
 
     with patch.object(OpenAIChatCompletion, "embedding", return_value=mock_response_embedding):
-        litellm.embedding(model="text-embedding-ada-002", input=["good morning from litellm"])
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                litellm.embedding(
+                    model="text-embedding-ada-002", input=["good morning from litellm"]
+                )
+        else:
+            litellm.embedding(model="text-embedding-ada-002", input=["good morning from litellm"])
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -222,8 +377,33 @@ def test_embedding(tracer_provider, in_memory_span_exporter):
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 1
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 6
 
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
 
-async def test_aembedding(tracer_provider, in_memory_span_exporter):
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+async def test_aembedding(
+    tracer_provider,
+    in_memory_span_exporter,
+    use_context_attributes,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+):
     in_memory_span_exporter.clear()
     instrumentor = LiteLLMInstrumentor(tracer_provider=tracer_provider)
     instrumentor.instrument()
@@ -236,9 +416,23 @@ async def test_aembedding(tracer_provider, in_memory_span_exporter):
     )
 
     with patch.object(OpenAIChatCompletion, "aembedding", return_value=mock_response_embedding):
-        await litellm.aembedding(
-            model="text-embedding-ada-002", input=["good morning from litellm"]
-        )
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                await litellm.aembedding(
+                    model="text-embedding-ada-002", input=["good morning from litellm"]
+                )
+        else:
+            await litellm.aembedding(
+                model="text-embedding-ada-002", input=["good morning from litellm"]
+            )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -255,8 +449,33 @@ async def test_aembedding(tracer_provider, in_memory_span_exporter):
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 1
     assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 6
 
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
 
-def test_image_generation(tracer_provider, in_memory_span_exporter):
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_image_generation(
+    tracer_provider,
+    in_memory_span_exporter,
+    use_context_attributes,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+):
     in_memory_span_exporter.clear()
     instrumentor = LiteLLMInstrumentor(tracer_provider=tracer_provider)
     instrumentor.instrument()
@@ -269,10 +488,25 @@ def test_image_generation(tracer_provider, in_memory_span_exporter):
     with patch.object(
         OpenAIChatCompletion, "image_generation", return_value=mock_response_image_gen
     ):
-        litellm.image_generation(
-            model="dall-e-2",
-            prompt="a sunrise over the mountains",
-        )
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                litellm.image_generation(
+                    model="dall-e-2",
+                    prompt="a sunrise over the mountains",
+                )
+        else:
+            litellm.image_generation(
+                model="dall-e-2",
+                prompt="a sunrise over the mountains",
+            )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -284,8 +518,33 @@ def test_image_generation(tracer_provider, in_memory_span_exporter):
     assert span.attributes[ImageAttributes.IMAGE_URL] == "https://dummy-url"
     assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "https://dummy-url"
 
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
 
-async def test_aimage_generation(tracer_provider, in_memory_span_exporter):
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+async def test_aimage_generation(
+    tracer_provider,
+    in_memory_span_exporter,
+    use_context_attributes,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+):
     in_memory_span_exporter.clear()
     instrumentor = LiteLLMInstrumentor(tracer_provider=tracer_provider)
     instrumentor.instrument()
@@ -294,14 +553,28 @@ async def test_aimage_generation(tracer_provider, in_memory_span_exporter):
         created=1722359754,
         data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
     )
-
     with patch.object(
         OpenAIChatCompletion, "aimage_generation", return_value=mock_response_image_gen
     ):
-        await litellm.aimage_generation(
-            model="dall-e-2",
-            prompt="a sunrise over the mountains",
-        )
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                await litellm.aimage_generation(
+                    model="dall-e-2",
+                    prompt="a sunrise over the mountains",
+                )
+        else:
+            await litellm.aimage_generation(
+                model="dall-e-2",
+                prompt="a sunrise over the mountains",
+            )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -312,6 +585,19 @@ async def test_aimage_generation(tracer_provider, in_memory_span_exporter):
 
     assert span.attributes[ImageAttributes.IMAGE_URL] == "https://dummy-url"
     assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "https://dummy-url"
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
 
 
 def test_uninstrument(tracer_provider):
@@ -348,3 +634,83 @@ def test_uninstrument(tracer_provider):
     for func_name in func_names:
         instrumented_func = getattr(litellm, func_name)
         assert instrumented_func.is_wrapper
+
+
+def _check_context_attributes(
+    attributes: Dict[str, Any],
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    assert attributes.pop(SpanAttributes.SESSION_ID, None) == session_id
+    assert attributes.pop(SpanAttributes.USER_ID, None) == user_id
+    attr_metadata = attributes.pop(SpanAttributes.METADATA, None)
+    assert attr_metadata is not None
+    assert isinstance(attr_metadata, str)  # must be json string
+    metadata_dict = json.loads(attr_metadata)
+    assert metadata_dict == metadata
+    attr_tags = attributes.pop(SpanAttributes.TAG_TAGS, None)
+    assert attr_tags is not None
+    assert len(attr_tags) == len(tags)
+    assert list(attr_tags) == tags
+    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
+    assert (
+        attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) == prompt_template_version
+    )
+    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
+        prompt_template_variables
+    )
+
+
+@pytest.fixture()
+def session_id() -> str:
+    return "my-test-session-id"
+
+
+@pytest.fixture()
+def user_id() -> str:
+    return "my-test-user-id"
+
+
+@pytest.fixture()
+def metadata() -> Dict[str, Any]:
+    return {
+        "test-int": 1,
+        "test-str": "string",
+        "test-list": [1, 2, 3],
+        "test-dict": {
+            "key-1": "val-1",
+            "key-2": "val-2",
+        },
+    }
+
+
+@pytest.fixture()
+def tags() -> List[str]:
+    return ["tag-1", "tag-2"]
+
+
+@pytest.fixture
+def prompt_template() -> str:
+    return (
+        "This is a test prompt template with int {var_int}, "
+        "string {var_string}, and list {var_list}"
+    )
+
+
+@pytest.fixture
+def prompt_template_version() -> str:
+    return "v1.0"
+
+
+@pytest.fixture
+def prompt_template_variables() -> Dict[str, Any]:
+    return {
+        "var_int": 1,
+        "var_str": "2",
+        "var_list": [1, 2, 3],
+    }
