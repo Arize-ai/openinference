@@ -18,6 +18,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { GenericFunction, SafeFunction } from "./types";
+import { BaseLLM } from "llamaindex/dist/type/llm/base";
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.
@@ -70,6 +71,9 @@ function handleError(span: Span, error: Error | undefined) {
   }
 }
 
+/**
+ * TODO
+ */
 function documentAttributes(
   output: llamaindex.NodeWithScore<llamaindex.Metadata>[],
 ): Attributes {
@@ -166,6 +170,11 @@ function hasModel(obj: any): obj is { model: string } {
 
 type QueryMethod = typeof llamaindex.RetrieverQueryEngine.prototype.query;
 
+/**
+ * TODO
+ * @param TODO
+ * @returns TODO
+ */
 export function patchQueryMethod(
   original: QueryMethod,
   module: typeof llamaindex,
@@ -210,6 +219,11 @@ export function patchQueryMethod(
 
 type RetrieveMethod = typeof llamaindex.VectorIndexRetriever.prototype.retrieve;
 
+/**
+ * TODO
+ * @param TODO
+ * @returns TODO
+ */
 export function patchRetrieveMethod(
   original: RetrieveMethod,
   module: typeof llamaindex,
@@ -252,6 +266,11 @@ export function patchRetrieveMethod(
 type QueryEmbeddingMethod =
   typeof llamaindex.BaseEmbedding.prototype.getQueryEmbedding;
 
+/**
+ * TODO
+ * @param TODO
+ * @returns TODO
+ */
 export function patchQueryEmbeddingMethod(
   original: QueryEmbeddingMethod,
   tracer: Tracer,
@@ -431,6 +450,111 @@ export function patchQueryEmbeddingMethod(
 //       });
 //       span.setAttributes(embeddings);
 
+//       span.end();
+//       return result;
+//     });
+//     return context.bind(execContext, wrappedPromise);
+//   };
+// }
+
+type LLMChatMethod = typeof BaseLLM.prototype.chat;
+
+/**
+ * TODO
+ * @param TODO
+ * @returns TODO
+ */
+export function patchLLMChat(original: LLMChatMethod, tracer: Tracer) {
+  return function patchedQueryEmbedding(
+    this: unknown,
+    ...args: Parameters<LLMChatMethod>
+  ) {
+    const span = tracer.startSpan(`llm`, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+          OpenInferenceSpanKind.LLM,
+      },
+    });
+
+    const execContext = getExecContext(span);
+
+    const execPromise = safeExecuteInTheMiddle<ReturnType<LLMChatMethod>>(
+      () => {
+        return context.with(execContext, () => {
+          return original.apply(this, args);
+        });
+      },
+      (error) => handleError(span, error),
+    );
+
+    args[0].messages.forEach((msg, idx) => {
+      console.log(msg.content);
+      span.setAttributes({
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.role`]:
+          msg.role.toString(),
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.role`]:
+          msg.content.toString(),
+      });
+    });
+
+    const wrappedPromise = execPromise.then((result) => {
+      // result
+      // span.setAttributes({
+      //   [SemanticConventions.OUTPUT_VALUE]: result.message.content,
+      //   [SemanticConventions.LLM_OUTPUT_MESSAGES]:
+      // });
+      // const output: Attributes = {}
+      // result.message.content
+      // result.message.role
+      // result.message.options
+      span.end();
+      return result;
+    });
+    return context.bind(execContext, wrappedPromise);
+  };
+}
+
+// export function patchLLMChat(
+//   original: typeof llamaindex.BaseLLM.prototype.chat,
+//   tracer: Tracer,
+// ) {
+//   return function (
+//     this: unknown,
+//     ...args: Parameters<typeof BaseLLM.prototype.chat>
+//   ) {
+//     const span = tracer.startSpan(`llm`, {
+//       kind: SpanKind.INTERNAL,
+//       attributes: {
+//         [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+//           OpenInferenceSpanKind.LLM,
+//       },
+//     });
+
+//     const execContext = getExecContext(span);
+
+//     const execPromise = safeExecuteInTheMiddle<
+//       ReturnType<typeof BaseLLM.prototype.chat>
+//     >(
+//       () => {
+//         return context.with(execContext, () => {
+//           return original.apply(this, args);
+//         });
+//       },
+//       (error) => {
+//         // Push the error to the span
+//         if (error) {
+//           span.recordException(error);
+//           span.setStatus({
+//             code: SpanStatusCode.ERROR,
+//             message: error.message,
+//           });
+//           span.end();
+//         }
+//       },
+//     );
+
+//     const wrappedPromise = execPromise.then((result) => {
 //       span.end();
 //       return result;
 //     });

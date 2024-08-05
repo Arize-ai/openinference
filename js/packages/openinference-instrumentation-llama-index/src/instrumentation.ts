@@ -11,9 +11,10 @@ import {
   patchQueryMethod,
   patchRetrieveMethod,
   patchQueryEmbeddingMethod,
+  patchLLMChat,
 } from "./utils";
+import { BaseEmbedding, LLM } from "llamaindex";
 import { VERSION } from "./version";
-import { BaseEmbedding } from "llamaindex";
 
 const MODULE_NAME = "llamaindex";
 
@@ -25,19 +26,13 @@ type EmbeddingTypes =
   | typeof llamaindex.OpenAIEmbedding
   | typeof llamaindex.Ollama;
 
-// type LLMTypes =
-//   | typeof ToolCallLLM
-//   | typeof llamaindex.HuggingFaceInferenceAPI
-//   | typeof llamaindex.HuggingFaceLLM
-//   | typeof llamaindex.MistralAI
-//   | typeof llamaindex.Portkey
-//   | typeof llamaindex.ReplicateLLM;
-
-function isClassConstructor(
-  value: unknown,
-): value is new (...args: any[]) => any {
-  return typeof value === "function" && value.prototype;
-}
+type LLMTypes =
+  | llamaindex.ToolCall
+  | typeof llamaindex.HuggingFaceInferenceAPI
+  | typeof llamaindex.HuggingFaceLLM
+  | typeof llamaindex.MistralAI
+  | typeof llamaindex.Portkey
+  | typeof llamaindex.ReplicateLLM;
 
 /**
  * Flag to check if the LlamaIndex module has been patched
@@ -78,23 +73,18 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     return module;
   }
 
-  private isEmbedding(value: unknown): value is EmbeddingTypes {
-    if (isClassConstructor(value)) {
-      if (value.prototype instanceof BaseEmbedding) {
-        return true;
-      }
-    }
-    return false;
+  private isEmbedding(value: unknown): value is BaseEmbedding {
+    return (
+      (value as any).prototype != null &&
+      (value as any).prototype instanceof BaseEmbedding
+    );
   }
 
-  // private isLLM(llm: unknown): llm is LLMTypes {
-  //   if (isClassConstructor(llm)) {
-  //     if (llm.prototype instanceof BaseLLM) {
-  //       return true;
-  //     }
-  //   }
-  //   return false;
-  // }
+  private isLLM(llm: unknown): llm is LLMTypes {
+    return (
+      llm != null && (llm as LLM).complete != null && (llm as LLM).chat != null
+    );
+  }
 
   private patch(moduleExports: typeof llamaindex, moduleVersion?: string) {
     this._diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
@@ -120,28 +110,28 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       },
     );
 
-    for (const [_, value] of Object.entries(moduleExports)) {
-      if (isClassConstructor(value)) {
-        if (this.isEmbedding(value)) {
-          this._wrap(value.prototype, "getQueryEmbedding", (original) => {
-            return patchQueryEmbeddingMethod(original, this.tracer);
-          });
+    for (const value of Object.values(moduleExports)) {
+      if (this.isEmbedding((value as any).prototype)) {
+        this._wrap(value.prototype, "getQueryEmbedding", (original) => {
+          return patchQueryEmbeddingMethod(original, this.tracer);
+        });
 
-          // this._wrap(value.prototype, "getTextEmbedding", (original) => {
-          //   return patchTextEmbedding(original, this.tracer, key);
-          // });
+        // this._wrap(value.prototype, "getTextEmbedding", (original) => {
+        //   return patchTextEmbedding(original, this.tracer, key);
+        // });
 
-          // if (value.prototype.getTextEmbeddings != null) {
-          //   this._wrap(value.prototype, "getTextEmbeddings", (original) => {
-          //     return patchTextEmbeddings(original, this.tracer, key);
-          //   });
-          // }
-        }
-        // else if (this.isLLM(value)) {
-        //   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        //   this._wrap(value.prototype, "chat", (original): any => {
-        //     return patchLLMChat(original, this.tracer);
+        // if (value.prototype.getTextEmbeddings != null) {
+        //   this._wrap(value.prototype, "getTextEmbeddings", (original) => {
+        //     return patchTextEmbeddings(original, this.tracer, key);
         //   });
+        // }
+      }
+      console.log(value);
+      if (this.isLLM(value)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._wrap(value.prototype, "chat", (original): any => {
+          return patchLLMChat(original, this.tracer);
+        });
       }
     }
 
