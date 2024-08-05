@@ -85,11 +85,12 @@ async def test_async_instrumentation(
 
 @pytest.mark.asyncio
 async def test_streaming_instrumentation(
-        tracer_provider: TracerProvider,
-        in_memory_span_exporter: InMemorySpanExporter,
-        setup_instructor_instrumentation: Any,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_instructor_instrumentation: Any,
 ) -> None:
     os.environ["OPENAI_API_KEY"] = "fake_key"
+
     def run_test():
         with test_vcr.use_cassette("streaming.yaml", filter_headers=["authorization"]):
             client = instructor.from_openai(openai.OpenAI())
