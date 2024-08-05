@@ -7,10 +7,37 @@ import {
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
 import { diag } from "@opentelemetry/api";
-import { patchQueryMethod, patchRetrieveMethod } from "./utils";
+import {
+  patchQueryMethod,
+  patchRetrieveMethod,
+  patchQueryEmbeddingMethod,
+} from "./utils";
 import { VERSION } from "./version";
+import { BaseEmbedding } from "llamaindex";
 
 const MODULE_NAME = "llamaindex";
+
+type EmbeddingTypes =
+  | typeof llamaindex.HuggingFaceEmbedding
+  | typeof llamaindex.GeminiEmbedding
+  | typeof llamaindex.MistralAIEmbedding
+  | typeof llamaindex.MultiModalEmbedding
+  | typeof llamaindex.OpenAIEmbedding
+  | typeof llamaindex.Ollama;
+
+// type LLMTypes =
+//   | typeof ToolCallLLM
+//   | typeof llamaindex.HuggingFaceInferenceAPI
+//   | typeof llamaindex.HuggingFaceLLM
+//   | typeof llamaindex.MistralAI
+//   | typeof llamaindex.Portkey
+//   | typeof llamaindex.ReplicateLLM;
+
+function isClassConstructor(
+  value: unknown,
+): value is new (...args: any[]) => any {
+  return typeof value === "function" && value.prototype;
+}
 
 /**
  * Flag to check if the LlamaIndex module has been patched
@@ -51,6 +78,24 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     return module;
   }
 
+  private isEmbedding(value: unknown): value is EmbeddingTypes {
+    if (isClassConstructor(value)) {
+      if (value.prototype instanceof BaseEmbedding) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // private isLLM(llm: unknown): llm is LLMTypes {
+  //   if (isClassConstructor(llm)) {
+  //     if (llm.prototype instanceof BaseLLM) {
+  //       return true;
+  //     }
+  //   }
+  //   return false;
+  // }
+
   private patch(moduleExports: typeof llamaindex, moduleVersion?: string) {
     this._diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
     if (_isOpenInferencePatched) {
@@ -74,6 +119,31 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
         return patchRetrieveMethod(original, moduleExports, this.tracer);
       },
     );
+
+    for (const [_, value] of Object.entries(moduleExports)) {
+      if (isClassConstructor(value)) {
+        if (this.isEmbedding(value)) {
+          this._wrap(value.prototype, "getQueryEmbedding", (original) => {
+            return patchQueryEmbeddingMethod(original, this.tracer);
+          });
+
+          // this._wrap(value.prototype, "getTextEmbedding", (original) => {
+          //   return patchTextEmbedding(original, this.tracer, key);
+          // });
+
+          // if (value.prototype.getTextEmbeddings != null) {
+          //   this._wrap(value.prototype, "getTextEmbeddings", (original) => {
+          //     return patchTextEmbeddings(original, this.tracer, key);
+          //   });
+          // }
+        }
+        // else if (this.isLLM(value)) {
+        //   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        //   this._wrap(value.prototype, "chat", (original): any => {
+        //     return patchLLMChat(original, this.tracer);
+        //   });
+      }
+    }
 
     _isOpenInferencePatched = true;
     return moduleExports;
