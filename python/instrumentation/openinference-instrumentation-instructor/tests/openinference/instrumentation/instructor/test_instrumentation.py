@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Any, Generator
+from typing import Any, Generator, Optional
 
 import instructor
 import openai
@@ -91,7 +91,7 @@ async def test_streaming_instrumentation(
 ) -> None:
     os.environ["OPENAI_API_KEY"] = "fake_key"
 
-    def run_test():
+    def run_test() -> Any:
         with test_vcr.use_cassette("streaming.yaml", filter_headers=["authorization"]):
             client = instructor.from_openai(openai.OpenAI())
             user_stream = client.chat.completions.create_partial(
@@ -105,9 +105,10 @@ async def test_streaming_instrumentation(
 
     user_stream = await asyncio.to_thread(run_test)
 
-    final_user = None
+    final_user: Optional[UserInfo] = None
     for user in user_stream:
         final_user = user
+    assert final_user is not None
     assert final_user.name == "John Doe"
     assert final_user.age == 30
 
