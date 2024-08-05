@@ -18,7 +18,6 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { GenericFunction, SafeFunction } from "./types";
-import { BaseLLM } from "llamaindex/dist/type/llm/base";
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.
@@ -71,12 +70,9 @@ function handleError(span: Span, error: Error | undefined) {
   }
 }
 
-/**
- * TODO
- */
 function documentAttributes(
   output: llamaindex.NodeWithScore<llamaindex.Metadata>[],
-): Attributes {
+) {
   const docs: Attributes = {};
   output.forEach(({ node, score }, index) => {
     if (node instanceof llamaindex.TextNode) {
@@ -92,89 +88,41 @@ function documentAttributes(
   return docs;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getModelName(this: any) {
-  const modelName: Attributes = {};
-  if ("id" in this && typeof this.id === "string") {
-    return (modelName[SemanticConventions.EMBEDDING_MODEL_NAME] = this.id);
-  } else if ("model" in this && typeof this.model === "string") {
-    return (modelName[SemanticConventions.EMBEDDING_MODEL_NAME] = this.model);
+function embeddingAttributes(input: string, output: number[]) {
+  return {
+    [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
+      input,
+    [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]:
+      output,
+  };
+}
+
+type ObjectWithModel = { model: string };
+type ObjectWithID = { id: string };
+
+function hasId(obj: unknown): obj is ObjectWithID {
+  const objectWithIDMaybe = obj as ObjectWithID;
+  return "id" in objectWithIDMaybe && typeof objectWithIDMaybe.id === "string";
+}
+
+function hasModel(obj: unknown): obj is ObjectWithModel {
+  const ObjectWithMaybeModel = obj as ObjectWithModel;
+  return (
+    "model" in ObjectWithMaybeModel &&
+    typeof ObjectWithMaybeModel.model === "string"
+  );
+}
+
+function getModelName(obj: unknown) {
+  if (hasModel(obj)) {
+    return obj.model;
+  } else if (hasId(obj)) {
+    return obj.id;
   }
-  return null;
 }
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hasId(obj: any): obj is { id: string } {
-  return "id" in obj && typeof obj.id === "string";
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hasModel(obj: any): obj is { model: string } {
-  return "model" in obj && typeof obj.model === "string";
-}
-
-// TODO: Building general method
-// function instrumentMethod<T extends (...args: any[]) => any>(
-//   original: T,
-//   tracer: Tracer,
-//   spanKind: OpenInferenceSpanKind,
-//   kind: string,
-//   attributeExtractor: (this: unknown, ...args: Parameters<T>) => Attributes,
-// ) {
-//   return function (this: unknown, ...args: Parameters<T>) {
-//     const span = tracer.startSpan(kind, {
-//       kind: SpanKind.INTERNAL,
-//       attributes: {
-//         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind,
-//       },
-//     });
-
-//     const execContext = getExecContext(span);
-
-//     const execPromise = safeExecuteInTheMiddle<ReturnType<T>>(
-//       () => context.with(execContext, () => original.apply(this, args)),
-//       (error) => handleError(span, error),
-//     );
-
-//     const wrappedPromise = execPromise.then((result) => {
-//       span.setAttributes(attributeExtractor.call(this, result, ...args));
-//       span.end();
-//       return result;
-//     });
-
-//     return context.bind(execContext, wrappedPromise);
-//   };
-// }
-
-// export function patchQueryMethodEXPERIMENT(
-//   original: typeof module.RetrieverQueryEngine.prototype.query,
-//   module: typeof llamaindex,
-//   tracer: Tracer,
-// ) {
-//   return instrumentMethod(
-//     original,
-//     tracer,
-//     OpenInferenceSpanKind.CHAIN,
-//     "query",
-//     function (this, result, ...args) {
-//       const attributes: Attributes = {
-//         [SemanticConventions.INPUT_VALUE]: args[0].query,
-//         [SemanticConventions.INPUT_MIME_TYPE]: MimeType.TEXT,
-//         [SemanticConventions.OUTPUT_VALUE]: result.response,
-//         [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
-//       };
-//       return attributes;
-//     },
-//   );
-// }
 
 type QueryMethod = typeof llamaindex.RetrieverQueryEngine.prototype.query;
 
-/**
- * TODO
- * @param TODO
- * @returns TODO
- */
 export function patchQueryMethod(
   original: QueryMethod,
   module: typeof llamaindex,
@@ -219,11 +167,6 @@ export function patchQueryMethod(
 
 type RetrieveMethod = typeof llamaindex.VectorIndexRetriever.prototype.retrieve;
 
-/**
- * TODO
- * @param TODO
- * @returns TODO
- */
 export function patchRetrieveMethod(
   original: RetrieveMethod,
   module: typeof llamaindex,
@@ -266,11 +209,6 @@ export function patchRetrieveMethod(
 type QueryEmbeddingMethod =
   typeof llamaindex.BaseEmbedding.prototype.getQueryEmbedding;
 
-/**
- * TODO
- * @param TODO
- * @returns TODO
- */
 export function patchQueryEmbeddingMethod(
   original: QueryEmbeddingMethod,
   tracer: Tracer,
@@ -300,264 +238,17 @@ export function patchQueryEmbeddingMethod(
       (error) => handleError(span, error),
     );
 
-    // Check id and model properties to set model_name attribute
-    // span.setAttributes(getModelName(this));
-    if (hasModel(this)) {
-      span.setAttributes({
-        [SemanticConventions.EMBEDDING_MODEL_NAME]: this.model,
-      });
-    } else if (hasId(this)) {
-      span.setAttributes({
-        [SemanticConventions.EMBEDDING_MODEL_NAME]: this.id,
-      });
-    }
+    // Model ID/name is a property found on the class and not in args
+    // Extract from class and set as attribute
+    span.setAttributes({
+      [SemanticConventions.EMBEDDING_MODEL_NAME]: getModelName(this),
+    });
 
     const wrappedPromise = execPromise.then((result) => {
-      const embeddings: Attributes = {};
-      embeddings[
-        `${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`
-      ] = args[0];
-      embeddings[
-        `${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`
-      ] = `<${result.length} dimensional vector>`;
-      span.setAttributes(embeddings);
-
+      span.setAttributes(embeddingAttributes(args[0], result));
       span.end();
       return result;
     });
     return context.bind(execContext, wrappedPromise);
   };
 }
-
-// export function patchTextEmbedding(
-//   original: typeof llamaindex.BaseEmbedding.prototype.getTextEmbedding,
-//   tracer: Tracer,
-//   modelName: string,
-// ) {
-//   return function (
-//     this: unknown,
-//     ...args: Parameters<
-//       typeof llamaindex.BaseEmbedding.prototype.getTextEmbedding
-//     >
-//   ) {
-//     const span = tracer.startSpan(`embedding`, {
-//       kind: SpanKind.INTERNAL,
-//       attributes: {
-//         [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-//           OpenInferenceSpanKind.EMBEDDING,
-//       },
-//     });
-
-//     const execContext = getExecContext(span);
-
-//     const execPromise = safeExecuteInTheMiddle<
-//       ReturnType<typeof llamaindex.BaseEmbedding.prototype.getTextEmbedding>
-//     >(
-//       () => {
-//         return context.with(execContext, () => {
-//           return original.apply(this, args);
-//         });
-//       },
-//       (error) => {
-//         // Push the error to the span
-//         if (error) {
-//           span.recordException(error);
-//           span.setStatus({
-//             code: SpanStatusCode.ERROR,
-//             message: error.message,
-//           });
-//           span.end();
-//         }
-//       },
-//     );
-
-//     const wrappedPromise = execPromise.then((result) => {
-//       span.setAttributes({
-//         [SemanticConventions.EMBEDDING_MODEL_NAME]: modelName,
-//       });
-
-//       const embeddings: Attributes = {};
-//       embeddings[
-//         `${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`
-//       ] = args[0];
-//       embeddings[
-//         `${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`
-//       ] = `<${result.length} dimensional vector>`;
-//       span.setAttributes(embeddings);
-
-//       span.end();
-//       return result;
-//     });
-//     return context.bind(execContext, wrappedPromise);
-//   };
-// }
-
-// export function patchTextEmbeddings(
-//   original: typeof llamaindex.BaseEmbedding.prototype.getTextEmbeddings,
-//   tracer: Tracer,
-//   modelName: string,
-// ) {
-//   return function (
-//     this: unknown,
-//     ...args: Parameters<
-//       typeof llamaindex.BaseEmbedding.prototype.getTextEmbeddings
-//     >
-//   ) {
-//     const span = tracer.startSpan(`embedding`, {
-//       kind: SpanKind.INTERNAL,
-//       attributes: {
-//         [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-//           OpenInferenceSpanKind.EMBEDDING,
-//       },
-//     });
-
-//     const execContext = getExecContext(span);
-
-//     const execPromise = safeExecuteInTheMiddle<
-//       ReturnType<typeof llamaindex.BaseEmbedding.prototype.getTextEmbeddings>
-//     >(
-//       () => {
-//         return context.with(execContext, () => {
-//           return original.apply(this, args);
-//         });
-//       },
-//       (error) => {
-//         // Push the error to the span
-//         if (error) {
-//           span.recordException(error);
-//           span.setStatus({
-//             code: SpanStatusCode.ERROR,
-//             message: error.message,
-//           });
-//           span.end();
-//         }
-//       },
-//     );
-
-//     const wrappedPromise = execPromise.then((result) => {
-//       span.setAttributes({
-//         [SemanticConventions.EMBEDDING_MODEL_NAME]: modelName,
-//       });
-
-//       const embeddings: Attributes = {};
-//       result.forEach((embedding, index) => {
-//         embeddings[
-//           `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}.${SemanticConventions.EMBEDDING_TEXT}`
-//         ] = args[0];
-//         embeddings[
-//           `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}.${SemanticConventions.EMBEDDING_VECTOR}`
-//         ] = `<${embedding.length} dimensional vector>`;
-//       });
-//       span.setAttributes(embeddings);
-
-//       span.end();
-//       return result;
-//     });
-//     return context.bind(execContext, wrappedPromise);
-//   };
-// }
-
-type LLMChatMethod = typeof BaseLLM.prototype.chat;
-
-/**
- * TODO
- * @param TODO
- * @returns TODO
- */
-export function patchLLMChat(original: LLMChatMethod, tracer: Tracer) {
-  return function patchedQueryEmbedding(
-    this: unknown,
-    ...args: Parameters<LLMChatMethod>
-  ) {
-    const span = tracer.startSpan(`llm`, {
-      kind: SpanKind.INTERNAL,
-      attributes: {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.LLM,
-      },
-    });
-
-    const execContext = getExecContext(span);
-
-    const execPromise = safeExecuteInTheMiddle<ReturnType<LLMChatMethod>>(
-      () => {
-        return context.with(execContext, () => {
-          return original.apply(this, args);
-        });
-      },
-      (error) => handleError(span, error),
-    );
-
-    args[0].messages.forEach((msg, idx) => {
-      console.log(msg.content);
-      span.setAttributes({
-        [`${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.role`]:
-          msg.role.toString(),
-        [`${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.role`]:
-          msg.content.toString(),
-      });
-    });
-
-    const wrappedPromise = execPromise.then((result) => {
-      // result
-      // span.setAttributes({
-      //   [SemanticConventions.OUTPUT_VALUE]: result.message.content,
-      //   [SemanticConventions.LLM_OUTPUT_MESSAGES]:
-      // });
-      // const output: Attributes = {}
-      // result.message.content
-      // result.message.role
-      // result.message.options
-      span.end();
-      return result;
-    });
-    return context.bind(execContext, wrappedPromise);
-  };
-}
-
-// export function patchLLMChat(
-//   original: typeof llamaindex.BaseLLM.prototype.chat,
-//   tracer: Tracer,
-// ) {
-//   return function (
-//     this: unknown,
-//     ...args: Parameters<typeof BaseLLM.prototype.chat>
-//   ) {
-//     const span = tracer.startSpan(`llm`, {
-//       kind: SpanKind.INTERNAL,
-//       attributes: {
-//         [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-//           OpenInferenceSpanKind.LLM,
-//       },
-//     });
-
-//     const execContext = getExecContext(span);
-
-//     const execPromise = safeExecuteInTheMiddle<
-//       ReturnType<typeof BaseLLM.prototype.chat>
-//     >(
-//       () => {
-//         return context.with(execContext, () => {
-//           return original.apply(this, args);
-//         });
-//       },
-//       (error) => {
-//         // Push the error to the span
-//         if (error) {
-//           span.recordException(error);
-//           span.setStatus({
-//             code: SpanStatusCode.ERROR,
-//             message: error.message,
-//           });
-//           span.end();
-//         }
-//       },
-//     );
-
-//     const wrappedPromise = execPromise.then((result) => {
-//       span.end();
-//       return result;
-//     });
-//     return context.bind(execContext, wrappedPromise);
-//   };
-// }

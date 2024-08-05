@@ -11,28 +11,11 @@ import {
   patchQueryMethod,
   patchRetrieveMethod,
   patchQueryEmbeddingMethod,
-  patchLLMChat,
 } from "./utils";
-import { BaseEmbedding, LLM } from "llamaindex";
+import { BaseEmbedding } from "llamaindex";
 import { VERSION } from "./version";
 
 const MODULE_NAME = "llamaindex";
-
-type EmbeddingTypes =
-  | typeof llamaindex.HuggingFaceEmbedding
-  | typeof llamaindex.GeminiEmbedding
-  | typeof llamaindex.MistralAIEmbedding
-  | typeof llamaindex.MultiModalEmbedding
-  | typeof llamaindex.OpenAIEmbedding
-  | typeof llamaindex.Ollama;
-
-type LLMTypes =
-  | llamaindex.ToolCall
-  | typeof llamaindex.HuggingFaceInferenceAPI
-  | typeof llamaindex.HuggingFaceLLM
-  | typeof llamaindex.MistralAI
-  | typeof llamaindex.Portkey
-  | typeof llamaindex.ReplicateLLM;
 
 /**
  * Flag to check if the LlamaIndex module has been patched
@@ -74,16 +57,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
   }
 
   private isEmbedding(value: unknown): value is BaseEmbedding {
-    return (
-      (value as any).prototype != null &&
-      (value as any).prototype instanceof BaseEmbedding
-    );
-  }
-
-  private isLLM(llm: unknown): llm is LLMTypes {
-    return (
-      llm != null && (llm as LLM).complete != null && (llm as LLM).chat != null
-    );
+    return value != null && value instanceof BaseEmbedding;
   }
 
   private patch(moduleExports: typeof llamaindex, moduleVersion?: string) {
@@ -111,26 +85,11 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     );
 
     for (const value of Object.values(moduleExports)) {
-      if (this.isEmbedding((value as any).prototype)) {
-        this._wrap(value.prototype, "getQueryEmbedding", (original) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prototype = (value as any).prototype;
+      if (this.isEmbedding(prototype)) {
+        this._wrap(prototype, "getQueryEmbedding", (original) => {
           return patchQueryEmbeddingMethod(original, this.tracer);
-        });
-
-        // this._wrap(value.prototype, "getTextEmbedding", (original) => {
-        //   return patchTextEmbedding(original, this.tracer, key);
-        // });
-
-        // if (value.prototype.getTextEmbeddings != null) {
-        //   this._wrap(value.prototype, "getTextEmbeddings", (original) => {
-        //     return patchTextEmbeddings(original, this.tracer, key);
-        //   });
-        // }
-      }
-      console.log(value);
-      if (this.isLLM(value)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this._wrap(value.prototype, "chat", (original): any => {
-          return patchLLMChat(original, this.tracer);
         });
       }
     }
