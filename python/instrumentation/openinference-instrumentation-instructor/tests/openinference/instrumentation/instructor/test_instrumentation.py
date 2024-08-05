@@ -1,6 +1,7 @@
 import os
 from typing import Any, Generator
 
+import asyncio
 import instructor
 import openai
 import pytest
@@ -80,6 +81,42 @@ async def test_async_instrumentation(
         for span in spans:
             attributes = dict(span.attributes or dict())
             assert attributes.get("openinference.span.kind") in ["TOOL"]
+
+
+@pytest.mark.asyncio
+async def test_streaming_instrumentation(
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_instructor_instrumentation: Any,
+) -> None:
+    os.environ["OPENAI_API_KEY"] = "fake_key"
+    def run_test():
+        with test_vcr.use_cassette("streaming.yaml", filter_headers=["authorization"]):
+            client = instructor.from_openai(openai.OpenAI())
+            user_stream = client.chat.completions.create_partial(
+                model="gpt-4-turbo-preview",
+                messages=[
+                    {"role": "user", "content": "Create a user"},
+                ],
+                response_model=UserInfo,
+            )
+            return user_stream
+
+    user_stream = await asyncio.to_thread(run_test)
+
+    final_user = None
+    for user in user_stream:
+        final_user = user
+    assert final_user.name == "John Doe"
+    assert final_user.age == 30
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    # We should have 2 spans for what we consider "TOOL" calling
+    assert len(spans) == 2
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        assert attributes.get("openinference.span.kind") in ["TOOL"]
 
 
 def test_instructor_instrumentation(
