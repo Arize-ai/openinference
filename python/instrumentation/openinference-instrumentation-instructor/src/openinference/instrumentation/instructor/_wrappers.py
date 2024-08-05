@@ -119,11 +119,16 @@ class _PatchWrapper:
                 record_exception=False,
                 set_status_on_exception=False,
             ) as span:
-                resp = new_func(*args, **kwargs)
-                if resp is not None and hasattr(resp, "dict"):
-                    span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
-                    span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
-                return resp
+                try:
+                    resp = new_func(*args, **kwargs)
+                    if resp is not None and hasattr(resp, "dict"):
+                        span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
+                        span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+                    return resp
+                except Exception as e:
+                    span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(e)))
+                    span.record_exception(e)
+                    raise
 
         async def async_patched_new_func(*args: Any, **kwargs: Any) -> Any:
             span_name = "instructor.async_patch"
@@ -142,11 +147,16 @@ class _PatchWrapper:
                 record_exception=False,
                 set_status_on_exception=False,
             ) as span:
-                resp = await new_func(*args, **kwargs)
-                if resp is not None and hasattr(resp, "dict"):
-                    span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
-                    span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
-                return resp
+                try:
+                    resp = await new_func(*args, **kwargs)
+                    if resp is not None and hasattr(resp, "dict"):
+                        span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
+                        span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+                    return resp
+                except Exception as e:
+                    span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(e)))
+                    span.record_exception(e)
+                    raise
 
         new_create = async_patched_new_func if func_is_async else patched_new_func
 
