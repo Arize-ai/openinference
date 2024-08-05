@@ -37,7 +37,7 @@ def setup_instructor_instrumentation(
 
 test_vcr = vcr.VCR(
     serializer="yaml",
-    cassette_library_dir="fixtures/cassettes/",
+    cassette_library_dir="tests/openinference/instrumentation/instructor/fixtures/",
     record_mode="never",
     match_on=["uri", "method"],
 )
@@ -71,7 +71,7 @@ async def test_async_instrumentation(
     ):
         user_info = await extract()
         assert user_info.name == "John Doe"
-        assert user_info.age == 25
+        assert user_info.age == 30
 
         spans = in_memory_span_exporter.get_finished_spans()
 
