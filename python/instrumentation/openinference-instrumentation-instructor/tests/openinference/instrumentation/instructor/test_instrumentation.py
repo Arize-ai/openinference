@@ -1,7 +1,7 @@
+import asyncio
 import os
 from typing import Any, Generator
 
-import asyncio
 import instructor
 import openai
 import pytest
