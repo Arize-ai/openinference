@@ -61,8 +61,13 @@ async def extract() -> UserInfo:
     )
 
 
-def test_oitracer() -> None:
-    assert isinstance(InstructorInstrumentor()._tracer, OITracer)
+def test_oitracer(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_instructor_instrumentation: Any,
+) -> None:
+    instructor_instrumentor = InstructorInstrumentor()
+    assert isinstance(instructor_instrumentor._tracer, OITracer)
 
 
 @pytest.mark.asyncio
