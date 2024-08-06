@@ -11,7 +11,6 @@ import {
   patchQueryMethod,
   patchRetrieveMethod,
   patchQueryEmbedding,
-  patchTextEmbeddings,
 } from "./utils";
 import { BaseEmbedding, BaseRetriever } from "llamaindex";
 import { VERSION } from "./version";
@@ -85,14 +84,6 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       },
     );
 
-    this._wrap(
-      moduleExports.OpenAIEmbedding.prototype,
-      "getQueryEmbedding",
-      (original) => {
-        return patchQueryEmbedding(original, this.tracer);
-      },
-    );
-
     for (const value of Object.values(moduleExports)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const prototype = (value as any).prototype;
@@ -106,10 +97,6 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       if (this.isEmbedding(prototype)) {
         this._wrap(prototype, "getQueryEmbedding", (original) => {
           return patchQueryEmbedding(original, this.tracer);
-        });
-
-        this._wrap(prototype, "getTextEmbeddings", (original) => {
-          return patchTextEmbeddings(original, this.tracer);
         });
       }
     }
