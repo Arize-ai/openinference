@@ -35,7 +35,9 @@ from openinference.instrumentation import get_attributes_from_context, safe_json
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -440,8 +442,13 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
     if kwargs := message_data.get("kwargs"):
         assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
         if content := kwargs.get("content"):
-            assert isinstance(content, str), f"expected str, found {type(content)}"
-            yield MESSAGE_CONTENT, content
+            if isinstance(content, str):
+                yield MESSAGE_CONTENT, content
+            elif isinstance(content, list):
+                for i, obj in enumerate(content):
+                    assert hasattr(obj, "get"), f"expected Mapping, found {type(obj)}"
+                    for k, v in _get_attributes_from_message_content(obj):
+                        yield f"{MESSAGE_CONTENTS}.{i}.{k}", v
         if additional_kwargs := kwargs.get("additional_kwargs"):
             assert hasattr(
                 additional_kwargs, "get"
@@ -563,23 +570,13 @@ def _model_name(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
 @stop_on_exception
 def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, int]]:
     """Yields token count information if present."""
-    if not outputs:
-        return
-    assert hasattr(outputs, "get"), f"expected Mapping, found {type(outputs)}"
-    if not (llm_output := outputs.get("llm_output")):
-        return
-    assert hasattr(llm_output, "get"), f"expected Mapping, found {type(llm_output)}"
     if not (
-        token_usage := _get_first_value(
-            llm_output,
-            (
-                "token_usage",
-                "usage",  # Anthropic-specific key
-            ),
+        token_usage := (
+            _parse_token_usage_for_non_streaming_outputs(outputs)
+            or _parse_token_usage_for_streaming_outputs(outputs)
         )
     ):
         return
-    assert hasattr(token_usage, "get"), f"expected Mapping, found {type(token_usage)}"
     for attribute_name, keys in [
         (
             LLM_TOKEN_COUNT_PROMPT,
@@ -599,6 +596,58 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
     ]:
         if (token_count := _get_first_value(token_usage, keys)) is not None:
             yield attribute_name, token_count
+
+
+def _parse_token_usage_for_non_streaming_outputs(
+    outputs: Optional[Mapping[str, Any]],
+) -> Any:
+    """
+    Parses output to get token usage information for non-streaming LLMs, i.e.,
+    when `stream_usage` is set to false.
+    """
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (llm_output := outputs.get("llm_output"))
+        and hasattr(llm_output, "get")
+        and (
+            token_usage := _get_first_value(
+                llm_output,
+                (
+                    "token_usage",
+                    "usage",  # Anthropic-specific key
+                ),
+            )
+        )
+    ):
+        return token_usage
+    return None
+
+
+def _parse_token_usage_for_streaming_outputs(
+    outputs: Optional[Mapping[str, Any]],
+) -> Any:
+    """
+    Parses output to get token usage information for streaming LLMs, i.e., when
+    `stream_usage` is set to true.
+    """
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (generations := outputs.get("generations"))
+        and hasattr(generations, "__getitem__")
+        and generations[0]
+        and hasattr(generations[0], "__getitem__")
+        and (generation := generations[0][0])
+        and hasattr(generation, "get")
+        and (message := generation.get("message"))
+        and hasattr(message, "get")
+        and (kwargs := message.get("kwargs"))
+        and hasattr(kwargs, "get")
+        and (token_usage := kwargs.get("usage_metadata"))
+    ):
+        return token_usage
+    return None
 
 
 @stop_on_exception
@@ -700,10 +749,36 @@ def _get_first_value(
     Returns the first non-null value corresponding to an input key, or None if
     no non-null value is found.
     """
+    if not hasattr(mapping, "get"):
+        return None
     return next(
         (value for key in keys if (value := mapping.get(key)) is not None),
         None,
     )
+
+
+def _get_attributes_from_message_content(
+    content: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    content = dict(content)
+    type_ = content.pop("type")
+    if type_ == "text":
+        yield f"{MESSAGE_CONTENT_TYPE}", "text"
+        if text := content.pop("text"):
+            yield f"{MESSAGE_CONTENT_TEXT}", text
+    elif type_ == "image_url":
+        yield f"{MESSAGE_CONTENT_TYPE}", "image"
+        if image := content.pop("image_url"):
+            for key, value in _get_attributes_from_image(image):
+                yield f"{MESSAGE_CONTENT_IMAGE}.{key}", value
+
+
+def _get_attributes_from_image(
+    image: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    image = dict(image)
+    if url := image.pop("url"):
+        yield f"{IMAGE_URL}", url
 
 
 LANGCHAIN_SESSION_ID = "session_id"
@@ -718,6 +793,7 @@ EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+IMAGE_URL = ImageAttributes.IMAGE_URL
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_FUNCTION_CALL = SpanAttributes.LLM_FUNCTION_CALL
@@ -732,11 +808,16 @@ LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
@@ -746,10 +827,9 @@ RERANKER_OUTPUT_DOCUMENTS = RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
 RERANKER_QUERY = RerankerAttributes.RERANKER_QUERY
 RERANKER_TOP_K = RerankerAttributes.RERANKER_TOP_K
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
+SESSION_ID = SpanAttributes.SESSION_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
-METADATA = SpanAttributes.METADATA
-SESSION_ID = SpanAttributes.SESSION_ID

@@ -2,6 +2,7 @@ import logging
 from importlib import import_module
 from typing import Any, Collection
 
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.openai._request import (
     _AsyncRequest,
     _Request,
@@ -34,7 +35,14 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
         openai = import_module(_MODULE)
         self._original_request = openai.OpenAI.request
         self._original_async_request = openai.AsyncOpenAI.request

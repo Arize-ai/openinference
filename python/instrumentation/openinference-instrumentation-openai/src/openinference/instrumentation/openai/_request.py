@@ -121,7 +121,9 @@ class _WithOpenAI(ABC):
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
         try:
-            yield from _as_input_attributes(_io_value_and_type(request_parameters))
+            yield from _as_input_attributes(
+                _io_value_and_type(request_parameters),
+            )
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request parameters of "
@@ -372,11 +374,7 @@ def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]
 
 
 class _ResponseAttributes:
-    __slots__ = (
-        "_response",
-        "_request_parameters",
-        "_response_attributes_extractor",
-    )
+    __slots__ = ("_response", "_request_parameters", "_response_attributes_extractor")
 
     def __init__(
         self,
@@ -395,7 +393,9 @@ class _ResponseAttributes:
         self._response_attributes_extractor = response_attributes_extractor
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        yield from _as_output_attributes(_io_value_and_type(self._response))
+        yield from _as_output_attributes(
+            _io_value_and_type(self._response),
+        )
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from self._response_attributes_extractor.get_attributes_from_response(

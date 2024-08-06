@@ -1,0 +1,6 @@
+datasets
+haystack-ai
+openinference-instrumentation-haystack
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+sentence-transformers

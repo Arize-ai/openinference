@@ -12,6 +12,7 @@ from guardrails.validator_base import (  # type: ignore[import-untyped]
     Validator,
     register_validator,
 )
+from openinference.instrumentation import OITracer
 from openinference.instrumentation.guardrails import GuardrailsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -70,6 +71,13 @@ def setup_guardrails_instrumentation(
     GuardrailsInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     GuardrailsInstrumentor().uninstrument()
+
+
+# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
+def test_oitracer(
+    setup_guardrails_instrumentation: Any,
+) -> None:
+    assert isinstance(GuardrailsInstrumentor()._tracer, OITracer)
 
 
 @patch(

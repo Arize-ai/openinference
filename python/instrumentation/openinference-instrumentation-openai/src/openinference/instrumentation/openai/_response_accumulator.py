@@ -104,7 +104,7 @@ class _ChatCompletionAccumulator:
             return
         json_string = safe_json_dumps(result)
         yield from _as_output_attributes(
-            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
+            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON),
         )
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
@@ -163,7 +163,7 @@ class _CompletionAccumulator:
             return
         json_string = safe_json_dumps(result)
         yield from _as_output_attributes(
-            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
+            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON),
         )
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
