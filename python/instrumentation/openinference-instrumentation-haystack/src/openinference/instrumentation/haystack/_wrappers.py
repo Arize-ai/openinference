@@ -207,8 +207,11 @@ class _ComponentWrapper(_WithTracer):
 
             if component_type == "llm":
                 if "Chat" in component.__class__.__name__:
-                    reply = response["replies"][0]
-                    usage = reply.meta["usage"]
+                    replies = response.get("replies")
+                    if replies is None or len(replies) == 0:
+                        pass
+                    reply = replies[0]
+                    usage = reply.meta.get("usage", {})
                     if "meta" in str(reply):
                         span.set_attributes(
                             dict(
