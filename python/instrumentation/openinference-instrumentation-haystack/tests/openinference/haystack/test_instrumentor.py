@@ -405,7 +405,17 @@ def test_haystack_instrumentation_filtering(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans
+    assert [span.name for span in spans] == [
+        "InMemoryBM25Retriever",
+        "Pipeline",
+    ]
+
+    assert [
+        span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
+    ] == [
+        "RETRIEVER",
+        "CHAIN",
+    ]
 
 
 def test_haystack_uninstrumentation(
