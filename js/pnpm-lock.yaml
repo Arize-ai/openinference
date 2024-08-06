@@ -69,6 +69,9 @@ importers:
       '@types/node':
         specifier: ^20.14.11
         version: 20.14.11
+      jest:
+        specifier: ^29.7.0
+        version: 29.7.0(@types/node@20.14.11)
 
   packages/openinference-instrumentation-langchain:
     dependencies:

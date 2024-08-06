@@ -1,17 +1,15 @@
 import {
+  METADATA,
   PROMPT_TEMPLATE_TEMPLATE,
   PROMPT_TEMPLATE_VARIABLES,
   PROMPT_TEMPLATE_VERSION,
   SESSION_ID,
 } from "@arizeai/openinference-semantic-conventions";
-import {
-  Attributes,
-  Context,
-  createContextKey,
-  AttributeValue,
-} from "@opentelemetry/api";
+import { Attributes, Context, createContextKey } from "@opentelemetry/api";
+import { isAttributeValue } from "../typeUtils";
+import { safelyJSONStringify } from "../utils";
 
-const ContextAttributes = {
+export const ContextAttributes = {
   [PROMPT_TEMPLATE_TEMPLATE]: createContextKey(
     `OpenInference SDK Context Key ${PROMPT_TEMPLATE_TEMPLATE}`,
   ),
@@ -22,6 +20,7 @@ const ContextAttributes = {
     `OpenInference SDK Context Key ${PROMPT_TEMPLATE_VERSION}`,
   ),
   [SESSION_ID]: createContextKey(`OpenInference SDK Context Key ${SESSION_ID}`),
+  [METADATA]: createContextKey(`OpenInference SDK Context Key ${METADATA}`),
 } as const;
 
 const {
@@ -29,6 +28,7 @@ const {
   [PROMPT_TEMPLATE_VARIABLES]: PROMPT_TEMPLATE_VARIABLES_KEY,
   [PROMPT_TEMPLATE_VERSION]: PROMPT_TEMPLATE_VERSION_KEY,
   [SESSION_ID]: SESSION_ID_KEY,
+  [METADATA]: METADATA_KEY,
 } = ContextAttributes;
 
 export type PromptTemplateAttributes = {
@@ -45,7 +45,7 @@ export function setPromptTemplate(
   if (variables) {
     context = context.setValue(
       PROMPT_TEMPLATE_VARIABLES_KEY,
-      JSON.stringify(variables),
+      safelyJSONStringify(variables),
     );
   }
   if (version) {
@@ -111,15 +111,36 @@ export function getSessionId(context: Context): string | undefined {
   }
 }
 
+export type MetadataAttributes = Record<string, unknown>;
+
+export function setMetadata(
+  context: Context,
+  attributes: MetadataAttributes,
+): Context {
+  return context.setValue(METADATA_KEY, safelyJSONStringify(attributes));
+}
+
+export const clearMetadata = (context: Context): Context => {
+  return context.deleteValue(METADATA_KEY);
+};
+
+export const getMetadata = (context: Context): Attributes | undefined => {
+  const maybeMetadata = context.getValue(METADATA_KEY);
+
+  const attributes: Attributes = {};
+  if (typeof maybeMetadata === "string") {
+    attributes[METADATA] = maybeMetadata;
+    return attributes;
+  }
+};
+
 export function getAttributesFromContext(context: Context): Attributes {
   const attributes: Attributes = {};
   Object.entries(ContextAttributes).forEach(([key, symbol]) => {
     const maybeValue = context.getValue(symbol);
-    if (maybeValue != null) {
-      // TODO add a type guard for attribute values
-      attributes[key] = maybeValue as AttributeValue;
+    if (isAttributeValue(maybeValue)) {
+      attributes[key] = maybeValue;
     }
   });
-
   return attributes;
 }

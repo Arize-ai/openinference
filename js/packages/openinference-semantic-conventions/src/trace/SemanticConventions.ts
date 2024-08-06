@@ -337,6 +337,11 @@ export const SESSION_ID =
 export const USER_ID =
   `${SemanticAttributePrefixes.user}.${UserAttributePostfixes.id}` as const;
 
+/**
+ * Metadata for a span, used to store user-defined key-value pairs
+ */
+export const METADATA = "metadata" as const;
+
 export const SemanticConventions = {
   INPUT_VALUE,
   INPUT_MIME_TYPE,
