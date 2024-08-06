@@ -114,24 +114,11 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
 
 
 class LiteLLMInstrumentor(BaseInstrumentor):
-    original_litellm_funcs: Dict[str, Callable] = (
-        {}
-    )  # Dictionary for original uninstrumented liteLLM functions
+    original_litellm_funcs: Dict[
+        str, Callable
+    ] = {}  # Dictionary for original uninstrumented liteLLM functions
 
-    # def __init__(self, tracer_provider: Optional[TracerProvider] = None, **kwargs):
-    #     super().__init__()
-    #     self.tracer_provider = tracer_provider
-    #     if self.tracer_provider:
-    #         trace.set_tracer_provider(self.tracer_provider)
-    #     self.tracer = trace.get_tracer(__name__)
-    #     # if not (config := kwargs.get("config")):
-    #     #     config = TraceConfig()
-    #     # else:
-    #     #     assert isinstance(config, TraceConfig)
-    #     # self.tracer = OITracer(
-    #     #     trace.get_tracer(__name__, tracer_provider),
-    #     #     config=config,
-    #     # )
+    __slots__ = ("_tracer",)
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
