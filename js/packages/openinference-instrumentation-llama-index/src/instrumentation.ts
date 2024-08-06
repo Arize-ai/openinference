@@ -68,6 +68,12 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     );
   }
 
+  private isLLM(llm: unknown): llm is LLMTypes {
+    return (
+      llm != null && (llm as LLM).complete != null && (llm as LLM).chat != null
+    );
+  }
+
   private patch(moduleExports: typeof llamaindex, moduleVersion?: string) {
     this._diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
     if (_isOpenInferencePatched) {
@@ -99,6 +105,12 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
           return patchQueryEmbedding(original, this.tracer);
         });
       }
+
+      if (this.isLLM(value)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._wrap(value.prototype, "chat", (original): any => {
+          return patchLLMChat(original, this.tracer);
+      });
     }
     _isOpenInferencePatched = true;
     return moduleExports;

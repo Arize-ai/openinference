@@ -26,6 +26,7 @@ import {
   RetrieverRetrieveMethod,
   QueryEmbeddingMethod,
   TextEmbeddingsMethod,
+  LLMChatMethodType,
 } from "./types";
 
 /**
@@ -309,6 +310,56 @@ export function patchTextEmbeddings(
 
     const wrappedPromise = execPromise.then((result) => {
       span.setAttributes(textEmbeddingsAttributes(args[0], result));
+      span.end();
+      return result;
+    });
+    return context.bind(execContext, wrappedPromise);
+  };
+}
+
+export function patchLLMChat(original: LLMChatMethodType, tracer: Tracer) {
+  return function patchedQueryEmbedding(
+    this: unknown,
+    ...args: Parameters<LLMChatMethodType>
+  ) {
+    const span = tracer.startSpan(`llm`, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+          OpenInferenceSpanKind.LLM,
+      },
+    });
+
+    const execContext = getExecContext(span);
+
+    const execPromise = safeExecuteInTheMiddle<ReturnType<LLMChatMethodType>>(
+      () => {
+        return context.with(execContext, () => {
+          return original.apply(this, args);
+        });
+      },
+      (error) => handleError(span, error),
+    );
+
+    args[0].messages.forEach((msg, idx) => {
+      span.setAttributes({
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.role`]:
+          msg.role.toString(),
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.role`]:
+          msg.content.toString(),
+      });
+    });
+
+    const wrappedPromise = execPromise.then((result) => {
+      // result
+      // span.setAttributes({
+      //   [SemanticConventions.OUTPUT_VALUE]: result.message.content,
+      //   [SemanticConventions.LLM_OUTPUT_MESSAGES]:
+      // });
+      // const output: Attributes = {}
+      // result.message.content
+      // result.message.role
+      // result.message.options
       span.end();
       return result;
     });
