@@ -302,12 +302,6 @@ export const PROMPT_TEMPLATE_TEMPLATE =
   `${PROMPT_TEMPLATE_PREFIX}.template` as const;
 
 /**
- * A prompt template version
- */
-export const PROMPT_TEMPLATE_VERSION =
-  `${PROMPT_TEMPLATE_PREFIX}.version` as const;
-
-/**
  * The JSON representation of a function call of an LLM
  */
 export const LLM_FUNCTION_CALL =
