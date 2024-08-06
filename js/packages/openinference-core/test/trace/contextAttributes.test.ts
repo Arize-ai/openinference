@@ -171,6 +171,9 @@ describe("context.with multiple attributes", () => {
 });
 
 describe("getContextAttributes", () => {
+  const variables = {
+    name: "world",
+  };
   let contextManager: ContextManager;
   beforeEach(() => {
     contextManager = new AsyncHooksContextManager().enable();
@@ -181,9 +184,6 @@ describe("getContextAttributes", () => {
   });
 
   it("should get all attributes off of the context", () => {
-    const variables = {
-      name: "world",
-    };
     context.with(
       setMetadata(
         setSession(
@@ -221,11 +221,12 @@ describe("getContextAttributes", () => {
       ),
 
       () => {
-        expect(getSessionId(context.active())).toBe("session-id");
-        expect(getPromptTemplate(context.active())).toStrictEqual({
+        const attributes = getAttributesFromContext(context.active());
+        expect(attributes).toStrictEqual({
           [PROMPT_TEMPLATE_TEMPLATE]: "hello {name}",
-          [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify({ name: "world" }),
+          [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(variables),
           [PROMPT_TEMPLATE_VERSION]: "V1.0",
+          [SESSION_ID]: "session-id",
         });
       },
     );
