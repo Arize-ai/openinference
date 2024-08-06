@@ -7,6 +7,7 @@ from openinference.instrumentation import (
     TraceConfig,
     get_attributes_from_context,
 )
+from openinference.instrumentation.litellm.package import _instruments
 from openinference.instrumentation.litellm.version import __version__
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -113,9 +114,9 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
 
 
 class LiteLLMInstrumentor(BaseInstrumentor):
-    original_litellm_funcs: Dict[
-        str, Callable
-    ] = {}  # Dictionary for original uninstrumented liteLLM functions
+    original_litellm_funcs: Dict[str, Callable] = (
+        {}
+    )  # Dictionary for original uninstrumented liteLLM functions
 
     # def __init__(self, tracer_provider: Optional[TracerProvider] = None, **kwargs):
     #     super().__init__()
@@ -132,100 +133,17 @@ class LiteLLMInstrumentor(BaseInstrumentor):
     #     #     config=config,
     #     # )
 
-    __slots__ = ("tracer",)
-
-    @wraps(litellm.completion)
-    def _completion_wrapper(self, *args: Any, **kwargs: Any):
-        with self.tracer.start_as_current_span(
-            name="completion", attributes=dict(get_attributes_from_context())
-        ) as span:
-            _instrument_func_type_completion(span, kwargs)
-            result = self.original_litellm_funcs["completion"](*args, **kwargs)
-            _finalize_span(span, result)
-        return result
-
-    @wraps(litellm.acompletion)
-    async def _acompletion_wrapper(self, *args: Any, **kwargs: Any):
-        with self.tracer.start_as_current_span(
-            name="acompletion", attributes=dict(get_attributes_from_context())
-        ) as span:
-            _instrument_func_type_completion(span, kwargs)
-            result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
-            _finalize_span(span, result)
-        return result
-
-    @wraps(litellm.completion_with_retries)
-    def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any):
-        with self.tracer.start_as_current_span(
-            name="completion_with_retries", attributes=dict(get_attributes_from_context())
-        ) as span:
-            _instrument_func_type_completion(span, kwargs)
-            result = self.original_litellm_funcs["completion_with_retries"](*args, **kwargs)
-            _finalize_span(span, result)
-        return result
-
-    @wraps(litellm.acompletion_with_retries)
-    async def _acompletion_with_retries_wrapper(self, *args: Any, **kwargs: Any):
-        with self.tracer.start_as_current_span(
-            name="acompletion_with_retries", attributes=dict(get_attributes_from_context())
-        ) as span:
-            _instrument_func_type_completion(span, kwargs)
-            result = await self.original_litellm_funcs["acompletion_with_retries"](*args, **kwargs)
-            _finalize_span(span, result)
-        return result
-
-    @wraps(litellm.embedding)
-    def _embedding_wrapper(self, *args: Any, **kwargs: Any):
-        with self.tracer.start_as_current_span(
-            name="embedding", attributes=dict(get_attributes_from_context())
-        ) as span:
-            _instrument_func_type_embedding(span, kwargs)
-            result = self.original_litellm_funcs["embedding"](*args, **kwargs)
-            _finalize_span(span, result)
-        return result
-
-    @wraps(litellm.aembedding)
-    async def _aembedding_wrapper(self, *args: Any, **kwargs: Any):
-        with self.tracer.start_as_current_span(
-            name="aembedding", attributes=dict(get_attributes_from_context())
-        ) as span:
-            _instrument_func_type_embedding(span, kwargs)
-            result = await self.original_litellm_funcs["aembedding"](*args, **kwargs)
-            _finalize_span(span, result)
-        return result
-
-    @wraps(litellm.image_generation)
-    def _image_generation_wrapper(self, *args: Any, **kwargs: Any):
-        with self.tracer.start_as_current_span(
-            name="image_generation", attributes=dict(get_attributes_from_context())
-        ) as span:
-            _instrument_func_type_image_generation(span, kwargs)
-            result = self.original_litellm_funcs["image_generation"](*args, **kwargs)
-            _finalize_span(span, result)
-        return result
-
-    @wraps(litellm.aimage_generation)
-    async def _aimage_generation_wrapper(self, *args: Any, **kwargs: Any):
-        with self.tracer.start_as_current_span(
-            name="aimage_generation", attributes=dict(get_attributes_from_context())
-        ) as span:
-            _instrument_func_type_image_generation(span, kwargs)
-            result = await self.original_litellm_funcs["aimage_generation"](*args, **kwargs)
-            _finalize_span(span, result)
-        return result
-
-    def _set_wrapper_attr(self, func_wrapper):
-        func_wrapper.__func__.is_wrapper = True
+    def instrumentation_dependencies(self) -> Collection[str]:
+        return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        print("INSTRUMENTING!!!")
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        self.tracer = OITracer(
+        self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
@@ -258,5 +176,85 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             setattr(litellm, func_name, original_func)
         self.original_litellm_funcs.clear()
 
-    def instrumentation_dependencies(self) -> Collection[str]:
-        return ["litellm"]
+    @wraps(litellm.completion)
+    def _completion_wrapper(self, *args: Any, **kwargs: Any):
+        with self._tracer.start_as_current_span(
+            name="completion", attributes=dict(get_attributes_from_context())
+        ) as span:
+            _instrument_func_type_completion(span, kwargs)
+            result = self.original_litellm_funcs["completion"](*args, **kwargs)
+            _finalize_span(span, result)
+        return result
+
+    @wraps(litellm.acompletion)
+    async def _acompletion_wrapper(self, *args: Any, **kwargs: Any):
+        with self._tracer.start_as_current_span(
+            name="acompletion", attributes=dict(get_attributes_from_context())
+        ) as span:
+            _instrument_func_type_completion(span, kwargs)
+            result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
+            _finalize_span(span, result)
+        return result
+
+    @wraps(litellm.completion_with_retries)
+    def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any):
+        with self._tracer.start_as_current_span(
+            name="completion_with_retries", attributes=dict(get_attributes_from_context())
+        ) as span:
+            _instrument_func_type_completion(span, kwargs)
+            result = self.original_litellm_funcs["completion_with_retries"](*args, **kwargs)
+            _finalize_span(span, result)
+        return result
+
+    @wraps(litellm.acompletion_with_retries)
+    async def _acompletion_with_retries_wrapper(self, *args: Any, **kwargs: Any):
+        with self._tracer.start_as_current_span(
+            name="acompletion_with_retries", attributes=dict(get_attributes_from_context())
+        ) as span:
+            _instrument_func_type_completion(span, kwargs)
+            result = await self.original_litellm_funcs["acompletion_with_retries"](*args, **kwargs)
+            _finalize_span(span, result)
+        return result
+
+    @wraps(litellm.embedding)
+    def _embedding_wrapper(self, *args: Any, **kwargs: Any):
+        with self._tracer.start_as_current_span(
+            name="embedding", attributes=dict(get_attributes_from_context())
+        ) as span:
+            _instrument_func_type_embedding(span, kwargs)
+            result = self.original_litellm_funcs["embedding"](*args, **kwargs)
+            _finalize_span(span, result)
+        return result
+
+    @wraps(litellm.aembedding)
+    async def _aembedding_wrapper(self, *args: Any, **kwargs: Any):
+        with self._tracer.start_as_current_span(
+            name="aembedding", attributes=dict(get_attributes_from_context())
+        ) as span:
+            _instrument_func_type_embedding(span, kwargs)
+            result = await self.original_litellm_funcs["aembedding"](*args, **kwargs)
+            _finalize_span(span, result)
+        return result
+
+    @wraps(litellm.image_generation)
+    def _image_generation_wrapper(self, *args: Any, **kwargs: Any):
+        with self._tracer.start_as_current_span(
+            name="image_generation", attributes=dict(get_attributes_from_context())
+        ) as span:
+            _instrument_func_type_image_generation(span, kwargs)
+            result = self.original_litellm_funcs["image_generation"](*args, **kwargs)
+            _finalize_span(span, result)
+        return result
+
+    @wraps(litellm.aimage_generation)
+    async def _aimage_generation_wrapper(self, *args: Any, **kwargs: Any):
+        with self._tracer.start_as_current_span(
+            name="aimage_generation", attributes=dict(get_attributes_from_context())
+        ) as span:
+            _instrument_func_type_image_generation(span, kwargs)
+            result = await self.original_litellm_funcs["aimage_generation"](*args, **kwargs)
+            _finalize_span(span, result)
+        return result
+
+    def _set_wrapper_attr(self, func_wrapper):
+        func_wrapper.__func__.is_wrapper = True
