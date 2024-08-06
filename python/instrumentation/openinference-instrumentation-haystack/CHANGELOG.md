@@ -7,10 +7,17 @@
 
 * **haystack:** Support context attribute propagation ([#755](https://github.com/Arize-ai/openinference/issues/755)) ([1887ef9](https://github.com/Arize-ai/openinference/commit/1887ef93a45e2f8563f56923cec9e1b115f1153a))
 
+* Add TraceConfig handling ([1887ef9](https://github.com/Arize-ai/openinference/commit/1887ef93a45e2f8563f56923cec9e1b115f1153a))
+
 
 ### Bug Fixes
 
+* Use of PromptBuider without Documents ([1887ef9](https://github.com/Arize-ai/openinference/commit/1887ef93a45e2f8563f56923cec9e1b115f1153a))
+
+* Use of Retriever without prompt query embedding ([1887ef9](https://github.com/Arize-ai/openinference/commit/1887ef93a45e2f8563f56923cec9e1b115f1153a)) 
+
 * **haystack:** keep ruff guides consistent across instrumentors ([#705](https://github.com/Arize-ai/openinference/issues/705)) ([4293b48](https://github.com/Arize-ai/openinference/commit/4293b48f0124fafff1295e42bd5e20eb2d503a75))
+
 
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.0...python-openinference-instrumentation-haystack-v0.1.1) (2024-08-01)
 
