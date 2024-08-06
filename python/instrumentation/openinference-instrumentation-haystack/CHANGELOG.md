@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.2...python-openinference-instrumentation-haystack-v0.1.3) (2024-08-06)
+
+
+### Features
+
+* **haystack:** Add support for ChatPromptBuilder and ChatOpenAIGenerator components ([#760](https://github.com/Arize-ai/openinference/issues/760)) ([375800d](https://github.com/Arize-ai/openinference/commit/375800de6e16e8bc21ce0ffdd5bb0ea98bf73999))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.1...python-openinference-instrumentation-haystack-v0.1.2) (2024-08-06)
 
 
