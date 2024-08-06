@@ -119,11 +119,11 @@ export function setMetadata(
   return context.setValue(METADATA_KEY, safelyJSONStringify(attributes));
 }
 
-export const clearMetadata = (context: Context): Context => {
+export function clearMetadata(context: Context): Context {
   return context.deleteValue(METADATA_KEY);
-};
+}
 
-export const getMetadata = (context: Context): Attributes | undefined => {
+export function getMetadata(context: Context): Attributes | undefined {
   const maybeMetadata = context.getValue(METADATA_KEY);
 
   const attributes: Attributes = {};
@@ -131,7 +131,7 @@ export const getMetadata = (context: Context): Attributes | undefined => {
     attributes[METADATA] = maybeMetadata;
     return attributes;
   }
-};
+}
 
 export function getAttributesFromContext(context: Context): Attributes {
   const attributes: Attributes = {};
