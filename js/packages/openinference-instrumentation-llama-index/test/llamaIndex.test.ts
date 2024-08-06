@@ -12,7 +12,23 @@ import {
   RETRIEVAL_DOCUMENTS,
 } from "@arizeai/openinference-semantic-conventions";
 
-const { Document, VectorStoreIndex, OpenAIEmbedding } = llamaindex;
+const { Document, VectorStoreIndex } = llamaindex;
+
+jest.mock("llamaindex", () => {
+  const originalModule = jest.requireActual("llamaindex");
+  return {
+    ...originalModule,
+    OpenAIEmbedding: class extends originalModule.OpenAIEmbedding {
+      getOpenAIEmbedding = async () => {
+        return Promise.resolve([
+          FAKE_EMBEDDING,
+          FAKE_EMBEDDING,
+          FAKE_EMBEDDING,
+        ]);
+      };
+    },
+  };
+});
 
 const DUMMY_RESPONSE = "lorem ipsum";
 // Mock out the embeddings response to size 1536 (ada-2)
@@ -224,69 +240,18 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
   // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
   instrumentation._modules[0].moduleExports = llamaindex;
 
-  let openAIQueryEmbedSpy: jest.SpyInstance;
-  let openAITextEmbedSpy: jest.SpyInstance;
-  let openAISpy: jest.SpyInstance;
-
-  jest.mock("llamaindex", () => {
-    const originalModule = jest.requireActual("llamaindex");
-    return {
-      ...originalModule,
-      OpenAIEmbedding: jest.fn().mockImplementation(() => ({
-        getQueryEmbedding:
-          originalModule.OpenAIEmbedding.prototype.getQueryEmbedding,
-      })),
-    };
-  });
-
   beforeAll(() => {
     instrumentation.enable();
+    process.env["OPENAI_API_KEY"] = "fake-api-key";
   });
   afterAll(() => {
     instrumentation.disable();
   });
   beforeEach(() => {
     memoryExporter.reset();
-
-    // Use OpenAI and mock out the calls
-    const response: llamaindex.ChatResponse<llamaindex.ToolCallLLMMessageOptions> =
-      {
-        message: {
-          content: DUMMY_RESPONSE,
-          role: "assistant",
-        },
-        raw: null,
-      };
-
-    // Mock out the chat completions endpoint
-    openAISpy = jest
-      .spyOn(llamaindex.OpenAI.prototype, "chat")
-      .mockImplementation(() => {
-        return Promise.resolve(response);
-      });
-
-    // Mock out the embeddings endpoint
-    openAITextEmbedSpy = jest
-      .spyOn(llamaindex.OpenAIEmbedding.prototype, "getTextEmbeddings")
-      .mockImplementation(() => {
-        return Promise.resolve([
-          FAKE_EMBEDDING,
-          FAKE_EMBEDDING,
-          FAKE_EMBEDDING,
-        ]);
-      });
-
-    openAIQueryEmbedSpy = jest
-      .spyOn(llamaindex.OpenAIEmbedding.prototype, "getQueryEmbedding")
-      .mockImplementation(() => {
-        return Promise.resolve(FAKE_EMBEDDING);
-      });
   });
   afterEach(() => {
     jest.clearAllMocks();
-    openAISpy.mockRestore();
-    openAITextEmbedSpy.mockRestore();
-    openAIQueryEmbedSpy.mockRestore();
   });
 
   it("is patched", () => {
@@ -299,10 +264,6 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
     const embeddedVector = await embedder.getQueryEmbedding(
       "What did the author do in college?",
     );
-
-    // Verify calls
-    expect(openAISpy).toHaveBeenCalledTimes(0);
-    expect(openAIQueryEmbedSpy).toHaveBeenCalledTimes(1);
 
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBeGreaterThan(0);
@@ -318,7 +279,7 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
       queryEmbeddingSpan?.attributes[
         SemanticConventions.OPENINFERENCE_SPAN_KIND
       ],
-    ).toEqual(OpenInferenceSpanKind.CHAIN);
+    ).toEqual(OpenInferenceSpanKind.EMBEDDING);
     expect(
       queryEmbeddingSpan?.attributes[SemanticConventions.EMBEDDING_TEXT],
     ).toEqual("What did the author do in college?");

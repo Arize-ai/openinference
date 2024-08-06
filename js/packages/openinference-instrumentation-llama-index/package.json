@@ -24,6 +24,7 @@
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "devDependencies": {
+    "jest": "^29.7.0",
     "llamaindex": "^0.3.14"
   }
 }
