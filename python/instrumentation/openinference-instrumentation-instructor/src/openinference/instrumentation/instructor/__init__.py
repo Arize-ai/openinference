@@ -1,6 +1,7 @@
 from importlib import import_module
 from typing import Any, Collection
 
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.instructor._wrappers import (
     _HandleResponseWrapper,
     _PatchWrapper,
@@ -15,6 +16,7 @@ _instruments = ("instructor >= 0.0.1",)
 
 class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
+        "_tracer",
         "_original_handle_response_model",
         "_original_patch",
     )
@@ -26,15 +28,23 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        self._tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
 
         self._original_patch = getattr(import_module("instructor"), "patch", None)
-        patch_wrapper = _PatchWrapper(tracer=tracer)
+        patch_wrapper = _PatchWrapper(tracer=self._tracer)
         wrap_function_wrapper("instructor", "patch", patch_wrapper)
 
         self._original_handle_response_model = getattr(
             import_module("instructor.patch"), "handle_response_model", None
         )
-        process_resp_wrapper = _HandleResponseWrapper(tracer=tracer)
+        process_resp_wrapper = _HandleResponseWrapper(tracer=self._tracer)
         wrap_function_wrapper("instructor.patch", "handle_response_model", process_resp_wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:

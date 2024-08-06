@@ -6,6 +6,7 @@ import instructor
 import openai
 import pytest
 import vcr  # type: ignore
+from openinference.instrumentation import OITracer
 from openinference.instrumentation.instructor import InstructorInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -58,6 +59,10 @@ async def extract() -> UserInfo:
         ],
         response_model=UserInfo,
     )
+
+
+def test_oitracer() -> None:
+    assert isinstance(InstructorInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.asyncio

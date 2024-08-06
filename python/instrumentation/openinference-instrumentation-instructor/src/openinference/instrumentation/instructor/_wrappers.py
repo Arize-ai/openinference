@@ -5,7 +5,9 @@ from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.util.types import AttributeValue
 
 from instructor.utils import is_async
@@ -90,6 +92,11 @@ class _PatchWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        new_func = wrapped(*args, **kwargs)
+
         create = kwargs.get("create")
         client = kwargs.get("client")
 
@@ -99,7 +106,6 @@ class _PatchWrapper:
             func = client.chat.completions.create
         else:
             raise ValueError("Either client or create must be provided")
-        new_func = wrapped(*args, **kwargs)
         func_is_async = is_async(func)
 
         def patched_new_func(*args: Any, **kwargs: Any) -> Any:
@@ -178,6 +184,9 @@ class _HandleResponseWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
         if instance:
             span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
         else:
