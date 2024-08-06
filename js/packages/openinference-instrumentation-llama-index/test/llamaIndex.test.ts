@@ -1,19 +1,22 @@
+import * as llamaindex from "llamaindex";
+
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { LlamaIndexInstrumentation, isPatched } from "../src/index";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import * as llamaindex from "llamaindex";
 import {
   SemanticConventions,
   OpenInferenceSpanKind,
   RETRIEVAL_DOCUMENTS,
 } from "@arizeai/openinference-semantic-conventions";
 
-const { Document, VectorStoreIndex } = llamaindex;
+const { Document, VectorStoreIndex, OpenAIEmbedding } = llamaindex;
 
 const DUMMY_RESPONSE = "lorem ipsum";
+// Mock out the embeddings response to size 1536 (ada-2)
+const FAKE_EMBEDDING = Array(1536).fill(0);
 
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.register();
@@ -21,7 +24,7 @@ tracerProvider.register();
 const instrumentation = new LlamaIndexInstrumentation();
 instrumentation.disable();
 describe("llamaIndex", () => {
-  it("should pass", () => {
+  it("llamaindex should be available", () => {
     expect(true).toBe(true);
   });
 });
@@ -38,6 +41,7 @@ describe("LlamaIndexInstrumentation", () => {
   let openAISpy: jest.SpyInstance;
   let openAITextEmbedSpy: jest.SpyInstance;
   let openAIQueryEmbedSpy: jest.SpyInstance;
+
   beforeAll(() => {
     instrumentation.enable();
 
@@ -68,19 +72,21 @@ describe("LlamaIndexInstrumentation", () => {
         return Promise.resolve(response);
       });
 
-    // Mock out the embeddings response to size 1536 (ada-2)
-    const fakeEmbedding = Array(1536).fill(0);
     // Mock out the embeddings endpoint
     openAITextEmbedSpy = jest
       .spyOn(llamaindex.OpenAIEmbedding.prototype, "getTextEmbeddings")
       .mockImplementation(() => {
-        return Promise.resolve([fakeEmbedding, fakeEmbedding, fakeEmbedding]);
+        return Promise.resolve([
+          FAKE_EMBEDDING,
+          FAKE_EMBEDDING,
+          FAKE_EMBEDDING,
+        ]);
       });
 
     openAIQueryEmbedSpy = jest
       .spyOn(llamaindex.OpenAIEmbedding.prototype, "getQueryEmbedding")
       .mockImplementation(() => {
-        return Promise.resolve(fakeEmbedding);
+        return Promise.resolve(FAKE_EMBEDDING);
       });
   });
   afterEach(() => {
@@ -89,9 +95,11 @@ describe("LlamaIndexInstrumentation", () => {
     openAIQueryEmbedSpy.mockRestore();
     openAITextEmbedSpy.mockRestore();
   });
+
   it("is patched", () => {
     expect(isPatched()).toBe(true);
   });
+
   it("should create a span for query engines", async () => {
     // Create Document object with essay
     const document = new Document({ text: "lorem ipsum" });
@@ -131,6 +139,7 @@ describe("LlamaIndexInstrumentation", () => {
       queryEngineSpan?.attributes[SemanticConventions.OUTPUT_VALUE],
     ).toEqual(DUMMY_RESPONSE);
   });
+
   it("should create a span for retrieve method", async () => {
     // Create Document objects with essays
     const documents = [
@@ -200,5 +209,124 @@ describe("LlamaIndexInstrumentation", () => {
         ).toEqual(JSON.stringify(nodeMetadata));
       }
     });
+  });
+});
+
+/*
+ * Tests for embeddings only
+ */
+describe("LlamaIndexInstrumentation - Embeddings", () => {
+  const memoryExporter = new InMemorySpanExporter();
+  const spanProcessor = new SimpleSpanProcessor(memoryExporter);
+  instrumentation.setTracerProvider(tracerProvider);
+
+  tracerProvider.addSpanProcessor(spanProcessor);
+  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+  instrumentation._modules[0].moduleExports = llamaindex;
+
+  let openAIQueryEmbedSpy: jest.SpyInstance;
+  let openAITextEmbedSpy: jest.SpyInstance;
+  let openAISpy: jest.SpyInstance;
+
+  jest.mock("llamaindex", () => {
+    const originalModule = jest.requireActual("llamaindex");
+    return {
+      ...originalModule,
+      OpenAIEmbedding: jest.fn().mockImplementation(() => ({
+        getQueryEmbedding:
+          originalModule.OpenAIEmbedding.prototype.getQueryEmbedding,
+      })),
+    };
+  });
+
+  beforeAll(() => {
+    instrumentation.enable();
+  });
+  afterAll(() => {
+    instrumentation.disable();
+  });
+  beforeEach(() => {
+    memoryExporter.reset();
+
+    // Use OpenAI and mock out the calls
+    const response: llamaindex.ChatResponse<llamaindex.ToolCallLLMMessageOptions> =
+      {
+        message: {
+          content: DUMMY_RESPONSE,
+          role: "assistant",
+        },
+        raw: null,
+      };
+
+    // Mock out the chat completions endpoint
+    openAISpy = jest
+      .spyOn(llamaindex.OpenAI.prototype, "chat")
+      .mockImplementation(() => {
+        return Promise.resolve(response);
+      });
+
+    // Mock out the embeddings endpoint
+    openAITextEmbedSpy = jest
+      .spyOn(llamaindex.OpenAIEmbedding.prototype, "getTextEmbeddings")
+      .mockImplementation(() => {
+        return Promise.resolve([
+          FAKE_EMBEDDING,
+          FAKE_EMBEDDING,
+          FAKE_EMBEDDING,
+        ]);
+      });
+
+    openAIQueryEmbedSpy = jest
+      .spyOn(llamaindex.OpenAIEmbedding.prototype, "getQueryEmbedding")
+      .mockImplementation(() => {
+        return Promise.resolve(FAKE_EMBEDDING);
+      });
+  });
+  afterEach(() => {
+    jest.clearAllMocks();
+    openAISpy.mockRestore();
+    openAITextEmbedSpy.mockRestore();
+    openAIQueryEmbedSpy.mockRestore();
+  });
+
+  it("is patched", () => {
+    expect(isPatched()).toBe(true);
+  });
+
+  it("should create a span for embeddings (query)", async () => {
+    // Get embeddings
+    const embedder = new llamaindex.OpenAIEmbedding();
+    const embeddedVector = await embedder.getQueryEmbedding(
+      "What did the author do in college?",
+    );
+
+    // Verify calls
+    expect(openAISpy).toHaveBeenCalledTimes(0);
+    expect(openAIQueryEmbedSpy).toHaveBeenCalledTimes(1);
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBeGreaterThan(0);
+
+    // Expect a span for the embedding
+    const queryEmbeddingSpan = spans.find((span) =>
+      span.name.includes("embedding"),
+    );
+    expect(queryEmbeddingSpan).toBeDefined();
+
+    // Verify span attributes
+    expect(
+      queryEmbeddingSpan?.attributes[
+        SemanticConventions.OPENINFERENCE_SPAN_KIND
+      ],
+    ).toEqual(OpenInferenceSpanKind.CHAIN);
+    expect(
+      queryEmbeddingSpan?.attributes[SemanticConventions.EMBEDDING_TEXT],
+    ).toEqual("What did the author do in college?");
+    expect(
+      queryEmbeddingSpan?.attributes[SemanticConventions.OUTPUT_VALUE],
+    ).toEqual(embeddedVector);
+    expect(
+      queryEmbeddingSpan?.attributes[SemanticConventions.EMBEDDING_MODEL_NAME],
+    ).toEqual("text-embedding-ada-002");
   });
 });
