@@ -43,6 +43,6 @@ class JokeFlow(Workflow):
 
 
 if __name__ == "__main__":
-    w = JokeFlow(timeout=600, verbose=False)
+    w = JokeFlow(timeout=60, verbose=False)
     result = asyncio.run(w.run(topic="pirates"))
     print(str(result))
