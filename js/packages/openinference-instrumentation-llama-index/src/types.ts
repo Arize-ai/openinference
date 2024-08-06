@@ -1,39 +1,5 @@
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
-
-export type RetrievalDocument = {
-  [SemanticConventions.DOCUMENT_ID]?: string;
-  [SemanticConventions.DOCUMENT_CONTENT]?: string;
-  [SemanticConventions.DOCUMENT_SCORE]?: number | undefined;
-  [SemanticConventions.DOCUMENT_METADATA]?: string;
-};
-
-type LLMMessageToolCall = {
-  [SemanticConventions.TOOL_CALL_FUNCTION_NAME]?: string;
-  [SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]?: string;
-};
-
-export type LLMMessageToolCalls = {
-  [SemanticConventions.MESSAGE_TOOL_CALLS]?: LLMMessageToolCall[];
-};
-
-export type LLMMessageFunctionCall = {
-  [SemanticConventions.MESSAGE_FUNCTION_CALL_NAME]?: string;
-  [SemanticConventions.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON]?: string;
-};
-
-export type LLMMessage = LLMMessageToolCalls &
-  LLMMessageFunctionCall & {
-    [SemanticConventions.MESSAGE_ROLE]?: string;
-    [SemanticConventions.MESSAGE_CONTENT]?: string;
-  };
-
-export type LLMMessagesAttributes =
-  | {
-      [SemanticConventions.LLM_INPUT_MESSAGES]: LLMMessage[];
-    }
-  | {
-      [SemanticConventions.LLM_OUTPUT_MESSAGES]: LLMMessage[];
-    };
+import * as llamaindex from "llamaindex";
+import { BaseRetriever } from "llamaindex";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type GenericFunction = (...args: any[]) => any;
@@ -42,22 +8,16 @@ export type SafeFunction<T extends GenericFunction> = (
   ...args: Parameters<T>
 ) => ReturnType<T> | null;
 
-export type LLMParameterAttributes = {
-  [SemanticConventions.LLM_MODEL_NAME]?: string;
-  [SemanticConventions.LLM_INVOCATION_PARAMETERS]?: string;
-};
+export type ObjectWithModel = { model: string };
+export type ObjectWithID = { id: string };
 
-export type PromptTemplateAttributes = {
-  [SemanticConventions.PROMPT_TEMPLATE_TEMPLATE]?: string;
-  [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]?: string;
-};
-export type TokenCountAttributes = {
-  [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]?: number;
-  [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]?: number;
-  [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]?: number;
-};
+export type QueryEngineQueryMethod =
+  typeof llamaindex.RetrieverQueryEngine.prototype.query;
 
-export type ToolAttributes = {
-  [SemanticConventions.TOOL_NAME]?: string;
-  [SemanticConventions.TOOL_DESCRIPTION]?: string;
-};
+export type RetrieverRetrieveMethod = BaseRetriever["retrieve"];
+
+export type QueryEmbeddingMethod =
+  typeof llamaindex.BaseEmbedding.prototype.getQueryEmbedding;
+
+export type TextEmbeddingsMethod =
+  typeof llamaindex.BaseEmbedding.prototype.getTextEmbeddings;

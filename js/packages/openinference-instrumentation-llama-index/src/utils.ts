@@ -17,7 +17,16 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { GenericFunction, SafeFunction } from "./types";
+import {
+  GenericFunction,
+  SafeFunction,
+  ObjectWithModel,
+  ObjectWithID,
+  QueryEngineQueryMethod,
+  RetrieverRetrieveMethod,
+  QueryEmbeddingMethod,
+  TextEmbeddingsMethod,
+} from "./types";
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.
@@ -74,9 +83,9 @@ function documentAttributes(
   output: llamaindex.NodeWithScore<llamaindex.Metadata>[],
 ) {
   const docs: Attributes = {};
-  output.forEach(({ node, score }, index) => {
+  output.forEach(({ node, score }, idx) => {
     if (node instanceof llamaindex.TextNode) {
-      const prefix = `${SemanticConventions.RETRIEVAL_DOCUMENTS}.${index}`;
+      const prefix = `${SemanticConventions.RETRIEVAL_DOCUMENTS}.${idx}`;
       docs[`${prefix}.${SemanticConventions.DOCUMENT_ID}`] = node.id_;
       docs[`${prefix}.${SemanticConventions.DOCUMENT_SCORE}`] = score;
       docs[`${prefix}.${SemanticConventions.DOCUMENT_CONTENT}`] =
@@ -88,7 +97,7 @@ function documentAttributes(
   return docs;
 }
 
-function embeddingAttributes(input: string, output: number[]) {
+function queryEmbeddingAttributes(input: string, output: number[]) {
   return {
     [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
       input,
@@ -97,8 +106,21 @@ function embeddingAttributes(input: string, output: number[]) {
   };
 }
 
-type ObjectWithModel = { model: string };
-type ObjectWithID = { id: string };
+function textEmbeddingsAttributes(input: string[], output: number[][]) {
+  const embedAttr: Attributes = {};
+  input.forEach((str, idx) => {
+    embedAttr[
+      `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${idx}.${SemanticConventions.EMBEDDING_TEXT}`
+    ] = str;
+  });
+
+  output.forEach((vector, idx) => {
+    embedAttr[
+      `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${idx}.${SemanticConventions.EMBEDDING_VECTOR}`
+    ] = vector;
+  });
+  return embedAttr;
+}
 
 function hasId(obj: unknown): obj is ObjectWithID {
   const objectWithIDMaybe = obj as ObjectWithID;
@@ -106,10 +128,10 @@ function hasId(obj: unknown): obj is ObjectWithID {
 }
 
 function hasModel(obj: unknown): obj is ObjectWithModel {
-  const ObjectWithMaybeModel = obj as ObjectWithModel;
+  const ObjectWithModelMaybe = obj as ObjectWithModel;
   return (
-    "model" in ObjectWithMaybeModel &&
-    typeof ObjectWithMaybeModel.model === "string"
+    "model" in ObjectWithModelMaybe &&
+    typeof ObjectWithModelMaybe.model === "string"
   );
 }
 
@@ -121,16 +143,14 @@ function getModelName(obj: unknown) {
   }
 }
 
-type QueryMethod = typeof llamaindex.RetrieverQueryEngine.prototype.query;
-
 export function patchQueryMethod(
-  original: QueryMethod,
+  original: QueryEngineQueryMethod,
   module: typeof llamaindex,
   tracer: Tracer,
 ) {
   return function patchedQuery(
     this: unknown,
-    ...args: Parameters<QueryMethod>
+    ...args: Parameters<QueryEngineQueryMethod>
   ) {
     const span = tracer.startSpan(`query`, {
       kind: SpanKind.INTERNAL,
@@ -144,7 +164,9 @@ export function patchQueryMethod(
 
     const execContext = getExecContext(span);
 
-    const execPromise = safeExecuteInTheMiddle<ReturnType<QueryMethod>>(
+    const execPromise = safeExecuteInTheMiddle<
+      ReturnType<QueryEngineQueryMethod>
+    >(
       () => {
         return context.with(execContext, () => {
           return original.apply(this, args);
@@ -165,16 +187,14 @@ export function patchQueryMethod(
   };
 }
 
-type RetrieveMethod = typeof llamaindex.VectorIndexRetriever.prototype.retrieve;
-
 export function patchRetrieveMethod(
-  original: RetrieveMethod,
+  original: RetrieverRetrieveMethod,
   module: typeof llamaindex,
   tracer: Tracer,
 ) {
   return function patchedRetrieve(
     this: unknown,
-    ...args: Parameters<RetrieveMethod>
+    ...args: Parameters<RetrieverRetrieveMethod>
   ) {
     const span = tracer.startSpan(`retrieve`, {
       kind: SpanKind.INTERNAL,
@@ -188,7 +208,9 @@ export function patchRetrieveMethod(
 
     const execContext = getExecContext(span);
 
-    const execPromise = safeExecuteInTheMiddle<ReturnType<RetrieveMethod>>(
+    const execPromise = safeExecuteInTheMiddle<
+      ReturnType<RetrieverRetrieveMethod>
+    >(
       () => {
         return context.with(execContext, () => {
           return original.apply(this, args);
@@ -206,10 +228,7 @@ export function patchRetrieveMethod(
   };
 }
 
-type QueryEmbeddingMethod =
-  typeof llamaindex.BaseEmbedding.prototype.getQueryEmbedding;
-
-export function patchQueryEmbeddingMethod(
+export function patchQueryEmbedding(
   original: QueryEmbeddingMethod,
   tracer: Tracer,
 ) {
@@ -245,7 +264,51 @@ export function patchQueryEmbeddingMethod(
     });
 
     const wrappedPromise = execPromise.then((result) => {
-      span.setAttributes(embeddingAttributes(args[0], result));
+      span.setAttributes(queryEmbeddingAttributes(args[0], result));
+      span.end();
+      return result;
+    });
+    return context.bind(execContext, wrappedPromise);
+  };
+}
+
+export function patchTextEmbeddings(
+  original: TextEmbeddingsMethod,
+  tracer: Tracer,
+) {
+  return function patched(
+    this: unknown,
+    ...args: Parameters<TextEmbeddingsMethod>
+  ) {
+    const span = tracer.startSpan(`embedding`, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+          OpenInferenceSpanKind.EMBEDDING,
+      },
+    });
+
+    const execContext = getExecContext(span);
+
+    const execPromise = safeExecuteInTheMiddle<
+      ReturnType<TextEmbeddingsMethod>
+    >(
+      () => {
+        return context.with(execContext, () => {
+          return original.apply(this, args);
+        });
+      },
+      (error) => handleError(span, error),
+    );
+
+    // Model ID/name is a property found on the class and not in args
+    // Extract from class and set as attribute
+    span.setAttributes({
+      [SemanticConventions.EMBEDDING_MODEL_NAME]: getModelName(this),
+    });
+
+    const wrappedPromise = execPromise.then((result) => {
+      span.setAttributes(textEmbeddingsAttributes(args[0], result));
       span.end();
       return result;
     });

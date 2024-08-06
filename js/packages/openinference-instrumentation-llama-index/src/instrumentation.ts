@@ -10,9 +10,10 @@ import { diag } from "@opentelemetry/api";
 import {
   patchQueryMethod,
   patchRetrieveMethod,
-  patchQueryEmbeddingMethod,
+  patchQueryEmbedding,
+  patchTextEmbeddings,
 } from "./utils";
-import { BaseEmbedding } from "llamaindex";
+import { BaseEmbedding, BaseRetriever } from "llamaindex";
 import { VERSION } from "./version";
 
 const MODULE_NAME = "llamaindex";
@@ -56,8 +57,16 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     return module;
   }
 
+  private isRetriever(retriever: unknown): retriever is BaseRetriever {
+    return !!retriever && !!(retriever as BaseRetriever).retrieve;
+  }
+
   private isEmbedding(value: unknown): value is BaseEmbedding {
-    return value != null && value instanceof BaseEmbedding;
+    return (
+      !!value &&
+      value instanceof BaseEmbedding &&
+      !!(value as BaseEmbedding).getQueryEmbedding
+    );
   }
 
   private patch(moduleExports: typeof llamaindex, moduleVersion?: string) {
@@ -77,23 +86,33 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     );
 
     this._wrap(
-      moduleExports.VectorIndexRetriever.prototype,
-      "retrieve",
+      moduleExports.OpenAIEmbedding.prototype,
+      "getQueryEmbedding",
       (original) => {
-        return patchRetrieveMethod(original, moduleExports, this.tracer);
+        return patchQueryEmbedding(original, this.tracer);
       },
     );
 
     for (const value of Object.values(moduleExports)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const prototype = (value as any).prototype;
+
+      if (this.isRetriever(prototype)) {
+        this._wrap(prototype, "retrieve", (original) => {
+          return patchRetrieveMethod(original, moduleExports, this.tracer);
+        });
+      }
+
       if (this.isEmbedding(prototype)) {
         this._wrap(prototype, "getQueryEmbedding", (original) => {
-          return patchQueryEmbeddingMethod(original, this.tracer);
+          return patchQueryEmbedding(original, this.tracer);
+        });
+
+        this._wrap(prototype, "getTextEmbeddings", (original) => {
+          return patchTextEmbeddings(original, this.tracer);
         });
       }
     }
-
     _isOpenInferencePatched = true;
     return moduleExports;
   }
@@ -101,7 +120,19 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
   private unpatch(moduleExports: typeof llamaindex, moduleVersion?: string) {
     this._diag.debug(`Un-patching ${MODULE_NAME}@${moduleVersion}`);
     this._unwrap(moduleExports.RetrieverQueryEngine.prototype, "query");
-    this._unwrap(moduleExports.VectorIndexRetriever.prototype, "retrieve");
+
+    for (const value of Object.values(moduleExports)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prototype = (value as any).prototype;
+
+      if (this.isRetriever(prototype)) {
+        this._unwrap(prototype, "retrieve");
+      }
+
+      if (this.isEmbedding(prototype)) {
+        this._unwrap(prototype, "getQueryEmbedding");
+      }
+    }
 
     _isOpenInferencePatched = false;
   }
