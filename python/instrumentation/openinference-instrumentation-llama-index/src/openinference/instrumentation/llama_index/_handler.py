@@ -784,7 +784,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             detach(token)
         if span:
             if LLAMA_INDEX_VERSION >= (0, 10, 61):
-                from llama_index.core.workflow.errors import (  # type: ignore[import-not-found]
+                from llama_index.core.workflow.errors import (  # type: ignore[import-not-found,unused-ignore]
                     WorkflowDone,
                 )
 
