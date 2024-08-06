@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.1...python-openinference-instrumentation-llama-index-v2.2.2) (2024-08-06)
+
+
+### Bug Fixes
+
+* ignore `WorkflowDone` exception ([#769](https://github.com/Arize-ai/openinference/issues/769)) ([4fb34a4](https://github.com/Arize-ai/openinference/commit/4fb34a4b5668bb9e14247db10ac734645bcefa8e))
+
 ## [2.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.0...python-openinference-instrumentation-llama-index-v2.2.1) (2024-08-01)
 
 
