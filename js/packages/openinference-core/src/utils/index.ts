@@ -7,7 +7,7 @@ export * from "./typeUtils";
  * @param fn - A function to wrap with a try-catch block.
  * @returns A function that returns null if an error is thrown.
  */
-function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
+export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
   return (...args) => {
     try {
       return fn(...args);
