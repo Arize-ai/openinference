@@ -2,14 +2,17 @@ from typing import Any, Dict, Generator, List, Optional, Union
 
 import pytest
 from haystack import Document
+from haystack.components.builders import ChatPromptBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.embedders import (
     SentenceTransformersDocumentEmbedder,
     SentenceTransformersTextEmbedder,
 )
 from haystack.components.generators import OpenAIGenerator
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.core.pipeline.pipeline import Pipeline
+from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
 from openinference.instrumentation import OITracer, using_attributes
@@ -28,12 +31,32 @@ def fake_OpenAIGenerator_run(
         "replies": ["sorry, i have zero clue"],
         "meta": [
             {
-                "model": "parth",
+                "model": "fake_model",
                 "usage": {"completion_tokens": 10, "prompt_tokens": 5, "total_tokens": 15},
                 "awesome_attribute": True,
                 "another_attribute": 7,
             }
         ],
+    }
+
+
+def fake_OpenAIGenerator_run_chat(
+    self: Any, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None
+) -> Dict[str, List[ChatMessage]]:
+    return {
+        "replies": [
+            ChatMessage(
+                content="idk, sorry!",
+                name=None,
+                role=ChatRole.ASSISTANT,
+                meta={
+                    "model": "gpt-3.5-turbo-0613",
+                    "index": 0,
+                    "finish_reason": "stop",
+                    "usage": {"prompt_tokens": 16, "completion_tokens": 61, "total_tokens": 77},
+                },
+            )
+        ]
     }
 
 
@@ -185,6 +208,7 @@ def test_haystack_instrumentation(
 
     # Configure text embedder (prompt)
     text_embedder = SentenceTransformersTextEmbedder(model="fake_model")
+
     text_embedder.warm_up = fake_SentenceTransformersEmbedder_warm_up.__get__(
         text_embedder, SentenceTransformersDocumentEmbedder
     )
@@ -232,7 +256,12 @@ def test_haystack_instrumentation(
         prompt_template_version=prompt_template_version,
         prompt_template_variables=prompt_template_variables,
     ):
-        basic_rag_pipeline.run({"text_embedder": {"text": q}, "prompt_builder": {"question": q}})
+        basic_rag_pipeline.run(
+            {
+                "text_embedder": {"text": q},
+                "prompt_builder": {"question": q},
+            }
+        )
 
     spans = in_memory_span_exporter.get_finished_spans()
 
@@ -259,6 +288,59 @@ def test_haystack_instrumentation(
         _check_context_attributes(
             att,
         )
+
+
+def test_haystack_instrumentation_chat(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    prompt_builder = ChatPromptBuilder()
+
+    llm = OpenAIChatGenerator(api_key=Secret.from_token("fake_key"), model="fake_model")
+    llm.run = fake_OpenAIGenerator_run_chat.__get__(llm, OpenAIChatGenerator)
+
+    pipe = Pipeline()
+
+    pipe.add_component("prompt_builder", prompt_builder)
+    pipe.add_component("llm", llm)
+
+    pipe.connect("prompt_builder.prompt", "llm.messages")
+
+    location = "Berlin"
+    messages = [
+        ChatMessage.from_system("Try and be super useful."),
+        ChatMessage.from_user("Tell me about {{location}}"),
+    ]
+
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    ):
+        pipe.run(
+            data={
+                "prompt_builder": {
+                    "template_variables": {"location": location},
+                    "template": messages,
+                }
+            }
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans
 
 
 def test_haystack_uninstrumentation(
