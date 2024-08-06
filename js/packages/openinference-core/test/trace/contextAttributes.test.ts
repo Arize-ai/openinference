@@ -209,6 +209,29 @@ describe("getContextAttributes", () => {
     );
   });
 
+  it("should have attributes unset outside of the context.with scope", () => {
+    context.with(
+      setSession(
+        setPromptTemplate(context.active(), {
+          template: "hello {name}",
+          variables: { name: "world" },
+          version: "V1.0",
+        }),
+        { sessionId: "session-id" },
+      ),
+
+      () => {
+        expect(getSessionId(context.active())).toBe("session-id");
+        expect(getPromptTemplate(context.active())).toStrictEqual({
+          [PROMPT_TEMPLATE_TEMPLATE]: "hello {name}",
+          [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify({ name: "world" }),
+          [PROMPT_TEMPLATE_VERSION]: "V1.0",
+        });
+      },
+    );
+    expect(getAttributesFromContext(context.active())).toStrictEqual({});
+  });
+
   it("should ignore context attributes that cannot be set as span attributes (non primitive)", () => {
     context.with(
       context

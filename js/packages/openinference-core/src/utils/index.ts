@@ -1,5 +1,6 @@
 import { GenericFunction, SafeFunction } from "./types";
 import { diag } from "@opentelemetry/api";
+export * from "./typeUtils";
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.

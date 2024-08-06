@@ -6,8 +6,7 @@ import {
   SESSION_ID,
 } from "@arizeai/openinference-semantic-conventions";
 import { Attributes, Context, createContextKey } from "@opentelemetry/api";
-import { isAttributeValue } from "../typeUtils";
-import { safelyJSONStringify } from "../utils";
+import { safelyJSONStringify, isAttributeValue } from "../utils";
 
 export const ContextAttributes = {
   [PROMPT_TEMPLATE_TEMPLATE]: createContextKey(

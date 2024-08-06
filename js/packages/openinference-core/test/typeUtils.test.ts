@@ -1,4 +1,4 @@
-import { isAttributeValue } from "../src/typeUtils";
+import { isAttributeValue } from "../src/utils/typeUtils";
 
 describe("isAttributeValue", () => {
   it("should return true for string", () => {
