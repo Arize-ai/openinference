@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.2...python-openinference-instrumentation-llama-index-v2.2.3) (2024-08-06)
+
+
+### Bug Fixes
+
+* **llama-index:** Adjust newspan args in BaseHandler ([#773](https://github.com/Arize-ai/openinference/issues/773)) ([ab216d1](https://github.com/Arize-ai/openinference/commit/ab216d1fe4cf6ba8cf5461a98c4fc65be6a762de))
+
 ## [2.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.1...python-openinference-instrumentation-llama-index-v2.2.2) (2024-08-06)
 
 
