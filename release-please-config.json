@@ -54,6 +54,10 @@
         "python/instrumentation/openinference-instrumentation-litellm": {
             "package-name": "python-openinference-instrumentation-litellm",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-groq": {
+            "package-name": "python-openinference-instrumentation-groq",
+            "release-type": "python"
         }
     }
 }

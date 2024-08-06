@@ -24,7 +24,7 @@ from dspy.teleprompt import BootstrapFewShotWithRandomSearch
 from google.generativeai import GenerativeModel  # type: ignore
 from google.generativeai.types import GenerateContentResponse  # type: ignore
 from httpx import Response
-from openinference.instrumentation import using_attributes
+from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -159,6 +159,11 @@ def clear_cache() -> None:
     """
     CacheMemory.clear()
     NotebookCacheMemory.clear()
+
+
+# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
+def test_oitracer() -> None:
+    assert isinstance(DSPyInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])

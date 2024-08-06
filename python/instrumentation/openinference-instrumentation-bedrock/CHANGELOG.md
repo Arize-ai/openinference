@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.7...python-openinference-instrumentation-bedrock-v0.1.8) (2024-08-03)
+
+
+### Features
+
+* Enable config propagation ([#741](https://github.com/Arize-ai/openinference/issues/741)) ([16cdc6b](https://github.com/Arize-ai/openinference/commit/16cdc6b71fb14728a3eca7db27a55b68187cb4aa))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.6...python-openinference-instrumentation-bedrock-v0.1.7) (2024-07-18)
 
 
