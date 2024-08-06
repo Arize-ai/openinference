@@ -320,6 +320,12 @@ export const TOOL_DESCRIPTION =
   `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.description}` as const;
 
 /**
+ * The parameters of the tool represented as a JSON string
+ */
+export const TOOL_PARAMETERS =
+  `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.parameters}` as const;
+
+/**
  * The session id of a trace. Used to correlate spans in a single session.
  */
 export const SESSION_ID =
@@ -330,6 +336,53 @@ export const SESSION_ID =
  */
 export const USER_ID =
   `${SemanticAttributePrefixes.user}.${UserAttributePostfixes.id}` as const;
+
+/**
+ * The documents used as input to the reranker
+ */
+export const RERANKER_INPUT_DOCUMENTS =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.input_documents}` as const;
+
+/**
+ * The documents output by the reranker
+ */
+export const RERANKER_OUTPUT_DOCUMENTS =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.output_documents}` as const;
+
+/**
+ * The query string for the reranker
+ */
+export const RERANKER_QUERY =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.query}` as const;
+
+/**
+ * The model name for the reranker
+ */
+export const RERANKER_MODEL_NAME =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.model_name}` as const;
+
+/**
+ * The top k parameter for the reranker
+ */
+export const RERANKER_TOP_K =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.top_k}` as const;
+
+/**
+ * Metadata for a span, used to store user-defined key-value pairs
+ */
+export const METADATA = "metadata" as const;
+
+/**
+ * A prompt template version
+ */
+export const PROMPT_TEMPLATE_VERSION =
+  `${PROMPT_TEMPLATE_PREFIX}.version` as const;
+
+/**
+ * The tags associated with a span
+ */
+export const TAG_TAGS =
+  `${SemanticAttributePrefixes.tag}.${TagAttributePostfixes.tags}` as const;
 
 export const SemanticConventions = {
   INPUT_VALUE,
@@ -362,13 +415,21 @@ export const SemanticConventions = {
   EMBEDDING_VECTOR,
   TOOL_DESCRIPTION,
   TOOL_NAME,
+  TOOL_PARAMETERS,
   PROMPT_TEMPLATE_VARIABLES,
   PROMPT_TEMPLATE_TEMPLATE,
+  PROMPT_TEMPLATE_VERSION,
+  RERANKER_INPUT_DOCUMENTS,
+  RERANKER_OUTPUT_DOCUMENTS,
+  RERANKER_QUERY,
+  RERANKER_MODEL_NAME,
+  RERANKER_TOP_K,
   LLM_FUNCTION_CALL,
   RETRIEVAL_DOCUMENTS,
   SESSION_ID,
   USER_ID,
-  // OpenInference steps
+  METADATA,
+  TAG_TAGS,
   OPENINFERENCE_SPAN_KIND: `${SemanticAttributePrefixes.openinference}.span.kind`,
 } as const;
 
@@ -381,6 +442,7 @@ export enum OpenInferenceSpanKind {
   EMBEDDING = "EMBEDDING",
   AGENT = "AGENT",
   GUARDRAIL = "GUARDRAIL",
+  EVALUATOR = "EVALUATOR",
 }
 
 export enum MimeType {
