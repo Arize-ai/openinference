@@ -1,33 +1,33 @@
 import json
 from functools import wraps
-from typing import Any, Callable, Collection, Dict, Optional
+from typing import Any, Callable, Collection, Dict
 
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     get_attributes_from_context,
 )
+from openinference.instrumentation.litellm.version import __version__
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry import trace
+from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
-from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.util.types import AttributeValue
 
 import litellm
 
 
 # Helper functions to set span attributes
-def _set_span_attribute(span: trace.Span, name: str, value: AttributeValue) -> None:
+def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
     if value is not None and value != "":
         span.set_attribute(name, value)
 
 
-def _instrument_func_type_completion(span: trace.Span, kwargs: Dict[str, Any]) -> None:
+def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
     """
     Currently instruments the functions:
         litellm.completion()
@@ -54,7 +54,7 @@ def _instrument_func_type_completion(span: trace.Span, kwargs: Dict[str, Any]) -
     )
 
 
-def _instrument_func_type_embedding(span: trace.Span, kwargs: Dict[str, Any]) -> None:
+def _instrument_func_type_embedding(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
     """
     Currently instruments the functions:
         litellm.embedding()
@@ -72,7 +72,7 @@ def _instrument_func_type_embedding(span: trace.Span, kwargs: Dict[str, Any]) ->
     _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("input")))
 
 
-def _instrument_func_type_image_generation(span: trace.Span, kwargs: Dict[str, Any]) -> None:
+def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
     """
     Currently instruments the functions:
         litellm.image_generation()
@@ -85,7 +85,7 @@ def _instrument_func_type_image_generation(span: trace.Span, kwargs: Dict[str, A
     _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("prompt")))
 
 
-def _finalize_span(span: trace.Span, result: Any) -> None:
+def _finalize_span(span: trace_api.Span, result: Any) -> None:
     if isinstance(result, litellm.ModelResponse):
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, result.choices[0].message.content)
     elif isinstance(result, litellm.EmbeddingResponse):
@@ -117,20 +117,22 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         str, Callable
     ] = {}  # Dictionary for original uninstrumented liteLLM functions
 
-    def __init__(self, tracer_provider: Optional[TracerProvider] = None, **kwargs):
-        super().__init__()
-        self.tracer_provider = tracer_provider
-        if self.tracer_provider:
-            trace.set_tracer_provider(self.tracer_provider)
+    # def __init__(self, tracer_provider: Optional[TracerProvider] = None, **kwargs):
+    #     super().__init__()
+    #     self.tracer_provider = tracer_provider
+    #     if self.tracer_provider:
+    #         trace.set_tracer_provider(self.tracer_provider)
+    #     self.tracer = trace.get_tracer(__name__)
+    #     # if not (config := kwargs.get("config")):
+    #     #     config = TraceConfig()
+    #     # else:
+    #     #     assert isinstance(config, TraceConfig)
+    #     # self.tracer = OITracer(
+    #     #     trace.get_tracer(__name__, tracer_provider),
+    #     #     config=config,
+    #     # )
 
-        if not (config := kwargs.get("config")):
-            config = TraceConfig()
-        else:
-            assert isinstance(config, TraceConfig)
-        self.tracer = OITracer(
-            trace.get_tracer(__name__, tracer_provider),
-            config=config,
-        )
+    __slots__ = ("tracer",)
 
     @wraps(litellm.completion)
     def _completion_wrapper(self, *args: Any, **kwargs: Any):
@@ -216,15 +218,15 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         func_wrapper.__func__.is_wrapper = True
 
     def _instrument(self, **kwargs: Any) -> None:
+        print("INSTRUMENTING!!!")
         if not (tracer_provider := kwargs.get("tracer_provider")):
-            tracer_provider = trace.get_tracer_provider()
-
+            tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
         self.tracer = OITracer(
-            trace.get_tracer(__name__, tracer_provider),
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
 

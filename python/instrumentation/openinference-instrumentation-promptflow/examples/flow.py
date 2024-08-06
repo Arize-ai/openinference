@@ -1,9 +1,8 @@
 import os
-
 from pathlib import Path
 
-from promptflow.tracing import trace
 from promptflow.core import AzureOpenAIModelConfiguration, Prompty
+from promptflow.tracing import trace
 
 BASE_DIR = Path(__file__).absolute().parent
 
