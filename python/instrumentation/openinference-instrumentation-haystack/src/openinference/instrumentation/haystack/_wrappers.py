@@ -86,10 +86,24 @@ class _ComponentWrapper(_WithTracer):
                     )
                 )
                 if "prompt_builder" in str(instance):
-                    span.set_attribute(
-                        SpanAttributes.LLM_PROMPT_TEMPLATE,
-                        instance.graph.nodes._nodes["prompt_builder"]["instance"]._template_string,
-                    )
+                    if "ChatPromptBuilder" in str(instance):
+                        span.set_attributes(
+                            dict(
+                                _flatten(
+                                    {
+                                        SpanAttributes.LLM_INPUT_MESSAGES: input_data["messages"],
+                                    }
+                                )
+                            )
+                        )
+                    else:
+                        span.set_attribute(
+                            SpanAttributes.LLM_PROMPT_TEMPLATE,
+                            instance.graph.nodes._nodes["prompt_builder"][
+                                "instance"
+                            ]._template_string,
+                        )
+
             elif component_type == "text_embedder":
                 span.set_attributes(
                     dict(
@@ -129,21 +143,47 @@ class _ComponentWrapper(_WithTracer):
                             )
                         )
                     )
+                if "query" in input_data:
+                    span.set_attributes(
+                        dict(
+                            _flatten(
+                                {
+                                    SpanAttributes.INPUT_MIME_TYPE: TEXT,
+                                    SpanAttributes.INPUT_VALUE: input_data["query"],
+                                }
+                            )
+                        )
+                    )
             elif component_type == "prompt_builder":
                 span.set_attributes(
                     dict(
                         _flatten(
                             {
                                 SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
-                                SpanAttributes.LLM_PROMPT_TEMPLATE: instance.graph.nodes._nodes[
-                                    "prompt_builder"
-                                ]["instance"]._template_string,
                                 SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
                                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                             }
                         )
                     )
                 )
+                if "ChatPromptBuilder" in str(instance):
+                    temp_vars = safe_json_dumps(input_data["template_variables"])
+                    msg_conts = [m.content for m in input_data["template"]]
+                    span.set_attributes(
+                        dict(
+                            _flatten(
+                                {
+                                    SpanAttributes.LLM_INPUT_MESSAGES: msg_conts,
+                                    SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES: temp_vars,
+                                }
+                            )
+                        )
+                    )
+                else:
+                    span.set_attribute(
+                        SpanAttributes.LLM_PROMPT_TEMPLATE,
+                        instance.graph.nodes._nodes["prompt_builder"]["instance"]._template_string,
+                    )
                 if "documents" in invocation_parameters:
                     span.set_attributes(
                         dict(
@@ -166,25 +206,52 @@ class _ComponentWrapper(_WithTracer):
             span.set_status(trace_api.StatusCode.OK)
 
             if component_type == "llm":
-                span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                SpanAttributes.LLM_MODEL_NAME: response["meta"][0]["model"],
-                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response["meta"][0][
-                                    "usage"
-                                ]["completion_tokens"],
-                                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response["meta"][0]["usage"][
-                                    "prompt_tokens"
-                                ],
-                                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response["meta"][0]["usage"][
-                                    "total_tokens"
-                                ],
-                                SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"],
-                            }
+                if "Chat" in component.__class__.__name__:
+                    replies = response.get("replies")
+                    if replies is None or len(replies) == 0:
+                        pass
+                    reply = replies[0]
+                    usage = reply.meta.get("usage", {})
+                    if "meta" in str(reply):
+                        span.set_attributes(
+                            dict(
+                                _flatten(
+                                    {
+                                        SpanAttributes.OUTPUT_VALUE: response["replies"][0].content,
+                                        SpanAttributes.OUTPUT_MIME_TYPE: TEXT,
+                                        SpanAttributes.LLM_MODEL_NAME: reply.meta["model"],
+                                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: usage[
+                                            "completion_tokens"
+                                        ],
+                                        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: usage[
+                                            "prompt_tokens"
+                                        ],
+                                        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: usage["total_tokens"],
+                                    }
+                                )
+                            )
+                        )
+                else:
+                    span.set_attributes(
+                        dict(
+                            _flatten(
+                                {
+                                    SpanAttributes.LLM_MODEL_NAME: response["meta"][0]["model"],
+                                    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response["meta"][0][
+                                        "usage"
+                                    ]["completion_tokens"],
+                                    SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response["meta"][0][
+                                        "usage"
+                                    ]["prompt_tokens"],
+                                    SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response["meta"][0][
+                                        "usage"
+                                    ]["total_tokens"],
+                                    SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"][0],
+                                    SpanAttributes.OUTPUT_MIME_TYPE: TEXT,
+                                }
+                            )
                         )
                     )
-                )
             elif component_type == "text_embedder":
                 emb_len = len(response["embedding"])
                 emb_vec_0 = f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0."
@@ -200,16 +267,19 @@ class _ComponentWrapper(_WithTracer):
                     )
                 )
             elif component_type == "retriever":
-                span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response["documents"]),
-                                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            }
+                if "documents" in response:
+                    span.set_attributes(
+                        dict(
+                            _flatten(
+                                {
+                                    SpanAttributes.OUTPUT_VALUE: safe_json_dumps(
+                                        response["documents"]
+                                    ),
+                                    SpanAttributes.OUTPUT_MIME_TYPE: JSON,
+                                }
+                            )
                         )
                     )
-                )
 
                 for i, document in enumerate(response["documents"]):
                     span.set_attributes(
@@ -281,6 +351,7 @@ CHAIN = OpenInferenceSpanKindValues.CHAIN
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
 JSON = OpenInferenceMimeTypeValues.JSON
+TEXT = OpenInferenceMimeTypeValues.TEXT
 LLM = OpenInferenceSpanKindValues.LLM
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
