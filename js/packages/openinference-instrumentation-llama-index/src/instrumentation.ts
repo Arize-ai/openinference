@@ -8,11 +8,12 @@ import {
 } from "@opentelemetry/instrumentation";
 import { diag } from "@opentelemetry/api";
 import {
-  patchQueryMethod,
-  patchRetrieveMethod,
+  patchQuery,
+  patchRetrieverRetrieve,
   patchQueryEmbedding,
+  patchLLMChat,
 } from "./utils";
-import { BaseEmbedding, BaseRetriever } from "llamaindex";
+import { BaseEmbedding, BaseRetriever, LLM } from "llamaindex";
 import { VERSION } from "./version";
 
 const MODULE_NAME = "llamaindex";
@@ -68,7 +69,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     );
   }
 
-  private isLLM(llm: unknown): llm is LLMTypes {
+  private isLLM(llm: unknown): llm is LLM {
     return (
       llm != null && (llm as LLM).complete != null && (llm as LLM).chat != null
     );
@@ -86,7 +87,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       "query",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (original): any => {
-        return patchQueryMethod(original, moduleExports, this.tracer);
+        return patchQuery(original, moduleExports, this.tracer);
       },
     );
 
@@ -96,7 +97,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
 
       if (this.isRetriever(prototype)) {
         this._wrap(prototype, "retrieve", (original) => {
-          return patchRetrieveMethod(original, moduleExports, this.tracer);
+          return patchRetrieverRetrieve(original, moduleExports, this.tracer);
         });
       }
 
@@ -106,11 +107,12 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
         });
       }
 
-      if (this.isLLM(value)) {
+      if (this.isLLM(prototype)) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this._wrap(value.prototype, "chat", (original): any => {
+        this._wrap(prototype, "chat", (original): any => {
           return patchLLMChat(original, this.tracer);
-      });
+        });
+      }
     }
     _isOpenInferencePatched = true;
     return moduleExports;
@@ -130,6 +132,10 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
 
       if (this.isEmbedding(prototype)) {
         this._unwrap(prototype, "getQueryEmbedding");
+      }
+
+      if (this.isLLM(prototype)) {
+        this._unwrap(prototype, "chat");
       }
     }
 

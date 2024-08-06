@@ -27,6 +27,7 @@ import {
   QueryEmbeddingMethod,
   TextEmbeddingsMethod,
   LLMChatMethodType,
+  LLMObject,
 } from "./types";
 
 /**
@@ -123,6 +124,45 @@ function textEmbeddingsAttributes(input: string[], output: number[][]) {
   return embedAttr;
 }
 
+function LLMAttributes(
+  input: llamaindex.LLMChatParamsNonStreaming<object, object>,
+  output: llamaindex.ChatResponse<object>,
+) {
+  const LLMAttr: Attributes = {};
+
+  input.messages.forEach((msg, idx) => {
+    const inputPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}`;
+    LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
+      msg.role.toString();
+    LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+      msg.content.toString();
+  });
+
+  LLMAttr[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
+    safelyJSONStringify(input.additionalChatOptions) ?? undefined;
+
+  const outputPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
+  LLMAttr[SemanticConventions.OUTPUT_VALUE] = output.message.content.toString();
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
+    output.message.role.toString();
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+    output.message.content.toString();
+
+  return LLMAttr;
+}
+
+function LLMMetadata(obj: unknown) {
+  const LLMObjectMetadata = (obj as LLMObject).metadata;
+  const LLMMetadataAttr: Attributes = {};
+
+  LLMMetadataAttr[SemanticConventions.LLM_MODEL_NAME] = LLMObjectMetadata.model;
+  // TODO: How to prevent conflicts with input.additionalChatOptions?
+  LLMMetadataAttr[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
+    safelyJSONStringify(LLMObjectMetadata) ?? undefined;
+
+  return LLMMetadataAttr;
+}
+
 function hasId(obj: unknown): obj is ObjectWithID {
   const objectWithIDMaybe = obj as ObjectWithID;
   return "id" in objectWithIDMaybe && typeof objectWithIDMaybe.id === "string";
@@ -144,15 +184,12 @@ function getModelName(obj: unknown) {
   }
 }
 
-export function patchQueryMethod(
+export function patchQuery(
   original: QueryEngineQueryMethod,
   module: typeof llamaindex,
   tracer: Tracer,
 ) {
-  return function patchedQuery(
-    this: unknown,
-    ...args: Parameters<QueryEngineQueryMethod>
-  ) {
+  return function (this: unknown, ...args: Parameters<QueryEngineQueryMethod>) {
     const span = tracer.startSpan(`query`, {
       kind: SpanKind.INTERNAL,
       attributes: {
@@ -188,12 +225,12 @@ export function patchQueryMethod(
   };
 }
 
-export function patchRetrieveMethod(
+export function patchRetrieverRetrieve(
   original: RetrieverRetrieveMethod,
   module: typeof llamaindex,
   tracer: Tracer,
 ) {
-  return function patchedRetrieve(
+  return function (
     this: unknown,
     ...args: Parameters<RetrieverRetrieveMethod>
   ) {
@@ -233,10 +270,7 @@ export function patchQueryEmbedding(
   original: QueryEmbeddingMethod,
   tracer: Tracer,
 ) {
-  return function patchedQueryEmbedding(
-    this: unknown,
-    ...args: Parameters<QueryEmbeddingMethod>
-  ) {
+  return function (this: unknown, ...args: Parameters<QueryEmbeddingMethod>) {
     const span = tracer.startSpan(`embedding`, {
       kind: SpanKind.INTERNAL,
       attributes: {
@@ -277,10 +311,7 @@ export function patchTextEmbeddings(
   original: TextEmbeddingsMethod,
   tracer: Tracer,
 ) {
-  return function patched(
-    this: unknown,
-    ...args: Parameters<TextEmbeddingsMethod>
-  ) {
+  return function (this: unknown, ...args: Parameters<TextEmbeddingsMethod>) {
     const span = tracer.startSpan(`embedding`, {
       kind: SpanKind.INTERNAL,
       attributes: {
@@ -318,10 +349,7 @@ export function patchTextEmbeddings(
 }
 
 export function patchLLMChat(original: LLMChatMethodType, tracer: Tracer) {
-  return function patchedQueryEmbedding(
-    this: unknown,
-    ...args: Parameters<LLMChatMethodType>
-  ) {
+  return function (this: unknown, ...args: Parameters<LLMChatMethodType>) {
     const span = tracer.startSpan(`llm`, {
       kind: SpanKind.INTERNAL,
       attributes: {
@@ -341,25 +369,11 @@ export function patchLLMChat(original: LLMChatMethodType, tracer: Tracer) {
       (error) => handleError(span, error),
     );
 
-    args[0].messages.forEach((msg, idx) => {
-      span.setAttributes({
-        [`${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.role`]:
-          msg.role.toString(),
-        [`${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.role`]:
-          msg.content.toString(),
-      });
-    });
+    // Metadata is a property found on the class and not in args
+    span.setAttributes(LLMMetadata(this));
 
     const wrappedPromise = execPromise.then((result) => {
-      // result
-      // span.setAttributes({
-      //   [SemanticConventions.OUTPUT_VALUE]: result.message.content,
-      //   [SemanticConventions.LLM_OUTPUT_MESSAGES]:
-      // });
-      // const output: Attributes = {}
-      // result.message.content
-      // result.message.role
-      // result.message.options
+      span.setAttributes(LLMAttributes(args[0], result));
       span.end();
       return result;
     });
