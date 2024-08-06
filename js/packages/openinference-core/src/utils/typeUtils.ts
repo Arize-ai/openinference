@@ -57,3 +57,28 @@ export function isAttributeValue(value: unknown): value is AttributeValue {
     isSparseStringArray(value)
   );
 }
+
+/**
+ * Type guard to determine whether or not a value is an array of strings.
+ * @param value
+ * @returns true if the value is an array of strings, false otherwise.
+ */
+export function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
+
+/**
+ * Type guard to determine whether or not a value is an object with string keys.
+ * @param value
+ * @returns true if the value is an object with string keys, false otherwise.
+ */
+export function isObjectWithStringKeys(
+  value: unknown,
+): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value).every((key) => typeof key === "string")
+  );
+}
