@@ -783,6 +783,14 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         if token:
             detach(token)
         if span:
+            if LLAMA_INDEX_VERSION >= (0, 10, 61):
+                from llama_index.core.workflow.errors import (  # type: ignore[import-not-found,unused-ignore]
+                    WorkflowDone,
+                )
+
+                if err and isinstance(err, WorkflowDone):
+                    span.end()
+                    return span
             span.end(err)
         else:
             logger.warning(f"Open span is missing for {id_=}")
