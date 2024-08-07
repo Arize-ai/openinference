@@ -14,6 +14,7 @@ import {
   safelyJSONParse,
   isStringArray,
   isObjectWithStringKeys,
+  isAttributes,
 } from "../utils";
 import {
   MetadataAttributes,
@@ -22,6 +23,8 @@ import {
   TagAttributes,
   UserAttributes,
 } from "./types";
+
+const CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY = "attributes" as const;
 
 export const ContextAttributes = {
   [PROMPT_TEMPLATE_TEMPLATE]: createContextKey(
@@ -37,7 +40,9 @@ export const ContextAttributes = {
   [METADATA]: createContextKey(`OpenInference SDK Context Key ${METADATA}`),
   [USER_ID]: createContextKey(`OpenInference SDK Context Key ${USER_ID}`),
   [TAG_TAGS]: createContextKey(`OpenInference SDK Context Key ${TAG_TAGS}`),
-  attributes: createContextKey(`OpenInference SDK Context Key attributes`),
+  [CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY]: createContextKey(
+    `OpenInference SDK Context Key attributes`,
+  ),
 } as const;
 
 const {
@@ -48,7 +53,7 @@ const {
   [METADATA]: METADATA_KEY,
   [USER_ID]: USER_ID_KEY,
   [TAG_TAGS]: TAG_TAGS_KEY,
-  attributes: ATTRIBUTES_KEY,
+  [CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY]: ATTRIBUTES_KEY,
 } = ContextAttributes;
 
 export function setPromptTemplate(
@@ -139,14 +144,12 @@ export function clearMetadata(context: Context): Context {
   return context.deleteValue(METADATA_KEY);
 }
 
-export function getMetadata(
-  context: Context,
-): MetadataAttributes | null | undefined {
+export function getMetadata(context: Context): MetadataAttributes | undefined {
   const maybeMetadata = context.getValue(METADATA_KEY);
 
   if (typeof maybeMetadata === "string") {
     const parsedMetadata = safelyJSONParse(maybeMetadata);
-    return isObjectWithStringKeys(parsedMetadata) ? parsedMetadata : null;
+    return isObjectWithStringKeys(parsedMetadata) ? parsedMetadata : undefined;
   }
 }
 
@@ -159,7 +162,7 @@ export function clearUser(context: Context): Context {
   return context.deleteValue(USER_ID_KEY);
 }
 
-export function getUserId(context: Context): UserAttributes | undefined {
+export function getUser(context: Context): UserAttributes | undefined {
   const maybeUserId = context.getValue(USER_ID_KEY);
   if (typeof maybeUserId === "string") {
     return { userId: maybeUserId };
@@ -174,23 +177,52 @@ export function clearTags(context: Context): Context {
   return context.deleteValue(TAG_TAGS_KEY);
 }
 
-export function getTags(context: Context): TagAttributes | null | undefined {
+export function getTags(context: Context): TagAttributes | undefined {
   const maybeTags = context.getValue(TAG_TAGS_KEY);
   if (typeof maybeTags === "string") {
     const parsedTags = safelyJSONParse(maybeTags);
-    return isStringArray(parsedTags) ? parsedTags : null;
+    return isStringArray(parsedTags) ? parsedTags : undefined;
   }
 }
 
 export function setAttributes(
   context: Context,
   attributes: Attributes,
-): Context {}
+): Context {
+  return context.setValue(ATTRIBUTES_KEY, safelyJSONStringify(attributes));
+}
 
+export function clearAttributes(context: Context): Context {
+  return context.deleteValue(ATTRIBUTES_KEY);
+}
+
+export function getAttributes(context: Context): Attributes | undefined {
+  const maybeAttributes = context.getValue(ATTRIBUTES_KEY);
+  if (typeof maybeAttributes === "string") {
+    const parsedAttributes = safelyJSONParse(maybeAttributes);
+    return isAttributes(parsedAttributes) ? parsedAttributes : undefined;
+  }
+}
+
+/**
+ * Gets the OpenInference attributes from the given context
+ * @param context
+ * @example span.setAttributes(getAttributesFromContext(context.active()));
+ * @returns {Attributes} The OpenInference attributes formatted as OpenTelemetry span attributes.
+ */
 export function getAttributesFromContext(context: Context): Attributes {
   const attributes: Attributes = {};
   Object.entries(ContextAttributes).forEach(([key, symbol]) => {
     const maybeValue = context.getValue(symbol);
+    if (key === CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY) {
+      if (typeof maybeValue === "string") {
+        const parsedAttributes = safelyJSONParse(maybeValue);
+        if (isAttributes(parsedAttributes)) {
+          Object.assign(attributes, parsedAttributes);
+        }
+      }
+      return;
+    }
     if (isAttributeValue(maybeValue)) {
       attributes[key] = maybeValue;
     }

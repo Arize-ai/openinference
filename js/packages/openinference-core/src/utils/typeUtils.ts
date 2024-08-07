@@ -1,4 +1,4 @@
-import { AttributeValue } from "@opentelemetry/api";
+import { AttributeValue, Attributes } from "@opentelemetry/api";
 
 /**
  * Type guard to determine whether or not a value is an array of nullable numbers.
@@ -68,6 +68,17 @@ export function isStringArray(value: unknown): value is string[] {
 }
 
 /**
+ * Type guard to determine whether or not a value is an object.
+ * @param value
+ * @returns true if the value is an object, false otherwise.
+ */
+function isObject(
+  value: unknown,
+): value is Record<string | number | symbol, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
  * Type guard to determine whether or not a value is an object with string keys.
  * @param value
  * @returns true if the value is an object with string keys, false otherwise.
@@ -76,9 +87,21 @@ export function isObjectWithStringKeys(
   value: unknown,
 ): value is Record<string, unknown> {
   return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
+    isObject(value) &&
     Object.keys(value).every((key) => typeof key === "string")
+  );
+}
+
+/**
+ * Type guard to determine whether or not a value is an object with string keys and attribute values.
+ * @param value
+ * @returns true if the value is an object with string keys and attribute values, false otherwise.
+ */
+export function isAttributes(value: unknown): value is Attributes {
+  return (
+    isObject(value) &&
+    Object.entries(value).every(
+      ([key, value]) => isAttributeValue(value) && typeof key === "string",
+    )
   );
 }
