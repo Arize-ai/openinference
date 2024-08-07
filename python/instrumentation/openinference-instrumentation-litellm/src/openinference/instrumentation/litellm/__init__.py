@@ -164,7 +164,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         self.original_litellm_funcs.clear()
 
     @wraps(litellm.completion)
-    def _completion_wrapper(self, *args: Any, **kwargs: Any):
+    def _completion_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ModelResponse:
         with self._tracer.start_as_current_span(
             name="completion", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -174,7 +174,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         return result
 
     @wraps(litellm.acompletion)
-    async def _acompletion_wrapper(self, *args: Any, **kwargs: Any):
+    async def _acompletion_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ModelResponse:
         with self._tracer.start_as_current_span(
             name="acompletion", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -184,7 +184,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         return result
 
     @wraps(litellm.completion_with_retries)
-    def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any):
+    def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ModelResponse:
         with self._tracer.start_as_current_span(
             name="completion_with_retries", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -194,7 +194,9 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         return result
 
     @wraps(litellm.acompletion_with_retries)
-    async def _acompletion_with_retries_wrapper(self, *args: Any, **kwargs: Any):
+    async def _acompletion_with_retries_wrapper(
+        self, *args: Any, **kwargs: Any
+    ) -> litellm.ModelResponse:
         with self._tracer.start_as_current_span(
             name="acompletion_with_retries", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -204,7 +206,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         return result
 
     @wraps(litellm.embedding)
-    def _embedding_wrapper(self, *args: Any, **kwargs: Any):
+    def _embedding_wrapper(self, *args: Any, **kwargs: Any) -> litellm.EmbeddingResponse:
         with self._tracer.start_as_current_span(
             name="embedding", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -214,7 +216,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         return result
 
     @wraps(litellm.aembedding)
-    async def _aembedding_wrapper(self, *args: Any, **kwargs: Any):
+    async def _aembedding_wrapper(self, *args: Any, **kwargs: Any) -> litellm.EmbeddingResponse:
         with self._tracer.start_as_current_span(
             name="aembedding", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -224,7 +226,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         return result
 
     @wraps(litellm.image_generation)
-    def _image_generation_wrapper(self, *args: Any, **kwargs: Any):
+    def _image_generation_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ImageResponse:
         with self._tracer.start_as_current_span(
             name="image_generation", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -234,7 +236,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         return result
 
     @wraps(litellm.aimage_generation)
-    async def _aimage_generation_wrapper(self, *args: Any, **kwargs: Any):
+    async def _aimage_generation_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ImageResponse:
         with self._tracer.start_as_current_span(
             name="aimage_generation", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -243,5 +245,5 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             _finalize_span(span, result)
         return result
 
-    def _set_wrapper_attr(self, func_wrapper):
+    def _set_wrapper_attr(self, func_wrapper) -> None:
         func_wrapper.__func__.is_wrapper = True

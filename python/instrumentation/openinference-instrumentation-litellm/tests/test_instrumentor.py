@@ -34,7 +34,7 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
 
 
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(instrument) -> None:
+def test_oitracer(instrument: Generator[None, None, None]) -> None:
     assert isinstance(LiteLLMInstrumentor()._tracer, OITracer)
 
 
@@ -51,9 +51,9 @@ def instrument(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_completion(
-    tracer_provider,
-    in_memory_span_exporter,
-    use_context_attributes,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    use_context_attributes: bool,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -61,7 +61,7 @@ def test_completion(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
-):
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -91,15 +91,15 @@ def test_completion(
     assert len(spans) == 1
     span = spans[0]
     assert span.name == "completion"
-    assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-3.5-turbo"
-    assert span.attributes[SpanAttributes.INPUT_VALUE] == "What's the capital of China?"
-
-    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "Beijing"
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
-
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == "What's the capital of China?"
+
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -114,7 +114,9 @@ def test_completion(
     LiteLLMInstrumentor().uninstrument()
 
 
-def test_completion_with_parameters(tracer_provider, in_memory_span_exporter):
+def test_completion_with_parameters(
+    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -129,21 +131,24 @@ def test_completion_with_parameters(tracer_provider, in_memory_span_exporter):
     assert len(spans) == 1
     span = spans[0]
     assert span.name == "completion"
-    assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-3.5-turbo"
-    assert span.attributes[SpanAttributes.INPUT_VALUE] == "What's the capital of China?"
-    assert span.attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS] == json.dumps(
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == "What's the capital of China?"
+    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {"mock_response": "Beijing", "temperature": 0.7, "top_p": 0.9}
     )
 
-    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "Beijing"
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
 
     LiteLLMInstrumentor().uninstrument()
 
 
-def test_completion_with_multiple_messages(tracer_provider, in_memory_span_exporter):
+def test_completion_with_multiple_messages(
+    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -160,37 +165,37 @@ def test_completion_with_multiple_messages(tracer_provider, in_memory_span_expor
     assert len(spans) == 1
     span = spans[0]
     assert span.name == "completion"
-    assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-3.5-turbo"
-    assert span.attributes[SpanAttributes.INPUT_VALUE] == "Hello, I want to bake a cake"
-    assert span.attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS] == json.dumps(
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == "Hello, I want to bake a cake"
+    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {"mock_response": "Got it! What kind of pie would you like to make?"}
     )
-    assert span.attributes["input.messages.0.content"] == "Hello, I want to bake a cake"
+    assert attributes.get("input.messages.0.content") == "Hello, I want to bake a cake"
     assert (
-        span.attributes["input.messages.1.content"]
-        == "Hello, I can pull up some recipes for cakes."
+        attributes.get("input.messages.1.content") == "Hello, I can pull up some recipes for cakes."
     )
-    assert span.attributes["input.messages.2.content"] == "No actually I want to make a pie"
-    assert span.attributes["input.messages.0.role"] == "user"
-    assert span.attributes["input.messages.1.role"] == "assistant"
-    assert span.attributes["input.messages.2.role"] == "user"
+    assert attributes.get("input.messages.2.content") == "No actually I want to make a pie"
+    assert attributes.get("input.messages.0.role") == "user"
+    assert attributes.get("input.messages.1.role") == "assistant"
+    assert attributes.get("input.messages.2.role") == "user"
 
     assert (
-        span.attributes[SpanAttributes.OUTPUT_VALUE]
+        attributes.get(SpanAttributes.OUTPUT_VALUE)
         == "Got it! What kind of pie would you like to make?"
     )
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
 
     LiteLLMInstrumentor().uninstrument()
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_acompletion(
-    tracer_provider,
-    in_memory_span_exporter,
-    use_context_attributes,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    use_context_attributes: bool,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -198,7 +203,7 @@ async def test_acompletion(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
-):
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -228,15 +233,15 @@ async def test_acompletion(
     assert len(spans) == 1
     span = spans[0]
     assert span.name == "acompletion"
-    assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-3.5-turbo"
-    assert span.attributes[SpanAttributes.INPUT_VALUE] == "What's the capital of China?"
-
-    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "Beijing"
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
-
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == "What's the capital of China?"
+
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -254,9 +259,9 @@ async def test_acompletion(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_completion_with_retries(
-    tracer_provider,
-    in_memory_span_exporter,
-    use_context_attributes,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    use_context_attributes: bool,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -264,7 +269,7 @@ def test_completion_with_retries(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
-):
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -293,15 +298,15 @@ def test_completion_with_retries(
     assert len(spans) == 1
     span = spans[0]
     assert span.name == "completion_with_retries"
-    assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-3.5-turbo"
-    assert span.attributes[SpanAttributes.INPUT_VALUE] == "What's the capital of China?"
-
-    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "Beijing"
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 20
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 30
-
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == "What's the capital of China?"
+
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -344,9 +349,9 @@ def test_completion_with_retries(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_embedding(
-    tracer_provider,
-    in_memory_span_exporter,
-    use_context_attributes,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    use_context_attributes: bool,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -354,7 +359,7 @@ def test_embedding(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
-):
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -386,18 +391,15 @@ def test_embedding(
     assert len(spans) == 1
     span = spans[0]
     assert span.name == "embedding"
-    assert span.attributes[SpanAttributes.EMBEDDING_MODEL_NAME] == "text-embedding-ada-002"
-    assert (
-        span.attributes[EmbeddingAttributes.EMBEDDING_TEXT][0] == ["good morning from litellm"][0]
-    )
-    assert span.attributes[SpanAttributes.INPUT_VALUE] == str(["good morning from litellm"])
-
-    assert span.attributes[EmbeddingAttributes.EMBEDDING_VECTOR] == str([0.1, 0.2, 0.3])
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 6
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 1
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 6
-
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
+
+    assert attributes.get(EmbeddingAttributes.EMBEDDING_VECTOR) == str([0.1, 0.2, 0.3])
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 6
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 1
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 6
+
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -414,9 +416,9 @@ def test_embedding(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_aembedding(
-    tracer_provider,
-    in_memory_span_exporter,
-    use_context_attributes,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    use_context_attributes: bool,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -424,7 +426,7 @@ async def test_aembedding(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
-):
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -458,18 +460,15 @@ async def test_aembedding(
     assert len(spans) == 1
     span = spans[0]
     assert span.name == "aembedding"
-    assert span.attributes[SpanAttributes.EMBEDDING_MODEL_NAME] == "text-embedding-ada-002"
-    assert (
-        span.attributes[EmbeddingAttributes.EMBEDDING_TEXT][0] == ["good morning from litellm"][0]
-    )
-    assert span.attributes[SpanAttributes.INPUT_VALUE] == str(["good morning from litellm"])
-
-    assert span.attributes[EmbeddingAttributes.EMBEDDING_VECTOR] == str([0.1, 0.2, 0.3])
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 6
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 1
-    assert span.attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 6
-
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
+
+    assert attributes.get(EmbeddingAttributes.EMBEDDING_VECTOR) == str([0.1, 0.2, 0.3])
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 6
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 1
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 6
+
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -487,9 +486,9 @@ async def test_aembedding(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_image_generation(
-    tracer_provider,
-    in_memory_span_exporter,
-    use_context_attributes,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    use_context_attributes: bool,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -497,7 +496,7 @@ def test_image_generation(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
-):
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -533,13 +532,13 @@ def test_image_generation(
     assert len(spans) == 1
     span = spans[0]
     assert span.name == "image_generation"
-    assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "dall-e-2"
-    assert span.attributes[SpanAttributes.INPUT_VALUE] == "a sunrise over the mountains"
-
-    assert span.attributes[ImageAttributes.IMAGE_URL] == "https://dummy-url"
-    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "https://dummy-url"
-
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+
+    assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -557,9 +556,9 @@ def test_image_generation(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_aimage_generation(
-    tracer_provider,
-    in_memory_span_exporter,
-    use_context_attributes,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    use_context_attributes: bool,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -567,7 +566,7 @@ async def test_aimage_generation(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
-):
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -602,13 +601,13 @@ async def test_aimage_generation(
     assert len(spans) == 1
     span = spans[0]
     assert span.name == "aimage_generation"
-    assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "dall-e-2"
-    assert span.attributes[SpanAttributes.INPUT_VALUE] == "a sunrise over the mountains"
-
-    assert span.attributes[ImageAttributes.IMAGE_URL] == "https://dummy-url"
-    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "https://dummy-url"
-
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+
+    assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -624,7 +623,7 @@ async def test_aimage_generation(
     LiteLLMInstrumentor().uninstrument()
 
 
-def test_uninstrument(tracer_provider):
+def test_uninstrument(tracer_provider: TracerProvider) -> None:
     func_names = [
         "completion",
         "acompletion",
