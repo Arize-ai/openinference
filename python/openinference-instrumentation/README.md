@@ -12,7 +12,7 @@ pip install openinference-instrumentation
 
 ## Customizing Spans
 
-This core `openinference-instrumentation` package offers convenient tools to read & write from the OTEL Context. The OTEL context is then used to propagate attributes to every span created. We do this using Python context managers:
+The `openinference-instrumentation` package offers utilities to track important application metadata such as sessions and metadata using Python context managers:
 
 * `using_session`: to specifiy a session ID.
 * `using_user`: to specifiy a user ID.
