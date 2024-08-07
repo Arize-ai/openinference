@@ -18,16 +18,17 @@ The `openinference-instrumentation` package offers utilities to track important 
 * `using_user`: to specify a user ID to track different conversations with a given user
 * `using_metadata`: to add custom metadata, that can provide extra information that supports a wide range of operational needs
 * `using_tag`: to add tags, to help filter on specific keywords
-* `using_prompt_template`: to reflect the prompt template used. This is useful for prompt management
-* `using_attributes`: it help   s handling multiple of the previous options at once in a concise manner
+* `using_prompt_template`: to reflect the prompt template used, with its version and variables. This is useful for prompt template management
+* `using_attributes`: it helps handling multiple of the previous options at once in a concise manner
   
 For example:
 
 ```python
 from openinference.instrumentation import using_attributes
-tags = ["business_critical", "topic: weather", ...]
+tags = ["business_critical", "simple", ...]
 metadata = {
     "country": "United States",
+    "topic":"weather",
     ...
 }
 prompt_template = "Please describe the weather forecast for {city} on {date}"
