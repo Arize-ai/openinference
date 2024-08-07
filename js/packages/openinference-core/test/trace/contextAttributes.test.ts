@@ -21,10 +21,10 @@ import {
   clearMetadata,
   getAttributesFromContext,
   ContextAttributes,
-  UserAttributes,
+  User,
   setUser,
   getUser,
-  TagAttributes,
+  Tags,
   setTags,
   getTags,
   clearTags,
@@ -151,7 +151,7 @@ describe("metadata context", () => {
 
 describe("user context", () => {
   let contextManager: ContextManager;
-  const userAttributes: UserAttributes = { userId: "user-id" };
+  const userAttributes: User = { userId: "user-id" };
   beforeEach(() => {
     contextManager = new AsyncHooksContextManager().enable();
     context.setGlobalContextManager(contextManager);
@@ -175,7 +175,7 @@ describe("user context", () => {
 
 describe("tags context", () => {
   let contextManager: ContextManager;
-  const tagsAttributes: TagAttributes = ["tag1", "tag2"];
+  const tagsAttributes: Tags = ["tag1", "tag2"];
   beforeEach(() => {
     contextManager = new AsyncHooksContextManager().enable();
     context.setGlobalContextManager(contextManager);

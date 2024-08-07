@@ -1,26 +1,26 @@
 /**
- * A set of attributes that can be attached to context
+ * A session that can be attached to context
  */
-export type SessionAttributes = {
+export type Session = {
   sessionId: string;
 };
 
 /**
- * A set of metadata attributes that can be attached to context
+ * Metadata that can be attached to context
  */
-export type MetadataAttributes = Record<string, unknown>;
+export type Metadata = Record<string, unknown>;
 
 /**
- * A set of user attributes that can be attached to context
+ * A user that can be attached to context
  */
-export type UserAttributes = {
+export type User = {
   userId: string;
 };
 
 /**
- * A set of prompt template attributes that can be attached to context
+ * A prompt template that can be attached to context
  */
-export type PromptTemplateAttributes = {
+export type PromptTemplate = {
   template: string;
   variables?: Record<string, unknown>;
   version?: string;
@@ -29,4 +29,4 @@ export type PromptTemplateAttributes = {
 /**
  * A set of tags that can be attached to context
  */
-export type TagAttributes = string[];
+export type Tags = string[];

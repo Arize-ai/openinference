@@ -16,13 +16,7 @@ import {
   isObjectWithStringKeys,
   isAttributes,
 } from "../utils";
-import {
-  MetadataAttributes,
-  PromptTemplateAttributes,
-  SessionAttributes,
-  TagAttributes,
-  UserAttributes,
-} from "./types";
+import { Metadata, PromptTemplate, Session, Tags, User } from "./types";
 
 const CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY = "attributes" as const;
 
@@ -58,7 +52,7 @@ const {
 
 export function setPromptTemplate(
   context: Context,
-  attributes: PromptTemplateAttributes,
+  attributes: PromptTemplate,
 ): Context {
   const { template, variables, version } = attributes;
   context = context.setValue(PROMPT_TEMPLATE_TEMPLATE_KEY, template);
@@ -83,11 +77,11 @@ export function clearPromptTemplate(context: Context): Context {
 
 export function getPromptTemplate(
   context: Context,
-): Partial<PromptTemplateAttributes> | undefined {
+): Partial<PromptTemplate> | undefined {
   const maybeTemplate = context.getValue(PROMPT_TEMPLATE_TEMPLATE_KEY);
   const maybeVariables = context.getValue(PROMPT_TEMPLATE_VARIABLES_KEY);
   const maybeVersion = context.getValue(PROMPT_TEMPLATE_VERSION_KEY);
-  const attributes: Partial<PromptTemplateAttributes> = {};
+  const attributes: Partial<PromptTemplate> = {};
 
   if (typeof maybeTemplate === "string") {
     attributes.template = maybeTemplate;
@@ -109,10 +103,7 @@ export function getPromptTemplate(
   return attributes;
 }
 
-export function setSession(
-  context: Context,
-  attributes: SessionAttributes,
-): Context {
+export function setSession(context: Context, attributes: Session): Context {
   const { sessionId } = attributes;
   return context.setValue(SESSION_ID_KEY, sessionId);
 }
@@ -126,17 +117,14 @@ export function clearSession(context: Context): Context {
  * @param context - The context object.
  * @returns {string | undefined} The session ID if it exists, otherwise undefined.
  */
-export function getSession(context: Context): SessionAttributes | undefined {
+export function getSession(context: Context): Session | undefined {
   const maybeSessionId = context.getValue(SESSION_ID_KEY);
   if (typeof maybeSessionId === "string") {
     return { sessionId: maybeSessionId };
   }
 }
 
-export function setMetadata(
-  context: Context,
-  attributes: MetadataAttributes,
-): Context {
+export function setMetadata(context: Context, attributes: Metadata): Context {
   return context.setValue(METADATA_KEY, safelyJSONStringify(attributes));
 }
 
@@ -144,7 +132,7 @@ export function clearMetadata(context: Context): Context {
   return context.deleteValue(METADATA_KEY);
 }
 
-export function getMetadata(context: Context): MetadataAttributes | undefined {
+export function getMetadata(context: Context): Metadata | undefined {
   const maybeMetadata = context.getValue(METADATA_KEY);
 
   if (typeof maybeMetadata === "string") {
@@ -153,7 +141,7 @@ export function getMetadata(context: Context): MetadataAttributes | undefined {
   }
 }
 
-export function setUser(context: Context, attributes: UserAttributes): Context {
+export function setUser(context: Context, attributes: User): Context {
   const { userId } = attributes;
   return context.setValue(USER_ID_KEY, userId);
 }
@@ -162,14 +150,14 @@ export function clearUser(context: Context): Context {
   return context.deleteValue(USER_ID_KEY);
 }
 
-export function getUser(context: Context): UserAttributes | undefined {
+export function getUser(context: Context): User | undefined {
   const maybeUserId = context.getValue(USER_ID_KEY);
   if (typeof maybeUserId === "string") {
     return { userId: maybeUserId };
   }
 }
 
-export function setTags(context: Context, attributes: TagAttributes): Context {
+export function setTags(context: Context, attributes: Tags): Context {
   return context.setValue(TAG_TAGS_KEY, safelyJSONStringify(attributes));
 }
 
@@ -177,7 +165,7 @@ export function clearTags(context: Context): Context {
   return context.deleteValue(TAG_TAGS_KEY);
 }
 
-export function getTags(context: Context): TagAttributes | undefined {
+export function getTags(context: Context): Tags | undefined {
   const maybeTags = context.getValue(TAG_TAGS_KEY);
   if (typeof maybeTags === "string") {
     const parsedTags = safelyJSONParse(maybeTags);
