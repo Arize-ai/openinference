@@ -110,6 +110,7 @@ class _ExecuteActionWrapper(_WithTracer):
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
+                        INPUT_VALUE_MIME_TYPE: "application/json",
                         INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -170,5 +171,6 @@ class _GenerateAsyncWrapper(_WithTracer):
 
 
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
+INPUT_VALUE_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
