@@ -80,6 +80,6 @@ Now, on the Phoenix UI on your browser, you should see the traces from your Hays
 
 ## More Info
 
-Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
-
-Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)
