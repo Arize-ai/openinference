@@ -150,7 +150,8 @@ class _GenerateAsyncWrapper(_WithTracer):
                 attributes=dict(
                     _flatten(
                         {
-                            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.GUARDRAIL,
+                            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
+                            INPUT_VALUE_MIME_TYPE: "application/json",
                             INPUT_VALUE: _get_input_value(
                                 wrapped,
                                 *args,
