@@ -21,12 +21,34 @@ import {
   GenericFunction,
   SafeFunction,
   ObjectWithModel,
-  ObjectWithID,
-  QueryEngineQueryMethod,
-  RetrieverRetrieveMethod,
-  QueryEmbeddingMethod,
-  TextEmbeddingsMethod,
+  RetrieverQueryEngineQueryMethodType,
+  RetrieverRetrieveMethodType,
+  QueryEmbeddingMethodType,
 } from "./types";
+import { BaseEmbedding, BaseRetriever } from "llamaindex";
+
+/**
+ * Checks if
+ * @param prototype -
+ * @returns
+ */
+export function isRetriever(
+  moduleClassPrototype: unknown,
+): moduleClassPrototype is BaseRetriever {
+  return (
+    !!moduleClassPrototype && !!(moduleClassPrototype as BaseRetriever).retrieve
+  );
+}
+
+export function isEmbedding(
+  moduleClassPrototype: unknown,
+): moduleClassPrototype is BaseEmbedding {
+  return (
+    !!moduleClassPrototype &&
+    moduleClassPrototype instanceof BaseEmbedding &&
+    !!(moduleClassPrototype as BaseEmbedding).getQueryEmbedding
+  );
+}
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.
@@ -79,7 +101,7 @@ function handleError(span: Span, error: Error | undefined) {
   }
 }
 
-function documentAttributes(
+function getDocumentAttributes(
   output: llamaindex.NodeWithScore<llamaindex.Metadata>[],
 ) {
   const docs: Attributes = {};
@@ -97,60 +119,39 @@ function documentAttributes(
   return docs;
 }
 
-function queryEmbeddingAttributes(input: string, output: number[]) {
+function getQueryEmbeddingAttributes(embedInfo: {
+  input: string;
+  output: number[];
+}) {
   return {
     [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
-      input,
+      embedInfo.input,
     [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]:
-      output,
+      embedInfo.output,
   };
 }
 
-function textEmbeddingsAttributes(input: string[], output: number[][]) {
-  const embedAttr: Attributes = {};
-  input.forEach((str, idx) => {
-    embedAttr[
-      `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${idx}.${SemanticConventions.EMBEDDING_TEXT}`
-    ] = str;
-  });
-
-  output.forEach((vector, idx) => {
-    embedAttr[
-      `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${idx}.${SemanticConventions.EMBEDDING_VECTOR}`
-    ] = vector;
-  });
-  return embedAttr;
-}
-
-function hasId(obj: unknown): obj is ObjectWithID {
-  const objectWithIDMaybe = obj as ObjectWithID;
-  return "id" in objectWithIDMaybe && typeof objectWithIDMaybe.id === "string";
-}
-
-function hasModel(obj: unknown): obj is ObjectWithModel {
-  const ObjectWithModelMaybe = obj as ObjectWithModel;
+function hasModel(moduleClass: unknown): moduleClass is ObjectWithModel {
+  const ObjectWithModelMaybe = moduleClass as ObjectWithModel;
   return (
     "model" in ObjectWithModelMaybe &&
     typeof ObjectWithModelMaybe.model === "string"
   );
 }
 
-function getModelName(obj: unknown) {
-  if (hasModel(obj)) {
-    return obj.model;
-  } else if (hasId(obj)) {
-    return obj.id;
+function getModelName(moduleClass: unknown) {
+  if (hasModel(moduleClass)) {
+    return moduleClass.model;
   }
 }
 
-export function patchQueryMethod(
-  original: QueryEngineQueryMethod,
-  module: typeof llamaindex,
+export function patchQueryEngineQueryMethod(
+  original: RetrieverQueryEngineQueryMethodType,
   tracer: Tracer,
 ) {
-  return function patchedQuery(
+  return function (
     this: unknown,
-    ...args: Parameters<QueryEngineQueryMethod>
+    ...args: Parameters<RetrieverQueryEngineQueryMethodType>
   ) {
     const span = tracer.startSpan(`query`, {
       kind: SpanKind.INTERNAL,
@@ -165,7 +166,7 @@ export function patchQueryMethod(
     const execContext = getExecContext(span);
 
     const execPromise = safeExecuteInTheMiddle<
-      ReturnType<QueryEngineQueryMethod>
+      ReturnType<RetrieverQueryEngineQueryMethodType>
     >(
       () => {
         return context.with(execContext, () => {
@@ -188,13 +189,12 @@ export function patchQueryMethod(
 }
 
 export function patchRetrieveMethod(
-  original: RetrieverRetrieveMethod,
-  module: typeof llamaindex,
+  original: RetrieverRetrieveMethodType,
   tracer: Tracer,
 ) {
-  return function patchedRetrieve(
+  return function (
     this: unknown,
-    ...args: Parameters<RetrieverRetrieveMethod>
+    ...args: Parameters<RetrieverRetrieveMethodType>
   ) {
     const span = tracer.startSpan(`retrieve`, {
       kind: SpanKind.INTERNAL,
@@ -209,7 +209,7 @@ export function patchRetrieveMethod(
     const execContext = getExecContext(span);
 
     const execPromise = safeExecuteInTheMiddle<
-      ReturnType<RetrieverRetrieveMethod>
+      ReturnType<RetrieverRetrieveMethodType>
     >(
       () => {
         return context.with(execContext, () => {
@@ -220,7 +220,7 @@ export function patchRetrieveMethod(
     );
 
     const wrappedPromise = execPromise.then((result) => {
-      span.setAttributes(documentAttributes(result));
+      span.setAttributes(getDocumentAttributes(result));
       span.end();
       return result;
     });
@@ -228,13 +228,13 @@ export function patchRetrieveMethod(
   };
 }
 
-export function patchQueryEmbedding(
-  original: QueryEmbeddingMethod,
+export function patchQueryEmbeddingMethod(
+  original: QueryEmbeddingMethodType,
   tracer: Tracer,
 ) {
-  return function patchedQueryEmbedding(
+  return function (
     this: unknown,
-    ...args: Parameters<QueryEmbeddingMethod>
+    ...args: Parameters<QueryEmbeddingMethodType>
   ) {
     const span = tracer.startSpan(`embedding`, {
       kind: SpanKind.INTERNAL,
@@ -247,7 +247,7 @@ export function patchQueryEmbedding(
     const execContext = getExecContext(span);
 
     const execPromise = safeExecuteInTheMiddle<
-      ReturnType<QueryEmbeddingMethod>
+      ReturnType<QueryEmbeddingMethodType>
     >(
       () => {
         return context.with(execContext, () => {
@@ -264,51 +264,9 @@ export function patchQueryEmbedding(
     });
 
     const wrappedPromise = execPromise.then((result) => {
-      span.setAttributes(queryEmbeddingAttributes(args[0], result));
-      span.end();
-      return result;
-    });
-    return context.bind(execContext, wrappedPromise);
-  };
-}
-
-export function patchTextEmbeddings(
-  original: TextEmbeddingsMethod,
-  tracer: Tracer,
-) {
-  return function patched(
-    this: unknown,
-    ...args: Parameters<TextEmbeddingsMethod>
-  ) {
-    const span = tracer.startSpan(`embedding`, {
-      kind: SpanKind.INTERNAL,
-      attributes: {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.EMBEDDING,
-      },
-    });
-
-    const execContext = getExecContext(span);
-
-    const execPromise = safeExecuteInTheMiddle<
-      ReturnType<TextEmbeddingsMethod>
-    >(
-      () => {
-        return context.with(execContext, () => {
-          return original.apply(this, args);
-        });
-      },
-      (error) => handleError(span, error),
-    );
-
-    // Model ID/name is a property found on the class and not in args
-    // Extract from class and set as attribute
-    span.setAttributes({
-      [SemanticConventions.EMBEDDING_MODEL_NAME]: getModelName(this),
-    });
-
-    const wrappedPromise = execPromise.then((result) => {
-      span.setAttributes(textEmbeddingsAttributes(args[0], result));
+      span.setAttributes(
+        getQueryEmbeddingAttributes({ input: args[0], output: result }),
+      );
       span.end();
       return result;
     });

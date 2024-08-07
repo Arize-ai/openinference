@@ -9,15 +9,11 @@ export type SafeFunction<T extends GenericFunction> = (
 ) => ReturnType<T> | null;
 
 export type ObjectWithModel = { model: string };
-export type ObjectWithID = { id: string };
 
-export type QueryEngineQueryMethod =
+export type RetrieverQueryEngineQueryMethodType =
   typeof llamaindex.RetrieverQueryEngine.prototype.query;
 
-export type RetrieverRetrieveMethod = BaseRetriever["retrieve"];
+export type RetrieverRetrieveMethodType = BaseRetriever["retrieve"];
 
-export type QueryEmbeddingMethod =
+export type QueryEmbeddingMethodType =
   typeof llamaindex.BaseEmbedding.prototype.getQueryEmbedding;
-
-export type TextEmbeddingsMethod =
-  typeof llamaindex.BaseEmbedding.prototype.getTextEmbeddings;

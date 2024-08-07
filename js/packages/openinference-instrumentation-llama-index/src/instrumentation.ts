@@ -8,11 +8,12 @@ import {
 } from "@opentelemetry/instrumentation";
 import { diag } from "@opentelemetry/api";
 import {
-  patchQueryMethod,
+  isEmbedding,
+  isRetriever,
+  patchQueryEngineQueryMethod,
   patchRetrieveMethod,
-  patchQueryEmbedding,
+  patchQueryEmbeddingMethod,
 } from "./utils";
-import { BaseEmbedding, BaseRetriever } from "llamaindex";
 import { VERSION } from "./version";
 
 const MODULE_NAME = "llamaindex";
@@ -56,18 +57,6 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     return module;
   }
 
-  private isRetriever(retriever: unknown): retriever is BaseRetriever {
-    return !!retriever && !!(retriever as BaseRetriever).retrieve;
-  }
-
-  private isEmbedding(value: unknown): value is BaseEmbedding {
-    return (
-      !!value &&
-      value instanceof BaseEmbedding &&
-      !!(value as BaseEmbedding).getQueryEmbedding
-    );
-  }
-
   private patch(moduleExports: typeof llamaindex, moduleVersion?: string) {
     this._diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
     if (_isOpenInferencePatched) {
@@ -80,7 +69,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       "query",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (original): any => {
-        return patchQueryMethod(original, moduleExports, this.tracer);
+        return patchQueryEngineQueryMethod(original, this.tracer);
       },
     );
 
@@ -88,15 +77,15 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const prototype = (value as any).prototype;
 
-      if (this.isRetriever(prototype)) {
+      if (isRetriever(prototype)) {
         this._wrap(prototype, "retrieve", (original) => {
-          return patchRetrieveMethod(original, moduleExports, this.tracer);
+          return patchRetrieveMethod(original, this.tracer);
         });
       }
 
-      if (this.isEmbedding(prototype)) {
+      if (isEmbedding(prototype)) {
         this._wrap(prototype, "getQueryEmbedding", (original) => {
-          return patchQueryEmbedding(original, this.tracer);
+          return patchQueryEmbeddingMethod(original, this.tracer);
         });
       }
     }
@@ -112,11 +101,11 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const prototype = (value as any).prototype;
 
-      if (this.isRetriever(prototype)) {
+      if (isRetriever(prototype)) {
         this._unwrap(prototype, "retrieve");
       }
 
-      if (this.isEmbedding(prototype)) {
+      if (isEmbedding(prototype)) {
         this._unwrap(prototype, "getQueryEmbedding");
       }
     }
