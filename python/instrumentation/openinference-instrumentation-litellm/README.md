@@ -103,3 +103,7 @@ Now any liteLLM function calls you make will not send traces to Phoenix until in
 ## More Info
 
 More details about tracing with OpenInference and `phoenix` can be found in the [`phoenix` documentation](https://docs.arize.com/phoenix).
+
+Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
+
+Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).

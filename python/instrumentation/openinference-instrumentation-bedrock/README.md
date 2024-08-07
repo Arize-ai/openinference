@@ -130,4 +130,6 @@ print(out.get("content")[-1].get("text"))
 
 More details about tracing with OpenInference and `phoenix` can be found in the [`phoenix` documentation](https://docs.arize.com/phoenix).
 
-[x](../../)
+Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
+
+Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).

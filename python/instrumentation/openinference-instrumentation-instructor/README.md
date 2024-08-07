@@ -67,3 +67,9 @@ user_info = client.chat.completions.create(
     messages=[{"role": "user", "content": "John Doe is 30 years old."}],
 )
 ```
+
+## More Info
+
+Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
+
+Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).

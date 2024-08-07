@@ -96,3 +96,7 @@ Visit the Phoenix app at `http://localhost:6006` to see your traces.
 More details about tracing with OpenInference and Phoenix can be found in the [Phoenix docs](https://docs.arize.com/phoenix).
 
 For AI/ML observability solutions in production, including a cloud-based trace collector, visit [Arize](https://docs.arize.com/arize).
+
+Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
+
+Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).

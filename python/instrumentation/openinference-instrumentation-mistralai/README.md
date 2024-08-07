@@ -81,3 +81,7 @@ python your_file.py
 Fore details about tracing with OpenInference and Phoenix, consult the [Phoenix documentation](https://docs.arize.com/phoenix).
 
 For AI/ML observability solutions in production, check out the docs on [Arize](https://docs.arize.com/arize).
+
+Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
+
+Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).

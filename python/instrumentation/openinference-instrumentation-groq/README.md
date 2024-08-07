@@ -68,3 +68,9 @@ if __name__ == "__main__":
 ```
 
 Now, on the Phoenix UI on your browser, you should see the traces from your Groq application. Click on a trace, then the "Attributes" tab will provide you with in-depth information regarding execution!
+
+## More Info
+
+Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
+
+Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).

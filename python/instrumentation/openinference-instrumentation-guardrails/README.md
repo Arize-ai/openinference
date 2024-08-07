@@ -73,3 +73,9 @@ response = guard(
 
 print(response)
 ```
+
+## More Info
+
+Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
+
+Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).

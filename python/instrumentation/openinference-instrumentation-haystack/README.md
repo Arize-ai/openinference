@@ -77,3 +77,9 @@ print(response)
 ```
 Now, on the Phoenix UI on your browser, you should see the traces from your Haystack application. Specifically, you can see attributes from the execution of the OpenAIGenerator.
 
+
+## More Info
+
+Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
+
+Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).

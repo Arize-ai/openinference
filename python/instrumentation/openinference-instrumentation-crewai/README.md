@@ -111,3 +111,9 @@ result = crew.kickoff()
 print("######################")
 print(result)
 ```
+
+## More Info
+
+Learn how to customize spans [here](../../openinference-instrumentation/README.md#customizing-spans).
+
+Learn how to configure tracing [here](../../openinference-instrumentation/README.md#tracing-configuration).
