@@ -1,6 +1,6 @@
 # OpenInference Instructor Instrumentation
 
-[![pypi](https://badge.fury.io/py/openinference-instrumentation-crewai.svg)](https://pypi.org/project/openinference-instrumentation-instructor/)
+[![pypi](https://badge.fury.io/py/openinference-instrumentation-instructor.svg)](https://pypi.org/project/openinference-instrumentation-instructor/)
 
 Python auto-instrumentation library for the (Instructor)[https://github.com/jxnl/instructor] library
 
