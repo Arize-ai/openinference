@@ -19,3 +19,5 @@ export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
 }
 
 export const safelyJSONStringify = withSafety(JSON.stringify);
+
+export const safelyJSONParse = withSafety(JSON.parse);

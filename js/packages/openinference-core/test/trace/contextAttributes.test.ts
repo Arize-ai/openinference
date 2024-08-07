@@ -1,4 +1,4 @@
-import { context, ContextManager } from "@opentelemetry/api";
+import { context, ContextManager, Attributes } from "@opentelemetry/api";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 
 import {
@@ -11,7 +11,7 @@ import {
 
 import {
   clearSession,
-  getSessionId,
+  getSession,
   setSession,
   setPromptTemplate,
   clearPromptTemplate,
@@ -21,9 +21,20 @@ import {
   clearMetadata,
   getAttributesFromContext,
   ContextAttributes,
+  User,
+  setUser,
+  getUser,
+  Tags,
+  setTags,
+  getTags,
+  clearTags,
+  clearUser,
+  setAttributes,
+  getAttributes,
+  clearAttributes,
 } from "../../src";
 
-describe("promptTemplate context attributes", () => {
+describe("promptTemplate context", () => {
   let contextManager: ContextManager;
   beforeEach(() => {
     contextManager = new AsyncHooksContextManager().enable();
@@ -32,7 +43,7 @@ describe("promptTemplate context attributes", () => {
   afterEach(() => {
     context.disable();
   });
-  it("should set prompt template attributes on the context", () => {
+  it("should set prompt template on the context", () => {
     const variables = {
       name: "world",
     };
@@ -44,15 +55,15 @@ describe("promptTemplate context attributes", () => {
       }),
       () => {
         expect(getPromptTemplate(context.active())).toStrictEqual({
-          [PROMPT_TEMPLATE_TEMPLATE]: "hello {name}",
-          [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(variables),
-          [PROMPT_TEMPLATE_VERSION]: "V1.0",
+          template: "hello {name}",
+          variables,
+          version: "V1.0",
         });
       },
     );
   });
 
-  it("should delete prompt template attributes from the context", () => {
+  it("should delete prompt template from the context", () => {
     const variables = {
       name: "world",
     };
@@ -64,9 +75,9 @@ describe("promptTemplate context attributes", () => {
       }),
       () => {
         expect(getPromptTemplate(context.active())).toStrictEqual({
-          [PROMPT_TEMPLATE_TEMPLATE]: "hello {name}",
-          [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(variables),
-          [PROMPT_TEMPLATE_VERSION]: "V1.0",
+          template: "hello {name}",
+          variables,
+          version: "V1.0",
         });
         const ctx = clearPromptTemplate(context.active());
         expect(getPromptTemplate(ctx)).toBeUndefined();
@@ -75,7 +86,7 @@ describe("promptTemplate context attributes", () => {
   });
 });
 
-describe("session context attributes", () => {
+describe("session context", () => {
   let contextManager: ContextManager;
   beforeEach(() => {
     contextManager = new AsyncHooksContextManager().enable();
@@ -85,30 +96,34 @@ describe("session context attributes", () => {
     context.disable();
   });
 
-  it("should set session id in the context", () => {
+  it("should set the session in the context", () => {
     context.with(
       setSession(context.active(), { sessionId: "session-id" }),
       () => {
-        expect(getSessionId(context.active())).toBe("session-id");
+        expect(getSession(context.active())).toStrictEqual({
+          sessionId: "session-id",
+        });
       },
     );
   });
 
-  it("should delete session id from the context", () => {
+  it("should delete the session from the context", () => {
     context.with(
       setSession(context.active(), { sessionId: "session-id" }),
       () => {
-        expect(getSessionId(context.active())).toBe("session-id");
+        expect(getSession(context.active())).toStrictEqual({
+          sessionId: "session-id",
+        });
         const ctx = clearSession(context.active());
-        expect(getSessionId(ctx)).toBeUndefined();
+        expect(getSession(ctx)).toBeUndefined();
       },
     );
   });
 });
 
-describe("metadata context attributes", () => {
+describe("metadata context", () => {
   let contextManager: ContextManager;
-  const metadataAttributes = {
+  const metadata = {
     key: "value",
     numeric: 1,
     list: ["hello", "bye"],
@@ -120,20 +135,88 @@ describe("metadata context attributes", () => {
   afterEach(() => {
     context.disable();
   });
-  it("should set metadata attributes on the context", () => {
-    context.with(setMetadata(context.active(), metadataAttributes), () => {
-      expect(getMetadata(context.active())).toStrictEqual({
-        [METADATA]: JSON.stringify(metadataAttributes),
-      });
+  it("should set metadata on the context", () => {
+    context.with(setMetadata(context.active(), metadata), () => {
+      expect(getMetadata(context.active())).toStrictEqual(metadata);
     });
   });
-  it("should delete metadata attributes from the context", () => {
-    context.with(setMetadata(context.active(), metadataAttributes), () => {
-      expect(getMetadata(context.active())).toStrictEqual({
-        [METADATA]: JSON.stringify(metadataAttributes),
-      });
+  it("should delete metadata from the context", () => {
+    context.with(setMetadata(context.active(), metadata), () => {
+      expect(getMetadata(context.active())).toStrictEqual(metadata);
       const ctx = clearMetadata(context.active());
       expect(getMetadata(ctx)).toBeUndefined();
+    });
+  });
+});
+
+describe("user context", () => {
+  let contextManager: ContextManager;
+  const userAttributes: User = { userId: "user-id" };
+  beforeEach(() => {
+    contextManager = new AsyncHooksContextManager().enable();
+    context.setGlobalContextManager(contextManager);
+  });
+  afterEach(() => {
+    context.disable();
+  });
+  it("should set user on the context", () => {
+    context.with(setUser(context.active(), userAttributes), () => {
+      expect(getUser(context.active())).toStrictEqual(userAttributes);
+    });
+  });
+  it("should delete user from the context", () => {
+    context.with(setUser(context.active(), userAttributes), () => {
+      expect(getUser(context.active())).toStrictEqual(userAttributes);
+      const ctx = clearUser(context.active());
+      expect(getUser(ctx)).toBeUndefined();
+    });
+  });
+});
+
+describe("tags context", () => {
+  let contextManager: ContextManager;
+  const tagsAttributes: Tags = ["tag1", "tag2"];
+  beforeEach(() => {
+    contextManager = new AsyncHooksContextManager().enable();
+    context.setGlobalContextManager(contextManager);
+  });
+  afterEach(() => {
+    context.disable();
+  });
+  it("should set tags on the context", () => {
+    context.with(setTags(context.active(), tagsAttributes), () => {
+      expect(getTags(context.active())).toStrictEqual(tagsAttributes);
+    });
+  });
+  it("should delete tags from the context", () => {
+    context.with(setTags(context.active(), tagsAttributes), () => {
+      expect(getTags(context.active())).toStrictEqual(tagsAttributes);
+      const ctx = clearTags(context.active());
+      expect(getTags(ctx)).toBeUndefined();
+    });
+  });
+});
+
+describe("attributes context", () => {
+  let contextManager: ContextManager;
+  const attributes: Attributes = { hello: "world", test: "test" };
+  beforeEach(() => {
+    contextManager = new AsyncHooksContextManager().enable();
+    context.setGlobalContextManager(contextManager);
+  });
+  afterEach(() => {
+    context.disable();
+  });
+  it("should set attributes attributes on the context", () => {
+    context.with(setAttributes(context.active(), attributes), () => {
+      expect(getAttributes(context.active())).toStrictEqual(attributes);
+    });
+  });
+  it("should delete attributes attributes from the context", () => {
+    context.with(setAttributes(context.active(), attributes), () => {
+      expect(getAttributes(context.active())).toStrictEqual(attributes);
+      const ctx = clearAttributes(context.active());
+      expect(getAttributes(ctx)).toBeUndefined();
     });
   });
 });
@@ -159,11 +242,13 @@ describe("context.with multiple attributes", () => {
       ),
 
       () => {
-        expect(getSessionId(context.active())).toBe("session-id");
+        expect(getSession(context.active())).toStrictEqual({
+          sessionId: "session-id",
+        });
         expect(getPromptTemplate(context.active())).toStrictEqual({
-          [PROMPT_TEMPLATE_TEMPLATE]: "hello {name}",
-          [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify({ name: "world" }),
-          [PROMPT_TEMPLATE_VERSION]: "V1.0",
+          template: "hello {name}",
+          variables: { name: "world" },
+          version: "V1.0",
         });
       },
     );
@@ -185,16 +270,19 @@ describe("getContextAttributes", () => {
 
   it("should get all attributes off of the context", () => {
     context.with(
-      setMetadata(
-        setSession(
-          setPromptTemplate(context.active(), {
-            template: "hello {name}",
-            variables,
-            version: "V1.0",
-          }),
-          { sessionId: "session-id" },
+      setAttributes(
+        setMetadata(
+          setSession(
+            setPromptTemplate(context.active(), {
+              template: "hello {name}",
+              variables,
+              version: "V1.0",
+            }),
+            { sessionId: "session-id" },
+          ),
+          { key: "value" },
         ),
-        { key: "value" },
+        { test: "attribute", test2: "attribute2" },
       ),
       () => {
         const attributes = getAttributesFromContext(context.active());
@@ -204,6 +292,8 @@ describe("getContextAttributes", () => {
           [PROMPT_TEMPLATE_VERSION]: "V1.0",
           [SESSION_ID]: "session-id",
           [METADATA]: JSON.stringify({ key: "value" }),
+          test: "attribute",
+          test2: "attribute2",
         });
       },
     );
