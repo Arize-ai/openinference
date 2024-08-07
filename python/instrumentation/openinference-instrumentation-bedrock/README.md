@@ -129,3 +129,5 @@ print(out.get("content")[-1].get("text"))
 ## More Info
 
 More details about tracing with OpenInference and `phoenix` can be found in the [`phoenix` documentation](https://docs.arize.com/phoenix).
+
+[x](../../)
