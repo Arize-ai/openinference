@@ -1,6 +1,6 @@
 import json
 from functools import wraps
-from typing import Any, Callable, Collection, Dict
+from typing import Any, Callable, Collection, Dict, List
 
 from openinference.instrumentation import (
     OITracer,
@@ -16,10 +16,10 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor # type: ignore
 from opentelemetry.util.types import AttributeValue
 
-import litellm
+import litellm # type: ignore [import-not-found]
 
 
 # Helper functions to set span attributes
@@ -28,7 +28,7 @@ def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) 
         span.set_attribute(name, value)
 
 
-def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
+def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any]) -> None: 
     """
     Currently instruments the functions:
         litellm.completion()
@@ -41,11 +41,11 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
     )
     _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, kwargs.get("model", "unknown_model"))
 
-    if "messages" in kwargs:
+    if messages := kwargs.get("messages"):
         _set_span_attribute(
-            span, SpanAttributes.INPUT_VALUE, str(kwargs.get("messages")[0].get("content"))
+            span, SpanAttributes.INPUT_VALUE, str(messages[0].get("content"))
         )
-        for i, obj in enumerate(kwargs.get("messages")):
+        for i, obj in enumerate(messages):
             for key, value in obj.items():
                 _set_span_attribute(span, f"input.messages.{i}.{key}", value)
 
@@ -69,7 +69,7 @@ def _instrument_func_type_embedding(span: trace_api.Span, kwargs: Dict[str, Any]
     _set_span_attribute(
         span, SpanAttributes.EMBEDDING_MODEL_NAME, kwargs.get("model", "unknown_model")
     )
-    _set_span_attribute(span, EmbeddingAttributes.EMBEDDING_TEXT, kwargs.get("input"))
+    _set_span_attribute(span, EmbeddingAttributes.EMBEDDING_TEXT, str(kwargs.get("input")))  
     _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("input")))
 
 
@@ -82,8 +82,10 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
     _set_span_attribute(
         span, SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
     )
-    _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, kwargs.get("model"))
-    _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("prompt")))
+    if model := kwargs.get("model"):
+        _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model)
+    if prompt := kwargs.get("prompt"):
+        _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(prompt))
 
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
@@ -113,9 +115,9 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         )
 
 
-class LiteLLMInstrumentor(BaseInstrumentor):
+class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
     original_litellm_funcs: Dict[
-        str, Callable
+        str, Callable[..., Any]
     ] = {}  # Dictionary for original uninstrumented liteLLM functions
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -243,5 +245,5 @@ class LiteLLMInstrumentor(BaseInstrumentor):
             _finalize_span(span, result)
         return result
 
-    def _set_wrapper_attr(self, func_wrapper) -> None:
+    def _set_wrapper_attr(self, func_wrapper: Callable[..., Any]) -> None:
         func_wrapper.__func__.is_wrapper = True

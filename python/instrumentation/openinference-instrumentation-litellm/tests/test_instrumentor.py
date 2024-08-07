@@ -2,9 +2,9 @@ import json
 from typing import Any, Dict, Generator, List, Mapping, cast
 from unittest.mock import patch
 
-import litellm
+import litellm # type: ignore [import-not-found]
 import pytest
-from litellm.llms.openai import OpenAIChatCompletion
+from litellm.llms.openai import OpenAIChatCompletion # type: ignore [import-not-found]
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import (
