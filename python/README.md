@@ -2,11 +2,11 @@
 
 This is the Python version of OpenInference instrumentation, a framework for collecting traces from LLM applications.
 
-# Getting Started
+## Getting Started
 
 Instrumentation is the act of adding observability code to an application. OpenInference provides [instrumentors](https://github.com/Arize-ai/openinference?tab=readme-ov-file#python) for several popular LLM frameworks and SDKs. The instrumentors emit traces from the LLM applications, and the traces can be collected by a collector, e.g. by the [Phoenix Collector](#phoenix-collector).
 
-# Example
+## Example
 
 To export traces from the instrumentor to a collector, install the OpenTelemetry SDK and HTTP exporter using:
 

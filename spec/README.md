@@ -22,9 +22,9 @@ A trace is made of one or more spans. The first span represents the root span. E
 
 ## Specifications
 
--   [Traces](./traces.md)
--   [Semantic Conventions](./semantic_conventions.md)
--   [Configuration](./configuration.md)
+- [Traces](./traces.md)
+- [Semantic Conventions](./semantic_conventions.md)
+- [Configuration](./configuration.md)
 
 
 ## Notation Conventions and Compliance

@@ -58,6 +58,10 @@
         "python/instrumentation/openinference-instrumentation-groq": {
             "package-name": "python-openinference-instrumentation-groq",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-instructor": {
+            "package-name": "python-openinference-instrumentation-instructor",
+            "release-type": "python"
         }
     }
 }
