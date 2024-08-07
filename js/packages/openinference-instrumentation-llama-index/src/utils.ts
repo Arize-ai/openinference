@@ -28,9 +28,13 @@ import {
 import { BaseEmbedding, BaseRetriever } from "llamaindex";
 
 /**
- * Checks if
- * @param prototype -
- * @returns
+ * Checks if the given class prototype is a retriever.
+ *
+ * Determines whether the provided prototype is an instance of a `BaseRetriever`
+ * by checking if the `retrieve` method exists on the prototype.
+ *
+ * @param {unknown} moduleClassPrototype - The prototype to check.
+ * @returns {boolean} Whether the prototype is a `BaseRetriever`.
  */
 export function isRetriever(
   moduleClassPrototype: unknown,
@@ -40,6 +44,16 @@ export function isRetriever(
   );
 }
 
+/**
+ * Checks if the given class prototype is an embedding.
+ *
+ * Determines whether the provided prototype is an instance of a `BaseEmbedding`
+ * by checking if it is an instance of `BaseEmbedding` and if the `getQueryEmbedding`
+ * method exists on the prototype.
+ *
+ * @param {unknown} moduleClassPrototype - The prototype to check.
+ * @returns {boolean} Whether the prototype is a `BaseEmbedding`.
+ */
 export function isEmbedding(
   moduleClassPrototype: unknown,
 ): moduleClassPrototype is BaseEmbedding {
