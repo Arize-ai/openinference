@@ -67,3 +67,9 @@ user_info = client.chat.completions.create(
     messages=[{"role": "user", "content": "John Doe is 30 years old."}],
 )
 ```
+
+## More Info
+
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)
