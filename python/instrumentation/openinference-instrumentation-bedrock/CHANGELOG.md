@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.8...python-openinference-instrumentation-bedrock-v0.1.9) (2024-08-07)
+
+
+### Features
+
+* Capture images tracing converse API ([#753](https://github.com/Arize-ai/openinference/issues/753)) ([2a2fe15](https://github.com/Arize-ai/openinference/commit/2a2fe15f2b48fe67b14974137c105606072394f3))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.7...python-openinference-instrumentation-bedrock-v0.1.8) (2024-08-03)
 
 

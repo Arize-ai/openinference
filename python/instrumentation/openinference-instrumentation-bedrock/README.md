@@ -128,4 +128,6 @@ print(out.get("content")[-1].get("text"))
 
 ## More Info
 
-More details about tracing with OpenInference and `phoenix` can be found in the [`phoenix` documentation](https://docs.arize.com/phoenix).
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

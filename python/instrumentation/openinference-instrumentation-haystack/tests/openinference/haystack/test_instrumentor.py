@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Dict, Generator, List, Optional, Union
 
 import pytest
@@ -10,7 +11,10 @@ from haystack.components.embedders import (
 )
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+from haystack.components.retrievers.in_memory import (
+    InMemoryBM25Retriever,
+    InMemoryEmbeddingRetriever,
+)
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
@@ -340,7 +344,78 @@ def test_haystack_instrumentation_chat(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans
+    assert [span.name for span in spans] == [
+        "ChatPromptBuilder",
+        "OpenAIChatGenerator",
+        "Pipeline",
+    ]
+
+    assert [
+        span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
+    ] == [
+        "CHAIN",
+        "LLM",
+        "CHAIN",
+    ]
+
+    for span in spans:
+        att = span.attributes
+        _check_context_attributes(
+            att,
+        )
+
+
+def test_haystack_instrumentation_filtering(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    documents = [
+        Document(
+            content="Use pip to install a basic version of Haystack's latest release",
+            meta={"version": 1.15, "date": datetime(2023, 3, 30)},
+        ),
+        Document(
+            content="Use pip to install a basic version of Haystack's latest release: pip install",
+            meta={"version": 1.22, "date": datetime(2023, 11, 7)},
+        ),
+        Document(
+            content="Use pip to install only the Haystack 2.0 code: pip install haystack-ai",
+            meta={"version": 2.0, "date": datetime(2023, 12, 4)},
+        ),
+    ]
+    document_store = InMemoryDocumentStore(bm25_algorithm="BM25Plus")
+    document_store.write_documents(documents=documents)
+
+    pipeline = Pipeline()
+    pipeline.add_component(
+        instance=InMemoryBM25Retriever(document_store=document_store), name="retriever"
+    )
+
+    query = "Haystack installation"
+
+    pipeline.run(
+        data={
+            "retriever": {
+                "query": query,
+                "filters": {"field": "meta.version", "operator": ">", "value": 1.21},
+            }
+        }
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert [span.name for span in spans] == [
+        "InMemoryBM25Retriever",
+        "Pipeline",
+    ]
+
+    assert [
+        span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
+    ] == [
+        "RETRIEVER",
+        "CHAIN",
+    ]
 
 
 def test_haystack_uninstrumentation(

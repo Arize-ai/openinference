@@ -75,17 +75,19 @@ class _CompletionsWrapper(_WithTracer):
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
-            attributes = dict(
-                _flatten(
-                    {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                        SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
-                        SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
-                            llm_invocation_params
-                        ),
-                        SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
-                        SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                    }
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
+                            SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
+                            SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                                llm_invocation_params
+                            ),
+                            SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                        }
+                    )
                 )
             )
             try:
@@ -94,19 +96,20 @@ class _CompletionsWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            attributes.update(
-                _flatten(
-                    {
-                        SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
-                        SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
-                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
-                        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
-                        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
-                    }
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
+                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
+                            LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
+                            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
+                            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
+                        }
+                    )
                 )
             )
 
-            span.set_attributes(attributes)
             span.set_status(trace_api.StatusCode.OK)
 
         return response
@@ -146,17 +149,19 @@ class _AsyncCompletionsWrapper(_WithTracer):
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
-            attributes = dict(
-                _flatten(
-                    {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                        SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
-                        SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
-                            llm_invocation_params
-                        ),
-                        SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
-                        SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                    }
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
+                            SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
+                            SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                                llm_invocation_params
+                            ),
+                            SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
+                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                        }
+                    )
                 )
             )
             try:
@@ -165,19 +170,20 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            attributes.update(
-                _flatten(
-                    {
-                        SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
-                        SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
-                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
-                        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
-                        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
-                    }
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
+                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
+                            LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
+                            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
+                            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
+                        }
+                    )
                 )
             )
 
-            span.set_attributes(attributes)
             span.set_status(trace_api.StatusCode.OK)
 
         return response
@@ -189,3 +195,4 @@ EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
 LLM = OpenInferenceSpanKindValues.LLM
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
