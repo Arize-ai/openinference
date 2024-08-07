@@ -34,6 +34,7 @@ dependencies = [
   "wrapt",
 ]
 
+[project.optional-dependencies]
 test = [
   "litellm",
   "opentelemetry-sdk",

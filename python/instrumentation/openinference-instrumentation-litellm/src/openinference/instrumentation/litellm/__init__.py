@@ -245,5 +245,5 @@ class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
             _finalize_span(span, result)
         return result
 
-    def _set_wrapper_attr(self, func_wrapper: Callable[..., Any]) -> None:
+    def _set_wrapper_attr(self, func_wrapper: Any) -> None:
         func_wrapper.__func__.is_wrapper = True
