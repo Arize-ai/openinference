@@ -39,6 +39,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`openinference-instrumentation-haystack`](./python/instrumentation/openinference-instrumentation-haystack)       | OpenInference Instrumentation for Haystack.    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-haystack.svg)](https://pypi.python.org/pypi/openinference-instrumentation-haystack)       |
 | [`openinference-instrumentation-litellm`](./python/instrumentation/openinference-instrumentation-litellm)         | OpenInference Instrumentation for liteLLM.     | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-litellm.svg)](https://pypi.python.org/pypi/openinference-instrumentation-litellm)         |
 | [`openinference-instrumentation-groq`](./python/instrumentation/openinference-instrumentation-groq)               | OpenInference Instrumentation for Groq.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-groq.svg)](https://pypi.python.org/pypi/openinference-instrumentation-groq)               |
+| [`openinference-instrumentation-groq`](./python/instrumentation/openinference-instrumentation-instructor)         | OpenInference Instrumentation for Instructor.  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-groq.svg)](https://pypi.python.org/pypi/openinference-instrumentation-instructor)         |
 
 ### Examples
 
