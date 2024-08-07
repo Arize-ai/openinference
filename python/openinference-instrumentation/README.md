@@ -14,7 +14,7 @@ pip install openinference-instrumentation
 
 The `openinference-instrumentation` package offers utilities to track important application metadata such as sessions and metadata using Python context managers:
 
-* `using_session`: to specifiy a session ID.
+* `using_session`: to specifiy a session ID to track multi-turn conversations with a user
 * `using_user`: to specifiy a user ID.
 * `using_metadata`: to add custom metadata.
 * `using_tag`: to add tags.
