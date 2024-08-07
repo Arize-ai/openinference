@@ -14,14 +14,15 @@ pip install openinference-instrumentation
 
 The `openinference-instrumentation` package offers utilities to track important application metadata such as sessions and metadata using Python context managers:
 
-* `using_session`: to specifiy a session ID to track multi-turn conversations with a user
-* `using_user`: to specifiy a user ID
-* `using_metadata`: to add custom metadata
-* `using_tag`: to add tags
-* `using_prompt_template`: to reflect the prompt template used
-* `using_attributes`: to specify all the above at once
+* `using_session`: to specify a session ID to track and group a multi-turn conversation with a user
+* `using_user`: to specify a user ID to track different conversations with a given user
+* `using_metadata`: to add custom metadata, that can provide extra information that supports a wide range of operational needs
+* `using_tag`: to add tags, to help filter on specific keywords
+* `using_prompt_template`: to reflect the prompt template used. This is useful for prompt management
+* `using_attributes`: it help   s handling multiple of the previous options at once in a concise manner
   
 For example:
+
 ```python
 from openinference.instrumentation import using_attributes
 tags = ["tag_1", "tag_2", ...]
@@ -52,13 +53,12 @@ with using_attributes(
     # "llm.prompt_template.version " = "v1.0"
     ...
 ```
-You can read more about this in our [docs](https://docs.arize.com/phoenix/tracing/how-to-tracing/customize-spans).
 
+You can read more about this in our [docs](https://docs.arize.com/phoenix/tracing/how-to-tracing/customize-spans).
 
 ## Tracing Configuration
 
-
-This package contains the central `TraceConfig` class, which lets you specify a tracing configuration that let's you control things like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
+This package contains the central `TraceConfig` class, which lets you specify a tracing configuration that lets you control settings like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
 
 In addition, you an also use environment variables, read more [here](../../spec/configuration.md). The following is an example of using the `TraceConfig` object:
 
