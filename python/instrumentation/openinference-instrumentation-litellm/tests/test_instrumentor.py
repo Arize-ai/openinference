@@ -34,19 +34,11 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
 
 
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(instrument: Generator[None, None, None]) -> None:
-    assert isinstance(LiteLLMInstrumentor()._tracer, OITracer)
-
-
-@pytest.fixture()
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    LiteLLMInstrumentor().uninstrument()
+def test_oitracer(tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter) -> None:
     in_memory_span_exporter.clear()
+    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
+    assert isinstance(LiteLLMInstrumentor()._tracer, OITracer)
+    LiteLLMInstrumentor().uninstrument()
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])

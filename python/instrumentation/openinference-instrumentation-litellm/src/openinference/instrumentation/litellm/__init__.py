@@ -118,8 +118,6 @@ class LiteLLMInstrumentor(BaseInstrumentor):
         str, Callable
     ] = {}  # Dictionary for original uninstrumented liteLLM functions
 
-    __slots__ = ("_tracer",)
-
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
