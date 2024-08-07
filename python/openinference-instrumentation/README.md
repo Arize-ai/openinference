@@ -25,10 +25,9 @@ For example:
 
 ```python
 from openinference.instrumentation import using_attributes
-tags = ["tag_1", "tag_2", ...]
+tags = ["business_critical", "topic: weather", ...]
 metadata = {
-    "key-1": value_1,
-    "key-2": value_2,
+    "country": "United States",
     ...
 }
 prompt_template = "Please describe the weather forecast for {city} on {date}"
