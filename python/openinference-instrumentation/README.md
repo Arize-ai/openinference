@@ -58,7 +58,7 @@ You can read more about this in our [docs](https://docs.arize.com/phoenix/tracin
 ## Tracing Configuration
 
 
-The core `openinference-instrumentation` package offers the `TraceConfig` class, which helps set up privacy configurations to mask specific fields in your spans. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
+This package contains the central `TraceConfig` class, which lets you specify a tracing configuration that let's you control things like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
 
 In addition, you an also use environment variables, read more [here](../../spec/configuration.md). The following is an example of using the `TraceConfig` object:
 
