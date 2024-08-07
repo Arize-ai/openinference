@@ -1,12 +1,12 @@
 """
 Based on the Haystack tutorial at https://haystack.deepset.ai/tutorials/36_building_fallbacks_with_conditional_routing.
 
-Requires that the following environment variables:
+Requires the following environment variables:
 
 - OPENAI_API_KEY
 - SERPERDEV_API_KEY
 
-To get the latter, create an account at https://serper.dev/ and get an API key.
+To get the latter, create an account at https://serper.dev/.
 """
 
 from haystack import Pipeline
