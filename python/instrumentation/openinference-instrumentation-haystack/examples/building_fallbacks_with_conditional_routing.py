@@ -1,4 +1,6 @@
 """
+Based on the Haystack tutorial at https://haystack.deepset.ai/tutorials/36_building_fallbacks_with_conditional_routing.
+
 Requires that the following environment variables:
 
 - OPENAI_API_KEY
