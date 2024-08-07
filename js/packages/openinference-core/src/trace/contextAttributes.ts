@@ -199,14 +199,14 @@ export function getAttributes(context: Context): Attributes | undefined {
  * @returns {Attributes} The OpenInference attributes formatted as OpenTelemetry span attributes.
  */
 export function getAttributesFromContext(context: Context): Attributes {
-  const attributes: Attributes = {};
+  let attributes: Attributes = {};
   Object.entries(ContextAttributes).forEach(([key, symbol]) => {
     const maybeValue = context.getValue(symbol);
     if (key === CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY) {
       if (typeof maybeValue === "string") {
         const parsedAttributes = safelyJSONParse(maybeValue);
         if (isAttributes(parsedAttributes)) {
-          Object.assign(attributes, parsedAttributes);
+          attributes = { ...attributes, ...parsedAttributes };
         }
       }
       return;
