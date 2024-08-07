@@ -109,7 +109,7 @@ class _ExecuteActionWrapper(_WithTracer):
             attributes=dict(
                 _flatten(
                     {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.GUARDRAIL,
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
                         INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -119,10 +119,48 @@ class _ExecuteActionWrapper(_WithTracer):
                 )
             ),
         ) as span:
-            print("HARRISON IM HEREEEEE")
-            span.set_attributes(dict(get_attributes_from_context()))
             try:
                 response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+        return response
+
+
+class _GenerateAsyncWrapper(_WithTracer):
+    async def __call__(
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        if instance:
+            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
+        else:
+            span_name = wrapped.__name__
+        with self._tracer.start_as_current_span(
+                span_name,
+                attributes=dict(
+                    _flatten(
+                        {
+                            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.GUARDRAIL,
+                            INPUT_VALUE: _get_input_value(
+                                wrapped,
+                                *args,
+                                **kwargs,
+                            ),
+                        }
+                    )
+                ),
+        ) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
