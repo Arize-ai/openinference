@@ -258,13 +258,8 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
                     request_msg_prompt = "\n".join(
                         content_input.get("text", "")  # type: ignore
                         for content_input in request_msg_content
-                    )
+                    ).strip("\n")
                     _set_span_attribute(span, SpanAttributes.INPUT_VALUE, request_msg_prompt)
-
-                    # _set_span_attribute(span, f"{span_prefix}.message.role", request_msg_role)
-                    # _set_span_attribute(
-                    #     span, f"{span_prefix}.message.content", request_msg_prompt
-                    # )
 
                 response = wrapped_client._unwrapped_converse(*args, **kwargs)
                 if (
@@ -406,7 +401,3 @@ T = TypeVar("T", bound=type)
 
 def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
     return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)
-
-
-def is_base64_url(url: str) -> bool:
-    return url.startswith("data:image/") and "base64" in url
