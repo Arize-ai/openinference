@@ -1,0 +1,179 @@
+[
+  {
+    "REQUEST-0": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Do you have the Pixel 8 Pro 128GB in stock?"
+            }
+          ]
+        }
+      ],
+      "model": "projects/primal-oxide-268801/locations/us-central1/publishers/google/models/gemini-1.5-pro",
+      "tools": [
+        {
+          "function_declarations": [
+            {
+              "name": "get_product_sku",
+              "description": "Get the available inventory for a Google products, e.g: Pixel phones, Pixel Watches, Google Home etc",
+              "parameters": {
+                "type_": 6,
+                "properties": {
+                  "product_name": {
+                    "type_": 1,
+                    "description": "Product name",
+                    "format_": "",
+                    "title": "",
+                    "nullable": false,
+                    "min_items": "0",
+                    "max_items": "0",
+                    "enum": [],
+                    "properties": {},
+                    "required": [],
+                    "min_properties": "0",
+                    "max_properties": "0",
+                    "minimum": 0.0,
+                    "maximum": 0.0,
+                    "min_length": "0",
+                    "max_length": "0",
+                    "pattern": ""
+                  }
+                },
+                "format_": "",
+                "title": "",
+                "description": "",
+                "nullable": false,
+                "min_items": "0",
+                "max_items": "0",
+                "enum": [],
+                "required": [],
+                "min_properties": "0",
+                "max_properties": "0",
+                "minimum": 0.0,
+                "maximum": 0.0,
+                "min_length": "0",
+                "max_length": "0",
+                "pattern": ""
+              }
+            },
+            {
+              "name": "get_store_location",
+              "description": "Get the location of the closest store",
+              "parameters": {
+                "type_": 6,
+                "properties": {
+                  "location": {
+                    "type_": 1,
+                    "description": "Location",
+                    "format_": "",
+                    "title": "",
+                    "nullable": false,
+                    "min_items": "0",
+                    "max_items": "0",
+                    "enum": [],
+                    "properties": {},
+                    "required": [],
+                    "min_properties": "0",
+                    "max_properties": "0",
+                    "minimum": 0.0,
+                    "maximum": 0.0,
+                    "min_length": "0",
+                    "max_length": "0",
+                    "pattern": ""
+                  }
+                },
+                "format_": "",
+                "title": "",
+                "description": "",
+                "nullable": false,
+                "min_items": "0",
+                "max_items": "0",
+                "enum": [],
+                "required": [],
+                "min_properties": "0",
+                "max_properties": "0",
+                "minimum": 0.0,
+                "maximum": 0.0,
+                "min_length": "0",
+                "max_length": "0",
+                "pattern": ""
+              }
+            }
+          ]
+        }
+      ],
+      "tool_config": {
+        "function_calling_config": {
+          "mode": 2,
+          "allowed_function_names": [
+            "get_product_sku"
+          ]
+        }
+      },
+      "cached_content": "",
+      "safety_settings": []
+    },
+    "RESPONSE-0": {
+      "candidates": [
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "function_call": {
+                  "name": "get_product_sku",
+                  "args": {
+                    "product_name": "Pixel 8 Pro 128GB"
+                  }
+                }
+              }
+            ]
+          },
+          "finish_reason": 1,
+          "safety_ratings": [
+            {
+              "category": 1,
+              "probability": 1,
+              "probability_score": 0.15234375,
+              "severity": 1,
+              "severity_score": 0.13964844,
+              "blocked": false
+            },
+            {
+              "category": 2,
+              "probability": 1,
+              "probability_score": 0.18261719,
+              "severity": 2,
+              "severity_score": 0.2734375,
+              "blocked": false
+            },
+            {
+              "category": 3,
+              "probability": 1,
+              "probability_score": 0.13964844,
+              "severity": 1,
+              "severity_score": 0.05834961,
+              "blocked": false
+            },
+            {
+              "category": 4,
+              "probability": 1,
+              "probability_score": 0.059326172,
+              "severity": 1,
+              "severity_score": 0.045410156,
+              "blocked": false
+            }
+          ],
+          "index": 0
+        }
+      ],
+      "usage_metadata": {
+        "prompt_token_count": 48,
+        "candidates_token_count": 17,
+        "total_token_count": 65
+      }
+    }
+  }
+]

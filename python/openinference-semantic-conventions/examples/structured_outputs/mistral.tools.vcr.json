@@ -1,0 +1,67 @@
+[
+  {
+    "REQUEST-0": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "What's the weather like in San Francisco?"
+        }
+      ],
+      "model": "open-mistral-nemo",
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "finds the weather for a given city",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string",
+                  "description": "The city to find the weather for, e.g. 'London'"
+                }
+              },
+              "required": [
+                "city"
+              ]
+            }
+          }
+        }
+      ],
+      "stream": false,
+      "tool_choice": "any"
+    },
+    "RESPONSE-0": {
+      "id": "f6a42cfc04e742d9ab8b5d31454c2ef8",
+      "object": "chat.completion",
+      "created": 1723136359,
+      "model": "open-mistral-nemo",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "2r30ngdET",
+                "function": {
+                  "name": "get_weather",
+                  "arguments": "{\"city\": \"San Francisco\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls",
+          "logprobs": null
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 93,
+        "total_tokens": 114,
+        "completion_tokens": 21
+      }
+    }
+  }
+]

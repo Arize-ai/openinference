@@ -1,0 +1,320 @@
+[
+  {
+    "REQUEST-0": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "text": "What is the most popular song on WZPZ?"
+            }
+          ]
+        }
+      ],
+      "toolConfig": {
+        "tools": [
+          {
+            "toolSpec": {
+              "name": "top_song",
+              "description": "Get the most popular song played on a radio station.",
+              "inputSchema": {
+                "json": {
+                  "type": "object",
+                  "properties": {
+                    "sign": {
+                      "type": "string",
+                      "description": "The call sign for the radio station for which you want the most popular song. Example calls signs are WZPZ, and WKRP."
+                    }
+                  },
+                  "required": [
+                    "sign"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "RESPONSE-0": {
+      "metrics": {
+        "latencyMs": 1218
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "toolUse": {
+                "input": {
+                  "sign": "WZPZ"
+                },
+                "name": "top_song",
+                "toolUseId": "tooluse_qwuo_ysFRImZ-qVUBWSo0Q"
+              }
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 377,
+        "outputTokens": 56,
+        "totalTokens": 433
+      }
+    }
+  },
+  {
+    "REQUEST-1": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "text": "What is the most popular song on WZPZ?"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "toolUse": {
+                "toolUseId": "tooluse_qwuo_ysFRImZ-qVUBWSo0Q",
+                "name": "top_song",
+                "input": {
+                  "sign": "WZPZ"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "toolResult": {
+                "toolUseId": "tooluse_qwuo_ysFRImZ-qVUBWSo0Q",
+                "content": [
+                  {
+                    "json": {
+                      "song": "Elemental Hotel",
+                      "artist": "8 Storey Hike"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "toolConfig": {
+        "tools": [
+          {
+            "toolSpec": {
+              "name": "top_song",
+              "description": "Get the most popular song played on a radio station.",
+              "inputSchema": {
+                "json": {
+                  "type": "object",
+                  "properties": {
+                    "sign": {
+                      "type": "string",
+                      "description": "The call sign for the radio station for which you want the most popular song. Example calls signs are WZPZ, and WKRP."
+                    }
+                  },
+                  "required": [
+                    "sign"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "RESPONSE-1": {
+      "metrics": {
+        "latencyMs": 766
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "The most popular song played on the WZPZ radio station is \"Elemental Hotel\" by the artist \"8 Storey Hike\"."
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 464,
+        "outputTokens": 37,
+        "totalTokens": 501
+      }
+    }
+  },
+  {
+    "REQUEST-2": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "text": "What is the most popular song on WZPZ?"
+            }
+          ]
+        }
+      ],
+      "toolConfig": {
+        "tools": [
+          {
+            "toolSpec": {
+              "name": "top_song",
+              "description": "Get the most popular song played on a radio station.",
+              "inputSchema": {
+                "json": {
+                  "type": "object",
+                  "properties": {
+                    "sign": {
+                      "type": "string",
+                      "description": "The call sign for the radio station for which you want the most popular song. Example calls signs are WZPZ, and WKRP."
+                    }
+                  },
+                  "required": [
+                    "sign"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "RESPONSE-2": {
+      "metrics": {
+        "latencyMs": 1859
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "I will search for the most popular song on WZPZ and relay this information to the user."
+            },
+            {
+              "toolUse": {
+                "input": {
+                  "sign": "WZPZ"
+                },
+                "name": "top_song",
+                "toolUseId": "tooluse_ixcBWTVrQ1-ZCQXRY5lWvg"
+              }
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 54,
+        "outputTokens": 30,
+        "totalTokens": 84
+      }
+    }
+  },
+  {
+    "REQUEST-3": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "text": "What is the most popular song on WZPZ?"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "text": "I will search for the most popular song on WZPZ and relay this information to the user."
+            },
+            {
+              "toolUse": {
+                "toolUseId": "tooluse_ixcBWTVrQ1-ZCQXRY5lWvg",
+                "name": "top_song",
+                "input": {
+                  "sign": "WZPZ"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "toolResult": {
+                "toolUseId": "tooluse_ixcBWTVrQ1-ZCQXRY5lWvg",
+                "content": [
+                  {
+                    "json": {
+                      "song": "Elemental Hotel",
+                      "artist": "8 Storey Hike"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "toolConfig": {
+        "tools": [
+          {
+            "toolSpec": {
+              "name": "top_song",
+              "description": "Get the most popular song played on a radio station.",
+              "inputSchema": {
+                "json": {
+                  "type": "object",
+                  "properties": {
+                    "sign": {
+                      "type": "string",
+                      "description": "The call sign for the radio station for which you want the most popular song. Example calls signs are WZPZ, and WKRP."
+                    }
+                  },
+                  "required": [
+                    "sign"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "RESPONSE-3": {
+      "metrics": {
+        "latencyMs": 1454
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "The most popular song on WZPZ appears to be *Elemental Hotel* by 8 Storey Hike."
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 94,
+        "outputTokens": 23,
+        "totalTokens": 117
+      }
+    }
+  }
+]

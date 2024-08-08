@@ -1,0 +1,91 @@
+[
+  {
+    "REQUEST-0": {
+      "message": "Can you provide a sales summary for 29th September 2023, and also give me some details about the products in the 'Electronics' category, for example their prices and stock levels?",
+      "model": "command-r",
+      "preamble": "\n## Task & Context\nYou help people answer their questions and other requests interactively. You will be asked a\nvery wide array of requests on all kinds of topics. You will be equipped with a wide range of\nsearch engines or similar tools to help you, which you use to research your answer. You should\nfocus on serving the user's needs as best you can, which will be wide-ranging.\n\n## Style Guide\nUnless the user asks for a different style of answer, you should answer in full sentences,\nusing proper grammar and spelling.\n",
+      "tools": [
+        {
+          "name": "query_daily_sales_report",
+          "description": "Connects to a database to retrieve overall sales volumes and sales information for a given day.",
+          "parameter_definitions": {
+            "day": {
+              "description": "Retrieves sales data for this day, formatted as YYYY-MM-DD.",
+              "type": "str",
+              "required": true
+            }
+          }
+        },
+        {
+          "name": "query_product_catalog",
+          "description": "Connects to a a product catalog with information about all the products being sold, including categories, prices, and stock levels.",
+          "parameter_definitions": {
+            "category": {
+              "description": "Retrieves product information data for all products in this category.",
+              "type": "str",
+              "required": true
+            }
+          }
+        }
+      ],
+      "force_single_step": true,
+      "stream": false
+    },
+    "RESPONSE-0": {
+      "response_id": "a8303c9c-33f8-41cf-9da7-8fde0b56ffef",
+      "text": "",
+      "generation_id": "7531371e-2e0b-4911-b26e-6bda991521ee",
+      "chat_history": [
+        {
+          "role": "USER",
+          "message": "Can you provide a sales summary for 29th September 2023, and also give me some details about the products in the 'Electronics' category, for example their prices and stock levels?"
+        },
+        {
+          "role": "CHATBOT",
+          "tool_calls": [
+            {
+              "name": "query_daily_sales_report",
+              "parameters": {
+                "day": "2023-09-29"
+              }
+            },
+            {
+              "name": "query_product_catalog",
+              "parameters": {
+                "category": "Electronics"
+              }
+            }
+          ]
+        }
+      ],
+      "finish_reason": "COMPLETE",
+      "meta": {
+        "api_version": {
+          "version": "1"
+        },
+        "billed_units": {
+          "input_tokens": 127,
+          "output_tokens": 32
+        },
+        "tokens": {
+          "input_tokens": 833,
+          "output_tokens": 84
+        }
+      },
+      "tool_calls": [
+        {
+          "name": "query_daily_sales_report",
+          "parameters": {
+            "day": "2023-09-29"
+          }
+        },
+        {
+          "name": "query_product_catalog",
+          "parameters": {
+            "category": "Electronics"
+          }
+        }
+      ]
+    }
+  }
+]
