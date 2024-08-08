@@ -752,33 +752,41 @@ describe("OpenAIInstrumentation", () => {
           index: 0,
           message: {
             role: "assistant",
-            content: "This is a test."
+            content: "This is a test.",
           },
           logprobs: null,
-          finish_reason: "stop"
-        }
+          finish_reason: "stop",
+        },
       ],
       usage: {
         prompt_tokens: 12,
         completion_tokens: 5,
-        total_tokens: 17
-      }
+        total_tokens: 17,
+      },
     };
     // Mock out the chat completions endpoint
     jest.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         return response;
-      }
+      },
     );
     await openai.chat.completions.create({
-      messages: [{ role: "user",
-        content: [{ type: "text", text: "Say this is a test" }, {
-          type: "image_url",
-          image_url: { url: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" }
-        }]
-      }],
-      model: "gpt-3.5-turbo"
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Say this is a test" },
+            {
+              type: "image_url",
+              image_url: {
+                url: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+              },
+            },
+          ],
+        },
+      ],
+      model: "gpt-3.5-turbo",
     });
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);

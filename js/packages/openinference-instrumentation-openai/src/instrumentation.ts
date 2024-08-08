@@ -423,11 +423,19 @@ function getChatCompletionInputMessageAttributes(
     message.content.forEach((part, index) => {
       const contentsIndexPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
       if (part.type === "text") {
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = part.text;
+        attributes[
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
+        ] = "text";
+        attributes[
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+        ] = part.text;
       } else if (part.type === "image_url") {
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "image";
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}`] = part.image_url.url;
+        attributes[
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
+        ] = "image";
+        attributes[
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}`
+        ] = part.image_url.url;
       }
     });
   }
