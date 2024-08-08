@@ -28,33 +28,6 @@ import {
 import { BaseEmbedding, BaseRetriever } from "llamaindex";
 
 /**
- * Checks if the given class instance prototype is a retriever class.
- *
- * Determines whether the provided prototype is an instance of a `BaseRetriever`
- * by checking if the `retrieve` method exists on the prototype.
- *
- * @param {unknown} moduleClassPrototype - The prototype to check.
- * @returns {boolean} Whether the prototype is a `BaseRetriever`.
- */
-export function isRetriever(cls: unknown): cls is BaseRetriever {
-  return cls != null && (cls as BaseRetriever).retrieve != null;
-}
-
-/**
- * Checks if the given class instance prototype is an embedding class.
- *
- * Determines whether the provided prototype is an instance of a `BaseEmbedding`
- * by checking if it is an instance of `BaseEmbedding` and if the `getQueryEmbedding`
- * method exists on the prototype.
- *
- * @param {unknown} moduleClassPrototype - The prototype to check.
- * @returns {boolean} Whether the prototype is a `BaseEmbedding`.
- */
-export function isEmbedding(cls: unknown): cls is BaseEmbedding {
-  return cls != null && cls instanceof BaseEmbedding;
-}
-
-/**
  * Wraps a function with a try-catch block to catch and log any errors.
  * @param {T} fn - A function to wrap with a try-catch block.
  * @returns {SafeFunction<T>} A function that returns null if an error is thrown.
@@ -104,6 +77,26 @@ function handleError(span: Span, error: Error | undefined) {
     });
     span.end();
   }
+}
+
+/**
+ * Checks whether the provided prototype is an instance of a `BaseRetriever`.
+ *
+ * @param {unknown} moduleClassPrototype - The prototype to check.
+ * @returns {boolean} Whether the prototype is a `BaseRetriever`.
+ */
+export function isRetriever(cls: unknown): cls is BaseRetriever {
+  return cls != null && (cls as BaseRetriever).retrieve != null;
+}
+
+/**
+ * Checks whether the provided prototype is an instance of a `BaseEmbedding`.
+ *
+ * @param {unknown} moduleClassPrototype - The prototype to check.
+ * @returns {boolean} Whether the prototype is a `BaseEmbedding`.
+ */
+export function isEmbedding(cls: unknown): cls is BaseEmbedding {
+  return cls != null && cls instanceof BaseEmbedding;
 }
 
 /**
@@ -160,7 +153,7 @@ function getQueryEmbeddingAttributes(embedInfo: {
  * @param {unknown} cls - The class to check.
  * @returns {boolean} Whether the object has a `model` property.
  */
-function hasModel(cls: unknown): cls is ObjectWithModel {
+function hasModelProperty(cls: unknown): cls is ObjectWithModel {
   const objectWithModelMaybe = cls as ObjectWithModel;
   return (
     "model" in objectWithModelMaybe &&
@@ -170,14 +163,13 @@ function hasModel(cls: unknown): cls is ObjectWithModel {
 
 /**
  * Retrieves the value of the `model` property if the provided class
- * implements it; otherwise, it returns undefined.
+ * implements it; otherwise, returns undefined.
  *
  * @param {unknown} cls - The class to retrieve the model name from.
- * @returns {string | undefined} The model name, or undefined if the class
- * does not have a `model` property.
+ * @returns {string | undefined} The model name or undefined.
  */
 function getModelName(cls: unknown) {
-  if (hasModel(cls)) {
+  if (hasModelProperty(cls)) {
     return cls.model;
   }
 }
