@@ -49,11 +49,11 @@ class _ComponentWrapper(_WithTracer):
     """
 
     def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any],
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
@@ -325,11 +325,11 @@ class _PipelineWrapper(_WithTracer):
     """
 
     def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any],
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
@@ -343,16 +343,16 @@ class _PipelineWrapper(_WithTracer):
 
         span_name = "Pipeline"
         with self._tracer.start_as_current_span(
-                span_name,
-                attributes=dict(
-                    _flatten(
-                        {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
-                            SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                        }
-                    )
-                ),
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
+                        SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                        SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                    }
+                )
+            ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             try:
@@ -384,4 +384,3 @@ TEXT = OpenInferenceMimeTypeValues.TEXT
 LLM = OpenInferenceSpanKindValues.LLM
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
-
