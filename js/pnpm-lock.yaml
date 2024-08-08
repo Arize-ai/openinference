@@ -112,6 +112,9 @@ importers:
       llamaindex:
         specifier: ^0.3.14
         version: 0.3.14(@notionhq/client@2.2.15)(typescript@5.3.3)
+      openai:
+        specifier: ^4.24.1
+        version: 4.47.1
 
   packages/openinference-instrumentation-openai:
     dependencies:

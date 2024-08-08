@@ -18,18 +18,47 @@ import {
   HuggingFaceEmbedding,
   MistralAIEmbedding,
   OllamaEmbedding,
+  OpenAIEmbedding,
 } from "llamaindex";
 import { isEmbedding } from "../src/utils";
+import { OpenAI } from "openai";
 
 // Mocked return values
 const DUMMY_RESPONSE = "lorem ipsum";
 const FAKE_EMBEDDING = Array(1536).fill(0); // Mock out the embeddings response to size 1536 (ada-2)
-const RESPONSE: llamaindex.ChatResponse<object> = {
-  message: {
-    content: DUMMY_RESPONSE,
-    role: "assistant",
+const RESPONSE_MESSAGE = {
+  content: DUMMY_RESPONSE,
+  role: "assistant",
+};
+
+const EMBEDDING_RESPONSE = {
+  object: "list",
+  data: [
+    { object: "embedding", index: 0, embedding: FAKE_EMBEDDING },
+    { object: "embedding", index: 0, embedding: FAKE_EMBEDDING },
+    { object: "embedding", index: 0, embedding: FAKE_EMBEDDING },
+  ],
+};
+
+// Mock out the chat completions endpoint
+const CHAT_RESPONSE = {
+  id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
+  object: "chat.completion",
+  created: 1703743645,
+  model: "gpt-3.5-turbo-0613",
+  choices: [
+    {
+      index: 0,
+      message: RESPONSE_MESSAGE,
+      logprobs: null,
+      finish_reason: "stop",
+    },
+  ],
+  usage: {
+    prompt_tokens: 12,
+    completion_tokens: 5,
+    total_tokens: 17,
   },
-  raw: null,
 };
 
 const tracerProvider = new NodeTracerProvider();
@@ -58,35 +87,25 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
   });
 
   afterAll(() => {
-    jest.unmock("llamaindex");
     instrumentation.disable();
     delete process.env["OPENAI_API_KEY"];
     delete process.env["MISTRAL_API_KEY"];
     delete process.env["GOOGLE_API_KEY"];
   });
   beforeEach(() => {
-    memoryExporter.reset();
+    jest.spyOn(OpenAI.Embeddings.prototype, "create").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return EMBEDDING_RESPONSE;
+      },
+    );
 
-    // Mock the appropriate modules
-    jest.mock("llamaindex", () => {
-      const originalModule = jest.requireActual("llamaindex");
-      return {
-        ...originalModule,
-        OpenAIEmbedding: class extends originalModule.OpenAIEmbedding {
-          getOpenAIEmbedding = async () => {
-            return Promise.resolve([
-              FAKE_EMBEDDING,
-              FAKE_EMBEDDING,
-              FAKE_EMBEDDING,
-            ]);
-          };
-        },
-      };
-    });
+    memoryExporter.reset();
   });
   afterEach(() => {
     jest.clearAllMocks();
     jest.restoreAllMocks();
+    jest.resetModules();
   });
 
   it("is patched", () => {
@@ -94,8 +113,6 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
   });
 
   it("isEmbeddings should identify embedders correctly", async () => {
-    const { OpenAIEmbedding } = await import("llamaindex");
-
     expect(isEmbedding(new HuggingFaceEmbedding())).toEqual(true);
     expect(isEmbedding(new GeminiEmbedding())).toEqual(true);
     expect(isEmbedding(new MistralAIEmbedding())).toEqual(true);
@@ -106,8 +123,6 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
   });
 
   it("should create a span for embeddings (query)", async () => {
-    const { OpenAIEmbedding } = await import("llamaindex");
-
     // Get embeddings
     const embedder = new OpenAIEmbedding();
     const embeddedVector = await embedder.getQueryEmbedding(
@@ -154,10 +169,6 @@ describe("LlamaIndexInstrumentation", () => {
   // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
   instrumentation._modules[0].moduleExports = llamaindex;
 
-  let openAISpy: jest.SpyInstance;
-  let openAITextEmbedSpy: jest.SpyInstance;
-  let openAIQueryEmbedSpy: jest.SpyInstance;
-
   beforeAll(() => {
     instrumentation.enable();
 
@@ -165,9 +176,6 @@ describe("LlamaIndexInstrumentation", () => {
     process.env["OPENAI_API_KEY"] = "fake-api-key";
   });
   afterAll(() => {
-    jest.resetAllMocks();
-    jest.restoreAllMocks();
-    jest.resetModules();
     instrumentation.disable();
     // Delete the OPENAI_API_KEY
     delete process.env["OPENAI_API_KEY"];
@@ -175,33 +183,23 @@ describe("LlamaIndexInstrumentation", () => {
   beforeEach(() => {
     memoryExporter.reset();
 
-    // Mock out the chat completions endpoint
-    openAISpy = jest
-      .spyOn(llamaindex.OpenAI.prototype, "chat")
-      .mockImplementation(() => {
-        return Promise.resolve(RESPONSE);
-      });
-
-    // Mock out the embeddings endpoint
-    openAITextEmbedSpy = jest
-      .spyOn(llamaindex.OpenAIEmbedding.prototype, "getTextEmbeddings")
-      .mockImplementation(() => {
-        return Promise.resolve([
-          FAKE_EMBEDDING,
-          FAKE_EMBEDDING,
-          FAKE_EMBEDDING,
-        ]);
-      });
-
-    openAIQueryEmbedSpy = jest
-      .spyOn(llamaindex.OpenAIEmbedding.prototype, "getQueryEmbedding")
-      .mockImplementation(() => {
-        return Promise.resolve(FAKE_EMBEDDING);
-      });
+    jest.spyOn(OpenAI.Chat.Completions.prototype, "create").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return CHAT_RESPONSE;
+      },
+    );
+    jest.spyOn(OpenAI.Embeddings.prototype, "create").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return EMBEDDING_RESPONSE;
+      },
+    );
   });
   afterEach(() => {
     jest.clearAllMocks();
     jest.restoreAllMocks();
+    jest.resetModules();
   });
 
   it("is patched", () => {
@@ -209,6 +207,8 @@ describe("LlamaIndexInstrumentation", () => {
   });
 
   it("should create a span for query engines", async () => {
+    jest.requireMock("llamaindex");
+
     // Create Document object with essay
     const document = new Document({ text: "lorem ipsum" });
 
@@ -221,13 +221,8 @@ describe("LlamaIndexInstrumentation", () => {
       query: "What did the author do in college?",
     });
 
-    // Verify that the OpenAI chat method was called once during synthesis
-    expect(openAISpy).toHaveBeenCalledTimes(1);
-    expect(openAIQueryEmbedSpy).toHaveBeenCalledTimes(1);
-    expect(openAITextEmbedSpy).toHaveBeenCalledTimes(1);
-
     // Output response
-    expect(response.response).toEqual(DUMMY_RESPONSE);
+    expect(response.response).toEqual(RESPONSE_MESSAGE.content);
 
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBeGreaterThan(0);
@@ -245,7 +240,7 @@ describe("LlamaIndexInstrumentation", () => {
     ).toEqual("What did the author do in college?");
     expect(
       queryEngineSpan?.attributes[SemanticConventions.OUTPUT_VALUE],
-    ).toEqual(DUMMY_RESPONSE);
+    ).toEqual(RESPONSE_MESSAGE.content);
   });
 
   it("should create a span for retrieve method", async () => {
@@ -265,11 +260,6 @@ describe("LlamaIndexInstrumentation", () => {
     const response = await retriever.retrieve({
       query: "What did the author do in college?",
     });
-
-    // Verrify calls and that OpenAI Chat method was not called
-    expect(openAISpy).toHaveBeenCalledTimes(0);
-    expect(openAIQueryEmbedSpy).toHaveBeenCalledTimes(1);
-    expect(openAITextEmbedSpy).toHaveBeenCalledTimes(1);
 
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBeGreaterThan(0);

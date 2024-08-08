@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "jest": "^29.7.0",
-    "llamaindex": "^0.3.14"
+    "llamaindex": "^0.3.14",
+    "openai": "^4.24.1"
   }
 }
