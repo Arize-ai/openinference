@@ -15,6 +15,7 @@ from haystack.components.retrievers.in_memory import (
     InMemoryBM25Retriever,
     InMemoryEmbeddingRetriever,
 )
+from haystack.components.routers import ConditionalRouter
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
@@ -434,6 +435,46 @@ def test_haystack_uninstrumentation(
     # Ensure methods are not wrapped
     assert not hasattr(Pipeline.run, "__wrapped__")
     assert not hasattr(Pipeline._run_component, "__wrapped__")
+
+
+def test_haystack_conditional_router(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    routes = [
+        {
+            "condition": "{{query|length > 10}}",
+            "output": "{{query}}",
+            "output_name": "ok_query",
+            "output_type": str,
+        },
+        {
+            "condition": "{{query|length <= 10}}",
+            "output": "query is too short: {{query}}",
+            "output_name": "too_short_query",
+            "output_type": str,
+        },
+    ]
+    router = ConditionalRouter(routes=routes)
+
+    llm = OpenAIGenerator(api_key=Secret.from_token("TOTALLY_REAL_API_KEY"))
+    llm.run = fake_OpenAIGenerator_run.__get__(llm, OpenAIGenerator)
+
+    pipe = Pipeline()
+    pipe.add_component("router", router)
+    pipe.add_component("prompt_builder", PromptBuilder("Answer the following query. {{query}}"))
+    pipe.add_component("generator", llm)
+    pipe.connect("router.ok_query", "prompt_builder.query")
+    pipe.connect("prompt_builder", "generator")
+
+    pipe.run(data={"router": {"query": "Berlin"}})
+
+    pipe.run(data={"router": {"query": "What is the capital of Italy?"}})
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans
 
 
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
