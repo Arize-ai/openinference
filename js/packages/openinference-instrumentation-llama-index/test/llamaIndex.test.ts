@@ -117,9 +117,15 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
     expect(isEmbedding(new GeminiEmbedding())).toEqual(true);
     expect(isEmbedding(new MistralAIEmbedding())).toEqual(true);
     expect(isEmbedding(new OpenAIEmbedding())).toEqual(true);
+    expect(isEmbedding(new OllamaEmbedding({ model: "test" }))).toEqual(true);
 
-    const testParams: llamaindex.OllamaParams = { model: "test" };
-    expect(isEmbedding(new OllamaEmbedding(testParams))).toEqual(true);
+    expect(isEmbedding(new llamaindex.MistralAI())).toEqual(false);
+    expect(isEmbedding(llamaindex.MistralAI)).toEqual(false);
+    expect(isEmbedding(new llamaindex.Gemini())).toEqual(false);
+
+    expect(isEmbedding(new llamaindex.TextNode())).toEqual(false);
+    expect(isEmbedding(llamaindex.TextNode)).toEqual(false);
+    expect(isEmbedding(new llamaindex.CorrectnessEvaluator())).toEqual(false);
   });
 
   it("should create a span for embeddings (query)", async () => {
