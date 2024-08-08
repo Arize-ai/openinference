@@ -1,5 +1,5 @@
 from abc import ABC
-from enum import Enum
+from enum import Enum, auto
 from typing import Any, Callable, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
@@ -13,6 +13,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
+from typing_extensions import assert_never
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -30,6 +31,26 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
+
+
+class ComponentType(Enum):
+    GENERATOR = auto()
+    EMBEDDER = auto()
+    RETRIEVER = auto()
+    PROMPT_BUILDER = auto()
+    UNKNOWN = auto()
+
+
+def get_component_type(component_name: str) -> ComponentType:
+    if "Generator" in component_name or "VertexAIImage" in component_name:
+        return ComponentType.GENERATOR
+    elif "Embedder" in component_name:
+        return ComponentType.EMBEDDER
+    elif "Retriever" in component_name:
+        return ComponentType.RETRIEVER
+    elif "PromptBuilder" in component_name:
+        return ComponentType.PROMPT_BUILDER
+    return ComponentType.UNKNOWN
 
 
 class _WithTracer(ABC):
@@ -75,7 +96,7 @@ class _ComponentWrapper(_WithTracer):
 
         with self._tracer.start_as_current_span(name=component_name) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            if "Generator" in component_name or "VertexAIImage" in component_name:
+            if (component_type := get_component_type(component_name)) is ComponentType.GENERATOR:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -106,7 +127,7 @@ class _ComponentWrapper(_WithTracer):
                             ]._template_string,
                         )
 
-            elif "Embedder" in component_name:
+            elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -119,7 +140,7 @@ class _ComponentWrapper(_WithTracer):
                         )
                     )
                 )
-            elif "Retriever" in component_name:
+            elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -141,7 +162,7 @@ class _ComponentWrapper(_WithTracer):
                             )
                         )
                     )
-                if "query" in input_data:
+                elif "query" in input_data:
                     span.set_attributes(
                         dict(
                             _flatten(
@@ -152,7 +173,7 @@ class _ComponentWrapper(_WithTracer):
                             )
                         )
                     )
-            elif "PromptBuilder" in component_name:
+            elif component_type is ComponentType.PROMPT_BUILDER:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -194,7 +215,7 @@ class _ComponentWrapper(_WithTracer):
                             )
                         )
                     )
-            else:
+            elif component_type is ComponentType.UNKNOWN:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -206,6 +227,8 @@ class _ComponentWrapper(_WithTracer):
                         )
                     )
                 )
+            else:
+                assert_never(component_type)
 
             try:
                 response = wrapped(*args, **kwargs)
@@ -215,7 +238,7 @@ class _ComponentWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
 
-            if "Generator" in component_name or "VertexAIImage" in component_name:
+            if component_type is ComponentType.GENERATOR:
                 if "Chat" in component.__class__.__name__:
                     replies = response.get("replies")
                     if replies is None or len(replies) == 0:
@@ -260,7 +283,7 @@ class _ComponentWrapper(_WithTracer):
                             )
                         )
                     )
-            elif "Embedder" in component_name:
+            elif component_type is ComponentType.EMBEDDER:
                 emb_len = len(response["embedding"])
                 emb_vec_0 = f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0."
 
@@ -274,7 +297,7 @@ class _ComponentWrapper(_WithTracer):
                         )
                     )
                 )
-            elif "Retriever" in component_name:
+            elif component_type is ComponentType.RETRIEVER:
                 if "documents" in response:
                     span.set_attributes(
                         dict(
@@ -304,7 +327,7 @@ class _ComponentWrapper(_WithTracer):
                             ),
                         }
                     )
-            else:
+            elif component_type in (ComponentType.UNKNOWN, ComponentType.PROMPT_BUILDER):
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -315,6 +338,9 @@ class _ComponentWrapper(_WithTracer):
                         )
                     )
                 )
+            else:
+                assert_never(component_type)
+
         return response
 
 
