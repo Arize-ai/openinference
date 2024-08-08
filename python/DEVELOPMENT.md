@@ -185,6 +185,10 @@ For your tests to be run in CI (and we also recommend running `tox` locally for 
 
 ### PyPI
 
+We use [release-please](https://github.com/googleapis/release-please) to automate our release notes and version bumps. We also use it to trigger workflows that create GitHub Releases and publish to Pypi. If you want to add a new instrumentor to release-please, follow this example [PR](https://github.com/Arize-ai/openinference/pull/820).
+
+After you add to the `release-please-config.json` file, release PRs such as [this one](https://github.com/Arize-ai/openinference/pull/651) will be created for your instrumentor. Once it is merged a [GitHub release](https://github.com/Arize-ai/openinference/releases/tag/python-openinference-instrumentation-langchain-v0.1.24) will be created and the new version of package will be available in PyPI.
+
 ### Conda-Forge
 
 In addition to distributing our software via `pypi`, we also publish to Conda.
