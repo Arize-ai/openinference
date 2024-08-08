@@ -75,7 +75,7 @@ class _ComponentWrapper(_WithTracer):
 
         with self._tracer.start_as_current_span(name=component_name) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            if "Generator" in component_name or component_name == "VertexAIImageQA":
+            if "Generator" in component_name or "VertexAIImage" in component_name:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -215,7 +215,7 @@ class _ComponentWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
 
-            if "Generator" in component_name or component_name == "VertexAIImageQA":
+            if "Generator" in component_name or "VertexAIImage" in component_name:
                 if "Chat" in component.__class__.__name__:
                     replies = response.get("replies")
                     if replies is None or len(replies) == 0:
