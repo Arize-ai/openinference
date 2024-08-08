@@ -19,8 +19,9 @@ import {
   MistralAIEmbedding,
   OllamaEmbedding,
   OpenAIEmbedding,
+  RetrieverQueryEngine,
 } from "llamaindex";
-import { isEmbedding } from "../src/utils";
+import { isEmbeddingPrototype, isRetrieverPrototype } from "../src/utils";
 import { OpenAI } from "openai";
 
 // Mocked return values
@@ -93,12 +94,12 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
     delete process.env["GOOGLE_API_KEY"];
   });
   beforeEach(() => {
-    jest.spyOn(OpenAI.Embeddings.prototype, "create").mockImplementation(
+    jest
+      .spyOn(OpenAI.Embeddings.prototype, "create")
       // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
+      .mockImplementation(async (): Promise<unknown> => {
         return EMBEDDING_RESPONSE;
-      },
-    );
+      });
 
     memoryExporter.reset();
   });
@@ -112,20 +113,26 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
     expect(isPatched()).toBe(true);
   });
 
-  it("isEmbeddings should identify embedders correctly", async () => {
-    expect(isEmbedding(new HuggingFaceEmbedding())).toEqual(true);
-    expect(isEmbedding(new GeminiEmbedding())).toEqual(true);
-    expect(isEmbedding(new MistralAIEmbedding())).toEqual(true);
-    expect(isEmbedding(new OpenAIEmbedding())).toEqual(true);
-    expect(isEmbedding(new OllamaEmbedding({ model: "test" }))).toEqual(true);
+  it("isEmbeddingPrototype should identify retriever prototypes correctly", async () => {
+    // Expect all retriever prototypes to be identified as a retriever
+    expect(isRetrieverPrototype(RetrieverQueryEngine.prototype)).toEqual(true);
 
-    expect(isEmbedding(new llamaindex.MistralAI())).toEqual(false);
-    expect(isEmbedding(llamaindex.MistralAI)).toEqual(false);
-    expect(isEmbedding(new llamaindex.Gemini())).toEqual(false);
+    // Expect a non-retriever object to be identified as such
+    expect(isRetrieverPrototype(HuggingFaceEmbedding.prototype)).toEqual(false);
+  });
 
-    expect(isEmbedding(new llamaindex.TextNode())).toEqual(false);
-    expect(isEmbedding(llamaindex.TextNode)).toEqual(false);
-    expect(isEmbedding(new llamaindex.CorrectnessEvaluator())).toEqual(false);
+  it("isEmbeddingPrototype should identify embedder prototypes correctly", async () => {
+    // Expect all embedders to be identified as embeddings
+    expect(isEmbeddingPrototype(HuggingFaceEmbedding.prototype)).toEqual(true);
+    expect(isEmbeddingPrototype(GeminiEmbedding.prototype)).toEqual(true);
+    expect(isEmbeddingPrototype(MistralAIEmbedding.prototype)).toEqual(true);
+    expect(isEmbeddingPrototype(OpenAIEmbedding.prototype)).toEqual(true);
+    expect(isEmbeddingPrototype(OllamaEmbedding.prototype)).toEqual(true);
+
+    // Expect a non-embedding object to be identified as such
+    expect(isEmbeddingPrototype({})).toEqual(false);
+    expect(isEmbeddingPrototype(null)).toEqual(false);
+    expect(isEmbeddingPrototype(undefined)).toEqual(false);
   });
 
   it("should create a span for embeddings (query)", async () => {

@@ -8,11 +8,11 @@ import {
 } from "@opentelemetry/instrumentation";
 import { diag } from "@opentelemetry/api";
 import {
-  isEmbedding,
-  isRetriever,
   patchQueryEngineQueryMethod,
   patchRetrieveMethod,
   patchQueryEmbeddingMethod,
+  isRetrieverPrototype,
+  isEmbeddingPrototype,
 } from "./utils";
 import { VERSION } from "./version";
 
@@ -78,13 +78,13 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const prototype = (value as any).prototype;
 
-      if (isRetriever(prototype)) {
+      if (isRetrieverPrototype(prototype)) {
         this._wrap(prototype, "retrieve", (original) => {
           return patchRetrieveMethod(original, this.tracer);
         });
       }
 
-      if (isEmbedding(prototype)) {
+      if (isEmbeddingPrototype(prototype)) {
         this._wrap(prototype, "getQueryEmbedding", (original) => {
           return patchQueryEmbeddingMethod(original, this.tracer);
         });
@@ -102,11 +102,11 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const prototype = (value as any).prototype;
 
-      if (isRetriever(prototype)) {
+      if (isRetrieverPrototype(prototype)) {
         this._unwrap(prototype, "retrieve");
       }
 
-      if (isEmbedding(prototype)) {
+      if (isEmbeddingPrototype(prototype)) {
         this._unwrap(prototype, "getQueryEmbedding");
       }
     }

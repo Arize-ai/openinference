@@ -82,21 +82,26 @@ function handleError(span: Span, error: Error | undefined) {
 /**
  * Checks whether the provided prototype is an instance of a `BaseRetriever`.
  *
- * @param {unknown} moduleClassPrototype - The prototype to check.
+ * @param {unknown} proto - The prototype to check.
  * @returns {boolean} Whether the prototype is a `BaseRetriever`.
  */
-export function isRetriever(cls: unknown): cls is BaseRetriever {
-  return cls != null && (cls as BaseRetriever).retrieve != null;
+export function isRetrieverPrototype(proto: unknown): proto is BaseRetriever {
+  return (
+    proto != null &&
+    typeof proto === "object" &&
+    "retrieve" in proto &&
+    typeof proto.retrieve === "function"
+  );
 }
 
 /**
  * Checks whether the provided prototype is an instance of a `BaseEmbedding`.
  *
- * @param {unknown} moduleClassPrototype - The prototype to check.
+ * @param {unknown} proto - The prototype to check.
  * @returns {boolean} Whether the prototype is a `BaseEmbedding`.
  */
-export function isEmbedding(cls: unknown): cls is BaseEmbedding {
-  return cls != null && cls instanceof BaseEmbedding;
+export function isEmbeddingPrototype(proto: unknown): proto is BaseEmbedding {
+  return proto != null && proto instanceof BaseEmbedding;
 }
 
 /**
@@ -293,8 +298,9 @@ export function patchQueryEmbeddingMethod(
     });
 
     const wrappedPromise = execPromise.then((result) => {
+      const [query] = args;
       span.setAttributes(
-        getQueryEmbeddingAttributes({ input: args[0], output: result }),
+        getQueryEmbeddingAttributes({ input: query, output: result }),
       );
       span.end();
       return result;
