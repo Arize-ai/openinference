@@ -19,7 +19,7 @@ import { VERSION } from "./version";
 import {
   SemanticConventions,
   OpenInferenceSpanKind,
-  MimeType, MESSAGE_CONTENTS
+  MimeType,
 } from "@arizeai/openinference-semantic-conventions";
 import {
   ChatCompletion,
@@ -27,7 +27,6 @@ import {
   ChatCompletionCreateParamsBase,
   ChatCompletionMessage,
   ChatCompletionMessageParam,
-  ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
 import { CompletionCreateParamsBase } from "openai/resources/completions";
 import { Stream } from "openai/streaming";
