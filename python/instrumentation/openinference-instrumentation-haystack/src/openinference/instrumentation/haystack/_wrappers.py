@@ -1,5 +1,5 @@
 from abc import ABC
-from enum import Enum
+from enum import Enum, auto
 from typing import Any, Callable, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
@@ -13,6 +13,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
+from typing_extensions import assert_never
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -30,6 +31,26 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
+
+
+class ComponentType(Enum):
+    GENERATOR = auto()
+    EMBEDDER = auto()
+    RETRIEVER = auto()
+    PROMPT_BUILDER = auto()
+    UNKNOWN = auto()
+
+
+def get_component_type(component_name: str) -> ComponentType:
+    if "Generator" in component_name or "VertexAIImage" in component_name:
+        return ComponentType.GENERATOR
+    elif "Embedder" in component_name:
+        return ComponentType.EMBEDDER
+    elif "Retriever" in component_name:
+        return ComponentType.RETRIEVER
+    elif "PromptBuilder" in component_name:
+        return ComponentType.PROMPT_BUILDER
+    return ComponentType.UNKNOWN
 
 
 class _WithTracer(ABC):
@@ -55,14 +76,16 @@ class _ComponentWrapper(_WithTracer):
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        component_type = args[0]
-        input_data = args[1]
-
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        component_type = args[0]
+        input_data = args[1]
+
         # Diving into the instance to retrieve the Component instance
         component = instance.graph.nodes._nodes[component_type]["instance"]
+
+        component_name = component.__class__.__name__
 
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
@@ -71,9 +94,9 @@ class _ComponentWrapper(_WithTracer):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
 
-        with self._tracer.start_as_current_span(name=component.__class__.__name__) as span:
+        with self._tracer.start_as_current_span(name=component_name) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            if component_type == "llm":
+            if (component_type := get_component_type(component_name)) is ComponentType.GENERATOR:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -104,7 +127,7 @@ class _ComponentWrapper(_WithTracer):
                             ]._template_string,
                         )
 
-            elif component_type == "text_embedder":
+            elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -117,7 +140,7 @@ class _ComponentWrapper(_WithTracer):
                         )
                     )
                 )
-            elif component_type == "retriever":
+            elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -128,22 +151,18 @@ class _ComponentWrapper(_WithTracer):
                     )
                 )
                 if "query_embedding" in input_data:
+                    emb_len = len(input_data["query_embedding"])
                     span.set_attributes(
                         dict(
                             _flatten(
                                 {
-                                    SpanAttributes.INPUT_MIME_TYPE: JSON,
-                                    SpanAttributes.INPUT_VALUE: safe_json_dumps(
-                                        {
-                                            "dimensions": len(input_data["query_embedding"]),
-                                            "embedding": input_data["query_embedding"],
-                                        }
-                                    ),
+                                    SpanAttributes.INPUT_MIME_TYPE: TEXT,
+                                    SpanAttributes.INPUT_VALUE: f"<{emb_len} dimensional vector>",
                                 }
                             )
                         )
                     )
-                if "query" in input_data:
+                elif "query" in input_data:
                     span.set_attributes(
                         dict(
                             _flatten(
@@ -154,7 +173,7 @@ class _ComponentWrapper(_WithTracer):
                             )
                         )
                     )
-            elif component_type == "prompt_builder":
+            elif component_type is ComponentType.PROMPT_BUILDER:
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -166,7 +185,7 @@ class _ComponentWrapper(_WithTracer):
                         )
                     )
                 )
-                if "ChatPromptBuilder" in str(instance):
+                if "ChatPromptBuilder" in component_name:
                     temp_vars = safe_json_dumps(input_data["template_variables"])
                     msg_conts = [m.content for m in input_data["template"]]
                     span.set_attributes(
@@ -196,6 +215,20 @@ class _ComponentWrapper(_WithTracer):
                             )
                         )
                     )
+            elif component_type is ComponentType.UNKNOWN:
+                span.set_attributes(
+                    dict(
+                        _flatten(
+                            {
+                                SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
+                                SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            }
+                        )
+                    )
+                )
+            else:
+                assert_never(component_type)
 
             try:
                 response = wrapped(*args, **kwargs)
@@ -205,7 +238,7 @@ class _ComponentWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
 
-            if component_type == "llm":
+            if component_type is ComponentType.GENERATOR:
                 if "Chat" in component.__class__.__name__:
                     replies = response.get("replies")
                     if replies is None or len(replies) == 0:
@@ -217,8 +250,7 @@ class _ComponentWrapper(_WithTracer):
                             dict(
                                 _flatten(
                                     {
-                                        SpanAttributes.OUTPUT_VALUE: response["replies"][0].content,
-                                        SpanAttributes.OUTPUT_MIME_TYPE: TEXT,
+                                        SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"],
                                         SpanAttributes.LLM_MODEL_NAME: reply.meta["model"],
                                         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: usage[
                                             "completion_tokens"
@@ -246,13 +278,12 @@ class _ComponentWrapper(_WithTracer):
                                     SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response["meta"][0][
                                         "usage"
                                     ]["total_tokens"],
-                                    SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"][0],
-                                    SpanAttributes.OUTPUT_MIME_TYPE: TEXT,
+                                    SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"],
                                 }
                             )
                         )
                     )
-            elif component_type == "text_embedder":
+            elif component_type is ComponentType.EMBEDDER:
                 emb_len = len(response["embedding"])
                 emb_vec_0 = f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0."
 
@@ -266,7 +297,7 @@ class _ComponentWrapper(_WithTracer):
                         )
                     )
                 )
-            elif component_type == "retriever":
+            elif component_type is ComponentType.RETRIEVER:
                 if "documents" in response:
                     span.set_attributes(
                         dict(
@@ -296,6 +327,20 @@ class _ComponentWrapper(_WithTracer):
                             ),
                         }
                     )
+            elif component_type in (ComponentType.UNKNOWN, ComponentType.PROMPT_BUILDER):
+                span.set_attributes(
+                    dict(
+                        _flatten(
+                            {
+                                SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response),
+                                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            }
+                        )
+                    )
+                )
+            else:
+                assert_never(component_type)
+
         return response
 
 
@@ -342,6 +387,16 @@ class _PipelineWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response),
+                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                        }
+                    )
+                )
+            )
             span.set_status(trace_api.StatusCode.OK)
 
         return response
