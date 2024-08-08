@@ -1,18 +1,17 @@
+from datasets import load_dataset
+from haystack import Document, Pipeline
+from haystack.components.builders import PromptBuilder
+from haystack.components.embedders import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
+from haystack.components.generators import OpenAIGenerator
+from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from openinference.instrumentation.haystack import HaystackInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from datasets import load_dataset
-from haystack import Document
-from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder
-from haystack.components.embedders import SentenceTransformersTextEmbedder
-from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
-from haystack.components.builders import PromptBuilder
-from haystack import Pipeline
-from haystack.components.generators import OpenAIGenerator
-
-
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
@@ -66,6 +65,8 @@ basic_rag_pipeline.connect("prompt_builder", "llm")
 
 question = "What does Rhodes Statue look like?"
 
-response = basic_rag_pipeline.run({"text_embedder": {"text": question}, "prompt_builder": {"question": question}})
+response = basic_rag_pipeline.run(
+    {"text_embedder": {"text": question}, "prompt_builder": {"question": question}}
+)
 
 print(response["llm"]["replies"][0])
