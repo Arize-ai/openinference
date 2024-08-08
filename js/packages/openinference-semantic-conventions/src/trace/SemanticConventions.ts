@@ -385,6 +385,7 @@ export const TAG_TAGS =
   `${SemanticAttributePrefixes.tag}.${TagAttributePostfixes.tags}` as const;
 
 export const SemanticConventions = {
+  IMAGE_URL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
   OUTPUT_VALUE,
@@ -405,6 +406,10 @@ export const SemanticConventions = {
   MESSAGE_FUNCTION_CALL_NAME,
   MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON,
   MESSAGE_CONTENT,
+  MESSAGE_CONTENTS,
+  MESSAGE_CONTENT_IMAGE,
+  MESSAGE_CONTENT_TEXT,
+  MESSAGE_CONTENT_TYPE,
   DOCUMENT_ID,
   DOCUMENT_CONTENT,
   DOCUMENT_SCORE,
