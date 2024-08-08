@@ -207,8 +207,6 @@ describe("LlamaIndexInstrumentation", () => {
   });
 
   it("should create a span for query engines", async () => {
-    jest.requireMock("llamaindex");
-
     // Create Document object with essay
     const document = new Document({ text: "lorem ipsum" });
 
