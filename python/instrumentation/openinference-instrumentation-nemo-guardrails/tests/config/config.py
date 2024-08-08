@@ -180,6 +180,8 @@ DEFAULT_FEW_SHOT_TRAIN_PROMPTS = [
     ""&lt;PROMPT_HERE&gt;""",
 ]
 
+DEFAULT_DATASET_ID = 123
+
 def get_chunks_from_text(
     text: str, chunk_strategy: str, chunk_size: int, chunk_overlap: int
 ):

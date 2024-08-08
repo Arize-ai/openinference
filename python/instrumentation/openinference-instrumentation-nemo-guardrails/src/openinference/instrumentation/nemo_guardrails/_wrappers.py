@@ -90,7 +90,7 @@ class _WithTracer(ABC):
 
 
 class _ExecuteActionWrapper(_WithTracer):
-    def __call__(
+    async def __call__(
         self,
         wrapped: Callable[..., Any],
         instance: Any,
@@ -121,7 +121,7 @@ class _ExecuteActionWrapper(_WithTracer):
             ),
         ) as span:
             try:
-                response = wrapped(*args, **kwargs)
+                response = await wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)

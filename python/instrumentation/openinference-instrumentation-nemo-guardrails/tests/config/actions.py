@@ -6,6 +6,9 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 
 from nemoguardrails.actions import action
 from nemoguardrails.llm.taskmanager import LLMTaskManager
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
 
 log = logging.getLogger(__name__)
 
@@ -74,19 +77,22 @@ async def dataset_embeddings(
 
     :return: PassResult or FailResult.
     """
-    # Get user message if available explicitly as metadata. If unavailable, use value. This could be
-    # the context, prompt or LLM output, depending on how the Guard is set up and called.
-    user_message = context.get("user_message")
-    
-    # Get closest chunk in the embedded few shot examples of jailbreak prompts.
-    # Get cosine distance between the embedding of the user message and the closest embedded jailbreak prompts chunk.
-    lowest_distance = query_vector_collection(text=user_message, k=1, source_embeddings=source_embeddings)[0]
-    
-    # (TODO) HARRISON FIX THIS!!!!!!!
-    if lowest_distance < 0.2:
-        print("TOO SIMILAR {}".format(lowest_distance))
-        # At least one jailbreak embedding chunk was within the cosine distance threshold from the user input embedding
-        return True
-    # All chunks exceeded the cosine distance threshold
-    print("NOT SIMILAR {}".format(lowest_distance))
-    return False
+    with tracer.start_as_current_span("dataset_embeddings") as span:
+        # Get user message if available explicitly as metadata. If unavailable, use value. This could be
+        # the context, prompt or LLM output, depending on how the Guard is set up and called.
+        user_message = context.get("user_message")
+
+        # Get closest chunk in the embedded few shot examples of jailbreak prompts.
+        # Get cosine distance between the embedding of the user message and the closest embedded jailbreak prompts chunk.
+        lowest_distance = query_vector_collection(text=user_message, k=1, source_embeddings=source_embeddings)[0]
+
+        # (TODO) HARRISON FIX THIS!!!!!!!
+        if lowest_distance < 0.2:
+            print("TOO SIMILAR FRED {}".format(lowest_distance))
+            span.set_attribute("result", "true")
+            # At least one jailbreak embedding chunk was within the cosine distance threshold from the user input embedding
+            return True
+        # All chunks exceeded the cosine distance threshold
+        print("NOT SIMILAR {}".format(lowest_distance))
+        span.set_attribute("result", "false")
+        return False
