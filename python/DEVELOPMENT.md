@@ -14,6 +14,7 @@
       - [Setup Dependencies](#setup-dependencies)
       - [Setup `tox`](#setup-tox)
 - [Publishing](#publishing)
+  - [PyPI](#pypi)
   - [Conda-Forge](#conda-forge)
     - [Creating a New Conda Feedstock](#creating-a-new-conda-feedstock)
     - [Updating the Conda Feedstock](#updating-the-conda-feedstock)
@@ -146,6 +147,30 @@ Check our current instrumentors for more examples and details.
 
 ##### Tracing Configuration
 
+Every instrumentor must be reactive to the `TraceConfig` class, which lets you specify a tracing configuration that allows you control settings like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
+
+In addition, you an also use environment variables, read more [here](../../spec/configuration.md). You can check the implementation of the `TraceConfig` class [here](https://github.com/Arize-ai/openinference/blob/main/python/openinference-instrumentation/src/openinference/instrumentation/config.py).
+
+To make your instrumentor sensitive to this configuration, our core `openinference-package` offers a `OITracer` wrapper to the OTEL `Tracer`. Hence, it suffices to do the following on your `_instrument()` method:
+
+```python
+from openinference.instrumentation import OITracer, TraceConfig
+def _instrument(self, **kwargs: Any) -> None:
+    if not (tracer_provider := kwargs.get("tracer_provider")):
+        tracer_provider = trace_api.get_tracer_provider()
+    if not (config := kwargs.get("config")):
+        config = TraceConfig()
+    else:
+        assert isinstance(config, TraceConfig)
+    tracer = OITracer(
+        trace_api.get_tracer(__name__, __version__, tracer_provider),
+        config=config,
+    )
+    # ...
+```
+
+With the above pattern, every span created will be senstive to this configuration and have field masked, if appropriate given the configuration specified.
+
 #### Setup Testing
 
 ##### Setup Dependencies
@@ -153,6 +178,8 @@ Check our current instrumentors for more examples and details.
 ##### Setup `tox`
 
 ## Publishing
+
+### PyPI
 
 ### Conda-Forge
 

@@ -58,7 +58,7 @@ You can read more about this in our [docs](https://docs.arize.com/phoenix/tracin
 
 ## Tracing Configuration
 
-This package contains the central `TraceConfig` class, which lets you specify a tracing configuration that lets you control settings like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
+This package contains the central `TraceConfig` class, which lets you specify a tracing configuration that allows you control settings like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
 
 In addition, you an also use environment variables, read more [here](../../spec/configuration.md). The following is an example of using the `TraceConfig` object:
 
