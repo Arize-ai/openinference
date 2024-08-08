@@ -1,0 +1,25 @@
+define bot refuse to respond
+  "Julia I'm sorry, I can't respond to that. "
+
+define bot flag jailbreak
+  "FLAG JAILBREAK This violates my jailbreak detection heuristics. "
+
+define bot flag vanilla
+  "FLAG VANILLA This does not violate my jailbreak detection heuristics. "  
+
+define bot flag badinput
+  "FLAG BAD INPUT This violates my self check input. "
+
+define bot flag goodinput
+  "FLAG GOOD INPUT this input does not violate my self check input. "
+
+define flow dataset embeddings
+  $is_jailbreak = execute dataset_embeddings
+  if $is_jailbreak
+    bot flag jailbreak
+  if not $is_jailbreak
+    bot flag vanilla
+
+  if not $is_jailbreak
+    bot refuse to respond
+    stop
