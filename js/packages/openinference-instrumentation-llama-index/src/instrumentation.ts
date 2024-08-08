@@ -64,6 +64,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     }
 
     // TODO: Support streaming
+    // TODO: Generalize to QueryEngine interface (RetrieverQueryEngine, RouterQueryEngine)
     this._wrap(
       moduleExports.RetrieverQueryEngine.prototype,
       "query",

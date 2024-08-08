@@ -28,7 +28,7 @@ import {
 import { BaseEmbedding, BaseRetriever } from "llamaindex";
 
 /**
- * Checks if the given class prototype is a retriever.
+ * Checks if the given class instance prototype is a retriever class.
  *
  * Determines whether the provided prototype is an instance of a `BaseRetriever`
  * by checking if the `retrieve` method exists on the prototype.
@@ -36,16 +36,12 @@ import { BaseEmbedding, BaseRetriever } from "llamaindex";
  * @param {unknown} moduleClassPrototype - The prototype to check.
  * @returns {boolean} Whether the prototype is a `BaseRetriever`.
  */
-export function isRetriever(
-  moduleClassPrototype: unknown,
-): moduleClassPrototype is BaseRetriever {
-  return (
-    !!moduleClassPrototype && !!(moduleClassPrototype as BaseRetriever).retrieve
-  );
+export function isRetriever(cls: unknown): cls is BaseRetriever {
+  return cls != null && (cls as BaseRetriever).retrieve != null;
 }
 
 /**
- * Checks if the given class prototype is an embedding.
+ * Checks if the given class instance prototype is an embedding class.
  *
  * Determines whether the provided prototype is an instance of a `BaseEmbedding`
  * by checking if it is an instance of `BaseEmbedding` and if the `getQueryEmbedding`
@@ -54,20 +50,14 @@ export function isRetriever(
  * @param {unknown} moduleClassPrototype - The prototype to check.
  * @returns {boolean} Whether the prototype is a `BaseEmbedding`.
  */
-export function isEmbedding(
-  moduleClassPrototype: unknown,
-): moduleClassPrototype is BaseEmbedding {
-  return (
-    !!moduleClassPrototype &&
-    moduleClassPrototype instanceof BaseEmbedding &&
-    !!(moduleClassPrototype as BaseEmbedding).getQueryEmbedding
-  );
+export function isEmbedding(cls: unknown): cls is BaseEmbedding {
+  return cls != null && cls instanceof BaseEmbedding;
 }
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.
- * @param fn - A function to wrap with a try-catch block.
- * @returns A function that returns null if an error is thrown.
+ * @param {T} fn - A function to wrap with a try-catch block.
+ * @returns {SafeFunction<T>} A function that returns null if an error is thrown.
  */
 export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
   return (...args) => {
@@ -82,9 +72,10 @@ export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
 const safelyJSONStringify = withSafety(JSON.stringify);
 
 /**
- * Resolves the execution context for the current span
- * If tracing is suppressed, the span is dropped and the current context is returned
- * @param span
+ * Resolves the execution context for the current span.
+ * If tracing is suppressed, the span is dropped and the current context is returned.
+ * @param {Span} span - Tracer span
+ * @returns {Context} An execution context.
  */
 function getExecContext(span: Span) {
   const activeContext = context.active();
@@ -115,6 +106,13 @@ function handleError(span: Span, error: Error | undefined) {
   }
 }
 
+/**
+ * Extracts document attributes from an array of nodes with scores and returns extracted
+ * attributes in an Attributes object.
+ *
+ * @param {llamaindex.NodeWithScore<llamaindex.Metadata>[]} output - Array of nodes.
+ * @returns {Attributes} The extracted document attributes.
+ */
 function getDocumentAttributes(
   output: llamaindex.NodeWithScore<llamaindex.Metadata>[],
 ) {
@@ -133,10 +131,20 @@ function getDocumentAttributes(
   return docs;
 }
 
+/**
+ * Extracts embedding information (input text and the output embedding vector),
+ * and constructs an Attributes object with the relevant semantic conventions
+ * for embeddings.
+ *
+ * @param {Object} embedInfo - The embedding information.
+ * @param {string} embedInfo.input - The input text for the embedding.
+ * @param {number[]} embedInfo.output - The output embedding vector.
+ * @returns {Attributes} The constructed embedding attributes.
+ */
 function getQueryEmbeddingAttributes(embedInfo: {
   input: string;
   output: number[];
-}) {
+}): Attributes {
   return {
     [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
       embedInfo.input,
@@ -145,17 +153,32 @@ function getQueryEmbeddingAttributes(embedInfo: {
   };
 }
 
-function hasModel(moduleClass: unknown): moduleClass is ObjectWithModel {
-  const ObjectWithModelMaybe = moduleClass as ObjectWithModel;
+/**
+ * Checks if the provided class has a `model` property of type string
+ * as a class property.
+ *
+ * @param {unknown} cls - The class to check.
+ * @returns {boolean} Whether the object has a `model` property.
+ */
+function hasModel(cls: unknown): cls is ObjectWithModel {
+  const objectWithModelMaybe = cls as ObjectWithModel;
   return (
-    "model" in ObjectWithModelMaybe &&
-    typeof ObjectWithModelMaybe.model === "string"
+    "model" in objectWithModelMaybe &&
+    typeof objectWithModelMaybe.model === "string"
   );
 }
 
-function getModelName(moduleClass: unknown) {
-  if (hasModel(moduleClass)) {
-    return moduleClass.model;
+/**
+ * Retrieves the value of the `model` property if the provided class
+ * implements it; otherwise, it returns undefined.
+ *
+ * @param {unknown} cls - The class to retrieve the model name from.
+ * @returns {string | undefined} The model name, or undefined if the class
+ * does not have a `model` property.
+ */
+function getModelName(cls: unknown) {
+  if (hasModel(cls)) {
+    return cls.model;
   }
 }
 
