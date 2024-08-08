@@ -9,6 +9,7 @@ from openinference.semconv.trace import (
     EmbeddingAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
+    MessageAttributes,
     SpanAttributes,
 )
 from opentelemetry import trace as trace_api
@@ -126,6 +127,13 @@ class _ComponentWrapper(_WithTracer):
                                 "instance"
                             ]._template_string,
                         )
+                for i, msg in enumerate(input_data["messages"]):
+                    span.set_attributes(
+                        {
+                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}": msg.content,
+                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}": msg.role,
+                        }
+                    )
 
             elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(
@@ -250,7 +258,8 @@ class _ComponentWrapper(_WithTracer):
                             dict(
                                 _flatten(
                                     {
-                                        SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"],
+                                        SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response),
+                                        SpanAttributes.OUTPUT_MIME_TYPE: JSON,
                                         SpanAttributes.LLM_MODEL_NAME: reply.meta["model"],
                                         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: usage[
                                             "completion_tokens"
@@ -282,6 +291,13 @@ class _ComponentWrapper(_WithTracer):
                                 }
                             )
                         )
+                    )
+                for i, reply in enumerate(response["replies"]):
+                    span.set_attributes(
+                        {
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}": reply.content,
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}": reply.role,
+                        }
                     )
             elif component_type is ComponentType.EMBEDDER:
                 emb_len = len(response["embedding"])
