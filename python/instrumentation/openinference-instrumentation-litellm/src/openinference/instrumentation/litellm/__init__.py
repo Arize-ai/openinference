@@ -109,7 +109,6 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
             )
     elif isinstance(result, ImageResponse):
         if len(result.data) > 0:
-            print(result.data)
             if img_data := result.data[0]:
                 if isinstance(img_data, Image) and (url := img_data.url):
                     _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
