@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
 
-const PHOENIX_REST_ENDPOINT =
-  process.env.PHOENIX_REST_ENDPOINT || "http://localhost:6006/v1";
+const PHOENIX_API_ENDPOINT =
+  process.env.PHOENIX_API_ENDPOINT || "http://localhost:6006";
 
-const SPAN_ANNOTATIONS_ENDPOINT = `${PHOENIX_REST_ENDPOINT}/span_annotations`;
+const SPAN_ANNOTATIONS_ENDPOINT = `${PHOENIX_API_ENDPOINT}/v1/span_annotations`;
 
 export const feedback = async (req: Request, res: Response) => {
   const { spanId, feedbackScore } = req.body;

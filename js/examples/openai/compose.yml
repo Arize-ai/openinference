@@ -1,6 +1,6 @@
 services:
   phoenix:
-    image: arizephoenix/phoenix:nightly
+    image: arizephoenix/phoenix:version-4.22.0
     ports:
       - "6006:6006"
   backend:
@@ -10,7 +10,7 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
-      - PHOENIX_REST_ENDPOINT=http://phoenix:6006/v1
+      - PHOENIX_API_ENDPOINT=http://phoenix:6006
       - PROD_CORS_ORIGIN=http://localhost:3000
     healthcheck:
       test: ["CMD", "wget", "--spider", "http://localhost:8000"]

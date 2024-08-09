@@ -7,11 +7,13 @@ export interface Message {
   id: string;
   content: string;
   role: string;
+  feedback?: number;
   spanId?: string;
 }
 
 export default function ChatMessages({
   messages,
+  handleFeedback,
   // eslint-disable-next-line
   isLoading,
   // eslint-disable-next-line
@@ -20,6 +22,7 @@ export default function ChatMessages({
   stop,
 }: {
   messages: Message[];
+  handleFeedback: (messageId: string, feedbackScore: number) => void;
   isLoading?: boolean;
   stop?: () => void;
   reload?: () => void;
@@ -44,7 +47,7 @@ export default function ChatMessages({
         ref={scrollableChatContainerRef}
       >
         {messages.map((m: Message) => (
-          <ChatItem key={m.id} {...m} />
+          <ChatItem key={m.id} message={m} handleFeedback={handleFeedback} />
         ))}
       </div>
     </div>

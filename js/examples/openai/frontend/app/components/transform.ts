@@ -6,6 +6,15 @@ export const isValidMessageData = (rawData: JSONValue | undefined) => {
   return true;
 };
 
+/**
+ * Messages streamed back from the server may contain annotations.
+ * These provide additional context about the message, such as the span ID.
+ * These annotations are a next.js construct and do not relate to span annotations.
+ * Here we extract the span ID associated with the message from the message annotations.
+ * This allows us to associate feedback with the correct message.
+ * @param annotations
+ * @returns
+ */
 const getSpanIdFromAnnotations = (annotations?: JSONValue[]) => {
   if (!annotations) return;
   for (const annotation of annotations) {
@@ -20,24 +29,19 @@ const getSpanIdFromAnnotations = (annotations?: JSONValue[]) => {
   }
 };
 
-export const formatMessages = (messages: Message[]) =>
+export const formatMessages = ({
+  messages,
+  messageIdToFeedbackMap,
+}: {
+  messages: Message[];
+  messageIdToFeedbackMap: Record<string, number>;
+}) =>
   messages.map((message) => {
     return {
       id: message.id,
       content: message.content,
       role: message.role,
       spanId: getSpanIdFromAnnotations(message.annotations),
+      feedback: messageIdToFeedbackMap[message.id],
     };
   });
-
-export const insertDataIntoMessages = (
-  messages: Message[],
-  data: JSONValue[] | undefined,
-) => {
-  if (!data) return messages;
-  messages.forEach((message, i) => {
-    const rawData = data[i];
-    if (isValidMessageData(rawData)) message.data = rawData;
-  });
-  return messages;
-};

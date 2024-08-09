@@ -1,8 +1,15 @@
 "use client";
 
-import { ButtonHTMLAttributes, useCallback, useEffect, useState } from "react";
+import {
+  ButtonHTMLAttributes,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import ChatAvatar from "./chat-avatar";
 import { Message } from "./chat-messages";
+import { ThumbsDown, ThumbsUp } from "../icons";
 
 function FeedbackButton({
   onClick,
@@ -10,7 +17,7 @@ function FeedbackButton({
   ...buttonProps
 }: {
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
@@ -51,7 +58,13 @@ const FeedbackNotification = ({
   );
 };
 
-export default function ChatItem(message: Message) {
+export default function ChatItem({
+  message,
+  handleFeedback,
+}: {
+  message: Message;
+  handleFeedback: (messageId: string, feedbackScore: number) => void;
+}) {
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [notification, setNotification] = useState<{
     message: string;
@@ -85,11 +98,12 @@ export default function ChatItem(message: Message) {
             message: "Feedback sent successfully",
             variant: "success",
           });
+          handleFeedback(message.id, feedbackScore);
         }
       }
       setIsSubmittingFeedback(false);
     },
-    [isSubmittingFeedback, message.spanId],
+    [handleFeedback, isSubmittingFeedback, message.id, message.spanId],
   );
 
   return (
@@ -104,13 +118,13 @@ export default function ChatItem(message: Message) {
             onClick={() => onFeedbackClick(1)}
             disabled={isSubmittingFeedback}
           >
-            👍
+            <ThumbsUp filled={message.feedback === 1} />
           </FeedbackButton>
           <FeedbackButton
             onClick={() => onFeedbackClick(0)}
             disabled={isSubmittingFeedback}
           >
-            👎
+            <ThumbsDown filled={message.feedback === 0} />
           </FeedbackButton>
         </div>
       )}
