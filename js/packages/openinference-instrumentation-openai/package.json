@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-openai",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "OpenInference instrumentation for OpenAI",
   "private": false,
   "main": "dist/src/index.js",
