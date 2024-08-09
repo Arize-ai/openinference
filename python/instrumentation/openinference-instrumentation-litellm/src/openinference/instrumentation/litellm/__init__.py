@@ -1,6 +1,6 @@
 import json
 from functools import wraps
-from typing import Any, Callable, Collection, Dict, List
+from typing import Any, Callable, Collection, Dict, Awaitable
 
 from openinference.instrumentation import (
     OITracer,
@@ -16,11 +16,12 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor # type: ignore
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.util.types import AttributeValue
 
-import litellm # type: ignore [import-not-found]
-
+import litellm
+from litellm.types.utils import EmbeddingResponse, ImageResponse, ModelResponse
+from openai.types.image import Image
 
 # Helper functions to set span attributes
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
@@ -28,7 +29,7 @@ def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) 
         span.set_attribute(name, value)
 
 
-def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any]) -> None: 
+def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
     """
     Currently instruments the functions:
         litellm.completion()
@@ -42,9 +43,7 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
     _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, kwargs.get("model", "unknown_model"))
 
     if messages := kwargs.get("messages"):
-        _set_span_attribute(
-            span, SpanAttributes.INPUT_VALUE, str(messages[0].get("content"))
-        )
+        _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(messages[0].get("content")))
         for i, obj in enumerate(messages):
             for key, value in obj.items():
                 _set_span_attribute(span, f"input.messages.{i}.{key}", value)
@@ -69,7 +68,7 @@ def _instrument_func_type_embedding(span: trace_api.Span, kwargs: Dict[str, Any]
     _set_span_attribute(
         span, SpanAttributes.EMBEDDING_MODEL_NAME, kwargs.get("model", "unknown_model")
     )
-    _set_span_attribute(span, EmbeddingAttributes.EMBEDDING_TEXT, str(kwargs.get("input")))  
+    _set_span_attribute(span, EmbeddingAttributes.EMBEDDING_TEXT, str(kwargs.get("input")))
     _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("input")))
 
 
@@ -89,20 +88,27 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
 
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
-    if isinstance(result, litellm.ModelResponse):
-        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, result.choices[0].message.content)
-    elif isinstance(result, litellm.EmbeddingResponse):
-        if len(result.data) > 0:
-            first_embedding = result.data[0]
+    if isinstance(result, ModelResponse):
+        if output := result.choices[0].message.content:
+            _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
+    elif isinstance(result, EmbeddingResponse):
+        if result_data := result.data:
+            first_embedding = result_data[0]
             _set_span_attribute(
                 span,
                 EmbeddingAttributes.EMBEDDING_VECTOR,
                 json.dumps(first_embedding.get("embedding", [])),
             )
-    elif isinstance(result, litellm.ImageResponse):
+    elif isinstance(result, ImageResponse):
         if len(result.data) > 0:
-            _set_span_attribute(span, ImageAttributes.IMAGE_URL, result.data[0]["url"])
-            _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, result.data[0]["url"])
+            print(result.data)
+            if (img_data := result.data[0]):
+                if isinstance(img_data, Image) and (url := img_data.url):
+                    _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
+                    _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
+                elif isinstance(img_data, dict) and (url := img_data.get('url')):
+                    _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
+                    _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
     if hasattr(result, "usage"):
         _set_span_attribute(
             span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, result.usage["prompt_tokens"]
@@ -115,7 +121,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         )
 
 
-class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
+class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
     original_litellm_funcs: Dict[
         str, Callable[..., Any]
     ] = {}  # Dictionary for original uninstrumented liteLLM functions
@@ -164,7 +170,7 @@ class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
         self.original_litellm_funcs.clear()
 
     @wraps(litellm.completion)
-    def _completion_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ModelResponse:
+    def _completion_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
         with self._tracer.start_as_current_span(
             name="completion", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -174,7 +180,7 @@ class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
         return result
 
     @wraps(litellm.acompletion)
-    async def _acompletion_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ModelResponse:
+    async def _acompletion_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
         with self._tracer.start_as_current_span(
             name="acompletion", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -184,7 +190,7 @@ class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
         return result
 
     @wraps(litellm.completion_with_retries)
-    def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ModelResponse:
+    def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
         with self._tracer.start_as_current_span(
             name="completion_with_retries", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -194,9 +200,7 @@ class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
         return result
 
     @wraps(litellm.acompletion_with_retries)
-    async def _acompletion_with_retries_wrapper(
-        self, *args: Any, **kwargs: Any
-    ) -> litellm.ModelResponse:
+    async def _acompletion_with_retries_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
         with self._tracer.start_as_current_span(
             name="acompletion_with_retries", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -206,7 +210,7 @@ class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
         return result
 
     @wraps(litellm.embedding)
-    def _embedding_wrapper(self, *args: Any, **kwargs: Any) -> litellm.EmbeddingResponse:
+    def _embedding_wrapper(self, *args: Any, **kwargs: Any) -> EmbeddingResponse:
         with self._tracer.start_as_current_span(
             name="embedding", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -216,7 +220,7 @@ class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
         return result
 
     @wraps(litellm.aembedding)
-    async def _aembedding_wrapper(self, *args: Any, **kwargs: Any) -> litellm.EmbeddingResponse:
+    async def _aembedding_wrapper(self, *args: Any, **kwargs: Any) -> EmbeddingResponse:
         with self._tracer.start_as_current_span(
             name="aembedding", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -226,7 +230,7 @@ class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
         return result
 
     @wraps(litellm.image_generation)
-    def _image_generation_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ImageResponse:
+    def _image_generation_wrapper(self, *args: Any, **kwargs: Any) -> ImageResponse:
         with self._tracer.start_as_current_span(
             name="image_generation", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -236,7 +240,7 @@ class LiteLLMInstrumentor(BaseInstrumentor): # type: ignore
         return result
 
     @wraps(litellm.aimage_generation)
-    async def _aimage_generation_wrapper(self, *args: Any, **kwargs: Any) -> litellm.ImageResponse:
+    async def _aimage_generation_wrapper(self, *args: Any, **kwargs: Any) -> ImageResponse:
         with self._tracer.start_as_current_span(
             name="aimage_generation", attributes=dict(get_attributes_from_context())
         ) as span:

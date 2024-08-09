@@ -39,6 +39,7 @@ test = [
   "litellm",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
+  "tenacity",
 ]
 
 [project.urls]

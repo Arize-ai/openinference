@@ -1,10 +1,11 @@
 import json
-from typing import Any, Dict, Generator, List, Mapping, cast
+from typing import Any, Dict, List, Mapping, cast
 from unittest.mock import patch
 
-import litellm # type: ignore [import-not-found]
+import litellm
 import pytest
-from litellm.llms.openai import OpenAIChatCompletion # type: ignore [import-not-found]
+from litellm.llms.openai import OpenAIChatCompletion
+from litellm.types.utils import EmbeddingResponse, ImageResponse
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import (
@@ -12,7 +13,6 @@ from openinference.semconv.trace import (
     ImageAttributes,
     SpanAttributes,
 )
-from opentelemetry import trace as trace_api
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -34,7 +34,9 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
 
 
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter) -> None:
+def test_oitracer(
+    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
     assert isinstance(LiteLLMInstrumentor()._tracer, OITracer)
@@ -275,13 +277,13 @@ def test_completion_with_retries(
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         ):
-            litellm.completion_with_retries(
+            litellm.completion_with_retries( # type: ignore [no-untyped-call]
                 model="gpt-3.5-turbo",
                 messages=[{"content": "What's the capital of China?", "role": "user"}],
                 mock_response="Beijing",
             )
     else:
-        litellm.completion_with_retries(
+        litellm.completion_with_retries( # type: ignore [no-untyped-call]
             model="gpt-3.5-turbo",
             messages=[{"content": "What's the capital of China?", "role": "user"}],
             mock_response="Beijing",
@@ -355,7 +357,7 @@ def test_embedding(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    mock_response_embedding = litellm.EmbeddingResponse(
+    mock_response_embedding = EmbeddingResponse(
         model="text-embedding-ada-002",
         data=[{"embedding": [0.1, 0.2, 0.3], "index": 0, "object": "embedding"}],
         object="list",
@@ -422,7 +424,7 @@ async def test_aembedding(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    mock_response_embedding = litellm.EmbeddingResponse(
+    mock_response_embedding = EmbeddingResponse(
         model="text-embedding-ada-002",
         data=[{"embedding": [0.1, 0.2, 0.3], "index": 0, "object": "embedding"}],
         object="list",
@@ -492,7 +494,7 @@ def test_image_generation(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    mock_response_image_gen = litellm.ImageResponse(
+    mock_response_image_gen = ImageResponse(
         created=1722359754,
         data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
     )
@@ -562,7 +564,7 @@ async def test_aimage_generation(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    mock_response_image_gen = litellm.ImageResponse(
+    mock_response_image_gen = ImageResponse(
         created=1722359754,
         data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
     )
