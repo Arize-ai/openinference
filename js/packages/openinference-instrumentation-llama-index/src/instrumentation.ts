@@ -8,11 +8,13 @@ import {
 } from "@opentelemetry/instrumentation";
 import { diag } from "@opentelemetry/api";
 import {
+  isRetrieverPrototype,
+  isEmbeddingPrototype,
+  isLLMPrototype,
   patchQueryEngineQueryMethod,
   patchRetrieveMethod,
   patchQueryEmbeddingMethod,
-  isRetrieverPrototype,
-  isEmbeddingPrototype,
+  patchLLMChat,
 } from "./utils";
 import { VERSION } from "./version";
 
@@ -89,6 +91,13 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
           return patchQueryEmbeddingMethod(original, this.tracer);
         });
       }
+
+      if (isLLMPrototype(prototype)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._wrap(prototype, "chat", (original): any => {
+          return patchLLMChat(original, this.tracer);
+        });
+      }
     }
     _isOpenInferencePatched = true;
     return moduleExports;
@@ -108,6 +117,10 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
 
       if (isEmbeddingPrototype(prototype)) {
         this._unwrap(prototype, "getQueryEmbedding");
+      }
+
+      if (isLLMPrototype(prototype)) {
+        this._unwrap(prototype, "chat");
       }
     }
 

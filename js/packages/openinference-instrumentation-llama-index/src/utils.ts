@@ -24,8 +24,10 @@ import {
   RetrieverQueryEngineQueryMethodType,
   RetrieverRetrieveMethodType,
   QueryEmbeddingMethodType,
+  LLMChatMethodType,
+  LLMObject,
 } from "./types";
-import { BaseEmbedding, BaseRetriever } from "llamaindex";
+import { BaseEmbedding, BaseRetriever, LLM } from "llamaindex";
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.
@@ -95,6 +97,21 @@ export function isRetrieverPrototype(proto: unknown): proto is BaseRetriever {
 }
 
 /**
+ * Checks whether the provided prototype is an instance of `LLM`.
+ *
+ * @param {unknown} proto - The prototype to check.
+ * @returns {boolean} Whether the prototype is a `LLM`.
+ */
+export function isLLMPrototype(proto: unknown): proto is LLM {
+  return (
+    proto != null &&
+    typeof proto === "object" &&
+    "chat" in proto &&
+    typeof proto.chat === "function"
+  );
+}
+
+/**
  * Checks whether the provided prototype is an instance of a `BaseEmbedding`.
  *
  * @param {unknown} proto - The prototype to check.
@@ -149,6 +166,45 @@ function getQueryEmbeddingAttributes(embedInfo: {
     [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]:
       embedInfo.output,
   };
+}
+
+function LLMAttributes(
+  input: llamaindex.LLMChatParamsNonStreaming<object, object>,
+  output: llamaindex.ChatResponse<object>,
+) {
+  const LLMAttr: Attributes = {};
+
+  input.messages.forEach((msg, idx) => {
+    const inputPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}`;
+    LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
+      msg.role.toString();
+    LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+      msg.content.toString();
+  });
+
+  LLMAttr[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
+    safelyJSONStringify(input.additionalChatOptions) ?? undefined;
+
+  const outputPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
+  LLMAttr[SemanticConventions.OUTPUT_VALUE] = output.message.content.toString();
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
+    output.message.role.toString();
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+    output.message.content.toString();
+
+  return LLMAttr;
+}
+
+function LLMMetadata(obj: unknown) {
+  const LLMObjectMetadata = (obj as LLMObject).metadata;
+  const LLMMetadataAttr: Attributes = {};
+
+  LLMMetadataAttr[SemanticConventions.LLM_MODEL_NAME] = LLMObjectMetadata.model;
+  // TODO: How to prevent conflicts with input.additionalChatOptions?
+  LLMMetadataAttr[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
+    safelyJSONStringify(LLMObjectMetadata) ?? undefined;
+
+  return LLMMetadataAttr;
 }
 
 /**
@@ -302,6 +358,39 @@ export function patchQueryEmbeddingMethod(
       span.setAttributes(
         getQueryEmbeddingAttributes({ input: query, output: result }),
       );
+      span.end();
+      return result;
+    });
+    return context.bind(execContext, wrappedPromise);
+  };
+}
+
+export function patchLLMChat(original: LLMChatMethodType, tracer: Tracer) {
+  return function (this: unknown, ...args: Parameters<LLMChatMethodType>) {
+    const span = tracer.startSpan(`llm`, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+          OpenInferenceSpanKind.LLM,
+      },
+    });
+
+    const execContext = getExecContext(span);
+
+    const execPromise = safeExecuteInTheMiddle<ReturnType<LLMChatMethodType>>(
+      () => {
+        return context.with(execContext, () => {
+          return original.apply(this, args);
+        });
+      },
+      (error) => handleError(span, error),
+    );
+
+    // Metadata is a property found on the class and not in args
+    span.setAttributes(LLMMetadata(this));
+
+    const wrappedPromise = execPromise.then((result) => {
+      span.setAttributes(LLMAttributes(args[0], result));
       span.end();
       return result;
     });
