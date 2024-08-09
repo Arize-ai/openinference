@@ -93,9 +93,6 @@ importers:
 
   packages/openinference-instrumentation-llama-index:
     dependencies:
-      '@arizeai/openinference-instrumentation-llama-index':
-        specifier: 'link:'
-        version: 'link:'
       '@arizeai/openinference-semantic-conventions':
         specifier: workspace:*
         version: link:../openinference-semantic-conventions
