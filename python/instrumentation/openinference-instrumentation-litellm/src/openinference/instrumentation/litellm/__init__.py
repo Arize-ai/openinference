@@ -95,7 +95,7 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
     if isinstance(result, ModelResponse):
-        if (choices := result.choices) and len(choices) >= 1:
+        if (choices := result.choices) and len(choices) > 0:
             choice = choices[0]
             if isinstance(choice, Choices) and (output := choice.message.content):
                 _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
