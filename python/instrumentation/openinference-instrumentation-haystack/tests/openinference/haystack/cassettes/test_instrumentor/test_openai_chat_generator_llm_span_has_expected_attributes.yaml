@@ -9,13 +9,13 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-9uA5fISkbfzXuDsxMLUFsyhzLgHVG\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1723172183,\n  \"model\": \"gpt-4o-2024-05-13\",\n
+      string: "{\n  \"id\": \"chatcmpl-9uAIpyzbpEOCAc8t1Perus79hLl8l\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1723172999,\n  \"model\": \"gpt-4o-2024-05-13\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Argentina\",\n        \"refusal\":
+        \"assistant\",\n        \"content\": \"Argentina.\",\n        \"refusal\":
         null\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
         \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 42,\n    \"completion_tokens\":
-        1,\n    \"total_tokens\": 43\n  },\n  \"system_fingerprint\": \"fp_3aa7262c27\"\n}\n"
+        2,\n    \"total_tokens\": 44\n  },\n  \"system_fingerprint\": \"fp_3aa7262c27\"\n}\n"
     headers: {}
     status:
       code: 200

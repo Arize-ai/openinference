@@ -521,7 +521,8 @@ def test_haystack_conditional_router(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_openai_chat_generator_llm_attributes(
+def test_openai_chat_generator_llm_span_has_expected_attributes(
+    openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
 ) -> None:
@@ -571,11 +572,58 @@ def test_openai_chat_generator_llm_attributes(
     assert isinstance(attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_openai_generator_llm_span_has_expected_attributes(
+    openai_api_key: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    llm = OpenAIGenerator(model="gpt-4o")
+    pipe.add_component("llm", llm)
+    response = pipe.run(
+        {
+            "llm": {
+                "prompt": "Who won the World Cup in 2022? Answer in one word.",
+            }
+        }
+    )
+    assert "argentina" in response["llm"]["replies"][0].lower()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert (
+        attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Who won the World Cup in 2022? Answer in one word."
+    )
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert isinstance(
+        (output_message_content := attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")),
+        str,
+    )
+    assert "argentina" in output_message_content.lower()
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+
+
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
 def test_oitracer(
     setup_haystack_instrumentation: Any,
 ) -> None:
     assert isinstance(HaystackInstrumentor()._tracer, OITracer)
+
+
+@pytest.fixture
+def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-")
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
