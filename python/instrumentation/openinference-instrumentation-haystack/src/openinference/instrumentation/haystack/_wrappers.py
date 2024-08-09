@@ -117,7 +117,6 @@ class _ComponentWrapper(_WithTracer):
                     for i, msg in enumerate(input_data["messages"]):
                         span.set_attributes(
                             {
-                                **dict(_get_tool_name(generation_kwargs, i)),
                                 f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}": msg.content,
                                 f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}": msg.role,
                             }
@@ -438,23 +437,6 @@ def _get_token_counts(usage: Any) -> Iterator[Tuple[str, Optional[int]]]:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
 
-def _get_tool_name(generation_kwargs: Any, iteration: int) -> Iterator[Tuple[str, Any]]:
-    """
-    Extract tool information from the generation_kwargs.
-    """
-    if not isinstance(generation_kwargs, dict):
-        return
-    if (tools := generation_kwargs.get("tools")) is not None:
-        for i, tool in enumerate(tools):
-            yield (
-                (
-                    f"{LLM_OUTPUT_MESSAGES}.{iteration}.{MESSAGE_TOOL_CALLS}.{i}"
-                    f".{TOOL_CALL_FUNCTION_NAME}"
-                ),
-                tool["function"]["name"],
-            )
-
-
 def _get_tool_output(response: Any, iteration: int) -> Iterator[Tuple[str, Any]]:
     """
     Extract tool information from the generation_kwargs.
@@ -465,10 +447,14 @@ def _get_tool_output(response: Any, iteration: int) -> Iterator[Tuple[str, Any]]
         for i, reply in enumerate(replies):
             if reply.meta.get("finish_reason") == "tool_calls":
                 msg_num = f"{LLM_OUTPUT_MESSAGES}.{iteration}.{MESSAGE_TOOL_CALLS}.{i}"
-                tool_args = eval(reply.content)[0]["function"]["arguments"]
+                tool_args = eval(reply.content)[0]["function"]
                 yield (
                     f"{msg_num}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                    safe_json_dumps(eval(tool_args)),
+                    safe_json_dumps(eval(tool_args["arguments"])),
+                )
+                yield(
+                    f"{msg_num}.{TOOL_CALL_FUNCTION_NAME}",
+                    tool_args["name"],
                 )
 
 
