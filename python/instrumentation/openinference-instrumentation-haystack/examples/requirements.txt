@@ -4,3 +4,4 @@ openinference-instrumentation-haystack
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
 sentence-transformers
+trafilatura==1.12.0
