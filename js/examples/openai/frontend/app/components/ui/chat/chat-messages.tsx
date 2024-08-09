@@ -7,6 +7,7 @@ export interface Message {
   id: string;
   content: string;
   role: string;
+  spanId?: string;
 }
 
 export default function ChatMessages({

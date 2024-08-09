@@ -1,12 +1,13 @@
 import { Request, Response } from "express";
-import { OpenAI } from "openai";
-import { ChatCompletionMessageParam } from "openai/resources";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import {
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+import { streamToResponse, StreamData, OpenAIStream } from "ai";
+import { ChatCompletionMessageParam } from "openai/resources";
+import OpenAI from "openai";
 
 export const chat = async (req: Request, res: Response) => {
   const tracer = trace.getTracer("openai-service");
@@ -27,6 +28,10 @@ export const chat = async (req: Request, res: Response) => {
         });
       }
 
+      const spanId = span.spanContext().spanId;
+
+      res.setHeader("assistant-message-span-id", spanId);
+
       const openai = new OpenAI();
       const stream = await openai.chat.completions.create({
         messages,
@@ -34,32 +39,34 @@ export const chat = async (req: Request, res: Response) => {
         stream: true,
       });
 
+      const data = new StreamData();
+      data.appendMessageAnnotation({
+        spanId: spanId,
+      });
       let streamedResponse = "";
-      let role = "assistant";
-      for await (const chunk of stream) {
-        const choice = chunk.choices[0];
-        if (choice.finish_reason === "stop" || choice.delta == null) {
-          break;
-        }
-        streamedResponse += choice.delta.content;
-        role = choice.delta.role != null ? choice.delta.role : role;
 
-        res.write(choice.delta.content);
-      }
+      const streamThingy = OpenAIStream(stream, {
+        onCompletion(completion) {
+          streamedResponse += completion;
+        },
+        onFinal() {
+          span.setAttributes({
+            [SemanticConventions.OUTPUT_VALUE]: streamedResponse,
+            [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
+            [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+              streamedResponse,
+            [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+              "assistant",
+          });
+          span.setStatus({ code: SpanStatusCode.OK });
+          // End the span
+          span.end();
+          data.close();
+        },
+      });
+      streamToResponse(streamThingy, res, {}, data);
 
       // Add OpenInference attributes to the span
-      span.setAttributes({
-        [SemanticConventions.OUTPUT_VALUE]: streamedResponse,
-        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
-        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
-          streamedResponse,
-        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
-          role,
-      });
-      res.end();
-      span.setStatus({ code: SpanStatusCode.OK });
-      // End the span
-      span.end();
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("Error:", error);
