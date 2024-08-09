@@ -2,17 +2,18 @@
   "name": "my-app",
   "version": "0.1.0",
   "scripts": {
-    "dev": "cross-env NEXT_PUBLIC_CHAT_API=http://localhost:8000/api/chat next dev",
+    "dev": "cross-env NEXT_PUBLIC_API_ENDPOINT=http://localhost:8000 next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
-    "ai": "^2.2.27",
+    "ai": "^3.1.20",
     "dotenv": "^16.3.1",
     "next": "^14.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "sswr": "^2.1.0",
     "supports-color": "^9.4.0"
   },
   "devDependencies": {

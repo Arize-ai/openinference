@@ -1,8 +1,8 @@
 import express, { Router } from "express";
-import { chat } from "../controllers/chat.controller";
+import { feedback } from "../controllers/feedback.controller";
 
 const router: Router = express.Router();
 
-router.route("/").post(chat);
+router.route("/").post(feedback);
 
 export default router;

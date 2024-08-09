@@ -2,7 +2,7 @@
 
 import { useChat } from "ai/react";
 import { useMemo } from "react";
-import { insertDataIntoMessages } from "./transform";
+import { formatMessages, insertDataIntoMessages } from "./transform";
 import { ChatInput, ChatMessages } from "./ui/chat";
 
 export default function ChatSection() {
@@ -16,14 +16,14 @@ export default function ChatSection() {
     stop,
     data,
   } = useChat({
-    api: process.env.NEXT_PUBLIC_CHAT_API,
+    api: `${process.env.NEXT_PUBLIC_API_ENDPOINT}/api/chat`,
     headers: {
       "Content-Type": "application/json", // using JSON because of vercel/ai 2.2.26
     },
   });
 
   const transformedMessages = useMemo(() => {
-    return insertDataIntoMessages(messages, data);
+    return formatMessages(insertDataIntoMessages(messages, data));
   }, [messages, data]);
 
   return (

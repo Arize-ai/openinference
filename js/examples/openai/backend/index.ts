@@ -3,6 +3,7 @@ import cors from "cors";
 import "dotenv/config";
 import express, { Express, Request, Response } from "express";
 import chatRouter from "./src/routes/chat.route";
+import feedbackRouter from "./src/routes/feedback.route";
 
 const app: Express = express();
 const port = parseInt(process.env.PORT || "8000");
@@ -35,6 +36,8 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.use("/api/chat", chatRouter);
+
+app.use("/api/feedback", feedbackRouter);
 
 app.listen(port, () => {
   console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
