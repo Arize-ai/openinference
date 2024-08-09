@@ -741,4 +741,77 @@ describe("OpenAIInstrumentation", () => {
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(0);
   });
+  it("should capture image in request", async () => {
+    const response = {
+      id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
+      object: "chat.completion",
+      created: 1703743645,
+      model: "gpt-3.5-turbo-0613",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "This is a test.",
+          },
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 12,
+        completion_tokens: 5,
+        total_tokens: 17,
+      },
+    };
+    // Mock out the chat completions endpoint
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+    await openai.chat.completions.create({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Say this is a test" },
+            {
+              type: "image_url",
+              image_url: {
+                url: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+              },
+            },
+          ],
+        },
+      ],
+      model: "gpt-3.5-turbo",
+    });
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"messages":[{"role":"user","content":[{"type":"text","text":"Say this is a test"},{"type":"image_url","image_url":{"url":"data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="}}]}],"model":"gpt-3.5-turbo"}",
+        "llm.input_messages.0.message.contents.0.message_content.text": "Say this is a test",
+        "llm.input_messages.0.message.contents.0.message_content.type": "text",
+        "llm.input_messages.0.message.contents.1.message_content.image": "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+        "llm.input_messages.0.message.contents.1.message_content.type": "image",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo"}",
+        "llm.model_name": "gpt-3.5-turbo-0613",
+        "llm.output_messages.0.message.content": "This is a test.",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.token_count.completion": 5,
+        "llm.token_count.prompt": 12,
+        "llm.token_count.total": 17,
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "application/json",
+        "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+      }
+    `);
+  });
 });
