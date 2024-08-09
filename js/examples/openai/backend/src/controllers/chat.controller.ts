@@ -30,8 +30,6 @@ export const chat = async (req: Request, res: Response) => {
 
       const spanId = span.spanContext().spanId;
 
-      res.setHeader("assistant-message-span-id", spanId);
-
       const openai = new OpenAI();
       const stream = await openai.chat.completions.create({
         messages,
@@ -45,7 +43,7 @@ export const chat = async (req: Request, res: Response) => {
       });
       let streamedResponse = "";
 
-      const streamThingy = OpenAIStream(stream, {
+      const streamResponse = OpenAIStream(stream, {
         onCompletion(completion) {
           streamedResponse += completion;
         },
@@ -64,7 +62,7 @@ export const chat = async (req: Request, res: Response) => {
           data.close();
         },
       });
-      streamToResponse(streamThingy, res, {}, data);
+      streamToResponse(streamResponse, res, {}, data);
 
       // Add OpenInference attributes to the span
     } catch (error) {
