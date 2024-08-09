@@ -1,6 +1,6 @@
 from abc import ABC
 from enum import Enum, auto
-from typing import Any, Callable, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -270,12 +270,10 @@ class _ComponentWrapper(_WithTracer):
                             dict(
                                 _flatten(
                                     {
+                                        **dict(_get_token_counts(usage)),
                                         OUTPUT_VALUE: safe_json_dumps(response),
                                         OUTPUT_MIME_TYPE: JSON,
                                         LLM_MODEL_NAME: reply.meta["model"],
-                                        LLM_TOKEN_COUNT_COMPLETION: usage["completion_tokens"],
-                                        LLM_TOKEN_COUNT_PROMPT: usage["prompt_tokens"],
-                                        LLM_TOKEN_COUNT_TOTAL: usage["total_tokens"],
                                     }
                                 )
                             )
@@ -292,16 +290,8 @@ class _ComponentWrapper(_WithTracer):
                         dict(
                             _flatten(
                                 {
+                                    **dict(_get_token_counts(response["meta"][0]["usage"])),
                                     LLM_MODEL_NAME: response["meta"][0]["model"],
-                                    LLM_TOKEN_COUNT_COMPLETION: response["meta"][0]["usage"][
-                                        "completion_tokens"
-                                    ],
-                                    LLM_TOKEN_COUNT_PROMPT: response["meta"][0]["usage"][
-                                        "prompt_tokens"
-                                    ],
-                                    LLM_TOKEN_COUNT_TOTAL: response["meta"][0]["usage"][
-                                        "total_tokens"
-                                    ],
                                     OUTPUT_VALUE: safe_json_dumps(response["replies"]),
                                     OUTPUT_MIME_TYPE: JSON,
                                 }
@@ -425,6 +415,20 @@ class _PipelineWrapper(_WithTracer):
             span.set_status(trace_api.StatusCode.OK)
 
         return response
+
+
+def _get_token_counts(usage: Any) -> Iterator[Tuple[str, Optional[int]]]:
+    """
+    Extract token counts from the usage.
+    """
+    if not isinstance(usage, dict):
+        return
+    if (completion_tokens := usage.get("completion_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+    if (prompt_tokens := usage.get("prompt_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    if (total_tokens := usage.get("total_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
