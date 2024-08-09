@@ -4,6 +4,8 @@ This example shows how to use [@arizeai/openinference-instrumentation-openai](ht
 
 Our example will export spans data simultaneously on `Console` and [arize-phoenix](https://github.com/Arize-ai/phoenix), however you can run your code anywhere and can use any exporter that OpenTelemetry supports.
 
+If running and exporting to phoenix. You will also be able to add feedback to your spans via the chat interface.
+
 ## Getting Started With Local Development
 
 Make sure you have `OPENAI_API_KEY` set as an environment variable.
@@ -17,6 +19,8 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 ## Getting Started With Docker-Compose
 
 Ensure that Docker is installed and running. Run the command `docker compose up` to spin up services for the frontend, backend, and Phoenix. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface. When you're finished, run `docker compose down` to spin down the services.
+
+Open up [http://localhost:6006](http://localhost:6006) to view spans and feedback in Phoenix.
 
 ## Learn More
 
