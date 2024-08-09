@@ -7,16 +7,18 @@ from openinference.instrumentation import get_attributes_from_context, safe_json
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
+    MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
-    MessageAttributes,
     SpanAttributes,
+    ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from haystack.dataclasses import ChatRole
+
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
     for key, value in mapping.items():
@@ -103,9 +105,9 @@ class _ComponentWrapper(_WithTracer):
                     dict(
                         _flatten(
                             {
-                                SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                                SpanAttributes.INPUT_VALUE: safe_json_dumps(input_data),
-                                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                                OPENINFERENCE_SPAN_KIND: LLM,
+                                INPUT_VALUE: safe_json_dumps(input_data),
+                                INPUT_MIME_TYPE: JSON,
                             }
                         )
                     )
@@ -114,15 +116,15 @@ class _ComponentWrapper(_WithTracer):
                     for i, msg in enumerate(input_data["messages"]):
                         span.set_attributes(
                             {
-                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}": msg.content,
-                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}": msg.role,
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}": msg.content,
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}": msg.role,
                             }
                         )
                 else:
                     span.set_attributes(
                         {
-                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": input_data["prompt"],
-                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": ChatRole.USER,
+                            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}": input_data["prompt"],
+                            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}": ChatRole.USER,
                         }
                     )
 
@@ -132,14 +134,14 @@ class _ComponentWrapper(_WithTracer):
                             dict(
                                 _flatten(
                                     {
-                                        SpanAttributes.LLM_INPUT_MESSAGES: input_data["messages"],
+                                        LLM_INPUT_MESSAGES: input_data["messages"],
                                     }
                                 )
                             )
                         )
                     else:
                         span.set_attribute(
-                            SpanAttributes.LLM_PROMPT_TEMPLATE,
+                            LLM_PROMPT_TEMPLATE,
                             instance.graph.nodes._nodes["prompt_builder"][
                                 "instance"
                             ]._template_string,
@@ -150,10 +152,10 @@ class _ComponentWrapper(_WithTracer):
                     dict(
                         _flatten(
                             {
-                                SpanAttributes.EMBEDDING_MODEL_NAME: component.model,
-                                SpanAttributes.OPENINFERENCE_SPAN_KIND: EMBEDDING,
-                                SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                                EMBEDDING_MODEL_NAME: component.model,
+                                OPENINFERENCE_SPAN_KIND: EMBEDDING,
+                                INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                                INPUT_MIME_TYPE: JSON,
                             }
                         )
                     )
@@ -163,7 +165,7 @@ class _ComponentWrapper(_WithTracer):
                     dict(
                         _flatten(
                             {
-                                SpanAttributes.OPENINFERENCE_SPAN_KIND: RETRIEVER,
+                                OPENINFERENCE_SPAN_KIND: RETRIEVER,
                             }
                         )
                     )
@@ -174,8 +176,8 @@ class _ComponentWrapper(_WithTracer):
                         dict(
                             _flatten(
                                 {
-                                    SpanAttributes.INPUT_MIME_TYPE: TEXT,
-                                    SpanAttributes.INPUT_VALUE: f"<{emb_len} dimensional vector>",
+                                    INPUT_MIME_TYPE: TEXT,
+                                    INPUT_VALUE: f"<{emb_len} dimensional vector>",
                                 }
                             )
                         )
@@ -185,8 +187,8 @@ class _ComponentWrapper(_WithTracer):
                         dict(
                             _flatten(
                                 {
-                                    SpanAttributes.INPUT_MIME_TYPE: TEXT,
-                                    SpanAttributes.INPUT_VALUE: input_data["query"],
+                                    INPUT_MIME_TYPE: TEXT,
+                                    INPUT_VALUE: input_data["query"],
                                 }
                             )
                         )
@@ -196,9 +198,9 @@ class _ComponentWrapper(_WithTracer):
                     dict(
                         _flatten(
                             {
-                                SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
-                                SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                                OPENINFERENCE_SPAN_KIND: CHAIN,
+                                INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                                INPUT_MIME_TYPE: JSON,
                             }
                         )
                     )
@@ -210,15 +212,15 @@ class _ComponentWrapper(_WithTracer):
                         dict(
                             _flatten(
                                 {
-                                    SpanAttributes.LLM_INPUT_MESSAGES: msg_conts,
-                                    SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES: temp_vars,
+                                    LLM_INPUT_MESSAGES: msg_conts,
+                                    LLM_PROMPT_TEMPLATE_VARIABLES: temp_vars,
                                 }
                             )
                         )
                     )
                 else:
                     span.set_attribute(
-                        SpanAttributes.LLM_PROMPT_TEMPLATE,
+                        LLM_PROMPT_TEMPLATE,
                         instance.graph.nodes._nodes["prompt_builder"]["instance"]._template_string,
                     )
                 if "documents" in invocation_parameters:
@@ -226,7 +228,7 @@ class _ComponentWrapper(_WithTracer):
                         dict(
                             _flatten(
                                 {
-                                    SpanAttributes.RETRIEVAL_DOCUMENTS: safe_json_dumps(
+                                    RETRIEVAL_DOCUMENTS: safe_json_dumps(
                                         invocation_parameters["documents"]
                                     ),
                                 }
@@ -238,9 +240,9 @@ class _ComponentWrapper(_WithTracer):
                     dict(
                         _flatten(
                             {
-                                SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
-                                SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                                SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                                OPENINFERENCE_SPAN_KIND: CHAIN,
+                                INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                                INPUT_MIME_TYPE: JSON,
                             }
                         )
                     )
@@ -268,16 +270,12 @@ class _ComponentWrapper(_WithTracer):
                             dict(
                                 _flatten(
                                     {
-                                        SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response),
-                                        SpanAttributes.OUTPUT_MIME_TYPE: JSON,
-                                        SpanAttributes.LLM_MODEL_NAME: reply.meta["model"],
-                                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: usage[
-                                            "completion_tokens"
-                                        ],
-                                        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: usage[
-                                            "prompt_tokens"
-                                        ],
-                                        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: usage["total_tokens"],
+                                        OUTPUT_VALUE: safe_json_dumps(response),
+                                        OUTPUT_MIME_TYPE: JSON,
+                                        LLM_MODEL_NAME: reply.meta["model"],
+                                        LLM_TOKEN_COUNT_COMPLETION: usage["completion_tokens"],
+                                        LLM_TOKEN_COUNT_PROMPT: usage["prompt_tokens"],
+                                        LLM_TOKEN_COUNT_TOTAL: usage["total_tokens"],
                                     }
                                 )
                             )
@@ -285,8 +283,8 @@ class _ComponentWrapper(_WithTracer):
                     for i, reply in enumerate(response["replies"]):
                         span.set_attributes(
                             {
-                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}": reply.content,
-                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}": reply.role,
+                                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}": reply.content,
+                                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}": reply.role,
                             }
                         )
                 else:
@@ -294,31 +292,31 @@ class _ComponentWrapper(_WithTracer):
                         dict(
                             _flatten(
                                 {
-                                    SpanAttributes.LLM_MODEL_NAME: response["meta"][0]["model"],
-                                    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response["meta"][0][
-                                        "usage"
-                                    ]["completion_tokens"],
-                                    SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response["meta"][0][
-                                        "usage"
-                                    ]["prompt_tokens"],
-                                    SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response["meta"][0][
-                                        "usage"
-                                    ]["total_tokens"],
-                                    SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response["replies"]),
-                                    SpanAttributes.OUTPUT_MIME_TYPE: JSON,
+                                    LLM_MODEL_NAME: response["meta"][0]["model"],
+                                    LLM_TOKEN_COUNT_COMPLETION: response["meta"][0]["usage"][
+                                        "completion_tokens"
+                                    ],
+                                    LLM_TOKEN_COUNT_PROMPT: response["meta"][0]["usage"][
+                                        "prompt_tokens"
+                                    ],
+                                    LLM_TOKEN_COUNT_TOTAL: response["meta"][0]["usage"][
+                                        "total_tokens"
+                                    ],
+                                    OUTPUT_VALUE: safe_json_dumps(response["replies"]),
+                                    OUTPUT_MIME_TYPE: JSON,
                                 }
                             )
                         )
                     )
                     span.set_attributes(
-                            {
-                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response["replies"][0],
-                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": ChatRole.ASSISTANT,
-                            }
+                        {
+                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response["replies"][0],
+                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": ChatRole.ASSISTANT,
+                        }
                     )
             elif component_type is ComponentType.EMBEDDER:
                 emb_len = len(response["embedding"])
-                emb_vec_0 = f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0."
+                emb_vec_0 = f"{EMBEDDING_EMBEDDINGS}.0."
 
                 span.set_attributes(
                     dict(
@@ -336,10 +334,8 @@ class _ComponentWrapper(_WithTracer):
                         dict(
                             _flatten(
                                 {
-                                    SpanAttributes.OUTPUT_VALUE: safe_json_dumps(
-                                        response["documents"]
-                                    ),
-                                    SpanAttributes.OUTPUT_MIME_TYPE: JSON,
+                                    OUTPUT_VALUE: safe_json_dumps(response["documents"]),
+                                    OUTPUT_MIME_TYPE: JSON,
                                 }
                             )
                         )
@@ -348,14 +344,10 @@ class _ComponentWrapper(_WithTracer):
                 for i, document in enumerate(response["documents"]):
                     span.set_attributes(
                         {
-                            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}."
-                            f"{DocumentAttributes.DOCUMENT_CONTENT}": document.content,
-                            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}."
-                            f"{DocumentAttributes.DOCUMENT_ID}": document.id,
-                            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}."
-                            f"{DocumentAttributes.DOCUMENT_SCORE}": document.score,
-                            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.{i}."
-                            f"{DocumentAttributes.DOCUMENT_METADATA}": safe_json_dumps(
+                            f"{RETRIEVAL_DOCUMENTS}.{i}." f"{DOCUMENT_CONTENT}": document.content,
+                            f"{RETRIEVAL_DOCUMENTS}.{i}." f"{DOCUMENT_ID}": document.id,
+                            f"{RETRIEVAL_DOCUMENTS}.{i}." f"{DOCUMENT_SCORE}": document.score,
+                            f"{RETRIEVAL_DOCUMENTS}.{i}." f"{DOCUMENT_METADATA}": safe_json_dumps(
                                 document.meta
                             ),
                         }
@@ -365,8 +357,8 @@ class _ComponentWrapper(_WithTracer):
                     dict(
                         _flatten(
                             {
-                                SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response),
-                                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                                OUTPUT_VALUE: safe_json_dumps(response),
+                                OUTPUT_MIME_TYPE: JSON,
                             }
                         )
                     )
@@ -406,9 +398,9 @@ class _PipelineWrapper(_WithTracer):
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: CHAIN,
-                        SpanAttributes.INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                        SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                        INPUT_MIME_TYPE: JSON,
                     }
                 )
             ),
@@ -424,8 +416,8 @@ class _PipelineWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response),
-                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            OUTPUT_VALUE: safe_json_dumps(response),
+                            OUTPUT_MIME_TYPE: JSON,
                         }
                     )
                 )
@@ -436,10 +428,48 @@ class _PipelineWrapper(_WithTracer):
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
-RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
+LLM = OpenInferenceSpanKindValues.LLM
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+
 JSON = OpenInferenceMimeTypeValues.JSON
 TEXT = OpenInferenceMimeTypeValues.TEXT
-LLM = OpenInferenceSpanKindValues.LLM
-EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+
+DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
+DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
+DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
+DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
+EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
+EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
+EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
+LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
+MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+METADATA = SpanAttributes.METADATA
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
+SESSION_ID = SpanAttributes.SESSION_ID
+TAG_TAGS = SpanAttributes.TAG_TAGS
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
+LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+USER_ID = SpanAttributes.USER_ID

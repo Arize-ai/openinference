@@ -42,7 +42,7 @@ instruments = [
 test = [
     "haystack-ai >= 2.0.0",
     "opentelemetry-sdk",
-    "responses",
+    "pytest-recording",
 ]
 
 [project.urls]

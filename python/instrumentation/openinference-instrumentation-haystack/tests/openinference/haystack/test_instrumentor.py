@@ -22,11 +22,51 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
 
 
 def fake_OpenAIGenerator_run(
@@ -160,9 +200,9 @@ def _check_context_attributes(
     assert attributes.get(USER_ID, None)
     assert attributes.get(METADATA, None)
     assert attributes.get(TAG_TAGS, None)
-    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE, None)
-    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None)
-    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None)
+    assert attributes.get(LLM_PROMPT_TEMPLATE, None)
+    assert attributes.get(LLM_PROMPT_TEMPLATE_VERSION, None)
+    assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
 
 def test_haystack_instrumentation(
@@ -438,7 +478,6 @@ def test_haystack_uninstrumentation(
 
 
 def test_haystack_conditional_router(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
 ) -> None:
@@ -477,6 +516,61 @@ def test_haystack_conditional_router(
     assert spans
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_openai_chat_generator_llm_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    llm = OpenAIChatGenerator(model="gpt-4o")
+    pipe.add_component("llm", llm)
+    response = pipe.run(
+        {
+            "llm": {
+                "messages": [
+                    ChatMessage.from_system("Answer user questions succinctly"),
+                    ChatMessage.from_assistant("What can I help you with?"),
+                    ChatMessage.from_user("Who won the World Cup in 2022? Answer in one word."),
+                ]
+            }
+        }
+    )
+    assert "argentina" in response["llm"]["replies"][0].content.lower()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert (
+        attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Answer user questions succinctly"
+    )
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert (
+        attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "What can I help you with?"
+    )
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+
+    assert (
+        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
+        == "Who won the World Cup in 2022? Answer in one word."
+    )
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
+    assert isinstance(
+        (output_message_content := attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")),
+        str,
+    )
+    assert "argentina" in output_message_content.lower()
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+
+
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
 def test_oitracer(
     setup_haystack_instrumentation: Any,
@@ -484,7 +578,46 @@ def test_oitracer(
     assert isinstance(HaystackInstrumentor()._tracer, OITracer)
 
 
-SESSION_ID = SpanAttributes.SESSION_ID
-USER_ID = SpanAttributes.USER_ID
+CHAIN = OpenInferenceSpanKindValues.CHAIN
+LLM = OpenInferenceSpanKindValues.LLM
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+
+JSON = OpenInferenceMimeTypeValues.JSON
+
+DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
+DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
+DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
+EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
+EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
+EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
+EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
+LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
+MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 METADATA = SpanAttributes.METADATA
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
+SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
+LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+USER_ID = SpanAttributes.USER_ID
