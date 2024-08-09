@@ -1,28 +1,28 @@
 name: Python CI
 
 on:
-    push:
-        branches: [main]
-    pull_request:
-        paths:
-            - "python/**"
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "python/**"
 
 defaults:
-    run:
-        working-directory: ./python
+  run:
+    working-directory: ./python
 
 jobs:
-    ci:
-        name: CI Python
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-python@v5
-              with:
-                  python-version: |
-                      3.8
-                      3.9
-                      3.11
-                      3.12
-            - run: pip install tox==4.11.4
-            - run: tox run-parallel --parallel-no-spinner
+  ci:
+    name: CI Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: |
+            3.8
+            3.9
+            3.11
+            3.12
+      - run: pip install tox==4.17.1
+      - run: tox run-parallel --parallel-no-spinner
