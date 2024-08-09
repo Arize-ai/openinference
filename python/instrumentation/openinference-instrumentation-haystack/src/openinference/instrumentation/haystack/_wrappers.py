@@ -16,6 +16,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
+from haystack.dataclasses import ChatRole
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
     for key, value in mapping.items():
@@ -109,6 +110,22 @@ class _ComponentWrapper(_WithTracer):
                         )
                     )
                 )
+                if "Chat" in component_name:
+                    for i, msg in enumerate(input_data["messages"]):
+                        span.set_attributes(
+                            {
+                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}": msg.content,
+                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}": msg.role,
+                            }
+                        )
+                else:
+                    span.set_attributes(
+                        {
+                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": input_data["prompt"],
+                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": ChatRole.USER,
+                        }
+                    )
+
                 if "prompt_builder" in str(instance):
                     if "ChatPromptBuilder" in str(instance):
                         span.set_attributes(
@@ -127,13 +144,6 @@ class _ComponentWrapper(_WithTracer):
                                 "instance"
                             ]._template_string,
                         )
-                for i, msg in enumerate(input_data["messages"]):
-                    span.set_attributes(
-                        {
-                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}": msg.content,
-                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}": msg.role,
-                        }
-                    )
 
             elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(
@@ -272,6 +282,13 @@ class _ComponentWrapper(_WithTracer):
                                 )
                             )
                         )
+                    for i, reply in enumerate(response["replies"]):
+                        span.set_attributes(
+                            {
+                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}": reply.content,
+                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}": reply.role,
+                            }
+                        )
                 else:
                     span.set_attributes(
                         dict(
@@ -287,17 +304,17 @@ class _ComponentWrapper(_WithTracer):
                                     SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response["meta"][0][
                                         "usage"
                                     ]["total_tokens"],
-                                    SpanAttributes.LLM_OUTPUT_MESSAGES: response["replies"],
+                                    SpanAttributes.OUTPUT_VALUE: safe_json_dumps(response["replies"]),
+                                    SpanAttributes.OUTPUT_MIME_TYPE: JSON,
                                 }
                             )
                         )
                     )
-                for i, reply in enumerate(response["replies"]):
                     span.set_attributes(
-                        {
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}": reply.content,
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}": reply.role,
-                        }
+                            {
+                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response["replies"][0],
+                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": ChatRole.ASSISTANT,
+                            }
                     )
             elif component_type is ComponentType.EMBEDDER:
                 emb_len = len(response["embedding"])
