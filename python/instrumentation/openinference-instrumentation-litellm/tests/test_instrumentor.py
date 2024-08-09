@@ -277,13 +277,13 @@ def test_completion_with_retries(
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         ):
-            litellm.completion_with_retries( # type: ignore [no-untyped-call]
+            litellm.completion_with_retries(  # type: ignore [no-untyped-call]
                 model="gpt-3.5-turbo",
                 messages=[{"content": "What's the capital of China?", "role": "user"}],
                 mock_response="Beijing",
             )
     else:
-        litellm.completion_with_retries( # type: ignore [no-untyped-call]
+        litellm.completion_with_retries(  # type: ignore [no-untyped-call]
             model="gpt-3.5-turbo",
             messages=[{"content": "What's the capital of China?", "role": "user"}],
             mock_response="Beijing",
@@ -362,7 +362,7 @@ def test_embedding(
         data=[{"embedding": [0.1, 0.2, 0.3], "index": 0, "object": "embedding"}],
         object="list",
         usage={"completion_tokens": 1, "prompt_tokens": 6, "total_tokens": 6},
-    )
+    )  # type:ignore
 
     with patch.object(OpenAIChatCompletion, "embedding", return_value=mock_response_embedding):
         if use_context_attributes:
@@ -429,7 +429,7 @@ async def test_aembedding(
         data=[{"embedding": [0.1, 0.2, 0.3], "index": 0, "object": "embedding"}],
         object="list",
         usage={"completion_tokens": 1, "prompt_tokens": 6, "total_tokens": 6},
-    )
+    )  # type:ignore
 
     with patch.object(OpenAIChatCompletion, "aembedding", return_value=mock_response_embedding):
         if use_context_attributes:

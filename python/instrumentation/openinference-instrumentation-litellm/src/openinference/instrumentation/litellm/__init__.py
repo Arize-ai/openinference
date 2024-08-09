@@ -1,7 +1,8 @@
 import json
 from functools import wraps
-from typing import Any, Callable, Collection, Dict, Awaitable
+from typing import Any, Callable, Collection, Dict
 
+from openai.types.image import Image
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
@@ -20,8 +21,13 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from opentelemetry.util.types import AttributeValue
 
 import litellm
-from litellm.types.utils import EmbeddingResponse, ImageResponse, ModelResponse
-from openai.types.image import Image
+from litellm.types.utils import (
+    Choices,
+    EmbeddingResponse,
+    ImageResponse,
+    ModelResponse,
+)
+
 
 # Helper functions to set span attributes
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
@@ -89,8 +95,10 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
     if isinstance(result, ModelResponse):
-        if output := result.choices[0].message.content:
-            _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
+        if (choices := result.choices) and len(choices) > 1:
+            choice = choices[0]
+            if isinstance(choice, Choices) and (output := choice.message.content):
+                _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
     elif isinstance(result, EmbeddingResponse):
         if result_data := result.data:
             first_embedding = result_data[0]
@@ -102,11 +110,11 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
     elif isinstance(result, ImageResponse):
         if len(result.data) > 0:
             print(result.data)
-            if (img_data := result.data[0]):
+            if img_data := result.data[0]:
                 if isinstance(img_data, Image) and (url := img_data.url):
                     _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
                     _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
-                elif isinstance(img_data, dict) and (url := img_data.get('url')):
+                elif isinstance(img_data, dict) and (url := img_data.get("url")):
                     _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
                     _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
     if hasattr(result, "usage"):
@@ -177,7 +185,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_completion(span, kwargs)
             result = self.original_litellm_funcs["completion"](*args, **kwargs)
             _finalize_span(span, result)
-        return result
+        return result  # type:ignore
 
     @wraps(litellm.acompletion)
     async def _acompletion_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
@@ -187,7 +195,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_completion(span, kwargs)
             result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
             _finalize_span(span, result)
-        return result
+        return result  # type:ignore
 
     @wraps(litellm.completion_with_retries)
     def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
@@ -197,7 +205,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_completion(span, kwargs)
             result = self.original_litellm_funcs["completion_with_retries"](*args, **kwargs)
             _finalize_span(span, result)
-        return result
+        return result  # type:ignore
 
     @wraps(litellm.acompletion_with_retries)
     async def _acompletion_with_retries_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
@@ -207,7 +215,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_completion(span, kwargs)
             result = await self.original_litellm_funcs["acompletion_with_retries"](*args, **kwargs)
             _finalize_span(span, result)
-        return result
+        return result  # type:ignore
 
     @wraps(litellm.embedding)
     def _embedding_wrapper(self, *args: Any, **kwargs: Any) -> EmbeddingResponse:
@@ -217,7 +225,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_embedding(span, kwargs)
             result = self.original_litellm_funcs["embedding"](*args, **kwargs)
             _finalize_span(span, result)
-        return result
+        return result  # type:ignore
 
     @wraps(litellm.aembedding)
     async def _aembedding_wrapper(self, *args: Any, **kwargs: Any) -> EmbeddingResponse:
@@ -227,7 +235,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_embedding(span, kwargs)
             result = await self.original_litellm_funcs["aembedding"](*args, **kwargs)
             _finalize_span(span, result)
-        return result
+        return result  # type:ignore
 
     @wraps(litellm.image_generation)
     def _image_generation_wrapper(self, *args: Any, **kwargs: Any) -> ImageResponse:
@@ -237,7 +245,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_image_generation(span, kwargs)
             result = self.original_litellm_funcs["image_generation"](*args, **kwargs)
             _finalize_span(span, result)
-        return result
+        return result  # type:ignore
 
     @wraps(litellm.aimage_generation)
     async def _aimage_generation_wrapper(self, *args: Any, **kwargs: Any) -> ImageResponse:
@@ -247,7 +255,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             _instrument_func_type_image_generation(span, kwargs)
             result = await self.original_litellm_funcs["aimage_generation"](*args, **kwargs)
             _finalize_span(span, result)
-        return result
+        return result  # type:ignore
 
     def _set_wrapper_attr(self, func_wrapper: Any) -> None:
         func_wrapper.__func__.is_wrapper = True
