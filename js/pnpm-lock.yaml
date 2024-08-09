@@ -106,9 +106,15 @@ importers:
         specifier: ^0.46.0
         version: 0.46.0(@opentelemetry/api@1.7.0)
     devDependencies:
+      jest:
+        specifier: ^29.7.0
+        version: 29.7.0(@types/node@20.12.12)
       llamaindex:
         specifier: ^0.3.14
         version: 0.3.14(@notionhq/client@2.2.15)(typescript@5.3.3)
+      openai:
+        specifier: ^4.24.1
+        version: 4.47.1
 
   packages/openinference-instrumentation-openai:
     dependencies:
@@ -5987,6 +5993,8 @@ packages:
     resolution: {integrity: sha512-Un1yLbSlk/zfwrltgguskExIioXZlFSFwsyXU0cnBorLywbTbcdzmJJEebh+U2cFCtR7y8nDs5lPHAe7ldxjZg==}
     engines: {node: '>=18.12.1', npm: '>=8.19.2'}
     hasBin: true
+    dependencies:
+      '@xmldom/xmldom': 0.8.10
     dev: true
     bundledDependencies:
       - '@xmldom/xmldom'

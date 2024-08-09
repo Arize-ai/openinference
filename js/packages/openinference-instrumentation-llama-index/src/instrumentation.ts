@@ -7,7 +7,13 @@ import {
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
 import { diag } from "@opentelemetry/api";
-import { patchQueryMethod, patchRetrieveMethod } from "./utils";
+import {
+  patchQueryEngineQueryMethod,
+  patchRetrieveMethod,
+  patchQueryEmbeddingMethod,
+  isRetrieverPrototype,
+  isEmbeddingPrototype,
+} from "./utils";
 import { VERSION } from "./version";
 
 const MODULE_NAME = "llamaindex";
@@ -58,23 +64,32 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
     }
 
     // TODO: Support streaming
+    // TODO: Generalize to QueryEngine interface (RetrieverQueryEngine, RouterQueryEngine)
     this._wrap(
       moduleExports.RetrieverQueryEngine.prototype,
       "query",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (original): any => {
-        return patchQueryMethod(original, moduleExports, this.tracer);
+        return patchQueryEngineQueryMethod(original, this.tracer);
       },
     );
 
-    this._wrap(
-      moduleExports.VectorIndexRetriever.prototype,
-      "retrieve",
-      (original) => {
-        return patchRetrieveMethod(original, moduleExports, this.tracer);
-      },
-    );
+    for (const value of Object.values(moduleExports)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prototype = (value as any).prototype;
 
+      if (isRetrieverPrototype(prototype)) {
+        this._wrap(prototype, "retrieve", (original) => {
+          return patchRetrieveMethod(original, this.tracer);
+        });
+      }
+
+      if (isEmbeddingPrototype(prototype)) {
+        this._wrap(prototype, "getQueryEmbedding", (original) => {
+          return patchQueryEmbeddingMethod(original, this.tracer);
+        });
+      }
+    }
     _isOpenInferencePatched = true;
     return moduleExports;
   }
@@ -82,7 +97,19 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
   private unpatch(moduleExports: typeof llamaindex, moduleVersion?: string) {
     this._diag.debug(`Un-patching ${MODULE_NAME}@${moduleVersion}`);
     this._unwrap(moduleExports.RetrieverQueryEngine.prototype, "query");
-    this._unwrap(moduleExports.VectorIndexRetriever.prototype, "retrieve");
+
+    for (const value of Object.values(moduleExports)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prototype = (value as any).prototype;
+
+      if (isRetrieverPrototype(prototype)) {
+        this._unwrap(prototype, "retrieve");
+      }
+
+      if (isEmbeddingPrototype(prototype)) {
+        this._unwrap(prototype, "getQueryEmbedding");
+      }
+    }
 
     _isOpenInferencePatched = false;
   }
