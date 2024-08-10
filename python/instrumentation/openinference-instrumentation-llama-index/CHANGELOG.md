@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.3...python-openinference-instrumentation-llama-index-v2.2.4) (2024-08-10)
+
+
+### Documentation
+
+* TraceConfig and context attributes ([#793](https://github.com/Arize-ai/openinference/issues/793)) ([d3808c4](https://github.com/Arize-ai/openinference/commit/d3808c4bea3f6a4c72d3a7ea09b54e78072be6fd))
+
 ## [2.2.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.2...python-openinference-instrumentation-llama-index-v2.2.3) (2024-08-06)
 
 
