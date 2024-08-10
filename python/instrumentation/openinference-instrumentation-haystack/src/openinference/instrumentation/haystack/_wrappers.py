@@ -1,5 +1,6 @@
 from abc import ABC
 from enum import Enum, auto
+from json import loads
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
@@ -100,7 +101,6 @@ class _ComponentWrapper(_WithTracer):
 
         with self._tracer.start_as_current_span(name=component_name) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            generation_kwargs = invocation_parameters.get("generation_kwargs", {})
             if (component_type := get_component_type(component_name)) is ComponentType.GENERATOR:
                 span.set_attributes(
                     dict(
@@ -284,15 +284,9 @@ class _ComponentWrapper(_WithTracer):
                             {
                                 **dict(_get_tool_output(response, i)),
                                 f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}": reply.role,
-                            }
-                        )
-                    if "tools" not in generation_kwargs:
-                        span.set_attributes(
-                            {
                                 f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}": reply.content,
                             }
                         )
-
                 else:
                     span.set_attributes(
                         dict(
@@ -446,14 +440,15 @@ def _get_tool_output(response: Any, iteration: int) -> Iterator[Tuple[str, Any]]
     if (replies := response.get("replies")) is not None:
         for i, reply in enumerate(replies):
             if reply.meta.get("finish_reason") == "tool_calls":
-                msg_num = f"{LLM_OUTPUT_MESSAGES}.{iteration}.{MESSAGE_TOOL_CALLS}.{i}"
-                tool_args = eval(reply.content)[0]["function"]
+                tool_args = loads(reply.content)[0]["function"]
                 yield (
-                    f"{msg_num}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                    safe_json_dumps(eval(tool_args["arguments"])),
+                    f"{LLM_OUTPUT_MESSAGES}.{iteration}.{MESSAGE_TOOL_CALLS}.{i}"
+                    f".{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                    safe_json_dumps(loads(tool_args["arguments"])),
                 )
-                yield(
-                    f"{msg_num}.{TOOL_CALL_FUNCTION_NAME}",
+                yield (
+                    f"{LLM_OUTPUT_MESSAGES}.{iteration}.{MESSAGE_TOOL_CALLS}.{i}"
+                    f".{TOOL_CALL_FUNCTION_NAME}",
                     tool_args["name"],
                 )
 
