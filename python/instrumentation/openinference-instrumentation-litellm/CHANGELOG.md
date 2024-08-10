@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.1...python-openinference-instrumentation-litellm-v0.1.2) (2024-08-10)
+
+
+### Features
+
+* **liteLLM:** LiteLLM trace config and context attributes propagation ([#779](https://github.com/Arize-ai/openinference/issues/779)) ([d104695](https://github.com/Arize-ai/openinference/commit/d104695cdcebea740f98b2e26a2a5bab1a09a55f))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.0...python-openinference-instrumentation-litellm-v0.1.1) (2024-08-07)
 
 

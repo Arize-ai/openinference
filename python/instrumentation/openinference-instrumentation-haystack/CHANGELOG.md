@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.4...python-openinference-instrumentation-haystack-v0.1.5) (2024-08-10)
+
+
+### Bug Fixes
+
+* **haystack:** Adjust LLM message attributes for Haystack instrumentation to match semantic conventions ([#837](https://github.com/Arize-ai/openinference/issues/837)) ([3bde318](https://github.com/Arize-ai/openinference/commit/3bde31808bc3f05f5d1c675d7ad3fc4f15dccb7c))
+* Setting of attributes crashes Phoenix and default some components to chain ([#818](https://github.com/Arize-ai/openinference/issues/818)) ([230eaef](https://github.com/Arize-ai/openinference/commit/230eaef5e46a8e72aae601745035a2c799f6799c))
+
+
+### Documentation
+
+* **haystack:** add rag example from haystack ([#812](https://github.com/Arize-ai/openinference/issues/812)) ([06e70b6](https://github.com/Arize-ai/openinference/commit/06e70b629dc5decf12a9da2f2ff197e5542344f4))
+* **haystack:** web questions example ([#809](https://github.com/Arize-ai/openinference/issues/809)) ([5eaf4d8](https://github.com/Arize-ai/openinference/commit/5eaf4d8a92d7c7e9500b43d9a14d7c5f28202581))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.3...python-openinference-instrumentation-haystack-v0.1.4) (2024-08-07)
 
 
