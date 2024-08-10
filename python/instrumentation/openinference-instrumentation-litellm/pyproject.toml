@@ -26,16 +26,19 @@ classifiers = [
 ]
 dependencies = [
   "opentelemetry-api",
+  "opentelemetry-sdk",
   "opentelemetry-instrumentation",
-  "opentelemetry-semantic-conventions",
   "openinference-instrumentation>=0.1.12",
-  "openinference-semantic-conventions",
+  "openinference-semantic-conventions>=0.1.9",
   "wrapt",
 ]
 
+[project.optional-dependencies]
 test = [
+  "litellm",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
+  "tenacity",
 ]
 
 [project.urls]
