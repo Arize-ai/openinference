@@ -103,7 +103,6 @@ class _ComponentWrapper(_WithTracer):
                 )
             elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(dict(_get_span_kind_attributes(RETRIEVER)))
-                # todo: implement retriever input attributes
             elif component_type is ComponentType.PROMPT_BUILDER:
                 span.set_attributes(
                     {
@@ -173,17 +172,7 @@ class _ComponentWrapper(_WithTracer):
                     }
                 )
             elif component_type is ComponentType.RETRIEVER:
-                for i, document in enumerate(response["documents"]):
-                    span.set_attributes(
-                        {
-                            f"{RETRIEVAL_DOCUMENTS}.{i}." f"{DOCUMENT_CONTENT}": document.content,
-                            f"{RETRIEVAL_DOCUMENTS}.{i}." f"{DOCUMENT_ID}": document.id,
-                            f"{RETRIEVAL_DOCUMENTS}.{i}." f"{DOCUMENT_SCORE}": document.score,
-                            f"{RETRIEVAL_DOCUMENTS}.{i}." f"{DOCUMENT_METADATA}": safe_json_dumps(
-                                document.meta
-                            ),
-                        }
-                    )
+                span.set_attributes(dict(_get_retriever_response_attributes(response)))
             elif (
                 component_type is ComponentType.UNKNOWN
                 or component_type is ComponentType.PROMPT_BUILDER
@@ -370,6 +359,30 @@ def _get_llm_prompt_template_attributes_from_prompt_builder(
         }
     ) is not None:
         yield LLM_PROMPT_TEMPLATE_VARIABLES, safe_json_dumps(template_variables)
+
+
+def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts retriever-related attributes from the response.
+    """
+    if (
+        (documents := response.get("documents")) is None
+        or not isinstance(documents, Sequence)
+        or not all(map(lambda x: isinstance(x, Document), documents))
+    ):
+        return
+    for doc_index, doc in enumerate(documents):
+        if (content := doc.content) is not None:
+            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+        if (id := doc.id) is not None:
+            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+        if (score := doc.score) is not None:
+            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_SCORE}", score
+        if (metadata := doc.meta) is not None:
+            yield (
+                f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_METADATA}",
+                safe_json_dumps(metadata),
+            )
 
 
 def _mask_embedding_vectors(key: str, value: Any) -> Tuple[str, Any]:
