@@ -1,7 +1,7 @@
 from abc import ABC
 from enum import Enum, auto
 from inspect import BoundArguments, signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -43,8 +43,13 @@ class _WithTracer(ABC):
 
 class _ComponentWrapper(_WithTracer):
     """
-    Wrapper for the pipeline processing
-    Captures all calls to the pipeline
+    Components in Haystack are defined as a duck-typed protocol with a `run`
+    method, so we wrap `haystack.Pipeline._run_component`, which invokes the
+    component's `run` method. From here, we can gain access to the component
+    itself.
+
+    See:
+    https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/core/component/component.py#L129
     """
 
     def __call__(
@@ -67,13 +72,13 @@ class _ComponentWrapper(_WithTracer):
         run_args = run_bound_args.arguments
 
         with self._tracer.start_as_current_span(name=component_class_name) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
+            span.set_attributes(
+                {**dict(get_attributes_from_context()), **dict(_get_input_attributes(run_args))}
+            )
             if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
                 span.set_attributes(
                     {
                         OPENINFERENCE_SPAN_KIND: LLM,
-                        INPUT_VALUE: safe_json_dumps(run_bound_args),
-                        INPUT_MIME_TYPE: JSON,
                     }
                 )
                 if "Chat" in component_class_name:
@@ -97,8 +102,6 @@ class _ComponentWrapper(_WithTracer):
                     {
                         EMBEDDING_MODEL_NAME: component.model,
                         OPENINFERENCE_SPAN_KIND: EMBEDDING,
-                        INPUT_VALUE: safe_json_dumps(run_args),
-                        INPUT_MIME_TYPE: JSON,
                     }
                 )
             elif component_type is ComponentType.RETRIEVER:
@@ -107,30 +110,15 @@ class _ComponentWrapper(_WithTracer):
                         OPENINFERENCE_SPAN_KIND: RETRIEVER,
                     }
                 )
-                if "query_embedding" in run_args:
-                    emb_len = len(run_args["query_embedding"])
-                    span.set_attributes(
-                        {
-                            INPUT_MIME_TYPE: TEXT,
-                            INPUT_VALUE: f"<{emb_len} dimensional vector>",
-                        }
-                    )
-                if "query" in run_args:
-                    span.set_attributes(
-                        {
-                            INPUT_MIME_TYPE: TEXT,
-                            INPUT_VALUE: run_args["query"],
-                        }
-                    )
+                # todo: implement retriever input attributes
             elif component_type is ComponentType.PROMPT_BUILDER:
                 span.set_attributes(
                     {
                         OPENINFERENCE_SPAN_KIND: LLM,
-                        INPUT_VALUE: safe_json_dumps(run_args),
-                        INPUT_MIME_TYPE: JSON,
                     }
                 )
                 if isinstance(component, ChatPromptBuilder):
+                    # todo: implement template attributes for ChatPromptBuilder
                     temp_vars = safe_json_dumps(run_args["template_variables"])
                     msg_conts = [m.content for m in run_args["template"]]
                     span.set_attributes(
@@ -147,8 +135,6 @@ class _ComponentWrapper(_WithTracer):
                 span.set_attributes(
                     {
                         OPENINFERENCE_SPAN_KIND: CHAIN,
-                        INPUT_VALUE: safe_json_dumps(run_args),
-                        INPUT_MIME_TYPE: JSON,
                     }
                 )
             else:
@@ -344,6 +330,14 @@ def _has_retriever_run_method(run_method: Callable[..., Any]) -> bool:
     if has_string_query_parameter and outputs_list_of_documents:
         return True
     return False
+
+
+def _get_input_attributes(run_args: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Yields input attributes.
+    """
+    yield INPUT_MIME_TYPE, JSON
+    yield INPUT_VALUE, safe_json_dumps(run_args)
 
 
 def _get_llm_token_count_attributes(usage: Any) -> Iterator[Tuple[str, Any]]:
