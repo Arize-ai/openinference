@@ -28,17 +28,20 @@ jobs:
           -e $(tox -l | egrep -e '-latest$' | paste -sd, -)
           --result-json=${{ runner.temp }}/.tox-result.json
       - run: >-
-          echo "testenvs=$(cat ${{ runner.temp }}/.tox-result.json
-          | jq -r '.testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]')"
+          echo "testenvs='$(cat ${{ runner.temp }}/.tox-result.json
+          | jq -r ".testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]"
+          | sort)'"
           >> "$GITHUB_OUTPUT"
         id: failed
         if: failure()
-      - uses: slackapi/slack-github-action@v1.26.01
+      - uses: slackapi/slack-github-action@v1
         if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
           payload: |
             {
-              "text": "Python Packages with CI Failures",
+              "text": "CI Failures for Python Packages",
               "blocks": [
                 {
                   "type": "section",
@@ -49,5 +52,3 @@ jobs:
                 }
               ]
             }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
