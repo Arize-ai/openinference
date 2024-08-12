@@ -18,7 +18,7 @@ from opentelemetry import trace as trace_api
 from typing_extensions import assert_never
 
 from haystack import Document, Pipeline
-from haystack.components.builders import ChatPromptBuilder, PromptBuilder
+from haystack.components.builders import PromptBuilder
 from haystack.core.component import Component
 from haystack.dataclasses import ChatRole
 
