@@ -159,8 +159,6 @@ class _ComponentWrapper(_WithTracer):
                         span.set_attributes(
                             {
                                 **dict(_get_llm_token_count_attributes(usage)),
-                                OUTPUT_VALUE: safe_json_dumps(response),
-                                OUTPUT_MIME_TYPE: JSON,
                                 LLM_MODEL_NAME: reply.meta["model"],
                             }
                         )
@@ -176,8 +174,6 @@ class _ComponentWrapper(_WithTracer):
                         {
                             **dict(_get_llm_token_count_attributes(response["meta"][0]["usage"])),
                             LLM_MODEL_NAME: response["meta"][0]["model"],
-                            OUTPUT_VALUE: safe_json_dumps(response["replies"]),
-                            OUTPUT_MIME_TYPE: JSON,
                         }
                     )
                     span.set_attributes(
@@ -197,14 +193,6 @@ class _ComponentWrapper(_WithTracer):
                     }
                 )
             elif component_type is ComponentType.RETRIEVER:
-                if "documents" in response:
-                    span.set_attributes(
-                        {
-                            OUTPUT_VALUE: safe_json_dumps(response["documents"]),
-                            OUTPUT_MIME_TYPE: JSON,
-                        }
-                    )
-
                 for i, document in enumerate(response["documents"]):
                     span.set_attributes(
                         {
@@ -220,12 +208,7 @@ class _ComponentWrapper(_WithTracer):
                 component_type is ComponentType.UNKNOWN
                 or component_type is ComponentType.PROMPT_BUILDER
             ):
-                span.set_attributes(
-                    {
-                        OUTPUT_VALUE: safe_json_dumps(response),
-                        OUTPUT_MIME_TYPE: JSON,
-                    }
-                )
+                span.set_attributes(dict(_get_output_attributes(response)))
             else:
                 assert_never(component_type)
 
@@ -271,12 +254,7 @@ class _PipelineWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            span.set_attributes(
-                {
-                    OUTPUT_VALUE: safe_json_dumps(response),
-                    OUTPUT_MIME_TYPE: JSON,
-                }
-            )
+            span.set_attributes(dict(_get_output_attributes(response)))
             span.set_status(trace_api.StatusCode.OK)
 
         return response
@@ -338,6 +316,14 @@ def _get_input_attributes(run_args: Dict[str, Any]) -> Iterator[Tuple[str, Any]]
     """
     yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(run_args)
+
+
+def _get_output_attributes(response: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Yields output attributes.
+    """
+    yield OUTPUT_MIME_TYPE, JSON
+    yield OUTPUT_VALUE, safe_json_dumps(response)
 
 
 def _get_llm_token_count_attributes(usage: Any) -> Iterator[Tuple[str, Any]]:
