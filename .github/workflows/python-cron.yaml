@@ -29,7 +29,7 @@ jobs:
           --result-json=${{ runner.temp }}/.tox-result.json
       - run: >-
           echo "testenvs=$(cat ${{ runner.temp }}/.tox-result.json
-          | jq -r ".testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]"
+          | jq -r '.testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]'
           | sort
           | paste -sd, -)"
           >> "$GITHUB_OUTPUT"
