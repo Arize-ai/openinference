@@ -240,7 +240,7 @@ class ComponentType(Enum):
 
 def _get_component_by_name(pipeline: Pipeline, component_name: str) -> Optional[Component]:
     """
-    Gets the component invoked by `Pipeline._run_component` (if one exists).
+    Gets the component invoked by `haystack.Pipeline._run_component` (if one exists).
     """
     if (node := pipeline.graph.nodes.get(component_name)) is None or (
         component := node.get("instance")
