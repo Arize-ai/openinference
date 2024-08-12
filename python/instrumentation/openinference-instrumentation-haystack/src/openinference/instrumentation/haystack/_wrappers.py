@@ -179,7 +179,7 @@ class _ComponentWrapper(_WithTracer):
                     if "meta" in str(reply):
                         span.set_attributes(
                             {
-                                **dict(_get_token_counts(usage)),
+                                **dict(_get_llm_token_count_attributes(usage)),
                                 OUTPUT_VALUE: safe_json_dumps(response),
                                 OUTPUT_MIME_TYPE: JSON,
                                 LLM_MODEL_NAME: reply.meta["model"],
@@ -195,7 +195,7 @@ class _ComponentWrapper(_WithTracer):
                 else:
                     span.set_attributes(
                         {
-                            **dict(_get_token_counts(response["meta"][0]["usage"])),
+                            **dict(_get_llm_token_count_attributes(response["meta"][0]["usage"])),
                             LLM_MODEL_NAME: response["meta"][0]["model"],
                             OUTPUT_VALUE: safe_json_dumps(response["replies"]),
                             OUTPUT_MIME_TYPE: JSON,
@@ -353,7 +353,7 @@ def _has_retriever_run_method(run_method: Callable[..., Any]) -> bool:
     return False
 
 
-def _get_token_counts(usage: Any) -> Iterator[Tuple[str, Any]]:
+def _get_llm_token_count_attributes(usage: Any) -> Iterator[Tuple[str, Any]]:
     """
     Extract token counts from the usage.
     """
