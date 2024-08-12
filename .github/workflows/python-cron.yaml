@@ -1,4 +1,4 @@
-name: Python cron
+name: Python Canary Cron
 
 on:
   schedule:
