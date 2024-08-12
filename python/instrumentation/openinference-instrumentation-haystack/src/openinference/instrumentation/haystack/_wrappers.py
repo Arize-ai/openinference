@@ -19,7 +19,7 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from haystack import Pipeline
-from haystack.components.builders import PromptBuilder
+from haystack.components.builders import ChatPromptBuilder, PromptBuilder
 from haystack.core.component import Component
 from haystack.dataclasses import ChatRole
 
@@ -150,7 +150,7 @@ class _ComponentWrapper(_WithTracer):
                         INPUT_MIME_TYPE: JSON,
                     }
                 )
-                if "ChatPromptBuilder" in component_name:
+                if isinstance(component, ChatPromptBuilder):
                     temp_vars = safe_json_dumps(input_data["template_variables"])
                     msg_conts = [m.content for m in input_data["template"]]
                     span.set_attributes(
@@ -159,7 +159,7 @@ class _ComponentWrapper(_WithTracer):
                             LLM_PROMPT_TEMPLATE_VARIABLES: temp_vars,
                         }
                     )
-                else:
+                elif isinstance(component, PromptBuilder):
                     span.set_attributes(
                         dict(_get_llm_prompt_template_attributes(component, arguments)),
                     )
