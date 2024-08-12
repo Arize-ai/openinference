@@ -35,7 +35,7 @@ jobs:
         id: failed
         if: failure()
       - uses: slackapi/slack-github-action@v1
-        if: failure()
+        if: ${{ steps.failed.outputs.testenvs != '' }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
