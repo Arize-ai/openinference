@@ -349,9 +349,12 @@ def test_haystack_instrumentation_chat(
 ) -> None:
     prompt_builder = ChatPromptBuilder()
 
+<<<<<<< HEAD
     llm = OpenAIChatGenerator(api_key=Secret.from_token("TOTALLY_REAL_API_KEY"))
     llm.run = fake_OpenAIGenerator_run_chat.__get__(llm, OpenAIChatGenerator)
 
+=======
+>>>>>>> a5e9d2c5f7797d78ce0deadd599c030a4e83ece9
     pipe = Pipeline()
 
     pipe.add_component("prompt_builder", prompt_builder)
@@ -464,11 +467,12 @@ def test_haystack_instrumentation_filtering(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_haystack_tool_calling(
+
+def test_haystack_tool_calling_llm_span_has_expected_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
-    openai_api_key: Any,
+    openai_api_key: str,
 ) -> None:
     WEATHER_INFO = {
         "Berlin": {"weather": "mostly sunny", "temperature": 7, "unit": "celsius"},
@@ -514,7 +518,7 @@ def test_haystack_tool_calling(
 
     pipe = Pipeline()
     pipe.add_component("llm", chat_generator)
-    pipe.run({"llm": {"messages": messages, "generation_kwargs": {"tools": tools}}})
+    output = pipe.run({"llm": {"messages": messages, "generation_kwargs": {"tools": tools}}})
 
     spans = in_memory_span_exporter.get_finished_spans()
 
