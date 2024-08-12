@@ -112,7 +112,7 @@ class _ComponentWrapper(_WithTracer):
                         dict(_get_llm_prompt_template_attributes(component, run_bound_args)),
                     )
             elif component_type is ComponentType.UNKNOWN:
-                span.set_attributes(dict(_get_span_kind_attributes(LLM)))
+                span.set_attributes(dict(_get_span_kind_attributes(CHAIN)))
             else:
                 assert_never(component_type)
 
