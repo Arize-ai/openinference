@@ -23,14 +23,6 @@ from haystack.core.component import Component
 from haystack.dataclasses import ChatRole
 
 
-class ComponentType(Enum):
-    GENERATOR = auto()
-    EMBEDDER = auto()
-    RETRIEVER = auto()
-    PROMPT_BUILDER = auto()
-    UNKNOWN = auto()
-
-
 class _WithTracer(ABC):
     """
     Base class for wrappers that need a tracer.
@@ -258,6 +250,14 @@ class _PipelineWrapper(_WithTracer):
             span.set_status(trace_api.StatusCode.OK)
 
         return response
+
+
+class ComponentType(Enum):
+    GENERATOR = auto()
+    EMBEDDER = auto()
+    RETRIEVER = auto()
+    PROMPT_BUILDER = auto()
+    UNKNOWN = auto()
 
 
 def _get_component_by_name(pipeline: Pipeline, component_name: str) -> Optional[Component]:
