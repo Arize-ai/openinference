@@ -28,10 +28,10 @@ jobs:
           -e $(tox -l | egrep -e '-latest$' | paste -sd, -)
           --result-json=${{ runner.temp }}/.tox-result.json
       - run: >-
-          echo "testenvs='$(cat ${{ runner.temp }}/.tox-result.json
+          echo "testenvs=$(cat ${{ runner.temp }}/.tox-result.json
           | jq -r ".testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]"
           | sort
-          | paste -sd "\" -)'"
+          | paste -sd, -)"
           >> "$GITHUB_OUTPUT"
         id: failed
         if: failure()
