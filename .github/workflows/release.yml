@@ -11,7 +11,7 @@ name: release
 
 jobs:
   create-release:
-    runs-on: ubuntu-latest
+    runs-on: oss-4-core-runner
     outputs:
       python_path_released: ${{ steps.parse.outputs.python_path_released }}
       js_path_released: ${{ steps.parse.outputs.js_path_released }}
@@ -36,7 +36,7 @@ jobs:
 
   publish-python-distribution:
     name: Publish Python distribution
-    runs-on: ubuntu-latest
+    runs-on: oss-4-core-runner
     needs: create-release
     if: ${{ needs.create-release.outputs.python_path_released != '' }}
     defaults:
@@ -62,7 +62,7 @@ jobs:
 
   publish-javascript-distribution:
     name: Publish JavaScript distribution
-    runs-on: ubuntu-latest
+    runs-on: oss-4-core-runner
     needs: create-release
     if: ${{ needs.create-release.outputs.js_path_released != '' }}
     defaults:
