@@ -260,6 +260,17 @@ class _PipelineWrapper(_WithTracer):
         return response
 
 
+def _get_component_by_name(pipeline: Pipeline, component_name: str) -> Optional[Component]:
+    """
+    Gets the component invoked by `Pipeline._run_component` (if one exists).
+    """
+    if (node := pipeline.graph.nodes.get(component_name)) is None or (
+        component := node.get("instance")
+    ) is None:
+        return None
+    return component
+
+
 def _get_component_class_name(component: Component) -> str:
     """
     Gets the name of the component.
@@ -367,17 +378,6 @@ def _get_llm_prompt_template_attributes(
         }
     ) is not None:
         yield LLM_PROMPT_TEMPLATE_VARIABLES, safe_json_dumps(template_variables)
-
-
-def _get_component_by_name(pipeline: Pipeline, component_name: str) -> Optional[Component]:
-    """
-    Gets the component invoked by `Pipeline._run_component` (if one exists).
-    """
-    if (node := pipeline.graph.nodes.get(component_name)) is None or (
-        component := node.get("instance")
-    ) is None:
-        return None
-    return component
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
