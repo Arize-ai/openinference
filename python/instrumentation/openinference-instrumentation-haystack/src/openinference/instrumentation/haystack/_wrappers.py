@@ -223,20 +223,14 @@ class _PipelineWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
+        arguments = signature(wrapped).bind(*args, **kwargs).arguments
 
         span_name = "Pipeline"
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: CHAIN,
-                INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                INPUT_MIME_TYPE: JSON,
+                **dict(_get_input_attributes(arguments)),
             },
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
@@ -321,12 +315,12 @@ def _has_retriever_run_method(run_method: Callable[..., Any]) -> bool:
     return False
 
 
-def _get_input_attributes(run_args: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_input_attributes(arguments: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
     Yields input attributes.
     """
     yield INPUT_MIME_TYPE, JSON
-    yield INPUT_VALUE, safe_json_dumps(run_args)
+    yield INPUT_VALUE, safe_json_dumps(arguments)
 
 
 def _get_output_attributes(response: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
