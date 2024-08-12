@@ -170,7 +170,7 @@ class _ComponentWrapper(_WithTracer):
             span.set_status(trace_api.StatusCode.OK)
 
             if component_type is ComponentType.GENERATOR:
-                if "Chat" in component.__class__.__name__:
+                if "Chat" in component_class_name:
                     replies = response.get("replies")
                     if replies is None or len(replies) == 0:
                         pass
