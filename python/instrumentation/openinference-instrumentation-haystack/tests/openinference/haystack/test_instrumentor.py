@@ -478,7 +478,7 @@ def test_haystack_tool_calling_llm_span_has_expected_attributes(
         "London": {"weather": "cloudy", "temperature": 9, "unit": "celsius"},
     }
 
-    def get_current_weather(location: str):
+    def get_current_weather(location: str) -> Any:
         if location in WEATHER_INFO:
             return WEATHER_INFO[location]
 
