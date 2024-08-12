@@ -9,7 +9,7 @@ env:
 jobs:
     version:
         timeout-minutes: 15
-        runs-on: oss-4-core-runner
+        runs-on: ubuntu-latest
         steps:
             - name: checkout code repository
               uses: actions/checkout@v3
