@@ -68,11 +68,7 @@ class _ComponentWrapper(_WithTracer):
                 {**dict(get_attributes_from_context()), **dict(_get_input_attributes(run_args))}
             )
             if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
-                span.set_attributes(
-                    {
-                        OPENINFERENCE_SPAN_KIND: LLM,
-                    }
-                )
+                span.set_attributes(dict(_get_span_kind_attributes(LLM)))
                 if "Chat" in component_class_name:
                     for i, msg in enumerate(run_args["messages"]):
                         span.set_attributes(
@@ -92,23 +88,15 @@ class _ComponentWrapper(_WithTracer):
             elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(
                     {
+                        **dict(_get_span_kind_attributes(EMBEDDING)),
                         EMBEDDING_MODEL_NAME: component.model,
-                        OPENINFERENCE_SPAN_KIND: EMBEDDING,
                     }
                 )
             elif component_type is ComponentType.RETRIEVER:
-                span.set_attributes(
-                    {
-                        OPENINFERENCE_SPAN_KIND: RETRIEVER,
-                    }
-                )
+                span.set_attributes(dict(_get_span_kind_attributes(RETRIEVER)))
                 # todo: implement retriever input attributes
             elif component_type is ComponentType.PROMPT_BUILDER:
-                span.set_attributes(
-                    {
-                        OPENINFERENCE_SPAN_KIND: LLM,
-                    }
-                )
+                span.set_attributes(dict(_get_span_kind_attributes(LLM)))
                 if isinstance(component, ChatPromptBuilder):
                     # todo: implement template attributes for ChatPromptBuilder
                     temp_vars = safe_json_dumps(run_args["template_variables"])
@@ -124,11 +112,7 @@ class _ComponentWrapper(_WithTracer):
                         dict(_get_llm_prompt_template_attributes(component, run_bound_args)),
                     )
             elif component_type is ComponentType.UNKNOWN:
-                span.set_attributes(
-                    {
-                        OPENINFERENCE_SPAN_KIND: CHAIN,
-                    }
-                )
+                span.set_attributes(dict(_get_span_kind_attributes(LLM)))
             else:
                 assert_never(component_type)
 
@@ -229,7 +213,7 @@ class _PipelineWrapper(_WithTracer):
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
-                OPENINFERENCE_SPAN_KIND: CHAIN,
+                **dict(_get_span_kind_attributes(CHAIN)),
                 **dict(_get_input_attributes(arguments)),
             },
         ) as span:
@@ -313,6 +297,13 @@ def _has_retriever_run_method(run_method: Callable[..., Any]) -> bool:
     if has_string_query_parameter and outputs_list_of_documents:
         return True
     return False
+
+
+def _get_span_kind_attributes(span_kind: str) -> Iterator[Tuple[str, Any]]:
+    """
+    Yields span kind attributes.
+    """
+    yield OPENINFERENCE_SPAN_KIND, span_kind
 
 
 def _get_input_attributes(arguments: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
