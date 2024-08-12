@@ -40,7 +40,7 @@ jobs:
         if: ${{ steps.filter.outputs.diff == 'true' }}
         id: changes
       - uses: actions/setup-python@v5
-        if: ${{ steps.filter.outputs.diff == 'true' }}
+        if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
         with:
           python-version: |
             3.8
@@ -49,8 +49,8 @@ jobs:
             3.11
             3.12
       - run: pip install -U tox-uv
-        if: ${{ steps.filter.outputs.diff == 'true' }}
+        if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
       - run: >-
           tox run-parallel --parallel-no-spinner 
           -e $(tox -l | egrep -e '${{ steps.changes.outputs.packages }}' | paste -sd, -)
-        if: ${{ steps.filter.outputs.diff == 'true' }}
+        if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
