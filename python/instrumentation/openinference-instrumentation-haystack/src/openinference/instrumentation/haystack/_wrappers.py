@@ -1,7 +1,16 @@
 from abc import ABC
 from enum import Enum, auto
 from inspect import BoundArguments, signature
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 import opentelemetry.context as context_api
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -301,15 +310,15 @@ def _get_span_kind_attributes(span_kind: str) -> Iterator[Tuple[str, Any]]:
     yield OPENINFERENCE_SPAN_KIND, span_kind
 
 
-def _get_input_attributes(arguments: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_input_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
     Yields input attributes.
     """
-    yield INPUT_MIME_TYPE, JSON
-    yield INPUT_VALUE, safe_json_dumps(arguments)
+    masked_arguments = dict(_mask_embedding_vectors(key, value) for key, value in arguments.items())
+    yield INPUT_VALUE, safe_json_dumps(masked_arguments)
 
 
-def _get_output_attributes(response: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_output_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
     Yields output attributes.
     """
@@ -358,6 +367,28 @@ def _get_llm_prompt_template_attributes_from_prompt_builder(
         }
     ) is not None:
         yield LLM_PROMPT_TEMPLATE_VARIABLES, safe_json_dumps(template_variables)
+
+
+def _mask_embedding_vectors(key: str, value: Any) -> Tuple[str, Any]:
+    """
+    Masks embeddings.
+    """
+    if isinstance(key, str) and "embedding" in key and _is_vector(value):
+        return key, f"<{len(value)}-dimensional vector>"
+    return key, value
+
+
+def _is_vector(value: Any) -> bool:
+    """
+    Checks for sequences of numbers and NumPy arrays.
+    """
+    import numpy as np  # NumPy is a Haystack dependency
+
+    is_sequence_of_numbers = isinstance(value, Sequence) and all(
+        map(lambda x: isinstance(x, (int, float)), value)
+    )
+    is_numpy_array = isinstance(value, np.ndarray)
+    return is_sequence_of_numbers or is_numpy_array
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
