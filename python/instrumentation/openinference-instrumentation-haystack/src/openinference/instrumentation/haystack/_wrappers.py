@@ -66,13 +66,6 @@ class _ComponentWrapper(_WithTracer):
         run_bound_args = signature(component.run).bind(**pipe_args["inputs"])
         run_args = run_bound_args.arguments
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
-
         with self._tracer.start_as_current_span(name=component_class_name) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
@@ -104,7 +97,7 @@ class _ComponentWrapper(_WithTracer):
                     {
                         EMBEDDING_MODEL_NAME: component.model,
                         OPENINFERENCE_SPAN_KIND: EMBEDDING,
-                        INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                        INPUT_VALUE: safe_json_dumps(run_args),
                         INPUT_MIME_TYPE: JSON,
                     }
                 )
@@ -133,7 +126,7 @@ class _ComponentWrapper(_WithTracer):
                 span.set_attributes(
                     {
                         OPENINFERENCE_SPAN_KIND: LLM,
-                        INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                        INPUT_VALUE: safe_json_dumps(run_args),
                         INPUT_MIME_TYPE: JSON,
                     }
                 )
@@ -154,7 +147,7 @@ class _ComponentWrapper(_WithTracer):
                 span.set_attributes(
                     {
                         OPENINFERENCE_SPAN_KIND: CHAIN,
-                        INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                        INPUT_VALUE: safe_json_dumps(run_args),
                         INPUT_MIME_TYPE: JSON,
                     }
                 )
@@ -214,7 +207,7 @@ class _ComponentWrapper(_WithTracer):
                 span.set_attributes(
                     {
                         f"{emb_vec_0}{EMBEDDING_VECTOR}": f"<{emb_len} dimensional vector>",
-                        f"{emb_vec_0}{EMBEDDING_TEXT}": invocation_parameters["text"],
+                        f"{emb_vec_0}{EMBEDDING_TEXT}": run_args["text"],
                     }
                 )
             elif component_type is ComponentType.RETRIEVER:
