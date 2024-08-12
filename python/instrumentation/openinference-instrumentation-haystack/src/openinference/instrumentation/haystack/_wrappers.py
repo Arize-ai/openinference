@@ -112,21 +112,6 @@ class _ComponentWrapper(_WithTracer):
                         }
                     )
 
-                if "prompt_builder" in str(instance):
-                    if "ChatPromptBuilder" in str(instance):
-                        span.set_attributes(
-                            {
-                                LLM_INPUT_MESSAGES: input_data["messages"],
-                            }
-                        )
-                    else:
-                        span.set_attribute(
-                            LLM_PROMPT_TEMPLATE,
-                            instance.graph.nodes._nodes["prompt_builder"][
-                                "instance"
-                            ]._template_string,
-                        )
-
             elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(
                     {
