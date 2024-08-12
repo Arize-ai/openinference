@@ -464,7 +464,6 @@ def test_haystack_instrumentation_filtering(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-
 def test_haystack_tool_calling_llm_span_has_expected_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -515,7 +514,7 @@ def test_haystack_tool_calling_llm_span_has_expected_attributes(
 
     pipe = Pipeline()
     pipe.add_component("llm", chat_generator)
-    output = pipe.run({"llm": {"messages": messages, "generation_kwargs": {"tools": tools}}})
+    pipe.run({"llm": {"messages": messages, "generation_kwargs": {"tools": tools}}})
 
     spans = in_memory_span_exporter.get_finished_spans()
 
