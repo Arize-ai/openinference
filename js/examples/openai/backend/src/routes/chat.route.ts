@@ -1,8 +1,8 @@
-import express from "express";
+import express, { Router } from "express";
 import { chat } from "../controllers/chat.controller";
 
-const llmRouter = express.Router();
+const router: Router = express.Router();
 
-llmRouter.route("/").post(chat);
+router.route("/").post(chat);
 
-export default llmRouter;
+export default router;

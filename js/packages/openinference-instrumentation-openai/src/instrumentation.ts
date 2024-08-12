@@ -417,8 +417,28 @@ function getChatCompletionInputMessageAttributes(
     [SemanticConventions.MESSAGE_ROLE]: role,
   };
   // Add the content only if it is a string
-  if (typeof message.content === "string")
+  if (typeof message.content === "string") {
     attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+  } else if (Array.isArray(message.content)) {
+    message.content.forEach((part, index) => {
+      const contentsIndexPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
+      if (part.type === "text") {
+        attributes[
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
+        ] = "text";
+        attributes[
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+        ] = part.text;
+      } else if (part.type === "image_url") {
+        attributes[
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
+        ] = "image";
+        attributes[
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}`
+        ] = part.image_url.url;
+      }
+    });
+  }
   switch (role) {
     case "user":
       // There's nothing to add for the user
