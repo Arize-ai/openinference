@@ -109,7 +109,8 @@ export function isLLMPrototype(proto: unknown): proto is LLM {
     typeof proto === "object" &&
     "chat" in proto &&
     "complete" in proto &&
-    typeof proto.chat === "function"
+    typeof proto.chat === "function" &&
+    typeof proto.complete === "function"
   );
 }
 
