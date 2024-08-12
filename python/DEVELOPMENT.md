@@ -23,9 +23,9 @@
 
 ## Development
 
-This project uses [ruff](https://github.com/astral-sh/ruff) for formatting and linting, [mypy](https://github.com/python/mypy) for type checking, and [tox](https://github.com/tox-dev/tox) for automation. To start, install `tox`:
+This project uses [ruff](https://github.com/astral-sh/ruff) for formatting and linting, [mypy](https://github.com/python/mypy) for type checking, and [tox](https://github.com/tox-dev/tox) for automation. To start, install `dev-requirements.txt` (inside `openininference/python`):
 ```console
-pip install tox-uv
+pip install -r python/dev-requirements.txt
 ```
 
 ### Testing
