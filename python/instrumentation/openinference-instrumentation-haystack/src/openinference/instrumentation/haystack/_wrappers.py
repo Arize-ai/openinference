@@ -24,23 +24,6 @@ from haystack.core.component import Component
 from haystack.dataclasses import ChatRole
 
 
-def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
-    for key, value in mapping.items():
-        if value is None:
-            continue
-        if isinstance(value, Mapping):
-            for sub_key, sub_value in _flatten(value):
-                yield f"{key}.{sub_key}", sub_value
-        elif isinstance(value, List) and any(isinstance(item, Mapping) for item in value):
-            for index, sub_mapping in enumerate(value):
-                for sub_key, sub_value in _flatten(sub_mapping):
-                    yield f"{key}.{index}.{sub_key}", sub_value
-        else:
-            if isinstance(value, Enum):
-                value = value.value
-            yield key, value
-
-
 class ComponentType(Enum):
     GENERATOR = auto()
     EMBEDDER = auto()
@@ -107,15 +90,11 @@ class _ComponentWrapper(_WithTracer):
             span.set_attributes(dict(get_attributes_from_context()))
             if (component_type := get_component_type(component_name)) is ComponentType.GENERATOR:
                 span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                OPENINFERENCE_SPAN_KIND: LLM,
-                                INPUT_VALUE: safe_json_dumps(input_data),
-                                INPUT_MIME_TYPE: JSON,
-                            }
-                        )
-                    )
+                    {
+                        OPENINFERENCE_SPAN_KIND: LLM,
+                        INPUT_VALUE: safe_json_dumps(input_data),
+                        INPUT_MIME_TYPE: JSON,
+                    }
                 )
                 if "Chat" in component_name:
                     for i, msg in enumerate(input_data["messages"]):
@@ -136,13 +115,9 @@ class _ComponentWrapper(_WithTracer):
                 if "prompt_builder" in str(instance):
                     if "ChatPromptBuilder" in str(instance):
                         span.set_attributes(
-                            dict(
-                                _flatten(
-                                    {
-                                        LLM_INPUT_MESSAGES: input_data["messages"],
-                                    }
-                                )
-                            )
+                            {
+                                LLM_INPUT_MESSAGES: input_data["messages"],
+                            }
                         )
                     else:
                         span.set_attribute(
@@ -154,74 +129,50 @@ class _ComponentWrapper(_WithTracer):
 
             elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                EMBEDDING_MODEL_NAME: component.model,
-                                OPENINFERENCE_SPAN_KIND: EMBEDDING,
-                                INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                                INPUT_MIME_TYPE: JSON,
-                            }
-                        )
-                    )
+                    {
+                        EMBEDDING_MODEL_NAME: component.model,
+                        OPENINFERENCE_SPAN_KIND: EMBEDDING,
+                        INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                        INPUT_MIME_TYPE: JSON,
+                    }
                 )
             elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                OPENINFERENCE_SPAN_KIND: RETRIEVER,
-                            }
-                        )
-                    )
+                    {
+                        OPENINFERENCE_SPAN_KIND: RETRIEVER,
+                    }
                 )
                 if "query_embedding" in input_data:
                     emb_len = len(input_data["query_embedding"])
                     span.set_attributes(
-                        dict(
-                            _flatten(
-                                {
-                                    INPUT_MIME_TYPE: TEXT,
-                                    INPUT_VALUE: f"<{emb_len} dimensional vector>",
-                                }
-                            )
-                        )
+                        {
+                            INPUT_MIME_TYPE: TEXT,
+                            INPUT_VALUE: f"<{emb_len} dimensional vector>",
+                        }
                     )
                 elif "query" in input_data:
                     span.set_attributes(
-                        dict(
-                            _flatten(
-                                {
-                                    INPUT_MIME_TYPE: TEXT,
-                                    INPUT_VALUE: input_data["query"],
-                                }
-                            )
-                        )
+                        {
+                            INPUT_MIME_TYPE: TEXT,
+                            INPUT_VALUE: input_data["query"],
+                        }
                     )
             elif component_type is ComponentType.PROMPT_BUILDER:
                 span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                OPENINFERENCE_SPAN_KIND: LLM,
-                                INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                                INPUT_MIME_TYPE: JSON,
-                            }
-                        )
-                    )
+                    {
+                        OPENINFERENCE_SPAN_KIND: LLM,
+                        INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                        INPUT_MIME_TYPE: JSON,
+                    }
                 )
                 if "ChatPromptBuilder" in component_name:
                     temp_vars = safe_json_dumps(input_data["template_variables"])
                     msg_conts = [m.content for m in input_data["template"]]
                     span.set_attributes(
-                        dict(
-                            _flatten(
-                                {
-                                    LLM_INPUT_MESSAGES: msg_conts,
-                                    LLM_PROMPT_TEMPLATE_VARIABLES: temp_vars,
-                                }
-                            )
-                        )
+                        {
+                            LLM_INPUT_MESSAGES: msg_conts,
+                            LLM_PROMPT_TEMPLATE_VARIABLES: temp_vars,
+                        }
                     )
                 else:
                     span.set_attributes(
@@ -229,27 +180,19 @@ class _ComponentWrapper(_WithTracer):
                     )
                 if "documents" in invocation_parameters:
                     span.set_attributes(
-                        dict(
-                            _flatten(
-                                {
-                                    RETRIEVAL_DOCUMENTS: safe_json_dumps(
-                                        invocation_parameters["documents"]
-                                    ),
-                                }
-                            )
-                        )
+                        {
+                            RETRIEVAL_DOCUMENTS: safe_json_dumps(
+                                invocation_parameters["documents"]
+                            ),
+                        }
                     )
             elif component_type is ComponentType.UNKNOWN:
                 span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                OPENINFERENCE_SPAN_KIND: CHAIN,
-                                INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                                INPUT_MIME_TYPE: JSON,
-                            }
-                        )
-                    )
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                        INPUT_MIME_TYPE: JSON,
+                    }
                 )
             else:
                 assert_never(component_type)
@@ -271,16 +214,12 @@ class _ComponentWrapper(_WithTracer):
                     usage = reply.meta.get("usage", {})
                     if "meta" in str(reply):
                         span.set_attributes(
-                            dict(
-                                _flatten(
-                                    {
-                                        **dict(_get_token_counts(usage)),
-                                        OUTPUT_VALUE: safe_json_dumps(response),
-                                        OUTPUT_MIME_TYPE: JSON,
-                                        LLM_MODEL_NAME: reply.meta["model"],
-                                    }
-                                )
-                            )
+                            {
+                                **dict(_get_token_counts(usage)),
+                                OUTPUT_VALUE: safe_json_dumps(response),
+                                OUTPUT_MIME_TYPE: JSON,
+                                LLM_MODEL_NAME: reply.meta["model"],
+                            }
                         )
                     for i, reply in enumerate(response["replies"]):
                         span.set_attributes(
@@ -291,16 +230,12 @@ class _ComponentWrapper(_WithTracer):
                         )
                 else:
                     span.set_attributes(
-                        dict(
-                            _flatten(
-                                {
-                                    **dict(_get_token_counts(response["meta"][0]["usage"])),
-                                    LLM_MODEL_NAME: response["meta"][0]["model"],
-                                    OUTPUT_VALUE: safe_json_dumps(response["replies"]),
-                                    OUTPUT_MIME_TYPE: JSON,
-                                }
-                            )
-                        )
+                        {
+                            **dict(_get_token_counts(response["meta"][0]["usage"])),
+                            LLM_MODEL_NAME: response["meta"][0]["model"],
+                            OUTPUT_VALUE: safe_json_dumps(response["replies"]),
+                            OUTPUT_MIME_TYPE: JSON,
+                        }
                     )
                     span.set_attributes(
                         {
@@ -313,26 +248,18 @@ class _ComponentWrapper(_WithTracer):
                 emb_vec_0 = f"{EMBEDDING_EMBEDDINGS}.0."
 
                 span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                f"{emb_vec_0}{EMBEDDING_VECTOR}": f"<{emb_len} dimensional vector>",
-                                f"{emb_vec_0}{EMBEDDING_TEXT}": invocation_parameters["text"],
-                            }
-                        )
-                    )
+                    {
+                        f"{emb_vec_0}{EMBEDDING_VECTOR}": f"<{emb_len} dimensional vector>",
+                        f"{emb_vec_0}{EMBEDDING_TEXT}": invocation_parameters["text"],
+                    }
                 )
             elif component_type is ComponentType.RETRIEVER:
                 if "documents" in response:
                     span.set_attributes(
-                        dict(
-                            _flatten(
-                                {
-                                    OUTPUT_VALUE: safe_json_dumps(response["documents"]),
-                                    OUTPUT_MIME_TYPE: JSON,
-                                }
-                            )
-                        )
+                        {
+                            OUTPUT_VALUE: safe_json_dumps(response["documents"]),
+                            OUTPUT_MIME_TYPE: JSON,
+                        }
                     )
 
                 for i, document in enumerate(response["documents"]):
@@ -348,14 +275,10 @@ class _ComponentWrapper(_WithTracer):
                     )
             elif component_type in (ComponentType.UNKNOWN, ComponentType.PROMPT_BUILDER):
                 span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                OUTPUT_VALUE: safe_json_dumps(response),
-                                OUTPUT_MIME_TYPE: JSON,
-                            }
-                        )
-                    )
+                    {
+                        OUTPUT_VALUE: safe_json_dumps(response),
+                        OUTPUT_MIME_TYPE: JSON,
+                    }
                 )
             else:
                 assert_never(component_type)
@@ -389,15 +312,11 @@ class _PipelineWrapper(_WithTracer):
         span_name = "Pipeline"
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: CHAIN,
-                        INPUT_VALUE: safe_json_dumps(invocation_parameters),
-                        INPUT_MIME_TYPE: JSON,
-                    }
-                )
-            ),
+            attributes={
+                OPENINFERENCE_SPAN_KIND: CHAIN,
+                INPUT_VALUE: safe_json_dumps(invocation_parameters),
+                INPUT_MIME_TYPE: JSON,
+            },
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             try:
@@ -407,21 +326,17 @@ class _PipelineWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             span.set_attributes(
-                dict(
-                    _flatten(
-                        {
-                            OUTPUT_VALUE: safe_json_dumps(response),
-                            OUTPUT_MIME_TYPE: JSON,
-                        }
-                    )
-                )
+                {
+                    OUTPUT_VALUE: safe_json_dumps(response),
+                    OUTPUT_MIME_TYPE: JSON,
+                }
             )
             span.set_status(trace_api.StatusCode.OK)
 
         return response
 
 
-def _get_token_counts(usage: Any) -> Iterator[Tuple[str, Optional[int]]]:
+def _get_token_counts(usage: Any) -> Iterator[Tuple[str, Any]]:
     """
     Extract token counts from the usage.
     """
@@ -487,13 +402,30 @@ def _get_bound_arguments(function: Callable[..., Any], *args: Any, **kwargs: Any
     return signature(function).bind(*args, **kwargs)
 
 
-CHAIN = OpenInferenceSpanKindValues.CHAIN
-EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
-LLM = OpenInferenceSpanKindValues.LLM
-RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+    for key, value in mapping.items():
+        if value is None:
+            continue
+        if isinstance(value, Mapping):
+            for sub_key, sub_value in _flatten(value):
+                yield f"{key}.{sub_key}", sub_value
+        elif isinstance(value, List) and any(isinstance(item, Mapping) for item in value):
+            for index, sub_mapping in enumerate(value):
+                for sub_key, sub_value in _flatten(sub_mapping):
+                    yield f"{key}.{index}.{sub_key}", sub_value
+        else:
+            if isinstance(value, Enum):
+                value = value.value
+            yield key, value
 
-JSON = OpenInferenceMimeTypeValues.JSON
-TEXT = OpenInferenceMimeTypeValues.TEXT
+
+CHAIN = OpenInferenceSpanKindValues.CHAIN.value
+EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
+LLM = OpenInferenceSpanKindValues.LLM.value
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
+
+JSON = OpenInferenceMimeTypeValues.JSON.value
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
