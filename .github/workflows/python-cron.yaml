@@ -1,0 +1,27 @@
+name: Python Canary Cron
+
+on:
+  schedule:
+    - cron: "0 18 * * 1-5"
+
+defaults:
+  run:
+    working-directory: ./python
+
+jobs:
+  canary:
+    runs-on: oss-4-core-runner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: |
+            3.8
+            3.9
+            3.10
+            3.11
+            3.12
+      - run: pip install -U tox-uv
+      - run: >-
+          tox run-parallel --parallel-no-spinner
+          -e $(tox -l | egrep -e '-latest$' | paste -sd, -)
