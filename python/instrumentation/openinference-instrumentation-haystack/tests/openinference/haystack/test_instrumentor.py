@@ -568,9 +568,10 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     )
     assert "argentina" in output_message_content.lower()
     assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
-    assert isinstance(attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
-    assert isinstance(attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+    assert isinstance(prompt_tokens := attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(completion_tokens := attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(total_tokens := attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+    assert prompt_tokens + completion_tokens == total_tokens
 
 
 @pytest.mark.vcr(
@@ -610,9 +611,10 @@ def test_openai_generator_llm_span_has_expected_attributes(
     )
     assert "argentina" in output_message_content.lower()
     assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
-    assert isinstance(attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
-    assert isinstance(attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+    assert isinstance(prompt_tokens := attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(completion_tokens := attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(total_tokens := attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+    assert prompt_tokens + completion_tokens == total_tokens
 
 
 @pytest.mark.parametrize(
