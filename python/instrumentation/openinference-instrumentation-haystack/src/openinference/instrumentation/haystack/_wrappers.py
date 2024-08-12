@@ -1,5 +1,6 @@
 from abc import ABC
 from enum import Enum, auto
+from json import loads
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
@@ -281,8 +282,9 @@ class _ComponentWrapper(_WithTracer):
                     for i, reply in enumerate(response["replies"]):
                         span.set_attributes(
                             {
-                                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}": reply.content,
+                                **dict(_get_tool_output(response, i)),
                                 f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}": reply.role,
+                                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}": reply.content,
                             }
                         )
                 else:
@@ -294,15 +296,13 @@ class _ComponentWrapper(_WithTracer):
                                     LLM_MODEL_NAME: response["meta"][0]["model"],
                                     OUTPUT_VALUE: safe_json_dumps(response["replies"]),
                                     OUTPUT_MIME_TYPE: JSON,
+                                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response[
+                                        "replies"
+                                    ][0],
+                                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": ChatRole.ASSISTANT,
                                 }
                             )
                         )
-                    )
-                    span.set_attributes(
-                        {
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response["replies"][0],
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": ChatRole.ASSISTANT,
-                        }
                     )
             elif component_type is ComponentType.EMBEDDER:
                 emb_len = len(response["embedding"])
@@ -429,6 +429,28 @@ def _get_token_counts(usage: Any) -> Iterator[Tuple[str, Optional[int]]]:
         yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
     if (total_tokens := usage.get("total_tokens")) is not None:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+
+def _get_tool_output(response: Any, iteration: int) -> Iterator[Tuple[str, Any]]:
+    """
+    Extract tool information from the generation_kwargs.
+    """
+    if not isinstance(response, dict):
+        return
+    if (replies := response.get("replies")) is not None:
+        for i, reply in enumerate(replies):
+            if reply.meta.get("finish_reason") == "tool_calls":
+                tool_args = loads(reply.content)[0]["function"]
+                yield (
+                    f"{LLM_OUTPUT_MESSAGES}.{iteration}.{MESSAGE_TOOL_CALLS}.{i}"
+                    f".{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                    safe_json_dumps(loads(tool_args["arguments"])),
+                )
+                yield (
+                    f"{LLM_OUTPUT_MESSAGES}.{iteration}.{MESSAGE_TOOL_CALLS}.{i}"
+                    f".{TOOL_CALL_FUNCTION_NAME}",
+                    tool_args["name"],
+                )
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
