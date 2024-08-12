@@ -163,14 +163,6 @@ class _ComponentWrapper(_WithTracer):
                     span.set_attributes(
                         dict(_get_llm_prompt_template_attributes(component, arguments)),
                     )
-                if "documents" in invocation_parameters:
-                    span.set_attributes(
-                        {
-                            RETRIEVAL_DOCUMENTS: safe_json_dumps(
-                                invocation_parameters["documents"]
-                            ),
-                        }
-                    )
             elif component_type is ComponentType.UNKNOWN:
                 span.set_attributes(
                     {
