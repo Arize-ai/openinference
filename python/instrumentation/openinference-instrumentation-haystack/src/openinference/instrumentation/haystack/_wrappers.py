@@ -96,21 +96,16 @@ class _ComponentWrapper(_WithTracer):
                 span.set_attributes(dict(_get_span_kind_attributes(RETRIEVER)))
                 # todo: implement retriever input attributes
             elif component_type is ComponentType.PROMPT_BUILDER:
-                span.set_attributes(dict(_get_span_kind_attributes(LLM)))
-                if isinstance(component, ChatPromptBuilder):
-                    # todo: implement template attributes for ChatPromptBuilder
-                    temp_vars = safe_json_dumps(run_args["template_variables"])
-                    msg_conts = [m.content for m in run_args["template"]]
-                    span.set_attributes(
-                        {
-                            LLM_INPUT_MESSAGES: msg_conts,
-                            LLM_PROMPT_TEMPLATE_VARIABLES: temp_vars,
-                        }
-                    )
-                elif isinstance(component, PromptBuilder):
-                    span.set_attributes(
-                        dict(_get_llm_prompt_template_attributes(component, run_bound_args)),
-                    )
+                span.set_attributes(
+                    {
+                        **dict(_get_span_kind_attributes(LLM)),
+                        **dict(
+                            _get_llm_prompt_template_attributes_from_prompt_builder(
+                                component, run_bound_args
+                            )
+                        ),
+                    }
+                )
             elif component_type is ComponentType.UNKNOWN:
                 span.set_attributes(dict(_get_span_kind_attributes(CHAIN)))
             else:
@@ -271,7 +266,7 @@ def _get_component_type(component: Component) -> ComponentType:
         return ComponentType.EMBEDDER
     elif "Retriever" in component_name or _has_retriever_run_method(run_method):
         return ComponentType.RETRIEVER
-    elif "PromptBuilder" in component_name:
+    elif isinstance(component, PromptBuilder):
         return ComponentType.PROMPT_BUILDER
     return ComponentType.UNKNOWN
 
@@ -336,7 +331,7 @@ def _get_llm_token_count_attributes(usage: Any) -> Iterator[Tuple[str, Any]]:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
 
-def _get_llm_prompt_template_attributes(
+def _get_llm_prompt_template_attributes_from_prompt_builder(
     component: Component, run_bound_args: BoundArguments
 ) -> Iterator[Tuple[str, str]]:
     """

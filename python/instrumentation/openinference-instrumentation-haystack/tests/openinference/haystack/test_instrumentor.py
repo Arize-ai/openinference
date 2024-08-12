@@ -395,7 +395,7 @@ def test_haystack_instrumentation_chat(
     assert [
         span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
     ] == [
-        "LLM",
+        "CHAIN",
         "LLM",
         "CHAIN",
     ]
