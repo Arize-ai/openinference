@@ -1,5 +1,6 @@
 from abc import ABC
 from enum import Enum, auto
+from inspect import BoundArguments, signature
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
@@ -17,6 +18,9 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
+from haystack import Pipeline
+from haystack.components.builders import PromptBuilder
+from haystack.core.component import Component
 from haystack.dataclasses import ChatRole
 
 
@@ -83,11 +87,12 @@ class _ComponentWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        component_type = args[0]
-        input_data = args[1]
+        arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
+        component_type = arguments["name"]
+        input_data = arguments["inputs"]
 
-        # Diving into the instance to retrieve the Component instance
-        component = instance.graph.nodes._nodes[component_type]["instance"]
+        if (component := _get_component_by_name(instance, component_type)) is None:
+            return wrapped(*args, **kwargs)
 
         component_name = component.__class__.__name__
 
@@ -198,7 +203,7 @@ class _ComponentWrapper(_WithTracer):
                     dict(
                         _flatten(
                             {
-                                OPENINFERENCE_SPAN_KIND: CHAIN,
+                                OPENINFERENCE_SPAN_KIND: LLM,
                                 INPUT_VALUE: safe_json_dumps(invocation_parameters),
                                 INPUT_MIME_TYPE: JSON,
                             }
@@ -219,9 +224,8 @@ class _ComponentWrapper(_WithTracer):
                         )
                     )
                 else:
-                    span.set_attribute(
-                        LLM_PROMPT_TEMPLATE,
-                        instance.graph.nodes._nodes["prompt_builder"]["instance"]._template_string,
+                    span.set_attributes(
+                        dict(_get_llm_prompt_template_attributes(component, arguments)),
                     )
                 if "documents" in invocation_parameters:
                     span.set_attributes(
@@ -431,6 +435,58 @@ def _get_token_counts(usage: Any) -> Iterator[Tuple[str, Optional[int]]]:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
 
+def _get_llm_prompt_template_attributes(
+    component: Component, arguments: Any
+) -> Iterator[Tuple[str, str]]:
+    """
+    Extracts prompt template attributes from a prompt builder component.
+
+    This duplicates logic from `PromptBuilder.run`. See:
+    https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/components/builders/prompt_builder.py#L194
+    """
+    bound_arguments = _get_bound_arguments(
+        PromptBuilder.run,
+        component,
+        **(inputs if isinstance((inputs := arguments.get("inputs")), dict) else {}),
+    )
+    template = (
+        t
+        if (t := bound_arguments.arguments.get("template")) is not None
+        else getattr(component, "_template_string", None)
+    )
+    if template is not None:
+        yield LLM_PROMPT_TEMPLATE, template
+    if (
+        template_variables := {
+            **bound_arguments.kwargs,
+            **(
+                tvs
+                if isinstance(tvs := bound_arguments.arguments.get("template_variables"), dict)
+                else {}
+            ),
+        }
+    ) is not None:
+        yield LLM_PROMPT_TEMPLATE_VARIABLES, safe_json_dumps(template_variables)
+
+
+def _get_component_by_name(pipeline: Pipeline, component_name: str) -> Optional[Component]:
+    """
+    Gets the component invoked by `Pipeline._run_component` (if one exists).
+    """
+    if (node := pipeline.graph.nodes.get(component_name)) is None or (
+        component := node.get("instance")
+    ) is None:
+        return None
+    return component
+
+
+def _get_bound_arguments(function: Callable[..., Any], *args: Any, **kwargs: Any) -> BoundArguments:
+    """
+    Binds arguments and keyword arguments to a function.
+    """
+    return signature(function).bind(*args, **kwargs)
+
+
 CHAIN = OpenInferenceSpanKindValues.CHAIN
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
 LLM = OpenInferenceSpanKindValues.LLM
@@ -474,6 +530,4 @@ SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
-LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
-LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 USER_ID = SpanAttributes.USER_ID

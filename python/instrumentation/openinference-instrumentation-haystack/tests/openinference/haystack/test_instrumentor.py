@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import Any, Dict, Generator, List, Optional, Union
 
@@ -323,7 +324,7 @@ def test_haystack_instrumentation(
     ] == [
         "EMBEDDING",
         "RETRIEVER",
-        "CHAIN",
+        "LLM",
         "LLM",
         "CHAIN",
     ]
@@ -394,7 +395,7 @@ def test_haystack_instrumentation_chat(
     assert [
         span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
     ] == [
-        "CHAIN",
+        "LLM",
         "LLM",
         "CHAIN",
     ]
@@ -612,6 +613,62 @@ def test_openai_generator_llm_span_has_expected_attributes(
     assert isinstance(attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+
+
+@pytest.mark.parametrize(
+    "default_template, prompt_builder_inputs",
+    [
+        pytest.param(
+            "Where is {{ city }}?",
+            {"template_variables": {"city": "Munich"}},
+            id="default-template",
+        ),
+        pytest.param(
+            "What is the weather in {{ city }}?",
+            {
+                "template": "Where is {{ city }}?",  # overrides default template
+                "template_variables": {"city": "Munich"},
+            },
+            id="input-template-overrides-default-template",
+        ),
+        pytest.param(
+            "Where is {{ city }}?",
+            {
+                "city": "Munich",
+            },
+            id="input-kwarg-recorded-as-template-variable",
+        ),
+        pytest.param(
+            "Where is {{ city }}?",
+            {
+                "template_variables": {"city": "Munich"},  # overrides kwarg
+                "city": "Berlin",
+            },
+            id="input-template-variables-overrides-input-kwarg",
+        ),
+    ],
+)
+def test_prompt_builder_llm_span_has_expected_prompt_template_attributes(
+    default_template: Optional[str],
+    prompt_builder_inputs: Dict[str, Any],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    prompt_builder = PromptBuilder(template=default_template)
+    pipe = Pipeline()
+    pipe.add_component("prompt_builder", prompt_builder)
+    output = pipe.run({"prompt_builder": prompt_builder_inputs})
+    assert output == {"prompt_builder": {"prompt": "Where is Munich?"}}
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.get(LLM_PROMPT_TEMPLATE) == "Where is {{ city }}?"
+    assert (
+        prompt_template_variables_json := attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES)
+    ) is not None
+    assert json.loads(prompt_template_variables_json) == {"city": "Munich"}
 
 
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
