@@ -19,4 +19,5 @@ export type QueryEmbeddingMethodType =
   typeof llamaindex.BaseEmbedding.prototype.getQueryEmbedding;
 
 export type LLMChatMethodType = llamaindex.LLM["chat"];
+export type LLMCompleteMethodType = llamaindex.LLM["complete"];
 export type LLMObject = { metadata: llamaindex.LLMMetadata };

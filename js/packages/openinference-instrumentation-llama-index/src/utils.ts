@@ -25,6 +25,7 @@ import {
   RetrieverRetrieveMethodType,
   QueryEmbeddingMethodType,
   LLMChatMethodType,
+  LLMCompleteMethodType,
   LLMObject,
 } from "./types";
 import { BaseEmbedding, BaseRetriever, LLM } from "llamaindex";
@@ -107,6 +108,7 @@ export function isLLMPrototype(proto: unknown): proto is LLM {
     proto != null &&
     typeof proto === "object" &&
     "chat" in proto &&
+    "complete" in proto &&
     typeof proto.chat === "function"
   );
 }
@@ -151,30 +153,30 @@ function getDocumentAttributes(
  * and constructs an Attributes object with the relevant semantic conventions
  * for embeddings.
  *
- * @param {Object} embedInfo - The embedding information.
- * @param {string} embedInfo.input - The input text for the embedding.
- * @param {number[]} embedInfo.output - The output embedding vector.
+ * @param {Object} embeddingInfo - The embedding information.
+ * @param {string} embeddingInfo.input - The input text for the embedding.
+ * @param {number[]} embeddingInfo.output - The output embedding vector.
  * @returns {Attributes} The constructed embedding attributes.
  */
-function getQueryEmbeddingAttributes(embedInfo: {
+function getQueryEmbeddingAttributes(embeddingInfo: {
   input: string;
   output: number[];
 }): Attributes {
   return {
     [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
-      embedInfo.input,
+      embeddingInfo.input,
     [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]:
-      embedInfo.output,
+      embeddingInfo.output,
   };
 }
 
-function LLMAttributes(
-  input: llamaindex.LLMChatParamsNonStreaming<object, object>,
-  output: llamaindex.ChatResponse<object>,
-) {
+function getLLMChatAttributes(chatInfo: {
+  input: llamaindex.LLMChatParamsNonStreaming<object, object>;
+  output: llamaindex.ChatResponse<object>;
+}) {
   const LLMAttr: Attributes = {};
 
-  input.messages.forEach((msg, idx) => {
+  chatInfo.input.messages.forEach((msg, idx) => {
     const inputPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}`;
     LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
       msg.role.toString();
@@ -183,20 +185,41 @@ function LLMAttributes(
   });
 
   LLMAttr[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
-    safelyJSONStringify(input.additionalChatOptions) ?? undefined;
+    safelyJSONStringify(chatInfo.input.additionalChatOptions) ?? undefined;
 
   const outputPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
-  LLMAttr[SemanticConventions.OUTPUT_VALUE] = output.message.content.toString();
+  LLMAttr[SemanticConventions.OUTPUT_VALUE] =
+    chatInfo.output.message.content.toString();
   LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
-    output.message.role.toString();
+    chatInfo.output.message.role.toString();
   LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
-    output.message.content.toString();
+    chatInfo.output.message.content.toString();
 
   return LLMAttr;
 }
 
-function LLMMetadata(obj: unknown) {
-  const LLMObjectMetadata = (obj as LLMObject).metadata;
+function getLLMCompleteAttributes(completeInfo: {
+  input: llamaindex.LLMCompletionParamsNonStreaming;
+  output: llamaindex.CompletionResponse;
+}) {
+  const LLMAttr: Attributes = {};
+
+  const inputPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0`;
+  LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+    completeInfo.input.prompt.toString();
+  LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "complete";
+
+  const outputPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
+  LLMAttr[SemanticConventions.OUTPUT_VALUE] = completeInfo.output.text;
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "assistant";
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+    completeInfo.output.text;
+
+  return LLMAttr;
+}
+
+function parseLLMMetadata(cls: unknown) {
+  const LLMObjectMetadata = (cls as LLMObject).metadata;
   const LLMMetadataAttr: Attributes = {};
 
   LLMMetadataAttr[SemanticConventions.LLM_MODEL_NAME] = LLMObjectMetadata.model;
@@ -387,10 +410,52 @@ export function patchLLMChat(original: LLMChatMethodType, tracer: Tracer) {
     );
 
     // Metadata is a property found on the class and not in args
-    span.setAttributes(LLMMetadata(this));
+    span.setAttributes(parseLLMMetadata(this));
 
     const wrappedPromise = execPromise.then((result) => {
-      span.setAttributes(LLMAttributes(args[0], result));
+      span.setAttributes(
+        getLLMChatAttributes({ input: args[0], output: result }),
+      );
+      span.end();
+      return result;
+    });
+    return context.bind(execContext, wrappedPromise);
+  };
+}
+
+export function patchLLMComplete(
+  original: LLMCompleteMethodType,
+  tracer: Tracer,
+) {
+  return function (this: unknown, ...args: Parameters<LLMCompleteMethodType>) {
+    const span = tracer.startSpan(`llm`, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+          OpenInferenceSpanKind.LLM,
+      },
+    });
+
+    const execContext = getExecContext(span);
+
+    const execPromise = safeExecuteInTheMiddle<
+      ReturnType<LLMCompleteMethodType>
+    >(
+      () => {
+        return context.with(execContext, () => {
+          return original.apply(this, args);
+        });
+      },
+      (error) => handleError(span, error),
+    );
+
+    // Metadata is a property found on the class and not in args
+    span.setAttributes(parseLLMMetadata(this));
+
+    const wrappedPromise = execPromise.then((result) => {
+      span.setAttributes(
+        getLLMCompleteAttributes({ input: args[0], output: result }),
+      );
       span.end();
       return result;
     });
