@@ -1,0 +1,20 @@
+interactions:
+  - request:
+      body: '{"messages": [{"role": "user", "content": "What is the weather in Berlin"}], "model": "gpt-3.5-turbo", "stream": false}'
+      headers: {}
+      method: POST
+      uri: https://api.openai.com/v1/chat/completions
+    response:
+      body:
+        string: "{\n  \"id\": \"chatcmpl-9uAGwezKpMFC5RAOTONFvNPKzDyqa\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1723172882,\n  \"model\": \"gpt-3.5-turbo-2024-05-13\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"mostly sunny\",\n        \"refusal\":
+        null\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 6,\n    \"completion_tokens\":
+        1,\n    \"total_tokens\": 7\n  },\n  \"system_fingerprint\": \"fp_c9aa9c0491\"\n}\n"
+      headers: {}
+      status:
+        code: 200
+        message: OK
+version: 1
