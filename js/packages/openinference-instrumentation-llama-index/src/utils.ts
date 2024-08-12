@@ -207,7 +207,7 @@ function getLLMCompleteAttributes(completeInfo: {
   const inputPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0`;
   LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
     completeInfo.input.prompt.toString();
-  LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "complete";
+  LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "user";
 
   const outputPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
   LLMAttr[SemanticConventions.OUTPUT_VALUE] = completeInfo.output.text;

@@ -15,7 +15,6 @@ import {
   patchRetrieveMethod,
   patchQueryEmbeddingMethod,
   patchLLMChat,
-  patchLLMComplete,
 } from "./utils";
 import { VERSION } from "./version";
 
@@ -98,11 +97,6 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
         this._wrap(prototype, "chat", (original): any => {
           return patchLLMChat(original, this.tracer);
         });
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this._wrap(prototype, "complete", (original): any => {
-          return patchLLMComplete(original, this.tracer);
-        });
       }
     }
     _isOpenInferencePatched = true;
@@ -127,7 +121,6 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
 
       if (isLLMPrototype(prototype)) {
         this._unwrap(prototype, "chat");
-        this._unwrap(prototype, "complete");
       }
     }
 
