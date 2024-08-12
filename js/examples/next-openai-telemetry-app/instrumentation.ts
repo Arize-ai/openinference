@@ -8,6 +8,7 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 export function register() {
   registerOTel({
     serviceName: "next-app",
+    traceExporter,
     // spanProcessors: [
     //   new SimpleSpanProcessor(
     //     new OTLPTraceExporter({
