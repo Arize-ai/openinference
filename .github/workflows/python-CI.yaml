@@ -24,7 +24,8 @@ jobs:
           list-files: json
           filters: |
             diff:
-              - "python/**"
+              - "python/**/*.py"
+              - "python/**/*.toml"
       - run: >-
           echo "packages=$(echo '${{ steps.filter.outputs.diff_files }}'
           | jq -r '.[]'
