@@ -348,8 +348,10 @@ def test_haystack_instrumentation_chat(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     prompt_builder = ChatPromptBuilder()
-    llm = OpenAIChatGenerator(api_key=Secret.from_token("TOTALLY_REAL_API_KEY"))
+
+    llm = OpenAIChatGenerator(api_key=Secret.from_token("fake_key"), model="fake_model")
     llm.run = fake_OpenAIGenerator_run_chat.__get__(llm, OpenAIChatGenerator)
+
     pipe = Pipeline()
 
     pipe.add_component("prompt_builder", prompt_builder)
