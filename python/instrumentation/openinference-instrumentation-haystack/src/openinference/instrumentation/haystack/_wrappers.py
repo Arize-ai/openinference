@@ -213,11 +213,11 @@ class _PipelineWrapper(_WithTracer):
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
+                **dict(get_attributes_from_context()),
                 **dict(_get_span_kind_attributes(CHAIN)),
                 **dict(_get_input_attributes(arguments)),
             },
         ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
