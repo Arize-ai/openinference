@@ -126,8 +126,8 @@ class _ComponentWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+            span.set_attributes(dict(_get_output_attributes(response)))
             span.set_status(trace_api.StatusCode.OK)
-
             if component_type is ComponentType.GENERATOR:
                 if "Chat" in component_class_name:
                     replies = response.get("replies")
@@ -188,7 +188,7 @@ class _ComponentWrapper(_WithTracer):
                 component_type is ComponentType.UNKNOWN
                 or component_type is ComponentType.PROMPT_BUILDER
             ):
-                span.set_attributes(dict(_get_output_attributes(response)))
+                pass
             else:
                 assert_never(component_type)
 
@@ -297,7 +297,9 @@ def _has_retriever_run_method(run_method: Callable[..., Any]) -> bool:
     has_string_query_parameter = (
         query_parameter := run_method_signature.parameters.get("query")
     ) is not None and query_parameter.annotation is str
-    outputs_list_of_documents = output_types.get("documents") is List[Document]
+    outputs_list_of_documents = (
+        output_socket := output_types.get("documents")
+    ) is not None and output_socket.type is List[Document]
     if has_string_query_parameter and outputs_list_of_documents:
         return True
     return False
@@ -315,6 +317,7 @@ def _get_input_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, A
     Yields input attributes.
     """
     masked_arguments = dict(_mask_embedding_vectors(key, value) for key, value in arguments.items())
+    yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(masked_arguments)
 
 

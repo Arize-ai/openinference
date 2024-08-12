@@ -17,6 +17,7 @@ from haystack.components.retrievers.in_memory import (
     InMemoryEmbeddingRetriever,
 )
 from haystack.components.routers import ConditionalRouter
+from haystack.components.websearch.serper_dev import SerperDevWebSearch
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
@@ -673,6 +674,63 @@ def test_prompt_builder_llm_span_has_expected_prompt_template_attributes(
     assert json.loads(prompt_template_variables_json) == {"city": "Munich"}
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_serperdev_websearch_retriever_span_has_expected_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+    serperdev_api_key: str,
+) -> None:
+    # To run this test without `vcrpy`, create an account and an API key at
+    # https://serper.dev/.
+    k = 2
+    web_search = SerperDevWebSearch(top_k=k)
+    pipe = Pipeline()
+    pipe.add_component("websearch", web_search)
+    output = pipe.run({"websearch": {"query": "Who won the World Cup in 2022?"}})
+    assert "websearch" in output
+    assert len(output["websearch"]) == k
+    assert (documents := output["websearch"].get("documents")) is not None
+    assert len(documents) == k
+    assert (links := output["websearch"].get("links")) is not None
+    assert len(links) == k
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == k
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "RETRIEVER"
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    assert json.loads(input_value) == {"query": "Who won the World Cup in 2022?"}
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+    output_value_data = json.loads(output_value)
+    assert len(output_value_data.get("documents")) == k
+    assert output_value_data.get("links") == output["websearch"]["links"]
+    for document_index in range(k):
+        output_document = output["websearch"]["documents"][document_index]
+        assert (
+            attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{document_index}.{DOCUMENT_CONTENT}")
+            == output_document.content
+        )
+        assert (
+            attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{document_index}.{DOCUMENT_ID}")
+            == output_document.id
+        )
+        assert isinstance(
+            document_metadata := attributes.pop(
+                f"{RETRIEVAL_DOCUMENTS}.{document_index}.{DOCUMENT_METADATA}"
+            ),
+            str,
+        )
+        assert json.loads(document_metadata) == output_document.meta
+    assert not attributes
+
+
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
 def test_oitracer(
     setup_haystack_instrumentation: Any,
@@ -685,11 +743,17 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-")
 
 
+@pytest.fixture
+def serperdev_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SERPERDEV_API_KEY", "sk-")
+
+
 CHAIN = OpenInferenceSpanKindValues.CHAIN
 LLM = OpenInferenceSpanKindValues.LLM
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 
-JSON = OpenInferenceMimeTypeValues.JSON
+JSON = OpenInferenceMimeTypeValues.JSON.value
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
