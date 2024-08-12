@@ -17,12 +17,40 @@ jobs:
     runs-on: oss-4-core-runner
     steps:
       - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          working-directory: python
+          list-files: json
+          filters: |
+            diff:
+              - "python/**/*.py"
+              - "python/**/*.toml"
+      - run: >-
+          echo "packages=$(echo '${{ steps.filter.outputs.diff_files }}'
+          | jq -r '.[]'
+          | sed -n
+          -e 's/^python\/instrumentation\/openinference-instrumentation-\([^/]*\)\/.*/\1/p'
+          -e 's/^python\/openinference-\(instrumentation\)\/.*/\1/p'
+          -e 's/^python\/openinference-\(semantic-conventions\)\/.*/\1/p'
+          | sort -u
+          | sed -e 's/semantic-conventions/semconv/' -e 's/-/_/' -e 's/^/\\b/'
+          | paste -sd "|" -)"
+          >> "$GITHUB_OUTPUT"
+        if: ${{ steps.filter.outputs.diff == 'true' }}
+        id: changes
       - uses: actions/setup-python@v5
+        if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
         with:
           python-version: |
             3.8
             3.9
+            3.10
             3.11
             3.12
-      - run: pip install tox==4.17.1
-      - run: tox run-parallel --parallel-no-spinner
+      - run: pip install tox-uv==1.11.1
+        if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
+      - run: >-
+          tox run-parallel --parallel-no-spinner 
+          -e $(tox -l | egrep -e '${{ steps.changes.outputs.packages }}' | paste -sd, -)
+        if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
