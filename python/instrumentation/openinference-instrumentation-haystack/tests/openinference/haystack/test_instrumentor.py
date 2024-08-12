@@ -665,9 +665,9 @@ def test_prompt_builder_llm_span_has_expected_prompt_template_attributes(
     attributes = dict(span.attributes or {})
     assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.get(LLM_PROMPT_TEMPLATE) == "Where is {{ city }}?"
-    assert (
-        prompt_template_variables_json := attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES)
-    ) is not None
+    assert isinstance(
+        prompt_template_variables_json := attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES), str
+    )
     assert json.loads(prompt_template_variables_json) == {"city": "Munich"}
 
 

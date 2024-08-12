@@ -15,10 +15,9 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
-from haystack import Pipeline
+from haystack import Document, Pipeline
 from haystack.components.builders import ChatPromptBuilder, PromptBuilder
 from haystack.core.component import Component
 from haystack.dataclasses import ChatRole
@@ -30,18 +29,6 @@ class ComponentType(Enum):
     RETRIEVER = auto()
     PROMPT_BUILDER = auto()
     UNKNOWN = auto()
-
-
-def get_component_type(component_name: str) -> ComponentType:
-    if "Generator" in component_name or "VertexAIImage" in component_name:
-        return ComponentType.GENERATOR
-    elif "Embedder" in component_name:
-        return ComponentType.EMBEDDER
-    elif "Retriever" in component_name:
-        return ComponentType.RETRIEVER
-    elif "PromptBuilder" in component_name:
-        return ComponentType.PROMPT_BUILDER
-    return ComponentType.UNKNOWN
 
 
 class _WithTracer(ABC):
@@ -70,14 +57,14 @@ class _ComponentWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
-        component_type = arguments["name"]
-        input_data = arguments["inputs"]
-
-        if (component := _get_component_by_name(instance, component_type)) is None:
+        pipe_args = signature(wrapped).bind(*args, **kwargs).arguments
+        component = _get_component_by_name(instance, pipe_args["name"])
+        if component is None or not hasattr(component, "run") or not callable(component.run):
             return wrapped(*args, **kwargs)
+        component_class_name = _get_component_class_name(component)
 
-        component_name = component.__class__.__name__
+        run_bound_args = signature(component.run).bind(**pipe_args["inputs"])
+        run_args = run_bound_args.arguments
 
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
@@ -86,18 +73,18 @@ class _ComponentWrapper(_WithTracer):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
 
-        with self._tracer.start_as_current_span(name=component_name) as span:
+        with self._tracer.start_as_current_span(name=component_class_name) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            if (component_type := get_component_type(component_name)) is ComponentType.GENERATOR:
+            if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
                 span.set_attributes(
                     {
                         OPENINFERENCE_SPAN_KIND: LLM,
-                        INPUT_VALUE: safe_json_dumps(input_data),
+                        INPUT_VALUE: safe_json_dumps(run_bound_args),
                         INPUT_MIME_TYPE: JSON,
                     }
                 )
-                if "Chat" in component_name:
-                    for i, msg in enumerate(input_data["messages"]):
+                if "Chat" in component_class_name:
+                    for i, msg in enumerate(run_args["messages"]):
                         span.set_attributes(
                             {
                                 f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}": msg.content,
@@ -107,7 +94,7 @@ class _ComponentWrapper(_WithTracer):
                 else:
                     span.set_attributes(
                         {
-                            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}": input_data["prompt"],
+                            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}": run_args["prompt"],
                             f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}": ChatRole.USER,
                         }
                     )
@@ -127,19 +114,19 @@ class _ComponentWrapper(_WithTracer):
                         OPENINFERENCE_SPAN_KIND: RETRIEVER,
                     }
                 )
-                if "query_embedding" in input_data:
-                    emb_len = len(input_data["query_embedding"])
+                if "query_embedding" in run_args:
+                    emb_len = len(run_args["query_embedding"])
                     span.set_attributes(
                         {
                             INPUT_MIME_TYPE: TEXT,
                             INPUT_VALUE: f"<{emb_len} dimensional vector>",
                         }
                     )
-                elif "query" in input_data:
+                if "query" in run_args:
                     span.set_attributes(
                         {
                             INPUT_MIME_TYPE: TEXT,
-                            INPUT_VALUE: input_data["query"],
+                            INPUT_VALUE: run_args["query"],
                         }
                     )
             elif component_type is ComponentType.PROMPT_BUILDER:
@@ -151,8 +138,8 @@ class _ComponentWrapper(_WithTracer):
                     }
                 )
                 if isinstance(component, ChatPromptBuilder):
-                    temp_vars = safe_json_dumps(input_data["template_variables"])
-                    msg_conts = [m.content for m in input_data["template"]]
+                    temp_vars = safe_json_dumps(run_args["template_variables"])
+                    msg_conts = [m.content for m in run_args["template"]]
                     span.set_attributes(
                         {
                             LLM_INPUT_MESSAGES: msg_conts,
@@ -161,7 +148,7 @@ class _ComponentWrapper(_WithTracer):
                     )
                 elif isinstance(component, PromptBuilder):
                     span.set_attributes(
-                        dict(_get_llm_prompt_template_attributes(component, arguments)),
+                        dict(_get_llm_prompt_template_attributes(component, run_bound_args)),
                     )
             elif component_type is ComponentType.UNKNOWN:
                 span.set_attributes(
@@ -250,7 +237,10 @@ class _ComponentWrapper(_WithTracer):
                             ),
                         }
                     )
-            elif component_type in (ComponentType.UNKNOWN, ComponentType.PROMPT_BUILDER):
+            elif (
+                component_type is ComponentType.UNKNOWN
+                or component_type is ComponentType.PROMPT_BUILDER
+            ):
                 span.set_attributes(
                     {
                         OUTPUT_VALUE: safe_json_dumps(response),
@@ -313,6 +303,56 @@ class _PipelineWrapper(_WithTracer):
         return response
 
 
+def _get_component_class_name(component: Component) -> str:
+    """
+    Gets the name of the component.
+    """
+    return str(component.__class__.__name__)
+
+
+def _get_component_type(component: Component) -> ComponentType:
+    """
+    Haystack has a single `Component` interface that produces unstructured
+    outputs. In the absence of typing information, we make a best-effort attempt
+    to infer the component type.
+    """
+    component_name = _get_component_class_name(component)
+    if (run_method := getattr(component, "run", None)) is None or not callable(run_method):
+        return ComponentType.UNKNOWN
+    if "Generator" in component_name or "VertexAIImage" in component_name:
+        return ComponentType.GENERATOR
+    elif "Embedder" in component_name:
+        return ComponentType.EMBEDDER
+    elif "Retriever" in component_name or _has_retriever_run_method(run_method):
+        return ComponentType.RETRIEVER
+    elif "PromptBuilder" in component_name:
+        return ComponentType.PROMPT_BUILDER
+    return ComponentType.UNKNOWN
+
+
+def _has_retriever_run_method(run_method: Callable[..., Any]) -> bool:
+    """
+    Uses heuristics to infer if a component has a retriever-like `run` method.
+
+    This is used to find unusual retrievers such as `SerperDevWebSearch`. See:
+    https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/components/websearch/serper_dev.py#L93
+    """
+
+    # Find types defined with the `output_types` decorator. See
+    # https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/core/component/component.py#L398
+    output_types = (
+        ot if isinstance((ot := getattr(run_method, "_output_types_cache", None)), dict) else {}
+    )
+    run_method_signature = signature(run_method)
+    has_string_query_parameter = (
+        query_parameter := run_method_signature.parameters.get("query")
+    ) is not None and query_parameter.annotation is str
+    outputs_list_of_documents = output_types.get("documents") is List[Document]
+    if has_string_query_parameter and outputs_list_of_documents:
+        return True
+    return False
+
+
 def _get_token_counts(usage: Any) -> Iterator[Tuple[str, Any]]:
     """
     Extract token counts from the usage.
@@ -328,7 +368,7 @@ def _get_token_counts(usage: Any) -> Iterator[Tuple[str, Any]]:
 
 
 def _get_llm_prompt_template_attributes(
-    component: Component, arguments: Any
+    component: Component, run_bound_args: BoundArguments
 ) -> Iterator[Tuple[str, str]]:
     """
     Extracts prompt template attributes from a prompt builder component.
@@ -336,24 +376,19 @@ def _get_llm_prompt_template_attributes(
     This duplicates logic from `PromptBuilder.run`. See:
     https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/components/builders/prompt_builder.py#L194
     """
-    bound_arguments = _get_bound_arguments(
-        PromptBuilder.run,
-        component,
-        **(inputs if isinstance((inputs := arguments.get("inputs")), dict) else {}),
-    )
     template = (
         t
-        if (t := bound_arguments.arguments.get("template")) is not None
+        if (t := run_bound_args.arguments.get("template")) is not None
         else getattr(component, "_template_string", None)
     )
     if template is not None:
         yield LLM_PROMPT_TEMPLATE, template
     if (
         template_variables := {
-            **bound_arguments.kwargs,
+            **run_bound_args.kwargs,
             **(
                 tvs
-                if isinstance(tvs := bound_arguments.arguments.get("template_variables"), dict)
+                if isinstance(tvs := run_bound_args.arguments.get("template_variables"), dict)
                 else {}
             ),
         }
@@ -370,30 +405,6 @@ def _get_component_by_name(pipeline: Pipeline, component_name: str) -> Optional[
     ) is None:
         return None
     return component
-
-
-def _get_bound_arguments(function: Callable[..., Any], *args: Any, **kwargs: Any) -> BoundArguments:
-    """
-    Binds arguments and keyword arguments to a function.
-    """
-    return signature(function).bind(*args, **kwargs)
-
-
-def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
-    for key, value in mapping.items():
-        if value is None:
-            continue
-        if isinstance(value, Mapping):
-            for sub_key, sub_value in _flatten(value):
-                yield f"{key}.{sub_key}", sub_value
-        elif isinstance(value, List) and any(isinstance(item, Mapping) for item in value):
-            for index, sub_mapping in enumerate(value):
-                for sub_key, sub_value in _flatten(sub_mapping):
-                    yield f"{key}.{index}.{sub_key}", sub_value
-        else:
-            if isinstance(value, Enum):
-                value = value.value
-            yield key, value
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
