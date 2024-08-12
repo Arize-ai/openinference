@@ -349,8 +349,6 @@ def test_haystack_instrumentation_chat(
 ) -> None:
     prompt_builder = ChatPromptBuilder()
 
-
-
     pipe = Pipeline()
 
     pipe.add_component("prompt_builder", prompt_builder)
@@ -457,24 +455,25 @@ def test_haystack_instrumentation_filtering(
         "CHAIN",
     ]
 
+
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_haystack_tool_calling(
-        tracer_provider: TracerProvider,
-        in_memory_span_exporter: InMemorySpanExporter,
-        setup_haystack_instrumentation: Any,
+def test_haystack_tool_calling_llm_span_has_expected_attributes(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+    openai_api_key: str,
 ) -> None:
     WEATHER_INFO = {
-            "Berlin": {"weather": "mostly sunny", "temperature": 7, "unit": "celsius"},
-            "Paris": {"weather": "mostly cloudy", "temperature": 8, "unit": "celsius"},
-            "Rome": {"weather": "sunny", "temperature": 14, "unit": "celsius"},
-            "Madrid": {"weather": "sunny", "temperature": 10, "unit": "celsius"},
-            "London": {"weather": "cloudy", "temperature": 9, "unit": "celsius"},
+        "Berlin": {"weather": "mostly sunny", "temperature": 7, "unit": "celsius"},
+        "Paris": {"weather": "mostly cloudy", "temperature": 8, "unit": "celsius"},
+        "Rome": {"weather": "sunny", "temperature": 14, "unit": "celsius"},
+        "Madrid": {"weather": "sunny", "temperature": 10, "unit": "celsius"},
+        "London": {"weather": "cloudy", "temperature": 9, "unit": "celsius"},
     }
-
 
     def get_current_weather(location: str):
         if location in WEATHER_INFO:
@@ -483,7 +482,6 @@ def test_haystack_tool_calling(
         # fallback data
         else:
             return {"weather": "sunny", "temperature": 21.8, "unit": "fahrenheit"}
-
 
     tools = [
         {
@@ -509,13 +507,11 @@ def test_haystack_tool_calling(
         ChatMessage.from_user("What is the weather in Berlin"),
     ]
 
-    chat_generator = OpenAIChatGenerator(
-        model="gpt-3.5-turbo"
-    )
+    chat_generator = OpenAIChatGenerator(model="gpt-3.5-turbo")
 
     pipe = Pipeline()
     pipe.add_component("llm", chat_generator)
-    pipe.run({"llm": {"messages": messages, "generation_kwargs": {"tools": tools}}})
+    output = pipe.run({"llm": {"messages": messages, "generation_kwargs": {"tools": tools}}})
 
     spans = in_memory_span_exporter.get_finished_spans()
 
