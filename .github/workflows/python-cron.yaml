@@ -50,8 +50,12 @@ jobs:
                       "type": "rich_text_section",
                       "elements": [
                         {
-                          "type": "text",
-                          "text": "CI Failures for Python Packages"
+                          "type": "link",
+                          "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                          "text": "CI Failures for Python Packages",
+                          "style": {
+                            "bold": true
+                          }
                         }
                       ]
                     },
