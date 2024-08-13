@@ -119,44 +119,21 @@ class _ComponentWrapper(_WithTracer):
             span.set_attributes(dict(_get_component_output_attributes(response, component_type)))
             span.set_status(trace_api.StatusCode.OK)
             if component_type is ComponentType.GENERATOR:
-                if "Chat" in component_class_name:
-                    replies = response.get("replies")
-                    if replies is None or len(replies) == 0:
-                        pass
-                    reply = replies[0]
-                    usage = reply.meta.get("usage", {})
-                    if "meta" in str(reply):
-                        span.set_attributes(
-                            {
-                                **dict(_get_llm_token_count_attributes(usage)),
-                                LLM_MODEL_NAME: reply.meta["model"],
-                            }
-                        )
-                    for i, reply in enumerate(response["replies"]):
-                        span.set_attributes(
-                            {
-                                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}": reply.role,
-                                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}": reply.content,
-                            }
-                        )
-                    span.set_attributes(dict(_get_tool_call_attributes(response)))
-                else:
-                    span.set_attributes(
-                        {
-                            **dict(_get_llm_token_count_attributes(response["meta"][0]["usage"])),
-                            LLM_MODEL_NAME: response["meta"][0]["model"],
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response["replies"][0],
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": ChatRole.ASSISTANT,
-                        }
-                    )
+                span.set_attributes(
+                    {
+                        **dict(_get_llm_model_attributes(response)),
+                        **dict(_get_llm_output_message_attributes(response)),
+                        **dict(_get_tool_call_attributes(response)),
+                        **dict(_get_llm_token_count_attributes(response)),
+                    }
+                )
             elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(dict(_get_embedding_attributes(run_args, response)))
             elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(dict(_get_retriever_response_attributes(response)))
-            elif (
-                component_type is ComponentType.UNKNOWN
-                or component_type is ComponentType.PROMPT_BUILDER
-            ):
+            elif component_type is ComponentType.PROMPT_BUILDER:
+                pass
+            elif component_type is ComponentType.UNKNOWN:
                 pass
             else:
                 assert_never(component_type)
@@ -310,20 +287,6 @@ def _get_output_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, A
     yield OUTPUT_VALUE, safe_json_dumps(response)
 
 
-def _get_llm_token_count_attributes(usage: Any) -> Iterator[Tuple[str, Any]]:
-    """
-    Extract token counts from the usage.
-    """
-    if not isinstance(usage, dict):
-        return
-    if (completion_tokens := usage.get("completion_tokens")) is not None:
-        yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
-    if (prompt_tokens := usage.get("prompt_tokens")) is not None:
-        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if (total_tokens := usage.get("total_tokens")) is not None:
-        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
-
-
 def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
     Extracts input messages.
@@ -337,6 +300,69 @@ def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[
     elif isinstance(prompt := arguments.get("prompt"), str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", USER
+
+
+def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts output messages.
+    """
+
+    if not isinstance(replies := response.get("replies"), Sequence):
+        return
+    for reply_index, reply in enumerate(replies):
+        if isinstance(reply, ChatMessage):
+            yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role
+            yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.content
+        elif isinstance(reply, str):
+            yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", reply
+            yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", ASSISTANT
+
+
+def _get_llm_model_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts LLM model attributes from response.
+    """
+    if (
+        isinstance(response_meta := response.get("meta"), Sequence)
+        and response_meta
+        and (model := response_meta[0].get("model")) is not None
+    ):
+        yield LLM_MODEL_NAME, model
+    elif (
+        isinstance(replies := response.get("replies"), Sequence)
+        and replies
+        and isinstance(reply := replies[0], ChatMessage)
+        and (model := reply.meta.get("model")) is not None
+    ):
+        yield LLM_MODEL_NAME, model
+
+
+def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts token counts from response.
+    """
+    token_usage = None
+    if (
+        isinstance(response_meta := response.get("meta"), Sequence)
+        and response_meta
+        and isinstance(response_meta[0], dict)
+        and isinstance(usage := response_meta[0].get("usage"), dict)
+    ):
+        token_usage = usage
+    elif (
+        isinstance(replies := response.get("replies"), Sequence)
+        and replies
+        and isinstance(reply := replies[0], ChatMessage)
+        and isinstance(usage := reply.meta.get("usage"), dict)
+    ):
+        token_usage = usage
+    if token_usage is not None:
+        if (completion_tokens := token_usage.get("completion_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+        if (prompt_tokens := token_usage.get("prompt_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+        if (total_tokens := token_usage.get("total_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
 
 def _get_tool_call_attributes(response: Any) -> Iterator[Tuple[str, Any]]:
@@ -517,6 +543,7 @@ RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 
+ASSISTANT = ChatRole.ASSISTANT.value
 USER = ChatRole.USER.value
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
