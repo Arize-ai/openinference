@@ -149,6 +149,13 @@ class _KickoffWrapper:
             span_name,
             record_exception=False,
             set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                    }
+                )
+            ),
         ) as span:
             crew = instance
             inputs = kwargs.get("inputs", None) or (args[0] if args else None)
@@ -199,14 +206,25 @@ class _KickoffWrapper:
                 ),
             )
             try:
-                response = wrapped(*args, **kwargs)
+                crew_output = wrapped(*args, **kwargs)
+                #span.set_attribute(OUTPUT_VALUE, crew_output)
+                #span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+                usage_metrics = instance.usage_metrics
+                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.prompt_tokens)
+                span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, usage_metrics.completion_tokens)
+                span.set_attribute(LLM_TOKEN_COUNT_TOTAL, usage_metrics.total_tokens)
+
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
-        return response
+            if crew_output.to_dict():
+                span.set_attribute(OUTPUT_VALUE, json.dumps(crew_output.to_dict()))
+                span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+            else:
+                span.set_attribute(OUTPUT_VALUE, str(crew_output))
+        return crew_output
 
 
 class _ToolUseWrapper:
@@ -261,3 +279,7 @@ class _ToolUseWrapper:
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
