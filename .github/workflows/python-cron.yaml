@@ -42,14 +42,5 @@ jobs:
         with:
           payload: |
             {
-              "text": "CI Failures for Python Packages",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "${{ steps.failed.outputs.testenvs }}"
-                  }
-                }
-              ]
+              "text": "CI Failures for Python Packages: ${{ steps.failed.outputs.testenvs }}"
             }
