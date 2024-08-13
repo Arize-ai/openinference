@@ -470,28 +470,15 @@ def test_haystack_instrumentation_filtering(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_haystack_tool_calling_llm_span_has_expected_attributes(
+def test_tool_calling_llm_span_has_expected_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
     openai_api_key: str,
 ) -> None:
-    WEATHER_INFO = {
-        "Berlin": {"weather": "mostly sunny", "temperature": 7, "unit": "celsius"},
-        "Paris": {"weather": "mostly cloudy", "temperature": 8, "unit": "celsius"},
-        "Rome": {"weather": "sunny", "temperature": 14, "unit": "celsius"},
-        "Madrid": {"weather": "sunny", "temperature": 10, "unit": "celsius"},
-        "London": {"weather": "cloudy", "temperature": 9, "unit": "celsius"},
-    }
-
-    def get_current_weather(location: str) -> Any:
-        if location in WEATHER_INFO:
-            return WEATHER_INFO[location]
-
-        # fallback data
-        else:
-            return {"weather": "sunny", "temperature": 21.8, "unit": "fahrenheit"}
-
+    chat_generator = OpenAIChatGenerator(model="gpt-4o")
+    pipe = Pipeline()
+    pipe.add_component("llm", chat_generator)
     tools = [
         {
             "type": "function",
@@ -511,20 +498,48 @@ def test_haystack_tool_calling_llm_span_has_expected_attributes(
             },
         },
     ]
-
-    messages = [
-        ChatMessage.from_user("What is the weather in Berlin"),
-    ]
-
-    chat_generator = OpenAIChatGenerator(model="gpt-3.5-turbo")
-
-    pipe = Pipeline()
-    pipe.add_component("llm", chat_generator)
-    pipe.run({"llm": {"messages": messages, "generation_kwargs": {"tools": tools}}})
+    response = pipe.run(
+        {
+            "llm": {
+                "messages": [
+                    ChatMessage.from_user("What is the weather in Berlin"),
+                ],
+                "generation_kwargs": {"tools": tools},
+            }
+        }
+    )
+    assert "get_current_weather" in response["llm"]["replies"][0].content
 
     spans = in_memory_span_exporter.get_finished_spans()
-
-    assert spans
+    assert len(spans) == 2
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    assert "What is the weather in Berlin" in input_value
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "What is the weather in Berlin"
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_current_weather"
+    )
+    assert isinstance(
+        tool_call_arguments := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert json.loads(tool_call_arguments) == {"location": "Berlin"}
+    # todo: uncomment once we no longer record content attributes
+    # assert not attributes
 
 
 def test_haystack_uninstrumentation(
