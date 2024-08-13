@@ -30,8 +30,8 @@ jobs:
       - run: >-
           echo "testenvs=$(cat ${{ runner.temp }}/.tox-result.json
           | jq -r '.testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]'
-          | rev | sort | rev
-          | jq -sRc 'split("\n")[:-1] | map({type:"rich_text_section",elements:[{type:"text",text:.}]})')"
+          | sort
+          | paste -sd, -)"
           >> "$GITHUB_OUTPUT"
         id: failed
         if: failure()
@@ -42,29 +42,5 @@ jobs:
         with:
           payload: |
             {
-              "blocks": [
-                {
-                  "type": "rich_text",
-                  "elements": [
-                    {
-                      "type": "rich_text_section",
-                      "elements": [
-                        {
-                          "type": "link",
-                          "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-                          "text": "CI Failures for Python Packages",
-                          "style": {
-                            "bold": true
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "rich_text_list",
-                      "style": "ordered",
-                      "elements": ${{ fromJSON(steps.failed.outputs.testenvs) }}
-                    }
-                  ]
-                }
-              ]
+              "text": "CI Failures for Python Packages: ${{ steps.failed.outputs.testenvs }}"
             }
