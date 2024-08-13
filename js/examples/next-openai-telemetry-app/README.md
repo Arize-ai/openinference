@@ -1,6 +1,8 @@
-# Vercel AI SDK, Next.js, and OpenAI Chat Example with Telemetry
+# Phoenix, Vercel AI SDK, Next.js, and OpenAI Generative Example with Telemetry
 
-This example shows how to use the [Vercel AI SDK](https://sdk.vercel.ai/docs) with [Next.js](https://nextjs.org/) and [OpenAI](https://openai.com) to create a ChatGPT-like AI-powered streaming chat bot with [OpenTelemetry support](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
+This example shows how to use the [Vercel AI SDK](https://sdk.vercel.ai/docs) with [Next.js](https://nextjs.org/) and [OpenAI](https://openai.com) to create a sample generative application with [OpenTelemetry support](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
+
+OTEL spans are collected and viewable with [Arize-Phoenix](https://github.com/Arize-ai/phoenix).
 
 ## Deploy your own
 
@@ -10,32 +12,40 @@ Deploy the example using [Vercel](https://vercel.com?utm_source=github&utm_mediu
 
 ## How to use
 
-Execute [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app) with [npm](https://docs.npmjs.com/cli/init), [Yarn](https://yarnpkg.com/lang/en/docs/cli/create/), or [pnpm](https://pnpm.io) to bootstrap the example:
-
-```bash
-npx create-next-app --example https://github.com/vercel/ai/tree/main/examples/next-openai-telemetry next-openai-telemetry-app
-```
-
-```bash
-yarn create next-app --example https://github.com/vercel/ai/tree/main/examples/next-openai-telemetry next-openai-telemetry-app
-```
-
-```bash
-pnpm create next-app --example https://github.com/vercel/ai/tree/main/examples/next-openai-telemetry next-openai-telemetry-app
-```
-
-To run the example locally you need to:
+If you don't already have an OpenAI API key do the following to create one:
 
 1. Sign up at [OpenAI's Developer Platform](https://platform.openai.com/signup).
 2. Go to [OpenAI's dashboard](https://platform.openai.com/account/api-keys) and create an API KEY.
-3. Set the required OpenAI environment variable as the token value as shown [the example env file](./.env.local.example) but in a new file called `.env.local`
-4. `pnpm install` to install the required dependencies.
-5. `pnpm dev` to launch the development server.
+
+### Docker
+To run the example locally in a docker container you need to:
+
+1. Set your OpenAI API key as an environment variable. run `export OPENAI_API_KEY=<your key here>`
+2. Run `docker compose up --build`.
+
+
+### Local
+To run the example locally you need to:
+
+1. Set the required OpenAI environment variable as the token value as shown [the example env file](./.env.local.example) but in a new file called `.env.local`. 
+   - The `OTEL_EXPORTER_OTLP_ENDPOINT` does not need to be adjusted in order to send traces to a local instance of [Arize-Phoenix](https://github.com/Arize-ai/phoenix).
+2. To run [Arize-Phoenix](https://github.com/Arize-ai/phoenix) locally run `docker run -p 6006:6006 -i -t arizephoenix/phoenix`
+3. `pnpm install` to install the required dependencies.
+4. `pnpm dev` to launch the development server.
+
+
+Whether running locally or with docker both [Arize-Phoenix](https://github.com/Arize-ai/phoenix) and the example app will be available at:
+
+- **App:** [localhost:3000](http://localhost:3000)
+
+- **Phoenix:** [localhost:6006](http://localhost:6006)
 
 ## Learn More
 
-To learn more about OpenAI, Next.js, and the Vercel AI SDK take a look at the following resources:
+To learn more about Phoenix, OpenAI, Next.js, and the Vercel AI SDK take a look at the following resources:
 
+- [Phoenix repository](https://github.com/Arize-ai/phoenix) - learn about LLM observability with Phoenix
+- [Phoenix docs](https://docs.arize.com/phoenix) 
 - [Vercel AI SDK docs](https://sdk.vercel.ai/docs)
 - [Vercel AI SDK telemetry support](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry)
 - [Vercel AI Playground](https://play.vercel.ai)
