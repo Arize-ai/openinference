@@ -79,23 +79,12 @@ class _ComponentWrapper(_WithTracer):
                 {**dict(get_attributes_from_context()), **dict(_get_input_attributes(run_args))}
             )
             if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
-                span.set_attributes(dict(_get_span_kind_attributes(LLM)))
-                if "Chat" in component_class_name:
-                    for i, msg in enumerate(run_args["messages"]):
-                        span.set_attributes(
-                            {
-                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}": msg.content,
-                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}": msg.role,
-                            }
-                        )
-                else:
-                    span.set_attributes(
-                        {
-                            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}": run_args["prompt"],
-                            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}": ChatRole.USER,
-                        }
-                    )
-
+                span.set_attributes(
+                    {
+                        **dict(_get_span_kind_attributes(LLM)),
+                        **dict(_get_llm_input_message_attributes(run_args)),
+                    }
+                )
             elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(
                     {
@@ -335,6 +324,21 @@ def _get_llm_token_count_attributes(usage: Any) -> Iterator[Tuple[str, Any]]:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
 
+def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts input messages.
+    """
+    if isinstance(messages := arguments.get("messages"), Sequence) and all(
+        map(lambda x: isinstance(x, ChatMessage), messages)
+    ):
+        for message_index, message in enumerate(messages):
+            yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}", message.content
+            yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}", message.role
+    elif isinstance(prompt := arguments.get("prompt"), str):
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", USER
+
+
 def _get_tool_call_attributes(response: Any) -> Iterator[Tuple[str, Any]]:
     """
     Extract tool information from the generation_kwargs.
@@ -512,6 +516,8 @@ RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
 
 JSON = OpenInferenceMimeTypeValues.JSON.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
+
+USER = ChatRole.USER.value
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
