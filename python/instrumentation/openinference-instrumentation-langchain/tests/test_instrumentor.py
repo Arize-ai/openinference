@@ -274,12 +274,17 @@ def test_callback_llm(
                 retriever_attributes,
                 session_id=session_id,
                 user_id=user_id,
-                metadata=metadata,
+                metadata={"ls_retriever_name": "knn"}
+                if LANGCHAIN_VERSION >= (0, 2, 13)
+                else metadata,
                 tags=tags,
                 prompt_template=prompt_template,
                 prompt_template_version=prompt_template_version,
                 prompt_template_variables=prompt_template_variables,
             )
+        elif LANGCHAIN_VERSION >= (0, 2, 13):
+            assert isinstance(_metadata := retriever_attributes.pop(METADATA, None), str)
+            assert json.loads(_metadata) == {"ls_retriever_name": "knn"}
         assert retriever_attributes == {}
 
         assert (llm_span := spans_by_name.pop("LLMChain", None)) is not None
