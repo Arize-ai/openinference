@@ -1,0 +1,117 @@
+[
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "\nYou are a helpful math tutor. You will be provided with a math problem,\nand your goal will be to output a step by step solution, along with a final answer.\nFor each step, just provide the output as an equation use the explanation field\nto detail the reasoning.\n"
+      },
+      {
+        "role": "user",
+        "content": "how can I solve 8x + 7 = -23"
+      }
+    ],
+    "model": "gpt-4o-mini",
+    "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+        "name": "math_reasoning",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "explanation": {
+                    "type": "string"
+                  },
+                  "output": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "explanation",
+                  "output"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "final_answer": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "steps",
+            "final_answer"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    }
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "\nYou are a helpful math tutor. You will be provided with a math problem,\nand your goal will be to output a step by step solution, along with a final answer.\nFor each step, just provide the output as an equation use the explanation field\nto detail the reasoning.\n"
+      },
+      {
+        "role": "user",
+        "content": "how can I solve 8x + 7 = -23"
+      }
+    ],
+    "model": "gpt-4o-mini",
+    "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+        "schema": {
+          "$defs": {
+            "Step": {
+              "properties": {
+                "explanation": {
+                  "title": "Explanation",
+                  "type": "string"
+                },
+                "output": {
+                  "title": "Output",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "explanation",
+                "output"
+              ],
+              "title": "Step",
+              "type": "object",
+              "additionalProperties": false
+            }
+          },
+          "properties": {
+            "steps": {
+              "items": {
+                "$ref": "#/$defs/Step"
+              },
+              "title": "Steps",
+              "type": "array"
+            },
+            "final_answer": {
+              "title": "Final Answer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "steps",
+            "final_answer"
+          ],
+          "title": "MathReasoning",
+          "type": "object",
+          "additionalProperties": false
+        },
+        "name": "MathReasoning",
+        "strict": true
+      }
+    }
+  }
+]

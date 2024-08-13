@@ -1,0 +1,102 @@
+[
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a UI generator AI. Convert the user input into a UI."
+      },
+      {
+        "role": "user",
+        "content": "Make a User Profile Form"
+      }
+    ],
+    "model": "gpt-4o-mini",
+    "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+        "schema": {
+          "$defs": {
+            "Attribute": {
+              "properties": {
+                "name": {
+                  "title": "Name",
+                  "type": "string"
+                },
+                "value": {
+                  "title": "Value",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "value"
+              ],
+              "title": "Attribute",
+              "type": "object",
+              "additionalProperties": false
+            },
+            "UI": {
+              "properties": {
+                "type": {
+                  "$ref": "#/$defs/UIType"
+                },
+                "label": {
+                  "title": "Label",
+                  "type": "string"
+                },
+                "children": {
+                  "items": {
+                    "$ref": "#/$defs/UI"
+                  },
+                  "title": "Children",
+                  "type": "array"
+                },
+                "attributes": {
+                  "items": {
+                    "$ref": "#/$defs/Attribute"
+                  },
+                  "title": "Attributes",
+                  "type": "array"
+                }
+              },
+              "required": [
+                "type",
+                "label",
+                "children",
+                "attributes"
+              ],
+              "title": "UI",
+              "type": "object",
+              "additionalProperties": false
+            },
+            "UIType": {
+              "enum": [
+                "div",
+                "button",
+                "header",
+                "section",
+                "field",
+                "form"
+              ],
+              "title": "UIType",
+              "type": "string"
+            }
+          },
+          "properties": {
+            "ui": {
+              "$ref": "#/$defs/UI"
+            }
+          },
+          "required": [
+            "ui"
+          ],
+          "title": "Response",
+          "type": "object",
+          "additionalProperties": false
+        },
+        "name": "Response",
+        "strict": true
+      }
+    }
+  }
+]

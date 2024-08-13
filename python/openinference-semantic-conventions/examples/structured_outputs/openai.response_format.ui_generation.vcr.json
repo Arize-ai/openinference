@@ -1,0 +1,128 @@
+[
+  {
+    "REQUEST-0": {
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a UI generator AI. Convert the user input into a UI."
+        },
+        {
+          "role": "user",
+          "content": "Make a User Profile Form"
+        }
+      ],
+      "model": "gpt-4o-mini",
+      "response_format": {
+        "type": "json_schema",
+        "json_schema": {
+          "schema": {
+            "$defs": {
+              "Attribute": {
+                "properties": {
+                  "name": {
+                    "title": "Name",
+                    "type": "string"
+                  },
+                  "value": {
+                    "title": "Value",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "value"
+                ],
+                "title": "Attribute",
+                "type": "object",
+                "additionalProperties": false
+              },
+              "UI": {
+                "properties": {
+                  "type": {
+                    "$ref": "#/$defs/UIType"
+                  },
+                  "label": {
+                    "title": "Label",
+                    "type": "string"
+                  },
+                  "children": {
+                    "items": {
+                      "$ref": "#/$defs/UI"
+                    },
+                    "title": "Children",
+                    "type": "array"
+                  },
+                  "attributes": {
+                    "items": {
+                      "$ref": "#/$defs/Attribute"
+                    },
+                    "title": "Attributes",
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "type",
+                  "label",
+                  "children",
+                  "attributes"
+                ],
+                "title": "UI",
+                "type": "object",
+                "additionalProperties": false
+              },
+              "UIType": {
+                "enum": [
+                  "div",
+                  "button",
+                  "header",
+                  "section",
+                  "field",
+                  "form"
+                ],
+                "title": "UIType",
+                "type": "string"
+              }
+            },
+            "properties": {
+              "ui": {
+                "$ref": "#/$defs/UI"
+              }
+            },
+            "required": [
+              "ui"
+            ],
+            "title": "Response",
+            "type": "object",
+            "additionalProperties": false
+          },
+          "name": "Response",
+          "strict": true
+        }
+      }
+    },
+    "RESPONSE-0": {
+      "id": "chatcmpl-9u0j6LpINaUB1V3XMFI1j1zVfvLFm",
+      "object": "chat.completion",
+      "created": 1723136188,
+      "model": "gpt-4o-mini-2024-07-18",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "{\"ui\":{\"type\":\"form\",\"label\":\"User Profile Form\",\"children\":[{\"type\":\"section\",\"label\":\"Personal Information\",\"children\":[{\"type\":\"field\",\"label\":\"First Name\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Enter your first name\"},{\"name\":\"required\",\"value\":\"true\"}]},{\"type\":\"field\",\"label\":\"Last Name\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Enter your last name\"},{\"name\":\"required\",\"value\":\"true\"}]},{\"type\":\"field\",\"label\":\"Email\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Enter your email address\"},{\"name\":\"type\",\"value\":\"email\"},{\"name\":\"required\",\"value\":\"true\"}]},{\"type\":\"field\",\"label\":\"Phone Number\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Enter your phone number\"},{\"name\":\"type\",\"value\":\"tel\"},{\"name\":\"required\",\"value\":\"false\"}]}]                                           \n                                          ,\"attributes\":[]},{\"type\":\"section\",\"label\":\"Address\",\"children\":[{\"type\":\"field\",\"label\":\"Street Address\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Enter your street address\"},{\"name\":\"required\",\"value\":\"true\"}]},{\"type\":\"field\",\"label\":\"City\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Enter your city\"},{\"name\":\"required\",\"value\":\"true\"}]},{\"type\":\"field\",\"label\":\"State/Province\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Enter your state or province\"},{\"name\":\"required\",\"value\":\"true\"}]},{\"type\":\"field\",\"label\":\"Postal Code\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Enter your postal code\"},{\"name\":\"required\",\"value\":\"true\"}]}]                                           \n                                          ,\"attributes\":[]},{\"type\":\"section\",\"label\":\"Account Settings\",\"children\":[{\"type\":\"field\",\"label\":\"Username\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Choose a username\"},{\"name\":\"required\",\"value\":\"true\"}]},{\"type\":\"field\",\"label\":\"Password\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Create a password\"},{\"name\":\"type\",\"value\":\"password\"},{\"name\":\"required\",\"value\":\"true\"}]},{\"type\":\"field\",\"label\":\"Confirm Password\",\"children\":[],\"attributes\":[{\"name\":\"placeholder\",\"value\":\"Confirm your password\"},{\"name\":\"type\",\"value\":\"password\"},{\"name\":\"required\",\"value\":\"true\"}]}],\"attributes\":[]},{\"type\":\"button\",\"label\":\"Submit\",\"children\":[],\"attributes\":[{\"name\":\"type\",\"value\":\"submit\"}]}]                                   \n                                          ,\"attributes\":[]}  }",
+            "refusal": null
+          },
+          "logprobs": null,
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 34,
+        "completion_tokens": 523,
+        "total_tokens": 557
+      },
+      "system_fingerprint": "fp_48196bc67a"
+    }
+  }
+]

@@ -1,0 +1,148 @@
+[
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant. The current date is August 6, 2024. You help users query for the data they are looking for by calling the query function."
+      },
+      {
+        "role": "user",
+        "content": "look up all my orders in may of last year that were fulfilled but not delivered on time"
+      }
+    ],
+    "model": "gpt-4o-mini",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "Query",
+          "strict": true,
+          "parameters": {
+            "$defs": {
+              "Column": {
+                "enum": [
+                  "id",
+                  "status",
+                  "expected_delivery_date",
+                  "delivered_at",
+                  "shipped_at",
+                  "ordered_at",
+                  "canceled_at"
+                ],
+                "title": "Column",
+                "type": "string"
+              },
+              "Condition": {
+                "properties": {
+                  "column": {
+                    "title": "Column",
+                    "type": "string"
+                  },
+                  "operator": {
+                    "$ref": "#/$defs/Operator"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "$ref": "#/$defs/DynamicValue"
+                      }
+                    ],
+                    "title": "Value"
+                  }
+                },
+                "required": [
+                  "column",
+                  "operator",
+                  "value"
+                ],
+                "title": "Condition",
+                "type": "object",
+                "additionalProperties": false
+              },
+              "DynamicValue": {
+                "properties": {
+                  "column_name": {
+                    "title": "Column Name",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "column_name"
+                ],
+                "title": "DynamicValue",
+                "type": "object",
+                "additionalProperties": false
+              },
+              "Operator": {
+                "enum": [
+                  "=",
+                  ">",
+                  "<",
+                  "<=",
+                  ">=",
+                  "!="
+                ],
+                "title": "Operator",
+                "type": "string"
+              },
+              "OrderBy": {
+                "enum": [
+                  "asc",
+                  "desc"
+                ],
+                "title": "OrderBy",
+                "type": "string"
+              },
+              "Table": {
+                "enum": [
+                  "orders",
+                  "customers",
+                  "products"
+                ],
+                "title": "Table",
+                "type": "string"
+              }
+            },
+            "properties": {
+              "table_name": {
+                "$ref": "#/$defs/Table"
+              },
+              "columns": {
+                "items": {
+                  "$ref": "#/$defs/Column"
+                },
+                "title": "Columns",
+                "type": "array"
+              },
+              "conditions": {
+                "items": {
+                  "$ref": "#/$defs/Condition"
+                },
+                "title": "Conditions",
+                "type": "array"
+              },
+              "order_by": {
+                "$ref": "#/$defs/OrderBy"
+              }
+            },
+            "required": [
+              "table_name",
+              "columns",
+              "conditions",
+              "order_by"
+            ],
+            "title": "Query",
+            "type": "object",
+            "additionalProperties": false
+          }
+        }
+      }
+    ]
+  }
+]

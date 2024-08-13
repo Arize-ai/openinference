@@ -1,0 +1,82 @@
+[
+  {
+    "REQUEST-0": {
+      "messages": [
+        {
+          "content": "Tell me a joke.",
+          "role": "user"
+        }
+      ],
+      "model": "gpt-4o-mini",
+      "n": 1,
+      "stream": false,
+      "temperature": 1.0,
+      "tool_choice": {
+        "type": "function",
+        "function": {
+          "name": "Joke"
+        }
+      },
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "Joke",
+            "description": "",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "setup": {
+                  "description": "The setup of the joke",
+                  "type": "string"
+                },
+                "punchline": {
+                  "description": "The punchline to the joke",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "setup",
+                "punchline"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "RESPONSE-0": {
+      "id": "chatcmpl-9vokBooNvXJ5AxiA1JJ2w3EtPA8T6",
+      "object": "chat.completion",
+      "created": 1723566783,
+      "model": "gpt-4o-mini-2024-07-18",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_qESzzOdLWNxWSHPDsID1ot8c",
+                "type": "function",
+                "function": {
+                  "name": "Joke",
+                  "arguments": "{\"setup\":\"Why don't skeletons fight each other?\",\"punchline\":\"They don't have the guts!\"}"
+                }
+              }
+            ],
+            "refusal": null
+          },
+          "logprobs": null,
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 70,
+        "completion_tokens": 23,
+        "total_tokens": 93
+      },
+      "system_fingerprint": "fp_48196bc67a"
+    }
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "messages": [
+      {
+        "role": "user",
+        "content": "What's the weather like in San Francisco?"
+      }
+    ],
+    "model": "open-mistral-nemo",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "finds the weather for a given city",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string",
+                "description": "The city to find the weather for, e.g. 'London'"
+              }
+            },
+            "required": [
+              "city"
+            ]
+          }
+        }
+      }
+    ],
+    "tool_choice": "any"
+  }
+]
