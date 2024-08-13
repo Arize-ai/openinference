@@ -25,7 +25,7 @@ from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
 from httpx import Response
-from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -902,6 +902,32 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     )
     assert _is_vector(attributes.pop(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}"))
     assert not attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_suppress_instrumentation_produces_no_spans(
+    openai_api_key: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    llm = OpenAIGenerator(model="gpt-4o")
+    pipe.add_component("llm", llm)
+    with suppress_tracing():
+        response = pipe.run(
+            {
+                "llm": {
+                    "prompt": "Who won the World Cup in 2022? Answer in one word.",
+                }
+            }
+        )
+    assert "argentina" in response["llm"]["replies"][0].lower()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 0
 
 
 # Ensure we're using the common OITracer from common openinference-instrumentation pkg
