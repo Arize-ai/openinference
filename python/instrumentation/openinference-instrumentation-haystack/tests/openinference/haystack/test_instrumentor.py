@@ -461,6 +461,68 @@ def test_haystack_instrumentation_filtering(
     ]
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_haystack_tool_calling_llm_span_has_expected_attributes(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+    openai_api_key: str,
+) -> None:
+    WEATHER_INFO = {
+        "Berlin": {"weather": "mostly sunny", "temperature": 7, "unit": "celsius"},
+        "Paris": {"weather": "mostly cloudy", "temperature": 8, "unit": "celsius"},
+        "Rome": {"weather": "sunny", "temperature": 14, "unit": "celsius"},
+        "Madrid": {"weather": "sunny", "temperature": 10, "unit": "celsius"},
+        "London": {"weather": "cloudy", "temperature": 9, "unit": "celsius"},
+    }
+
+    def get_current_weather(location: str) -> Any:
+        if location in WEATHER_INFO:
+            return WEATHER_INFO[location]
+
+        # fallback data
+        else:
+            return {"weather": "sunny", "temperature": 21.8, "unit": "fahrenheit"}
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_current_weather",
+                "description": "Get the current weather",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        }
+                    },
+                    "required": ["location"],
+                },
+            },
+        },
+    ]
+
+    messages = [
+        ChatMessage.from_user("What is the weather in Berlin"),
+    ]
+
+    chat_generator = OpenAIChatGenerator(model="gpt-3.5-turbo")
+
+    pipe = Pipeline()
+    pipe.add_component("llm", chat_generator)
+    pipe.run({"llm": {"messages": messages, "generation_kwargs": {"tools": tools}}})
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans
+
+
 def test_haystack_uninstrumentation(
     tracer_provider: TracerProvider,
 ) -> None:
@@ -731,7 +793,7 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     assert not attributes
 
 
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
+# Ensure we're using the common OITracer from common openinference-instrumentation pkg
 def test_oitracer(
     setup_haystack_instrumentation: Any,
 ) -> None:

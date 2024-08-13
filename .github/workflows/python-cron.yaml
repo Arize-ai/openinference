@@ -3,6 +3,7 @@ name: Python Canary Cron
 on:
   schedule:
     - cron: "0 18 * * 1-5"
+  workflow_dispatch:
 
 defaults:
   run:
@@ -25,3 +26,30 @@ jobs:
       - run: >-
           tox run-parallel --parallel-no-spinner
           -e $(tox -l | egrep -e '-latest$' | paste -sd, -)
+          --result-json=${{ runner.temp }}/.tox-result.json
+      - run: >-
+          echo "testenvs='$(cat ${{ runner.temp }}/.tox-result.json
+          | jq -r ".testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]"
+          | sort
+          | paste -sd "\" -)'"
+          >> "$GITHUB_OUTPUT"
+        id: failed
+        if: failure()
+      - uses: slackapi/slack-github-action@v1
+        if: ${{ steps.failed.outputs.testenvs != '' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          payload: |
+            {
+              "text": "CI Failures for Python Packages",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ steps.failed.outputs.testenvs }}"
+                  }
+                }
+              ]
+            }

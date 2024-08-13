@@ -1,0 +1,28 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "What is the weather in Berlin"}],
+      "model": "gpt-3.5-turbo", "stream": false, "tools": [{"type": "function", "function":
+      {"name": "get_current_weather", "description": "Get the current weather", "parameters":
+      {"type": "object", "properties": {"location": {"type": "string", "description":
+      "The city and state, e.g. San Francisco, CA"}}, "required": ["location"]}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-9vWHB3TBEZp6gORA2X3RYj52EUqNR\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1723495793,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_nQZWFwilbEoP89ed2qlvR6cJ\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"get_current_weather\",\n
+        \             \"arguments\": \"{\\\"location\\\":\\\"Berlin\\\"}\"\n            }\n
+        \         }\n        ],\n        \"refusal\": null\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\":
+        {\n    \"prompt_tokens\": 65,\n    \"completion_tokens\": 15,\n    \"total_tokens\":
+        80\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
