@@ -538,8 +538,11 @@ def test_tool_calling_llm_span_has_expected_attributes(
         str,
     )
     assert json.loads(tool_call_arguments) == {"location": "Berlin"}
-    # todo: uncomment once we no longer record content attributes
-    # assert not attributes
+    assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+    assert prompt_tokens + completion_tokens == total_tokens
+    assert not attributes
 
 
 def test_haystack_uninstrumentation(

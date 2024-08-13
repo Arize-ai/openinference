@@ -123,7 +123,6 @@ class _ComponentWrapper(_WithTracer):
                     {
                         **dict(_get_llm_model_attributes(response)),
                         **dict(_get_llm_output_message_attributes(response)),
-                        **dict(_get_tool_call_attributes(response)),
                         **dict(_get_llm_token_count_attributes(response)),
                     }
                 )
@@ -311,8 +310,33 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
         return
     for reply_index, reply in enumerate(replies):
         if isinstance(reply, ChatMessage):
-            yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role
-            yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.content
+            if (
+                (reply_meta := getattr(reply, "meta", None)) is None
+                or not isinstance(reply_meta, dict)
+                or (finish_reason := reply_meta.get("finish_reason")) is None
+            ):
+                continue
+            if finish_reason == "tool_calls":
+                try:
+                    tool_calls = json.loads(reply.content)
+                except json.JSONDecodeError:
+                    continue
+                for tool_call_index, tool_call in enumerate(tool_calls):
+                    if (function_call := tool_call.get("function")) is None:
+                        continue
+                    if (tool_call_arguments_json := function_call.get("arguments")) is not None:
+                        yield (
+                            f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            tool_call_arguments_json,
+                        )
+                    if (tool_name := function_call.get("name")) is not None:
+                        yield (
+                            f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
+                            tool_name,
+                        )
+            else:
+                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role
+                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.content
         elif isinstance(reply, str):
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", reply
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", ASSISTANT
@@ -363,43 +387,6 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
             yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (total_tokens := token_usage.get("total_tokens")) is not None:
             yield LLM_TOKEN_COUNT_TOTAL, total_tokens
-
-
-def _get_tool_call_attributes(response: Any) -> Iterator[Tuple[str, Any]]:
-    """
-    Extract tool information from the generation_kwargs.
-    """
-    if not isinstance(response, dict) or not isinstance(
-        replies := response.get("replies"), Sequence
-    ):
-        return
-    for reply_index, reply in enumerate(replies):
-        if not isinstance(reply, ChatMessage):
-            continue
-        if (
-            (reply_meta := getattr(reply, "meta", None)) is None
-            or not isinstance(reply_meta, dict)
-            or (finish_reason := reply_meta.get("finish_reason")) is None
-        ):
-            continue
-        if finish_reason == "tool_calls":
-            try:
-                tool_calls = json.loads(reply.content)
-            except json.JSONDecodeError:
-                continue
-            for tool_call_index, tool_call in enumerate(tool_calls):
-                if (function_call := tool_call.get("function")) is None:
-                    continue
-                if (tool_call_arguments_json := function_call.get("arguments")) is not None:
-                    yield (
-                        f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                        tool_call_arguments_json,
-                    )
-                if (tool_name := function_call.get("name")) is not None:
-                    yield (
-                        f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
-                        tool_name,
-                    )
 
 
 def _get_llm_prompt_template_attributes_from_prompt_builder(
