@@ -22,21 +22,21 @@ jobs:
             3.10
             3.11
             3.12
-      - run: pip install -U tox-uv
+      - run: pip install tox-uv==1.11.1
       - run: >-
           tox run-parallel --parallel-no-spinner
           -e $(tox -l | egrep -e '-latest$' | paste -sd, -)
           --result-json=${{ runner.temp }}/.tox-result.json
       - run: >-
-          echo "testenvs='$(cat ${{ runner.temp }}/.tox-result.json
-          | jq -r ".testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]"
+          echo "testenvs=$(cat ${{ runner.temp }}/.tox-result.json
+          | jq -r '.testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]'
           | sort
-          | paste -sd "\" -)'"
+          | paste -sd, -)"
           >> "$GITHUB_OUTPUT"
         id: failed
         if: failure()
       - uses: slackapi/slack-github-action@v1
-        if: ${{ steps.failed.outputs.testenvs != '' }}
+        if: failure()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
