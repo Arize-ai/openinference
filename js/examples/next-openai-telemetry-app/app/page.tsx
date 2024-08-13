@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
 export default function Page() {
-  const [generation, setGeneration] = useState('');
+  const [generation, setGeneration] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -15,13 +15,13 @@ export default function Page() {
           try {
             setIsLoading(true);
 
-            const response = await fetch('/api/text', {
-              method: 'POST',
+            const response = await fetch("/api/text", {
+              method: "POST",
               body: JSON.stringify({
-                prompt: 'Why is the sky blue?',
+                prompt: "Why is the sky blue?",
               }),
               headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "application/json",
               },
             });
 
