@@ -749,7 +749,7 @@ def test_openai_generator_llm_span_has_expected_attributes(
         ),
     ],
 )
-def test_prompt_builder_llm_span_has_expected_prompt_template_attributes(
+def test_prompt_builder_llm_span_has_expected_attributes(
     default_template: Optional[str],
     prompt_builder_inputs: Dict[str, Any],
     in_memory_span_exporter: InMemorySpanExporter,
@@ -764,12 +764,17 @@ def test_prompt_builder_llm_span_has_expected_prompt_template_attributes(
     assert len(spans) == 2
     span = spans[0]
     attributes = dict(span.attributes or {})
-    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
-    assert attributes.get(LLM_PROMPT_TEMPLATE) == "Where is {{ city }}?"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(LLM_PROMPT_TEMPLATE) == "Where is {{ city }}?"
     assert isinstance(
-        prompt_template_variables_json := attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES), str
+        prompt_template_variables_json := attributes.pop(LLM_PROMPT_TEMPLATE_VARIABLES), str
     )
     assert json.loads(prompt_template_variables_json) == {"city": "Munich"}
+    assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(OUTPUT_VALUE) == "Where is Munich?"
+    assert not attributes
 
 
 @pytest.mark.vcr(
