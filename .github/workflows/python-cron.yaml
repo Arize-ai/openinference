@@ -22,7 +22,7 @@ jobs:
             3.10
             3.11
             3.12
-      - run: pip install -U tox-uv
+      - run: pip install tox-uv==1.11.1
       - run: >-
           tox run-parallel --parallel-no-spinner
           -e $(tox -l | egrep -e '-latest$' | paste -sd, -)
@@ -36,7 +36,7 @@ jobs:
         id: failed
         if: failure()
       - uses: slackapi/slack-github-action@v1
-        if: ${{ steps.failed.outputs.testenvs != '' }}
+        if: failure()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
