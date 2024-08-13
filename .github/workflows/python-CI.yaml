@@ -2,7 +2,7 @@ name: Python CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
     paths:
       - "python/**"
@@ -51,6 +51,6 @@ jobs:
       - run: pip install tox-uv==1.11.1
         if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
       - run: >-
-          tox run-parallel --parallel-no-spinner 
+          tox run-parallel --parallel-no-spinner
           -e $(tox -l | egrep -e '${{ steps.changes.outputs.packages }}' | paste -sd, -)
         if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
