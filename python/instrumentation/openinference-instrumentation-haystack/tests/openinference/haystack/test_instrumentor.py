@@ -662,22 +662,36 @@ def test_openai_generator_llm_span_has_expected_attributes(
     assert len(spans) == 2
     span = spans[0]
     attributes = dict(span.attributes or {})
-    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    assert json.loads(input_value) == {
+        "prompt": "Who won the World Cup in 2022? Answer in one word.",
+        "generation_kwargs": None,
+    }
+    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in model_name
     assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Who won the World Cup in 2022? Answer in one word."
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert isinstance(
-        (output_message_content := attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")),
+        (output_message_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")),
         str,
     )
     assert "argentina" in output_message_content.lower()
-    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(prompt_tokens := attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
-    assert isinstance(completion_tokens := attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
-    assert isinstance(total_tokens := attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+    output_value_data = json.loads(output_value)
+    assert len(replies := output_value_data["replies"]) == 1
+    assert "argentina" in replies[0].lower()
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
+    assert not attributes
 
 
 @pytest.mark.parametrize(

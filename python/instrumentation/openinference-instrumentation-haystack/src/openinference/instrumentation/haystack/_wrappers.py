@@ -126,7 +126,7 @@ class _ComponentWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            span.set_attributes(dict(_get_output_attributes(response)))
+            span.set_attributes(dict(_get_component_output_attributes(response, component_type)))
             span.set_status(trace_api.StatusCode.OK)
             if component_type is ComponentType.GENERATOR:
                 if "Chat" in component_class_name:
@@ -155,8 +155,6 @@ class _ComponentWrapper(_WithTracer):
                         {
                             **dict(_get_llm_token_count_attributes(response["meta"][0]["usage"])),
                             LLM_MODEL_NAME: response["meta"][0]["model"],
-                            OUTPUT_VALUE: safe_json_dumps(response["replies"]),
-                            OUTPUT_MIME_TYPE: JSON,
                             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response["replies"][0],
                             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": ChatRole.ASSISTANT,
                         }
@@ -310,6 +308,18 @@ def _get_input_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, A
     yield INPUT_VALUE, safe_json_dumps(masked_arguments)
 
 
+def _get_component_output_attributes(
+    response: Mapping[str, Any], component_type: ComponentType
+) -> Iterator[Tuple[str, Any]]:
+    """
+    Yields output attributes.
+    """
+    if component_type is ComponentType.PROMPT_BUILDER:
+        yield from _get_output_attributes_for_prompt_builder(response)
+    else:
+        yield from _get_output_attributes(response)
+
+
 def _get_output_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
     Yields output attributes.
@@ -381,6 +391,17 @@ def _get_llm_prompt_template_attributes_from_prompt_builder(
         }
     ) is not None:
         yield LLM_PROMPT_TEMPLATE_VARIABLES, safe_json_dumps(template_variables)
+
+
+def _get_output_attributes_for_prompt_builder(
+    response: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
+    """
+    Yields output attributes for prompt builder.
+    """
+    if isinstance(prompt := response.get("prompt"), str):
+        yield OUTPUT_MIME_TYPE, TEXT
+        yield OUTPUT_VALUE, prompt
 
 
 def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
