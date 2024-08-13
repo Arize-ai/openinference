@@ -1,12 +1,14 @@
 import json
 from datetime import datetime
-from typing import Any, Dict, Generator, List, Optional, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Union
 
 import pytest
+import respx
 from haystack import Document
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.embedders import (
+    OpenAIDocumentEmbedder,
     SentenceTransformersDocumentEmbedder,
     SentenceTransformersTextEmbedder,
 )
@@ -22,6 +24,7 @@ from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
+from httpx import Response
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
 from openinference.semconv.trace import (
@@ -37,6 +40,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from typing_extensions import TypeGuard
 
 
 def remove_all_vcr_request_headers(request: Any) -> Any:
@@ -807,6 +811,81 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     assert not attributes
 
 
+def test_openai_document_embedder_embedding_span_has_expected_attributes(
+    openai_api_key: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.openai.com/v1/embeddings").mock(
+        return_value=Response(
+            200,
+            json={
+                "object": "list",
+                "data": [
+                    {"object": "embedding", "index": 0, "embedding": [1, 2, 3]},
+                    {"object": "embedding", "index": 1, "embedding": [4, 5, 6]},
+                ],
+                "model": "text-embedding-3-small",
+                "usage": {"prompt_tokens": 20, "total_tokens": 20},
+            },
+        )
+    )
+    pipe = Pipeline()
+    embedder = OpenAIDocumentEmbedder(model="text-embedding-3-small")
+    pipe.add_component("embedder", embedder)
+    response = pipe.run(
+        {
+            "embedder": {
+                "documents": [
+                    Document(content="Argentina won the World Cup in 2022."),
+                    Document(content="France won the World Cup in 2018."),
+                ]
+            }
+        }
+    )
+    assert (response_documents := response["embedder"].get("documents")) is not None
+    assert len(response_documents) == 2
+    assert "Argentina won the World Cup in 2022." == response_documents[0].content
+    assert response_documents[0].embedding is not None
+    assert "France won the World Cup in 2018." == response_documents[1].content
+    assert response_documents[1].embedding is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    input_value_data = json.loads(input_value)
+    assert len(input_value_data) == 1
+    assert (input_documents := input_value_data.get("documents")) is not None
+    assert len(input_documents) == 2
+    assert "Argentina won the World Cup in 2022." in input_documents[0]
+    assert "France won the World Cup in 2018." in input_documents[1]
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+    output_value_data = json.loads(output_value)
+    assert len(output_value_data) == 2
+    assert (output_documents := output_value_data.get("documents")) is not None
+    assert len(output_documents) == 2
+    assert "Argentina won the World Cup in 2022." in output_documents[0]
+    assert "France won the World Cup in 2018." in output_documents[1]
+    assert attributes.pop(EMBEDDING_MODEL_NAME) == "text-embedding-3-small"
+    assert (
+        attributes.pop(f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_TEXT}")
+        == "Argentina won the World Cup in 2022."
+    )
+    assert _is_vector(attributes.pop(f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}"))
+    assert (
+        attributes.pop(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_TEXT}")
+        == "France won the World Cup in 2018."
+    )
+    assert _is_vector(attributes.pop(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}"))
+    assert not attributes
+
+
 # Ensure we're using the common OITracer from common openinference-instrumentation pkg
 def test_oitracer(
     setup_haystack_instrumentation: Any,
@@ -822,6 +901,19 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def serperdev_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SERPERDEV_API_KEY", "sk-")
+
+
+def _is_vector(
+    value: Any,
+) -> TypeGuard[Sequence[Union[int, float]]]:
+    """
+    Checks for sequences of numbers.
+    """
+
+    is_sequence_of_numbers = isinstance(value, Sequence) and all(
+        map(lambda x: isinstance(x, (int, float)), value)
+    )
+    return is_sequence_of_numbers
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN

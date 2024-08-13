@@ -11,6 +11,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Union,
 )
 
 import opentelemetry.context as context_api
@@ -25,7 +26,7 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
-from typing_extensions import assert_never
+from typing_extensions import TypeGuard, assert_never
 
 from haystack import Document, Pipeline
 from haystack.components.builders import PromptBuilder
@@ -99,7 +100,7 @@ class _ComponentWrapper(_WithTracer):
                 span.set_attributes(
                     {
                         **dict(_get_span_kind_attributes(EMBEDDING)),
-                        EMBEDDING_MODEL_NAME: component.model,
+                        **dict(_get_embedding_model_attributes(component.model)),
                     }
                 )
             elif component_type is ComponentType.RETRIEVER:
@@ -160,15 +161,7 @@ class _ComponentWrapper(_WithTracer):
                         }
                     )
             elif component_type is ComponentType.EMBEDDER:
-                emb_len = len(response["embedding"])
-                emb_vec_0 = f"{EMBEDDING_EMBEDDINGS}.0."
-
-                span.set_attributes(
-                    {
-                        f"{emb_vec_0}{EMBEDDING_VECTOR}": f"<{emb_len} dimensional vector>",
-                        f"{emb_vec_0}{EMBEDDING_TEXT}": run_args["text"],
-                    }
-                )
+                span.set_attributes(dict(_get_embedding_attributes(run_args, response)))
             elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(dict(_get_retriever_response_attributes(response)))
             elif (
@@ -430,6 +423,51 @@ def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[
             )
 
 
+def _get_embedding_model_attributes(model: Any) -> Iterator[Tuple[str, Any]]:
+    """
+    Yields attributes for embedding model.
+    """
+    if isinstance(model, str):
+        yield EMBEDDING_MODEL_NAME, model
+
+
+def _get_embedding_attributes(
+    arguments: Mapping[str, Any], response: Mapping[str, Any]
+) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts embedding attributes from an embedder response.
+    """
+    if isinstance(documents := response.get("documents"), Sequence) and all(
+        map(_is_embedding_doc, documents)
+    ):
+        for doc_index, doc in enumerate(documents):
+            yield f"{EMBEDDING_EMBEDDINGS}.{doc_index}.{EMBEDDING_TEXT}", doc.content
+            yield (
+                f"{EMBEDDING_EMBEDDINGS}.{doc_index}.{EMBEDDING_VECTOR}",
+                list(doc.embedding),
+            )
+    elif _is_vector(embedding := response.get("embedding")) and isinstance(
+        text := arguments.get("text"), str
+    ):
+        yield f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_TEXT}", text
+        yield (
+            f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}",
+            list(embedding),
+        )
+
+
+def _is_embedding_doc(maybe_doc: Any) -> bool:
+    """
+    Returns true if the input is a `haystack.Document` with embedding
+    attributes.
+    """
+    return (
+        isinstance(maybe_doc, Document)
+        and isinstance(maybe_doc.content, str)
+        and _is_vector(maybe_doc.embedding)
+    )
+
+
 def _mask_embedding_vectors(key: str, value: Any) -> Tuple[str, Any]:
     """
     Masks embeddings.
@@ -439,17 +477,17 @@ def _mask_embedding_vectors(key: str, value: Any) -> Tuple[str, Any]:
     return key, value
 
 
-def _is_vector(value: Any) -> bool:
+def _is_vector(
+    value: Any,
+) -> TypeGuard[Sequence[Union[int, float]]]:
     """
-    Checks for sequences of numbers and NumPy arrays.
+    Checks for sequences of numbers.
     """
-    import numpy as np  # NumPy is a Haystack dependency
 
     is_sequence_of_numbers = isinstance(value, Sequence) and all(
         map(lambda x: isinstance(x, (int, float)), value)
     )
-    is_numpy_array = isinstance(value, np.ndarray)
-    return is_sequence_of_numbers or is_numpy_array
+    return is_sequence_of_numbers
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
