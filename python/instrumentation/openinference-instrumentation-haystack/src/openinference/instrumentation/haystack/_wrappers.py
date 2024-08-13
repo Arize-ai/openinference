@@ -402,6 +402,8 @@ def _get_output_attributes_for_prompt_builder(
     if isinstance(prompt := response.get("prompt"), str):
         yield OUTPUT_MIME_TYPE, TEXT
         yield OUTPUT_VALUE, prompt
+    else:
+        yield from _get_output_attributes(response)
 
 
 def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
