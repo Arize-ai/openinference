@@ -16,7 +16,9 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.util.types import AttributeValue
 
@@ -178,6 +180,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
     @wraps(litellm.completion)
     def _completion_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return self.original_litellm_funcs["completion"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
             name="completion", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -188,6 +192,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
     @wraps(litellm.acompletion)
     async def _acompletion_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return self.original_litellm_funcs["acompletion"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
             name="acompletion", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -198,6 +204,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
     @wraps(litellm.completion_with_retries)
     def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return self.original_litellm_funcs["completion_with_retries"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
             name="completion_with_retries", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -208,6 +216,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
     @wraps(litellm.acompletion_with_retries)
     async def _acompletion_with_retries_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return self.original_litellm_funcs["acompletion_with_retries"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
             name="acompletion_with_retries", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -218,6 +228,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
     @wraps(litellm.embedding)
     def _embedding_wrapper(self, *args: Any, **kwargs: Any) -> EmbeddingResponse:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return self.original_litellm_funcs["embedding"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
             name="embedding", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -228,6 +240,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
     @wraps(litellm.aembedding)
     async def _aembedding_wrapper(self, *args: Any, **kwargs: Any) -> EmbeddingResponse:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return self.original_litellm_funcs["aembedding"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
             name="aembedding", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -238,6 +252,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
     @wraps(litellm.image_generation)
     def _image_generation_wrapper(self, *args: Any, **kwargs: Any) -> ImageResponse:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return self.original_litellm_funcs["image_generation"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
             name="image_generation", attributes=dict(get_attributes_from_context())
         ) as span:
@@ -248,6 +264,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
     @wraps(litellm.aimage_generation)
     async def _aimage_generation_wrapper(self, *args: Any, **kwargs: Any) -> ImageResponse:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return self.original_litellm_funcs["aimage_generation"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
             name="aimage_generation", attributes=dict(get_attributes_from_context())
         ) as span:
