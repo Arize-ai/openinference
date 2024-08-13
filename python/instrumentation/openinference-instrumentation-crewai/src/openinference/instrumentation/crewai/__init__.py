@@ -2,6 +2,10 @@ import logging
 from importlib import import_module
 from typing import Any, Collection
 
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+)
 from openinference.instrumentation.crewai._wrappers import (
     _ExecuteCoreWrapper,
     _KickoffWrapper,
@@ -22,6 +26,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_execute_core",
         "_original_kickoff",
         "_original_tool_use",
+        "_tracer",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -30,9 +35,16 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        self._tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
 
-        execute_core_wrapper = _ExecuteCoreWrapper(tracer=tracer)
+        execute_core_wrapper = _ExecuteCoreWrapper(tracer=self._tracer)
         self._original_execute_core = getattr(import_module("crewai").Task, "_execute_core", None)
         wrap_function_wrapper(
             module="crewai",
@@ -40,7 +52,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=execute_core_wrapper,
         )
 
-        kickoff_wrapper = _KickoffWrapper(tracer=tracer)
+        kickoff_wrapper = _KickoffWrapper(tracer=self._tracer)
         self._original_kickoff = getattr(import_module("crewai").Crew, "kickoff", None)
         wrap_function_wrapper(
             module="crewai",
@@ -48,7 +60,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=kickoff_wrapper,
         )
 
-        use_wrapper = _ToolUseWrapper(tracer=tracer)
+        use_wrapper = _ToolUseWrapper(tracer=self._tracer)
         self._original_tool_use = getattr(
             import_module("crewai.tools.tool_usage").ToolUsage, "_use", None
         )
