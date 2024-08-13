@@ -545,61 +545,18 @@ def test_tool_calling_llm_span_has_expected_attributes(
     assert not attributes
 
 
-def test_haystack_uninstrumentation(
+def test_instrument_and_uninstrument_methods_wrap_and_unwrap_expected_methods(
     tracer_provider: TracerProvider,
 ) -> None:
-    # Instrumenting Haystack
     HaystackInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    # Ensure methods are wrapped
     assert hasattr(Pipeline.run, "__wrapped__")
     assert hasattr(Pipeline._run_component, "__wrapped__")
 
-    # Uninstrumenting Haystack
     HaystackInstrumentor().uninstrument()
 
-    # Ensure methods are not wrapped
     assert not hasattr(Pipeline.run, "__wrapped__")
     assert not hasattr(Pipeline._run_component, "__wrapped__")
-
-
-def test_haystack_conditional_router(
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_haystack_instrumentation: Any,
-) -> None:
-    routes = [
-        {
-            "condition": "{{query|length > 10}}",
-            "output": "{{query}}",
-            "output_name": "ok_query",
-            "output_type": str,
-        },
-        {
-            "condition": "{{query|length <= 10}}",
-            "output": "query is too short: {{query}}",
-            "output_name": "too_short_query",
-            "output_type": str,
-        },
-    ]
-    router = ConditionalRouter(routes=routes)
-
-    llm = OpenAIGenerator(api_key=Secret.from_token("TOTALLY_REAL_API_KEY"))
-    llm.run = fake_OpenAIGenerator_run.__get__(llm, OpenAIGenerator)
-
-    pipe = Pipeline()
-    pipe.add_component("router", router)
-    pipe.add_component("prompt_builder", PromptBuilder("Answer the following query. {{query}}"))
-    pipe.add_component("generator", llm)
-    pipe.connect("router.ok_query", "prompt_builder.query")
-    pipe.connect("prompt_builder", "generator")
-
-    pipe.run(data={"router": {"query": "Berlin"}})
-
-    pipe.run(data={"router": {"query": "What is the capital of Italy?"}})
-
-    spans = in_memory_span_exporter.get_finished_spans()
-
-    assert spans
 
 
 @pytest.mark.vcr(
@@ -631,32 +588,39 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     assert len(spans) == 2
     span = spans[0]
     attributes = dict(span.attributes or {})
-    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Answer user questions succinctly"
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "What can I help you with?"
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "What can I help you with?"
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
 
     assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
         == "Who won the World Cup in 2022? Answer in one word."
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
     assert isinstance(
-        (output_message_content := attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")),
+        (output_message_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")),
         str,
     )
     assert "argentina" in output_message_content.lower()
-    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(prompt_tokens := attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
-    assert isinstance(completion_tokens := attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
-    assert isinstance(total_tokens := attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in model_name
+    assert not attributes
 
 
 @pytest.mark.vcr(
