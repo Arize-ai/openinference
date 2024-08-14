@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.5...python-openinference-instrumentation-haystack-v0.1.6) (2024-08-13)
+
+
+### Features
+
+* Tool calling support for HaystackInstrumentor ([#839](https://github.com/Arize-ai/openinference/issues/839)) ([96586be](https://github.com/Arize-ai/openinference/commit/96586be393a14eee0f00dc9ddd67a28a1be02d06))
+
+
+### Bug Fixes
+
+* implement prompt template attributes for prompt builder and add helper functions ([#844](https://github.com/Arize-ai/openinference/issues/844)) ([d3dcb5c](https://github.com/Arize-ai/openinference/commit/d3dcb5c3c3c2f24c06375468dc033a5e0d45779f))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.4...python-openinference-instrumentation-haystack-v0.1.5) (2024-08-10)
 
 
