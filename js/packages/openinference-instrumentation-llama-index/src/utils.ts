@@ -28,7 +28,20 @@ import {
   LLMCompleteMethodType,
   LLMObject,
 } from "./types";
-import { BaseEmbedding, BaseRetriever, LLM } from "llamaindex";
+import { BaseEmbedding } from "@llamaindex/core/dist/embeddings";
+import {
+  LLM,
+  LLMChatParamsNonStreaming,
+  LLMCompletionParamsNonStreaming,
+  ChatResponse,
+  CompletionResponse,
+  MessageContentDetail,
+} from "@llamaindex/core/dist/llms";
+import {
+  NodeWithScore,
+  TextNode,
+  Metadata,
+} from "@llamaindex/core/dist/schema";
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.
@@ -85,58 +98,60 @@ function handleError(span: Span, error: Error | undefined) {
 /**
  * Checks whether the provided prototype is an instance of a `BaseRetriever`.
  *
- * @param {unknown} proto - The prototype to check.
+ * @param {unknown} prototype - The prototype to check.
  * @returns {boolean} Whether the prototype is a `BaseRetriever`.
  */
-export function isRetrieverPrototype(proto: unknown): proto is BaseRetriever {
+export function isRetrieverPrototype(
+  prototype: unknown,
+): prototype is llamaindex.BaseRetriever {
   return (
-    proto != null &&
-    typeof proto === "object" &&
-    "retrieve" in proto &&
-    typeof proto.retrieve === "function"
+    prototype != null &&
+    typeof prototype === "object" &&
+    "retrieve" in prototype &&
+    typeof prototype.retrieve === "function"
   );
 }
 
 /**
  * Checks whether the provided prototype is an instance of `LLM`.
  *
- * @param {unknown} proto - The prototype to check.
+ * @param {unknown} prototype - The prototype to check.
  * @returns {boolean} Whether the prototype is a `LLM`.
  */
-export function isLLMPrototype(proto: unknown): proto is LLM {
+export function isLLMPrototype(prototype: unknown): prototype is LLM {
   return (
-    proto != null &&
-    typeof proto === "object" &&
-    "chat" in proto &&
-    "complete" in proto &&
-    typeof proto.chat === "function" &&
-    typeof proto.complete === "function"
+    prototype != null &&
+    typeof prototype === "object" &&
+    "chat" in prototype &&
+    "complete" in prototype &&
+    typeof prototype.chat === "function" &&
+    typeof prototype.complete === "function"
   );
 }
 
 /**
  * Checks whether the provided prototype is an instance of a `BaseEmbedding`.
  *
- * @param {unknown} proto - The prototype to check.
+ * @param {unknown} prototype - The prototype to check.
  * @returns {boolean} Whether the prototype is a `BaseEmbedding`.
  */
-export function isEmbeddingPrototype(proto: unknown): proto is BaseEmbedding {
-  return proto != null && proto instanceof BaseEmbedding;
+export function isEmbeddingPrototype(
+  prototype: unknown,
+): prototype is BaseEmbedding {
+  return prototype != null && prototype instanceof BaseEmbedding;
 }
 
 /**
  * Extracts document attributes from an array of nodes with scores and returns extracted
  * attributes in an Attributes object.
  *
- * @param {llamaindex.NodeWithScore<llamaindex.Metadata>[]} output - Array of nodes.
+ * @param {NodeWithScore<Metadata>[]} output - Array of nodes.
  * @returns {Attributes} The extracted document attributes.
  */
-function getDocumentAttributes(
-  output: llamaindex.NodeWithScore<llamaindex.Metadata>[],
-) {
+function getDocumentAttributes(output: NodeWithScore<Metadata>[]) {
   const docs: Attributes = {};
   output.forEach(({ node, score }, idx) => {
-    if (node instanceof llamaindex.TextNode) {
+    if (node instanceof TextNode) {
       const prefix = `${SemanticConventions.RETRIEVAL_DOCUMENTS}.${idx}`;
       docs[`${prefix}.${SemanticConventions.DOCUMENT_ID}`] = node.id_;
       docs[`${prefix}.${SemanticConventions.DOCUMENT_SCORE}`] = score;
@@ -155,25 +170,31 @@ function getDocumentAttributes(
  * for embeddings.
  *
  * @param {Object} embeddingInfo - The embedding information.
- * @param {string} embeddingInfo.input - The input text for the embedding.
+ * @param {MessageContentDetail} embeddingInfo.input - The input for the embedding.
  * @param {number[]} embeddingInfo.output - The output embedding vector.
  * @returns {Attributes} The constructed embedding attributes.
  */
 function getQueryEmbeddingAttributes(embeddingInfo: {
-  input: string;
-  output: number[];
-}): Attributes {
-  return {
-    [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
-      embeddingInfo.input,
-    [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]:
-      embeddingInfo.output,
-  };
+  input: MessageContentDetail;
+  output: number[] | null;
+}) {
+  const embedAttr: Attributes = {};
+  if (embeddingInfo.input.type === "text") {
+    embedAttr[
+      `${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`
+    ] = embeddingInfo.input.text;
+  }
+  if (embeddingInfo.output) {
+    embedAttr[
+      `${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`
+    ] = embeddingInfo.output;
+  }
+  return embedAttr;
 }
 
 function getLLMChatAttributes(chatInfo: {
-  input: llamaindex.LLMChatParamsNonStreaming<object, object>;
-  output: llamaindex.ChatResponse<object>;
+  input: LLMChatParamsNonStreaming<object, object>;
+  output: ChatResponse<object>;
 }) {
   const LLMAttr: Attributes = {};
 
@@ -200,8 +221,8 @@ function getLLMChatAttributes(chatInfo: {
 }
 
 function getLLMCompleteAttributes(completeInfo: {
-  input: llamaindex.LLMCompletionParamsNonStreaming;
-  output: llamaindex.CompletionResponse;
+  input: LLMCompletionParamsNonStreaming;
+  output: CompletionResponse;
 }) {
   const LLMAttr: Attributes = {};
 
@@ -371,7 +392,7 @@ export function patchQueryEmbeddingMethod(
       (error) => handleError(span, error),
     );
 
-    // Model ID/name is a property found on the class and not in args
+    // Model name is a property found on the class and not in args
     // Extract from class and set as attribute
     span.setAttributes({
       [SemanticConventions.EMBEDDING_MODEL_NAME]: getModelName(this),

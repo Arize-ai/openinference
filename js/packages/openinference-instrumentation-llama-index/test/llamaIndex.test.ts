@@ -12,7 +12,6 @@ import {
   RETRIEVAL_DOCUMENTS,
 } from "@arizeai/openinference-semantic-conventions";
 import {
-  Document,
   VectorStoreIndex,
   GeminiEmbedding,
   HuggingFaceEmbedding,
@@ -21,6 +20,7 @@ import {
   OpenAIEmbedding,
   RetrieverQueryEngine,
 } from "llamaindex";
+import { Document, TextNode } from "@llamaindex/core/dist/schema";
 import {
   isEmbeddingPrototype,
   isRetrieverPrototype,
@@ -129,9 +129,9 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
     expect(isEmbeddingPrototype({})).toEqual(false);
     expect(isEmbeddingPrototype(null)).toEqual(false);
     expect(isEmbeddingPrototype(undefined)).toEqual(false);
+    expect(isEmbeddingPrototype(TextNode.prototype)).toEqual(false);
     expect(isEmbeddingPrototype(llamaindex.MistralAI.prototype)).toEqual(false);
     expect(isEmbeddingPrototype(llamaindex.Gemini.prototype)).toEqual(false);
-    expect(isEmbeddingPrototype(llamaindex.TextNode.prototype)).toEqual(false);
     expect(
       isEmbeddingPrototype(llamaindex.CorrectnessEvaluator.prototype),
     ).toEqual(false);
@@ -140,7 +140,7 @@ describe("LlamaIndexInstrumentation - Embeddings", () => {
   it("should create a span for embeddings (query)", async () => {
     // Get embeddings
     const embedder = new OpenAIEmbedding();
-    const embeddedVector = await embedder.getQueryEmbedding(
+    const embeddedVector = await embedder.getTextEmbedding(
       "What did the author do in college?",
     );
 
@@ -230,8 +230,8 @@ describe("LlamaIndexInstrumentation - Query, Retriever", () => {
     expect(isRetrieverPrototype(null)).toEqual(false);
     expect(isRetrieverPrototype(undefined)).toEqual(false);
     expect(isRetrieverPrototype(HuggingFaceEmbedding.prototype)).toEqual(false);
+    expect(isRetrieverPrototype(TextNode.prototype)).toEqual(false);
     expect(isRetrieverPrototype(llamaindex.MistralAI.prototype)).toEqual(false);
-    expect(isRetrieverPrototype(llamaindex.TextNode.prototype)).toEqual(false);
     expect(
       isRetrieverPrototype(llamaindex.CorrectnessEvaluator.prototype),
     ).toEqual(false);
@@ -309,7 +309,7 @@ describe("LlamaIndexInstrumentation - Query, Retriever", () => {
     response.forEach((document, index) => {
       const { node, score } = document;
 
-      if (node instanceof llamaindex.TextNode) {
+      if (node instanceof TextNode) {
         const nodeId = node.id_;
         const nodeText = node.getContent();
         const nodeMetadata = node.metadata;
@@ -398,7 +398,7 @@ describe("LlamaIndexInstrumentation - LLM", () => {
     expect(isLLMPrototype(undefined)).toEqual(false);
     expect(isLLMPrototype(RetrieverQueryEngine.prototype)).toEqual(false);
     expect(isLLMPrototype(HuggingFaceEmbedding.prototype)).toEqual(false);
-    expect(isLLMPrototype(llamaindex.TextNode.prototype)).toEqual(false);
+    expect(isLLMPrototype(TextNode.prototype)).toEqual(false);
     expect(isLLMPrototype(llamaindex.CorrectnessEvaluator.prototype)).toEqual(
       false,
     );

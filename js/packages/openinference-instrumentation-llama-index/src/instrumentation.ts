@@ -52,7 +52,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
   protected init(): InstrumentationModuleDefinition<typeof llamaindex> {
     const module = new InstrumentationNodeModuleDefinition<typeof llamaindex>(
       "llamaindex",
-      [">=0.1.0"],
+      [">=0.5.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
