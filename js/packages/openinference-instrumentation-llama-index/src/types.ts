@@ -9,8 +9,8 @@ export type SafeFunction<T extends GenericFunction> = (
   ...args: Parameters<T>
 ) => ReturnType<T> | null;
 
-export type ObjectWithModel = { model: string };
-export type ObjectWithMetadata = { metadata: LLMMetadata };
+export type LLMPrototypeWithModel = { model: string };
+export type LLMPrototypeWithMetadata = { metadata: LLMMetadata };
 
 export type RetrieverQueryEngineQueryMethodType =
   typeof llamaindex.RetrieverQueryEngine.prototype.query;

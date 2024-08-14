@@ -152,7 +152,7 @@ export function patchQueryEmbeddingMethod(
     );
 
     const wrappedPromise = execPromise.then((result) => {
-      // Pass in `this` as model name is a property found on the class
+      // Pass in `this` as model name is a property found on prototype
       setSpanAttributes({
         span: span,
         attributes: safelyGetEmbeddingAttributes({

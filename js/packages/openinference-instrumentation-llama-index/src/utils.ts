@@ -13,8 +13,8 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 import {
   GenericFunction,
   SafeFunction,
-  ObjectWithModel,
-  ObjectWithMetadata,
+  LLMPrototypeWithModel,
+  LLMPrototypeWithMetadata,
 } from "./types";
 import { BaseEmbedding } from "@llamaindex/core/dist/embeddings";
 import {
@@ -136,8 +136,10 @@ export function isEmbeddingPrototype(
  * @param {unknown} prototype - The prototype to check.
  * @returns {boolean} Whether the object has a `model` property.
  */
-function hasModelProperty(prototype: unknown): prototype is ObjectWithModel {
-  const objectWithModelMaybe = prototype as ObjectWithModel;
+function hasModelProperty(
+  prototype: unknown,
+): prototype is LLMPrototypeWithModel {
+  const objectWithModelMaybe = prototype as LLMPrototypeWithModel;
   return (
     "model" in objectWithModelMaybe &&
     typeof objectWithModelMaybe.model === "string"
@@ -152,8 +154,8 @@ function hasModelProperty(prototype: unknown): prototype is ObjectWithModel {
  */
 function hasMetadataProperty(
   prototype: unknown,
-): prototype is ObjectWithMetadata {
-  const objectWithMetadataMaybe = prototype as ObjectWithMetadata;
+): prototype is LLMPrototypeWithMetadata {
+  const objectWithMetadataMaybe = prototype as LLMPrototypeWithMetadata;
   return (
     "metadata" in objectWithMetadataMaybe &&
     objectWithMetadataMaybe.metadata.contextWindow != null &&
