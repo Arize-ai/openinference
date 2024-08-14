@@ -1,6 +1,7 @@
 services:
   phoenix:
-    image: arizephoenix/phoenix:version-4.22.0
+    image: arizephoenix/phoenix:latest
+    pull_policy: always
     ports:
       - "6006:6006"
   backend:

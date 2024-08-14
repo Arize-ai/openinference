@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.2...python-openinference-instrumentation-litellm-v0.1.3) (2024-08-13)
+
+
+### Features
+
+* **liteLLM:** Added suppress tracing to litellm instrumentation ([#847](https://github.com/Arize-ai/openinference/issues/847)) ([bda858a](https://github.com/Arize-ai/openinference/commit/bda858ad332a8f9539f9a9edb77d9ede22a08960))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.1...python-openinference-instrumentation-litellm-v0.1.2) (2024-08-10)
 
 

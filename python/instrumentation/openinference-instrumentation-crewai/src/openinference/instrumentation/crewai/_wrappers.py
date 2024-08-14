@@ -3,8 +3,9 @@ from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
@@ -88,6 +89,8 @@ class _ExecuteCoreWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         if instance:
             span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
         else:
@@ -130,6 +133,7 @@ class _ExecuteCoreWrapper:
                 raise
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, response)
+            span.set_attributes(dict(get_attributes_from_context()))
         return response
 
 
@@ -144,6 +148,8 @@ class _KickoffWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         span_name = f"{instance.__class__.__name__}.kickoff"
         with self._tracer.start_as_current_span(
             span_name,
@@ -224,6 +230,7 @@ class _KickoffWrapper:
                 span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
             else:
                 span.set_attribute(OUTPUT_VALUE, str(crew_output))
+            span.set_attributes(dict(get_attributes_from_context()))
         return crew_output
 
 
@@ -238,6 +245,8 @@ class _ToolUseWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         if instance:
             span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
         else:
@@ -273,6 +282,7 @@ class _ToolUseWrapper:
                 raise
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, response)
+            span.set_attributes(dict(get_attributes_from_context()))
         return response
 
 

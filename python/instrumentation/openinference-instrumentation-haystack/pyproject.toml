@@ -43,6 +43,7 @@ test = [
     "haystack-ai >= 2.0.0",
     "opentelemetry-sdk",
     "pytest-recording",
+    "respx",
 ]
 
 [project.urls]
