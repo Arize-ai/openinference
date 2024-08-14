@@ -1,0 +1,90 @@
+import logging
+from typing import Any, Collection
+
+from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.anthropic._wrappers import (
+    _AsyncCompletionsChatWrapper,
+    _AsyncCompletionsGenerationWrapper,
+    _CompletionsChatWrapper,
+    _CompletionsGenerationWrapper,
+)
+from openinference.instrumentation.anthropic.version import __version__
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
+    BaseInstrumentor,
+)
+from wrapt import wrap_function_wrapper
+
+from anthropic.resources.completions import AsyncCompletions, Completions
+from anthropic.resources.messages import AsyncMessages, Messages
+
+logger = logging.getLogger(__name__)
+
+_instruments = ("anthropic >= 0.25.0",)
+
+
+class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
+    """An instrumentor for the Anthropic framework."""
+
+    __slots__ = (
+        "_original_completions_generation_create",
+        "_original_async_completions_generation_create",
+        "_original_completions_chat_create",
+        "_original_async_completions_chat_create",
+        "_instruments",
+        "_tracer",
+    )
+
+    def instrumentation_dependencies(self) -> Collection[str]:
+        return _instruments
+
+    def _instrument(self, **kwargs: Any) -> None:
+        if not (tracer_provider := kwargs.get("tracer_provider")):
+            tracer_provider = trace_api.get_tracer_provider()
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        self._tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
+
+        self._original_completions_generation_create = Completions.create
+        wrap_function_wrapper(
+            module="anthropic.resources.completions",
+            name="Completions.create",
+            wrapper=_CompletionsGenerationWrapper(tracer=self._tracer),
+        )
+
+        self._original_async_completions_generation_create = AsyncCompletions.create
+        wrap_function_wrapper(
+            module="anthropic.resources.completions",
+            name="AsyncCompletions.create",
+            wrapper=_AsyncCompletionsGenerationWrapper(tracer=self._tracer),
+        )
+
+        self._original_completions_chat_create = Messages.create
+        wrap_function_wrapper(
+            module="anthropic.resources.messages",
+            name="Messages.create",
+            wrapper=_CompletionsChatWrapper(tracer=self._tracer),
+        )
+
+        self._original_async_completions_chat_create = AsyncMessages.create
+        wrap_function_wrapper(
+            module="anthropic.resources.messages",
+            name="AsyncMessages.create",
+            wrapper=_AsyncCompletionsChatWrapper(tracer=self._tracer),
+        )
+
+    def _uninstrument(self, **kwargs: Any) -> None:
+        if self._original_completions_generation_create is not None:
+            Completions.create = self._original_completions_generation_create  # type: ignore[method-assign]
+        if self._original_async_completions_generation_create is not None:
+            AsyncCompletions.create = self._original_async_completions_generation_create  # type: ignore[method-assign]
+
+        if self._original_completions_chat_create is not None:
+            Messages.create = self._original_completions_chat_create  # type: ignore[method-assign]
+        if self._original_async_completions_chat_create is not None:
+            AsyncMessages.create = self._original_async_completions_chat_create  # type: ignore[method-assign]
