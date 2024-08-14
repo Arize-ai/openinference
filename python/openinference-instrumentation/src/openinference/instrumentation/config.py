@@ -352,7 +352,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
     def start_span(self, *args: Any, **kwargs: Any) -> trace_api.Span:
         kwargs = _TracerSignatures.start_span.bind(*args, **kwargs).arguments
         attributes = cast(Optional[Dict[str, AttributeValue]], kwargs.pop("attributes", None))
-        span = _MaskedSpan(self.__wrapped__.start_span(**kwargs), config=self._self_config)
+        span = self.__wrapped__.start_span(**kwargs)
+        span = _MaskedSpan(span, config=self._self_config)
         if attributes:
             span.set_attributes(attributes)
         return span
