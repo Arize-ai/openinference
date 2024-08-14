@@ -1,7 +1,10 @@
 import json
 from typing import Any, Dict, Generator, List, Mapping, cast
+from crewai import Agent, Task, Crew, Process
+from crewai_tools import SerperDevTool
 
 import pytest
+import vcr  # type: ignore
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 from openinference.semconv.trace import (
@@ -13,6 +16,12 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 
+test_vcr = vcr.VCR(
+    serializer="yaml",
+    cassette_library_dir="./fixtures/",
+    record_mode="never",
+    match_on=["uri", "method"],
+)
 
 @pytest.fixture()
 def in_memory_span_exporter() -> InMemorySpanExporter:
@@ -46,12 +55,10 @@ def test_oitracer(
     assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
 
 
-@pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_crewai_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_crewai_instrumentation: Any,
-    use_context_attributes: bool,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -60,39 +67,69 @@ def test_crewai_instrumentation(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    if use_context_attributes:
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
-        ):
-            return  # For now, short-circuiting. Insert CrewAI function calls here
-    else:
-        return  # For now, short-circuiting. Insert CrewAI function calls here
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span = spans[0]
-    # Insert CrewAI testing logic here
-
-    # Check context attributes logic
-    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    if use_context_attributes:
-        _check_context_attributes(
-            attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
+    with test_vcr.use_cassette("crew_session.yaml", filter_headers=["authorization"]):
+        import os
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        os.environ["SERPER_API_KEY"] = "another_fake_key"
+        search_tool = SerperDevTool()
+        greeter = Agent(
+            role='Senior Hello Sayer',
+            goal='Greet everyone you meet',
+            backstory="""You work at a greeting store.
+            Your expertise is greeting people
+            Your parents were greeters, your grand parents were greeters. 
+            You were born. Nay, destined to be a greeter""",
+            verbose=True,
+            allow_delegation=False,
+            tools=[search_tool]
         )
-
+        aristocrat = Agent(
+            role='Aristocrat',
+            goal='Be greeted',
+            backstory="""You were born to be treated with a greeting all the time
+          You transform greetings into pleasantries that you graciously 
+          give to greeters.""",
+            verbose=True,
+            allow_delegation=True
+        )
+        # Create tasks for your agents
+        task1 = Task(
+            description="greet like you've never greeted before",
+            expected_output="A greeting in bullet points",
+            agent=greeter
+        )
+        task2 = Task(
+            description="Using the greeting, respond with the most satisfying pleasantry",
+            expected_output="a bullet pointed pleasantry",
+            agent=aristocrat
+        )
+        crew = Crew(
+            agents=[greeter, aristocrat],
+            tasks=[task1, task2],
+            verbose=True,
+            process=Process.sequential
+        )
+        crew.kickoff()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 6
+    checked_spans = 0
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        if span.name == "Crew.kickoff":
+            checked_spans += 1
+            assert attributes.get("openinference.span.kind") == "CHAIN"
+            assert attributes.get("output.value")
+            assert span.status.is_ok
+        elif span.name == "ToolUsage._use":
+            checked_spans += 1
+            assert attributes.get("openinference.span.kind") == "TOOL"
+            assert span.status.is_ok
+        elif span.name == "Task._execute_core":
+            checked_spans += 1
+            assert attributes["openinference.span.kind"] == "AGENT"
+            assert attributes.get("input.value")
+            assert span.status.is_ok
+    assert checked_spans == 6
 
 def _check_context_attributes(
     attributes: Dict[str, Any],
