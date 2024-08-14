@@ -31,7 +31,7 @@ from typing_extensions import TypeGuard, assert_never
 from haystack import Document, Pipeline
 from haystack.components.builders import PromptBuilder
 from haystack.core.component import Component
-from haystack.dataclasses import ChatMessage, ChatRole
+from haystack.dataclasses import ChatMessage
 
 
 class _WithTracer(ABC):
@@ -294,8 +294,12 @@ def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[
         map(lambda x: isinstance(x, ChatMessage), messages)
     ):
         for message_index, message in enumerate(messages):
-            yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}", message.content
-            yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}", message.role
+            if (content := message.content) is not None:
+                yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}", content
+            if (role := message.role) is not None:
+                yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}", role
+            if (name := message.name) is not None:
+                yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_NAME}", name
     elif isinstance(prompt := arguments.get("prompt"), str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", USER
@@ -557,6 +561,7 @@ LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
+MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 METADATA = SpanAttributes.METADATA
