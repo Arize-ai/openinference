@@ -342,7 +342,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
     @contextmanager
     def start_as_current_span(self, *args: Any, **kwargs: Any) -> Iterator[trace_api.Span]:
         kwargs = _TracerSignatures.start_as_current_span.bind(*args, **kwargs).arguments
-        attributes = cast(Dict[str, AttributeValue], kwargs.pop("attributes", None))
+        attributes = cast(Optional[Dict[str, AttributeValue]], kwargs.pop("attributes", None))
         with self.__wrapped__.start_as_current_span(**kwargs) as span:
             span = _MaskedSpan(span, self._self_config)
             if attributes:
@@ -351,7 +351,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
     def start_span(self, *args: Any, **kwargs: Any) -> trace_api.Span:
         kwargs = _TracerSignatures.start_span.bind(*args, **kwargs).arguments
-        attributes = cast(Dict[str, AttributeValue], kwargs.pop("attributes", None))
+        attributes = cast(Optional[Dict[str, AttributeValue]], kwargs.pop("attributes", None))
         span = _MaskedSpan(self.__wrapped__.start_span(**kwargs), config=self._self_config)
         if attributes:
             span.set_attributes(attributes)
