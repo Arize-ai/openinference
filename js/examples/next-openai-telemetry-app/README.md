@@ -17,13 +17,6 @@ If you don't already have an OpenAI API key do the following to create one:
 1. Sign up at [OpenAI's Developer Platform](https://platform.openai.com/signup).
 2. Go to [OpenAI's dashboard](https://platform.openai.com/account/api-keys) and create an API KEY.
 
-### Docker
-
-To run the example locally in a docker container you need to:
-
-1. Set your OpenAI API key as an environment variable. run `export OPENAI_API_KEY=<your key here>`
-2. Run `docker compose up --build`.
-
 ### Local
 
 To run the example locally you need to:
@@ -31,8 +24,8 @@ To run the example locally you need to:
 1. Set the required OpenAI environment variable as the token value as shown [the example env file](./.env.local.example) but in a new file called `.env.local`.
    - The `OTEL_EXPORTER_OTLP_ENDPOINT` does not need to be adjusted in order to send traces to a local instance of [Arize-Phoenix](https://github.com/Arize-ai/phoenix).
 2. To run [Arize-Phoenix](https://github.com/Arize-ai/phoenix) locally run `docker run -p 6006:6006 -i -t arizephoenix/phoenix`
-3. `pnpm install` to install the required dependencies.
-4. `pnpm dev` to launch the development server.
+3. `pnpm install --frozen-lockfile --ignore-workspace` to install the required dependencies.
+4. `pnpm run dev` to launch the development server.
 
 Whether running locally or with docker both [Arize-Phoenix](https://github.com/Arize-ai/phoenix) and the example app will be available at:
 
