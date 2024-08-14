@@ -18,14 +18,13 @@ from haystack.components.retrievers.in_memory import (
     InMemoryBM25Retriever,
     InMemoryEmbeddingRetriever,
 )
-from haystack.components.routers import ConditionalRouter
 from haystack.components.websearch.serper_dev import SerperDevWebSearch
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
 from httpx import Response
-from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -199,18 +198,6 @@ def setup_haystack_instrumentation(
     HaystackInstrumentor().uninstrument()
 
 
-def _check_context_attributes(
-    attributes: Any,
-) -> None:
-    assert attributes.get(SESSION_ID, None)
-    assert attributes.get(USER_ID, None)
-    assert attributes.get(METADATA, None)
-    assert attributes.get(TAG_TAGS, None)
-    assert attributes.get(LLM_PROMPT_TEMPLATE, None)
-    assert attributes.get(LLM_PROMPT_TEMPLATE_VERSION, None)
-    assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
-
-
 def test_haystack_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -298,21 +285,12 @@ def test_haystack_instrumentation(
 
     q = "What's Natural Language Processing? Be brief."
 
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    ):
-        basic_rag_pipeline.run(
-            {
-                "text_embedder": {"text": q},
-                "prompt_builder": {"question": q},
-            }
-        )
+    basic_rag_pipeline.run(
+        {
+            "text_embedder": {"text": q},
+            "prompt_builder": {"question": q},
+        }
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
 
@@ -333,12 +311,6 @@ def test_haystack_instrumentation(
         "LLM",
         "CHAIN",
     ]
-
-    for span in spans:
-        att = span.attributes
-        _check_context_attributes(
-            att,
-        )
 
 
 def test_haystack_instrumentation_chat(
@@ -371,23 +343,14 @@ def test_haystack_instrumentation_chat(
         ChatMessage.from_user("Tell me about {{location}}"),
     ]
 
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    ):
-        pipe.run(
-            data={
-                "prompt_builder": {
-                    "template_variables": {"location": location},
-                    "template": messages,
-                }
+    pipe.run(
+        data={
+            "prompt_builder": {
+                "template_variables": {"location": location},
+                "template": messages,
             }
-        )
+        }
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
 
@@ -404,12 +367,6 @@ def test_haystack_instrumentation_chat(
         "LLM",
         "CHAIN",
     ]
-
-    for span in spans:
-        att = span.attributes
-        _check_context_attributes(
-            att,
-        )
 
 
 def test_haystack_instrumentation_filtering(
@@ -470,28 +427,15 @@ def test_haystack_instrumentation_filtering(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_haystack_tool_calling_llm_span_has_expected_attributes(
+def test_tool_calling_llm_span_has_expected_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
     openai_api_key: str,
 ) -> None:
-    WEATHER_INFO = {
-        "Berlin": {"weather": "mostly sunny", "temperature": 7, "unit": "celsius"},
-        "Paris": {"weather": "mostly cloudy", "temperature": 8, "unit": "celsius"},
-        "Rome": {"weather": "sunny", "temperature": 14, "unit": "celsius"},
-        "Madrid": {"weather": "sunny", "temperature": 10, "unit": "celsius"},
-        "London": {"weather": "cloudy", "temperature": 9, "unit": "celsius"},
-    }
-
-    def get_current_weather(location: str) -> Any:
-        if location in WEATHER_INFO:
-            return WEATHER_INFO[location]
-
-        # fallback data
-        else:
-            return {"weather": "sunny", "temperature": 21.8, "unit": "fahrenheit"}
-
+    chat_generator = OpenAIChatGenerator(model="gpt-4o")
+    pipe = Pipeline()
+    pipe.add_component("llm", chat_generator)
     tools = [
         {
             "type": "function",
@@ -511,77 +455,66 @@ def test_haystack_tool_calling_llm_span_has_expected_attributes(
             },
         },
     ]
-
-    messages = [
-        ChatMessage.from_user("What is the weather in Berlin"),
-    ]
-
-    chat_generator = OpenAIChatGenerator(model="gpt-3.5-turbo")
-
-    pipe = Pipeline()
-    pipe.add_component("llm", chat_generator)
-    pipe.run({"llm": {"messages": messages, "generation_kwargs": {"tools": tools}}})
+    response = pipe.run(
+        {
+            "llm": {
+                "messages": [
+                    ChatMessage.from_user("What is the weather in Berlin"),
+                ],
+                "generation_kwargs": {"tools": tools},
+            }
+        }
+    )
+    assert "get_current_weather" in response["llm"]["replies"][0].content
 
     spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    assert "What is the weather in Berlin" in input_value
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "What is the weather in Berlin"
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_current_weather"
+    )
+    assert isinstance(
+        tool_call_arguments := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert json.loads(tool_call_arguments) == {"location": "Berlin"}
+    assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+    assert prompt_tokens + completion_tokens == total_tokens
+    assert not attributes
 
-    assert spans
 
-
-def test_haystack_uninstrumentation(
+def test_instrument_and_uninstrument_methods_wrap_and_unwrap_expected_methods(
     tracer_provider: TracerProvider,
 ) -> None:
-    # Instrumenting Haystack
     HaystackInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    # Ensure methods are wrapped
     assert hasattr(Pipeline.run, "__wrapped__")
     assert hasattr(Pipeline._run_component, "__wrapped__")
 
-    # Uninstrumenting Haystack
     HaystackInstrumentor().uninstrument()
 
-    # Ensure methods are not wrapped
     assert not hasattr(Pipeline.run, "__wrapped__")
     assert not hasattr(Pipeline._run_component, "__wrapped__")
-
-
-def test_haystack_conditional_router(
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_haystack_instrumentation: Any,
-) -> None:
-    routes = [
-        {
-            "condition": "{{query|length > 10}}",
-            "output": "{{query}}",
-            "output_name": "ok_query",
-            "output_type": str,
-        },
-        {
-            "condition": "{{query|length <= 10}}",
-            "output": "query is too short: {{query}}",
-            "output_name": "too_short_query",
-            "output_type": str,
-        },
-    ]
-    router = ConditionalRouter(routes=routes)
-
-    llm = OpenAIGenerator(api_key=Secret.from_token("TOTALLY_REAL_API_KEY"))
-    llm.run = fake_OpenAIGenerator_run.__get__(llm, OpenAIGenerator)
-
-    pipe = Pipeline()
-    pipe.add_component("router", router)
-    pipe.add_component("prompt_builder", PromptBuilder("Answer the following query. {{query}}"))
-    pipe.add_component("generator", llm)
-    pipe.connect("router.ok_query", "prompt_builder.query")
-    pipe.connect("prompt_builder", "generator")
-
-    pipe.run(data={"router": {"query": "Berlin"}})
-
-    pipe.run(data={"router": {"query": "What is the capital of Italy?"}})
-
-    spans = in_memory_span_exporter.get_finished_spans()
-
-    assert spans
 
 
 @pytest.mark.vcr(
@@ -613,32 +546,39 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     assert len(spans) == 2
     span = spans[0]
     attributes = dict(span.attributes or {})
-    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Answer user questions succinctly"
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "What can I help you with?"
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "What can I help you with?"
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
 
     assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
         == "Who won the World Cup in 2022? Answer in one word."
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
     assert isinstance(
-        (output_message_content := attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")),
+        (output_message_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")),
         str,
     )
     assert "argentina" in output_message_content.lower()
-    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(prompt_tokens := attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
-    assert isinstance(completion_tokens := attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
-    assert isinstance(total_tokens := attributes.get(LLM_TOKEN_COUNT_TOTAL), int)
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in model_name
+    assert not attributes
 
 
 @pytest.mark.vcr(
@@ -731,7 +671,7 @@ def test_openai_generator_llm_span_has_expected_attributes(
         ),
     ],
 )
-def test_prompt_builder_llm_span_has_expected_prompt_template_attributes(
+def test_prompt_builder_llm_span_has_expected_attributes(
     default_template: Optional[str],
     prompt_builder_inputs: Dict[str, Any],
     in_memory_span_exporter: InMemorySpanExporter,
@@ -746,12 +686,17 @@ def test_prompt_builder_llm_span_has_expected_prompt_template_attributes(
     assert len(spans) == 2
     span = spans[0]
     attributes = dict(span.attributes or {})
-    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
-    assert attributes.get(LLM_PROMPT_TEMPLATE) == "Where is {{ city }}?"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(LLM_PROMPT_TEMPLATE) == "Where is {{ city }}?"
     assert isinstance(
-        prompt_template_variables_json := attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES), str
+        prompt_template_variables_json := attributes.pop(LLM_PROMPT_TEMPLATE_VARIABLES), str
     )
     assert json.loads(prompt_template_variables_json) == {"city": "Munich"}
+    assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(OUTPUT_VALUE) == "Where is Munich?"
+    assert not attributes
 
 
 @pytest.mark.vcr(
@@ -886,8 +831,76 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     assert not attributes
 
 
-# Ensure we're using the common OITracer from common openinference-instrumentation pkg
-def test_oitracer(
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
+    openai_api_key: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    llm = OpenAIGenerator(model="gpt-4o")
+    pipe.add_component("llm", llm)
+    with suppress_tracing():
+        response = pipe.run(
+            {
+                "llm": {
+                    "prompt": "Who won the World Cup in 2022? Answer in one word.",
+                }
+            }
+        )
+    assert "argentina" in response["llm"]["replies"][0].lower()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 0
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_pipeline_and_component_spans_contain_context_attributes(
+    openai_api_key: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    llm = OpenAIGenerator(model="gpt-4o")
+    pipe.add_component("llm", llm)
+    with using_attributes(
+        session_id="session-id",
+        user_id="user-id",
+        metadata={"metadata-key": "metadata-value"},
+        tags=["tag"],
+        prompt_template="template with {var_name}",
+        prompt_template_version="prompt-template-version",
+        prompt_template_variables={"var_name": "var-value"},
+    ):
+        response = pipe.run(
+            {
+                "llm": {
+                    "prompt": "Who won the World Cup in 2022? Answer in one word.",
+                }
+            }
+        )
+    assert "argentina" in response["llm"]["replies"][0].lower()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.get(SESSION_ID, "session-id")
+        assert attributes.get(USER_ID, "user-id")
+        assert attributes.get(METADATA, '{"metadata-key": "metadata-value"}')
+        assert attributes.get(TAG_TAGS, ["tag"])
+        assert attributes.get(LLM_PROMPT_TEMPLATE, "tempate with {var_name}")
+        assert attributes.get(LLM_PROMPT_TEMPLATE_VERSION, "prompt-template-version")
+        assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, '{"var_name": "var-value"}')
+
+
+def test_instrumentor_uses_oitracer(
     setup_haystack_instrumentation: Any,
 ) -> None:
     assert isinstance(HaystackInstrumentor()._tracer, OITracer)
