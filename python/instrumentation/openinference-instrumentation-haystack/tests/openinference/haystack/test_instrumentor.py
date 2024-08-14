@@ -24,7 +24,7 @@ from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
 from httpx import Response
-from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
+from openinference.instrumentation import TraceConfig, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -196,6 +196,16 @@ def setup_haystack_instrumentation(
     HaystackInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     HaystackInstrumentor().uninstrument()
+
+
+@pytest.fixture()
+def setup_haystack_instrumentor_with_config(
+    tracer_provider: TracerProvider,
+) -> Generator[None, None, None]:
+    instrumentor = HaystackInstrumentor()
+    instrumentor.instrument(tracer_provider=tracer_provider, config=TraceConfig(hide_outputs=True))
+    yield
+    instrumentor.uninstrument()
 
 
 def test_haystack_instrumentation(
@@ -900,10 +910,32 @@ def test_pipeline_and_component_spans_contain_context_attributes(
         assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, '{"var_name": "var-value"}')
 
 
-def test_instrumentor_uses_oitracer(
-    setup_haystack_instrumentation: Any,
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_instrumentor_is_config_aware(
+    openai_api_key: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentor_with_config: Any,
 ) -> None:
-    assert isinstance(HaystackInstrumentor()._tracer, OITracer)
+    pipe = Pipeline()
+    llm = OpenAIGenerator(model="gpt-4o")
+    pipe.add_component("llm", llm)
+    response = pipe.run(
+        {
+            "llm": {
+                "prompt": "Who won the World Cup in 2022? Answer in one word.",
+            }
+        }
+    )
+    assert "argentina" in response["llm"]["replies"][0].lower()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.get(OUTPUT_VALUE) == "__REDACTED__"
 
 
 @pytest.fixture

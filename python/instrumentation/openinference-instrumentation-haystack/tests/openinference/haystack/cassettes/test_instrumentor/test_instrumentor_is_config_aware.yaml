@@ -1,0 +1,21 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Who won the World Cup in 2022?
+      Answer in one word."}], "model": "gpt-4o", "stream": false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-9wErsDB7NxmdWzPnLV2pZ1mgk9ilH\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1723667204,\n  \"model\": \"gpt-4o-2024-05-13\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Argentina\",\n        \"refusal\":
+        null\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 22,\n    \"completion_tokens\":
+        1,\n    \"total_tokens\": 23\n  },\n  \"system_fingerprint\": \"fp_3aa7262c27\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
