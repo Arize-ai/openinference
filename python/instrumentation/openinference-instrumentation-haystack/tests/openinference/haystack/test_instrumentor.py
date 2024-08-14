@@ -18,7 +18,6 @@ from haystack.components.retrievers.in_memory import (
     InMemoryBM25Retriever,
     InMemoryEmbeddingRetriever,
 )
-from haystack.components.routers import ConditionalRouter
 from haystack.components.websearch.serper_dev import SerperDevWebSearch
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage, ChatRole
@@ -199,18 +198,6 @@ def setup_haystack_instrumentation(
     HaystackInstrumentor().uninstrument()
 
 
-def _check_context_attributes(
-    attributes: Any,
-) -> None:
-    assert attributes.get(SESSION_ID, None)
-    assert attributes.get(USER_ID, None)
-    assert attributes.get(METADATA, None)
-    assert attributes.get(TAG_TAGS, None)
-    assert attributes.get(LLM_PROMPT_TEMPLATE, None)
-    assert attributes.get(LLM_PROMPT_TEMPLATE_VERSION, None)
-    assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
-
-
 def test_haystack_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -298,21 +285,12 @@ def test_haystack_instrumentation(
 
     q = "What's Natural Language Processing? Be brief."
 
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    ):
-        basic_rag_pipeline.run(
-            {
-                "text_embedder": {"text": q},
-                "prompt_builder": {"question": q},
-            }
-        )
+    basic_rag_pipeline.run(
+        {
+            "text_embedder": {"text": q},
+            "prompt_builder": {"question": q},
+        }
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
 
@@ -333,12 +311,6 @@ def test_haystack_instrumentation(
         "LLM",
         "CHAIN",
     ]
-
-    for span in spans:
-        att = span.attributes
-        _check_context_attributes(
-            att,
-        )
 
 
 def test_haystack_instrumentation_chat(
@@ -371,23 +343,14 @@ def test_haystack_instrumentation_chat(
         ChatMessage.from_user("Tell me about {{location}}"),
     ]
 
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    ):
-        pipe.run(
-            data={
-                "prompt_builder": {
-                    "template_variables": {"location": location},
-                    "template": messages,
-                }
+    pipe.run(
+        data={
+            "prompt_builder": {
+                "template_variables": {"location": location},
+                "template": messages,
             }
-        )
+        }
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
 
@@ -404,12 +367,6 @@ def test_haystack_instrumentation_chat(
         "LLM",
         "CHAIN",
     ]
-
-    for span in spans:
-        att = span.attributes
-        _check_context_attributes(
-            att,
-        )
 
 
 def test_haystack_instrumentation_filtering(
@@ -878,7 +835,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_suppress_instrumentation_produces_no_spans(
+def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -899,8 +856,50 @@ def test_suppress_instrumentation_produces_no_spans(
     assert len(spans) == 0
 
 
-# Ensure we're using the common OITracer from common openinference-instrumentation pkg
-def test_oitracer(
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_pipeline_and_component_spans_contain_context_attributes(
+    openai_api_key: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    llm = OpenAIGenerator(model="gpt-4o")
+    pipe.add_component("llm", llm)
+    with using_attributes(
+        session_id="session-id",
+        user_id="user-id",
+        metadata={"metadata-key": "metadata-value"},
+        tags=["tag"],
+        prompt_template="template with {var_name}",
+        prompt_template_version="prompt-template-version",
+        prompt_template_variables={"var_name": "var-value"},
+    ):
+        response = pipe.run(
+            {
+                "llm": {
+                    "prompt": "Who won the World Cup in 2022? Answer in one word.",
+                }
+            }
+        )
+    assert "argentina" in response["llm"]["replies"][0].lower()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.get(SESSION_ID, "session-id")
+        assert attributes.get(USER_ID, "user-id")
+        assert attributes.get(METADATA, '{"metadata-key": "metadata-value"}')
+        assert attributes.get(TAG_TAGS, ["tag"])
+        assert attributes.get(LLM_PROMPT_TEMPLATE, "tempate with {var_name}")
+        assert attributes.get(LLM_PROMPT_TEMPLATE_VERSION, "prompt-template-version")
+        assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, '{"var_name": "var-value"}')
+
+
+def test_instrumentor_uses_oitracer(
     setup_haystack_instrumentation: Any,
 ) -> None:
     assert isinstance(HaystackInstrumentor()._tracer, OITracer)
