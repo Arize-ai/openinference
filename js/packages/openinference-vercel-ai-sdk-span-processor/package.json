@@ -35,7 +35,8 @@
     "url": "https://github.com/Arize-ai/openinference/issues"
   },
   "dependencies": {
-    "@arizeai/openinference-semantic-conventions": "workspace:*"
+    "@arizeai/openinference-semantic-conventions": "workspace:*",
+    "@arizeai/openinference-core": "workspace:*"
   },
   "peerDependencies": {
     "@opentelemetry/api": ">=1.0.0 <1.9.0"
