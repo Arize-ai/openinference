@@ -32,7 +32,9 @@ tools = [
                     "format": {
                         "type": "string",
                         "enum": ["celsius", "fahrenheit"],
-                        "description": "The temperature unit to use. Infer this from the users location.",
+                        "description": (
+                            "The temperature unit to use. Infer this from the users location."
+                        ),
                     },
                 },
                 "required": ["location", "format"],
