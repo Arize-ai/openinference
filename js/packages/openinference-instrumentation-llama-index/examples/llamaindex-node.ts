@@ -1,6 +1,7 @@
 import "./instrumentation";
 import fs from "fs/promises";
-import { Document, VectorStoreIndex } from "llamaindex";
+import { VectorStoreIndex } from "llamaindex";
+import { Document } from "@llamaindex/core/dist/schema";
 
 async function main() {
   // Load essay from abramov.txt in Node

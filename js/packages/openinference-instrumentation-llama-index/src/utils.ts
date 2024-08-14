@@ -1,31 +1,35 @@
 import * as llamaindex from "llamaindex";
 
-import { safeExecuteInTheMiddle } from "@opentelemetry/instrumentation";
 import {
   Attributes,
   Span,
-  SpanKind,
   SpanStatusCode,
   context,
   trace,
-  Tracer,
   diag,
 } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
-import {
-  MimeType,
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import {
   GenericFunction,
   SafeFunction,
-  ObjectWithModel,
-  RetrieverQueryEngineQueryMethodType,
-  RetrieverRetrieveMethodType,
-  QueryEmbeddingMethodType,
+  LLMPrototypeWithModel,
+  LLMPrototypeWithMetadata,
 } from "./types";
-import { BaseEmbedding, BaseRetriever } from "llamaindex";
+import { BaseEmbedding } from "@llamaindex/core/dist/embeddings";
+import {
+  LLM,
+  LLMChatParamsNonStreaming,
+  LLMCompletionParamsNonStreaming,
+  ChatResponse,
+  CompletionResponse,
+  MessageContentDetail,
+} from "@llamaindex/core/dist/llms";
+import {
+  NodeWithScore,
+  TextNode,
+  Metadata,
+} from "@llamaindex/core/dist/schema";
 
 /**
  * Wraps a function with a try-catch block to catch and log any errors.
@@ -50,7 +54,7 @@ const safelyJSONStringify = withSafety(JSON.stringify);
  * @param {Span} span - Tracer span
  * @returns {Context} An execution context.
  */
-function getExecContext(span: Span) {
+export function getExecContext(span: Span) {
   const activeContext = context.active();
   const suppressTracing = isTracingSuppressed(activeContext);
   const execContext = suppressTracing
@@ -68,7 +72,7 @@ function getExecContext(span: Span) {
  * @param span
  * @param error
  */
-function handleError(span: Span, error: Error | undefined) {
+export function handleError(span: Span, error: Error | undefined) {
   if (error) {
     span.recordException(error);
     span.setStatus({
@@ -82,41 +86,146 @@ function handleError(span: Span, error: Error | undefined) {
 /**
  * Checks whether the provided prototype is an instance of a `BaseRetriever`.
  *
- * @param {unknown} proto - The prototype to check.
+ * @param {unknown} prototype - The prototype to check.
  * @returns {boolean} Whether the prototype is a `BaseRetriever`.
  */
-export function isRetrieverPrototype(proto: unknown): proto is BaseRetriever {
+export function isRetrieverPrototype(
+  prototype: unknown,
+): prototype is llamaindex.BaseRetriever {
   return (
-    proto != null &&
-    typeof proto === "object" &&
-    "retrieve" in proto &&
-    typeof proto.retrieve === "function"
+    prototype != null &&
+    typeof prototype === "object" &&
+    "retrieve" in prototype &&
+    typeof prototype.retrieve === "function"
+  );
+}
+
+/**
+ * Checks whether the provided prototype is an instance of `LLM`.
+ *
+ * @param {unknown} prototype - The prototype to check.
+ * @returns {boolean} Whether the prototype is a `LLM`.
+ */
+export function isLLMPrototype(prototype: unknown): prototype is LLM {
+  return (
+    prototype != null &&
+    typeof prototype === "object" &&
+    "chat" in prototype &&
+    "complete" in prototype &&
+    typeof prototype.chat === "function" &&
+    typeof prototype.complete === "function"
   );
 }
 
 /**
  * Checks whether the provided prototype is an instance of a `BaseEmbedding`.
  *
- * @param {unknown} proto - The prototype to check.
+ * @param {unknown} prototype - The prototype to check.
  * @returns {boolean} Whether the prototype is a `BaseEmbedding`.
  */
-export function isEmbeddingPrototype(proto: unknown): proto is BaseEmbedding {
-  return proto != null && proto instanceof BaseEmbedding;
+export function isEmbeddingPrototype(
+  prototype: unknown,
+): prototype is BaseEmbedding {
+  return prototype != null && prototype instanceof BaseEmbedding;
+}
+
+/**
+ * Checks if the provided class prototype has a `model` property of type string
+ * as a class property.
+ *
+ * @param {unknown} prototype - The prototype to check.
+ * @returns {boolean} Whether the object has a `model` property.
+ */
+function hasModelProperty(
+  prototype: unknown,
+): prototype is LLMPrototypeWithModel {
+  const objectWithModelMaybe = prototype as LLMPrototypeWithModel;
+  return (
+    "model" in objectWithModelMaybe &&
+    typeof objectWithModelMaybe.model === "string"
+  );
+}
+
+/**
+ * Checks if the provided class prototype has a `metadata` property as a class property.
+ *
+ * @param {unknown} prototype - The class prototype to check.
+ * @returns {boolean} Whether the object has a `metadata` property.
+ */
+function hasMetadataProperty(
+  prototype: unknown,
+): prototype is LLMPrototypeWithMetadata {
+  const objectWithMetadataMaybe = prototype as LLMPrototypeWithMetadata;
+  return (
+    "metadata" in objectWithMetadataMaybe &&
+    objectWithMetadataMaybe.metadata.contextWindow != null &&
+    objectWithMetadataMaybe.metadata.model != null &&
+    objectWithMetadataMaybe.metadata.temperature != null &&
+    objectWithMetadataMaybe.metadata.tokenizer != null &&
+    objectWithMetadataMaybe.metadata.topP != null
+  );
+}
+
+/**
+ * Retrieves the value of the `model` property if the provided class prototype
+ * implements it; otherwise, returns undefined.
+ *
+ * @param {unknown} prototype - The prototype to retrieve the model name from.
+ * @returns {string | undefined} The model name or undefined.
+ */
+function getModelNameProperty(prototype: unknown) {
+  if (hasModelProperty(prototype)) {
+    return prototype.model;
+  }
+}
+
+/**
+ * Retrieves the value of the `model` property if the provided class prototype
+ * implements it; otherwise, returns undefined.
+ *
+ * @param {unknown} prototype - The prototype to retrieve the model name from.
+ * @returns {string | undefined} The model name or undefined.
+ */
+function getMetadataProperty(prototype: unknown) {
+  if (hasMetadataProperty(prototype)) {
+    return prototype.metadata;
+  }
+}
+
+// function getLLMInvocationParams({ stuffThatHasParams1, stuffThatHasParams2 }) {
+//   const firstParams = someFunc(stuffThatHasParams1);
+//   const otherParams = someFunc2(stuffThatHasParams2);
+//   return safelyJSONStringify({ ...firstParams, ...otherParams });
+// }
+
+/**
+ * Retrieves properties from the class prototype, such as LLM metadata or model name.
+ *
+ * @param {unknown} prototype - The prototype to retrieve the properties from.
+ * @returns {Attributes} Prototype properties set as attributes.
+ */
+function parseLLMPrototypeProperties(prototype: unknown): Attributes {
+  return {
+    // TODO: How to prevent conflicts with input.additionalChatOptions?
+    [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+      safelyJSONStringify(getMetadataProperty(prototype)) ?? undefined,
+
+    [SemanticConventions.LLM_MODEL_NAME]:
+      safelyJSONStringify(getModelNameProperty(prototype)) ?? undefined,
+  };
 }
 
 /**
  * Extracts document attributes from an array of nodes with scores and returns extracted
  * attributes in an Attributes object.
  *
- * @param {llamaindex.NodeWithScore<llamaindex.Metadata>[]} output - Array of nodes.
+ * @param {NodeWithScore<Metadata>[]} output - Array of nodes.
  * @returns {Attributes} The extracted document attributes.
  */
-function getDocumentAttributes(
-  output: llamaindex.NodeWithScore<llamaindex.Metadata>[],
-) {
+function getDocumentAttributes(output: NodeWithScore<Metadata>[]) {
   const docs: Attributes = {};
   output.forEach(({ node, score }, idx) => {
-    if (node instanceof llamaindex.TextNode) {
+    if (node instanceof TextNode) {
       const prefix = `${SemanticConventions.RETRIEVAL_DOCUMENTS}.${idx}`;
       docs[`${prefix}.${SemanticConventions.DOCUMENT_ID}`] = node.id_;
       docs[`${prefix}.${SemanticConventions.DOCUMENT_SCORE}`] = score;
@@ -134,177 +243,115 @@ function getDocumentAttributes(
  * and constructs an Attributes object with the relevant semantic conventions
  * for embeddings.
  *
- * @param {Object} embedInfo - The embedding information.
- * @param {string} embedInfo.input - The input text for the embedding.
- * @param {number[]} embedInfo.output - The output embedding vector.
+ * @param {Object} embeddingInfo - The embedding information.
+ * @param {MessageContentDetail} embeddingInfo.input - The input for the embedding.
+ * @param {number[]} embeddingInfo.output - The output embedding vector.
  * @returns {Attributes} The constructed embedding attributes.
  */
-function getQueryEmbeddingAttributes(embedInfo: {
-  input: string;
-  output: number[];
-}): Attributes {
-  return {
-    [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
-      embedInfo.input,
-    [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]:
-      embedInfo.output,
-  };
-}
+function getQueryEmbeddingAttributes(embeddingInfo: {
+  prototype: unknown;
+  input: MessageContentDetail;
+  output: number[] | null;
+}) {
+  const embedAttr: Attributes = {};
 
-/**
- * Checks if the provided class has a `model` property of type string
- * as a class property.
- *
- * @param {unknown} cls - The class to check.
- * @returns {boolean} Whether the object has a `model` property.
- */
-function hasModelProperty(cls: unknown): cls is ObjectWithModel {
-  const objectWithModelMaybe = cls as ObjectWithModel;
-  return (
-    "model" in objectWithModelMaybe &&
-    typeof objectWithModelMaybe.model === "string"
-  );
-}
-
-/**
- * Retrieves the value of the `model` property if the provided class
- * implements it; otherwise, returns undefined.
- *
- * @param {unknown} cls - The class to retrieve the model name from.
- * @returns {string | undefined} The model name or undefined.
- */
-function getModelName(cls: unknown) {
-  if (hasModelProperty(cls)) {
-    return cls.model;
+  if (embeddingInfo.input.type === "text") {
+    embedAttr[
+      `${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`
+    ] = embeddingInfo.input.text;
   }
+
+  if (embeddingInfo.output) {
+    embedAttr[
+      `${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`
+    ] = embeddingInfo.output;
+  }
+
+  // Extract model name class property
+  embedAttr[SemanticConventions.EMBEDDING_MODEL_NAME] = getModelNameProperty(
+    embeddingInfo.prototype,
+  );
+  return embedAttr;
 }
 
-export function patchQueryEngineQueryMethod(
-  original: RetrieverQueryEngineQueryMethodType,
-  tracer: Tracer,
-) {
-  return function (
-    this: unknown,
-    ...args: Parameters<RetrieverQueryEngineQueryMethodType>
-  ) {
-    const span = tracer.startSpan(`query`, {
-      kind: SpanKind.INTERNAL,
-      attributes: {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.CHAIN,
-        [SemanticConventions.INPUT_VALUE]: args[0].query,
-        [SemanticConventions.INPUT_MIME_TYPE]: MimeType.TEXT,
-      },
+const safelyGetLLMPrototypeProperties = withSafety(parseLLMPrototypeProperties);
+
+function getLLMChatAttributes(chatInfo: {
+  prototype: unknown;
+  input: LLMChatParamsNonStreaming<object, object>;
+  output: ChatResponse<object>;
+}) {
+  const LLMAttr: Attributes = {};
+
+  // Extract and set class prototype properties as attributes
+  const prototypeProperties = safelyGetLLMPrototypeProperties(
+    chatInfo.prototype,
+  );
+  if (prototypeProperties != null) {
+    Object.keys(prototypeProperties).forEach((key) => {
+      LLMAttr[key] = prototypeProperties[key];
     });
+  }
 
-    const execContext = getExecContext(span);
+  chatInfo.input.messages.forEach((msg, idx) => {
+    const inputPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}`;
+    LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
+      msg.role.toString();
+    LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+      msg.content.toString();
+  });
 
-    const execPromise = safeExecuteInTheMiddle<
-      ReturnType<RetrieverQueryEngineQueryMethodType>
-    >(
-      () => {
-        return context.with(execContext, () => {
-          return original.apply(this, args);
-        });
-      },
-      (error) => handleError(span, error),
-    );
+  // TODO
+  // LLMAttr[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
+  //   safelyJSONStringify(chatInfo.input.additionalChatOptions) ?? undefined;
 
-    const wrappedPromise = execPromise.then((result) => {
-      span.setAttributes({
-        [SemanticConventions.OUTPUT_VALUE]: result.response,
-        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
-      });
-      span.end();
-      return result;
-    });
-    return context.bind(execContext, wrappedPromise);
-  };
+  const outputPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
+  LLMAttr[SemanticConventions.OUTPUT_VALUE] =
+    chatInfo.output.message.content.toString();
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
+    chatInfo.output.message.role.toString();
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+    chatInfo.output.message.content.toString();
+
+  return LLMAttr;
 }
 
-export function patchRetrieveMethod(
-  original: RetrieverRetrieveMethodType,
-  tracer: Tracer,
-) {
-  return function (
-    this: unknown,
-    ...args: Parameters<RetrieverRetrieveMethodType>
-  ) {
-    const span = tracer.startSpan(`retrieve`, {
-      kind: SpanKind.INTERNAL,
-      attributes: {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.RETRIEVER,
-        [SemanticConventions.INPUT_VALUE]: args[0].query,
-        [SemanticConventions.INPUT_MIME_TYPE]: MimeType.TEXT,
-      },
+function getLLMCompleteAttributes(completeInfo: {
+  prototype: unknown;
+  input: LLMCompletionParamsNonStreaming;
+  output: CompletionResponse;
+}) {
+  const LLMAttr: Attributes = {};
+
+  // Extract and set class prototype properties as attributes
+  const prototypeProperties = safelyGetLLMPrototypeProperties(
+    completeInfo.prototype,
+  );
+  if (prototypeProperties != null) {
+    Object.keys(prototypeProperties).forEach((key) => {
+      LLMAttr[key] = prototypeProperties[key];
     });
+  }
 
-    const execContext = getExecContext(span);
+  const inputPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0`;
+  LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+    completeInfo.input.prompt.toString();
+  LLMAttr[`${inputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "user";
 
-    const execPromise = safeExecuteInTheMiddle<
-      ReturnType<RetrieverRetrieveMethodType>
-    >(
-      () => {
-        return context.with(execContext, () => {
-          return original.apply(this, args);
-        });
-      },
-      (error) => handleError(span, error),
-    );
+  const outputPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
+  LLMAttr[SemanticConventions.OUTPUT_VALUE] = completeInfo.output.text;
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "assistant";
+  LLMAttr[`${outputPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+    completeInfo.output.text;
 
-    const wrappedPromise = execPromise.then((result) => {
-      span.setAttributes(getDocumentAttributes(result));
-      span.end();
-      return result;
-    });
-    return context.bind(execContext, wrappedPromise);
-  };
+  return LLMAttr;
 }
 
-export function patchQueryEmbeddingMethod(
-  original: QueryEmbeddingMethodType,
-  tracer: Tracer,
-) {
-  return function (
-    this: unknown,
-    ...args: Parameters<QueryEmbeddingMethodType>
-  ) {
-    const span = tracer.startSpan(`embedding`, {
-      kind: SpanKind.INTERNAL,
-      attributes: {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.EMBEDDING,
-      },
-    });
-
-    const execContext = getExecContext(span);
-
-    const execPromise = safeExecuteInTheMiddle<
-      ReturnType<QueryEmbeddingMethodType>
-    >(
-      () => {
-        return context.with(execContext, () => {
-          return original.apply(this, args);
-        });
-      },
-      (error) => handleError(span, error),
-    );
-
-    // Model ID/name is a property found on the class and not in args
-    // Extract from class and set as attribute
-    span.setAttributes({
-      [SemanticConventions.EMBEDDING_MODEL_NAME]: getModelName(this),
-    });
-
-    const wrappedPromise = execPromise.then((result) => {
-      const [query] = args;
-      span.setAttributes(
-        getQueryEmbeddingAttributes({ input: query, output: result }),
-      );
-      span.end();
-      return result;
-    });
-    return context.bind(execContext, wrappedPromise);
-  };
-}
+export const safelyGetDocumentAttributes = withSafety(getDocumentAttributes);
+export const safelyGetEmbeddingAttributes = withSafety(
+  getQueryEmbeddingAttributes,
+);
+export const safelyGetLLMChatAttributes = withSafety(getLLMChatAttributes);
+export const safelyGetLLMCompleteAttributes = withSafety(
+  getLLMCompleteAttributes,
+);

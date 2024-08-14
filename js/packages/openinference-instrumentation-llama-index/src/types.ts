@@ -1,5 +1,6 @@
 import * as llamaindex from "llamaindex";
-import { BaseRetriever } from "llamaindex";
+import { BaseEmbedding } from "@llamaindex/core/dist/embeddings";
+import { LLM, LLMMetadata } from "@llamaindex/core/dist/llms";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type GenericFunction = (...args: any[]) => any;
@@ -8,12 +9,16 @@ export type SafeFunction<T extends GenericFunction> = (
   ...args: Parameters<T>
 ) => ReturnType<T> | null;
 
-export type ObjectWithModel = { model: string };
+export type LLMPrototypeWithModel = { model: string };
+export type LLMPrototypeWithMetadata = { metadata: LLMMetadata };
 
 export type RetrieverQueryEngineQueryMethodType =
   typeof llamaindex.RetrieverQueryEngine.prototype.query;
 
-export type RetrieverRetrieveMethodType = BaseRetriever["retrieve"];
+export type RetrieverRetrieveMethodType = llamaindex.BaseRetriever["retrieve"];
 
 export type QueryEmbeddingMethodType =
-  typeof llamaindex.BaseEmbedding.prototype.getQueryEmbedding;
+  typeof BaseEmbedding.prototype.getQueryEmbedding;
+
+export type LLMChatMethodType = LLM["chat"];
+export type LLMCompleteMethodType = LLM["complete"];

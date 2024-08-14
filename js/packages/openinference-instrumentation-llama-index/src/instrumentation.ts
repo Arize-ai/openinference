@@ -8,12 +8,16 @@ import {
 } from "@opentelemetry/instrumentation";
 import { diag } from "@opentelemetry/api";
 import {
+  isRetrieverPrototype,
+  isEmbeddingPrototype,
+  isLLMPrototype,
+} from "./utils";
+import {
   patchQueryEngineQueryMethod,
   patchRetrieveMethod,
   patchQueryEmbeddingMethod,
-  isRetrieverPrototype,
-  isEmbeddingPrototype,
-} from "./utils";
+  patchLLMChat,
+} from "./patch";
 import { VERSION } from "./version";
 
 const MODULE_NAME = "llamaindex";
@@ -50,7 +54,7 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
   protected init(): InstrumentationModuleDefinition<typeof llamaindex> {
     const module = new InstrumentationNodeModuleDefinition<typeof llamaindex>(
       "llamaindex",
-      [">=0.1.0"],
+      [">=0.5.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -89,6 +93,13 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
           return patchQueryEmbeddingMethod(original, this.tracer);
         });
       }
+
+      if (isLLMPrototype(prototype)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this._wrap(prototype, "chat", (original): any => {
+          return patchLLMChat(original, this.tracer);
+        });
+      }
     }
     _isOpenInferencePatched = true;
     return moduleExports;
@@ -108,6 +119,10 @@ export class LlamaIndexInstrumentation extends InstrumentationBase<
 
       if (isEmbeddingPrototype(prototype)) {
         this._unwrap(prototype, "getQueryEmbedding");
+      }
+
+      if (isLLMPrototype(prototype)) {
+        this._unwrap(prototype, "chat");
       }
     }
 

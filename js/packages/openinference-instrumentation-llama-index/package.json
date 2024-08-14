@@ -18,14 +18,16 @@
   "author": "oss-devs@arize.com",
   "license": "Apache-2.0",
   "dependencies": {
+    "@arizeai/openinference-instrumentation-llama-index": "link:",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/core": "^1.23.0",
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "devDependencies": {
+    "@llamaindex/core": "^0.1.8",
     "jest": "^29.7.0",
-    "llamaindex": "^0.3.14",
+    "llamaindex": "^0.5.0",
     "openai": "^4.24.1"
   }
 }
