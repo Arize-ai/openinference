@@ -1,6 +1,8 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
+from functools import partial
+from inspect import signature
 from typing import (
     Any,
     Callable,
@@ -8,6 +10,7 @@ from typing import (
     Iterator,
     Optional,
     Union,
+    cast,
     get_args,
 )
 
@@ -26,6 +29,7 @@ from opentelemetry.context import (
     detach,
     set_value,
 )
+from opentelemetry.trace import Tracer
 from opentelemetry.util.types import AttributeValue
 
 from .logging import logger
@@ -324,21 +328,34 @@ class _MaskedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
             span.set_attribute(key, value)
 
 
+class _TracerSignatures:
+    # remove `self` via partial
+    start_as_current_span = signature(partial(Tracer.start_as_current_span, None))
+    start_span = signature(partial(Tracer.start_span, None))
+
+
 class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(self, wrapped: trace_api.Tracer, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
 
     @contextmanager
-    def start_as_current_span(self, *args, **kwargs) -> Iterator[trace_api.Span]:
-        with self.__wrapped__.start_as_current_span(*args, **kwargs) as span:
-            yield _MaskedSpan(span, self._self_config)
+    def start_as_current_span(self, *args: Any, **kwargs: Any) -> Iterator[trace_api.Span]:
+        kwargs = _TracerSignatures.start_as_current_span.bind(*args, **kwargs).arguments
+        attributes = cast(Dict[str, AttributeValue], kwargs.pop("attributes", None))
+        with self.__wrapped__.start_as_current_span(**kwargs) as span:
+            span = _MaskedSpan(span, self._self_config)
+            if attributes:
+                span.set_attributes(attributes)
+            yield span
 
-    def start_span(self, *args, **kwargs) -> trace_api.Span:
-        return _MaskedSpan(
-            self.__wrapped__.start_span(*args, **kwargs),
-            config=self._self_config,
-        )
+    def start_span(self, *args: Any, **kwargs: Any) -> trace_api.Span:
+        kwargs = _TracerSignatures.start_span.bind(*args, **kwargs).arguments
+        attributes = cast(Dict[str, AttributeValue], kwargs.pop("attributes", None))
+        span = _MaskedSpan(self.__wrapped__.start_span(**kwargs), config=self._self_config)
+        if attributes:
+            span.set_attributes(attributes)
+        return span
 
 
 def is_base64_url(url: str) -> bool:
