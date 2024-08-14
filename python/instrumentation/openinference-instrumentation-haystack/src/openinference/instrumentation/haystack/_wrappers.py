@@ -335,8 +335,8 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
                             tool_name,
                         )
             else:
-                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role
                 yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.content
+            yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role.value
         elif isinstance(reply, str):
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", reply
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", ASSISTANT
@@ -530,8 +530,8 @@ RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 
-ASSISTANT = ChatRole.ASSISTANT.value
-USER = ChatRole.USER.value
+ASSISTANT = "assistant"
+USER = "user"
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID

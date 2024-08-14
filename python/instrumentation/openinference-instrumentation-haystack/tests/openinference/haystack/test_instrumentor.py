@@ -494,6 +494,7 @@ def test_tool_calling_llm_span_has_expected_attributes(
         ),
         str,
     )
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert json.loads(tool_call_arguments) == {"location": "Berlin"}
     assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
