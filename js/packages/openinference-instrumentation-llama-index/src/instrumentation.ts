@@ -11,11 +11,13 @@ import {
   isRetrieverPrototype,
   isEmbeddingPrototype,
   isLLMPrototype,
+} from "./utils";
+import {
   patchQueryEngineQueryMethod,
   patchRetrieveMethod,
   patchQueryEmbeddingMethod,
   patchLLMChat,
-} from "./utils";
+} from "./patch";
 import { VERSION } from "./version";
 
 const MODULE_NAME = "llamaindex";
