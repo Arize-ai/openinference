@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.6...python-openinference-instrumentation-haystack-v0.1.7) (2024-08-15)
+
+
+### Bug Fixes
+
+* haystack tool calling for `OpenAIChatGenerator` ([#876](https://github.com/Arize-ai/openinference/issues/876)) ([398e2d5](https://github.com/Arize-ai/openinference/commit/398e2d5e8cccc668a09060b252ae331d98e3c35b))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.5...python-openinference-instrumentation-haystack-v0.1.6) (2024-08-13)
 
 
