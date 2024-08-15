@@ -43,9 +43,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from respx import MockRouter
 from tenacity import wait_none
@@ -357,20 +355,6 @@ def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
         ],
         [{"role": "assistant", "content": "ABC"}],
     )
-
-
-@pytest.fixture(scope="module")
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture(scope="module")
-def tracer_provider(
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> trace_api.TracerProvider:
-    tracer_provider = trace_sdk.TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
 
 
 @pytest.fixture(autouse=True)

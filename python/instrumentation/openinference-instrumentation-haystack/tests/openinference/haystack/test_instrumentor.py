@@ -35,9 +35,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from typing_extensions import TypeGuard
 
@@ -142,19 +140,6 @@ def prompt_template_variables() -> Dict[str, Any]:
         "var_str": "2",
         "var_list": [1, 2, 3],
     }
-
-
-@pytest.fixture()
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
 
 
 @pytest.fixture()

@@ -5,6 +5,8 @@ import random
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from contextvars import copy_context
+from functools import partial
 from importlib.metadata import version
 from itertools import count
 from typing import (
@@ -16,6 +18,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Mapping,
     Optional,
     Tuple,
     cast,
@@ -25,24 +28,23 @@ import openai
 import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
 from llama_index.core import Document, ListIndex, Settings
-from llama_index.core.base.response.schema import StreamingResponse
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.schema import TextNode
 from llama_index.llms.openai import OpenAI  # type: ignore
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from respx import MockRouter
 from tenacity import wait_none
@@ -66,7 +68,7 @@ LLAMA_INDEX_VERSION = tuple(map(int, version("llama-index-core").split(".")[:3])
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
 @pytest.mark.parametrize("use_context_attributes", [False, True])
-def test_callback_llm(
+def test_handler_basic_retrieval(
     is_async: bool,
     is_stream: bool,
     status_code: int,
@@ -80,8 +82,6 @@ def test_callback_llm(
     metadata: Dict[str, Any],
     tags: List[str],
 ) -> None:
-    if is_stream and is_async:
-        pytest.xfail("not supported")
     if status_code == 400 and is_stream and LLAMA_INDEX_VERSION < (0, 10, 44):
         pytest.xfail("streaming errors can't be detected")
     n = 10  # number of concurrent queries
@@ -89,13 +89,15 @@ def test_callback_llm(
     answer = chat_completion_mock_stream[1][0]["content"] if is_stream else randstr()
     callback_manager = CallbackManager()
     Settings.callback_manager = callback_manager
-    Settings.llm = OpenAI()
+    Settings.llm = OpenAI(max_retries=0, timeout=0.01)
     query_engine = ListIndex(nodes).as_query_engine(use_async=is_async, streaming=is_stream)
     respx_kwargs: Dict[str, Any] = (
         {
-            "stream": MockAsyncByteStream(chat_completion_mock_stream[0])
-            if is_async
-            else MockSyncByteStream(chat_completion_mock_stream[0])
+            "stream": (
+                MockAsyncByteStream(chat_completion_mock_stream[0])
+                if is_async
+                else MockSyncByteStream(chat_completion_mock_stream[0])
+            )
         }
         if is_stream
         else {
@@ -113,63 +115,58 @@ def test_callback_llm(
     url = "https://api.openai.com/v1/chat/completions"
     respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
 
+    async def aquery(question: str) -> None:
+        await (await query_engine.aquery(question)).get_response()
+
     async def task() -> None:
-        await asyncio.gather(
-            *(query_engine.aquery(question) for question in questions),
-            return_exceptions=True,
-        )
+        await asyncio.gather(*(aquery(question) for question in questions), return_exceptions=True)
 
-    def threaded_query(question: str) -> None:
+    def query(question: str) -> None:
         response = query_engine.query(question)
-        (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
+        if is_stream:
+            response.get_response()
 
-    def threaded_query_with_attributes(question: str) -> None:
-        # This context manager must be inside this function definition so
-        # there's a different instantiation per thread. This allows to use
-        # a different context per thread, as desired
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-        ):
-            response = query_engine.query(question)
-            (list(cast(StreamingResponse, response).response_gen) if is_stream else None,)
+    def main() -> None:
+        if is_async:
+            asyncio.run(task())
+            return
+        with ThreadPoolExecutor() as executor:
+            for question in questions:
+                executor.submit(copy_context().run, partial(query, question))
 
     with suppress(openai.BadRequestError):
         if use_context_attributes:
-            if is_async:
-                with using_attributes(
-                    session_id=session_id,
-                    user_id=user_id,
-                    metadata=metadata,
-                    tags=tags,
-                ):
-                    asyncio.run(task())
-            else:
-                with ThreadPoolExecutor(max_workers=n) as executor:
-                    executor.map(
-                        threaded_query_with_attributes,
-                        questions,
-                    )
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+            ):
+                main()
         else:
-            if is_async:
-                asyncio.run(task())
-            else:
-                with ThreadPoolExecutor(max_workers=n) as executor:
-                    executor.map(
-                        threaded_query,
-                        questions,
-                    )
+            main()
 
     spans = in_memory_span_exporter.get_finished_spans()
     traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
     for span in spans:
         traces[span.context.trace_id][span.name] = span
 
-    assert len(traces) == n
+    if is_stream:
+        # OpenAIInstrumentor is on a separate trace because no span
+        # is open when the stream iteration starts.
+        assert len(traces) == n * 2
+    else:
+        assert len(traces) == n
     for spans_by_name in traces.values():
-        assert (query_span := spans_by_name.pop("query", None)) is not None
+        spans_by_id = _spans_by_id(spans_by_name.values())
+        if is_stream and len(spans_by_name) == 1:
+            # This is the span from the OpenAIInstrumentor. It's on a separate
+            # trace because no span is open when the stream iteration starts.
+            continue
+        if is_async:
+            assert (query_span := spans_by_name.pop("BaseQueryEngine.aquery")) is not None
+        else:
+            assert (query_span := spans_by_name.pop("BaseQueryEngine.query")) is not None
         assert query_span.parent is None
         query_attributes = dict(query_span.attributes or {})
         assert query_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
@@ -180,46 +177,43 @@ def test_callback_llm(
         if status_code == 200:
             assert query_span.status.status_code == trace_api.StatusCode.OK
             assert not query_span.status.description
-            if not (is_async and is_stream):
+            if not is_stream:
                 assert query_attributes.pop(OUTPUT_VALUE, None) == answer
+            else:
+                assert query_attributes.pop(OUTPUT_VALUE, None) is not None
+                assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
+        elif is_stream:
+            assert query_attributes.pop(OUTPUT_VALUE, None) is not None
+            assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
+
+        if is_async:
+            assert (
+                _query_span := spans_by_name.pop("RetrieverQueryEngine._aquery", None)
+            ) is not None
+        else:
+            assert (
+                _query_span := spans_by_name.pop("RetrieverQueryEngine._query", None)
+            ) is not None
+        assert _is_descendant(_query_span, query_span, spans_by_id)
 
         if use_context_attributes:
             _check_context_attributes(query_attributes, session_id, user_id, metadata, tags)
         assert query_attributes == {}  # all attributes should be accounted for
 
-        assert (synthesize_span := spans_by_name.pop("synthesize", None)) is not None
-        assert synthesize_span.parent is not None
-        assert synthesize_span.parent.span_id == query_span.context.span_id
-        assert synthesize_span.context.trace_id == query_span.context.trace_id
-        synthesize_attributes = dict(synthesize_span.attributes or {})
-        assert synthesize_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
-        assert synthesize_attributes.pop(INPUT_VALUE, None) == question
-        if status_code == 200:
-            assert synthesize_span.status.status_code == trace_api.StatusCode.OK
-            assert not synthesize_span.status.description
-            if not (is_async and is_stream):
-                assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
+        if is_async:
+            assert (retrieve_span := spans_by_name.pop("BaseRetriever.aretrieve", None)) is not None
         else:
-            assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
-            assert (
-                synthesize_span.status.description
-                and synthesize_span.status.description.startswith(
-                    openai.BadRequestError.__name__,
-                )
-            )
-        if use_context_attributes:
-            _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
-        assert synthesize_attributes == {}  # all attributes should be accounted for
-
-        assert (retrieve_span := spans_by_name.pop("retrieve", None)) is not None
-        assert retrieve_span.parent is not None
-        assert retrieve_span.parent.span_id == query_span.context.span_id
-        assert retrieve_span.context.trace_id == query_span.context.trace_id
+            assert (retrieve_span := spans_by_name.pop("BaseRetriever.retrieve", None)) is not None
+        assert _is_descendant(retrieve_span, _query_span, spans_by_id)
         retrieve_attributes = dict(retrieve_span.attributes or {})
         assert retrieve_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
         assert retrieve_attributes.pop(INPUT_VALUE, None) == question
+        assert retrieve_attributes.pop(OUTPUT_VALUE, None) is not None
+        assert retrieve_attributes.pop(OUTPUT_MIME_TYPE, None)
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_ID}", None)
         retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_ID}", None)
+        retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_SCORE}", 0.0)
+        retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.1.{DOCUMENT_SCORE}", 0.0)
         assert (
             retrieve_attributes.pop(f"{RETRIEVAL_DOCUMENTS}.0.{DOCUMENT_CONTENT}", None)
             == nodes[0].text
@@ -235,10 +229,53 @@ def test_callback_llm(
             _check_context_attributes(retrieve_attributes, session_id, user_id, metadata, tags)
         assert retrieve_attributes == {}  # all attributes should be accounted for
 
-        assert (llm_span := spans_by_name.pop("llm", None)) is not None
-        assert llm_span.parent is not None
-        assert llm_span.parent.span_id == synthesize_span.context.span_id
-        assert llm_span.context.trace_id == synthesize_span.context.trace_id
+        if is_async:
+            assert (
+                synthesize_span := spans_by_name.pop("BaseSynthesizer.asynthesize", None)
+            ) is not None
+        else:
+            assert (
+                synthesize_span := spans_by_name.pop("BaseSynthesizer.synthesize", None)
+            ) is not None
+        assert _is_descendant(synthesize_span, _query_span, spans_by_id)
+        synthesize_attributes = dict(synthesize_span.attributes or {})
+        assert synthesize_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
+        assert synthesize_attributes.pop(INPUT_VALUE, None) == question
+        if status_code == 200:
+            assert synthesize_span.status.status_code == trace_api.StatusCode.OK
+            assert not synthesize_span.status.description
+            if not is_stream:
+                assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
+            else:
+                assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
+                assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
+        elif is_stream:
+            assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
+            assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
+
+        if use_context_attributes:
+            _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
+        assert synthesize_attributes == {}  # all attributes should be accounted for
+
+        if is_async:
+            assert (_ := spans_by_name.pop("CompactAndRefine.aget_response", None)) is not None
+            assert (refine_span := spans_by_name.pop("Refine.aget_response", None)) is not None
+        else:
+            assert (_ := spans_by_name.pop("CompactAndRefine.get_response", None)) is not None
+            assert (refine_span := spans_by_name.pop("Refine.get_response", None)) is not None
+        assert _is_descendant(refine_span, synthesize_span, spans_by_id)
+
+        if is_async:
+            if is_stream:
+                assert (llm_span := spans_by_name.pop("LLM.astream", None)) is not None
+            else:
+                assert (llm_span := spans_by_name.pop("LLM.apredict", None)) is not None
+        else:
+            if is_stream:
+                assert (llm_span := spans_by_name.pop("LLM.stream", None)) is not None
+            else:
+                assert (llm_span := spans_by_name.pop("LLM.predict", None)) is not None
+        assert _is_descendant(llm_span, refine_span, spans_by_id)
         llm_attributes = dict(llm_span.attributes or {})
         assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None
@@ -249,45 +286,86 @@ def test_callback_llm(
         )
         assert template_variables.keys() == {"context_str", "query_str"}
         assert template_variables["query_str"] == question
-        assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) is not None
-        assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
-        assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) is not None
-        assert llm_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}", None) is not None
+        assert llm_attributes.pop(INPUT_VALUE, None) is not None
+        assert llm_attributes.pop(INPUT_MIME_TYPE, None)
         if status_code == 200:
             assert llm_span.status.status_code == trace_api.StatusCode.OK
             assert not llm_span.status.description
-            assert llm_attributes.pop(OUTPUT_VALUE, None) == answer
             if not is_stream:
-                # FIXME: currently we can't capture messages when streaming
-                assert (
-                    llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
-                    == "assistant"
-                )
-                assert (
-                    llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
-                )
-        else:
-            assert llm_span.status.status_code == trace_api.StatusCode.ERROR
-            assert llm_span.status.description and llm_span.status.description.startswith(
-                openai.BadRequestError.__name__,
-            )
+                assert llm_attributes.pop(OUTPUT_VALUE, None) == answer
+            else:
+                # FIXME: output should be propagated
+                ...
+
         if use_context_attributes:
             _check_context_attributes(llm_attributes, session_id, user_id, metadata, tags)
         assert llm_attributes == {}  # all attributes should be accounted for
 
-        # FIXME: maybe chunking spans should be discarded?
-        assert (chunking_span := spans_by_name.pop("chunking", None)) is not None
-        assert chunking_span.parent is not None
-        assert chunking_span.parent.span_id == synthesize_span.context.span_id
-        assert chunking_span.context.trace_id == synthesize_span.context.trace_id
-        chunking_attributes = dict(chunking_span.attributes or {})
-        assert chunking_attributes.pop(OPENINFERENCE_SPAN_KIND, None) is not None
+        if is_async:
+            if is_stream:
+                assert (openai_span := spans_by_name.pop("OpenAI.astream_chat")) is not None
+            else:
+                assert (openai_span := spans_by_name.pop("OpenAI.achat")) is not None
+        else:
+            if is_stream:
+                assert (openai_span := spans_by_name.pop("OpenAI.stream_chat")) is not None
+            else:
+                assert (openai_span := spans_by_name.pop("OpenAI.chat")) is not None
+        assert _is_descendant(openai_span, llm_span, spans_by_id)
+        openai_attributes = dict(openai_span.attributes or {})
+        assert openai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+        assert openai_attributes.pop(LLM_MODEL_NAME, None) is not None
+        assert openai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+        assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "system"
+        assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
+        assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) == "user"
+        assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}", None) is not None
+        assert openai_attributes.pop(INPUT_VALUE, None) is not None
+        assert openai_attributes.pop(INPUT_MIME_TYPE, None)
+        if status_code == 200:
+            assert openai_span.status.status_code == trace_api.StatusCode.OK
+            assert not openai_span.status.description
+            assert openai_attributes.pop(OUTPUT_VALUE, None) == f"assistant: {answer}"
+            assert (
+                openai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
+                == "assistant"
+            )
+            assert (
+                openai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
+            )
+        else:
+            assert openai_span.status.status_code == trace_api.StatusCode.ERROR
+            assert openai_span.status.description and openai_span.status.description.startswith(
+                openai.BadRequestError.__name__,
+            )
         if use_context_attributes:
-            _check_context_attributes(chunking_attributes, session_id, user_id, metadata, tags)
-        assert chunking_attributes == {}  # all attributes should be accounted for
+            _check_context_attributes(openai_attributes, session_id, user_id, metadata, tags)
+        assert openai_attributes == {}  # all attributes should be accounted for
 
-        assert spans_by_name == {}  # all spans should be accounted for
+        for span in spans_by_name.values():
+            assert _is_descendant(span, query_span, spans_by_id)
     assert len(questions) == 0  # all questions should be accounted for
+
+
+def _spans_by_id(spans: Iterable[ReadableSpan]) -> Dict[int, ReadableSpan]:
+    spans_by_id = {}
+    for span in spans:
+        spans_by_id[span.context.span_id] = span
+    return spans_by_id
+
+
+def _is_descendant(
+    span: Optional[ReadableSpan],
+    ancestor: ReadableSpan,
+    spans_by_id: Mapping[int, ReadableSpan],
+) -> bool:
+    if not ancestor.context:
+        return False
+    while span and span.parent:
+        if span.parent.span_id == ancestor.context.span_id:
+            return True
+        span = spans_by_id.get(span.parent.span_id)
+    return False
 
 
 def _check_context_attributes(
@@ -360,28 +438,15 @@ def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
     )
 
 
-@pytest.fixture(scope="module")
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture(scope="module")
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
-    tracer_provider = trace_sdk.TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
 @pytest.fixture(autouse=True)
 def instrument(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
-    LlamaIndexInstrumentor().instrument(
-        tracer_provider=tracer_provider,
-        use_legacy_callback_handler=True,
-    )
+    LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
+    OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
+    OpenAIInstrumentor().uninstrument()
     LlamaIndexInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
 
@@ -431,6 +496,7 @@ class MockAsyncByteStream(AsyncByteStream):
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
 DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
+DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
@@ -466,3 +532,5 @@ SESSION_ID = SpanAttributes.SESSION_ID
 USER_ID = SpanAttributes.USER_ID
 METADATA = SpanAttributes.METADATA
 TAG_TAGS = SpanAttributes.TAG_TAGS
+
+JSON = OpenInferenceMimeTypeValues.JSON.value
