@@ -52,7 +52,7 @@ latest = [
   "langchain-community",
 ]
 type-check = [
-  "langchain_core == 0.1.5",
+  "langchain-core == 0.1.6",
 ]
 
 [project.urls]
