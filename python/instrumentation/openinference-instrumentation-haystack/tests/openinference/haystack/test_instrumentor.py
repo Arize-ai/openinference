@@ -23,7 +23,9 @@ from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
-from haystack_integrations.components.rankers.cohere import CohereRanker
+from haystack_integrations.components.rankers.cohere import (  # type: ignore[import-untyped]
+    CohereRanker,
+)
 from httpx import Response
 from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
@@ -753,14 +755,29 @@ def test_cohere_reranker_span_has_expected_attributes(
     assert attributes.pop(RERANKER_QUERY) == "Who won the World Cup in 2022?"
     assert attributes.pop(RERANKER_TOP_K) == 2
     assert isinstance(attributes.pop(RERANKER_MODEL_NAME), str)
-    assert "Paul Graham" in attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.0.{DOCUMENT_CONTENT}")
-    assert "Lionel Messi" in attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.1.{DOCUMENT_CONTENT}")
-    assert "France" in attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.2.{DOCUMENT_CONTENT}")
+    assert isinstance(
+        in_doc0 := attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.0.{DOCUMENT_CONTENT}"), str
+    )
+    assert "Paul Graham" in in_doc0
+    assert isinstance(
+        in_doc1 := attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.1.{DOCUMENT_CONTENT}"), str
+    )
+    assert "Lionel Messi" in in_doc1
+    assert isinstance(
+        in_doc2 := attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.2.{DOCUMENT_CONTENT}"), str
+    )
+    assert "France" in in_doc2
     assert isinstance(attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.0.{DOCUMENT_ID}"), str)
     assert isinstance(attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.1.{DOCUMENT_ID}"), str)
     assert isinstance(attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.2.{DOCUMENT_ID}"), str)
-    assert "Lionel Messi" in attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.0.{DOCUMENT_CONTENT}")
-    assert "Paul Graham" in attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.1.{DOCUMENT_CONTENT}")
+    assert isinstance(
+        out_doc0 := attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.0.{DOCUMENT_CONTENT}"), str
+    )
+    assert "Lionel Messi" in out_doc0
+    assert isinstance(
+        out_doc1 := attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.1.{DOCUMENT_CONTENT}"), str
+    )
+    assert "Paul Graham" in out_doc1
     assert isinstance(attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.0.{DOCUMENT_ID}"), str)
     assert isinstance(attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.1.{DOCUMENT_ID}"), str)
     assert isinstance(attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.0.{DOCUMENT_SCORE}"), float)
