@@ -23,6 +23,7 @@ from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
+from haystack_integrations.components.rankers.cohere import CohereRanker
 from httpx import Response
 from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
@@ -32,6 +33,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
+    RerankerAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -305,11 +307,11 @@ def test_haystack_instrumentation(
     assert [
         span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
     ] == [
-        "EMBEDDING",
-        "RETRIEVER",
-        "LLM",
-        "LLM",
-        "CHAIN",
+        EMBEDDING,
+        RETRIEVER,
+        LLM,
+        LLM,
+        CHAIN,
     ]
 
 
@@ -363,9 +365,9 @@ def test_haystack_instrumentation_chat(
     assert [
         span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
     ] == [
-        "CHAIN",
-        "LLM",
-        "CHAIN",
+        CHAIN,
+        LLM,
+        CHAIN,
     ]
 
 
@@ -417,8 +419,8 @@ def test_haystack_instrumentation_filtering(
     assert [
         span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
     ] == [
-        "RETRIEVER",
-        "CHAIN",
+        RETRIEVER,
+        CHAIN,
     ]
 
 
@@ -704,6 +706,73 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
+def test_cohere_reranker_span_has_expected_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+    cohere_api_key: str,
+) -> None:
+    ranker = CohereRanker()
+    pipe = Pipeline()
+    pipe.add_component("ranker", ranker)
+    response = pipe.run(
+        {
+            "ranker": {
+                "query": "Who won the World Cup in 2022?",
+                "documents": [
+                    Document(
+                        content="Paul Graham is the founder of Y Combinator.",
+                    ),
+                    Document(
+                        content=(
+                            "Lionel Messi, captain of the Argentinian national team, "
+                            " won his first World Cup in 2022."
+                        ),
+                    ),
+                    Document(
+                        content="France lost the 2022 World Cup.",
+                    ),  # Cohere consistently ranks this document last
+                ],
+                "top_k": 2,
+            }
+        }
+    )
+    ranker_response = response["ranker"]
+    assert len(response_documents := ranker_response["documents"]) == 2
+    assert "Lionel Messi" in response_documents[0].content
+    assert "Paul Graham" in response_documents[1].content
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RERANKER
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(RERANKER_QUERY) == "Who won the World Cup in 2022?"
+    assert attributes.pop(RERANKER_TOP_K) == 2
+    assert isinstance(attributes.pop(RERANKER_MODEL_NAME), str)
+    assert "Paul Graham" in attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.0.{DOCUMENT_CONTENT}")
+    assert "Lionel Messi" in attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.1.{DOCUMENT_CONTENT}")
+    assert "France" in attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.2.{DOCUMENT_CONTENT}")
+    assert isinstance(attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.0.{DOCUMENT_ID}"), str)
+    assert isinstance(attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.1.{DOCUMENT_ID}"), str)
+    assert isinstance(attributes.pop(f"{RERANKER_INPUT_DOCUMENTS}.2.{DOCUMENT_ID}"), str)
+    assert "Lionel Messi" in attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.0.{DOCUMENT_CONTENT}")
+    assert "Paul Graham" in attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.1.{DOCUMENT_CONTENT}")
+    assert isinstance(attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.0.{DOCUMENT_ID}"), str)
+    assert isinstance(attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.1.{DOCUMENT_ID}"), str)
+    assert isinstance(attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.0.{DOCUMENT_SCORE}"), float)
+    assert isinstance(attributes.pop(f"{RERANKER_OUTPUT_DOCUMENTS}.1.{DOCUMENT_SCORE}"), float)
+    assert not attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_serperdev_websearch_retriever_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -727,7 +796,7 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     assert len(spans) == k
     span = spans[0]
     attributes = dict(span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "RETRIEVER"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RETRIEVER
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert json.loads(input_value) == {"query": "Who won the World Cup in 2022?"}
@@ -916,6 +985,11 @@ def serperdev_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SERPERDEV_API_KEY", "sk-")
 
 
+@pytest.fixture
+def cohere_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COHERE_API_KEY", "sk-")
+
+
 def _is_vector(
     value: Any,
 ) -> TypeGuard[Sequence[Union[int, float]]]:
@@ -929,9 +1003,11 @@ def _is_vector(
     return is_sequence_of_numbers
 
 
-CHAIN = OpenInferenceSpanKindValues.CHAIN
-LLM = OpenInferenceSpanKindValues.LLM
-RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+CHAIN = OpenInferenceSpanKindValues.CHAIN.value
+EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
+LLM = OpenInferenceSpanKindValues.LLM.value
+RERANKER = OpenInferenceSpanKindValues.RERANKER.value
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
 
 JSON = OpenInferenceMimeTypeValues.JSON.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
@@ -939,6 +1015,7 @@ TEXT = OpenInferenceMimeTypeValues.TEXT.value
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
 DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
+DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
@@ -965,6 +1042,11 @@ METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RERANKER_INPUT_DOCUMENTS = RerankerAttributes.RERANKER_INPUT_DOCUMENTS
+RERANKER_MODEL_NAME = RerankerAttributes.RERANKER_MODEL_NAME
+RERANKER_OUTPUT_DOCUMENTS = RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
+RERANKER_QUERY = RerankerAttributes.RERANKER_QUERY
+RERANKER_TOP_K = RerankerAttributes.RERANKER_TOP_K
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS

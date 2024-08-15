@@ -25,6 +25,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
+    RerankerAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -95,6 +96,14 @@ class _ComponentWrapper(_WithTracer):
                         **dict(_get_embedding_model_attributes(component.model)),
                     }
                 )
+            elif component_type is ComponentType.RANKER:
+                span.set_attributes(
+                    {
+                        **dict(_get_span_kind_attributes(RERANKER)),
+                        **dict(_get_reranker_model_attributes(component)),
+                        **dict(_get_reranker_request_attributes(run_args)),
+                    }
+                )
             elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(dict(_get_span_kind_attributes(RETRIEVER)))
             elif component_type is ComponentType.PROMPT_BUILDER:
@@ -127,6 +136,8 @@ class _ComponentWrapper(_WithTracer):
                 )
             elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(dict(_get_embedding_attributes(run_args, response)))
+            elif component_type is ComponentType.RANKER:
+                span.set_attributes(dict(_get_reranker_response_attributes(response)))
             elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(dict(_get_retriever_response_attributes(response)))
             elif component_type is ComponentType.PROMPT_BUILDER:
@@ -181,6 +192,7 @@ class _PipelineWrapper(_WithTracer):
 class ComponentType(Enum):
     GENERATOR = auto()
     EMBEDDER = auto()
+    RANKER = auto()
     RETRIEVER = auto()
     PROMPT_BUILDER = auto()
     UNKNOWN = auto()
@@ -217,8 +229,8 @@ def _get_component_type(component: Component) -> ComponentType:
         return ComponentType.GENERATOR
     elif "Embedder" in component_name:
         return ComponentType.EMBEDDER
-    elif "Ranker" in component_name:
-        pass
+    elif "Ranker" in component_name or _has_ranker_io_types(run_method):
+        return ComponentType.RANKER
     elif "Retriever" in component_name or _has_retriever_io_types(run_method):
         return ComponentType.RETRIEVER
     elif isinstance(component, PromptBuilder):
@@ -255,6 +267,19 @@ def _get_run_method_input_types(run_method: Callable[..., Any]) -> Optional[Dict
     return get_type_hints(run_method)
 
 
+def _has_ranker_io_types(run_method: Callable[..., Any]) -> bool:
+    """
+    Uses heuristics to infer if a component has a ranker-like `run` method.
+    """
+    if (input_types := _get_run_method_input_types(run_method)) is None or (
+        output_types := _get_run_method_output_types(run_method)
+    ) is None:
+        return False
+    has_documents_parameter = input_types.get("documents") is List[Document]
+    outputs_list_of_documents = output_types.get("documents") is List[Document]
+    return has_documents_parameter and outputs_list_of_documents
+
+
 def _has_retriever_io_types(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a retriever-like `run` method.
@@ -266,9 +291,9 @@ def _has_retriever_io_types(run_method: Callable[..., Any]) -> bool:
         output_types := _get_run_method_output_types(run_method)
     ) is None:
         return False
-    has_string_query_parameter = input_types.get("query") is str
+    has_documents_parameter = "documents" in input_types
     outputs_list_of_documents = output_types.get("documents") is List[Document]
-    return has_string_query_parameter and outputs_list_of_documents
+    return not has_documents_parameter and outputs_list_of_documents
 
 
 def _get_span_kind_attributes(span_kind: str) -> Iterator[Tuple[str, Any]]:
@@ -456,6 +481,47 @@ def _get_output_attributes_for_prompt_builder(
         yield from _get_output_attributes(response)
 
 
+def _get_reranker_model_attributes(component: Component) -> Iterator[Tuple[str, Any]]:
+    """
+    A best-effort attempt to get the model name from a ranker component.
+    """
+    if isinstance(
+        model_name := (getattr(component, "model_name", None) or getattr(component, "model", None)),
+        str,
+    ):
+        yield RERANKER_MODEL_NAME, model_name
+
+
+def _get_reranker_request_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts re-ranker attributes from arguments.
+    """
+    if isinstance(query := arguments.get("query"), str):
+        yield RERANKER_QUERY, query
+    if isinstance(top_k := arguments.get("top_k"), int):
+        yield RERANKER_TOP_K, top_k
+    if _is_list_of_documents(documents := arguments.get("documents")):
+        for doc_index, doc in enumerate(documents):
+            if (id := doc.id) is not None:
+                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+            if (content := doc.content) is not None:
+                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+
+
+def _get_reranker_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts re-ranker attributes from response.
+    """
+    if _is_list_of_documents(documents := response.get("documents")):
+        for doc_index, doc in enumerate(documents):
+            if (id := doc.id) is not None:
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+            if (content := doc.content) is not None:
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+            if (score := doc.score) is not None:
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_SCORE}", score
+
+
 def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
     Extracts retriever-related attributes from the response.
@@ -547,9 +613,18 @@ def _is_vector(
     return is_sequence_of_numbers
 
 
+def _is_list_of_documents(value: Any) -> TypeGuard[Sequence[Document]]:
+    """
+    Checks for a list of documents.
+    """
+
+    return isinstance(value, Sequence) and all(map(lambda x: isinstance(x, Document), value))
+
+
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
 LLM = OpenInferenceSpanKindValues.LLM.value
+RERANKER = OpenInferenceSpanKindValues.RERANKER.value
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
 
 JSON = OpenInferenceMimeTypeValues.JSON.value
@@ -589,6 +664,11 @@ METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RERANKER_INPUT_DOCUMENTS = RerankerAttributes.RERANKER_INPUT_DOCUMENTS
+RERANKER_MODEL_NAME = RerankerAttributes.RERANKER_MODEL_NAME
+RERANKER_OUTPUT_DOCUMENTS = RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
+RERANKER_QUERY = RerankerAttributes.RERANKER_QUERY
+RERANKER_TOP_K = RerankerAttributes.RERANKER_TOP_K
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS

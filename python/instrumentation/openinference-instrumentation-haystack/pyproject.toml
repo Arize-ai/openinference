@@ -41,6 +41,7 @@ instruments = [
 ]
 test = [
     "haystack-ai >= 2.0.0",
+    "cohere-haystack",
     "opentelemetry-sdk",
     "pytest-recording",
     "respx",
