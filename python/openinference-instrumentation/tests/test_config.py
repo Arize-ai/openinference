@@ -20,7 +20,11 @@ from openinference.instrumentation.config import (
     OPENINFERENCE_HIDE_OUTPUT_MESSAGES,
     OPENINFERENCE_HIDE_OUTPUT_TEXT,
     OPENINFERENCE_HIDE_OUTPUTS,
+    REDACTED_VALUE,
+    OITracer,
 )
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import TracerProvider
 
 
 def test_default_settings() -> None:
@@ -33,6 +37,17 @@ def test_default_settings() -> None:
     assert config.hide_input_text == DEFAULT_HIDE_INPUT_TEXT
     assert config.hide_output_text == DEFAULT_HIDE_OUTPUT_TEXT
     assert config.base64_image_max_length == DEFAULT_BASE64_IMAGE_MAX_LENGTH
+
+
+def test_oi_tracer(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(tracer_provider.get_tracer(__name__), TraceConfig(hide_inputs=True))
+    with tracer.start_as_current_span("a", attributes={"input.value": "c"}):
+        tracer.start_span("b", attributes={"input.value": "d"}).end()
+    for span in in_memory_span_exporter.get_finished_spans():
+        assert (span.attributes or {}).get("input.value") == REDACTED_VALUE
 
 
 @pytest.mark.parametrize("hide_inputs", [False, True])
