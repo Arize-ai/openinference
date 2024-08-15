@@ -122,7 +122,6 @@ class _ComponentWrapper(_WithTracer):
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
                 raise
             span.set_attributes(dict(_get_component_output_attributes(response, component_type)))
             span.set_status(trace_api.StatusCode.OK)
@@ -181,7 +180,6 @@ class _PipelineWrapper(_WithTracer):
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
                 raise
             span.set_attributes(dict(_get_output_attributes(response)))
             span.set_status(trace_api.StatusCode.OK)

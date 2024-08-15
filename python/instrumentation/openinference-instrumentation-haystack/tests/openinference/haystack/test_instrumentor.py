@@ -27,6 +27,7 @@ from haystack_integrations.components.rankers.cohere import (  # type: ignore[im
     CohereRanker,
 )
 from httpx import Response
+from openai import AuthenticationError
 from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
 from openinference.semconv.trace import (
@@ -43,6 +44,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from typing_extensions import TypeGuard
 
 
@@ -955,6 +957,40 @@ def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     assert "argentina" in response["llm"]["replies"][0].lower()
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 0
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_error_status_code_and_exception_events_with_invalid_api_key(
+    openai_api_key: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    llm = OpenAIGenerator(model="gpt-4o")
+    pipe.add_component("llm", llm)
+    with pytest.raises(AuthenticationError):
+        pipe.run(
+            {
+                "llm": {
+                    "prompt": "Who won the World Cup in 2022? Answer in one word.",
+                }
+            }
+        )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    for span in spans:
+        assert span.status.status_code is StatusCode.ERROR
+        assert len(span.events) == 1
+        event = span.events[0]
+        assert event.name == "exception"
+        event_attributes = dict(event.attributes or {})
+        exception_message = event_attributes["exception.message"]
+        assert "401" in exception_message
+        assert "api key" in exception_message.lower()
 
 
 @pytest.mark.vcr(
