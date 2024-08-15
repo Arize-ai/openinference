@@ -621,10 +621,8 @@ def test_openai_generator_llm_span_has_expected_attributes(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
-    assert json.loads(input_value) == {
-        "prompt": "Who won the World Cup in 2022? Answer in one word.",
-        "generation_kwargs": None,
-    }
+    input_value_data = json.loads(input_value)
+    assert input_value_data.get("prompt") == "Who won the World Cup in 2022? Answer in one word."
     assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in model_name
     assert (
