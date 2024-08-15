@@ -74,6 +74,11 @@ class SpanAttributes:
     Total number of tokens, including both prompt and completion.
     """
 
+    LLM_TOOLS = "llm.tools"
+    """
+    List of tools
+    """
+
     TOOL_NAME = "tool.name"
     """
     Name of the tool being used.
@@ -267,6 +272,15 @@ class ToolCallAttributes:
     during a tool call.
     """
 
+class ToolAttributes:
+    """
+    Attributes for a tools
+    """
+
+    TOOL_JSON_SCHEMA = "tool.json_schema"
+    """
+    The json schema of the input tools
+    """
 
 class OpenInferenceSpanKindValues(Enum):
     TOOL = "TOOL"

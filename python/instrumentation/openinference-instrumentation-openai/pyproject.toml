@@ -39,7 +39,7 @@ instruments = [
   "openai >= 1.0.0",
 ]
 test = [
-  "openai == 1.0.0",
+  "openai == 1.40.0",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "respx",
