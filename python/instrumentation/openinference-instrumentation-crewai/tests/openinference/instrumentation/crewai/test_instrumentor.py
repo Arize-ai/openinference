@@ -5,7 +5,7 @@ import pytest
 import vcr  # type: ignore
 from crewai import Agent, Crew, Process, Task
 from crewai_tools import SerperDevTool  # type: ignore
-from openinference.instrumentation import OITracer
+from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk.resources import Resource
@@ -197,6 +197,9 @@ def test_crewai_instrumentation_context_attributes(
             )
             crew.kickoff()
     spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) >= 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     _check_context_attributes(
         attributes,
         session_id,
