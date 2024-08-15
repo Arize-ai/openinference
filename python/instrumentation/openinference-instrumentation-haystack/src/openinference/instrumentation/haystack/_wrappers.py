@@ -1,10 +1,11 @@
 import json
 from abc import ABC
 from enum import Enum, auto
-from inspect import BoundArguments, signature
+from inspect import BoundArguments, Parameter, signature
 from typing import (
     Any,
     Callable,
+    Dict,
     Iterator,
     List,
     Mapping,
@@ -12,6 +13,8 @@ from typing import (
     Sequence,
     Tuple,
     Union,
+    cast,
+    get_type_hints,
 )
 
 import opentelemetry.context as context_api
@@ -22,6 +25,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
+    RerankerAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -71,7 +75,7 @@ class _ComponentWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
         component_class_name = _get_component_class_name(component)
 
-        run_bound_args = signature(component.run).bind(**pipe_args["inputs"])
+        run_bound_args = _get_bound_arguments(component.run, **pipe_args["inputs"])
         run_args = run_bound_args.arguments
 
         with self._tracer.start_as_current_span(name=component_class_name) as span:
@@ -92,17 +96,21 @@ class _ComponentWrapper(_WithTracer):
                         **dict(_get_embedding_model_attributes(component.model)),
                     }
                 )
+            elif component_type is ComponentType.RANKER:
+                span.set_attributes(
+                    {
+                        **dict(_get_span_kind_attributes(RERANKER)),
+                        **dict(_get_reranker_model_attributes(component)),
+                        **dict(_get_reranker_request_attributes(run_args)),
+                    }
+                )
             elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(dict(_get_span_kind_attributes(RETRIEVER)))
             elif component_type is ComponentType.PROMPT_BUILDER:
                 span.set_attributes(
                     {
                         **dict(_get_span_kind_attributes(LLM)),
-                        **dict(
-                            _get_llm_prompt_template_attributes_from_prompt_builder(
-                                component, run_bound_args
-                            )
-                        ),
+                        **dict(_get_llm_prompt_template_attributes(component, run_bound_args)),
                     }
                 )
             elif component_type is ComponentType.UNKNOWN:
@@ -114,7 +122,6 @@ class _ComponentWrapper(_WithTracer):
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
                 raise
             span.set_attributes(dict(_get_component_output_attributes(response, component_type)))
             span.set_status(trace_api.StatusCode.OK)
@@ -128,6 +135,8 @@ class _ComponentWrapper(_WithTracer):
                 )
             elif component_type is ComponentType.EMBEDDER:
                 span.set_attributes(dict(_get_embedding_attributes(run_args, response)))
+            elif component_type is ComponentType.RANKER:
+                span.set_attributes(dict(_get_reranker_response_attributes(response)))
             elif component_type is ComponentType.RETRIEVER:
                 span.set_attributes(dict(_get_retriever_response_attributes(response)))
             elif component_type is ComponentType.PROMPT_BUILDER:
@@ -156,7 +165,7 @@ class _PipelineWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        arguments = signature(wrapped).bind(*args, **kwargs).arguments
+        arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
 
         span_name = "Pipeline"
         with self._tracer.start_as_current_span(
@@ -171,7 +180,6 @@ class _PipelineWrapper(_WithTracer):
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
                 raise
             span.set_attributes(dict(_get_output_attributes(response)))
             span.set_status(trace_api.StatusCode.OK)
@@ -182,6 +190,7 @@ class _PipelineWrapper(_WithTracer):
 class ComponentType(Enum):
     GENERATOR = auto()
     EMBEDDER = auto()
+    RANKER = auto()
     RETRIEVER = auto()
     PROMPT_BUILDER = auto()
     UNKNOWN = auto()
@@ -212,42 +221,88 @@ def _get_component_type(component: Component) -> ComponentType:
     to infer the component type.
     """
     component_name = _get_component_class_name(component)
-    if (run_method := getattr(component, "run", None)) is None or not callable(run_method):
+    if (run_method := _get_component_run_method(component)) is None:
         return ComponentType.UNKNOWN
-    if "Generator" in component_name or "VertexAIImage" in component_name:
+    if "Generator" in component_name or _has_generator_output_type(run_method):
         return ComponentType.GENERATOR
     elif "Embedder" in component_name:
         return ComponentType.EMBEDDER
-    elif "Retriever" in component_name or _has_retriever_run_method(run_method):
+    elif "Ranker" in component_name or _has_ranker_io_types(run_method):
+        return ComponentType.RANKER
+    elif "Retriever" in component_name or _has_retriever_io_types(run_method):
         return ComponentType.RETRIEVER
     elif isinstance(component, PromptBuilder):
         return ComponentType.PROMPT_BUILDER
     return ComponentType.UNKNOWN
 
 
-def _has_retriever_run_method(run_method: Callable[..., Any]) -> bool:
+def _get_component_run_method(component: Component) -> Optional[Callable[..., Any]]:
+    """
+    Gets the `run` method for a component (if one exists).
+    """
+    if callable(run_method := getattr(component, "run", None)):
+        return cast(Callable[..., Any], run_method)
+    return None
+
+
+def _get_run_method_output_types(run_method: Callable[..., Any]) -> Optional[Dict[str, type]]:
+    """
+    Haystack components are decorated with an `output_type` decorator that is
+    useful for inferring the component type.
+
+    https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/core/component/component.py#L398
+    """
+
+    if isinstance((output_types_cache := getattr(run_method, "_output_types_cache", None)), dict):
+        return {key: value.type for key, value in output_types_cache.items()}
+    return None
+
+
+def _get_run_method_input_types(run_method: Callable[..., Any]) -> Optional[Dict[str, type]]:
+    """
+    Gets input types of parameters to the `run` method.
+    """
+    return get_type_hints(run_method)
+
+
+def _has_generator_output_type(run_method: Callable[..., Any]) -> bool:
+    """
+    Uses heuristics to infer if a component has a generator-like `run` method.
+    """
+    if (output_types := _get_run_method_output_types(run_method)) is None or (
+        replies := output_types.get("replies")
+    ) is None:
+        return False
+    return replies == List[ChatMessage] or replies == List[str]
+
+
+def _has_ranker_io_types(run_method: Callable[..., Any]) -> bool:
+    """
+    Uses heuristics to infer if a component has a ranker-like `run` method.
+    """
+    if (input_types := _get_run_method_input_types(run_method)) is None or (
+        output_types := _get_run_method_output_types(run_method)
+    ) is None:
+        return False
+    has_documents_parameter = input_types.get("documents") == List[Document]
+    outputs_list_of_documents = output_types.get("documents") == List[Document]
+    return has_documents_parameter and outputs_list_of_documents
+
+
+def _has_retriever_io_types(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a retriever-like `run` method.
 
     This is used to find unusual retrievers such as `SerperDevWebSearch`. See:
     https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/components/websearch/serper_dev.py#L93
     """
-
-    # Find types defined with the `output_types` decorator. See
-    # https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/core/component/component.py#L398
-    output_types = (
-        ot if isinstance((ot := getattr(run_method, "_output_types_cache", None)), dict) else {}
-    )
-    run_method_signature = signature(run_method)
-    has_string_query_parameter = (
-        query_parameter := run_method_signature.parameters.get("query")
-    ) is not None and query_parameter.annotation is str
-    outputs_list_of_documents = (
-        output_socket := output_types.get("documents")
-    ) is not None and output_socket.type is List[Document]
-    if has_string_query_parameter and outputs_list_of_documents:
-        return True
-    return False
+    if (input_types := _get_run_method_input_types(run_method)) is None or (
+        output_types := _get_run_method_output_types(run_method)
+    ) is None:
+        return False
+    has_documents_parameter = "documents" in input_types
+    outputs_list_of_documents = output_types.get("documents") == List[Document]
+    return not has_documents_parameter and outputs_list_of_documents
 
 
 def _get_span_kind_attributes(span_kind: str) -> Iterator[Tuple[str, Any]]:
@@ -393,7 +448,7 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
             yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
 
-def _get_llm_prompt_template_attributes_from_prompt_builder(
+def _get_llm_prompt_template_attributes(
     component: Component, run_bound_args: BoundArguments
 ) -> Iterator[Tuple[str, str]]:
     """
@@ -433,6 +488,47 @@ def _get_output_attributes_for_prompt_builder(
         yield OUTPUT_VALUE, prompt
     else:
         yield from _get_output_attributes(response)
+
+
+def _get_reranker_model_attributes(component: Component) -> Iterator[Tuple[str, Any]]:
+    """
+    A best-effort attempt to get the model name from a ranker component.
+    """
+    if isinstance(
+        model_name := (getattr(component, "model_name", None) or getattr(component, "model", None)),
+        str,
+    ):
+        yield RERANKER_MODEL_NAME, model_name
+
+
+def _get_reranker_request_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts re-ranker attributes from arguments.
+    """
+    if isinstance(query := arguments.get("query"), str):
+        yield RERANKER_QUERY, query
+    if isinstance(top_k := arguments.get("top_k"), int):
+        yield RERANKER_TOP_K, top_k
+    if _is_list_of_documents(documents := arguments.get("documents")):
+        for doc_index, doc in enumerate(documents):
+            if (id := doc.id) is not None:
+                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+            if (content := doc.content) is not None:
+                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+
+
+def _get_reranker_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts re-ranker attributes from response.
+    """
+    if _is_list_of_documents(documents := response.get("documents")):
+        for doc_index, doc in enumerate(documents):
+            if (id := doc.id) is not None:
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+            if (content := doc.content) is not None:
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+            if (score := doc.score) is not None:
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_SCORE}", score
 
 
 def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -526,9 +622,34 @@ def _is_vector(
     return is_sequence_of_numbers
 
 
+def _is_list_of_documents(value: Any) -> TypeGuard[Sequence[Document]]:
+    """
+    Checks for a list of documents.
+    """
+
+    return isinstance(value, Sequence) and all(map(lambda x: isinstance(x, Document), value))
+
+
+def _get_bound_arguments(function: Callable[..., Any], *args: Any, **kwargs: Any) -> BoundArguments:
+    """
+    Safely returns bound arguments from the current context.
+    """
+    sig = signature(function)
+    accepts_arbitrary_kwargs = any(
+        param.kind == Parameter.VAR_KEYWORD for param in sig.parameters.values()
+    )
+    valid_kwargs = {
+        key: value
+        for key, value in kwargs.items()
+        if accepts_arbitrary_kwargs or key in sig.parameters
+    }
+    return sig.bind(*args, **valid_kwargs)
+
+
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
 LLM = OpenInferenceSpanKindValues.LLM.value
+RERANKER = OpenInferenceSpanKindValues.RERANKER.value
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
 
 JSON = OpenInferenceMimeTypeValues.JSON.value
@@ -568,6 +689,11 @@ METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RERANKER_INPUT_DOCUMENTS = RerankerAttributes.RERANKER_INPUT_DOCUMENTS
+RERANKER_MODEL_NAME = RerankerAttributes.RERANKER_MODEL_NAME
+RERANKER_OUTPUT_DOCUMENTS = RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
+RERANKER_QUERY = RerankerAttributes.RERANKER_QUERY
+RERANKER_TOP_K = RerankerAttributes.RERANKER_TOP_K
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
