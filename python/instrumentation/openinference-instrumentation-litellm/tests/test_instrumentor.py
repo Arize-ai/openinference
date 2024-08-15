@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Mapping, cast
+from typing import Any, Dict, List, Mapping, Optional, cast
 from unittest.mock import patch
 
 import litellm
@@ -11,6 +11,8 @@ from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
     SpanAttributes,
 )
 from opentelemetry.sdk.resources import Resource
@@ -146,13 +148,14 @@ def test_completion_with_multiple_messages(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
+    input_messages = [
+        {"content": "Hello, I want to bake a cake", "role": "user"},
+        {"content": "Hello, I can pull up some recipes for cakes.", "role": "assistant"},
+        {"content": "No actually I want to make a pie", "role": "user"},
+    ]
     litellm.completion(
         model="gpt-3.5-turbo",
-        messages=[
-            {"content": "Hello, I want to bake a cake", "role": "user"},
-            {"content": "Hello, I can pull up some recipes for cakes.", "role": "assistant"},
-            {"content": "No actually I want to make a pie", "role": "user"},
-        ],
+        messages=input_messages,
         mock_response="Got it! What kind of pie would you like to make?",
     )
     spans = in_memory_span_exporter.get_finished_spans()
@@ -165,19 +168,54 @@ def test_completion_with_multiple_messages(
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {"mock_response": "Got it! What kind of pie would you like to make?"}
     )
-    assert attributes.get("input.messages.0.content") == "Hello, I want to bake a cake"
-    assert (
-        attributes.get("input.messages.1.content") == "Hello, I can pull up some recipes for cakes."
-    )
-    assert attributes.get("input.messages.2.content") == "No actually I want to make a pie"
-    assert attributes.get("input.messages.0.role") == "user"
-    assert attributes.get("input.messages.1.role") == "assistant"
-    assert attributes.get("input.messages.2.role") == "user"
-
+    for i, message in enumerate(input_messages):
+        _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
     assert (
         attributes.get(SpanAttributes.OUTPUT_VALUE)
         == "Got it! What kind of pie would you like to make?"
     )
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+
+    LiteLLMInstrumentor().uninstrument()
+
+
+def test_completion_image_support(
+    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
+    in_memory_span_exporter.clear()
+    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
+
+    input_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What’s in this image?"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "https://dummy_image.jpg"},
+                },
+            ],
+        }
+    ]
+    litellm.completion(
+        model="gpt-4o",
+        messages=input_messages,
+        mock_response="That's an image of a pasture",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
+    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
+        {"mock_response": "That's an image of a pasture"}
+    )
+    for i, message in enumerate(input_messages):
+        _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "That's an image of a pasture"
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -479,7 +517,7 @@ async def test_aembedding(
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
-def test_image_generation(
+def test_image_generation_url(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     use_context_attributes: bool,
@@ -532,6 +570,76 @@ def test_image_generation(
 
     assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+
+    LiteLLMInstrumentor().uninstrument()
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_image_generation_b64json(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    use_context_attributes: bool,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    in_memory_span_exporter.clear()
+    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
+
+    mock_response_image_gen = ImageResponse(
+        created=1722359754,
+        data=[{"b64_json": "dummy_b64_json", "revised_prompt": None, "url": None}],
+    )
+
+    with patch.object(
+        OpenAIChatCompletion, "image_generation", return_value=mock_response_image_gen
+    ):
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                litellm.image_generation(
+                    model="dall-e-2",
+                    prompt="a sunrise over the mountains",
+                )
+        else:
+            litellm.image_generation(
+                model="dall-e-2",
+                prompt="a sunrise over the mountains",
+            )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "image_generation"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "dall-e-2"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == "a sunrise over the mountains"
+
+    assert attributes.get(ImageAttributes.IMAGE_URL) == "dummy_b64_json"
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "dummy_b64_json"
 
     if use_context_attributes:
         _check_context_attributes(
@@ -731,3 +839,77 @@ def prompt_template_variables() -> Dict[str, Any]:
         "var_str": "2",
         "var_list": [1, 2, 3],
     }
+
+
+def _check_llm_message(
+    prefix: str,
+    i: int,
+    attributes: Dict[str, Any],
+    message: Dict[str, Any],
+    hide_text: bool = False,
+    hide_images: bool = False,
+    image_limit: Optional[int] = None,
+) -> None:
+    assert attributes.pop(message_role(prefix, i), None) == message.get("role")
+    expected_content = message.get("content")
+    if isinstance(expected_content, list):
+        for j, expected_content_item in enumerate(expected_content):
+            content_item_type = attributes.pop(message_contents_type(prefix, i, j), None)
+            expected_content_item_type = expected_content_item.get("type")
+            if expected_content_item_type == "image_url":
+                expected_content_item_type = "image"
+            assert content_item_type == expected_content_item_type
+            if content_item_type == "text":
+                content_item_text = attributes.pop(message_contents_text(prefix, i, j), None)
+                if hide_text:
+                    assert content_item_text == REDACTED_VALUE
+                else:
+                    assert content_item_text == expected_content_item.get("text")
+            elif content_item_type == "image":
+                content_item_image_url = attributes.pop(
+                    message_contents_image_url(prefix, i, j), None
+                )
+                if hide_images:
+                    assert content_item_image_url is None
+                else:
+                    expected_url = expected_content_item.get("image_url").get("url")
+                    if image_limit is not None and len(expected_url) > image_limit:
+                        assert content_item_image_url == REDACTED_VALUE
+                    else:
+                        assert content_item_image_url == expected_url
+    else:
+        content = attributes.pop(message_content(prefix, i), None)
+        if expected_content is not None and hide_text:
+            assert content == REDACTED_VALUE
+        else:
+            assert content == expected_content
+
+
+def message_content(prefix: str, i: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENT}"
+
+
+def message_role(prefix: str, i: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_ROLE}"
+
+
+def message_contents_type(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TYPE}"
+
+
+def message_contents_text(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TEXT}"
+
+
+def message_contents_image_url(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
+
+
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+IMAGE_URL = ImageAttributes.IMAGE_URL
+REDACTED_VALUE = "__REDACTED__"
