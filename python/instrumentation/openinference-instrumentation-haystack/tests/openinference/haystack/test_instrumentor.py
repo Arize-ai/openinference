@@ -474,6 +474,8 @@ def test_tool_calling_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.status.is_ok
+    assert not span.events
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
@@ -549,6 +551,8 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.status.is_ok
+    assert not span.events
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert (
@@ -609,6 +613,8 @@ def test_openai_generator_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.status.is_ok
+    assert not span.events
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -689,6 +695,8 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.status.is_ok
+    assert not span.events
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -746,6 +754,8 @@ def test_cohere_reranker_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.status.is_ok
+    assert not span.events
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RERANKER
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -812,6 +822,8 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == k
     span = spans[0]
+    assert span.status.is_ok
+    assert not span.events
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RETRIEVER
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -885,6 +897,8 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.status.is_ok
+    assert not span.events
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
