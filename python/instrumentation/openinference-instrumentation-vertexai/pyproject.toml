@@ -41,6 +41,9 @@ test = [
   "vertexai == 1.49.0",
   "opentelemetry-sdk",
 ]
+latest = [
+  "vertexai",
+]
 
 [project.urls]
 homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-vertexai"

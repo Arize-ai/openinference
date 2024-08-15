@@ -42,6 +42,9 @@ test = [
   "opentelemetry-sdk",
   "responses",
 ]
+latest = [
+  "guardrails-ai",
+]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-guardrails"
@@ -56,6 +59,9 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.mypy]
 strict = true

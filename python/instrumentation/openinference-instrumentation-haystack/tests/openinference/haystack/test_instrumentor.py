@@ -42,38 +42,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from typing_extensions import TypeGuard
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
-
-
 def fake_OpenAIGenerator_run(
     self: Any, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None
 ) -> Dict[str, List[Union[str, Dict[str, Any]]]]:
@@ -422,11 +390,7 @@ def test_haystack_instrumentation_filtering(
     ]
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_tool_calling_llm_span_has_expected_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -517,11 +481,7 @@ def test_instrument_and_uninstrument_methods_wrap_and_unwrap_expected_methods(
     assert not hasattr(Pipeline._run_component, "__wrapped__")
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_openai_chat_generator_llm_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -581,11 +541,7 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_openai_generator_llm_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -699,11 +655,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_serperdev_websearch_retriever_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -831,11 +783,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -857,11 +805,7 @@ def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     assert len(spans) == 0
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_pipeline_and_component_spans_contain_context_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -970,6 +914,5 @@ SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
-LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
-LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+
 USER_ID = SpanAttributes.USER_ID

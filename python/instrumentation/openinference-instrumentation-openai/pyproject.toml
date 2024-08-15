@@ -45,6 +45,9 @@ test = [
   "respx",
   "numpy",
 ]
+latest = [
+  "openai",
+]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openai"

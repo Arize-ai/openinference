@@ -44,6 +44,9 @@ test = [
   "responses",
   "respx==0.20.2",
 ]
+latest = [
+  "dspy-ai",
+]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-dspy"

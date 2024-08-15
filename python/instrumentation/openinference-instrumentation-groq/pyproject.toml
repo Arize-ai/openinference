@@ -44,6 +44,9 @@ test = [
     "opentelemetry-sdk",
     "responses",
 ]
+latest = [
+    "groq",
+]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-groq"
@@ -58,6 +61,9 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.mypy]
 strict = true

@@ -10,40 +10,43 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.8, <3.13"
 authors = [
-    { name = "OpenInference Authors", email = "oss@arize.com" },
+  { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "opentelemetry-api",
-    "opentelemetry-instrumentation",
-    "opentelemetry-semantic-conventions",
-    "openinference-instrumentation>=0.1.12",
-    "openinference-semantic-conventions",
-    "wrapt",
-    "typing-extensions",
+  "opentelemetry-api",
+  "opentelemetry-instrumentation",
+  "opentelemetry-semantic-conventions",
+  "openinference-instrumentation>=0.1.12",
+  "openinference-semantic-conventions",
+  "wrapt",
+  "typing-extensions",
 ]
 
 
 [project.optional-dependencies]
 instruments = [
-    "haystack-ai >= 2.0.0",
+  "haystack-ai >= 2.0.0",
 ]
 test = [
-    "haystack-ai >= 2.0.0",
-    "opentelemetry-sdk",
-    "pytest-recording",
-    "respx",
+  "haystack-ai >= 2.0.0",
+  "opentelemetry-sdk",
+  "pytest-recording",
+  "respx",
+]
+latest = [
+  "haystack-ai",
 ]
 
 [project.urls]
@@ -54,28 +57,31 @@ path = "src/openinference/instrumentation/haystack/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/src",
+  "/src",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [tool.mypy]
 strict = true
 explicit_package_bases = true
 exclude = [
-    "examples",
-    "dist",
-    "sdist",
+  "examples",
+  "dist",
+  "sdist",
 ]
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
-    "haystack.*",
-    "datasets",
-    "openinference.instrumentation.haystack.*",
-    "wrapt",
+  "haystack.*",
+  "datasets",
+  "openinference.instrumentation.haystack.*",
+  "wrapt",
 ]
 
 [tool.ruff]

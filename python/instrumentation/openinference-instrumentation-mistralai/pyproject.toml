@@ -41,7 +41,9 @@ test = [
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "respx",
-  "pytest-asyncio",
+]
+latest = [
+  "mistralai",
 ]
 
 [project.urls]
