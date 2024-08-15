@@ -41,6 +41,7 @@ test = [
   "crewai-tools == 0.4.26",
   "opentelemetry-sdk",
   "responses",
+  "vcrpy",
 ]
 
 [project.urls]
