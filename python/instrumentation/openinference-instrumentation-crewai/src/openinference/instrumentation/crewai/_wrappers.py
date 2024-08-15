@@ -214,9 +214,15 @@ class _KickoffWrapper:
             try:
                 crew_output = wrapped(*args, **kwargs)
                 usage_metrics = instance.usage_metrics
-                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.prompt_tokens)
-                span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, usage_metrics.completion_tokens)
-                span.set_attribute(LLM_TOKEN_COUNT_TOTAL, usage_metrics.total_tokens)
+                if isinstance(usage_metrics, dict):
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.get("prompt_tokens"))
+                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, usage_metrics.get("completion_tokens"))
+                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, usage_metrics.get("total_tokens"))
+                else:
+                    # version 0.51 and onwards
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.prompt_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, usage_metrics.completion_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, usage_metrics.total_tokens)
 
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
