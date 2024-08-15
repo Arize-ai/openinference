@@ -244,10 +244,10 @@ def test_haystack_instrumentation(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert [span.name for span in spans] == [
-        "SentenceTransformersTextEmbedder",
-        "InMemoryEmbeddingRetriever",
-        "PromptBuilder",
-        "OpenAIGenerator",
+        "SentenceTransformersTextEmbedder (text_embedder)",
+        "InMemoryEmbeddingRetriever (retriever)",
+        "PromptBuilder (prompt_builder)",
+        "OpenAIGenerator (llm)",
         "Pipeline",
     ]
 
@@ -297,7 +297,7 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     span = spans[0]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "ChatPromptBuilder"
+    assert span.name == "ChatPromptBuilder (prompt_builder)"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -309,7 +309,7 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     span = spans[1]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "OpenAIChatGenerator"
+    assert span.name == "OpenAIChatGenerator (llm)"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -392,7 +392,7 @@ def test_haystack_instrumentation_filtering(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert [span.name for span in spans] == [
-        "InMemoryBM25Retriever",
+        "InMemoryBM25Retriever (retriever)",
         "Pipeline",
     ]
 
@@ -452,6 +452,7 @@ def test_tool_calling_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "OpenAIChatGenerator (llm)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -531,6 +532,7 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     span = spans[0]
     assert span.status.is_ok
     assert not span.events
+    assert span.name == "OpenAIChatGenerator (llm)"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert (
@@ -591,6 +593,7 @@ def test_openai_generator_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "OpenAIGenerator (llm)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -671,6 +674,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "PromptBuilder (prompt_builder)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -730,6 +734,7 @@ def test_cohere_reranker_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "CohereRanker (ranker)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -798,6 +803,7 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == k
     span = spans[0]
+    assert span.name == "SerperDevWebSearch (websearch)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -873,6 +879,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "OpenAIDocumentEmbedder (embedder)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
