@@ -69,7 +69,7 @@ class _ComponentWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        pipe_args = signature(wrapped).bind(*args, **kwargs).arguments
+        pipe_args = _get_bound_arguments(wrapped, *args, **kwargs).arguments
         component = _get_component_by_name(instance, pipe_args["name"])
         if component is None or not hasattr(component, "run") or not callable(component.run):
             return wrapped(*args, **kwargs)
