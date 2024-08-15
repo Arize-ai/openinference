@@ -1,6 +1,8 @@
 import json
 from contextlib import suppress
 from importlib import import_module
+from importlib.metadata import version
+from typing import Tuple, cast
 
 import pytest
 from opentelemetry import trace as trace_api
@@ -12,8 +14,12 @@ def test_tool_call(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
 ) -> None:
+    if _openai_version() < (1, 12, 0):
+        pytest.skip("Not supported")
     openai = import_module("openai")
-    from openai.types.chat import ChatCompletionToolParam
+    from openai.types.chat import (  # type: ignore[attr-defined,unused-ignore]
+        ChatCompletionToolParam,
+    )
 
     client = openai.OpenAI(api_key="sk-")
     input_tools = [
@@ -71,3 +77,7 @@ def test_tool_call(
         json_schema = attributes.get(f"llm.tools.{i}.tool.json_schema")
         assert isinstance(json_schema, str)
         assert json.loads(json_schema)
+
+
+def _openai_version() -> Tuple[int, int, int]:
+    return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
