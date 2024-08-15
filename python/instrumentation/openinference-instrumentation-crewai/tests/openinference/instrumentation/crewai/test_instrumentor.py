@@ -123,6 +123,7 @@ def test_crewai_instrumentation(
         elif span.name == "ToolUsage._use":
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "TOOL"
+            assert attributes.get("tool.name") in ("Search the internet", "Ask question to coworker")
             assert span.status.is_ok
         elif span.name == "Task._execute_core":
             checked_spans += 1
