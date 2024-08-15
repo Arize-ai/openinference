@@ -988,7 +988,7 @@ def test_error_status_code_and_exception_events_with_invalid_api_key(
         event = span.events[0]
         assert event.name == "exception"
         event_attributes = dict(event.attributes or {})
-        exception_message = event_attributes["exception.message"]
+        assert isinstance(exception_message := event_attributes["exception.message"], str)
         assert "401" in exception_message
         assert "api key" in exception_message.lower()
 
