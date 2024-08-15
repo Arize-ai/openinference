@@ -5,14 +5,13 @@ import pytest
 import vcr  # type: ignore
 from crewai import Agent, Crew, Process, Task
 from crewai_tools import SerperDevTool
+from openinference.instrumentation import OITracer
+from openinference.instrumentation.crewai import CrewAIInstrumentor
+from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
-from openinference.instrumentation import OITracer
-from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.semconv.trace import SpanAttributes
 
 test_vcr = vcr.VCR(
     serializer="yaml",
