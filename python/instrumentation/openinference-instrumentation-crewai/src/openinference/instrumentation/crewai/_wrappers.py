@@ -213,8 +213,6 @@ class _KickoffWrapper:
             )
             try:
                 crew_output = wrapped(*args, **kwargs)
-                #span.set_attribute(OUTPUT_VALUE, crew_output)
-                #span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
                 usage_metrics = instance.usage_metrics
                 span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.prompt_tokens)
                 span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, usage_metrics.completion_tokens)

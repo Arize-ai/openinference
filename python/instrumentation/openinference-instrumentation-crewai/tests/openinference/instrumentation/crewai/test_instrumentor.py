@@ -23,6 +23,7 @@ test_vcr = vcr.VCR(
     match_on=["uri", "method"],
 )
 
+
 @pytest.fixture()
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
@@ -69,45 +70,46 @@ def test_crewai_instrumentation(
 ) -> None:
     with test_vcr.use_cassette("crew_session.yaml", filter_headers=["authorization"]):
         import os
+
         os.environ["OPENAI_API_KEY"] = "fake_key"
         os.environ["SERPER_API_KEY"] = "another_fake_key"
         search_tool = SerperDevTool()
         greeter = Agent(
-            role='Senior Hello Sayer',
-            goal='Greet everyone you meet',
+            role="Senior Hello Sayer",
+            goal="Greet everyone you meet",
             backstory="""You work at a greeting store.
             Your expertise is greeting people
             Your parents were greeters, your grand parents were greeters. 
             You were born. Nay, destined to be a greeter""",
             verbose=True,
             allow_delegation=False,
-            tools=[search_tool]
+            tools=[search_tool],
         )
         aristocrat = Agent(
-            role='Aristocrat',
-            goal='Be greeted',
+            role="Aristocrat",
+            goal="Be greeted",
             backstory="""You were born to be treated with a greeting all the time
           You transform greetings into pleasantries that you graciously 
           give to greeters.""",
             verbose=True,
-            allow_delegation=True
+            allow_delegation=True,
         )
         # Create tasks for your agents
         task1 = Task(
             description="greet like you've never greeted before",
             expected_output="A greeting in bullet points",
-            agent=greeter
+            agent=greeter,
         )
         task2 = Task(
             description="Using the greeting, respond with the most satisfying pleasantry",
             expected_output="a bullet pointed pleasantry",
-            agent=aristocrat
+            agent=aristocrat,
         )
         crew = Crew(
             agents=[greeter, aristocrat],
             tasks=[task1, task2],
             verbose=True,
-            process=Process.sequential
+            process=Process.sequential,
         )
         crew.kickoff()
     spans = in_memory_span_exporter.get_finished_spans()
@@ -126,7 +128,10 @@ def test_crewai_instrumentation(
         elif span.name == "ToolUsage._use":
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "TOOL"
-            assert attributes.get("tool.name") in ("Search the internet", "Ask question to coworker")
+            assert attributes.get("tool.name") in (
+                "Search the internet",
+                "Ask question to coworker",
+            )
             assert span.status.is_ok
         elif span.name == "Task._execute_core":
             checked_spans += 1
@@ -134,6 +139,7 @@ def test_crewai_instrumentation(
             assert attributes.get("input.value")
             assert span.status.is_ok
     assert checked_spans == 6
+
 
 def _check_context_attributes(
     attributes: Dict[str, Any],
