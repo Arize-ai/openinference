@@ -4,10 +4,10 @@ from typing import Any, Dict, Generator, List
 import pytest
 import vcr  # type: ignore
 from crewai import Agent, Crew, Process, Task
-from crewai_tools import SerperDevTool
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 from openinference.semconv.trace import SpanAttributes
+from crewai_tools import SerperDevTool  # type: ignore
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
