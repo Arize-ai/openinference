@@ -12,9 +12,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.semconv.trace import (
-    SpanAttributes,
-)
+from openinference.semconv.trace import SpanAttributes
 
 test_vcr = vcr.VCR(
     serializer="yaml",
