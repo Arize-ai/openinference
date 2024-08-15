@@ -144,15 +144,17 @@ def test_crewai_instrumentation_context_attributes(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    ):
+        with test_vcr.use_cassette(
+            "crew_session_context_attributes.yaml", filter_headers=["authorization"]
         ):
-        with test_vcr.use_cassette("crew_session_context_attributes.yaml", filter_headers=["authorization"]):
             import os
 
             os.environ["OPENAI_API_KEY"] = "fake_key"
