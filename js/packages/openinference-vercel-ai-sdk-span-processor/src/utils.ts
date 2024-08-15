@@ -7,6 +7,7 @@ import {
   VercelSDKFunctionNameToSpanKindMap,
   VercelSemConvToOISemConvMap,
 } from "./constants";
+import { VercelSemanticConventions } from "./VercelSemanticConventions";
 
 export const hasAIAttributes = (attributes: Attributes) => {
   return Object.keys(attributes).some((key) => key.startsWith("ai."));
@@ -47,9 +48,10 @@ export const getOISpanKindFromAttributes = (
 export const getOIModelNameAttribute = (
   attributes: Attributes,
 ): Attributes | null => {
-  if (VERCEL_AI_MODEL_ID in attributes) {
+  if (VercelSemanticConventions.MODEL_ID in attributes) {
     return {
-      [SemanticConventions.LLM_MODEL_NAME]: attributes[VERCEL_AI_MODEL_ID],
+      [SemanticConventions.LLM_MODEL_NAME]:
+        attributes[VercelSemanticConventions.MODEL_ID],
     };
   }
   return null;
@@ -57,7 +59,7 @@ export const getOIModelNameAttribute = (
 
 export const getOIInvocationParamAttributes = (attributes: Attributes) => {
   const settingAttributes = Object.keys(attributes)
-    .filter((key) => key.startsWith(VERCEL_AI_SETTINGS))
+    .filter((key) => key.startsWith(VercelSemanticConventions.SETTINGS))
     .reduce((acc, key) => {
       const keyParts = key.split(".");
       const paramKey = keyParts[keyParts.length - 1];

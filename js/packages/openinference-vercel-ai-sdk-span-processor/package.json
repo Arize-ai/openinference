@@ -35,8 +35,12 @@
     "url": "https://github.com/Arize-ai/openinference/issues"
   },
   "dependencies": {
+    "@arizeai/openinference-core": "workspace:*",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
-    "@arizeai/openinference-core": "workspace:*"
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.52.1",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
+    "@opentelemetry/otlp-exporter-base": "^0.52.1"
   },
   "peerDependencies": {
     "@opentelemetry/api": ">=1.0.0 <1.9.0"
