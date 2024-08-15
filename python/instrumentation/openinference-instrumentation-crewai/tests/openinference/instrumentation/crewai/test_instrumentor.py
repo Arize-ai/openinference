@@ -1,20 +1,20 @@
 import json
-from typing import Any, Dict, Generator, List, Mapping, cast
-from crewai import Agent, Task, Crew, Process
-from crewai_tools import SerperDevTool
+from typing import Any, Dict, Generator, List
 
 import pytest
 import vcr  # type: ignore
-from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.semconv.trace import (
-    SpanAttributes,
-)
+from crewai import Agent, Crew, Process, Task
+from crewai_tools import SerperDevTool
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import OITracer
+from openinference.instrumentation.crewai import CrewAIInstrumentor
+from openinference.semconv.trace import (
+    SpanAttributes,
+)
 
 test_vcr = vcr.VCR(
     serializer="yaml",
