@@ -57,13 +57,6 @@ def test_crewai_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_crewai_instrumentation: Any,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
 ) -> None:
     with test_vcr.use_cassette("crew_session.yaml", filter_headers=["authorization"]):
         import os
@@ -136,6 +129,84 @@ def test_crewai_instrumentation(
             assert attributes.get("input.value")
             assert span.status.is_ok
     assert checked_spans == 6
+
+
+def test_crewai_instrumentation_context_attributes(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_crewai_instrumentation: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+        with test_vcr.use_cassette("crew_session_context_attributes.yaml", filter_headers=["authorization"]):
+            import os
+
+            os.environ["OPENAI_API_KEY"] = "fake_key"
+            os.environ["SERPER_API_KEY"] = "another_fake_key"
+            search_tool = SerperDevTool()
+            greeter = Agent(
+                role="Senior Hello Sayer",
+                goal="Greet everyone you meet",
+                backstory="""You work at a greeting store.
+                Your expertise is greeting people
+                Your parents were greeters, your grand parents were greeters.
+                You were born. Nay, destined to be a greeter""",
+                verbose=True,
+                allow_delegation=False,
+                tools=[search_tool],
+            )
+            aristocrat = Agent(
+                role="Aristocrat",
+                goal="Be greeted",
+                backstory="""You were born to be treated with a greeting all the time
+              You transform greetings into pleasantries that you graciously
+              give to greeters.""",
+                verbose=True,
+                allow_delegation=True,
+            )
+            # Create tasks for your agents
+            task1 = Task(
+                description="greet like you've never greeted before",
+                expected_output="A greeting in bullet points",
+                agent=greeter,
+            )
+            task2 = Task(
+                description="Using the greeting, respond with the most satisfying pleasantry",
+                expected_output="a bullet pointed pleasantry",
+                agent=aristocrat,
+            )
+            crew = Crew(
+                agents=[greeter, aristocrat],
+                tasks=[task1, task2],
+                verbose=True,
+                process=Process.sequential,
+            )
+            crew.kickoff()
+    spans = in_memory_span_exporter.get_finished_spans()
+    _check_context_attributes(
+        attributes,
+        session_id,
+        user_id,
+        metadata,
+        tags,
+        prompt_template,
+        prompt_template_version,
+        prompt_template_variables,
+    )
 
 
 def _check_context_attributes(
