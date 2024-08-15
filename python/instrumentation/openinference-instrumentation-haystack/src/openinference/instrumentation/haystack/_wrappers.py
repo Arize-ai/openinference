@@ -5,6 +5,7 @@ from inspect import BoundArguments, signature
 from typing import (
     Any,
     Callable,
+    Dict,
     Iterator,
     List,
     Mapping,
@@ -12,6 +13,8 @@ from typing import (
     Sequence,
     Tuple,
     Union,
+    cast,
+    get_type_hints,
 )
 
 import opentelemetry.context as context_api
@@ -208,42 +211,64 @@ def _get_component_type(component: Component) -> ComponentType:
     to infer the component type.
     """
     component_name = _get_component_class_name(component)
-    if (run_method := getattr(component, "run", None)) is None or not callable(run_method):
+    if (run_method := _get_component_run_method(component)) is None:
         return ComponentType.UNKNOWN
     if "Generator" in component_name or "VertexAIImage" in component_name:
         return ComponentType.GENERATOR
     elif "Embedder" in component_name:
         return ComponentType.EMBEDDER
-    elif "Retriever" in component_name or _has_retriever_run_method(run_method):
+    elif "Ranker" in component_name:
+        pass
+    elif "Retriever" in component_name or _has_retriever_io_types(run_method):
         return ComponentType.RETRIEVER
     elif isinstance(component, PromptBuilder):
         return ComponentType.PROMPT_BUILDER
     return ComponentType.UNKNOWN
 
 
-def _has_retriever_run_method(run_method: Callable[..., Any]) -> bool:
+def _get_component_run_method(component: Component) -> Optional[Callable[..., Any]]:
+    """
+    Gets the `run` method for a component (if one exists).
+    """
+    if callable(run_method := getattr(component, "run", None)):
+        return cast(Callable[..., Any], run_method)
+    return None
+
+
+def _get_run_method_output_types(run_method: Callable[..., Any]) -> Optional[Dict[str, type]]:
+    """
+    Haystack components are decorated with an `output_type` decorator that is
+    useful for inferring the component type.
+
+    https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/core/component/component.py#L398
+    """
+
+    if isinstance((output_types_cache := getattr(run_method, "_output_types_cache", None)), dict):
+        return {key: value.type for key, value in output_types_cache.items()}
+    return None
+
+
+def _get_run_method_input_types(run_method: Callable[..., Any]) -> Optional[Dict[str, type]]:
+    """
+    Gets input types of parameters to the `run` method.
+    """
+    return get_type_hints(run_method)
+
+
+def _has_retriever_io_types(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a retriever-like `run` method.
 
     This is used to find unusual retrievers such as `SerperDevWebSearch`. See:
     https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/components/websearch/serper_dev.py#L93
     """
-
-    # Find types defined with the `output_types` decorator. See
-    # https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/core/component/component.py#L398
-    output_types = (
-        ot if isinstance((ot := getattr(run_method, "_output_types_cache", None)), dict) else {}
-    )
-    run_method_signature = signature(run_method)
-    has_string_query_parameter = (
-        query_parameter := run_method_signature.parameters.get("query")
-    ) is not None and query_parameter.annotation is str
-    outputs_list_of_documents = (
-        output_socket := output_types.get("documents")
-    ) is not None and output_socket.type is List[Document]
-    if has_string_query_parameter and outputs_list_of_documents:
-        return True
-    return False
+    if (input_types := _get_run_method_input_types(run_method)) is None or (
+        output_types := _get_run_method_output_types(run_method)
+    ) is None:
+        return False
+    has_string_query_parameter = input_types.get("query") is str
+    outputs_list_of_documents = output_types.get("documents") is List[Document]
+    return has_string_query_parameter and outputs_list_of_documents
 
 
 def _get_span_kind_attributes(span_kind: str) -> Iterator[Tuple[str, Any]]:
