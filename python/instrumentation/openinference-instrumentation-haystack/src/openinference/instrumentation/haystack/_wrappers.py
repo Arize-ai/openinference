@@ -98,11 +98,7 @@ class _ComponentWrapper(_WithTracer):
                 span.set_attributes(
                     {
                         **dict(_get_span_kind_attributes(LLM)),
-                        **dict(
-                            _get_llm_prompt_template_attributes_from_prompt_builder(
-                                component, run_bound_args
-                            )
-                        ),
+                        **dict(_get_llm_prompt_template_attributes(component, run_bound_args)),
                     }
                 )
             elif component_type is ComponentType.UNKNOWN:
@@ -393,7 +389,7 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
             yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
 
-def _get_llm_prompt_template_attributes_from_prompt_builder(
+def _get_llm_prompt_template_attributes(
     component: Component, run_bound_args: BoundArguments
 ) -> Iterator[Tuple[str, str]]:
     """
