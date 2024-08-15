@@ -75,7 +75,7 @@ class _ComponentWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
         component_class_name = _get_component_class_name(component)
 
-        run_bound_args = signature(component.run).bind(**pipe_args["inputs"])
+        run_bound_args = _get_bound_arguments(component.run, **pipe_args["inputs"])
         run_args = run_bound_args.arguments
 
         with self._tracer.start_as_current_span(name=component_class_name) as span:
@@ -165,7 +165,7 @@ class _PipelineWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        arguments = signature(wrapped).bind(*args, **kwargs).arguments
+        arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
 
         span_name = "Pipeline"
         with self._tracer.start_as_current_span(
@@ -628,6 +628,22 @@ def _is_list_of_documents(value: Any) -> TypeGuard[Sequence[Document]]:
     """
 
     return isinstance(value, Sequence) and all(map(lambda x: isinstance(x, Document), value))
+
+
+def _get_bound_arguments(function: Callable[..., Any], *args: Any, **kwargs: Any) -> BoundArguments:
+    """
+    Safely returns bound arguments from the current context.
+    """
+    sig = signature(function)
+    accepts_arbitrary_kwargs = any(
+        param.kind == param.VAR_KEYWORD for param in sig.parameters.values()
+    )
+    valid_kwargs = {
+        key: value
+        for key, value in kwargs.items()
+        if accepts_arbitrary_kwargs or key in sig.parameters
+    }
+    return sig.bind(*args, **valid_kwargs)
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
