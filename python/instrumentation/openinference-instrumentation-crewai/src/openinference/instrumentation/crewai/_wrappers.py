@@ -215,11 +215,15 @@ class _KickoffWrapper:
                 crew_output = wrapped(*args, **kwargs)
                 usage_metrics = instance.usage_metrics
                 if isinstance(usage_metrics, dict):
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.get("prompt_tokens"))
                     span.set_attribute(
-                        LLM_TOKEN_COUNT_COMPLETION, usage_metrics.get("completion_tokens")
+                        LLM_TOKEN_COUNT_PROMPT, int(usage_metrics.get("prompt_tokens", 0))
                     )
-                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, usage_metrics.get("total_tokens"))
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_COMPLETION, int(usage_metrics.get("completion_tokens", 0))
+                    )
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_TOTAL, int(usage_metrics.get("total_tokens", 0))
+                    )
                 else:
                     # version 0.51 and onwards
                     span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.prompt_tokens)
