@@ -693,11 +693,14 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
-    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
-        == OpenInferenceMimeTypeValues.JSON
-    )
+    if hide_inputs:
+        assert attributes.pop(INPUT_VALUE, None) == REDACTED_VALUE
+    else:
+        assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+        assert (
+            OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
+            == OpenInferenceMimeTypeValues.JSON
+        )
     assert (
         json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
