@@ -1,7 +1,7 @@
 import json
 from abc import ABC
 from enum import Enum, auto
-from inspect import BoundArguments, signature
+from inspect import BoundArguments, Parameter, signature
 from typing import (
     Any,
     Callable,
@@ -636,7 +636,7 @@ def _get_bound_arguments(function: Callable[..., Any], *args: Any, **kwargs: Any
     """
     sig = signature(function)
     accepts_arbitrary_kwargs = any(
-        param.kind == param.VAR_KEYWORD for param in sig.parameters.values()
+        param.kind == Parameter.VAR_KEYWORD for param in sig.parameters.values()
     )
     valid_kwargs = {
         key: value
