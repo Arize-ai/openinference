@@ -337,8 +337,9 @@ def _get_output_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, A
     """
     Yields output attributes.
     """
+    masked_response = dict(_mask_embedding_vectors(key, value) for key, value in response.items())
     yield OUTPUT_MIME_TYPE, JSON
-    yield OUTPUT_VALUE, safe_json_dumps(response)
+    yield OUTPUT_VALUE, safe_json_dumps(masked_response)
 
 
 def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
