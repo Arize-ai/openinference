@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator, List, Mapping, cast
 
 import pytest
 import vcr  # type: ignore
@@ -12,6 +12,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
 
 test_vcr = vcr.VCR(
     serializer="yaml",
