@@ -225,7 +225,7 @@ def _get_component_type(component: Component) -> ComponentType:
     component_name = _get_component_class_name(component)
     if (run_method := _get_component_run_method(component)) is None:
         return ComponentType.UNKNOWN
-    if "Generator" in component_name or "VertexAIImage" in component_name:
+    if "Generator" in component_name or _has_generator_output_type(run_method):
         return ComponentType.GENERATOR
     elif "Embedder" in component_name:
         return ComponentType.EMBEDDER
@@ -267,6 +267,17 @@ def _get_run_method_input_types(run_method: Callable[..., Any]) -> Optional[Dict
     return get_type_hints(run_method)
 
 
+def _has_generator_output_type(run_method: Callable[..., Any]) -> bool:
+    """
+    Uses heuristics to infer if a component has a generator-like `run` method.
+    """
+    if (output_types := _get_run_method_output_types(run_method)) is None or (
+        replies := output_types.get("replies")
+    ) is None:
+        return False
+    return replies == List[ChatMessage] or replies == List[str]
+
+
 def _has_ranker_io_types(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a ranker-like `run` method.
@@ -275,8 +286,8 @@ def _has_ranker_io_types(run_method: Callable[..., Any]) -> bool:
         output_types := _get_run_method_output_types(run_method)
     ) is None:
         return False
-    has_documents_parameter = input_types.get("documents") is List[Document]
-    outputs_list_of_documents = output_types.get("documents") is List[Document]
+    has_documents_parameter = input_types.get("documents") == List[Document]
+    outputs_list_of_documents = output_types.get("documents") == List[Document]
     return has_documents_parameter and outputs_list_of_documents
 
 
@@ -292,7 +303,7 @@ def _has_retriever_io_types(run_method: Callable[..., Any]) -> bool:
     ) is None:
         return False
     has_documents_parameter = "documents" in input_types
-    outputs_list_of_documents = output_types.get("documents") is List[Document]
+    outputs_list_of_documents = output_types.get("documents") == List[Document]
     return not has_documents_parameter and outputs_list_of_documents
 
 
