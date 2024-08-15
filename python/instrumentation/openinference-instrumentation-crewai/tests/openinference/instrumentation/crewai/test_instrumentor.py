@@ -79,7 +79,7 @@ def test_crewai_instrumentation(
             goal="Greet everyone you meet",
             backstory="""You work at a greeting store.
             Your expertise is greeting people
-            Your parents were greeters, your grand parents were greeters. 
+            Your parents were greeters, your grand parents were greeters.
             You were born. Nay, destined to be a greeter""",
             verbose=True,
             allow_delegation=False,
@@ -89,7 +89,7 @@ def test_crewai_instrumentation(
             role="Aristocrat",
             goal="Be greeted",
             backstory="""You were born to be treated with a greeting all the time
-          You transform greetings into pleasantries that you graciously 
+          You transform greetings into pleasantries that you graciously
           give to greeters.""",
             verbose=True,
             allow_delegation=True,
