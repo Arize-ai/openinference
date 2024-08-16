@@ -10,7 +10,6 @@ from typing import (
     Any,
     AsyncIterator,
     Dict,
-    Generator,
     Iterable,
     Iterator,
     List,
@@ -37,11 +36,7 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
@@ -983,34 +978,6 @@ def prompt_template_variables() -> Dict[str, Any]:
         "var_str": "2",
         "var_list": [1, 2, 3],
     }
-
-
-@pytest.fixture(scope="module")
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture(scope="module")
-def tracer_provider(
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> trace_api.TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = trace_sdk.TracerProvider(resource=resource)
-    span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
-    tracer_provider.add_span_processor(span_processor=span_processor)
-    HTTPXClientInstrumentor().instrument(tracer_provider=tracer_provider)
-    return tracer_provider
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    OpenAIInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
 
 
 @pytest.fixture(scope="module")
