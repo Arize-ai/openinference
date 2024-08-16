@@ -1,15 +1,17 @@
 from abc import ABC
 from enum import Enum
-from typing import Any, Callable, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
+    DocumentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -49,11 +51,11 @@ class _CompletionsWrapper(_WithTracer):
     """
 
     def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
@@ -70,9 +72,9 @@ class _CompletionsWrapper(_WithTracer):
 
         span_name = "Completions"
         with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
+                span_name,
+                record_exception=False,
+                set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -80,17 +82,18 @@ class _CompletionsWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                            SpanAttributes.LLM_INPUT_MESSAGES: llm_prompt,
-                            SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                            OPENINFERENCE_SPAN_KIND: LLM,
+                            LLM_PROMPTS: llm_prompt,
+                            LLM_INVOCATION_PARAMETERS: safe_json_dumps(
                                 llm_invocation_params
                             ),
-                            SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
                 )
             )
+            if model_name := llm_invocation_params.get("model"):
+                span.set_attribute(LLM_MODEL_NAME, model_name)
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -121,11 +124,11 @@ class _AsyncCompletionsWrapper(_WithTracer):
     """
 
     async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
@@ -142,9 +145,9 @@ class _AsyncCompletionsWrapper(_WithTracer):
 
         span_name = "AsyncCompletions"
         with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
+                span_name,
+                record_exception=False,
+                set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -152,13 +155,13 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                            SpanAttributes.LLM_INPUT_MESSAGES: llm_prompt,
-                            SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                            OPENINFERENCE_SPAN_KIND: LLM,
+                            LLM_PROMPTS: llm_prompt,
+                            LLM_INVOCATION_PARAMETERS: safe_json_dumps(
                                 llm_invocation_params
                             ),
-                            SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            LLM_MODEL_NAME: llm_invocation_params.get("model"),
+                            INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
                 )
@@ -192,11 +195,11 @@ class _MessagesWrapper(_WithTracer):
     """
 
     def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
@@ -213,9 +216,9 @@ class _MessagesWrapper(_WithTracer):
 
         span_name = "Messages"
         with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
+                span_name,
+                record_exception=False,
+                set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -223,13 +226,13 @@ class _MessagesWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                            SpanAttributes.LLM_INPUT_MESSAGES: llm_input_messages,
-                            SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                            OPENINFERENCE_SPAN_KIND: LLM,
+                            **dict(_get_input_messages(llm_input_messages)),
+                            LLM_INVOCATION_PARAMETERS: safe_json_dumps(
                                 llm_invocation_params
                             ),
-                            SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            LLM_MODEL_NAME: llm_invocation_params.get("model"),
+                            INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
                 )
@@ -266,11 +269,11 @@ class _AsyncMessagesWrapper(_WithTracer):
     """
 
     async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
@@ -287,9 +290,9 @@ class _AsyncMessagesWrapper(_WithTracer):
 
         span_name = "AsyncMessages"
         with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
+                span_name,
+                record_exception=False,
+                set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -297,13 +300,13 @@ class _AsyncMessagesWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                            SpanAttributes.LLM_INPUT_MESSAGES: llm_input_messages,
-                            SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                            OPENINFERENCE_SPAN_KIND: LLM,
+                            **dict(_get_input_messages(llm_input_messages)),
+                            LLM_INVOCATION_PARAMETERS: safe_json_dumps(
                                 llm_invocation_params
                             ),
-                            SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                            LLM_MODEL_NAME: llm_invocation_params.get("model"),
+                            INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
                 )
@@ -333,16 +336,65 @@ class _AsyncMessagesWrapper(_WithTracer):
         return response
 
 
-CHAIN = OpenInferenceSpanKindValues.CHAIN
-RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
-EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
-LLM = OpenInferenceSpanKindValues.LLM
-EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+def _get_input_messages(messages: List[Dict[str, str]]) -> Any:
+    """
+    Extracts the messages from the chat response
+    """
+    for i in range(len(messages)):
+        if content := messages[i].get("content"):
+            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+        if role := messages[i].get("role"):
+            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
+
+
+def _get_output_message(response: Any) -> Any:
+    if response.content:
+        yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", response.content[0].text
+    if response.role:
+        yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", response.role
+
+
+CHAIN = OpenInferenceSpanKindValues.CHAIN.value
+EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
+LLM = OpenInferenceSpanKindValues.LLM.value
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
+
+JSON = OpenInferenceMimeTypeValues.JSON.value
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
+
+DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
+DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
+DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
+DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
+EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
+EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
-LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
-OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
-OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
-MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
-MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
+LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
+MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+METADATA = SpanAttributes.METADATA
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
+SESSION_ID = SpanAttributes.SESSION_ID
+TAG_TAGS = SpanAttributes.TAG_TAGS
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+USER_ID = SpanAttributes.USER_ID
