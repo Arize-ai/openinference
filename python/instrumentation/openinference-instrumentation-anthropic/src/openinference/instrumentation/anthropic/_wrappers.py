@@ -42,7 +42,7 @@ class _WithTracer(ABC):
         self._tracer = tracer
 
 
-class _CompletionsGenerationWrapper(_WithTracer):
+class _CompletionsWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
@@ -97,6 +97,7 @@ class _CompletionsGenerationWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+            span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(
                 dict(
                     _flatten(
@@ -110,11 +111,10 @@ class _CompletionsGenerationWrapper(_WithTracer):
                 )
             )
 
-            span.set_status(trace_api.StatusCode.OK)
         return response
 
 
-class _AsyncCompletionsGenerationWrapper(_WithTracer):
+class _AsyncCompletionsWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
@@ -169,6 +169,7 @@ class _AsyncCompletionsGenerationWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+            span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(
                 dict(
                     _flatten(
@@ -181,13 +182,10 @@ class _AsyncCompletionsGenerationWrapper(_WithTracer):
                     )
                 )
             )
-
-            span.set_status(trace_api.StatusCode.OK)
-
-        return response
+            return response
 
 
-class _CompletionsChatWrapper(_WithTracer):
+class _MessagesWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
@@ -242,12 +240,15 @@ class _CompletionsChatWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+            span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response.content[0],
+                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response.content[0].text,
                             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": response.role,
+                            LLM_TOKEN_COUNT_PROMPT: response.usage.input_tokens,
+                            LLM_TOKEN_COUNT_COMPLETION: response.usage.output_tokens,
                             OUTPUT_VALUE: response.content[0],
                             OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
                         }
@@ -255,11 +256,10 @@ class _CompletionsChatWrapper(_WithTracer):
                 )
             )
 
-            span.set_status(trace_api.StatusCode.OK)
         return response
 
 
-class _AsyncCompletionsChatWrapper(_WithTracer):
+class _AsyncMessagesWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
@@ -314,20 +314,21 @@ class _AsyncCompletionsChatWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+            span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response.content[0],
+                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response.content[0].text,
                             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": response.role,
+                            LLM_TOKEN_COUNT_PROMPT: response.usage.input_tokens,
+                            LLM_TOKEN_COUNT_COMPLETION: response.usage.output_tokens,
                             OUTPUT_VALUE: response.content[0],
                             OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
                         }
                     )
                 )
             )
-
-            span.set_status(trace_api.StatusCode.OK)
 
         return response
 
@@ -344,3 +345,4 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT

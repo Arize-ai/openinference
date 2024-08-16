@@ -1,4 +1,3 @@
-import asyncio
 from typing import (
     Any,
     Dict,
@@ -24,7 +23,15 @@ from anthropic.types import TextBlock, Usage
 from anthropic.types.completion import Completion
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -33,7 +40,7 @@ from wrapt import BoundFunctionWrapper
 
 mock_completion = Completion(
     id="chat_comp_0",
-    completion="sorry, idk!",
+    completion="idk",
     model="fake_model",
     type="completion",
 )
@@ -43,7 +50,7 @@ mock_message = Message(
     type="message",
     model="fake_model",
     role="assistant",
-    content=[TextBlock(type="text", text="Sure, I'd be happy to provide...")],
+    content=[TextBlock(type="text", text="idk")],
     stop_reason="end_turn",
     stop_sequence=None,
     usage=Usage(input_tokens=30, output_tokens=309),
@@ -214,7 +221,7 @@ def _check_context_attributes(
     assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
 
-def test_anthropic_instrumentation_generation(
+def test_anthropic_instrumentation_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
@@ -247,16 +254,14 @@ def test_anthropic_instrumentation_generation(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "Completions"
-    assert spans[0].attributes and spans[0].attributes.get("openinference.span.kind") == "LLM"
+    attributes = dict(spans[0].attributes or {})
 
-    for span in spans:
-        att = span.attributes
-        _check_context_attributes(
-            att,
-        )
+    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "idk"
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
 
 
-def test_anthropic_instrumentation_chat_completion(
+def test_anthropic_instrumentation_messages(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
@@ -271,39 +276,31 @@ def test_anthropic_instrumentation_chat_completion(
     client = Anthropic(api_key="fake")
     client.messages._post = _mock_post_messages  # type: ignore[assignment]
 
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    ):
-        client.messages.create(
-            max_tokens=1024,
-            messages=[
-                {
-                    "role": "user",
-                    "content": "Hello!",
-                }
-            ],
-            model="claude-3-opus-20240229",
-        )
+    client.messages.create(
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": "Hello!",
+            }
+        ],
+        model="claude-3-opus-20240229",
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "Messages"
-    assert spans[0].attributes and spans[0].attributes.get("openinference.span.kind") == "LLM"
+    attributes = dict(spans[0].attributes or {})
 
-    for span in spans:
-        att = span.attributes
-        _check_context_attributes(
-            att,
-        )
+    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "idk"
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
 
 
-def test_anthropic_async_instrumentation_generation(
+@pytest.mark.asyncio
+async def test_anthropic_instrumentation_async_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
@@ -318,37 +315,24 @@ def test_anthropic_async_instrumentation_generation(
     client = AsyncAnthropic(api_key="fake")
     client.completions._post = _async_mock_post_generation  # type: ignore[assignment]
 
-    async def exec_comp() -> None:
-        await client.completions.create(
-            model="claude-2.1",
-            prompt="How does a court case get to the Supreme Court?",
-            max_tokens_to_sample=1000,
-        )
-
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    ):
-        asyncio.run(exec_comp())
+    await client.completions.create(
+        model="claude-2.1",
+        prompt="How does a court case get to the Supreme Court?",
+        max_tokens_to_sample=1000,
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "AsyncCompletions"
-    assert spans[0].attributes and spans[0].attributes.get("openinference.span.kind") == "LLM"
+    attributes = dict(spans[0].attributes or {})
 
-    for span in spans:
-        att = span.attributes
-        _check_context_attributes(
-            att,
-        )
+    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "idk"
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
 
 
-def test_anthropic_async_instrumentation_chat_completion(
+@pytest.mark.asyncio
+async def test_anthropic_instrumentation_async_messages(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
@@ -363,39 +347,27 @@ def test_anthropic_async_instrumentation_chat_completion(
     client = AsyncAnthropic(api_key="fake")
     client.messages._post = _async_mock_post_messages  # type: ignore[assignment]
 
-    async def exec_comp() -> None:
-        await client.messages.create(
-            max_tokens=1024,
-            messages=[
-                {
-                    "role": "user",
-                    "content": "Hello!",
-                }
-            ],
-            model="claude-3-opus-20240229",
-        )
-
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    ):
-        asyncio.run(exec_comp())
+    await client.messages.create(
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": "Hello!",
+            }
+        ],
+        model="claude-3-opus-20240229",
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "AsyncMessages"
-    assert spans[0].attributes and spans[0].attributes.get("openinference.span.kind") == "LLM"
+    attributes = dict(spans[0].attributes or {})
 
-    for span in spans:
-        att = span.attributes
-        _check_context_attributes(
-            att,
-        )
+    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "idk"
+    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
 
 
 def test_anthropic_uninstrumentation(
@@ -423,10 +395,47 @@ def test_oitracer(
     assert isinstance(AnthropicInstrumentor()._tracer, OITracer)
 
 
-SESSION_ID = SpanAttributes.SESSION_ID
-USER_ID = SpanAttributes.USER_ID
-METADATA = SpanAttributes.METADATA
-TAG_TAGS = SpanAttributes.TAG_TAGS
+CHAIN = OpenInferenceSpanKindValues.CHAIN
+LLM = OpenInferenceSpanKindValues.LLM
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+
+JSON = OpenInferenceMimeTypeValues.JSON.value
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
+
+DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
+DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
+DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
+EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
+EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
+EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
+EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
-LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
+MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+METADATA = SpanAttributes.METADATA
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
+SESSION_ID = SpanAttributes.SESSION_ID
+TAG_TAGS = SpanAttributes.TAG_TAGS
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
+LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+USER_ID = SpanAttributes.USER_ID

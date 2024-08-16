@@ -3,10 +3,10 @@ from typing import Any, Collection
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.anthropic._wrappers import (
-    _AsyncCompletionsChatWrapper,
-    _AsyncCompletionsGenerationWrapper,
-    _CompletionsChatWrapper,
-    _CompletionsGenerationWrapper,
+    _AsyncCompletionsWrapper,
+    _AsyncMessagesWrapper,
+    _CompletionsWrapper,
+    _MessagesWrapper,
 )
 from openinference.instrumentation.anthropic.version import __version__
 from opentelemetry import trace as trace_api
@@ -27,10 +27,10 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     """An instrumentor for the Anthropic framework."""
 
     __slots__ = (
-        "_original_completions_generation_create",
-        "_original_async_completions_generation_create",
-        "_original_completions_chat_create",
-        "_original_async_completions_chat_create",
+        "_original_completions_create",
+        "_original_async_completions_create",
+        "_original_messages_create",
+        "_original_async_messages_create",
         "_instruments",
         "_tracer",
     )
@@ -50,41 +50,41 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config=config,
         )
 
-        self._original_completions_generation_create = Completions.create
+        self._original_completions_create = Completions.create
         wrap_function_wrapper(
             module="anthropic.resources.completions",
             name="Completions.create",
-            wrapper=_CompletionsGenerationWrapper(tracer=self._tracer),
+            wrapper=_CompletionsWrapper(tracer=self._tracer),
         )
 
-        self._original_async_completions_generation_create = AsyncCompletions.create
+        self._original_async_completions_create = AsyncCompletions.create
         wrap_function_wrapper(
             module="anthropic.resources.completions",
             name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsGenerationWrapper(tracer=self._tracer),
+            wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
         )
 
-        self._original_completions_chat_create = Messages.create
+        self._original_messages_create = Messages.create
         wrap_function_wrapper(
             module="anthropic.resources.messages",
             name="Messages.create",
-            wrapper=_CompletionsChatWrapper(tracer=self._tracer),
+            wrapper=_MessagesWrapper(tracer=self._tracer),
         )
 
-        self._original_async_completions_chat_create = AsyncMessages.create
+        self._original_async_messages_create = AsyncMessages.create
         wrap_function_wrapper(
             module="anthropic.resources.messages",
             name="AsyncMessages.create",
-            wrapper=_AsyncCompletionsChatWrapper(tracer=self._tracer),
+            wrapper=_AsyncMessagesWrapper(tracer=self._tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        if self._original_completions_generation_create is not None:
-            Completions.create = self._original_completions_generation_create  # type: ignore[method-assign]
-        if self._original_async_completions_generation_create is not None:
-            AsyncCompletions.create = self._original_async_completions_generation_create  # type: ignore[method-assign]
+        if self._original_completions_create is not None:
+            Completions.create = self._original_completions_create  # type: ignore[method-assign]
+        if self._original_async_completions_create is not None:
+            AsyncCompletions.create = self._original_async_completions_create  # type: ignore[method-assign]
 
-        if self._original_completions_chat_create is not None:
-            Messages.create = self._original_completions_chat_create  # type: ignore[method-assign]
-        if self._original_async_completions_chat_create is not None:
-            AsyncMessages.create = self._original_async_completions_chat_create  # type: ignore[method-assign]
+        if self._original_messages_create is not None:
+            Messages.create = self._original_messages_create  # type: ignore[method-assign]
+        if self._original_async_messages_create is not None:
+            AsyncMessages.create = self._original_async_messages_create  # type: ignore[method-assign]
