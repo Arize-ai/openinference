@@ -6,7 +6,7 @@ import {
   VercelSemanticConvention,
   VercelSemanticConventions,
 } from "./VercelSemanticConventions";
-import { OpenInferenceSemanticConvention } from "./types";
+import { OpenInferenceSemanticConvention } from "../types";
 
 /**
  * A map of Vercel SDK function names to OpenInference span kinds.

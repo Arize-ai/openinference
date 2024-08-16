@@ -1,6 +1,6 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { Mutable, ValueOf } from "../utils/typeUtils";
+import { Mutable, ValueOf } from "./utils/typeUtils";
 
 /**
  * A ReadWriteSpan is a mutable ReadableSpan.

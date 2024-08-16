@@ -16,7 +16,7 @@ import {
   OpenInferenceIOConvention,
   OpenInferenceSemanticConvention,
   ReadWriteSpan,
-} from "./types";
+} from "../types";
 import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import {
   assertUnreachable,
