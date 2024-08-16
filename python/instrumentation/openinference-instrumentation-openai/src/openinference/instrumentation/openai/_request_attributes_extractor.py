@@ -80,7 +80,9 @@ class _RequestAttributesExtractor:
         invocation_params = dict(params)
         invocation_params.pop("messages", None)
         invocation_params.pop("functions", None)
-        invocation_params.pop("tools", None)
+        if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
+            for i, tool in enumerate(tools):
+                yield f"llm.tools.{i}.tool.json_schema", safe_json_dumps(tool)
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
         if (input_messages := params.get("messages")) and isinstance(input_messages, Iterable):
