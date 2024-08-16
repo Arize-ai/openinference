@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.8...python-openinference-instrumentation-haystack-v0.1.9) (2024-08-16)
+
+
+### Bug Fixes
+
+* **haystack:** ensure important attributes such as span kind are not lost ([#917](https://github.com/Arize-ai/openinference/issues/917)) ([963ba4a](https://github.com/Arize-ai/openinference/commit/963ba4acf8cc7eaad4a4f780c5e50810fb876c8a))
+* **haystack:** improve heuristic for identifying component type ([#919](https://github.com/Arize-ai/openinference/issues/919)) ([bdfbbdb](https://github.com/Arize-ai/openinference/commit/bdfbbdb9c464ec0c2b730d7d70692ad346ce09f0))
+* **haystack:** improve span names and mask output embeddings ([#903](https://github.com/Arize-ai/openinference/issues/903)) ([7c754f3](https://github.com/Arize-ai/openinference/commit/7c754f340982d678e9362e4da82594589e98cba7))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.7...python-openinference-instrumentation-haystack-v0.1.8) (2024-08-15)
 
 
