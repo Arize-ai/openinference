@@ -1,14 +1,13 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
-from functools import partial
-from inspect import signature
 from typing import (
     Any,
     Callable,
     Dict,
     Iterator,
     Optional,
+    Sequence,
     Union,
     cast,
     get_args,
@@ -22,15 +21,15 @@ from openinference.semconv.trace import (
     MessageContentAttributes,
     SpanAttributes,
 )
-from opentelemetry import trace as trace_api
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
+    Context,
     attach,
     detach,
     set_value,
 )
-from opentelemetry.trace import Span, Tracer
-from opentelemetry.util.types import AttributeValue
+from opentelemetry.trace import Link, Span, SpanKind, Tracer, use_span
+from opentelemetry.util.types import Attributes, AttributeValue
 
 from .logging import logger
 
@@ -336,20 +335,11 @@ class _WrappedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
                 span = cast(Span, self.__wrapped__)
                 span.set_attribute(key, value)
 
-    def end(
-        self,
-        end_time: Optional[int] = None,
-    ) -> None:
+    def end(self, end_time: Optional[int] = None) -> None:
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
         span.end(end_time)
-
-
-class _TracerSignatures:
-    # remove `self` via partial
-    start_as_current_span = signature(partial(Tracer.start_as_current_span, None))
-    start_span = signature(partial(Tracer.start_span, None))
 
 
 class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
@@ -358,24 +348,58 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         self._self_config = config
 
     @contextmanager
-    def start_as_current_span(self, *args: Any, **kwargs: Any) -> Iterator[trace_api.Span]:
-        kwargs = _TracerSignatures.start_as_current_span.bind(*args, **kwargs).arguments
-        attributes = cast(Optional[Dict[str, AttributeValue]], kwargs.pop("attributes", None))
-        end_on_exit = kwargs.pop("end_on_exit", True)
-        tracer = cast(Tracer, self.__wrapped__)
-        with tracer.start_as_current_span(**kwargs, end_on_exit=False) as span:
-            span = _WrappedSpan(span, self._self_config)
-            if attributes:
-                span.set_attributes(attributes)
+    def start_as_current_span(
+        self,
+        name: str,
+        context: Optional[Context] = None,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Attributes = None,
+        links: Optional[Sequence[Link]] = (),
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+        end_on_exit: bool = True,
+    ) -> Iterator[Span]:
+        span = self.start_span(
+            name=name,
+            context=context,
+            kind=kind,
+            attributes=attributes,
+            links=links,
+            start_time=start_time,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        )
+        with use_span(
+            span,
+            end_on_exit=end_on_exit,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        ) as span:
             yield span
-            if end_on_exit:
-                span.end()
 
-    def start_span(self, *args: Any, **kwargs: Any) -> trace_api.Span:
-        kwargs = _TracerSignatures.start_span.bind(*args, **kwargs).arguments
-        attributes = cast(Optional[Dict[str, AttributeValue]], kwargs.pop("attributes", None))
+    def start_span(
+        self,
+        name: str,
+        context: Optional[Context] = None,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Attributes = None,
+        links: Optional[Sequence[Link]] = (),
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+    ) -> Span:
         tracer = cast(Tracer, self.__wrapped__)
-        span = tracer.start_span(**kwargs)
+        span = tracer.start_span(
+            name=name,
+            context=context,
+            kind=kind,
+            attributes=None,
+            links=links,
+            start_time=start_time,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        )
         span = _WrappedSpan(span, config=self._self_config)
         if attributes:
             span.set_attributes(attributes)
