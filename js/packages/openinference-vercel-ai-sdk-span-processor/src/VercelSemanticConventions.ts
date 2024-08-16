@@ -1,3 +1,5 @@
+import { ValueOf } from "./types";
+
 /**
  * Below are the semantic conventions for @vercel/otel instrumentation.
  * Note these are not specifically called out as "semantic conventions" in the Vercel SDK documentation.
@@ -63,13 +65,14 @@ const PROMPT = `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.prompt}` as const;
 
 const PROMPT_MESSAGES = `${PROMPT}.${VercelPromptPostfixes.messages}` as const;
 
-const VALUE = `${VERCEL_AI_PREFIX}.value` as const;
-const EMBEDDING = `${VERCEL_AI_PREFIX}.embedding` as const;
+const EMBEDDING_TEXT = `${VERCEL_AI_PREFIX}.value` as const;
+const EMBEDDING_VECTOR = `${VERCEL_AI_PREFIX}.embedding` as const;
 
-const VALUES = `${VERCEL_AI_PREFIX}.values` as const;
-const EMBEDDINGS = `${VERCEL_AI_PREFIX}.embeddings` as const;
+const EMBEDDING_TEXTS = `${VERCEL_AI_PREFIX}.values` as const;
+const EMBEDDING_VECTORS = `${VERCEL_AI_PREFIX}.embeddings` as const;
 
-const TOOL_CALL_NAME = `${VERCEL_AI_PREFIX}.${VercelAIPrefixes}` as const;
+const TOOL_CALL_NAME =
+  `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.toolCall}.${VercelToolCallPostfixes.name}` as const;
 const TOOL_CALL_ARGS =
   `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.toolCall}.${VercelToolCallPostfixes.args}` as const;
 
@@ -84,15 +87,17 @@ export const VercelSemanticConventions = {
   RESULT_OBJECT,
   PROMPT,
   PROMPT_MESSAGES,
-  VALUE,
-  EMBEDDING,
-  VALUES,
-  EMBEDDINGS,
+  EMBEDDING_TEXT,
+  EMBEDDING_VECTOR,
+  EMBEDDING_TEXTS,
+  EMBEDDING_VECTORS,
   TOOL_CALL_NAME,
   TOOL_CALL_ARGS,
 } as const;
 
-type ValueOf<T> = T[keyof T];
+export const VercelSemanticConventionsList = Object.freeze(
+  Object.values(VercelSemanticConventions),
+);
 
 export type VercelSemanticConvention = ValueOf<
   typeof VercelSemanticConventions

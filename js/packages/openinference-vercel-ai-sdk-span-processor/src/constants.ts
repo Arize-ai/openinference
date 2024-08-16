@@ -6,6 +6,7 @@ import {
   VercelSemanticConvention,
   VercelSemanticConventions,
 } from "./VercelSemanticConventions";
+import { OpenInferenceSemanticConvention } from "./types";
 
 /**
  * A map of Vercel SDK function names to OpenInference span kinds.
@@ -22,11 +23,9 @@ export const VercelSDKFunctionNameToSpanKindMap = new Map([
   ["toolCall", OpenInferenceSpanKind.TOOL],
 ]);
 
-type OISemanticConvention = keyof typeof SemanticConventions;
-
 export const VercelSemConvToOISemConvMap: Record<
   VercelSemanticConvention,
-  OISemanticConvention
+  OpenInferenceSemanticConvention
 > = {
   [VercelSemanticConventions.MODEL_ID]: SemanticConventions.LLM_MODEL_NAME,
   [VercelSemanticConventions.SETTINGS]:
@@ -36,4 +35,22 @@ export const VercelSemConvToOISemConvMap: Record<
     SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
   [VercelSemanticConventions.TOKEN_COUNT_PROMPT]:
     SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
+  [VercelSemanticConventions.RESULT_TEXT]: SemanticConventions.OUTPUT_VALUE,
+  [VercelSemanticConventions.RESULT_TOOL_CALLS]:
+    SemanticConventions.MESSAGE_TOOL_CALLS,
+  [VercelSemanticConventions.RESULT_OBJECT]: SemanticConventions.OUTPUT_VALUE,
+  [VercelSemanticConventions.PROMPT]: SemanticConventions.INPUT_VALUE,
+  [VercelSemanticConventions.PROMPT_MESSAGES]:
+    SemanticConventions.LLM_INPUT_MESSAGES,
+  [VercelSemanticConventions.EMBEDDING_TEXT]:
+    SemanticConventions.EMBEDDING_TEXT,
+  [VercelSemanticConventions.EMBEDDING_VECTOR]:
+    SemanticConventions.EMBEDDING_VECTOR,
+  [VercelSemanticConventions.EMBEDDING_TEXTS]:
+    SemanticConventions.EMBEDDING_TEXT,
+  [VercelSemanticConventions.EMBEDDING_VECTORS]:
+    SemanticConventions.EMBEDDING_VECTOR,
+  [VercelSemanticConventions.TOOL_CALL_NAME]: SemanticConventions.TOOL_NAME,
+  [VercelSemanticConventions.TOOL_CALL_ARGS]:
+    SemanticConventions.TOOL_PARAMETERS,
 } as const;

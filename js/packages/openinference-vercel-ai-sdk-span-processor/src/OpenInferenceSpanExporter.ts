@@ -1,8 +1,7 @@
-import { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import {
-  getOIModelNameAttribute,
+  copySpans,
   getOISpanKindFromAttributes,
-  hasAIAttributes,
+  getOpenInferenceAttributes,
 } from "./utils";
 import { Span } from "@opentelemetry/api";
 import { OTLPTraceExporter as ProtoExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -12,69 +11,13 @@ import { OTLPTraceExporter as GrpcExporter } from "@opentelemetry/exporter-trace
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import { OTLPExporterNodeConfigBase } from "@opentelemetry/otlp-exporter-base";
 
-export class OpenInferenceSpanProcessor implements SpanProcessor {
-  async forceFlush() {
-    // No-op
-  }
-
-  onStart(_: Span): void {
-    // No-op
-  }
-
-  async shutdown(): Promise<void> {
-    // No-op
-  }
-  onEnd(span: ReadableSpan): void {
-    const initialAttributes = span.attributes;
-    if (!hasAIAttributes(initialAttributes)) {
-      return;
-    }
-
-    const spanKind = getOISpanKindFromAttributes(initialAttributes);
-
-    if (spanKind == null) {
-      return;
-    }
-    // @ts-expect-error - This is a read-only span and thus has no setter for attributes
-    // Manually patch attributes here
-    span.attributes = {
-      ...span.attributes,
-      ...getOIModelNameAttribute(initialAttributes),
-      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind,
-    };
-  }
-}
-
-// make all keys in record mutable
-type Mutable<T> = {
-  -readonly [P in keyof T]: T[P];
-};
-
-const makeSpansMutable = (
-  spans: ReadableSpan[],
-): Mutable<
-  ReadableSpan & {
-    setAttributes: Span["setAttributes"];
-    setAttribute: Span["setAttribute"];
-  }
->[] => {
-  return spans.map((span) => {
-    // spanContext is a getter
-    const mutableSpan = { ...span, spanContext: span.spanContext };
-    // @ts-expect-error - This is a read-only span and thus has no setter for attributes
-    console.log("test--hhhhhhhhhhh------", span.setAttribute);
-    console.log("test--hey hey", mutableSpan.spanContext);
-    return mutableSpan;
-  });
-};
-
 export class OpenInferenceProtoTraceExporter extends ProtoExporter {
   constructor(config?: OTLPExporterNodeConfigBase) {
     super(config);
   }
   async export(...args: Parameters<ProtoExporter["export"]>) {
     const spans = args[0];
-    const mutableSpans = makeSpansMutable(spans);
+    const mutableSpans = copySpans(spans);
     mutableSpans.forEach((span) => {
       const initialAttributes = span.attributes;
       const spanKind = getOISpanKindFromAttributes(initialAttributes);
@@ -84,7 +27,7 @@ export class OpenInferenceProtoTraceExporter extends ProtoExporter {
       }
       span.attributes = {
         ...span.attributes,
-        ...getOIModelNameAttribute(initialAttributes),
+        ...getOpenInferenceAttributes(initialAttributes),
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind,
       };
     });
