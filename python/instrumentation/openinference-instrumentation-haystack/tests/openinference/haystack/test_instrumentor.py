@@ -81,7 +81,7 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def fake_OpenAIGenerator_run(
-    self: Any, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None
+    self: Any, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None, **kwargs: Any
 ) -> Dict[str, List[Union[str, Dict[str, Any]]]]:
     return {
         "replies": ["sorry, i have zero clue"],
@@ -133,56 +133,6 @@ def fake_SentenceTransformersEmbedder_warm_up(self: Any) -> None:
 
 
 @pytest.fixture()
-def session_id() -> str:
-    return "my-test-session-id"
-
-
-@pytest.fixture()
-def user_id() -> str:
-    return "my-test-user-id"
-
-
-@pytest.fixture()
-def metadata() -> Dict[str, Any]:
-    return {
-        "test-int": 1,
-        "test-str": "string",
-        "test-list": [1, 2, 3],
-        "test-dict": {
-            "key-1": "val-1",
-            "key-2": "val-2",
-        },
-    }
-
-
-@pytest.fixture()
-def tags() -> List[str]:
-    return ["tag-1", "tag-2"]
-
-
-@pytest.fixture
-def prompt_template() -> str:
-    return (
-        "This is a test prompt template with int {var_int}, "
-        "string {var_string}, and list {var_list}"
-    )
-
-
-@pytest.fixture
-def prompt_template_version() -> str:
-    return "v1.0"
-
-
-@pytest.fixture
-def prompt_template_variables() -> Dict[str, Any]:
-    return {
-        "var_int": 1,
-        "var_str": "2",
-        "var_list": [1, 2, 3],
-    }
-
-
-@pytest.fixture()
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
@@ -208,13 +158,6 @@ def test_haystack_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
 ) -> None:
     # Configure document store and load dataset
     document_store = InMemoryDocumentStore()
@@ -301,10 +244,10 @@ def test_haystack_instrumentation(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert [span.name for span in spans] == [
-        "SentenceTransformersTextEmbedder",
-        "InMemoryEmbeddingRetriever",
-        "PromptBuilder",
-        "OpenAIGenerator",
+        "SentenceTransformersTextEmbedder (text_embedder)",
+        "InMemoryEmbeddingRetriever (retriever)",
+        "PromptBuilder (prompt_builder)",
+        "OpenAIGenerator (llm)",
         "Pipeline",
     ]
 
@@ -319,36 +262,27 @@ def test_haystack_instrumentation(
     ]
 
 
-def test_haystack_instrumentation_chat(
-    tracer_provider: TracerProvider,
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_spans(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
+    openai_api_key: str,
 ) -> None:
-    prompt_builder = ChatPromptBuilder()
-
-    llm = OpenAIChatGenerator(api_key=Secret.from_token("fake_key"), model="fake_model")
-    llm.run = fake_OpenAIGenerator_run_chat.__get__(llm, OpenAIChatGenerator)
-
     pipe = Pipeline()
-
+    prompt_builder = ChatPromptBuilder()
+    llm = OpenAIChatGenerator(model="gpt-4o")
     pipe.add_component("prompt_builder", prompt_builder)
     pipe.add_component("llm", llm)
-
     pipe.connect("prompt_builder.prompt", "llm.messages")
-
     location = "Berlin"
     messages = [
-        ChatMessage.from_system("Try and be super useful."),
-        ChatMessage.from_user("Tell me about {{location}}"),
+        ChatMessage.from_system("Answer concisely in one sentence."),
+        ChatMessage.from_user("What country is {{location}} in?"),
     ]
-
     pipe.run(
         data={
             "prompt_builder": {
@@ -357,22 +291,64 @@ def test_haystack_instrumentation_chat(
             }
         }
     )
-
     spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 3
 
-    assert [span.name for span in spans] == [
-        "ChatPromptBuilder",
-        "OpenAIChatGenerator",
-        "Pipeline",
-    ]
+    span = spans[0]
+    assert span.status.is_ok
+    assert not span.events
+    assert span.name == "ChatPromptBuilder (prompt_builder)"
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert not attributes
 
-    assert [
-        span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
-    ] == [
-        CHAIN,
-        LLM,
-        CHAIN,
-    ]
+    span = spans[1]
+    assert span.status.is_ok
+    assert not span.events
+    assert span.name == "OpenAIChatGenerator (llm)"
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Answer concisely in one sentence."
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "What country is Berlin in?"
+    )
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(
+        output_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+    )
+    assert "germany" in output_content.lower()
+    assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(completion_tokens := attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+    assert prompt_tokens + completion_tokens == total_tokens
+    assert not attributes
+
+    span = spans[2]
+    assert span.status.is_ok
+    assert not span.events
+    assert span.name == "Pipeline"
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert not attributes
 
 
 def test_haystack_instrumentation_filtering(
@@ -416,7 +392,7 @@ def test_haystack_instrumentation_filtering(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert [span.name for span in spans] == [
-        "InMemoryBM25Retriever",
+        "InMemoryBM25Retriever (retriever)",
         "Pipeline",
     ]
 
@@ -476,6 +452,7 @@ def test_tool_calling_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "OpenAIChatGenerator (llm)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -555,6 +532,7 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     span = spans[0]
     assert span.status.is_ok
     assert not span.events
+    assert span.name == "OpenAIChatGenerator (llm)"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert (
@@ -615,16 +593,15 @@ def test_openai_generator_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "OpenAIGenerator (llm)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
-    assert json.loads(input_value) == {
-        "prompt": "Who won the World Cup in 2022? Answer in one word.",
-        "generation_kwargs": None,
-    }
+    input_value_data = json.loads(input_value)
+    assert input_value_data.get("prompt") == "Who won the World Cup in 2022? Answer in one word."
     assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in model_name
     assert (
@@ -697,6 +674,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "PromptBuilder (prompt_builder)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -756,6 +734,7 @@ def test_cohere_reranker_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "CohereRanker (ranker)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -824,6 +803,7 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == k
     span = spans[0]
+    assert span.name == "SerperDevWebSearch (websearch)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -899,6 +879,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
+    assert span.name == "OpenAIDocumentEmbedder (embedder)"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})

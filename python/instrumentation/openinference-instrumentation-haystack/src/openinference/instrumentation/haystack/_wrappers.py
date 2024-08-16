@@ -69,8 +69,9 @@ class _ComponentWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        pipe_args = signature(wrapped).bind(*args, **kwargs).arguments
-        component = _get_component_by_name(instance, pipe_args["name"])
+        pipe_args = _get_bound_arguments(wrapped, *args, **kwargs).arguments
+        component_name = pipe_args["name"]
+        component = _get_component_by_name(instance, component_name)
         if component is None or not hasattr(component, "run") or not callable(component.run):
             return wrapped(*args, **kwargs)
         component_class_name = _get_component_class_name(component)
@@ -78,7 +79,11 @@ class _ComponentWrapper(_WithTracer):
         run_bound_args = _get_bound_arguments(component.run, **pipe_args["inputs"])
         run_args = run_bound_args.arguments
 
-        with self._tracer.start_as_current_span(name=component_class_name) as span:
+        with self._tracer.start_as_current_span(
+            name=_get_component_span_name(
+                component_class_name=component_class_name, component_name=component_name
+            )
+        ) as span:
             span.set_attributes(
                 {**dict(get_attributes_from_context()), **dict(_get_input_attributes(run_args))}
             )
@@ -214,6 +219,13 @@ def _get_component_class_name(component: Component) -> str:
     return str(component.__class__.__name__)
 
 
+def _get_component_span_name(*, component_class_name: str, component_name: str) -> str:
+    """
+    Gets the name of the span for a component.
+    """
+    return f"{component_class_name} ({component_name})"
+
+
 def _get_component_type(component: Component) -> ComponentType:
     """
     Haystack has a single `Component` interface that produces unstructured
@@ -337,8 +349,9 @@ def _get_output_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, A
     """
     Yields output attributes.
     """
+    masked_response = dict(_mask_embedding_vectors(key, value) for key, value in response.items())
     yield OUTPUT_MIME_TYPE, JSON
-    yield OUTPUT_VALUE, safe_json_dumps(response)
+    yield OUTPUT_VALUE, safe_json_dumps(masked_response)
 
 
 def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
