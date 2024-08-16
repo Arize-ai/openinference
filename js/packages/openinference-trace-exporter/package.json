@@ -1,12 +1,12 @@
 {
-  "name": "@arizeai/openinference-span-exporter",
+  "name": "@arizeai/openinference-trace-exporter",
   "version": "0.0.0",
   "private": false,
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
   "esnext": "dist/esnext/index.js",
   "types": "dist/src/index.d.ts",
-  "description": "OpenInference SpanExporters",
+  "description": "OpenInference TraceExporters for OpenTelemetry",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
