@@ -211,7 +211,8 @@ export function getAttributesFromContext(context: Context): Attributes {
       }
       return;
     }
-    if (isAttributeValue(maybeValue)) {
+
+    if (isAttributeValue(maybeValue) && maybeValue !== undefined) {
       attributes[key] = maybeValue;
     }
   });
