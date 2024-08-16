@@ -31,6 +31,7 @@ if __name__ == "__main__":
     config = TraceConfig(
         hide_inputs=False,  # Overwrites the environment value setting
         hide_output_text=True,  # The text in output messages will appear as __REDACTED__
+        base64_image_max_length=100_000,
     )
     OpenAIInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
 
