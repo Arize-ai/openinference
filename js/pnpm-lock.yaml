@@ -47,6 +47,9 @@ importers:
       '@opentelemetry/api':
         specifier: '>=1.0.0 <1.9.0'
         version: 1.8.0
+      '@opentelemetry/core':
+        specifier: ^1.25.1
+        version: 1.25.1(@opentelemetry/api@1.8.0)
     devDependencies:
       '@opentelemetry/context-async-hooks':
         specifier: ^1.25.1
@@ -1539,7 +1542,6 @@ packages:
     dependencies:
       '@opentelemetry/api': 1.8.0
       '@opentelemetry/semantic-conventions': 1.25.1
-    dev: true
 
   /@opentelemetry/core@1.25.1(@opentelemetry/api@1.9.0):
     resolution: {integrity: sha512-GeT/l6rBYWVQ4XArluLVB6WWQ8flHbdb6r2FCHC3smtdOAbrJBIv35tpV/yp9bmYUJf+xmZpu9DRTIeJVhFbEQ==}
