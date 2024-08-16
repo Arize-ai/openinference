@@ -9,6 +9,7 @@ from openinference.instrumentation.instructor._wrappers import (
 from openinference.instrumentation.instructor.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import get_tracer
 from wrapt import wrap_function_wrapper
 
 _instruments = ("instructor >= 0.0.1",)
@@ -31,11 +32,7 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        self._tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
-
+        self._tracer = OITracer(get_tracer(__name__, __version__, tracer_provider), config=config)
         self._original_patch = getattr(import_module("instructor"), "patch", None)
         patch_wrapper = _PatchWrapper(tracer=self._tracer)
         wrap_function_wrapper("instructor", "patch", patch_wrapper)

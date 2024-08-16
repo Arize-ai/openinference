@@ -41,8 +41,10 @@ instruments = [
 ]
 test = [
     "groq >= 0.6.0",
-    "opentelemetry-sdk",
     "responses",
+]
+unpinned = [
+    "groq",
 ]
 
 [project.urls]
@@ -58,6 +60,9 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.mypy]
 strict = true

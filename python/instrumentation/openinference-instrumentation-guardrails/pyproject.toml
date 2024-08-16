@@ -39,8 +39,10 @@ instruments = [
 ]
 test = [
   "guardrails-ai == 0.4.5",
-  "opentelemetry-sdk",
   "responses",
+]
+unpinned = [
+  "guardrails-ai",
 ]
 
 [project.urls]
@@ -56,6 +58,9 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.mypy]
 strict = true

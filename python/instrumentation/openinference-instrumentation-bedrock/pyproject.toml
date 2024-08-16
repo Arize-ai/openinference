@@ -39,8 +39,10 @@ instruments = [
 ]
 test = [
   "boto3 == 1.34.116",
-  "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
+]
+unpinned = [
+  "boto3",
 ]
 
 [project.urls]
@@ -52,7 +54,6 @@ path = "src/openinference/instrumentation/bedrock/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -14,6 +14,7 @@ from openinference.instrumentation.crewai._wrappers import (
 from openinference.instrumentation.crewai.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import get_tracer
 from wrapt import wrap_function_wrapper
 
 _instruments = ("crewai >= 0.41.1",)
@@ -39,11 +40,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        self._tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
-
+        self._tracer = OITracer(get_tracer(__name__, __version__, tracer_provider), config=config)
         execute_core_wrapper = _ExecuteCoreWrapper(tracer=self._tracer)
         self._original_execute_core = getattr(import_module("crewai").Task, "_execute_core", None)
         wrap_function_wrapper(

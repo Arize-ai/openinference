@@ -8,6 +8,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
     BaseInstrumentor,
 )
+from opentelemetry.trace import get_tracer
 from wrapt import wrap_function_wrapper
 
 import haystack
@@ -32,11 +33,7 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        self._tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
-
+        self._tracer = OITracer(get_tracer(__name__, __version__, tracer_provider), config=config)
         self._original_pipeline_run = haystack.Pipeline.run
         wrap_function_wrapper(
             module="haystack.core.pipeline.pipeline",

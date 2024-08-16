@@ -1,30 +1,26 @@
 import base64
 import io
 import json
-from typing import Any, Dict, Generator, List, Tuple
+from typing import Any, Dict, List, Tuple
 from unittest.mock import MagicMock
 
 import boto3
 import pytest
 from botocore.response import StreamingBody
-from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation import using_attributes
 from openinference.instrumentation.bedrock import (
     _MINIMUM_CONVERSE_BOTOCORE_VERSION,
-    BedrockInstrumentor,
 )
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
-@pytest.fixture()
+@pytest.fixture
 def image_bytes_and_format() -> Tuple[bytes, str]:
     return (
         b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",  # noqa: E501
@@ -32,17 +28,17 @@ def image_bytes_and_format() -> Tuple[bytes, str]:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_id() -> str:
     return "my-test-session-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def user_id() -> str:
     return "my-test-user-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def metadata() -> Dict[str, Any]:
     return {
         "test-int": 1,
@@ -55,7 +51,7 @@ def metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 
@@ -80,36 +76,6 @@ def prompt_template_variables() -> Dict[str, Any]:
         "var_str": "2",
         "var_list": [1, 2, 3],
     }
-
-
-@pytest.fixture(scope="module")
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = trace_sdk.TracerProvider(resource=resource)
-    span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
-    tracer_provider.add_span_processor(span_processor=span_processor)
-    return tracer_provider
-
-
-@pytest.fixture(scope="module")
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    BedrockInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
-
-
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer() -> None:
-    assert isinstance(BedrockInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])

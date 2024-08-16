@@ -33,6 +33,7 @@ from openinference.semconv.trace import (
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import get_tracer
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeGuard
 from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
@@ -68,11 +69,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        self._tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
-
+        self._tracer = OITracer(get_tracer(__name__, __version__, tracer_provider), config=config)
         # Instrument LM (language model) calls
         from dsp.modules.lm import LM
 

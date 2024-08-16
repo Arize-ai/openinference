@@ -11,6 +11,7 @@ from openinference.instrumentation.openai.package import _instruments
 from openinference.instrumentation.openai.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import get_tracer
 from wrapt import wrap_function_wrapper
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
     """
 
     __slots__ = (
+        "_tracer",
         "_original_request",
         "_original_async_request",
     )
@@ -39,22 +41,19 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
+        self._tracer = OITracer(get_tracer(__name__, __version__, tracer_provider), config=config)
         openai = import_module(_MODULE)
         self._original_request = openai.OpenAI.request
         self._original_async_request = openai.AsyncOpenAI.request
         wrap_function_wrapper(
             module=_MODULE,
             name="OpenAI.request",
-            wrapper=_Request(tracer=tracer, openai=openai),
+            wrapper=_Request(tracer=self._tracer, openai=openai),
         )
         wrap_function_wrapper(
             module=_MODULE,
             name="AsyncOpenAI.request",
-            wrapper=_AsyncRequest(tracer=tracer, openai=openai),
+            wrapper=_AsyncRequest(tracer=self._tracer, openai=openai),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

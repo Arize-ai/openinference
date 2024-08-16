@@ -12,6 +12,7 @@ from openinference.instrumentation.guardrails._wrap_guard_call import (
 from openinference.instrumentation.guardrails.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import get_tracer
 from wrapt import ObjectProxy, wrap_function_wrapper
 
 import guardrails as gd
@@ -54,11 +55,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        self._tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
-
+        self._tracer = OITracer(get_tracer(__name__, __version__, tracer_provider), config=config)
         gd.guard.contextvars = _Contextvars(gd.guard.contextvars)
         gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
         for name in ("pydantic", "string", "rail_string", "rail"):
