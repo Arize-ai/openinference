@@ -174,7 +174,7 @@ const getEmbeddingAttributes = ({
   if (typeof attributeValue === "string") {
     return {
       [`${EMBEDDING_PREFIX}.0.${openInferenceSemanticConvention}`]:
-        attributeValue,
+        formatEmbeddingValue(attributeValue),
     };
   }
   if (isStringArray(attributeValue)) {

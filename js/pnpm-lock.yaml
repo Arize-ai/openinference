@@ -176,7 +176,7 @@ importers:
 
   packages/openinference-semantic-conventions: {}
 
-  packages/openinference-vercel-ai-sdk-span-processor:
+  packages/openinference-span-exporter:
     dependencies:
       '@arizeai/openinference-core':
         specifier: workspace:*
