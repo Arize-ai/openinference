@@ -14,6 +14,7 @@ from openinference.instrumentation.mistralai.package import _instruments
 from openinference.instrumentation.mistralai.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import get_tracer
 from wrapt import wrap_function_wrapper
 
 logger = logging.getLogger(__name__)
@@ -45,11 +46,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        self._tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
-
+        self._tracer = OITracer(get_tracer(__name__, __version__, tracer_provider), config=config)
         try:
             import mistralai
             from mistralai.async_client import MistralAsyncClient

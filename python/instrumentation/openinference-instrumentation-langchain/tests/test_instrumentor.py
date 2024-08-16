@@ -755,17 +755,17 @@ def _check_context_attributes(
         assert x
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_id() -> str:
     return "my-test-session-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def user_id() -> str:
     return "my-test-user-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def metadata() -> Dict[str, Any]:
     return {
         "test-int": 1,
@@ -778,7 +778,7 @@ def metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 

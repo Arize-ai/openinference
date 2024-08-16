@@ -7,7 +7,7 @@ from openinference.instrumentation.langchain.package import _instruments
 from openinference.instrumentation.langchain.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.trace import Span
+from opentelemetry.trace import Span, get_tracer
 from wrapt import wrap_function_wrapper  # type: ignore
 
 if TYPE_CHECKING:
@@ -39,10 +39,7 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         import langchain_core
         from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 
-        tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
+        tracer = OITracer(get_tracer(__name__, __version__, tracer_provider), config=config)
         self._tracer: Optional[OpenInferenceTracer] = OpenInferenceTracer(tracer)
         self._original_callback_manager_init = langchain_core.callbacks.BaseCallbackManager.__init__
         wrap_function_wrapper(

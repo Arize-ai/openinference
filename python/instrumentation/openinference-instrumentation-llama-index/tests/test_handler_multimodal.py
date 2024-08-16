@@ -8,13 +8,11 @@ from contextlib import suppress
 from contextvars import copy_context
 from functools import partial
 from importlib.metadata import version
-from itertools import count
 from typing import (
     Any,
     AsyncIterator,
     DefaultDict,
     Dict,
-    Generator,
     Iterable,
     Iterator,
     List,
@@ -34,7 +32,6 @@ from llama_index.llms.openai import OpenAI  # type: ignore
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal  # type: ignore
 from llama_index.multi_modal_llms.openai import utils as openai_utils
 from openinference.instrumentation import using_attributes
-from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -177,8 +174,17 @@ def test_handler_multimodal(
     for span in spans:
         traces[span.context.trace_id][span.name] = span
 
-    assert len(traces) == n
+    if is_stream:
+        # OpenAIInstrumentor is on a separate trace because no span
+        # is open when the stream iteration starts.
+        assert len(traces) == n * 2
+    else:
+        assert len(traces) == n
     for spans_by_name in traces.values():
+        if is_stream and len(spans_by_name) == 1 and "ChatCompletion" in spans_by_name:
+            # This is the span from the OpenAIInstrumentor. It's on a separate
+            # trace because no span is open when the stream iteration starts.
+            continue
         if is_stream:
             if is_async:
                 name = "OpenAIMultiModal.astream_chat"
@@ -307,17 +313,17 @@ def _check_context_attributes(
     assert list(attr_tags) == tags
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_id() -> str:
     return "my-test-session-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def user_id() -> str:
     return "my-test-user-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def metadata() -> Dict[str, Any]:
     return {
         "test-int": 1,
@@ -330,7 +336,7 @@ def metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 
@@ -355,37 +361,6 @@ def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
         ],
         [{"role": "assistant", "content": "ABC"}],
     )
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    LlamaIndexInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
-
-
-@pytest.fixture(autouse=True)
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-")
-
-
-@pytest.fixture(scope="module")
-def seed() -> Iterator[int]:
-    """
-    Use rolling seeds to help debugging, because the rolling pseudo-random values
-    allow conditional breakpoints to be hit precisely (and repeatably).
-    """
-    return count()
-
-
-@pytest.fixture(autouse=True)
-def set_seed(seed: Iterator[int]) -> Iterator[None]:
-    random.seed(next(seed))
-    yield
 
 
 def randstr() -> str:

@@ -1,5 +1,5 @@
 from importlib.metadata import version
-from typing import Any, Generator, Tuple, cast
+from typing import Any, Tuple, cast
 from unittest.mock import patch
 
 import guardrails
@@ -12,9 +12,7 @@ from guardrails.validator_base import (  # type: ignore[import-untyped]
     Validator,
     register_validator,
 )
-from openinference.instrumentation import OITracer
 from openinference.instrumentation.guardrails import GuardrailsInstrumentor
-from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydash.strings import words as _words
 
@@ -49,31 +47,13 @@ class TwoWords(Validator):  # type: ignore[misc]
         return PassResult()
 
 
-@pytest.fixture()
-def setup_guardrails_instrumentation(
-    tracer_provider: TracerProvider,
-) -> Generator[None, None, None]:
-    GuardrailsInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    GuardrailsInstrumentor().uninstrument()
-
-
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(
-    setup_guardrails_instrumentation: Any,
-) -> None:
-    assert isinstance(GuardrailsInstrumentor()._tracer, OITracer)
-
-
 @patch(
     "guardrails.llm_providers.ArbitraryCallable._invoke_llm",
     return_value=LLMResponse(output="More Than Two"),
 )
 def test_guardrails_instrumentation(
     mock_invoke_llm: Any,
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-    setup_guardrails_instrumentation: Any,
 ) -> None:
     # we expect the guard to raise an exception here because the mock LLMResponse has more
     # than two words
@@ -116,16 +96,13 @@ def test_guardrails_instrumentation(
             assert not span.status.is_ok, "guard_parse span status should not be OK"
 
 
-def test_guardrails_uninstrumentation(tracer_provider: TracerProvider) -> None:
+def test_guardrails_uninstrumentation() -> None:
     # Store references to the original functions
     original_prompt_callable_base_call = guardrails.llm_providers.PromptCallableBase.__call__
     original_runner_step = guardrails.run.Runner.step
     original_validator_service_base_after_run_validator = (
         guardrails.validator_service.ValidatorServiceBase.after_run_validator
     )
-
-    # Instrument the Guardrails to wrap methods
-    GuardrailsInstrumentor().instrument(tracer_provider=tracer_provider)
 
     # Ensure methods are wrapped
     assert hasattr(

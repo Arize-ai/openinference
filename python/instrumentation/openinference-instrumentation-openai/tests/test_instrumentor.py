@@ -36,7 +36,6 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
@@ -931,17 +930,17 @@ def _check_context_attributes(
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_id() -> str:
     return "my-test-session-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def user_id() -> str:
     return "my-test-user-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def metadata() -> Dict[str, Any]:
     return {
         "test-int": 1,
@@ -954,7 +953,7 @@ def metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 
@@ -979,19 +978,6 @@ def prompt_template_variables() -> Dict[str, Any]:
         "var_str": "2",
         "var_list": [1, 2, 3],
     }
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Iterator[None]:
-    HTTPXClientInstrumentor().instrument(tracer_provider=tracer_provider)
-    OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    OpenAIInstrumentor().uninstrument()
-    HTTPXClientInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
 
 
 @pytest.fixture(scope="module")

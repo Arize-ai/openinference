@@ -39,7 +39,7 @@ def event_loop_policy() -> BaseDefaultEventLoopPolicy:
     return uvloop.EventLoopPolicy()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def vcr_config() -> Dict[str, Any]:
     return dict(
         before_record_request=lambda _: _.headers.clear() or _,

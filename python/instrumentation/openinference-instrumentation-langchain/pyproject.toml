@@ -42,10 +42,9 @@ test = [
   "langchain == 0.1.0",
   "langchain-openai == 0.0.2",
   "langchain-community == 0.0.10",
-  "opentelemetry-sdk",
   "respx",
 ]
-latest = [
+unpinned = [
   "langchain-core",
   "langchain",
   "langchain-openai",
@@ -64,7 +63,6 @@ path = "src/openinference/instrumentation/langchain/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]

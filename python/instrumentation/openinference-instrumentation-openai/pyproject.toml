@@ -40,12 +40,11 @@ instruments = [
 ]
 test = [
   "openai == 1.0.0",
-  "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "respx",
   "numpy",
 ]
-latest = [
+unpinned = [
   "openai",
 ]
 
@@ -58,7 +57,6 @@ path = "src/openinference/instrumentation/openai/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]

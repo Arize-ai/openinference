@@ -3,7 +3,6 @@ from typing import (
     Any,
     AsyncIterator,
     Dict,
-    Generator,
     Iterable,
     Iterator,
     List,
@@ -25,8 +24,7 @@ from mistralai.models.chat_completion import (
     ToolCall,
     ToolChoice,
 )
-from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.mistralai import MistralAIInstrumentor
+from openinference.instrumentation import using_attributes
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
@@ -35,14 +33,8 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
-
-
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer() -> None:
-    assert isinstance(MistralAIInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -580,7 +572,6 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
     assert attributes == {}  # test should account for all span attributes
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_chat_completions_emits_expected_span(
     use_context_attributes: bool,
@@ -708,7 +699,6 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     assert attributes == {}  # test should account for all span attributes
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_error(
     use_context_attributes: bool,
@@ -915,7 +905,6 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes == {}  # test should account for all span attributes
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     use_context_attributes: bool,
@@ -1201,17 +1190,17 @@ def _check_context_attributes(
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_id() -> str:
     return "my-test-session-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def user_id() -> str:
     return "my-test-user-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def metadata() -> Dict[str, Any]:
     return {
         "test-int": 1,
@@ -1224,7 +1213,7 @@ def metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 
@@ -1259,17 +1248,6 @@ def mistral_sync_client() -> MistralClient:
 @pytest.fixture(scope="module")
 def mistral_async_client() -> MistralAsyncClient:
     return MistralAsyncClient(api_key="123")
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    MistralAIInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
 
 
 @pytest.fixture

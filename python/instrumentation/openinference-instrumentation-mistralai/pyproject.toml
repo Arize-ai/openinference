@@ -38,11 +38,10 @@ instruments = [
 ]
 test = [
   "mistralai<0.2",
-  "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "respx",
 ]
-latest = [
+unpinned = [
   "mistralai",
 ]
 
@@ -55,7 +54,6 @@ path = "src/openinference/instrumentation/mistralai/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]

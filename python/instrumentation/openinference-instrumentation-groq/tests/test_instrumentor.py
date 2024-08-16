@@ -2,7 +2,6 @@ import asyncio
 from typing import (
     Any,
     Dict,
-    Generator,
     List,
     Optional,
     Type,
@@ -21,10 +20,9 @@ from groq.types.chat.chat_completion import (  # type: ignore[attr-defined]
     Choice,
 )
 from groq.types.completion_usage import CompletionUsage
-from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation import using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
 from openinference.semconv.trace import SpanAttributes
-from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 mock_completion = ChatCompletion(
@@ -95,17 +93,17 @@ async def _async_mock_post(
     return cast(ResponseT, mock_completion)
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_id() -> str:
     return "my-test-session-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def user_id() -> str:
     return "my-test-user-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def metadata() -> Dict[str, Any]:
     return {
         "test-int": 1,
@@ -118,7 +116,7 @@ def metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 
@@ -145,15 +143,6 @@ def prompt_template_variables() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
-def setup_groq_instrumentation(
-    tracer_provider: TracerProvider,
-) -> Generator[None, None, None]:
-    GroqInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    GroqInstrumentor().uninstrument()
-
-
 def _check_context_attributes(
     attributes: Any,
 ) -> None:
@@ -167,9 +156,7 @@ def _check_context_attributes(
 
 
 def test_groq_instrumentation(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-    setup_groq_instrumentation: Any,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -212,9 +199,7 @@ def test_groq_instrumentation(
 
 
 def test_groq_async_instrumentation(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-    setup_groq_instrumentation: Any,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -260,11 +245,7 @@ def test_groq_async_instrumentation(
         )
 
 
-def test_groq_uninstrumentation(
-    tracer_provider: TracerProvider,
-) -> None:
-    GroqInstrumentor().instrument(tracer_provider=tracer_provider)
-
+def test_groq_uninstrumentation() -> None:
     assert hasattr(Completions.create, "__wrapped__")
     assert hasattr(AsyncCompletions.create, "__wrapped__")
 
@@ -272,13 +253,6 @@ def test_groq_uninstrumentation(
 
     assert not hasattr(Completions.create, "__wrapped__")
     assert not hasattr(AsyncCompletions.create, "__wrapped__")
-
-
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(
-    setup_groq_instrumentation: Any,
-) -> None:
-    assert isinstance(GroqInstrumentor()._tracer, OITracer)
 
 
 SESSION_ID = SpanAttributes.SESSION_ID

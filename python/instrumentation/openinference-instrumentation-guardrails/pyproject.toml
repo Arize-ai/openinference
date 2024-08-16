@@ -39,10 +39,9 @@ instruments = [
 ]
 test = [
   "guardrails-ai == 0.4.5",
-  "opentelemetry-sdk",
   "responses",
 ]
-latest = [
+unpinned = [
   "guardrails-ai",
 ]
 

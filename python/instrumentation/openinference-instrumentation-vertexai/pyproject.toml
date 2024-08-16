@@ -39,9 +39,8 @@ instruments = [
 ]
 test = [
   "vertexai == 1.49.0",
-  "opentelemetry-sdk",
 ]
-latest = [
+unpinned = [
   "vertexai",
 ]
 
@@ -54,7 +53,6 @@ path = "src/openinference/instrumentation/vertexai/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]

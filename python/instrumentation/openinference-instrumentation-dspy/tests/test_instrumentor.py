@@ -3,7 +3,6 @@ from importlib.metadata import version
 from typing import (
     Any,
     Dict,
-    Generator,
     List,
     Mapping,
     Tuple,
@@ -15,7 +14,6 @@ import dspy
 import pytest
 import responses
 import respx
-from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
 from dspy.primitives.assertions import (
     assert_transform_module,
     backtrack_handler,
@@ -24,8 +22,7 @@ from dspy.teleprompt import BootstrapFewShotWithRandomSearch
 from google.generativeai import GenerativeModel  # type: ignore
 from google.generativeai.types import GenerateContentResponse  # type: ignore
 from httpx import Response
-from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.dspy import DSPyInstrumentor
+from openinference.instrumentation import using_attributes
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -35,14 +32,13 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 
 VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy-ai").split(".")[:3])))
 
 
-@pytest.fixture()
+@pytest.fixture
 def documents() -> List[Dict[str, Any]]:
     return [
         {
@@ -72,17 +68,17 @@ def documents() -> List[Dict[str, Any]]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_id() -> str:
     return "my-test-session-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def user_id() -> str:
     return "my-test-user-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def metadata() -> Dict[str, Any]:
     return {
         "test-int": 1,
@@ -95,7 +91,7 @@ def metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 
@@ -120,33 +116,6 @@ def prompt_template_variables() -> Dict[str, Any]:
         "var_str": "2",
         "var_list": [1, 2, 3],
     }
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    DSPyInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    DSPyInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
-
-
-@pytest.fixture(autouse=True)
-def clear_cache() -> None:
-    """
-    DSPy caches responses from retrieval and language models to disk. This
-    fixture clears the cache before each test case to ensure that our mocked
-    responses are used.
-    """
-    CacheMemory.clear()
-    NotebookCacheMemory.clear()
-
-
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer() -> None:
-    assert isinstance(DSPyInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])

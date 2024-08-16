@@ -44,7 +44,7 @@ test = [
     "cohere-haystack",
     "respx",
 ]
-latest = [
+unpinned = [
   "haystack-ai",
   "cohere-haystack",
 ]

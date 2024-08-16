@@ -6,13 +6,11 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from importlib.metadata import version
-from itertools import count
 from typing import (
     Any,
     AsyncIterator,
     DefaultDict,
     Dict,
-    Generator,
     Iterable,
     Iterator,
     List,
@@ -31,6 +29,7 @@ from llama_index.core.schema import TextNode
 from llama_index.llms.openai import OpenAI  # type: ignore
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -308,17 +307,17 @@ def _check_context_attributes(
     assert list(attr_tags) == tags
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_id() -> str:
     return "my-test-session-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def user_id() -> str:
     return "my-test-user-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def metadata() -> Dict[str, Any]:
     return {
         "test-int": 1,
@@ -331,7 +330,7 @@ def metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 
@@ -359,37 +358,18 @@ def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
 
 
 @pytest.fixture(autouse=True)
-def instrument(
+def use_legacy_callback_handler(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
+) -> Iterator[None]:
+    OpenAIInstrumentor().uninstrument()
+    LlamaIndexInstrumentor().uninstrument()
     LlamaIndexInstrumentor().instrument(
         tracer_provider=tracer_provider,
         use_legacy_callback_handler=True,
     )
     yield
     LlamaIndexInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
-
-
-@pytest.fixture(autouse=True)
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-")
-
-
-@pytest.fixture(scope="module")
-def seed() -> Iterator[int]:
-    """
-    Use rolling seeds to help debugging, because the rolling pseudo-random values
-    allow conditional breakpoints to be hit precisely (and repeatably).
-    """
-    return count()
-
-
-@pytest.fixture(autouse=True)
-def set_seed(seed: Iterator[int]) -> Iterator[None]:
-    random.seed(next(seed))
-    yield
 
 
 def randstr() -> str:

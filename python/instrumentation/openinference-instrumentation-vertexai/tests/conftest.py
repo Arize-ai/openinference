@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from asyncio.events import BaseDefaultEventLoopPolicy
-from typing import Any, Dict, Generator, cast
+from typing import Any, Dict, Iterator, cast
 
 import pytest
 from openinference.instrumentation.vertexai import VertexAIInstrumentor
@@ -41,7 +41,7 @@ def event_loop_policy() -> BaseDefaultEventLoopPolicy:
     return uvloop.EventLoopPolicy()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def vcr_config() -> Dict[str, Any]:
     return dict(
         before_record_request=lambda _: _.headers.clear() or _,
@@ -59,9 +59,7 @@ def tracer(tracer_provider: TracerProvider) -> Tracer:
 @pytest.fixture(autouse=True)
 def instrument(
     tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
+) -> Iterator[None]:
     VertexAIInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     VertexAIInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()

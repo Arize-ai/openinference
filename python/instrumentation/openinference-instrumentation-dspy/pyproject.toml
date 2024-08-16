@@ -40,12 +40,12 @@ instruments = [
 test = [
   "dspy-ai==2.3.4",
   "google-generativeai",
-  "opentelemetry-sdk",
   "responses",
   "respx==0.20.2",
 ]
-latest = [
+unpinned = [
   "dspy-ai",
+  "google-generativeai",
 ]
 
 [project.urls]
@@ -57,7 +57,6 @@ path = "src/openinference/instrumentation/dspy/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -42,7 +42,7 @@ def event_loop_policy() -> BaseDefaultEventLoopPolicy:
     return uvloop.EventLoopPolicy()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def vcr_config() -> Dict[str, Any]:
     return dict(
         before_record_request=lambda _: _.headers.clear() or _,
@@ -55,7 +55,6 @@ def vcr_config() -> Dict[str, Any]:
 @pytest.fixture(autouse=True)
 def instrument(
     tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
 ) -> Iterator[None]:
     LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
@@ -63,7 +62,7 @@ def instrument(
 
 
 @pytest.fixture(autouse=True)
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-")
 
 

@@ -45,10 +45,9 @@ test = [
   "llama-index-llms-openai",
   "llama-index-multi-modal-llms-openai>=0.1.7",
   "openinference-instrumentation-openai",
-  "opentelemetry-sdk",
   "respx",
 ]
-latest = [
+unpinned = [
   "llama-index",
   "llama-index-core",
   "llama-index-llms-openai",
@@ -64,7 +63,6 @@ path = "src/openinference/instrumentation/llama_index/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]

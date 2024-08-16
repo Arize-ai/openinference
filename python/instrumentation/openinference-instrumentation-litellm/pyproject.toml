@@ -36,11 +36,10 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "litellm",
-  "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "tenacity",
 ]
-latest = [
+unpinned = [
   "litellm",
 ]
 
@@ -53,7 +52,6 @@ path = "src/openinference/instrumentation/litellm/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]

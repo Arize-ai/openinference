@@ -1,41 +1,16 @@
 import json
-from typing import Any, Dict, Generator, List, Mapping, cast
+from typing import Any, Dict, List, Mapping, cast
 
 import pytest
-from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.semconv.trace import (
-    SpanAttributes,
-)
-from opentelemetry.sdk.trace import TracerProvider
+from openinference.instrumentation import using_attributes
+from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 
 
-@pytest.fixture()
-def setup_crewai_instrumentation(
-    tracer_provider: TracerProvider,
-) -> Generator[None, None, None]:
-    CrewAIInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    CrewAIInstrumentor().uninstrument()
-
-
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_crewai_instrumentation: Any,
-) -> None:
-    in_memory_span_exporter.clear()
-    assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
-
-
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_crewai_instrumentation(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-    setup_crewai_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -109,17 +84,17 @@ def _check_context_attributes(
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_id() -> str:
     return "my-test-session-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def user_id() -> str:
     return "my-test-user-id"
 
 
-@pytest.fixture()
+@pytest.fixture
 def metadata() -> Dict[str, Any]:
     return {
         "test-int": 1,
@@ -132,7 +107,7 @@ def metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def tags() -> List[str]:
     return ["tag-1", "tag-2"]
 

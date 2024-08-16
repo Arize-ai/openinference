@@ -30,10 +30,7 @@ class VertexAIInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        tracer = OITracer(
-            get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
+        self._tracer = OITracer(get_tracer(__name__, __version__, tracer_provider), config=config)
         self._status._IS_INSTRUMENTED = True
         import google.api_core.gapic_v1 as gapic
         from openinference.instrumentation.vertexai._wrapper import _Wrapper
@@ -42,7 +39,7 @@ class VertexAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrap_function_wrapper(
                 module=method.__module__,
                 name=method.__name__,
-                wrapper=lambda f, _, args, kwargs: _Wrapper(tracer)(f(*args, **kwargs)),
+                wrapper=lambda f, _, args, kwargs: _Wrapper(self._tracer)(f(*args, **kwargs)),
             )
 
     def _uninstrument(self, **kwargs: Any) -> None:

@@ -1,9 +1,10 @@
 import asyncio
 import logging
 from asyncio.events import BaseDefaultEventLoopPolicy
-from typing import Any, Dict
+from typing import Any, Dict, Iterator
 
 import pytest
+from openinference.instrumentation.haystack import HaystackInstrumentor
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -39,7 +40,7 @@ def event_loop_policy() -> BaseDefaultEventLoopPolicy:
     return uvloop.EventLoopPolicy()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def vcr_config() -> Dict[str, Any]:
     return dict(
         before_record_request=lambda _: _.headers.clear() or _,
@@ -47,3 +48,19 @@ def vcr_config() -> Dict[str, Any]:
         decode_compressed_response=True,
         ignore_localhost=True,
     )
+
+
+@pytest.fixture(autouse=True)
+def instrument(
+    tracer_provider: TracerProvider,
+) -> Iterator[None]:
+    HaystackInstrumentor().instrument(tracer_provider=tracer_provider)
+    yield
+    HaystackInstrumentor().uninstrument()
+
+
+@pytest.fixture(autouse=True)
+def api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-")
+    monkeypatch.setenv("SERPERDEV_API_KEY", "sk-")
+    monkeypatch.setenv("COHERE_API_KEY", "sk-")
