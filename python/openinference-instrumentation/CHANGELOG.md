@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.14...python-openinference-instrumentation-v0.1.15) (2024-08-16)
+
+
+### Features
+
+* attribute prioritization ([#906](https://github.com/Arize-ai/openinference/issues/906)) ([0add042](https://github.com/Arize-ai/openinference/commit/0add0421b5f0d9b64c579027c469513359863a68))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.13...python-openinference-instrumentation-v0.1.14) (2024-08-15)
 
 
