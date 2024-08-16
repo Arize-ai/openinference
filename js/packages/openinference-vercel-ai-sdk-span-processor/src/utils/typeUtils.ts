@@ -14,3 +14,11 @@ export const isArrayOfObjects = (
   value: unknown,
 ): value is Record<string, unknown>[] =>
   Array.isArray(value) && value.every(isObjectWithStringKeys);
+
+export const assertUnreachable = (x: never): never => {
+  throw new Error("Unexpected value: " + x);
+};
+
+export type Mutable<T> = { -readonly [P in keyof T]: T[P] };
+
+export type ValueOf<T> = T[keyof T];

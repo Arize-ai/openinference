@@ -37,6 +37,7 @@
   "dependencies": {
     "@arizeai/openinference-core": "workspace:*",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
+    "@opentelemetry/core": "^1.25.1",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.52.1",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",

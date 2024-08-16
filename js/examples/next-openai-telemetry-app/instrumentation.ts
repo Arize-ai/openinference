@@ -3,7 +3,7 @@ import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { OpenInferenceProtoTraceExporter } from "../../packages/openinference-vercel-ai-sdk-span-processor/src/OpenInferenceSpanExporter";
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+// diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 export function register() {
   registerOTel({

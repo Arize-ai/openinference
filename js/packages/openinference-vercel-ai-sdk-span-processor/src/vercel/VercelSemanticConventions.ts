@@ -1,4 +1,4 @@
-import { ValueOf } from "./types";
+import { ValueOf } from "../utils/typeUtils";
 
 /**
  * Below are the semantic conventions for @vercel/otel instrumentation.
@@ -76,6 +76,10 @@ const TOOL_CALL_NAME =
 const TOOL_CALL_ARGS =
   `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.toolCall}.${VercelToolCallPostfixes.args}` as const;
 
+/**
+ * The semantic conventions used by @vercel/otel instrumentation.
+ * @see https://sdk.vercel.ai/docs/ai-sdk-core/telemetry#collected-data
+ */
 export const VercelSemanticConventions = {
   MODEL_ID,
   METADATA,
