@@ -239,9 +239,11 @@ def _get_component_type(component: Component) -> ComponentType:
         return ComponentType.GENERATOR
     elif "Embedder" in component_name:
         return ComponentType.EMBEDDER
-    elif "Ranker" in component_name or _has_ranker_io_types(run_method):
+    elif "Ranker" in component_name and _has_ranker_io_types(run_method):
         return ComponentType.RANKER
-    elif "Retriever" in component_name or _has_retriever_io_types(run_method):
+    elif (
+        "Retriever" in component_name or "WebSearch" in component_name
+    ) and _has_retriever_io_types(run_method):
         return ComponentType.RETRIEVER
     elif isinstance(component, PromptBuilder):
         return ComponentType.PROMPT_BUILDER
