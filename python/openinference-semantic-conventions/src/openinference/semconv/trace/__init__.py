@@ -272,6 +272,7 @@ class ToolCallAttributes:
     during a tool call.
     """
 
+
 class ToolAttributes:
     """
     Attributes for a tools
@@ -281,6 +282,7 @@ class ToolAttributes:
     """
     The json schema of the input tools
     """
+
 
 class OpenInferenceSpanKindValues(Enum):
     TOOL = "TOOL"
