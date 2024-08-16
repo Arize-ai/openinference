@@ -1,14 +1,13 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
-from functools import partial
-from inspect import signature
 from typing import (
     Any,
     Callable,
     Dict,
     Iterator,
     Optional,
+    Sequence,
     Union,
     cast,
     get_args,
@@ -22,15 +21,15 @@ from openinference.semconv.trace import (
     MessageContentAttributes,
     SpanAttributes,
 )
-from opentelemetry import trace as trace_api
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
+    Context,
     attach,
     detach,
     set_value,
 )
-from opentelemetry.trace import Tracer
-from opentelemetry.util.types import AttributeValue
+from opentelemetry.trace import Link, Span, SpanKind, Tracer, use_span
+from opentelemetry.util.types import Attributes, AttributeValue
 
 from .logging import logger
 
@@ -197,7 +196,7 @@ class TraceConfig:
         self,
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
-    ) -> Optional[Union[AttributeValue, Callable[[], AttributeValue]]]:
+    ) -> Optional[AttributeValue]:
         if self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
@@ -260,7 +259,7 @@ class TraceConfig:
             and EmbeddingAttributes.EMBEDDING_VECTOR in key
         ):
             return
-        return value
+        return value() if callable(value) else value
 
     def _parse_value(
         self,
@@ -308,10 +307,16 @@ class TraceConfig:
             return cast_to(value)
 
 
-class _MaskedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
-    def __init__(self, wrapped: trace_api.Span, config: TraceConfig) -> None:
+_IMPORTANT_ATTRIBUTES = [
+    SpanAttributes.OPENINFERENCE_SPAN_KIND,
+]
+
+
+class _WrappedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
+    def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
+        self._self_important_attributes: Dict[str, AttributeValue] = {}
 
     def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
         for k, v in attributes.items():
@@ -324,36 +329,78 @@ class _MaskedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
     ) -> None:
         value = self._self_config.mask(key, value)
         if value is not None:
-            span = self.__wrapped__
-            span.set_attribute(key, value)
+            if key in _IMPORTANT_ATTRIBUTES:
+                self._self_important_attributes[key] = value
+            else:
+                span = cast(Span, self.__wrapped__)
+                span.set_attribute(key, value)
 
-
-class _TracerSignatures:
-    # remove `self` via partial
-    start_as_current_span = signature(partial(Tracer.start_as_current_span, None))
-    start_span = signature(partial(Tracer.start_span, None))
+    def end(self, end_time: Optional[int] = None) -> None:
+        span = cast(Span, self.__wrapped__)
+        for k, v in reversed(self._self_important_attributes.items()):
+            span.set_attribute(k, v)
+        span.end(end_time)
 
 
 class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
-    def __init__(self, wrapped: trace_api.Tracer, config: TraceConfig) -> None:
+    def __init__(self, wrapped: Tracer, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
 
     @contextmanager
-    def start_as_current_span(self, *args: Any, **kwargs: Any) -> Iterator[trace_api.Span]:
-        kwargs = _TracerSignatures.start_as_current_span.bind(*args, **kwargs).arguments
-        attributes = cast(Optional[Dict[str, AttributeValue]], kwargs.pop("attributes", None))
-        with self.__wrapped__.start_as_current_span(**kwargs) as span:
-            span = _MaskedSpan(span, self._self_config)
-            if attributes:
-                span.set_attributes(attributes)
+    def start_as_current_span(
+        self,
+        name: str,
+        context: Optional[Context] = None,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Attributes = None,
+        links: Optional[Sequence[Link]] = (),
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+        end_on_exit: bool = True,
+    ) -> Iterator[Span]:
+        span = self.start_span(
+            name=name,
+            context=context,
+            kind=kind,
+            attributes=attributes,
+            links=links,
+            start_time=start_time,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        )
+        with use_span(
+            span,
+            end_on_exit=end_on_exit,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        ) as span:
             yield span
 
-    def start_span(self, *args: Any, **kwargs: Any) -> trace_api.Span:
-        kwargs = _TracerSignatures.start_span.bind(*args, **kwargs).arguments
-        attributes = cast(Optional[Dict[str, AttributeValue]], kwargs.pop("attributes", None))
-        span = self.__wrapped__.start_span(**kwargs)
-        span = _MaskedSpan(span, config=self._self_config)
+    def start_span(
+        self,
+        name: str,
+        context: Optional[Context] = None,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Attributes = None,
+        links: Optional[Sequence[Link]] = (),
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+    ) -> Span:
+        tracer = cast(Tracer, self.__wrapped__)
+        span = tracer.start_span(
+            name=name,
+            context=context,
+            kind=kind,
+            attributes=None,
+            links=links,
+            start_time=start_time,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        )
+        span = _WrappedSpan(span, config=self._self_config)
         if attributes:
             span.set_attributes(attributes)
         return span
