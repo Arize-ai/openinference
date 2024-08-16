@@ -1,7 +1,5 @@
 import { addOpenInferenceAttributesToSpans } from "./vercel/utils";
-import { OTLPTraceExporter as ProtoExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { OTLPTraceExporter as HttpExporter } from "@opentelemetry/exporter-trace-otlp-http";
-// import { OTLPTraceExporter as GrpcExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
 
 import { OTLPExporterNodeConfigBase } from "@opentelemetry/otlp-exporter-base";
 import { ReadableSpan } from "@opentelemetry/sdk-trace-base";

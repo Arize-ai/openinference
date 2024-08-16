@@ -1,5 +1,5 @@
 # OpenInference Vercel AI SDK Span Processor
 
-[![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-instrumentation.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel-ai-sdk-span-processor)
+[![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-instrumentation.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-trace-exporter)
 
-This package provides an OpenInference `SpanProcessor` for the [`@vercel/otel`](https://www.npmjs.com/package/@vercel/otel) package. The span processor appends OpenInference attributes to AI spans created by `@vercel/otel`.
+This package provides an OpenInference `TraceExporters`. The exporters append OpenInference attributes to AI spans created by [`@vercel/otel`](https://www.npmjs.com/package/@vercel/otel).
