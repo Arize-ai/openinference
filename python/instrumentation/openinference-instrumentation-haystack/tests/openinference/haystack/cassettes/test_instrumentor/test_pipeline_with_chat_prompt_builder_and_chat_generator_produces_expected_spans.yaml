@@ -1,0 +1,22 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "Answer concisely in one sentence."},
+      {"role": "user", "content": "What country is Berlin in?"}], "model": "gpt-4o",
+      "stream": false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-9wcf63ElMv37nCRAW9VlNU9BJKFZV\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1723758668,\n  \"model\": \"gpt-4o-2024-05-13\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Germany.\",\n        \"refusal\": null\n
+        \     },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
+        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 25,\n    \"completion_tokens\":
+        2,\n    \"total_tokens\": 27\n  },\n  \"system_fingerprint\": \"fp_3aa7262c27\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
