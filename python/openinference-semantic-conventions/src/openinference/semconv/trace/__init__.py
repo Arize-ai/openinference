@@ -76,7 +76,7 @@ class SpanAttributes:
 
     LLM_TOOLS = "llm.tools"
     """
-    List of tools
+    List of tools that are advertised to the LLM to be able to call
     """
 
     TOOL_NAME = "tool.name"
