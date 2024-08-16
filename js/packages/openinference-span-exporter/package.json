@@ -1,12 +1,12 @@
 {
-  "name": "@arizeai/openinference-vercel-ai-sdk-span-processor",
+  "name": "@arizeai/openinference-span-exporter",
   "version": "0.0.0",
   "private": false,
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
   "esnext": "dist/esnext/index.js",
   "types": "dist/src/index.d.ts",
-  "description": "OpenInference SpanProcessor for the Vercel AI SDK",
+  "description": "OpenInference SpanExporters",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
@@ -26,7 +26,7 @@
   ],
   "author": "oss-devs@arize.com",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-vercel-ai-sdk-span-processor",
+  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-span-exporter",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Arize-ai/openinference.git"
