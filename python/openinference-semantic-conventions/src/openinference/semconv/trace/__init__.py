@@ -280,7 +280,7 @@ class ToolAttributes:
 
     TOOL_JSON_SCHEMA = "tool.json_schema"
     """
-    The json schema of the input tools
+    The json schema of a tool input, It is RECOMMENDED that this be in the OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
     """
 
 
