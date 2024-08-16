@@ -312,6 +312,7 @@ class _MaskedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(self, wrapped: trace_api.Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
+        self._self_high_priority_attributes: Dict[str, AttributeValue] = {}
 
     def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
         for k, v in attributes.items():
@@ -323,9 +324,29 @@ class _MaskedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> None:
         value = self._self_config.mask(key, value)
-        if value is not None:
-            span = self.__wrapped__
+        if value is None:
+            return
+        span = self.__wrapped__
+        if _is_high_priority(key):
+            self._self_high_priority_attributes[key] = value
+        else:
             span.set_attribute(key, value)
+
+    def end(self, end_time: Optional[int] = None) -> None:
+        span = self.__wrapped__
+        for key, value in self._self_high_priority_attributes.items():
+            span.set_attribute(key, value)
+        span.end(end_time=end_time)
+
+
+def _is_high_priority(key: str) -> bool:
+    return key in (
+        SpanAttributes.OPENINFERENCE_SPAN_KIND,
+        SpanAttributes.INPUT_MIME_TYPE,
+        SpanAttributes.INPUT_VALUE,
+        SpanAttributes.OUTPUT_MIME_TYPE,
+        SpanAttributes.OUTPUT_VALUE,
+    )
 
 
 class _TracerSignatures:
@@ -348,6 +369,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             if attributes:
                 span.set_attributes(attributes)
             yield span
+            span.end()
 
     def start_span(self, *args: Any, **kwargs: Any) -> trace_api.Span:
         kwargs = _TracerSignatures.start_span.bind(*args, **kwargs).arguments

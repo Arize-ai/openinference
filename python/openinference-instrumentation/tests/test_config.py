@@ -23,8 +23,11 @@ from openinference.instrumentation.config import (
     REDACTED_VALUE,
     OITracer,
 )
+from openinference.semconv.trace import SpanAttributes
+from opentelemetry.sdk.trace import _Span
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
+from opentelemetry.util.types import AttributeValue
 
 
 def test_default_settings() -> None:
@@ -46,8 +49,56 @@ def test_oi_tracer(
     tracer = OITracer(tracer_provider.get_tracer(__name__), TraceConfig(hide_inputs=True))
     with tracer.start_as_current_span("a", attributes={"input.value": "c"}):
         tracer.start_span("b", attributes={"input.value": "d"}).end()
-    for span in in_memory_span_exporter.get_finished_spans():
-        assert (span.attributes or {}).get("input.value") == REDACTED_VALUE
+    spans = in_memory_span_exporter.get_finished_spans()
+    for span in spans:
+        attributes = span.attributes or {}
+        assert attributes.get("input.value") == REDACTED_VALUE
+
+
+def test_oi_tracer_adds_high_priority_attributes_last(
+    tracer_provider: TracerProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    set_attribute_keys = []
+
+    def set_attribute(self: _Span, key: str, value: AttributeValue) -> None:
+        set_attribute_keys.append(key)
+
+    monkeypatch.setattr(_Span, "set_attribute", set_attribute)
+    tracer = OITracer(tracer_provider.get_tracer(__name__), TraceConfig())
+    with tracer.start_as_current_span(
+        "span-name-1",
+        attributes={
+            LLM_TOKEN_COUNT_TOTAL: 1,  # low priority
+            INPUT_VALUE: "input-value-1",  # high priority
+        },
+    ) as span:
+        span.set_attribute(OUTPUT_VALUE, "output-value-1")  # high priority
+        span.set_attribute(LLM_MODEL_NAME, "llm-model-name-1")  # low priority
+    span = tracer.start_span(
+        "span-name-2",
+        attributes={
+            LLM_TOKEN_COUNT_TOTAL: 2,  # low priority
+            INPUT_VALUE: "input-value-2",  # high priority
+        },
+    )
+    span.set_attributes(
+        {
+            OUTPUT_VALUE: "output-value-2",  # high priority
+            LLM_MODEL_NAME: "llm-model-name-2",  # low priority
+        }
+    )
+    span.end()
+    assert set(set_attribute_keys[:2]) == {
+        LLM_TOKEN_COUNT_TOTAL,
+        LLM_MODEL_NAME,
+    }
+    assert set(set_attribute_keys[2:4]) == {INPUT_VALUE, OUTPUT_VALUE}
+    assert set(set_attribute_keys[4:6]) == {
+        LLM_TOKEN_COUNT_TOTAL,
+        LLM_MODEL_NAME,
+    }
+    assert set(set_attribute_keys[6:]) == {INPUT_VALUE, OUTPUT_VALUE}
 
 
 @pytest.mark.parametrize("hide_inputs", [False, True])
@@ -128,3 +179,9 @@ def parse_bool_from_env(env_var: str) -> Optional[bool]:
         return False
     else:
         return None
+
+
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
