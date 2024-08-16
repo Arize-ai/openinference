@@ -25,8 +25,8 @@ if __name__ == "__main__":
     base64str = base64.b64encode(img_response.content).decode("utf-8")
     # Set up environment variables:
     os.environ["OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"] = str(
-        10_000
-    )  # Base64 encoded images with more than 10k character will appear as __REDACTED__
+        100_000
+    )  # Base64 encoded images with more than 100k character will appear as __REDACTED__
     os.environ["OPENINFERENCE_HIDE_INPUTS"] = str(True)  # Will hide all inputs
     config = TraceConfig(
         hide_inputs=False,  # Overwrites the environment value setting

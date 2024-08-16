@@ -3,6 +3,7 @@ from io import BytesIO
 import PIL
 import requests
 import vertexai
+from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.vertexai import VertexAIInstrumentor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -14,7 +15,10 @@ tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
-VertexAIInstrumentor().instrument(tracer_provider=tracer_provider)
+VertexAIInstrumentor().instrument(
+    tracer_provider=tracer_provider,
+    config=TraceConfig(base64_image_max_length=200_000),
+)
 vertexai.init(location="us-central1")
 model = GenerativeModel("gemini-1.5-flash")
 
