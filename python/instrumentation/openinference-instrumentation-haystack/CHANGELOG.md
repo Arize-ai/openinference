@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.7...python-openinference-instrumentation-haystack-v0.1.8) (2024-08-15)
+
+
+### Features
+
+* add re-ranker support in haystack ([#894](https://github.com/Arize-ai/openinference/issues/894)) ([88ab293](https://github.com/Arize-ai/openinference/commit/88ab29345e33508120a626374ff309d8dbd65bdb))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.6...python-openinference-instrumentation-haystack-v0.1.7) (2024-08-15)
 
 

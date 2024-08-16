@@ -40,12 +40,13 @@ instruments = [
   "haystack-ai >= 2.0.0",
 ]
 test = [
-  "haystack-ai >= 2.0.0",
-  "opentelemetry-sdk",
-  "respx",
+    "haystack-ai==2.3.1",
+    "cohere-haystack",
+    "respx",
 ]
 latest = [
   "haystack-ai",
+  "cohere-haystack",
 ]
 
 [project.urls]
