@@ -10,6 +10,7 @@ from typing import (
 )
 
 import pytest
+import anthropic
 from anthropic import Anthropic, AsyncAnthropic
 from anthropic._base_client import _StreamT
 from anthropic._types import Body, RequestFiles, RequestOptions, ResponseT
@@ -37,6 +38,39 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from wrapt import BoundFunctionWrapper
+
+
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
+
 
 mock_completion = Completion(
     id="chat_comp_0",
@@ -220,7 +254,11 @@ def _check_context_attributes(
     assert attributes.get(LLM_PROMPT_TEMPLATE_VERSION, None)
     assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
-
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_anthropic_instrumentation_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -233,34 +271,54 @@ def test_anthropic_instrumentation_completions(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
+    #client = Anthropic(api_key="fake")
+    #client.completions._post = _mock_post_generation  # type: ignore[assignment]
     client = Anthropic(api_key="fake")
-    client.completions._post = _mock_post_generation  # type: ignore[assignment]
 
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    ):
-        client.completions.create(
-            model="claude-2.1",
-            prompt="How does a court case get to the Supreme Court?",
-            max_tokens_to_sample=1000,
-        )
+    prompt = f"{anthropic.HUMAN_PROMPT} how does a court case get to the Supreme Court? {anthropic.AI_PROMPT}"
+
+    # with using_attributes(
+    #     session_id=session_id,
+    #     user_id=user_id,
+    #     metadata=metadata,
+    #     tags=tags,
+    #     prompt_template=prompt_template,
+    #     prompt_template_version=prompt_template_version,
+    #     prompt_template_variables=prompt_template_variables,
+    # ):
+    #     client.completions.create(
+    #         model="claude-2.1",
+    #         prompt=prompt,
+    #         max_tokens_to_sample=1000,
+    #     )
+
+    client.completions.create(
+        model="claude-2.1",
+        prompt=prompt,
+        max_tokens_to_sample=1000,
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "Completions"
     attributes = dict(spans[0].attributes or {})
 
-    assert attributes.get(OPENINFERENCE_SPAN_KIND) == "LLM"
-    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "idk"
-    assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_PROMPTS) == (prompt,)
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert not attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_anthropic_instrumentation_messages(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -298,7 +356,11 @@ def test_anthropic_instrumentation_messages(
     assert isinstance(attributes.get(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.get(LLM_TOKEN_COUNT_COMPLETION), int)
 
-
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 @pytest.mark.asyncio
 async def test_anthropic_instrumentation_async_completions(
     tracer_provider: TracerProvider,
@@ -331,6 +393,11 @@ async def test_anthropic_instrumentation_async_completions(
     assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 @pytest.mark.asyncio
 async def test_anthropic_instrumentation_async_messages(
     tracer_provider: TracerProvider,

@@ -42,7 +42,7 @@ instruments = [
 test = [
     "anthropic >= 0.25.0",
     "opentelemetry-sdk",
-    "responses",
+    "pytest.recording"
 ]
 
 [project.urls]

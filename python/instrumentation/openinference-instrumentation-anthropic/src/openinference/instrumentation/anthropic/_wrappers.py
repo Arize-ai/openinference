@@ -83,8 +83,8 @@ class _CompletionsWrapper(_WithTracer):
                     _flatten(
                         {
                             OPENINFERENCE_SPAN_KIND: LLM,
-                            LLM_PROMPTS: llm_prompt,
-                            LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                            LLM_PROMPTS: [llm_prompt],
+                            INPUT_VALUE: safe_json_dumps(
                                 llm_invocation_params
                             ),
                             INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
@@ -105,10 +105,8 @@ class _CompletionsWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response.completion,
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
-                            OUTPUT_VALUE: response.completion,
-                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
+                            OUTPUT_VALUE: response.to_json(indent=None),
+                            OUTPUT_MIME_TYPE: JSON,
                         }
                     )
                 )
@@ -156,11 +154,10 @@ class _AsyncCompletionsWrapper(_WithTracer):
                     _flatten(
                         {
                             OPENINFERENCE_SPAN_KIND: LLM,
-                            LLM_PROMPTS: llm_prompt,
-                            LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                            LLM_PROMPTS: [llm_prompt],
+                            INPUT_VALUE: safe_json_dumps(
                                 llm_invocation_params
                             ),
-                            LLM_MODEL_NAME: llm_invocation_params.get("model"),
                             INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
@@ -177,10 +174,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response.completion,
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
-                            OUTPUT_VALUE: response.completion,
-                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
+                            OUTPUT_VALUE: response.to_json(indent=None),
+                            OUTPUT_MIME_TYPE: JSON,
                         }
                     )
                 )
