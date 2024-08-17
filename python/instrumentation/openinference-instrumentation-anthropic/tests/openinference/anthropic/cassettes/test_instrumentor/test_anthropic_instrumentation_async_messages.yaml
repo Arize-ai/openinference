@@ -1,0 +1,16 @@
+interactions:
+- request:
+    body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": "What''s
+      the capital of France?"}], "model": "claude-3-opus-20240229"}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"id":"msg_012E4kgPmvb3RBY2z6nLMeZH","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[{"type":"text","text":"The
+        capital of France is Paris."}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":14,"output_tokens":10}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

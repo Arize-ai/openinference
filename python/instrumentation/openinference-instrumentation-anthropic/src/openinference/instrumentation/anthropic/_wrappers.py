@@ -5,9 +5,9 @@ from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
 import opentelemetry.context as context_api
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
+    DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
-    DocumentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -51,30 +51,23 @@ class _CompletionsWrapper(_WithTracer):
     """
 
     def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any],
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        llm_invocation_params = kwargs
-        llm_prompt = dict(kwargs).pop("prompt", None)
-
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
+        arguments = kwargs
+        llm_prompt = dict(arguments).pop("prompt", None)
 
         span_name = "Completions"
         with self._tracer.start_as_current_span(
-                span_name,
-                record_exception=False,
-                set_status_on_exception=False,
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -84,15 +77,13 @@ class _CompletionsWrapper(_WithTracer):
                         {
                             OPENINFERENCE_SPAN_KIND: LLM,
                             LLM_PROMPTS: [llm_prompt],
-                            INPUT_VALUE: safe_json_dumps(
-                                llm_invocation_params
-                            ),
+                            INPUT_VALUE: safe_json_dumps(arguments),
                             INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
                 )
             )
-            if model_name := llm_invocation_params.get("model"):
+            if model_name := arguments.get("model"):
                 span.set_attribute(LLM_MODEL_NAME, model_name)
             try:
                 response = wrapped(*args, **kwargs)
@@ -105,7 +96,7 @@ class _CompletionsWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: response.to_json(indent=None),
+                            OUTPUT_VALUE: response.model_dump_json(),
                             OUTPUT_MIME_TYPE: JSON,
                         }
                     )
@@ -122,30 +113,23 @@ class _AsyncCompletionsWrapper(_WithTracer):
     """
 
     async def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any],
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        llm_invocation_params = kwargs
-        llm_prompt = dict(kwargs).pop("prompt", None)
-
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
+        arguments = kwargs
+        llm_prompt = dict(arguments).pop("prompt", None)
 
         span_name = "AsyncCompletions"
         with self._tracer.start_as_current_span(
-                span_name,
-                record_exception=False,
-                set_status_on_exception=False,
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -155,14 +139,14 @@ class _AsyncCompletionsWrapper(_WithTracer):
                         {
                             OPENINFERENCE_SPAN_KIND: LLM,
                             LLM_PROMPTS: [llm_prompt],
-                            INPUT_VALUE: safe_json_dumps(
-                                llm_invocation_params
-                            ),
+                            INPUT_VALUE: safe_json_dumps(arguments),
                             INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
                 )
             )
+            if model_name := arguments.get("model"):
+                span.set_attribute(LLM_MODEL_NAME, model_name)
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
@@ -190,30 +174,27 @@ class _MessagesWrapper(_WithTracer):
     """
 
     def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any],
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        llm_invocation_params = kwargs
-        llm_input_messages = dict(kwargs).pop("messages", None)
+        arguments = kwargs
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
+        # llm_invocation_params = kwargs
+        llm_input_messages = dict(arguments).pop("messages", None)
+
+        invocation_parameters = _get_invocation_parameters(arguments)
 
         span_name = "Messages"
         with self._tracer.start_as_current_span(
-                span_name,
-                record_exception=False,
-                set_status_on_exception=False,
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -223,10 +204,9 @@ class _MessagesWrapper(_WithTracer):
                         {
                             OPENINFERENCE_SPAN_KIND: LLM,
                             **dict(_get_input_messages(llm_input_messages)),
-                            LLM_INVOCATION_PARAMETERS: safe_json_dumps(
-                                llm_invocation_params
-                            ),
-                            LLM_MODEL_NAME: llm_invocation_params.get("model"),
+                            LLM_INVOCATION_PARAMETERS: invocation_parameters,
+                            LLM_MODEL_NAME: arguments.get("model"),
+                            INPUT_VALUE: safe_json_dumps(arguments),
                             INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
@@ -247,8 +227,8 @@ class _MessagesWrapper(_WithTracer):
                             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": response.role,
                             LLM_TOKEN_COUNT_PROMPT: response.usage.input_tokens,
                             LLM_TOKEN_COUNT_COMPLETION: response.usage.output_tokens,
-                            OUTPUT_VALUE: response.content[0],
-                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
+                            OUTPUT_VALUE: response.model_dump_json(),
+                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
                 )
@@ -264,30 +244,26 @@ class _AsyncMessagesWrapper(_WithTracer):
     """
 
     async def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any],
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        llm_invocation_params = kwargs
-        llm_input_messages = dict(kwargs).pop("messages", None)
+        arguments = kwargs
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
+        llm_input_messages = dict(arguments).pop("messages", None)
+
+        invocation_parameters = _get_invocation_parameters(arguments)
 
         span_name = "AsyncMessages"
         with self._tracer.start_as_current_span(
-                span_name,
-                record_exception=False,
-                set_status_on_exception=False,
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -297,10 +273,9 @@ class _AsyncMessagesWrapper(_WithTracer):
                         {
                             OPENINFERENCE_SPAN_KIND: LLM,
                             **dict(_get_input_messages(llm_input_messages)),
-                            LLM_INVOCATION_PARAMETERS: safe_json_dumps(
-                                llm_invocation_params
-                            ),
-                            LLM_MODEL_NAME: llm_invocation_params.get("model"),
+                            LLM_INVOCATION_PARAMETERS: invocation_parameters,
+                            LLM_MODEL_NAME: arguments.get("model"),
+                            INPUT_VALUE: safe_json_dumps(arguments),
                             INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
@@ -321,8 +296,8 @@ class _AsyncMessagesWrapper(_WithTracer):
                             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": response.role,
                             LLM_TOKEN_COUNT_PROMPT: response.usage.input_tokens,
                             LLM_TOKEN_COUNT_COMPLETION: response.usage.output_tokens,
-                            OUTPUT_VALUE: response.content[0],
-                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
+                            OUTPUT_VALUE: response.model_dump_json(),
+                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
                 )
@@ -347,6 +322,39 @@ def _get_output_message(response: Any) -> Any:
         yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", response.content[0].text
     if response.role:
         yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", response.role
+
+
+def _get_invocation_parameters(kwargs: Mapping[str, Any]) -> Any:
+    """
+    Extracts the invocation parameters from the call
+    """
+    invocation_parameters = {}
+    for key, value in kwargs.items():
+        if isinstance(value, dict) and _validate_invocation_parameter(key):
+            invocation_parameters[key] = value
+    return invocation_parameters
+
+
+def _validate_invocation_parameter(parameter: Any) -> bool:
+    """
+    Validates the invocation parameters
+    """
+    valid_params = (
+        "max_tokens",
+        "messages",
+        "model",
+        "metadata",
+        "stop_sequences",
+        "stream",
+        "system",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p",
+    )
+
+    return parameter in valid_params
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
