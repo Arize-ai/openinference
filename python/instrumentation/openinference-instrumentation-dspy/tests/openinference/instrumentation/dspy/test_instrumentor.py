@@ -24,6 +24,13 @@ from dspy.teleprompt import BootstrapFewShotWithRandomSearch
 from google.generativeai import GenerativeModel  # type: ignore
 from google.generativeai.types import GenerateContentResponse  # type: ignore
 from httpx import Response
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
@@ -35,12 +42,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
 
 VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy-ai").split(".")[:3])))
 

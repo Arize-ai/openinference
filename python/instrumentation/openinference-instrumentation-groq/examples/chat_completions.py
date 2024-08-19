@@ -1,8 +1,9 @@
 from groq import Groq
-from openinference.instrumentation.groq import GroqInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.groq import GroqInstrumentor
 
 # Configure GroqInstrumentor with Phoenix endpoint
 endpoint = "http://127.0.0.1:6006/v1/traces"

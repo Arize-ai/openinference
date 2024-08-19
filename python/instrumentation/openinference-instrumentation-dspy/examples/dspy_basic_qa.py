@@ -1,13 +1,14 @@
 import os
 
 import dspy
-from openinference.instrumentation import using_attributes
-from openinference.instrumentation.dspy import DSPyInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation import using_attributes
+from openinference.instrumentation.dspy import DSPyInstrumentor
 
 # Logs to the Phoenix Collector if running locally
 if os.environ.get("PHOENIX_COLLECTOR_ENDPOINT"):

@@ -3,11 +3,12 @@ from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
 class SafeJSONEncoder(json.JSONEncoder):

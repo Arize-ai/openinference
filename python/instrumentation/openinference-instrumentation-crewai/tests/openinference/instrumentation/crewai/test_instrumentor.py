@@ -2,16 +2,17 @@ import json
 from typing import Any, Dict, Generator, List, Mapping, cast
 
 import pytest
-from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.semconv.trace import (
-    SpanAttributes,
-)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation.crewai import CrewAIInstrumentor
+from openinference.semconv.trace import (
+    SpanAttributes,
+)
 
 
 @pytest.fixture()

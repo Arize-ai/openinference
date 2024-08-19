@@ -2,10 +2,11 @@ import logging
 from typing import Generator, cast
 
 import pytest
-from openinference.instrumentation.vertexai import VertexAIInstrumentor
 from opentelemetry.sdk.trace import Tracer, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.instrumentation.vertexai import VertexAIInstrumentor
 
 for name, logger in logging.root.manager.loggerDict.items():
     if name.startswith("openinference.") and isinstance(logger, logging.Logger):

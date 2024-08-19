@@ -26,6 +26,13 @@ import proto
 import wrapt
 from google.cloud import aiplatform_v1 as v1  # Stable
 from google.cloud import aiplatform_v1beta1 as v1beta1  # Supports latest preview features
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.trace import Span, Status, StatusCode, use_span
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeAlias
+
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.vertexai import _instrumentation_status
 from openinference.instrumentation.vertexai._accumulator import (
@@ -43,12 +50,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import Span, Status, StatusCode, use_span
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeAlias
 
 __all__ = ("_Wrapper",)
 
