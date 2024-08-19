@@ -18,6 +18,13 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
+from opentelemetry import trace as trace_api
+from typing_extensions import TypeGuard, assert_never
+
+from haystack import Document, Pipeline
+from haystack.components.builders import PromptBuilder
+from haystack.core.component import Component
+from haystack.dataclasses import ChatMessage
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -29,13 +36,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
-from typing_extensions import TypeGuard, assert_never
-
-from haystack import Document, Pipeline
-from haystack.components.builders import PromptBuilder
-from haystack.core.component import Component
-from haystack.dataclasses import ChatMessage
 
 
 class _WithTracer(ABC):

@@ -2,11 +2,12 @@ import asyncio
 
 from mistralai.async_client import MistralAsyncClient
 from mistralai.models.chat_completion import ChatMessage
-from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation.mistralai import MistralAIInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()

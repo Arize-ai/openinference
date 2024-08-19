@@ -2,6 +2,12 @@ import json
 from typing import Any, Dict, List
 
 import pytest
+from opentelemetry.context import (
+    _SUPPRESS_INSTRUMENTATION_KEY,
+    get_current,
+    get_value,
+)
+
 from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
@@ -14,11 +20,6 @@ from openinference.instrumentation import (
     using_user,
 )
 from openinference.semconv.trace import SpanAttributes
-from opentelemetry.context import (
-    _SUPPRESS_INSTRUMENTATION_KEY,
-    get_current,
-    get_value,
-)
 
 
 def test_suppress_tracing() -> None:

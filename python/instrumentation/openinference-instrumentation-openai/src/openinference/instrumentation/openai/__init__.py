@@ -2,6 +2,10 @@ import logging
 from importlib import import_module
 from typing import Any, Collection
 
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from wrapt import wrap_function_wrapper
+
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.openai._request import (
     _AsyncRequest,
@@ -9,9 +13,6 @@ from openinference.instrumentation.openai._request import (
 )
 from openinference.instrumentation.openai.package import _instruments
 from openinference.instrumentation.openai.version import __version__
-from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import wrap_function_wrapper
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

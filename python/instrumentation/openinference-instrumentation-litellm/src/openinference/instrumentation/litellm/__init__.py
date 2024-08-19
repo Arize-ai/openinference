@@ -3,19 +3,6 @@ from functools import wraps
 from typing import Any, Callable, Collection, Dict
 
 from openai.types.image import Image
-from openinference.instrumentation import (
-    OITracer,
-    TraceConfig,
-    get_attributes_from_context,
-)
-from openinference.instrumentation.litellm.package import _instruments
-from openinference.instrumentation.litellm.version import __version__
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    ImageAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -28,6 +15,19 @@ from litellm.types.utils import (
     EmbeddingResponse,
     ImageResponse,
     ModelResponse,
+)
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    get_attributes_from_context,
+)
+from openinference.instrumentation.litellm.package import _instruments
+from openinference.instrumentation.litellm.version import __version__
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    ImageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 
 

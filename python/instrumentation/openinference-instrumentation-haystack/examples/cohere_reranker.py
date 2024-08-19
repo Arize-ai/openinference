@@ -4,10 +4,11 @@ Requires a Cohere API request set with the `COHERE_API_KEY` environment variable
 
 from haystack import Document, Pipeline
 from haystack_integrations.components.rankers.cohere import CohereRanker
-from openinference.instrumentation.haystack import HaystackInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.haystack import HaystackInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()

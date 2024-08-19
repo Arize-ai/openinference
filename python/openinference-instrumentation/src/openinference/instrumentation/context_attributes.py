@@ -1,7 +1,6 @@
 from contextlib import ContextDecorator
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
     attach,
     detach,
@@ -11,6 +10,8 @@ from opentelemetry.context import (
 )
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import Self
+
+from openinference.semconv.trace import SpanAttributes
 
 from .helpers import safe_json_dumps
 
