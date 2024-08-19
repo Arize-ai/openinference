@@ -61,6 +61,7 @@ def test_completion(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     if use_context_attributes:
         with using_attributes(
             session_id=session_id,
@@ -73,13 +74,13 @@ def test_completion(
         ):
             litellm.completion(
                 model="gpt-3.5-turbo",
-                messages=[{"content": "What's the capital of China?", "role": "user"}],
+                messages=input_messages,
                 mock_response="Beijing",
             )
     else:
         litellm.completion(
             model="gpt-3.5-turbo",
-            messages=[{"content": "What's the capital of China?", "role": "user"}],
+            messages=input_messages,
             mock_response="Beijing",
         )
 
@@ -89,7 +90,7 @@ def test_completion(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == "What's the capital of China?"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
@@ -116,9 +117,10 @@ def test_completion_with_parameters(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     litellm.completion(
         model="gpt-3.5-turbo",
-        messages=[{"content": "What's the capital of China?", "role": "user"}],
+        messages=input_messages,
         mock_response="Beijing",
         temperature=0.7,
         top_p=0.9,
@@ -129,7 +131,7 @@ def test_completion_with_parameters(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == "What's the capital of China?"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {"mock_response": "Beijing", "temperature": 0.7, "top_p": 0.9}
     )
@@ -164,7 +166,7 @@ def test_completion_with_multiple_messages(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == "Hello, I want to bake a cake"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {"mock_response": "Got it! What kind of pie would you like to make?"}
     )
@@ -210,6 +212,7 @@ def test_completion_image_support(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {"mock_response": "That's an image of a pasture"}
     )
@@ -239,6 +242,7 @@ async def test_acompletion(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     if use_context_attributes:
         with using_attributes(
             session_id=session_id,
@@ -251,13 +255,13 @@ async def test_acompletion(
         ):
             await litellm.acompletion(
                 model="gpt-3.5-turbo",
-                messages=[{"content": "What's the capital of China?", "role": "user"}],
+                messages=input_messages,
                 mock_response="Beijing",
             )
     else:
         await litellm.acompletion(
             model="gpt-3.5-turbo",
-            messages=[{"content": "What's the capital of China?", "role": "user"}],
+            messages=input_messages,
             mock_response="Beijing",
         )
 
@@ -267,7 +271,7 @@ async def test_acompletion(
     assert span.name == "acompletion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == "What's the capital of China?"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
@@ -305,6 +309,7 @@ def test_completion_with_retries(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     if use_context_attributes:
         with using_attributes(
             session_id=session_id,
@@ -317,13 +322,13 @@ def test_completion_with_retries(
         ):
             litellm.completion_with_retries(  # type: ignore [no-untyped-call]
                 model="gpt-3.5-turbo",
-                messages=[{"content": "What's the capital of China?", "role": "user"}],
+                messages=input_messages,
                 mock_response="Beijing",
             )
     else:
         litellm.completion_with_retries(  # type: ignore [no-untyped-call]
             model="gpt-3.5-turbo",
-            messages=[{"content": "What's the capital of China?", "role": "user"}],
+            messages=input_messages,
             mock_response="Beijing",
         )
     spans = in_memory_span_exporter.get_finished_spans()
@@ -332,7 +337,7 @@ def test_completion_with_retries(
     assert span.name == "completion_with_retries"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == "What's the capital of China?"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10

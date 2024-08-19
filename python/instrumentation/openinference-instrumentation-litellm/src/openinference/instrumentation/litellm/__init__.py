@@ -105,11 +105,7 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
     _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, kwargs.get("model", "unknown_model"))
 
     if messages := kwargs.get("messages"):
-        if content := messages[0].get("content"):
-            if isinstance(content, str):
-                _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(content))
-            elif is_iterable_of(content, dict):
-                _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(messages))
+        _set_span_attribute(span, SpanAttributes.INPUT_VALUE, json.dumps(messages))
         for index, input_message in list(enumerate(messages)):
             for key, value in _get_attributes_from_message_param(input_message):
                 _set_span_attribute(
