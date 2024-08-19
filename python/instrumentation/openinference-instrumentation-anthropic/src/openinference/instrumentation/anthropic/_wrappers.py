@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Any, Callable, Dict, List, Mapping, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -43,6 +43,7 @@ class _CompletionsWrapper(_WithTracer):
 
         arguments = kwargs
         llm_prompt = dict(arguments).pop("prompt", None)
+        llm_invocation_parameters = _get_invocation_parameters(arguments)
 
         span_name = "Completions"
         with self._tracer.start_as_current_span(
@@ -54,14 +55,14 @@ class _CompletionsWrapper(_WithTracer):
 
             span.set_attributes(
                 {
+                    **dict(_get_llm_model(arguments)),
                     OPENINFERENCE_SPAN_KIND: LLM,
                     LLM_PROMPTS: [llm_prompt],
                     INPUT_VALUE: safe_json_dumps(arguments),
                     INPUT_MIME_TYPE: JSON,
+                    LLM_INVOCATION_PARAMETERS: safe_json_dumps(llm_invocation_parameters),
                 }
             )
-            if model_name := arguments.get("model"):
-                span.set_attribute(LLM_MODEL_NAME, model_name)
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -97,6 +98,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
 
         arguments = kwargs
         llm_prompt = dict(arguments).pop("prompt", None)
+        invocation_parameters = _get_invocation_parameters(arguments)
 
         span_name = "AsyncCompletions"
         with self._tracer.start_as_current_span(
@@ -108,14 +110,14 @@ class _AsyncCompletionsWrapper(_WithTracer):
 
             span.set_attributes(
                 {
+                    **dict(_get_llm_model(arguments)),
                     OPENINFERENCE_SPAN_KIND: LLM,
                     LLM_PROMPTS: [llm_prompt],
                     INPUT_VALUE: safe_json_dumps(arguments),
                     INPUT_MIME_TYPE: JSON,
+                    LLM_INVOCATION_PARAMETERS: safe_json_dumps(invocation_parameters),
                 }
             )
-            if model_name := arguments.get("model"):
-                span.set_attribute(LLM_MODEL_NAME, model_name)
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
@@ -149,10 +151,7 @@ class _MessagesWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         arguments = kwargs
-
-        # llm_invocation_params = kwargs
         llm_input_messages = dict(arguments).pop("messages", None)
-
         invocation_parameters = _get_invocation_parameters(arguments)
 
         span_name = "Messages"
@@ -165,10 +164,10 @@ class _MessagesWrapper(_WithTracer):
 
             span.set_attributes(
                 {
+                    **dict(_get_llm_model(arguments)),
                     OPENINFERENCE_SPAN_KIND: LLM,
                     **dict(_get_input_messages(llm_input_messages)),
-                    LLM_INVOCATION_PARAMETERS: invocation_parameters,
-                    LLM_MODEL_NAME: arguments.get("model"),
+                    LLM_INVOCATION_PARAMETERS: safe_json_dumps(invocation_parameters),
                     INPUT_VALUE: safe_json_dumps(arguments),
                     INPUT_MIME_TYPE: JSON,
                 }
@@ -211,9 +210,7 @@ class _AsyncMessagesWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         arguments = kwargs
-
         llm_input_messages = dict(arguments).pop("messages", None)
-
         invocation_parameters = _get_invocation_parameters(arguments)
 
         span_name = "AsyncMessages"
@@ -226,10 +223,10 @@ class _AsyncMessagesWrapper(_WithTracer):
 
             span.set_attributes(
                 {
+                    **dict(_get_llm_model(arguments)),
                     OPENINFERENCE_SPAN_KIND: LLM,
                     **dict(_get_input_messages(llm_input_messages)),
-                    LLM_INVOCATION_PARAMETERS: invocation_parameters,
-                    LLM_MODEL_NAME: arguments.get("model"),
+                    LLM_INVOCATION_PARAMETERS: safe_json_dumps(invocation_parameters),
                     INPUT_VALUE: safe_json_dumps(arguments),
                     INPUT_MIME_TYPE: JSON,
                 }
@@ -253,6 +250,11 @@ class _AsyncMessagesWrapper(_WithTracer):
             )
 
         return response
+
+
+def _get_llm_model(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    if model_name := arguments.get("model"):
+        yield LLM_MODEL_NAME, model_name
 
 
 def _get_input_messages(messages: List[Dict[str, str]]) -> Any:
@@ -279,7 +281,7 @@ def _get_invocation_parameters(kwargs: Mapping[str, Any]) -> Any:
     """
     invocation_parameters = {}
     for key, value in kwargs.items():
-        if isinstance(value, dict) and _validate_invocation_parameter(key):
+        if _validate_invocation_parameter(key):
             invocation_parameters[key] = value
     return invocation_parameters
 
@@ -290,7 +292,7 @@ def _validate_invocation_parameter(parameter: Any) -> bool:
     """
     valid_params = (
         "max_tokens",
-        "messages",
+        "max_tokens_to_sample",
         "model",
         "metadata",
         "stop_sequences",

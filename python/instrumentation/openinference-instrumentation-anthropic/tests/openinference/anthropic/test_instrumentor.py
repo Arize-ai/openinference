@@ -1,3 +1,4 @@
+import json
 from typing import (
     Any,
     Dict,
@@ -9,7 +10,7 @@ import anthropic
 import pytest
 from anthropic import Anthropic, AsyncAnthropic
 from anthropic.resources.completions import AsyncCompletions, Completions
-from anthropic.resources.messages import (  # type: ignore[attr-defined]
+from anthropic.resources.messages import (
     AsyncMessages,
     Messages,
 )
@@ -166,6 +167,8 @@ def test_anthropic_instrumentation_completions(
 ) -> None:
     client = Anthropic(api_key="fake")
 
+    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000}
+
     prompt = (
         f"{anthropic.HUMAN_PROMPT}"
         f" how does a court case get to the Supreme Court?"
@@ -191,6 +194,8 @@ def test_anthropic_instrumentation_completions(
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
     assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
     assert not attributes
 
 
@@ -206,6 +211,8 @@ def test_anthropic_instrumentation_messages(
 ) -> None:
     client = Anthropic(api_key="fake")
     input_message = "What's the capital of France?"
+
+    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-20240229"}
 
     client.messages.create(
         max_tokens=1024,
@@ -226,7 +233,10 @@ def test_anthropic_instrumentation_messages(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-    assert "paris" in attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").lower()
+    assert isinstance(
+        msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+    )
+    assert "paris" in msg_content.lower()
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
@@ -237,6 +247,8 @@ def test_anthropic_instrumentation_messages(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-20240229"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
     assert not attributes
 
 
@@ -258,6 +270,8 @@ async def test_anthropic_instrumentation_async_completions(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     client = AsyncAnthropic(api_key="fake")
+
+    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000}
 
     prompt = (
         f"{anthropic.HUMAN_PROMPT}"
@@ -284,6 +298,8 @@ async def test_anthropic_instrumentation_async_completions(
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
     assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
     assert not attributes
 
 
@@ -299,6 +315,8 @@ async def test_anthropic_instrumentation_async_messages(
 ) -> None:
     client = AsyncAnthropic(api_key="fake")
     input_message = "What's the capital of France?"
+
+    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-20240229"}
 
     await client.messages.create(
         max_tokens=1024,
@@ -319,7 +337,10 @@ async def test_anthropic_instrumentation_async_messages(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-    assert "paris" in attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").lower()
+    assert isinstance(
+        msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+    )
+    assert "paris" in msg_content.lower()
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
@@ -330,6 +351,9 @@ async def test_anthropic_instrumentation_async_messages(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-20240229"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
+
     assert not attributes
 
 
