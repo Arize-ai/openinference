@@ -3,6 +3,11 @@ import logging
 from importlib import import_module
 from typing import Any, Collection
 
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from wrapt import ObjectProxy, wrap_function_wrapper
+
+import guardrails as gd
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.guardrails._wrap_guard_call import (
     _ParseCallableWrapper,
@@ -10,11 +15,6 @@ from openinference.instrumentation.guardrails._wrap_guard_call import (
     _PromptCallableWrapper,
 )
 from openinference.instrumentation.guardrails.version import __version__
-from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import ObjectProxy, wrap_function_wrapper
-
-import guardrails as gd
 
 logger = logging.getLogger(__name__)
 

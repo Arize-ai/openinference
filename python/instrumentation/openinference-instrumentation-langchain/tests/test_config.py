@@ -11,6 +11,10 @@ import pytest
 from httpx import Response
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from respx import MockRouter
+
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from openinference.semconv.trace import (
@@ -21,9 +25,6 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from respx import MockRouter
 
 LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
 

@@ -16,6 +16,7 @@ from typing import (
 )
 
 import pytest
+
 from openinference.instrumentation.vertexai._proxy import _proxy
 
 

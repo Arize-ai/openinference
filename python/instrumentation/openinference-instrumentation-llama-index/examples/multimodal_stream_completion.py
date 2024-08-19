@@ -3,10 +3,11 @@ import tempfile
 import requests
 from llama_index.core import SimpleDirectoryReader
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal
-from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()

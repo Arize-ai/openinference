@@ -3,11 +3,12 @@ import json
 from haystack import Pipeline
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
-from openinference.instrumentation.haystack import HaystackInstrumentor
-from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.haystack import HaystackInstrumentor
+from openinference.instrumentation.openai import OpenAIInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()

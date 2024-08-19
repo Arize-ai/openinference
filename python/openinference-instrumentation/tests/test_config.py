@@ -4,6 +4,13 @@ from random import random
 from typing import Dict, Optional
 
 import pytest
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace import SpanLimits
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import TracerProvider, use_span
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.config import (
     _IMPORTANT_ATTRIBUTES,
@@ -26,12 +33,6 @@ from openinference.instrumentation.config import (
     REDACTED_VALUE,
     OITracer,
 )
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace import SpanLimits
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import TracerProvider, use_span
-from opentelemetry.util.types import AttributeValue
 
 
 def test_default_settings() -> None:

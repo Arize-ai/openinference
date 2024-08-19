@@ -7,11 +7,12 @@ from llama_index.core.selectors import LLMSingleSelector
 from llama_index.core.tools import QueryEngineTool
 from llama_index.core.utilities.sql_wrapper import SQLDatabase
 from llama_index.llms.openai import OpenAI
-from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from sqlalchemy import create_engine
+
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()

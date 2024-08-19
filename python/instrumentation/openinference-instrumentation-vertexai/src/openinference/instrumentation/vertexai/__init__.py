@@ -1,13 +1,14 @@
 import logging
 from typing import Any, Collection
 
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import get_tracer, get_tracer_provider
+from wrapt import wrap_function_wrapper
+
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.vertexai import _instrumentation_status
 from openinference.instrumentation.vertexai.package import _instruments
 from openinference.instrumentation.vertexai.version import __version__
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.trace import get_tracer, get_tracer_provider
-from wrapt import wrap_function_wrapper
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -36,6 +37,7 @@ class VertexAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
         self._status._IS_INSTRUMENTED = True
         import google.api_core.gapic_v1 as gapic
+
         from openinference.instrumentation.vertexai._wrapper import _Wrapper
 
         for method in (gapic.method.wrap_method, gapic.method_async.wrap_method):

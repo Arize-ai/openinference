@@ -14,6 +14,8 @@ from typing import (
     Type,
 )
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation.openai._utils import _get_openai_version, _get_texts
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -21,7 +23,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
