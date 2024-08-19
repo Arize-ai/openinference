@@ -4,6 +4,13 @@ from contextlib import contextmanager
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeAlias
+
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -24,12 +31,6 @@ from openinference.instrumentation.openai._utils import (
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeAlias
 
 __all__ = (
     "_Request",

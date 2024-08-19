@@ -8,12 +8,13 @@ from typing import (
     Tuple,
 )
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.semconv.trace import (
     MessageAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
     from mistralai.models.chat_completion import ChatCompletionResponse

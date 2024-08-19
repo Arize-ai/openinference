@@ -3,10 +3,11 @@ from datetime import datetime
 from haystack import Document, Pipeline
 from haystack.components.retrievers import InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from openinference.instrumentation.haystack import HaystackInstrumentor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.haystack import HaystackInstrumentor
 
 # Configure HaystackInstrumentor with Phoenix endpoint
 endpoint = "http://127.0.0.1:4317"

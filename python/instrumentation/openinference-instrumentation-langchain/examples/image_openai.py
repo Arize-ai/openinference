@@ -3,10 +3,11 @@ import base64
 import httpx
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
-from openinference.instrumentation.langchain import LangChainInstrumentor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation.langchain import LangChainInstrumentor
 
 endpoint = "http://127.0.0.1:4317"
 tracer_provider = trace_sdk.TracerProvider()

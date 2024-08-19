@@ -3,10 +3,11 @@ from haystack.components.builders import PromptBuilder
 from haystack.components.converters import HTMLToDocument
 from haystack.components.fetchers import LinkContentFetcher
 from haystack.components.generators import OpenAIGenerator
-from openinference.instrumentation.haystack import HaystackInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.haystack import HaystackInstrumentor
 
 # Configure HaystackInstrumentor with Phoenix endpoint
 endpoint = "http://127.0.0.1:6006/v1/traces"

@@ -3,12 +3,13 @@ from io import BytesIO
 import PIL
 import requests
 import vertexai
-from openinference.instrumentation import TraceConfig
-from openinference.instrumentation.vertexai import VertexAIInstrumentor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 from vertexai.generative_models import GenerativeModel, Image, Part
+
+from openinference.instrumentation import TraceConfig
+from openinference.instrumentation.vertexai import VertexAIInstrumentor
 
 endpoint = "http://127.0.0.1:4317"
 tracer_provider = trace_sdk.TracerProvider()
