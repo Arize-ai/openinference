@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.13...python-openinference-instrumentation-openai-v0.1.14) (2024-08-16)
+
+
+### Features
+
+* Added tools attribute ([#904](https://github.com/Arize-ai/openinference/issues/904)) ([f1eb980](https://github.com/Arize-ai/openinference/commit/f1eb980a4a91d832c80252b254bf94a273c79031))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.12...python-openinference-instrumentation-openai-v0.1.13) (2024-08-10)
 
 

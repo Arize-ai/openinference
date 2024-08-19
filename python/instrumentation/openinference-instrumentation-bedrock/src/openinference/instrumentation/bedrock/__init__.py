@@ -23,6 +23,14 @@ from typing import (
 
 from botocore.client import BaseClient
 from botocore.response import StreamingBody
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import Tracer
+from opentelemetry.util.types import AttributeValue
+from wrapt import wrap_function_wrapper
+
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
@@ -38,13 +46,6 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.trace import Tracer
-from opentelemetry.util.types import AttributeValue
-from wrapt import wrap_function_wrapper
 
 ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
 

@@ -8,10 +8,11 @@ from google.cloud.aiplatform_v1 import (
     Part,
     PredictionServiceClient,
 )
-from openinference.instrumentation.vertexai import VertexAIInstrumentor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation.vertexai import VertexAIInstrumentor
 
 endpoint = "http://127.0.0.1:4317"
 tracer_provider = trace_sdk.TracerProvider()

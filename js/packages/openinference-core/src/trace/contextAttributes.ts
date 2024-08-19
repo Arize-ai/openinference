@@ -10,13 +10,13 @@ import {
 import { Attributes, Context, createContextKey } from "@opentelemetry/api";
 import {
   safelyJSONStringify,
-  isAttributeValue,
   safelyJSONParse,
   isStringArray,
   isObjectWithStringKeys,
   isAttributes,
 } from "../utils";
 import { Metadata, PromptTemplate, Session, Tags, User } from "./types";
+import { isAttributeValue } from "@opentelemetry/core";
 
 const CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY = "attributes" as const;
 
@@ -211,7 +211,8 @@ export function getAttributesFromContext(context: Context): Attributes {
       }
       return;
     }
-    if (isAttributeValue(maybeValue)) {
+
+    if (isAttributeValue(maybeValue) && maybeValue !== undefined) {
       attributes[key] = maybeValue;
     }
   });

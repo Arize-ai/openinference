@@ -21,13 +21,14 @@ from groq.types.chat.chat_completion import (  # type: ignore[attr-defined]
     Choice,
 )
 from groq.types.completion_usage import CompletionUsage
-from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.groq import GroqInstrumentor
-from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation.groq import GroqInstrumentor
+from openinference.semconv.trace import SpanAttributes
 
 mock_completion = ChatCompletion(
     id="chat_comp_0",

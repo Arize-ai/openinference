@@ -17,13 +17,14 @@ from typing import (
     Type,
 )
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
     _ValueAndType,
 )
 from openinference.semconv.trace import OpenInferenceMimeTypeValues
-from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
     from openai.types import Completion
