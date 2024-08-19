@@ -1,0 +1,38 @@
+interactions:
+- request:
+    body: '{"max_tokens_to_sample": 1000, "model": "claude-2.1", "prompt": "\n\nHuman:
+      how does a court case get to the Supreme Court? \n\nAssistant:"}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/complete
+  response:
+    body:
+      string: '{"type":"completion","id":"compl_01AdXAXhzu4BANhFCctNJwDL","completion":"
+        A court case can reach the Supreme Court in a few different ways:\n\n1. Appeal
+        from lower courts: Most cases that reach the Supreme Court are appeals from
+        decisions of lower federal courts or state supreme courts. Typically, a party
+        who loses in a lower court files an appeal to the next higher court, arguing
+        some error occurred that warrants overturning or modifying the decision. If
+        the appeals eventually reach the U.S. Supreme Court, the Court may agree to
+        hear the case.\n\n2. Original jurisdiction: The Supreme Court has \"original
+        jurisdiction\" over certain types of cases, meaning they can originate in
+        the Supreme Court without coming from a lower court. These cases usually involve
+        disputes between state governments or between the U.S. federal government
+        and a state.\n\n3. Certiorari: This is the most common way cases reach the
+        Supreme Court. Parties involved in cases in lower courts or state supreme
+        courts can petition the U.S. Supreme Court to review their case by writing
+        what''s called a \"writ of certiorari.\" The Court then chooses which cases
+        to hear based on various factors - typically cases that involve important
+        constitutional questions or conflict between lower court decisions.\n\n4.
+        Certificate from lower appeals courts: A federal appeals court dealing with
+        a case can also choose to certify a question of law and send it to the Supreme
+        Court, requesting that the justices provide guidance on a point of law or
+        an issue of constitutional interpretation.\n\nIn most instances, the Supreme
+        Court chooses which cases it wishes to hear - it declines far more cases than
+        it accepts each term. Its decisions then become part of binding federal case
+        law.","stop_reason":"stop_sequence","model":"claude-2.1","stop":"\n\nHuman:","log_id":"compl_01AdXAXhzu4BANhFCctNJwDL"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
