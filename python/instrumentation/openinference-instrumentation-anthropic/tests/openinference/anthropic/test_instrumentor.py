@@ -3,7 +3,6 @@ from typing import (
     Any,
     Dict,
     Generator,
-    List,
 )
 
 import anthropic
@@ -96,13 +95,6 @@ def test_anthropic_instrumentation_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
 ) -> None:
     client = Anthropic(api_key="fake")
 
@@ -348,13 +340,14 @@ def test_anthropic_instrumentation_context_attributes_existence(
     spans = in_memory_span_exporter.get_finished_spans()
 
     for span in spans:
-        assert span.attributes.get(SESSION_ID, None)
-        assert span.attributes.get(USER_ID, None)
-        assert span.attributes.get(METADATA, None)
-        assert span.attributes.get(TAG_TAGS, None)
-        assert span.attributes.get(LLM_PROMPT_TEMPLATE, None)
-        assert span.attributes.get(LLM_PROMPT_TEMPLATE_VERSION, None)
-        assert span.attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
+        att = dict(span.attributes or {})
+        assert att.get(SESSION_ID, None)
+        assert att.get(USER_ID, None)
+        assert att.get(METADATA, None)
+        assert att.get(TAG_TAGS, None)
+        assert att.get(LLM_PROMPT_TEMPLATE, None)
+        assert att.get(LLM_PROMPT_TEMPLATE_VERSION, None)
+        assert att.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
 
 def test_anthropic_uninstrumentation(
