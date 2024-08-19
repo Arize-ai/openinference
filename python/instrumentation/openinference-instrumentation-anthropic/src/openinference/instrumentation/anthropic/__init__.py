@@ -1,14 +1,6 @@
 import logging
 from typing import Any, Collection
 
-from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.anthropic._wrappers import (
-    _AsyncCompletionsWrapper,
-    _AsyncMessagesWrapper,
-    _CompletionsWrapper,
-    _MessagesWrapper,
-)
-from openinference.instrumentation.anthropic.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
     BaseInstrumentor,
@@ -17,6 +9,14 @@ from wrapt import wrap_function_wrapper
 
 from anthropic.resources.completions import AsyncCompletions, Completions
 from anthropic.resources.messages import AsyncMessages, Messages
+from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.anthropic._wrappers import (
+    _AsyncCompletionsWrapper,
+    _AsyncMessagesWrapper,
+    _CompletionsWrapper,
+    _MessagesWrapper,
+)
+from openinference.instrumentation.anthropic.version import __version__
 
 logger = logging.getLogger(__name__)
 

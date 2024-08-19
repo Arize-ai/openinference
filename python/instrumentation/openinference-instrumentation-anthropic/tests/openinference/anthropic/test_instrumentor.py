@@ -14,6 +14,12 @@ from anthropic.resources.messages import (
     AsyncMessages,
     Messages,
 )
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from wrapt import BoundFunctionWrapper
+
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
 from openinference.semconv.trace import (
@@ -25,11 +31,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from wrapt import BoundFunctionWrapper
 
 
 def remove_all_vcr_request_headers(request: Any) -> Any:

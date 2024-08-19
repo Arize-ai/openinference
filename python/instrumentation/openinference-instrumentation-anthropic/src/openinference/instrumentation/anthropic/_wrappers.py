@@ -2,6 +2,8 @@ from abc import ABC
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
+from opentelemetry import trace as trace_api
+
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -12,7 +14,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
 
 
 class _WithTracer(ABC):
