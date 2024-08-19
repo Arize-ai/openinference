@@ -1,0 +1,78 @@
+interactions:
+- request:
+    body: '{"q": "Who won the World Cup in 2022?", "gl": "us", "hl": "en", "autocorrect":
+      true}'
+    headers: {}
+    method: POST
+    uri: https://google.serper.dev/search
+  response:
+    body:
+      string: "{\"searchParameters\":{\"q\":\"Who won the World Cup in 2022?\",\"gl\":\"us\",\"hl\":\"en\",\"type\":\"search\",\"autocorrect\":true,\"engine\":\"google\"},\"answerBox\":{\"title\":\"2022
+        World Cup / Champion\",\"answer\":\"Argentina national football team\"},\"knowledgeGraph\":{\"title\":\"World
+        Cup\",\"type\":\"Soccer competition\"},\"organic\":[{\"title\":\"2022 FIFA
+        World Cup final - Wikipedia\",\"link\":\"https://en.wikipedia.org/wiki/2022_FIFA_World_Cup_final\",\"snippet\":\"France
+        finished first in Group D with two wins and one loss (4\u20131 win over Australia,
+        2\u20131 win over Denmark, and a 1\u20130 loss to Tunisia), defeating Poland
+        3\u20131 in ...\",\"position\":1},{\"title\":\"The Moment When Argentina Won
+        The 2022 FIFA World Cup\",\"link\":\"https://www.youtube.com/watch?v=EROb-E23ZVs\",\"snippet\":\"Argentina
+        v France: 2022 FIFA World Cup (December 18 2022) Watch full World Cup matches
+        ...\",\"date\":\"May 23, 2024\",\"attributes\":{\"Duration\":\"4:40\",\"Posted\":\"May
+        23, 2024\"},\"imageUrl\":\"https://i.ytimg.com/vi/EROb-E23ZVs/default.jpg?sqp=-oaymwEECHgQQw&rs=AMzJL3nUAxq2CRAbfzahSTeDp4SKGUoRqw\",\"position\":2},{\"title\":\"2022
+        FIFA World Cup - Wikipedia\",\"link\":\"https://en.wikipedia.org/wiki/2022_FIFA_World_Cup\",\"snippet\":\"Argentine
+        captain Lionel Messi was voted the tournament's best player, winning the Golden
+        Ball. The tournament has been considered exceptionally poetic as the ...\",\"sitelinks\":[{\"title\":\"Final\",\"link\":\"https://en.wikipedia.org/wiki/2022_FIFA_World_Cup_final\"},{\"title\":\"Qatar
+        2022 FIFA World Cup bid\",\"link\":\"https://en.wikipedia.org/wiki/Qatar_2022_FIFA_World_Cup_bid\"},{\"title\":\"Qualification\",\"link\":\"https://en.wikipedia.org/wiki/2022_FIFA_World_Cup_qualification\"},{\"title\":\"Bidding
+        process\",\"link\":\"https://en.wikipedia.org/wiki/2018_and_2022_FIFA_World_Cup_bids\"}],\"position\":3},{\"title\":\"How
+        Argentina won the 2022 World Cup, in their own words - ESPN\",\"link\":\"https://www.espn.com/soccer/story/_/id/39121682/how-argentina-won-2022-world-cup-their-own-words\",\"snippet\":\"Argentina
+        3-0 Croatia. Dec. 13, 2022. The semifinals. Argentina beat Croatia 3-0 with
+        another Messi penalty, and a brace from Julian Alvarez.\",\"date\":\"Dec 18,
+        2023\",\"position\":4},{\"title\":\"FIFA World Cup Qatar 2022\u2122\",\"link\":\"https://www.fifa.com/en/tournaments/mens/worldcup/qatar2022\",\"snippet\":\"The
+        FIFA World Cup Qatar 2022\u2122 was played from 20 November to 18 December
+        2022. 32 teams competed across 64 matches in the 22nd edition of the tournament.\",\"sitelinks\":[{\"title\":\"Knockout
+        and Groups\",\"link\":\"https://www.fifa.com/en/tournaments/mens/worldcup/qatar2022/knockout-and-groups\"},{\"title\":\"Scores
+        & Fixtures\",\"link\":\"https://www.fifa.com/en/tournaments/mens/worldcup/qatar2022/scores-fixtures\"},{\"title\":\"Teams\",\"link\":\"https://www.fifa.com/en/tournaments/mens/worldcup/qatar2022/teams\"},{\"title\":\"Highlights\",\"link\":\"https://www.fifa.com/en/tournaments/mens/worldcup/qatar2022/qatar-highlights\"}],\"position\":5},{\"title\":\"2022
+        World Cup - All winners - Transfermarkt\",\"link\":\"https://www.transfermarkt.us/2022-world-cup/erfolge/pokalwettbewerb/WM22\",\"snippet\":\"World
+        Cup winner: Argentina ; Top Scorer: Kylian Mbapp\xE9 8 goals ; Winning coach:
+        Lionel Scaloni.\",\"position\":6},{\"title\":\"FIFA World Cup champions: 1982-2022\",\"link\":\"https://www.fifa.com/en/articles/world-cup-champions-1982-2022-italy-argentina-germany-brazil-france-spain\",\"snippet\":\"Italy
+        won their third World Cup title, and first since 1938, when they emerged victorious
+        in Spain. Iconic striker Paulo Rossi was his ...\",\"date\":\"Apr 25, 2023\",\"position\":7},{\"title\":\"Mbappe
+        v Messi: The FIFA World Cup 2022 Final - YouTube\",\"link\":\"https://www.youtube.com/watch?v=z_AZwdFg6uA\",\"snippet\":\"Mbappe
+        v Messi: The FIFA World Cup 2022 Final. 1.4M views \xB7 4 ... Comments1.1K.
+        Test Test ...\",\"date\":\"Mar 16, 2024\",\"attributes\":{\"Duration\":\"6:01\",\"Posted\":\"Mar
+        16, 2024\"},\"imageUrl\":\"https://i.ytimg.com/vi/z_AZwdFg6uA/default.jpg?sqp=-oaymwEECHgQQw&rs=AMzJL3kGk3LWWortwRsdAT4cZh2TSIdbJQ\",\"position\":8},{\"title\":\"2022
+        FIFA World Cup | Qatar, Controversy, Stadiums, Winner, & Final\",\"link\":\"https://www.britannica.com/sports/2022-FIFA-World-Cup\",\"snippet\":\"Argentina
+        won its third World Cup victory in the tournament after defeating France in
+        the final match.\",\"position\":9},{\"title\":\"2022 World Cup: Full list
+        of past winners year-by-year - NBC Sports\",\"link\":\"https://www.nbcsports.com/soccer/news/world-cup-winners-list-past-winners-year-by-year-tournaments\",\"snippet\":\"World
+        Cup Winners by Year \xB7 2022 - Argentina \xB7 2018 \u2013 France \xB7 2014
+        \u2013 Germany \xB7 2010 \u2013 Spain \xB7 2006 \u2013 Italy \xB7 2002 \u2013
+        Brazil \xB7 1998 \u2013 France.\",\"date\":\"Oct 18, 2023\",\"position\":10}],\"peopleAlsoAsk\":[{\"question\":\"Who
+        won in the World Cup in 2022?\",\"snippet\":\"Argentina national football
+        team\\n2022 FIFA World Cup Final / Champion\",\"title\":\"\"},{\"question\":\"Why
+        did Argentina win the World Cup in 2022?\",\"snippet\":\"On December 18, 2022,
+        Argentina and France played one of the best finals in World Cup history. It
+        took place in Doha, Qatar. Argentina won in a penalty shootout despite a great
+        performance by Kylian Mbappe. Lionel Messi finally managed to conquer glory
+        for the \\\"Albiceleste\\\".\",\"title\":\"One Year After Argentina's 2022
+        World Cup Triumph, New ...\",\"link\":\"https://www.beinsports.com/en-us/soccer/world-cup/articles-video/one-year-after-argentina-s-2022-world-cup-triumph-new-challenges-emerge-keeping-pace-with-the-champions-of-2022-2023-12-18\"},{\"question\":\"Which
+        country is the World Cup 2022?\",\"snippet\":\"2022 FIFA World Cup, international
+        football (soccer) tournament that took place in Qatar from November 20 to
+        December 18, 2022, and was contested by the men's national teams of 32 countries.
+        Argentina won its third World Cup victory in the tournament after defeating
+        France in the final match.\",\"title\":\"2022 FIFA World Cup | Qatar, Controversy,
+        Stadiums, Winner, & Final\",\"link\":\"https://www.britannica.com/sports/2022-FIFA-World-Cup\"},{\"question\":\"Did
+        Messi win the World Cup?\",\"snippet\":\"International career At the 2022
+        FIFA World Cup, Messi led Argentina to its first World Cup victory in 36 years.
+        He scored a total of 18 goals during the 2022 calendar year, an Argentina
+        record. With this victory, he had won every top tier trophy at both club and
+        country levels available to him.\",\"title\":\"Lionel Messi - Wikipedia\",\"link\":\"https://en.wikipedia.org/wiki/Lionel_Messi\"}],\"relatedSearches\":[{\"query\":\"UEFA
+        Champions...\"},{\"query\":\"Who won the World Cup 2023\"},{\"query\":\"Who
+        won the world cup in 2022 fifa 22\"},{\"query\":\"2022 FIFA World Cup\"},{\"query\":\"2022
+        FIFA World Cup final\"},{\"query\":\"When did Argentina win the World Cup
+        2022\"},{\"query\":\"2018 World Cup champion\"},{\"query\":\"FIFA World Cup
+        2022 qualifiers\"},{\"query\":\"FIFA World Cup 2023\"}]}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

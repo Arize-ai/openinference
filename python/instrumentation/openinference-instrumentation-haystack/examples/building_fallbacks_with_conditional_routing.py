@@ -15,10 +15,11 @@ from haystack.components.generators import OpenAIGenerator
 from haystack.components.routers import ConditionalRouter
 from haystack.components.websearch.serper_dev import SerperDevWebSearch
 from haystack.dataclasses import Document
-from openinference.instrumentation.haystack import HaystackInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.haystack import HaystackInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()

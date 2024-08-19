@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.14...python-openinference-instrumentation-v0.1.15) (2024-08-16)
+
+
+### Features
+
+* attribute prioritization ([#906](https://github.com/Arize-ai/openinference/issues/906)) ([0add042](https://github.com/Arize-ai/openinference/commit/0add0421b5f0d9b64c579027c469513359863a68))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.13...python-openinference-instrumentation-v0.1.14) (2024-08-15)
+
+
+### Bug Fixes
+
+* mask attributes when starting span ([#892](https://github.com/Arize-ai/openinference/issues/892)) ([9b72287](https://github.com/Arize-ai/openinference/commit/9b72287401d5c424a8951e1d6a15cca14fcd05cc))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.12...python-openinference-instrumentation-v0.1.13) (2024-08-10)
 
 

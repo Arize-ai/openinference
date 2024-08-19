@@ -28,7 +28,7 @@ dependencies = [
     "opentelemetry-api",
     "opentelemetry-instrumentation",
     "opentelemetry-semantic-conventions",
-    "openinference-instrumentation>=0.1.12",
+    "openinference-instrumentation>=0.1.15",
     "openinference-semantic-conventions",
     "wrapt",
     "typing-extensions",
@@ -40,9 +40,11 @@ instruments = [
     "haystack-ai >= 2.0.0",
 ]
 test = [
-    "haystack-ai >= 2.0.0",
+    "haystack-ai==2.3.1",
+    "cohere-haystack",
     "opentelemetry-sdk",
     "pytest-recording",
+    "respx",
 ]
 
 [project.urls]

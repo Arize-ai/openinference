@@ -1,9 +1,6 @@
 import logging
 from typing import Any, Collection
 
-from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.haystack._wrappers import _ComponentWrapper, _PipelineWrapper
-from openinference.instrumentation.haystack.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
     BaseInstrumentor,
@@ -11,6 +8,9 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 from wrapt import wrap_function_wrapper
 
 import haystack
+from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.haystack._wrappers import _ComponentWrapper, _PipelineWrapper
+from openinference.instrumentation.haystack.version import __version__
 
 logger = logging.getLogger(__name__)
 
