@@ -14,9 +14,11 @@ AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
 
 client = Anthropic()
 
-prompt = (f"{anthropic.HUMAN_PROMPT}"
-          f" how does a court case get to the Supreme Court?"
-          f" {anthropic.AI_PROMPT}")
+prompt = (
+    f"{anthropic.HUMAN_PROMPT}"
+    f" how does a court case get to the Supreme Court?"
+    f" {anthropic.AI_PROMPT}"
+)
 
 resp = client.completions.create(
     model="claude-2.1",

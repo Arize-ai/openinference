@@ -274,9 +274,11 @@ def test_anthropic_instrumentation_completions(
 ) -> None:
     client = Anthropic(api_key="fake")
 
-    prompt = (f"{anthropic.HUMAN_PROMPT}"
-              f" how does a court case get to the Supreme Court?"
-              f" {anthropic.AI_PROMPT}")
+    prompt = (
+        f"{anthropic.HUMAN_PROMPT}"
+        f" how does a court case get to the Supreme Court?"
+        f" {anthropic.AI_PROMPT}"
+    )
 
     client.completions.create(
         model="claude-2.1",
@@ -366,9 +368,11 @@ async def test_anthropic_instrumentation_async_completions(
 ) -> None:
     client = AsyncAnthropic(api_key="fake")
 
-    prompt = (f"{anthropic.HUMAN_PROMPT}"
-              f" how does a court case get to the Supreme Court?"
-              f" {anthropic.AI_PROMPT}")
+    prompt = (
+        f"{anthropic.HUMAN_PROMPT}"
+        f" how does a court case get to the Supreme Court?"
+        f" {anthropic.AI_PROMPT}"
+    )
 
     await client.completions.create(
         model="claude-2.1",
@@ -458,9 +462,11 @@ def test_anthropic_instrumentation_context_attributes_existence(
 ) -> None:
     client = Anthropic(api_key="fake")
 
-    prompt = (f"{anthropic.HUMAN_PROMPT}"
-              f" how does a court case get to the Supreme Court?"
-              f" {anthropic.AI_PROMPT}")
+    prompt = (
+        f"{anthropic.HUMAN_PROMPT}"
+        f" how does a court case get to the Supreme Court?"
+        f" {anthropic.AI_PROMPT}"
+    )
 
     with using_attributes(
         session_id=session_id,
