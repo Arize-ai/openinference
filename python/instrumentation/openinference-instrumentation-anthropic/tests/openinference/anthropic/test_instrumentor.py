@@ -72,105 +72,6 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
     return response
 
 
-mock_completion = Completion(
-    id="chat_comp_0",
-    completion="idk",
-    model="fake_model",
-    type="completion",
-)
-
-mock_message = Message(
-    id="msg_018gCsTGsXkYJVqYPxTgDHBU",
-    type="message",
-    model="fake_model",
-    role="assistant",
-    content=[TextBlock(type="text", text="idk")],
-    stop_reason="end_turn",
-    stop_sequence=None,
-    usage=Usage(input_tokens=30, output_tokens=309),
-)
-
-
-def _mock_post_generation(
-    self: Any,
-    path: str = "fake/url",
-    *,
-    cast_to: Type[ResponseT],
-    body: Optional[Body] = None,
-    options: RequestOptions = {},
-    files: Optional[RequestFiles] = None,
-    stream: bool = False,
-    stream_cls: Optional[Type[_StreamT]] = None,
-) -> Union[ResponseT, _StreamT]:
-    """
-    opts = FinalRequestOptions.construct(
-        method="post", url=path, json_data=body, files=to_httpx_files(files), **options
-    )
-    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
-    """
-    return cast(ResponseT, mock_completion)
-
-
-def _mock_post_messages(
-    self: Any,
-    path: str = "fake/url",
-    *,
-    cast_to: Type[ResponseT],
-    body: Optional[Body] = None,
-    options: RequestOptions = {},
-    files: Optional[RequestFiles] = None,
-    stream: bool = False,
-    stream_cls: Optional[Type[_StreamT]] = None,
-) -> Union[ResponseT, _StreamT]:
-    """
-    opts = FinalRequestOptions.construct(
-        method="post", url=path, json_data=body, files=to_httpx_files(files), **options
-    )
-    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
-    """
-    return cast(ResponseT, mock_message)
-
-
-async def _async_mock_post_generation(
-    self: Any,
-    path: str = "fake/url",
-    *,
-    cast_to: Type[ResponseT],
-    body: Optional[Body] = None,
-    options: RequestOptions = {},
-    files: Optional[RequestFiles] = None,
-    stream: bool = False,
-    stream_cls: Optional[Type[_StreamT]] = None,
-) -> Union[ResponseT, _StreamT]:
-    """
-    opts = FinalRequestOptions.construct(
-        method="post", url=path, json_data=body, files=to_httpx_files(files), **options
-    )
-    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
-    """
-    return cast(ResponseT, mock_completion)
-
-
-async def _async_mock_post_messages(
-    self: Any,
-    path: str = "fake/url",
-    *,
-    cast_to: Type[ResponseT],
-    body: Optional[Body] = None,
-    options: RequestOptions = {},
-    files: Optional[RequestFiles] = None,
-    stream: bool = False,
-    stream_cls: Optional[Type[_StreamT]] = None,
-) -> Union[ResponseT, _StreamT]:
-    """
-    opts = FinalRequestOptions.construct(
-        method="post", url=path, json_data=body, files=to_httpx_files(files), **options
-    )
-    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
-    """
-    return cast(ResponseT, mock_message)
-
-
 @pytest.fixture()
 def session_id() -> str:
     return "my-test-session-id"
@@ -353,7 +254,6 @@ def test_anthropic_instrumentation_messages(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-@pytest.mark.asyncio
 async def test_anthropic_instrumentation_async_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -401,7 +301,6 @@ async def test_anthropic_instrumentation_async_completions(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-@pytest.mark.asyncio
 async def test_anthropic_instrumentation_async_messages(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
