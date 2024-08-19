@@ -187,16 +187,16 @@ importers:
       '@arizeai/openinference-semantic-conventions':
         specifier: workspace:*
         version: link:../openinference-semantic-conventions
-      '@opentelemetry/api':
-        specifier: '>=1.0.0 <1.9.0'
-        version: 1.8.0
       '@opentelemetry/core':
         specifier: ^1.25.1
         version: 1.25.1(@opentelemetry/api@1.8.0)
+    devDependencies:
+      '@opentelemetry/api':
+        specifier: '>=1.0.0 <1.9.0'
+        version: 1.8.0
       '@opentelemetry/sdk-trace-base':
         specifier: ^1.19.0
         version: 1.25.1(@opentelemetry/api@1.8.0)
-    devDependencies:
       '@types/jest':
         specifier: ^29.5.12
         version: 29.5.12
@@ -1708,6 +1708,7 @@ packages:
       '@opentelemetry/api': 1.8.0
       '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/semantic-conventions': 1.25.1
+    dev: true
 
   /@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.0):
     resolution: {integrity: sha512-pkZT+iFYIZsVn6+GzM0kSX+u3MSLCY9md+lIJOoKl/P+gJFfxJte/60Usdp8Ce4rOs8GduUpSPNe1ddGyDT1sQ==}
@@ -1766,6 +1767,7 @@ packages:
       '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/resources': 1.25.1(@opentelemetry/api@1.8.0)
       '@opentelemetry/semantic-conventions': 1.25.1
+    dev: true
 
   /@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.0):
     resolution: {integrity: sha512-C8k4hnEbc5FamuZQ92nTOp8X/diCY56XUTnMiv9UTuJitCzaNNHAVsdm5+HLCdI8SLQsLWIrG38tddMxLVoftw==}
