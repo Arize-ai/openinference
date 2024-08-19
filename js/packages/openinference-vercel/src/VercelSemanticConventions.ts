@@ -1,4 +1,4 @@
-import { ValueOf } from "../utils/typeUtils";
+import { ValueOf } from "./typeUtils";
 
 /**
  * Below are the semantic conventions for @vercel/otel instrumentation.

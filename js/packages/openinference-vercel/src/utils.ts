@@ -16,13 +16,13 @@ import {
   OpenInferenceIOConvention,
   OpenInferenceSemanticConvention,
   ReadWriteSpan,
-} from "../types";
+} from "./types";
 import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import {
   assertUnreachable,
   isArrayOfObjects,
   isStringArray,
-} from "../utils/typeUtils";
+} from "./typeUtils";
 import { isAttributeValue } from "@opentelemetry/core";
 
 /**
@@ -45,17 +45,17 @@ const getVercelFunctionNameFromOperationName = (
  */
 export const getOISpanKindFromAttributes = (
   attributes: Attributes,
-): OpenInferenceSpanKind | null => {
+): OpenInferenceSpanKind | undefined => {
   const maybeOperationName = attributes["operation.name"];
   if (maybeOperationName == null || typeof maybeOperationName !== "string") {
-    return null;
+    return;
   }
   const maybeFunctionName =
     getVercelFunctionNameFromOperationName(maybeOperationName);
   if (maybeFunctionName == null) {
-    return null;
+    return;
   }
-  return VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName) ?? null;
+  return VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName);
 };
 
 /**
@@ -305,7 +305,7 @@ export const getOpenInferenceAttributes = ({
   spanKind,
 }: {
   initialAttributes: Attributes;
-  spanKind: OpenInferenceSpanKind;
+  spanKind?: OpenInferenceSpanKind;
 }): Attributes => {
   return VercelSemanticConventionsList.reduce(
     (openInferenceAttributes: Attributes, convention) => {

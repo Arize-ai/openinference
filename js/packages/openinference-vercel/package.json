@@ -37,24 +37,12 @@
   "dependencies": {
     "@arizeai/openinference-core": "workspace:*",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
-    "@opentelemetry/core": "^1.25.1",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.52.1",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.52.1",
-    "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
-    "@opentelemetry/otlp-exporter-base": "^0.52.1"
-  },
-  "peerDependencies": {
-    "@opentelemetry/api": ">=1.0.0 <1.9.0"
+    "@opentelemetry/core": "^1.25.1"
   },
   "devDependencies": {
-    "@opentelemetry/context-async-hooks": "^1.25.1",
-    "@opentelemetry/resources": "^1.19.0",
-    "@opentelemetry/sdk-trace-base": "^1.19.0",
-    "@opentelemetry/sdk-trace-node": "^1.19.0",
-    "@opentelemetry/semantic-conventions": "^1.19.0",
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.11",
-    "@vercel/otel": "^1.9.1",
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "@opentelemetry/sdk-trace-base": "^1.19.0",
+    "@opentelemetry/api": ">=1.0.0 <1.9.0"
   }
 }
