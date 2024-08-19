@@ -66,56 +66,6 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @pytest.fixture()
-def session_id() -> str:
-    return "my-test-session-id"
-
-
-@pytest.fixture()
-def user_id() -> str:
-    return "my-test-user-id"
-
-
-@pytest.fixture()
-def metadata() -> Dict[str, Any]:
-    return {
-        "test-int": 1,
-        "test-str": "string",
-        "test-list": [1, 2, 3],
-        "test-dict": {
-            "key-1": "val-1",
-            "key-2": "val-2",
-        },
-    }
-
-
-@pytest.fixture()
-def tags() -> List[str]:
-    return ["tag-1", "tag-2"]
-
-
-@pytest.fixture
-def prompt_template() -> str:
-    return (
-        "This is a test prompt template with int {var_int}, "
-        "string {var_string}, and list {var_list}"
-    )
-
-
-@pytest.fixture
-def prompt_template_version() -> str:
-    return "v1.0"
-
-
-@pytest.fixture
-def prompt_template_variables() -> Dict[str, Any]:
-    return {
-        "var_int": 1,
-        "var_str": "2",
-        "var_list": [1, 2, 3],
-    }
-
-
-@pytest.fixture()
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
@@ -135,18 +85,6 @@ def setup_anthropic_instrumentation(
     AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     AnthropicInstrumentor().uninstrument()
-
-
-def _check_context_attributes(
-    attributes: Any,
-) -> None:
-    assert attributes.get(SESSION_ID, None)
-    assert attributes.get(USER_ID, None)
-    assert attributes.get(METADATA, None)
-    assert attributes.get(TAG_TAGS, None)
-    assert attributes.get(LLM_PROMPT_TEMPLATE, None)
-    assert attributes.get(LLM_PROMPT_TEMPLATE_VERSION, None)
-    assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
 
 @pytest.mark.vcr(
@@ -262,13 +200,6 @@ async def test_anthropic_instrumentation_async_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
 ) -> None:
     client = AsyncAnthropic(api_key="fake")
 
@@ -367,14 +298,30 @@ def test_anthropic_instrumentation_context_attributes_existence(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
 ) -> None:
+    session_id = "my-test-session-id"
+    user_id = "my-test-user-id"
+    metadata = {
+        "test-int": 1,
+        "test-str": "string",
+        "test-list": [1, 2, 3],
+        "test-dict": {
+            "key-1": "val-1",
+            "key-2": "val-2",
+        },
+    }
+    tags = ["tag-1", "tag-2"]
+    prompt_template = (
+        "This is a test prompt template with int {var_int}, "
+        "string {var_string}, and list {var_list}"
+    )
+    prompt_template_version = "v1.0"
+    prompt_template_variables = {
+        "var_int": 1,
+        "var_str": "2",
+        "var_list": [1, 2, 3],
+    }
+
     client = Anthropic(api_key="fake")
 
     prompt = (
@@ -401,10 +348,13 @@ def test_anthropic_instrumentation_context_attributes_existence(
     spans = in_memory_span_exporter.get_finished_spans()
 
     for span in spans:
-        att = span.attributes
-    _check_context_attributes(
-        att,
-    )
+        assert span.attributes.get(SESSION_ID, None)
+        assert span.attributes.get(USER_ID, None)
+        assert span.attributes.get(METADATA, None)
+        assert span.attributes.get(TAG_TAGS, None)
+        assert span.attributes.get(LLM_PROMPT_TEMPLATE, None)
+        assert span.attributes.get(LLM_PROMPT_TEMPLATE_VERSION, None)
+        assert span.attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
 
 def test_anthropic_uninstrumentation(
