@@ -3,25 +3,16 @@ from typing import (
     Dict,
     Generator,
     List,
-    Optional,
-    Type,
-    Union,
-    cast,
 )
 
 import anthropic
 import pytest
 from anthropic import Anthropic, AsyncAnthropic
-from anthropic._base_client import _StreamT
-from anthropic._types import Body, RequestFiles, RequestOptions, ResponseT
 from anthropic.resources.completions import AsyncCompletions, Completions
 from anthropic.resources.messages import (  # type: ignore[attr-defined]
     AsyncMessages,
-    Message,
     Messages,
 )
-from anthropic.types import TextBlock, Usage
-from anthropic.types.completion import Completion
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
 from openinference.semconv.trace import (
