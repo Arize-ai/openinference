@@ -12,6 +12,19 @@ import { LangChainTracer } from "./tracer";
 
 const MODULE_NAME = "@langchain/core/callbacks";
 
+/**
+ * Flag to check if the openai module has been patched
+ * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
+ */
+let _isOpenInferencePatched = false;
+
+/**
+ * function to check if instrumentation is enabled / disabled
+ */
+export function isPatched() {
+  return _isOpenInferencePatched;
+}
+
 export class LangChainInstrumentation extends InstrumentationBase<
   typeof CallbackManagerModule
 > {
@@ -53,7 +66,7 @@ export class LangChainInstrumentation extends InstrumentationBase<
         moduleVersion != null ? `@${moduleVersion}` : ""
       }`,
     );
-    if (module?.openInferencePatched) {
+    if (module?.openInferencePatched || _isOpenInferencePatched) {
       return module;
     }
     this.tracer;
@@ -69,7 +82,14 @@ export class LangChainInstrumentation extends InstrumentationBase<
         return original.apply(this, args);
       };
     });
-    module.openInferencePatched = true;
+    _isOpenInferencePatched = true;
+    try {
+      // This can fail if the module is made immutable via the runtime or bundler
+      module.openInferencePatched = true;
+    } catch (e) {
+      diag.warn(`Failed to set ${MODULE_NAME} patched flag on the module`, e);
+    }
+
     return module;
   }
 
@@ -90,7 +110,13 @@ export class LangChainInstrumentation extends InstrumentationBase<
     if (isWrapped(module.CallbackManager.configure)) {
       this._unwrap(module.CallbackManager, "configure");
     }
-    delete module.openInferencePatched;
+    _isOpenInferencePatched = false;
+    try {
+      // This can fail if the module is made immutable via the runtime or bundler
+      module.openInferencePatched = false;
+    } catch (e) {
+      diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
+    }
     return module;
   }
 }
