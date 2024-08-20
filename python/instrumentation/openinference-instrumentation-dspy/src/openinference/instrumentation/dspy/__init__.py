@@ -3,6 +3,7 @@ from abc import ABC
 from copy import copy, deepcopy
 from enum import Enum
 from inspect import signature
+from logging import getLogger
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -22,8 +23,6 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeGuard
 from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
-from logging import getLogger
-
 
 from openinference.instrumentation import (
     OITracer,

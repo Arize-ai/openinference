@@ -1,7 +1,6 @@
 import os
 
 import dspy
-import requests
 from dsp import LM
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
