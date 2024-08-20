@@ -34,7 +34,6 @@ dependencies = [
     "typing-extensions",
 ]
 
-
 [project.optional-dependencies]
 instruments = [
     "anthropic >= 0.25.0",
@@ -94,6 +93,3 @@ select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
 force-single-line = false
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
