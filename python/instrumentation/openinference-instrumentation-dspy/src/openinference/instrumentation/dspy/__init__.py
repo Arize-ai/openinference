@@ -81,9 +81,18 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         language_model_classes = LM.__subclasses__()
         for lm in language_model_classes:
+            # Determine the top-level module of the class
+            top_level_module = lm.__module__.split('.')[0]
+            
+            # Set the module based on the top-level module name
+            if top_level_module in {_DSP_MODULE, _DSPY_MODULE}:
+                module = _DSP_MODULE
+            else:
+                module = top_level_module
+
             wrap_object(
-                module=_DSP_MODULE,
-                name=lm.__name__ + ".basic_request",
+                module=module,
+                name=f"{lm.__name__}.basic_request",
                 factory=CopyableFunctionWrapper,
                 args=(_LMBasicRequestWrapper(self._tracer),),
             )
