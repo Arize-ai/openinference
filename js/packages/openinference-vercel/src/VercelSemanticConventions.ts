@@ -19,8 +19,8 @@ const VercelAIPrefixes = {
 } as const;
 
 const VercelUsagePostfixes = {
-  completion: "completion",
-  prompt: "prompt",
+  completionTokens: "completionTokens",
+  promptTokens: "promptTokens",
 } as const;
 
 const VercelResultPostfixes = {
@@ -47,10 +47,10 @@ const METADATA =
   `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.telemetry}.metadata` as const;
 
 const TOKEN_COUNT_COMPLETION =
-  `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.usage}.${VercelUsagePostfixes.completion}` as const;
+  `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.usage}.${VercelUsagePostfixes.completionTokens}` as const;
 
 const TOKEN_COUNT_PROMPT =
-  `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.usage}.${VercelUsagePostfixes.prompt}` as const;
+  `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.usage}.${VercelUsagePostfixes.promptTokens}` as const;
 
 const RESULT_TEXT =
   `${VERCEL_AI_PREFIX}.${VercelAIPrefixes.result}.${VercelResultPostfixes.text}` as const;

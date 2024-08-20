@@ -17,11 +17,17 @@ import { OpenInferenceSemanticConvention } from "./types";
  * @example ai.generateText.doGenerate my-chat-call
  */
 export const VercelSDKFunctionNameToSpanKindMap = new Map([
+  ["ai.generateText", OpenInferenceSpanKind.CHAIN],
   ["ai.generateText.doGenerate", OpenInferenceSpanKind.LLM],
+  ["ai.generateObject", OpenInferenceSpanKind.CHAIN],
   ["ai.generateObject.doGenerate", OpenInferenceSpanKind.LLM],
+  ["ai.streamText", OpenInferenceSpanKind.CHAIN],
   ["ai.streamText.doStream", OpenInferenceSpanKind.LLM],
+  ["ai.streamObject", OpenInferenceSpanKind.CHAIN],
   ["ai.streamObject.doStream", OpenInferenceSpanKind.LLM],
+  ["ai.embed", OpenInferenceSpanKind.CHAIN],
   ["ai.embed.doEmbed", OpenInferenceSpanKind.EMBEDDING],
+  ["ai.embedMany", OpenInferenceSpanKind.CHAIN],
   ["ai.embedMany.doEmbed", OpenInferenceSpanKind.EMBEDDING],
   ["ai.toolCall", OpenInferenceSpanKind.TOOL],
 ]);

@@ -2,7 +2,7 @@ import { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { safelyGetOpenInferenceAttributes } from "./utils";
 import { ReadWriteSpan } from "./types";
 
-export class VercelSpanProcessor implements SpanProcessor {
+export class OpenInferenceSpanProcessor implements SpanProcessor {
   async forceFlush(): Promise<void> {
     // no-op
   }

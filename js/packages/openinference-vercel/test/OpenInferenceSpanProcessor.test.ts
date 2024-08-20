@@ -5,7 +5,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
-import { VercelSpanProcessor } from "../src";
+import { OpenInferenceSpanProcessor } from "../src";
 import {
   MimeType,
   SemanticConventions,
@@ -325,9 +325,9 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
   return testCases;
 };
 
-describe("VercelSpanProcessor", () => {
+describe("OpenInferenceSpanProcessor", () => {
   const memoryExporter = new InMemorySpanExporter();
-  traceProvider.addSpanProcessor(new VercelSpanProcessor());
+  traceProvider.addSpanProcessor(new OpenInferenceSpanProcessor());
   traceProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
   trace.setGlobalTracerProvider(traceProvider);
 
