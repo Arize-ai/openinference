@@ -82,7 +82,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         language_model_classes = LM.__subclasses__()
         for lm in language_model_classes:
             # Determine the top-level module of the class
-            top_level_module = lm.__module__.split('.')[0]
+            top_level_module = lm.__module__.split(".")[0]
 
             # Set the module based on the top-level module name
             # E.g. this means it's a built-in DSP model
@@ -91,7 +91,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 module = _DSP_MODULE
             else:
                 module = top_level_module
-            
+
             try:
                 wrap_object(
                     module=module,
@@ -102,7 +102,6 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             except Exception as e:
                 # Print and don't raise an exception if the wrapping fails
                 print(f"Error wrapping {lm.__name__}.basic_request: {e}")
-                
 
         # Predict is a concrete (non-abstract) class that may be invoked
         # directly, but DSPy also has subclasses of Predict that override the
