@@ -1,0 +1,18 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Who won the World Cup in 2022?
+      Answer in one word."}], "model": "gpt-4o", "stream": false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        sk-. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+    headers: {}
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

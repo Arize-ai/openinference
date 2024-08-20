@@ -2,16 +2,20 @@ import logging
 from importlib import import_module
 from typing import Any, Collection
 
-from openinference.instrumentation import OITracer, TraceConfig
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from wrapt import wrap_function_wrapper
+
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+)
 from openinference.instrumentation.crewai._wrappers import (
     _ExecuteCoreWrapper,
     _KickoffWrapper,
     _ToolUseWrapper,
 )
 from openinference.instrumentation.crewai.version import __version__
-from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import wrap_function_wrapper
 
 _instruments = ("crewai >= 0.41.1",)
 

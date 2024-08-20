@@ -4,6 +4,10 @@ from typing import (
     Collection,
 )
 
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from wrapt import wrap_function_wrapper
+
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.mistralai._chat_wrapper import (
     _AsyncChatWrapper,
@@ -12,9 +16,6 @@ from openinference.instrumentation.mistralai._chat_wrapper import (
 )
 from openinference.instrumentation.mistralai.package import _instruments
 from openinference.instrumentation.mistralai.version import __version__
-from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import wrap_function_wrapper
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

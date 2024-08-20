@@ -1,5 +1,17 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 0.4.0
+
+### Minor Changes
+
+- 5381ec9: capture images in request
+
+### Patch Changes
+
+- Updated dependencies [28a4ea2]
+- Updated dependencies [96af3d6]
+  - @arizeai/openinference-semantic-conventions@0.9.0
+
 ## 0.3.4
 
 ### Patch Changes

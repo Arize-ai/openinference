@@ -1,21 +1,9 @@
 import json
+from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Collection, Dict
+from typing import Any, Callable, Collection, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar
 
 from openai.types.image import Image
-from openinference.instrumentation import (
-    OITracer,
-    TraceConfig,
-    get_attributes_from_context,
-)
-from openinference.instrumentation.litellm.package import _instruments
-from openinference.instrumentation.litellm.version import __version__
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    ImageAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -29,12 +17,78 @@ from litellm.types.utils import (
     ImageResponse,
     ModelResponse,
 )
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    get_attributes_from_context,
+)
+from openinference.instrumentation.litellm.package import _instruments
+from openinference.instrumentation.litellm.version import __version__
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 # Helper functions to set span attributes
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
     if value is not None and value != "":
         span.set_attribute(name, value)
+
+
+T = TypeVar("T", bound=type)
+
+
+def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
+    return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)
+
+
+def _get_attributes_from_message_param(
+    message: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if not hasattr(message, "get"):
+        return
+    if role := message.get("role"):
+        yield (
+            MessageAttributes.MESSAGE_ROLE,
+            role.value if isinstance(role, Enum) else role,
+        )
+
+    if content := message.get("content"):
+        if isinstance(content, str):
+            yield MessageAttributes.MESSAGE_CONTENT, content
+        elif is_iterable_of(content, dict):
+            for index, c in list(enumerate(content)):
+                for key, value in _get_attributes_from_message_content(c):
+                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
+
+
+def _get_attributes_from_message_content(
+    content: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    content = dict(content)
+    type_ = content.pop("type")
+    if type_ == "text":
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+        if text := content.pop("text"):
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+    elif type_ == "image_url":
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+        if image := content.pop("image_url"):
+            for key, value in _get_attributes_from_image(image):
+                yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+
+
+def _get_attributes_from_image(
+    image: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    image = dict(image)
+    if url := image.pop("url"):
+        yield f"{ImageAttributes.IMAGE_URL}", url
 
 
 def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
@@ -51,10 +105,12 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
     _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, kwargs.get("model", "unknown_model"))
 
     if messages := kwargs.get("messages"):
-        _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(messages[0].get("content")))
-        for i, obj in enumerate(messages):
-            for key, value in obj.items():
-                _set_span_attribute(span, f"input.messages.{i}.{key}", value)
+        _set_span_attribute(span, SpanAttributes.INPUT_VALUE, json.dumps(messages))
+        for index, input_message in list(enumerate(messages)):
+            for key, value in _get_attributes_from_message_param(input_message):
+                _set_span_attribute(
+                    span, f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
+                )
 
     invocation_params = {k: v for k, v in kwargs.items() if k not in ["model", "messages"]}
     _set_span_attribute(
@@ -112,10 +168,12 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
     elif isinstance(result, ImageResponse):
         if len(result.data) > 0:
             if img_data := result.data[0]:
-                if isinstance(img_data, Image) and (url := img_data.url):
+                if isinstance(img_data, Image) and (url := (img_data.url or img_data.b64_json)):
                     _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
                     _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
-                elif isinstance(img_data, dict) and (url := img_data.get("url")):
+                elif isinstance(img_data, dict) and (
+                    url := (img_data.get("url") or img_data.get("b64_json"))
+                ):
                     _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
                     _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
     if hasattr(result, "usage"):

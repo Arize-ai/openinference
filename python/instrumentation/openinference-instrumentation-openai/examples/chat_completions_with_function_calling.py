@@ -4,10 +4,11 @@ from openai.types.chat import (
     ChatCompletionMessageToolCallParam,
     ChatCompletionToolMessageParam,
 )
-from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation.openai import OpenAIInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()

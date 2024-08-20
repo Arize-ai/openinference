@@ -3,12 +3,13 @@ from typing import Tuple
 
 import boto3
 import requests
-from openinference.instrumentation.bedrock import BedrockInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation.bedrock import BedrockInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 resource = Resource(attributes={})

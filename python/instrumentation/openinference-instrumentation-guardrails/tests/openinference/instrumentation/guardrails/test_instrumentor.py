@@ -12,13 +12,14 @@ from guardrails.validator_base import (  # type: ignore[import-untyped]
     Validator,
     register_validator,
 )
-from openinference.instrumentation import OITracer
-from openinference.instrumentation.guardrails import GuardrailsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydash.strings import words as _words
+
+from openinference.instrumentation import OITracer
+from openinference.instrumentation.guardrails import GuardrailsInstrumentor
 
 GUARDRAILS_VERSION = cast(
     Tuple[int, int, int],

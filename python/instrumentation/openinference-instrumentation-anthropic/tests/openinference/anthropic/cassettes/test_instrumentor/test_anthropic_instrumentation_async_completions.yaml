@@ -1,0 +1,36 @@
+interactions:
+- request:
+    body: '{"max_tokens_to_sample": 1000, "model": "claude-2.1", "prompt": "\n\nHuman:
+      how does a court case get to the Supreme Court? \n\nAssistant:"}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/complete
+  response:
+    body:
+      string: '{"type":"completion","id":"compl_01UXLihn1JiHdBhcGahQv7pe","completion":"
+        A court case can reach the Supreme Court in a few different ways:\n\n1. Appeal
+        from lower courts. Most cases that reach the Supreme Court are appeals from
+        decisions at lower federal courts or state supreme courts. Typically, a party
+        who loses at a lower court level can appeal the decision to the next higher
+        court. After the court of appeals, the next stop is the Supreme Court.\n\n2.
+        Original jurisdiction. The Supreme Court has original jurisdiction over certain
+        types of cases, meaning they can hear the case directly without it coming
+        from a lower court. These mainly include cases between two or more states
+        or certain cases involving ambassadors and public ministers.\n\n3. Writ of
+        certiorari. This a process where a party petitions the Supreme Court to hear
+        an appeal from a lower court. The Supreme Court then has discretion on whether
+        or not it wants to hear the case. Each term, there are thousands of petitions
+        for writ of certiorari, but the court only agrees to hear argument in about
+        100-150 cases per session. \n\n4. Certificate from lower courts or government.
+        Sometimes a circuit court of appeals can certify a legal issue to the Supreme
+        Court before making a final ruling. Government agencies can also refer cases
+        or issues over which there is some uncertainty or disagreement over the correct
+        legal interpretation.\n\nSo in summary, it''s usually an appeals process from
+        lower courts, the court''s original jurisdiction, or the Supreme Court agreeing
+        to exercise its discretion in hearing an appeal petition on a disputed legal
+        issue. The type and complexity of cases it hears is very selective.","stop_reason":"stop_sequence","model":"claude-2.1","stop":"\n\nHuman:","log_id":"compl_01UXLihn1JiHdBhcGahQv7pe"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

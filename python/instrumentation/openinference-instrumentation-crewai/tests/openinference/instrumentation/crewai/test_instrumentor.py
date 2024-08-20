@@ -14,12 +14,12 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 
+
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/crewai/fixtures/",
     record_mode="never",
     match_on=["uri", "method"],
-)
 
 
 @pytest.fixture()

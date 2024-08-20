@@ -1,11 +1,12 @@
 from importlib import import_module
 
-from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.openai import OpenAIInstrumentor
 
 resource = Resource(attributes={})
 tracer_provider = trace_sdk.TracerProvider(resource=resource)
