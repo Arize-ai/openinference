@@ -95,8 +95,6 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             else:
                 # this is a custom LM. Patch the custom module
                 module = lm.__module__
-                # TODO remove
-                print(f"Custom LM: {module}")
 
             try:
                 wrap_object(
