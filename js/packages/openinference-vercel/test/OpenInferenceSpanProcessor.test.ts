@@ -11,9 +11,9 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import {
-  VercelSemanticConventions,
-  VercelSemanticConventionsList,
-} from "../src/VercelSemanticConventions";
+  AISemanticConventions,
+  AISemanticConventionsList,
+} from "../src/AISemanticConventions";
 import { assertUnreachable } from "../src/typeUtils";
 
 const traceProvider = new BasicTracerProvider();
@@ -32,9 +32,9 @@ type SpanProcessorTestCase = [
 
 const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
   const testCases: SpanProcessorTestCase[] = [];
-  VercelSemanticConventionsList.map((vercelSemanticConvention) => {
+  AISemanticConventionsList.map((vercelSemanticConvention) => {
     switch (vercelSemanticConvention) {
-      case VercelSemanticConventions.MODEL_ID:
+      case AISemanticConventions.MODEL_ID:
         testCases.push(
           [
             `${vercelSemanticConvention} (LLMs) to ${SemanticConventions.LLM_MODEL_NAME} for LLM`,
@@ -55,7 +55,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           ],
         );
         break;
-      case VercelSemanticConventions.METADATA:
+      case AISemanticConventions.METADATA:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.METADATA}`,
           "ai.generateText.doGenerate",
@@ -69,7 +69,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.SETTINGS:
+      case AISemanticConventions.SETTINGS:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.LLM_INVOCATION_PARAMETERS}, accumulating and stringifying all settings`,
           "ai.generateText.doGenerate",
@@ -85,7 +85,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.TOKEN_COUNT_COMPLETION:
+      case AISemanticConventions.TOKEN_COUNT_COMPLETION:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_COMPLETION}`,
           "ai.generateText.doGenerate",
@@ -97,7 +97,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.TOKEN_COUNT_PROMPT:
+      case AISemanticConventions.TOKEN_COUNT_PROMPT:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}`,
           "ai.generateText.doGenerate",
@@ -109,7 +109,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.RESULT_TEXT:
+      case AISemanticConventions.RESULT_TEXT:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.OUTPUT_VALUE} with MIME type ${MimeType.TEXT}`,
           "ai.generateText.doGenerate",
@@ -122,7 +122,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.RESULT_OBJECT:
+      case AISemanticConventions.RESULT_OBJECT:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.OUTPUT_VALUE} with MIME type ${MimeType.JSON}`,
           "ai.generateObject.doGenerate",
@@ -137,7 +137,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.RESULT_TOOL_CALLS:
+      case AISemanticConventions.RESULT_TOOL_CALLS:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.MESSAGE_TOOL_CALLS} on ${SemanticConventions.LLM_OUTPUT_MESSAGES}`,
           "ai.toolCall",
@@ -159,7 +159,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.PROMPT:
+      case AISemanticConventions.PROMPT:
         testCases.push(
           [
             `${vercelSemanticConvention} to ${SemanticConventions.INPUT_VALUE} with MIME type ${MimeType.TEXT} for normal strings`,
@@ -185,7 +185,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           ],
         );
         break;
-      case VercelSemanticConventions.PROMPT_MESSAGES:
+      case AISemanticConventions.PROMPT_MESSAGES:
         testCases.push(
           [
             `${vercelSemanticConvention} to ${SemanticConventions.LLM_INPUT_MESSAGES} with role and content for string content messages`,
@@ -236,7 +236,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           ],
         );
         break;
-      case VercelSemanticConventions.EMBEDDING_TEXT:
+      case AISemanticConventions.EMBEDDING_TEXT:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.EMBEDDING_TEXT}`,
           "ai.embed.doEmbed",
@@ -249,7 +249,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.EMBEDDING_TEXTS:
+      case AISemanticConventions.EMBEDDING_TEXTS:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.EMBEDDING_TEXT} for multiple texts`,
           "ai.embedMany.doEmbed",
@@ -264,7 +264,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.EMBEDDING_VECTOR:
+      case AISemanticConventions.EMBEDDING_VECTOR:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.EMBEDDING_VECTOR}`,
           "ai.embedMany.doEmbed",
@@ -277,7 +277,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.EMBEDDING_VECTORS:
+      case AISemanticConventions.EMBEDDING_VECTORS:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.EMBEDDING_VECTOR} for multiple vectors`,
           "ai.embedMany.doEmbed",
@@ -292,7 +292,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.TOOL_CALL_NAME:
+      case AISemanticConventions.TOOL_CALL_NAME:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.TOOL_NAME}`,
           "ai.toolCall",
@@ -304,7 +304,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case VercelSemanticConventions.TOOL_CALL_ARGS:
+      case AISemanticConventions.TOOL_CALL_ARGS:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.TOOL_PARAMETERS}`,
           "ai.toolCall",

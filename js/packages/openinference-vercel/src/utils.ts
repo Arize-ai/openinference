@@ -6,15 +6,15 @@ import {
 import { Attributes, AttributeValue } from "@opentelemetry/api";
 import {
   VercelSDKFunctionNameToSpanKindMap,
-  VercelSemConvToOISemConvMap,
+  AISemConvToOISemConvMap,
 } from "./constants";
 import {
-  VercelSemanticConventions,
-  VercelSemanticConventionsList,
-} from "./VercelSemanticConventions";
+  AISemanticConventions,
+  AISemanticConventionsList,
+} from "./AISemanticConventions";
 import {
-  OpenInferenceIOConvention,
-  OpenInferenceSemanticConvention,
+  OpenInferenceIOConventionKey,
+  OpenInferenceSemanticConventionKey,
 } from "./types";
 import {
   assertUnreachable,
@@ -75,7 +75,7 @@ const safelyGetOISpanKindFromAttributes = withSafety(
  */
 const getInvocationParamAttributes = (attributes: Attributes) => {
   const settingAttributeKeys = Object.keys(attributes).filter((key) =>
-    key.startsWith(VercelSemanticConventions.SETTINGS),
+    key.startsWith(AISemanticConventions.SETTINGS),
   );
   if (settingAttributeKeys.length === 0) {
     return null;
@@ -128,22 +128,22 @@ const getMimeTypeFromValue = (value?: AttributeValue) => {
 /**
  * Gets OpenInference attributes associated with the IO
  * @param object.attributeValue the IO attribute value set by Vercel
- * @param object.openInferenceSemanticConvention the corresponding OpenInference semantic convention
+ * @param object.OpenInferenceSemanticConventionKey the corresponding OpenInference semantic convention
  * @returns the OpenInference attributes associated with the IO value
  */
 const getIOValueAttributes = ({
   attributeValue,
-  openInferenceSemanticConvention,
+  OpenInferenceSemanticConventionKey,
 }: {
   attributeValue?: AttributeValue;
-  openInferenceSemanticConvention: OpenInferenceIOConvention;
+  OpenInferenceSemanticConventionKey: OpenInferenceIOConventionKey;
 }) => {
   const mimeTypeSemanticConvention =
-    openInferenceSemanticConvention === SemanticConventions.INPUT_VALUE
+    OpenInferenceSemanticConventionKey === SemanticConventions.INPUT_VALUE
       ? SemanticConventions.INPUT_MIME_TYPE
       : SemanticConventions.OUTPUT_MIME_TYPE;
   return {
-    [openInferenceSemanticConvention]: attributeValue,
+    [OpenInferenceSemanticConventionKey]: attributeValue,
     [mimeTypeSemanticConvention]: getMimeTypeFromValue(attributeValue),
   };
 };
@@ -173,28 +173,29 @@ const formatEmbeddingValue = (value: AttributeValue) => {
 /**
  * Takes the Vercel embedding attribute value and the corresponding OpenInference attribute key and returns the OpenInference attributes associated with the embedding
  * The Vercel embedding attribute value can be a string or an array of strings
- * @param object the attribute value and the OpenInferenceSemanticConvention (either EMBEDDING_TEXT or EMBEDDING_VECTOR)
+ * @param object the attribute value and the OpenInferenceSemanticConventionKey (either EMBEDDING_TEXT or EMBEDDING_VECTOR)
  * @returns the OpenInference attributes associated with the embedding
  */
 const getEmbeddingAttributes = ({
   attributeValue,
-  openInferenceSemanticConvention,
+  OpenInferenceSemanticConventionKey,
 }: {
   attributeValue?: AttributeValue;
-  openInferenceSemanticConvention: OpenInferenceSemanticConvention;
+  OpenInferenceSemanticConventionKey: OpenInferenceSemanticConventionKey;
 }) => {
   const EMBEDDING_PREFIX = SemanticConventions.EMBEDDING_EMBEDDINGS;
 
   if (typeof attributeValue === "string") {
     return {
-      [`${EMBEDDING_PREFIX}.0.${openInferenceSemanticConvention}`]:
+      [`${EMBEDDING_PREFIX}.0.${OpenInferenceSemanticConventionKey}`]:
         formatEmbeddingValue(attributeValue),
     };
   }
   if (isStringArray(attributeValue)) {
     return attributeValue.reduce((acc: Attributes, embeddingValue, index) => {
-      acc[`${EMBEDDING_PREFIX}.${index}.${openInferenceSemanticConvention}`] =
-        formatEmbeddingValue(embeddingValue);
+      acc[
+        `${EMBEDDING_PREFIX}.${index}.${OpenInferenceSemanticConventionKey}`
+      ] = formatEmbeddingValue(embeddingValue);
       return acc;
     }, {});
   }
@@ -311,7 +312,7 @@ const safelyGetToolCallMessageAttributes = withSafety(
  */
 const getMetadataAttributes = (attributes: Attributes) => {
   const metadataAttributeKeys = Object.keys(attributes)
-    .filter((key) => key.startsWith(VercelSemanticConventions.METADATA))
+    .filter((key) => key.startsWith(AISemanticConventions.METADATA))
     .map((key) => ({ key: key.split(".")[3], value: attributes[key] }));
   if (metadataAttributeKeys.length === 0) {
     return null;
@@ -343,7 +344,7 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
   const openInferenceAttributes = {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind ?? undefined,
   };
-  return VercelSemanticConventionsList.reduce(
+  return AISemanticConventionsList.reduce(
     (openInferenceAttributes: Attributes, convention) => {
       /**
        *  Both settings and metadata are not full attribute paths but prefixes
@@ -351,29 +352,29 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
        */
       if (
         !(convention in attributes) &&
-        convention !== VercelSemanticConventions.SETTINGS &&
-        convention !== VercelSemanticConventions.METADATA
+        convention !== AISemanticConventions.SETTINGS &&
+        convention !== AISemanticConventions.METADATA
       ) {
         return openInferenceAttributes;
       }
 
-      const openInferenceKey = VercelSemConvToOISemConvMap[convention];
+      const openInferenceKey = AISemConvToOISemConvMap[convention];
 
       switch (convention) {
-        case VercelSemanticConventions.METADATA:
+        case AISemanticConventions.METADATA:
           return {
             ...openInferenceAttributes,
             ...safelyGetMetadataAttributes(attributes),
           };
-        case VercelSemanticConventions.TOKEN_COUNT_COMPLETION:
-        case VercelSemanticConventions.TOKEN_COUNT_PROMPT:
-        case VercelSemanticConventions.TOOL_CALL_NAME:
-        case VercelSemanticConventions.TOOL_CALL_ARGS:
+        case AISemanticConventions.TOKEN_COUNT_COMPLETION:
+        case AISemanticConventions.TOKEN_COUNT_PROMPT:
+        case AISemanticConventions.TOOL_CALL_NAME:
+        case AISemanticConventions.TOOL_CALL_ARGS:
           return {
             ...openInferenceAttributes,
             [openInferenceKey]: attributes[convention],
           };
-        case VercelSemanticConventions.MODEL_ID: {
+        case AISemanticConventions.MODEL_ID: {
           const modelSemanticConvention =
             spanKind === OpenInferenceSpanKind.EMBEDDING
               ? SemanticConventions.EMBEDDING_MODEL_NAME
@@ -383,43 +384,43 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
             [modelSemanticConvention]: attributes[convention],
           };
         }
-        case VercelSemanticConventions.SETTINGS:
+        case AISemanticConventions.SETTINGS:
           return {
             ...openInferenceAttributes,
             ...safelyGetInvocationParamAttributes(attributes),
           };
-        case VercelSemanticConventions.PROMPT:
-        case VercelSemanticConventions.RESULT_OBJECT:
-        case VercelSemanticConventions.RESULT_TEXT: {
+        case AISemanticConventions.PROMPT:
+        case AISemanticConventions.RESULT_OBJECT:
+        case AISemanticConventions.RESULT_TEXT: {
           return {
             ...openInferenceAttributes,
             ...safelyGetIOValueAttributes({
               attributeValue: attributes[convention],
-              openInferenceSemanticConvention:
-                openInferenceKey as OpenInferenceIOConvention,
+              OpenInferenceSemanticConventionKey:
+                openInferenceKey as OpenInferenceIOConventionKey,
             }),
           };
         }
-        case VercelSemanticConventions.RESULT_TOOL_CALLS:
+        case AISemanticConventions.RESULT_TOOL_CALLS:
           return {
             ...openInferenceAttributes,
             ...safelyGetToolCallMessageAttributes(attributes[convention]),
           };
-        case VercelSemanticConventions.PROMPT_MESSAGES:
+        case AISemanticConventions.PROMPT_MESSAGES:
           return {
             ...openInferenceAttributes,
             ...safelyGetInputMessageAttributes(attributes[convention]),
           };
           break;
-        case VercelSemanticConventions.EMBEDDING_TEXT:
-        case VercelSemanticConventions.EMBEDDING_TEXTS:
-        case VercelSemanticConventions.EMBEDDING_VECTOR:
-        case VercelSemanticConventions.EMBEDDING_VECTORS:
+        case AISemanticConventions.EMBEDDING_TEXT:
+        case AISemanticConventions.EMBEDDING_TEXTS:
+        case AISemanticConventions.EMBEDDING_VECTOR:
+        case AISemanticConventions.EMBEDDING_VECTORS:
           return {
             ...openInferenceAttributes,
             ...safelyGetEmbeddingAttributes({
               attributeValue: attributes[convention],
-              openInferenceSemanticConvention: openInferenceKey,
+              OpenInferenceSemanticConventionKey: openInferenceKey,
             }),
           };
         default:

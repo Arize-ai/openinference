@@ -3,10 +3,10 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import {
-  VercelSemanticConvention,
-  VercelSemanticConventions,
-} from "./VercelSemanticConventions";
-import { OpenInferenceSemanticConvention } from "./types";
+  AISemanticConvention,
+  AISemanticConventions,
+} from "./AISemanticConventions";
+import { OpenInferenceSemanticConventionKey } from "./types";
 
 /**
  * A map of Vercel SDK function names to OpenInference span kinds.
@@ -32,34 +32,31 @@ export const VercelSDKFunctionNameToSpanKindMap = new Map([
   ["ai.toolCall", OpenInferenceSpanKind.TOOL],
 ]);
 
-export const VercelSemConvToOISemConvMap: Record<
-  VercelSemanticConvention,
-  OpenInferenceSemanticConvention
+export const AISemConvToOISemConvMap: Record<
+  AISemanticConvention,
+  OpenInferenceSemanticConventionKey
 > = {
-  [VercelSemanticConventions.MODEL_ID]: SemanticConventions.LLM_MODEL_NAME,
-  [VercelSemanticConventions.SETTINGS]:
+  [AISemanticConventions.MODEL_ID]: SemanticConventions.LLM_MODEL_NAME,
+  [AISemanticConventions.SETTINGS]:
     SemanticConventions.LLM_INVOCATION_PARAMETERS,
-  [VercelSemanticConventions.METADATA]: SemanticConventions.METADATA,
-  [VercelSemanticConventions.TOKEN_COUNT_COMPLETION]:
+  [AISemanticConventions.METADATA]: SemanticConventions.METADATA,
+  [AISemanticConventions.TOKEN_COUNT_COMPLETION]:
     SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-  [VercelSemanticConventions.TOKEN_COUNT_PROMPT]:
+  [AISemanticConventions.TOKEN_COUNT_PROMPT]:
     SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-  [VercelSemanticConventions.RESULT_TEXT]: SemanticConventions.OUTPUT_VALUE,
-  [VercelSemanticConventions.RESULT_TOOL_CALLS]:
+  [AISemanticConventions.RESULT_TEXT]: SemanticConventions.OUTPUT_VALUE,
+  [AISemanticConventions.RESULT_TOOL_CALLS]:
     SemanticConventions.MESSAGE_TOOL_CALLS,
-  [VercelSemanticConventions.RESULT_OBJECT]: SemanticConventions.OUTPUT_VALUE,
-  [VercelSemanticConventions.PROMPT]: SemanticConventions.INPUT_VALUE,
-  [VercelSemanticConventions.PROMPT_MESSAGES]:
+  [AISemanticConventions.RESULT_OBJECT]: SemanticConventions.OUTPUT_VALUE,
+  [AISemanticConventions.PROMPT]: SemanticConventions.INPUT_VALUE,
+  [AISemanticConventions.PROMPT_MESSAGES]:
     SemanticConventions.LLM_INPUT_MESSAGES,
-  [VercelSemanticConventions.EMBEDDING_TEXT]:
-    SemanticConventions.EMBEDDING_TEXT,
-  [VercelSemanticConventions.EMBEDDING_VECTOR]:
+  [AISemanticConventions.EMBEDDING_TEXT]: SemanticConventions.EMBEDDING_TEXT,
+  [AISemanticConventions.EMBEDDING_VECTOR]:
     SemanticConventions.EMBEDDING_VECTOR,
-  [VercelSemanticConventions.EMBEDDING_TEXTS]:
-    SemanticConventions.EMBEDDING_TEXT,
-  [VercelSemanticConventions.EMBEDDING_VECTORS]:
+  [AISemanticConventions.EMBEDDING_TEXTS]: SemanticConventions.EMBEDDING_TEXT,
+  [AISemanticConventions.EMBEDDING_VECTORS]:
     SemanticConventions.EMBEDDING_VECTOR,
-  [VercelSemanticConventions.TOOL_CALL_NAME]: SemanticConventions.TOOL_NAME,
-  [VercelSemanticConventions.TOOL_CALL_ARGS]:
-    SemanticConventions.TOOL_PARAMETERS,
+  [AISemanticConventions.TOOL_CALL_NAME]: SemanticConventions.TOOL_NAME,
+  [AISemanticConventions.TOOL_CALL_ARGS]: SemanticConventions.TOOL_PARAMETERS,
 } as const;

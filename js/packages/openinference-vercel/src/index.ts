@@ -1,1 +1,1 @@
-export * from "./OpenInferenceSpanProcesor";
+export * from "./OpenInferenceSpanProcessor";

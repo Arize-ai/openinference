@@ -11,12 +11,12 @@ import { Mutable, ValueOf } from "./typeUtils";
  */
 export type ReadWriteSpan = Mutable<ReadableSpan>;
 
-export type OpenInferenceSemanticConvention = ValueOf<
+export type OpenInferenceSemanticConventionKey = ValueOf<
   typeof SemanticConventions
 >;
 
-export type OpenInferenceIOConvention = Extract<
-  OpenInferenceSemanticConvention,
+export type OpenInferenceIOConventionKey = Extract<
+  OpenInferenceSemanticConventionKey,
   | typeof SemanticConventions.OUTPUT_VALUE
   | typeof SemanticConventions.INPUT_VALUE
 >;
