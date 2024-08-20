@@ -158,8 +158,11 @@ def clear_cache() -> None:
     fixture clears the cache before each test case to ensure that our mocked
     responses are used.
     """
-    CacheMemory.clear()
-    NotebookCacheMemory.clear()
+    try:
+        CacheMemory.clear()
+        NotebookCacheMemory.clear()
+    except Exception:
+        pass
 
 
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
@@ -753,7 +756,7 @@ def test_compilation(
         )
     )
 
-    with dspy.context(lm=dspy.OpenAI(model="gpt-4")):
+    with dspy.context(lm=dspy.OpenAI(model="gpt-4", api_key="sk-fake-key")):
         teleprompter = BootstrapFewShotWithRandomSearch(
             metric=exact_match,
             max_bootstrapped_demos=1,
@@ -773,7 +776,7 @@ def test_compilation(
     spans = in_memory_span_exporter.get_finished_spans()
     assert spans, "no spans were recorded"
     for span in spans:
-        assert not span.events, "spans should not contain exception events"
+        assert not span.events, f"spans should not contain exception events {str(span.events)}"
 
 
 def _check_context_attributes(
