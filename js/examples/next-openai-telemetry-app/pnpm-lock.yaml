@@ -17,18 +17,24 @@ dependencies:
   '@opentelemetry/api-logs':
     specifier: 0.52.1
     version: 0.52.1
+  '@opentelemetry/exporter-trace-otlp-proto':
+    specifier: ^0.52.1
+    version: 0.52.1(@opentelemetry/api@1.9.0)
   '@opentelemetry/instrumentation':
     specifier: 0.52.1
     version: 0.52.1(@opentelemetry/api@1.9.0)
   '@opentelemetry/sdk-logs':
     specifier: 0.52.1
     version: 0.52.1(@opentelemetry/api@1.9.0)
+  '@opentelemetry/sdk-trace-base':
+    specifier: ^1.25.1
+    version: 1.25.1(@opentelemetry/api@1.9.0)
   '@vercel/otel':
     specifier: 1.9.1
     version: 1.9.1(@opentelemetry/api-logs@0.52.1)(@opentelemetry/api@1.9.0)(@opentelemetry/instrumentation@0.52.1)(@opentelemetry/resources@1.25.1)(@opentelemetry/sdk-logs@0.52.1)(@opentelemetry/sdk-metrics@1.25.1)(@opentelemetry/sdk-trace-base@1.25.1)
   ai:
     specifier: latest
-    version: 3.3.6(openai@4.52.6)(react@18.3.1)(svelte@4.2.18)(vue@3.4.37)(zod@3.23.8)
+    version: 3.3.12(openai@4.52.6)(react@18.3.1)(svelte@4.2.18)(vue@3.4.37)(zod@3.23.8)
   next:
     specifier: latest
     version: 14.2.5(@opentelemetry/api@1.9.0)(react-dom@18.3.1)(react@18.3.1)
@@ -103,8 +109,31 @@ packages:
       zod: 3.23.8
     dev: false
 
+  /@ai-sdk/provider-utils@1.0.14(zod@3.23.8):
+    resolution: {integrity: sha512-6jKYgg/iitJiz9ivlTx1CDrQBx1BeSd0IlRJ/Fl5LcdGAc3gnsMVR+R1w1jxzyhjVyh6g+NqlOZenW0tctNZnA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
+    dependencies:
+      '@ai-sdk/provider': 0.0.21
+      eventsource-parser: 1.1.2
+      nanoid: 3.3.6
+      secure-json-parse: 2.7.0
+      zod: 3.23.8
+    dev: false
+
   /@ai-sdk/provider@0.0.18:
     resolution: {integrity: sha512-LF4aUAKDTKIHa2e7ozwRJDMhUC9cs7t224sUilG1HfyFWyyh+01oPZwMob/hj111SozZkvXIukN0BIa+sXS0mw==}
+    engines: {node: '>=18'}
+    dependencies:
+      json-schema: 0.4.0
+    dev: false
+
+  /@ai-sdk/provider@0.0.21:
+    resolution: {integrity: sha512-9j95uaPRxwYkzQdkl4XO/MmWWW5c5vcVSXtqvALpD9SMB9fzH46dO3UN4VbOJR2J3Z84CZAqgZu5tNlkptT9qQ==}
     engines: {node: '>=18'}
     dependencies:
       json-schema: 0.4.0
@@ -129,8 +158,27 @@ packages:
       zod: 3.23.8
     dev: false
 
-  /@ai-sdk/solid@0.0.33(zod@3.23.8):
-    resolution: {integrity: sha512-6AV4g6IrQ7bPcfQgwOjNMT50W2lljk/sgzJ3qx+Bt/lobvhA7khyW1RVYTnxx3OBdf4/qB1D2BAAbUrrm/na8A==}
+  /@ai-sdk/react@0.0.47(react@18.3.1)(zod@3.23.8):
+    resolution: {integrity: sha512-lvH5vscfiH93zbJCTR4GZoX0FuiCShEKZVYVQSaE8wod+lc/LaFp9u7sXgHeZOCQj06C68WB88h90V2l9P6cig==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      react: ^18 || ^19
+      zod: ^3.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      '@ai-sdk/provider-utils': 1.0.14(zod@3.23.8)
+      '@ai-sdk/ui-utils': 0.0.34(zod@3.23.8)
+      react: 18.3.1
+      swr: 2.2.5(react@18.3.1)
+      zod: 3.23.8
+    dev: false
+
+  /@ai-sdk/solid@0.0.37(zod@3.23.8):
+    resolution: {integrity: sha512-KfRHEjBNmtm78Ch1MmTjuvUb7EHOCWiZrypqZt+R0EZJ6X9SIy4fwlXpY/Mn5WuOweAK7vL+woIAlk0SIRSF0w==}
     engines: {node: '>=18'}
     peerDependencies:
       solid-js: ^1.7.7
@@ -138,14 +186,14 @@ packages:
       solid-js:
         optional: true
     dependencies:
-      '@ai-sdk/provider-utils': 1.0.10(zod@3.23.8)
-      '@ai-sdk/ui-utils': 0.0.30(zod@3.23.8)
+      '@ai-sdk/provider-utils': 1.0.14(zod@3.23.8)
+      '@ai-sdk/ui-utils': 0.0.34(zod@3.23.8)
     transitivePeerDependencies:
       - zod
     dev: false
 
-  /@ai-sdk/svelte@0.0.35(svelte@4.2.18)(zod@3.23.8):
-    resolution: {integrity: sha512-vbDmvcu2MRZvvxoOtCUH8ydKSaugaQkhiBtZRp/U1YvSIuzR7xUkYSf0EQ173kWBWsaoPO9PFava0WxF7k1q4g==}
+  /@ai-sdk/svelte@0.0.39(svelte@4.2.18)(zod@3.23.8):
+    resolution: {integrity: sha512-7t/DfxlsWqA+3gDNEUX9ONgdzCpPfPKzkxsE3UGtHvrRLknbLa692yNGJNi0OVB5V++vhtpPw4LViPEmj6DV2w==}
     engines: {node: '>=18'}
     peerDependencies:
       svelte: ^3.0.0 || ^4.0.0
@@ -153,8 +201,8 @@ packages:
       svelte:
         optional: true
     dependencies:
-      '@ai-sdk/provider-utils': 1.0.10(zod@3.23.8)
-      '@ai-sdk/ui-utils': 0.0.30(zod@3.23.8)
+      '@ai-sdk/provider-utils': 1.0.14(zod@3.23.8)
+      '@ai-sdk/ui-utils': 0.0.34(zod@3.23.8)
       sswr: 2.1.0(svelte@4.2.18)
       svelte: 4.2.18
     transitivePeerDependencies:
@@ -178,8 +226,25 @@ packages:
       zod-to-json-schema: 3.22.5(zod@3.23.8)
     dev: false
 
-  /@ai-sdk/vue@0.0.34(vue@3.4.37)(zod@3.23.8):
-    resolution: {integrity: sha512-Nbht63i4NJrau5Yrf6dH6paH2mj/5CSmHopjA0IRHdOTvh3lKe382oZP2hLnN/xa575r25as67l7P/j/iq8ULQ==}
+  /@ai-sdk/ui-utils@0.0.34(zod@3.23.8):
+    resolution: {integrity: sha512-8nTBsQklLrp6r/AJyeWxD8D4pvhQhlGfrDaBAfo7OEdBLwF6bNdnh6CJFSwUMiXUtUPOBqPV5tFgY2pJmGQikg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
+    dependencies:
+      '@ai-sdk/provider': 0.0.21
+      '@ai-sdk/provider-utils': 1.0.14(zod@3.23.8)
+      json-schema: 0.4.0
+      secure-json-parse: 2.7.0
+      zod: 3.23.8
+      zod-to-json-schema: 3.22.5(zod@3.23.8)
+    dev: false
+
+  /@ai-sdk/vue@0.0.39(vue@3.4.37)(zod@3.23.8):
+    resolution: {integrity: sha512-lIcDV1PieneN6yxb7LDdYmXEOearRxdvAgVvMdtAS+Fc4s8basaidh6AA6OFOPAVc16PchpfZCVREfve0r6pUw==}
     engines: {node: '>=18'}
     peerDependencies:
       vue: ^3.3.4
@@ -187,8 +252,8 @@ packages:
       vue:
         optional: true
     dependencies:
-      '@ai-sdk/provider-utils': 1.0.10(zod@3.23.8)
-      '@ai-sdk/ui-utils': 0.0.30(zod@3.23.8)
+      '@ai-sdk/provider-utils': 1.0.14(zod@3.23.8)
+      '@ai-sdk/ui-utils': 0.0.34(zod@3.23.8)
       swrv: 1.0.4(vue@3.4.37)
       vue: 3.4.37(typescript@5.1.3)
     transitivePeerDependencies:
@@ -455,6 +520,20 @@ packages:
       '@opentelemetry/semantic-conventions': 1.25.1
     dev: false
 
+  /@opentelemetry/exporter-trace-otlp-proto@0.52.1(@opentelemetry/api@1.9.0):
+    resolution: {integrity: sha512-pt6uX0noTQReHXNeEslQv7x311/F1gJzMnp1HD2qgypLRPbXDeMzzeTngRTUaUbP6hqWNtPxuLr4DEoZG+TcEQ==}
+    engines: {node: '>=14'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.0.0
+    dependencies:
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/otlp-exporter-base': 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/otlp-transformer': 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources': 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-base': 1.25.1(@opentelemetry/api@1.9.0)
+    dev: false
+
   /@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.9.0):
     resolution: {integrity: sha512-uXJbYU/5/MBHjMp1FqrILLRuiJCs3Ofk0MeRDk8g1S1gD47U8X3JnSwcMO1rtRo1x1a7zKaQHaoYu49p/4eSKw==}
     engines: {node: '>=14'}
@@ -470,6 +549,33 @@ packages:
       shimmer: 1.2.1
     transitivePeerDependencies:
       - supports-color
+    dev: false
+
+  /@opentelemetry/otlp-exporter-base@0.52.1(@opentelemetry/api@1.9.0):
+    resolution: {integrity: sha512-z175NXOtX5ihdlshtYBe5RpGeBoTXVCKPPLiQlD6FHvpM4Ch+p2B0yWKYSrBfLH24H9zjJiBdTrtD+hLlfnXEQ==}
+    engines: {node: '>=14'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.0.0
+    dependencies:
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/otlp-transformer': 0.52.1(@opentelemetry/api@1.9.0)
+    dev: false
+
+  /@opentelemetry/otlp-transformer@0.52.1(@opentelemetry/api@1.9.0):
+    resolution: {integrity: sha512-I88uCZSZZtVa0XniRqQWKbjAUm73I8tpEy/uJYPPYw5d7BRdVk0RfTBQw8kSUl01oVWEuqxLDa802222MYyWHg==}
+    engines: {node: '>=14'}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.3.0 <1.10.0'
+    dependencies:
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/api-logs': 0.52.1
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources': 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-logs': 0.52.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-metrics': 1.25.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-base': 1.25.1(@opentelemetry/api@1.9.0)
+      protobufjs: 7.3.2
     dev: false
 
   /@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.0):
@@ -530,6 +636,49 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
+
+  /@protobufjs/aspromise@1.1.2:
+    resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
+    dev: false
+
+  /@protobufjs/base64@1.1.2:
+    resolution: {integrity: sha512-AZkcAA5vnN/v4PDqKyMR5lx7hZttPDgClv83E//FMNhR2TMcLUhfRUBHCmSl0oi9zMgDDqRUJkSxO3wm85+XLg==}
+    dev: false
+
+  /@protobufjs/codegen@2.0.4:
+    resolution: {integrity: sha512-YyFaikqM5sH0ziFZCN3xDC7zeGaB/d0IUb9CATugHWbd1FRFwWwt4ld4OYMPWu5a3Xe01mGAULCdqhMlPl29Jg==}
+    dev: false
+
+  /@protobufjs/eventemitter@1.1.0:
+    resolution: {integrity: sha512-j9ednRT81vYJ9OfVuXG6ERSTdEL1xVsNgqpkxMsbIabzSo3goCjDIveeGv5d03om39ML71RdmrGNjG5SReBP/Q==}
+    dev: false
+
+  /@protobufjs/fetch@1.1.0:
+    resolution: {integrity: sha512-lljVXpqXebpsijW71PZaCYeIcE5on1w5DlQy5WH6GLbFryLUrBD4932W/E2BSpfRJWseIL4v/KPgBFxDOIdKpQ==}
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+      '@protobufjs/inquire': 1.1.0
+    dev: false
+
+  /@protobufjs/float@1.0.2:
+    resolution: {integrity: sha512-Ddb+kVXlXst9d+R9PfTIxh1EdNkgoRe5tOX6t01f1lYWOvJnSPDBlG241QLzcyPdoNTsblLUdujGSE4RzrTZGQ==}
+    dev: false
+
+  /@protobufjs/inquire@1.1.0:
+    resolution: {integrity: sha512-kdSefcPdruJiFMVSbn801t4vFK7KB/5gd2fYvrxhuJYg8ILrmn9SKSX2tZdV6V+ksulWqS7aXjBcRXl3wHoD9Q==}
+    dev: false
+
+  /@protobufjs/path@1.1.2:
+    resolution: {integrity: sha512-6JOcJ5Tm08dOHAbdR3GrvP+yUUfkjG5ePsHYczMFLq3ZmMkAD98cDgcT2iA1lJ9NVwFd4tH/iSSoe44YWkltEA==}
+    dev: false
+
+  /@protobufjs/pool@1.1.0:
+    resolution: {integrity: sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw==}
+    dev: false
+
+  /@protobufjs/utf8@1.1.0:
+    resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
+    dev: false
 
   /@rushstack/eslint-patch@1.10.4:
     resolution: {integrity: sha512-WJgX9nzTqknM393q1QJDJmoW28kUfEnybeTfVNcNAPnIx210RXm2DiXiHzfNPJNIUUb1tJnz/l4QGtJ30PgWmA==}
@@ -792,8 +941,8 @@ packages:
       humanize-ms: 1.2.1
     dev: false
 
-  /ai@3.3.6(openai@4.52.6)(react@18.3.1)(svelte@4.2.18)(vue@3.4.37)(zod@3.23.8):
-    resolution: {integrity: sha512-XrbjYyugNF0SlTEVAO8B7tlW6iW47+DYk1hkyGj0vwp93J0F19bdrtN6NbFJOzSHj/R4FGvGk0IPQz5A3Eq1IQ==}
+  /ai@3.3.12(openai@4.52.6)(react@18.3.1)(svelte@4.2.18)(vue@3.4.37)(zod@3.23.8):
+    resolution: {integrity: sha512-vmum83qRAWNPWFiaxhQNMAksZhjcSFdGlUdQubifCvYS1wptDFxz9WyLgh4hwUPiJNX5sNuUqra6U1VndLZ6Aw==}
     engines: {node: '>=18'}
     peerDependencies:
       openai: ^4.42.0
@@ -813,13 +962,13 @@ packages:
       zod:
         optional: true
     dependencies:
-      '@ai-sdk/provider': 0.0.18
-      '@ai-sdk/provider-utils': 1.0.10(zod@3.23.8)
-      '@ai-sdk/react': 0.0.42(react@18.3.1)(zod@3.23.8)
-      '@ai-sdk/solid': 0.0.33(zod@3.23.8)
-      '@ai-sdk/svelte': 0.0.35(svelte@4.2.18)(zod@3.23.8)
-      '@ai-sdk/ui-utils': 0.0.30(zod@3.23.8)
-      '@ai-sdk/vue': 0.0.34(vue@3.4.37)(zod@3.23.8)
+      '@ai-sdk/provider': 0.0.21
+      '@ai-sdk/provider-utils': 1.0.14(zod@3.23.8)
+      '@ai-sdk/react': 0.0.47(react@18.3.1)(zod@3.23.8)
+      '@ai-sdk/solid': 0.0.37(zod@3.23.8)
+      '@ai-sdk/svelte': 0.0.39(svelte@4.2.18)(zod@3.23.8)
+      '@ai-sdk/ui-utils': 0.0.34(zod@3.23.8)
+      '@ai-sdk/vue': 0.0.39(vue@3.4.37)(zod@3.23.8)
       '@opentelemetry/api': 1.9.0
       eventsource-parser: 1.1.2
       json-schema: 0.4.0
@@ -2588,6 +2737,10 @@ packages:
     resolution: {integrity: sha512-jttmRe7bRse52OsWIMDLaXxWqRAmtIUccAQ3garviCqJjafXOfNMO0yMfNpdD6zbGaTU0P5Nz7e7gAT6cKmJRw==}
     dev: true
 
+  /long@5.2.3:
+    resolution: {integrity: sha512-lcHwpNoggQTObv5apGNCTdJrO69eHOZMi4BNC+rTLER8iHAqGrUVeLh/irVIM7zTw2bOXA8T6uNPeujwOLg/2Q==}
+    dev: false
+
   /loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
     hasBin: true
@@ -3041,6 +3194,25 @@ packages:
       object-assign: 4.1.1
       react-is: 16.13.1
     dev: true
+
+  /protobufjs@7.3.2:
+    resolution: {integrity: sha512-RXyHaACeqXeqAKGLDl68rQKbmObRsTIn4TYVUUug1KfS47YWCo5MacGITEryugIgZqORCvJWEk4l449POg5Txg==}
+    engines: {node: '>=12.0.0'}
+    requiresBuild: true
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+      '@protobufjs/base64': 1.1.2
+      '@protobufjs/codegen': 2.0.4
+      '@protobufjs/eventemitter': 1.1.0
+      '@protobufjs/fetch': 1.1.0
+      '@protobufjs/float': 1.0.2
+      '@protobufjs/inquire': 1.1.0
+      '@protobufjs/path': 1.1.2
+      '@protobufjs/pool': 1.1.0
+      '@protobufjs/utf8': 1.1.0
+      '@types/node': 18.19.44
+      long: 5.2.3
+    dev: false
 
   /punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
