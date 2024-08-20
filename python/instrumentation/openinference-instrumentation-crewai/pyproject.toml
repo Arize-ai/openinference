@@ -57,6 +57,12 @@ include = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/openinference"]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+  "tests",
+]
+
 [tool.mypy]
 strict = true
 explicit_package_bases = true
