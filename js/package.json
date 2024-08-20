@@ -39,8 +39,5 @@
   },
   "eslintIgnore": [
     "examples/**/*"
-  ],
-  "dependencies": {
-    "ai": "3.0.0"
-  }
+  ]
 }
