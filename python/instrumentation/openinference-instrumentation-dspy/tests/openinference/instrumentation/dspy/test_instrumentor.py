@@ -756,7 +756,7 @@ def test_compilation(
         )
     )
 
-    with dspy.context(lm=dspy.OpenAI(model="gpt-4")):
+    with dspy.context(lm=dspy.OpenAI(model="gpt-4", api_key="sk-fake-key")):
         teleprompter = BootstrapFewShotWithRandomSearch(
             metric=exact_match,
             max_bootstrapped_demos=1,
@@ -776,7 +776,7 @@ def test_compilation(
     spans = in_memory_span_exporter.get_finished_spans()
     assert spans, "no spans were recorded"
     for span in spans:
-        assert not span.events, "spans should not contain exception events"
+        assert not span.events, f"spans should not contain exception events {str(span.events)}"
 
 
 def _check_context_attributes(
