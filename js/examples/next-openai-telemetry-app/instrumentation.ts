@@ -1,6 +1,6 @@
 import { registerOTel } from "@vercel/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
-import { OpenInferenceSpanProcessor } from "../../packages/openinference-vercel/src";
+import { OpenInferenceSpanProcessor } from "@arizeai/openinference-vercel";
 import { OTLPHttpProtoTraceExporter } from "@vercel/otel";
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 
