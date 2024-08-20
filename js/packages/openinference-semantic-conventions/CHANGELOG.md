@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.10.0
+
+### Minor Changes
+
+- ba142d5: Added attributes for tools and their json_schema
+
 ## 0.9.0
 
 ### Minor Changes
