@@ -2,7 +2,7 @@
 
 This example shows how to use the [Vercel AI SDK](https://sdk.vercel.ai/docs) with [Next.js](https://nextjs.org/) and [OpenAI](https://openai.com) to create a sample generative application with [OpenTelemetry support](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
 
-OTEL spans are collected and viewable with [Arize-Phoenix](https://github.com/Arize-ai/phoenix).
+OTEL spans are processed by the [@arizeai/openinference-vercel](https://github.com/Arize-ai/openinference/tree/main/js/packages/openinference-vercel) package and collected and viewable in [Arize-Phoenix](https://github.com/Arize-ai/phoenix).
 
 ## Deploy your own
 
@@ -22,12 +22,11 @@ If you don't already have an OpenAI API key do the following to create one:
 To run the example locally you need to:
 
 1. Set the required OpenAI environment variable as the token value as shown [the example env file](./.env.local.example) but in a new file called `.env.local`.
-   - The `OTEL_EXPORTER_OTLP_ENDPOINT` does not need to be adjusted in order to send traces to a local instance of [Arize-Phoenix](https://github.com/Arize-ai/phoenix).
 2. To run [Arize-Phoenix](https://github.com/Arize-ai/phoenix) locally run `docker run -p 6006:6006 -i -t arizephoenix/phoenix`
 3. `pnpm install --frozen-lockfile --ignore-workspace` to install the required dependencies.
 4. `pnpm run dev` to launch the development server.
 
-Whether running locally or with docker both [Arize-Phoenix](https://github.com/Arize-ai/phoenix) and the example app will be available at:
+To view [Arize-Phoenix](https://github.com/Arize-ai/phoenix) and the example app visit:
 
 - **App:** [localhost:3000](http://localhost:3000)
 
@@ -39,6 +38,7 @@ To learn more about Phoenix, OpenAI, Next.js, and the Vercel AI SDK take a look 
 
 - [Phoenix repository](https://github.com/Arize-ai/phoenix) - learn about LLM observability with Phoenix
 - [Phoenix docs](https://docs.arize.com/phoenix)
+- [@arizeai/openinference-vercel](https://github.com/Arize-ai/openinference/tree/main/js/packages/openinference-vercel) - Check out the OpenInference Vercel support.
 - [Vercel AI SDK docs](https://sdk.vercel.ai/docs)
 - [Vercel AI SDK telemetry support](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry)
 - [Vercel AI Playground](https://play.vercel.ai)
