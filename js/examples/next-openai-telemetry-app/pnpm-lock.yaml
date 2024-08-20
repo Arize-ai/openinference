@@ -11,6 +11,12 @@ dependencies:
   '@ai-sdk/react':
     specifier: latest
     version: 0.0.42(react@18.3.1)(zod@3.23.8)
+  '@arizeai/openinference-vercel':
+    specifier: ^0.1.0
+    version: 0.1.0(@opentelemetry/api@1.9.0)
+  '@nanostores/react':
+    specifier: github:ai/react
+    version: git@github.com+ai/react/a240052fd6da7d85a20ee9c872aca48205ef555e(nanostores@0.11.2)(react@18.3.1)
   '@opentelemetry/api':
     specifier: ^1.9.0
     version: 1.9.0
@@ -74,7 +80,7 @@ devDependencies:
     specifier: ^8.4.23
     version: 8.4.41
   tailwindcss:
-    specifier: ^3.3.2
+    specifier: ^3.4.9
     version: 3.4.9
   typescript:
     specifier: 5.1.3
@@ -271,6 +277,30 @@ packages:
     dependencies:
       '@jridgewell/gen-mapping': 0.3.5
       '@jridgewell/trace-mapping': 0.3.25
+    dev: false
+
+  /@arizeai/openinference-core@0.1.1(@opentelemetry/api@1.9.0):
+    resolution: {integrity: sha512-k7JEVUV5Tk7KySh0varAtrwKsmK7+VuNwC8jrNLwL2pYaum/kU7olBhtzcWHrQzmgnrAgXbfGsRTK9geey4TTA==}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.0.0 <1.9.0'
+    dependencies:
+      '@arizeai/openinference-semantic-conventions': 0.10.0
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.9.0)
+    dev: false
+
+  /@arizeai/openinference-semantic-conventions@0.10.0:
+    resolution: {integrity: sha512-1HC3YEEQpDOp2ZYe2V3zdPhamTdZ1DZ9Km5iskKWLRMVZkswPty8GkOHYaSMUVd57UtFQt9WtF0FTH6moyyU4Q==}
+    dev: false
+
+  /@arizeai/openinference-vercel@0.1.0(@opentelemetry/api@1.9.0):
+    resolution: {integrity: sha512-7OY7xHEkPrRpcj35fhBq5dQB/YFxQDN+loWwjWyldC7XD7N15q1ztMkvnvffFoTnrpqRhEquKu4Js0+EPNw07w==}
+    dependencies:
+      '@arizeai/openinference-core': 0.1.1(@opentelemetry/api@1.9.0)
+      '@arizeai/openinference-semantic-conventions': 0.10.0
+      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.9.0)
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
     dev: false
 
   /@babel/code-frame@7.12.11:
@@ -2844,6 +2874,11 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
+  /nanostores@0.11.2:
+    resolution: {integrity: sha512-6bucNxMJA5rNV554WQl+MWGng0QVMzlRgpKTHHfIbVLrhQ+yRXBychV9ECGVuuUfCMQPjfIG9bj8oJFZ9hYP/Q==}
+    engines: {node: ^18.0.0 || >=20.0.0}
+    dev: false
+
   /natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
     dev: true
@@ -4022,4 +4057,18 @@ packages:
 
   /zod@3.23.8:
     resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
+    dev: false
+
+  git@github.com+ai/react/a240052fd6da7d85a20ee9c872aca48205ef555e(nanostores@0.11.2)(react@18.3.1):
+    resolution: {commit: a240052fd6da7d85a20ee9c872aca48205ef555e, repo: git@github.com:ai/react.git, type: git}
+    id: git@github.com+ai/react/a240052fd6da7d85a20ee9c872aca48205ef555e
+    name: '@nanostores/react'
+    version: 0.7.3
+    engines: {node: ^18.0.0 || >=20.0.0}
+    peerDependencies:
+      nanostores: ^0.9.0 || ^0.10.0 || ^0.11.0
+      react: '>=18.0.0'
+    dependencies:
+      nanostores: 0.11.2
+      react: 18.3.1
     dev: false
