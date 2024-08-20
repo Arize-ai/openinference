@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.11...python-openinference-instrumentation-dspy-v0.1.12) (2024-08-20)
+
+
+### Bug Fixes
+
+* **dspy:** custom LM instrumentation ([#930](https://github.com/Arize-ai/openinference/issues/930)) ([7f91317](https://github.com/Arize-ai/openinference/commit/7f91317631302cb23c4b12701be2ba0b5fa3c3f0))
+* **dspy:** module resolution for custom LM ([#934](https://github.com/Arize-ai/openinference/issues/934)) ([ef809be](https://github.com/Arize-ai/openinference/commit/ef809bebf4c2a19cc932b3a828cf6137be73148b))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.10...python-openinference-instrumentation-dspy-v0.1.11) (2024-08-10)
 
 
