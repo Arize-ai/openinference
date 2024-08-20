@@ -6,7 +6,7 @@ import {
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import { ReadWriteSpan } from "./types";
 
-export class OpenInferenceVercelSpanProcessor implements SpanProcessor {
+export class VercelSpanProcessor implements SpanProcessor {
   async forceFlush(): Promise<void> {
     // no-op
   }

@@ -13,6 +13,7 @@ The examples listed below are expected to be updated with every OpenInference Ja
 | [LangChain OpenAI](/js/packages/openinference-instrumentation-langchain/examples) | A simple script to call OpenAI via LangChain, instrumented using `openinference-instrumentation-langchain`                                                                                           | Beginner         |
 | [LangChain RAG Express App](/js/examples/langchain-express)                       | A fully functional LangChain chatbot that uses RAG to answer user questions. It has a Next.js frontend and a LangChain Express backend, instrumented using `openinference-instrumentation-langchain` | Intermediate     |
 | [Next.js + OpenAI](/js/examples/nextjs-openai-simple/)                            | A Next.js 13 project bootstrapped with `create-next-app` that uses OpenAI to generate text                                                                                                           | Beginner         |
+| [Vercel AI-SDK Telemetry](https://github.com/Arize-ai/openinference/tree/main/js/examples/next-openai-telemetry-app) | A Next.js app that uses OpenAI via the Vercel AI SDK with spans processed by the [`VercelSpanProcessor`](https://github.com/Arize-ai/openinference/tree/main/js/packages/openinference-vercel). | Intermediate |
 
 ## Contributing
 

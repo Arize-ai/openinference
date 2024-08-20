@@ -1,1 +1,1 @@
-export * from "./OpenInferenceVercelSpanProcessor";
+export * from "./VercelSpanProcessor";
