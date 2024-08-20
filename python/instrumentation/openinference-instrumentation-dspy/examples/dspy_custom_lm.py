@@ -12,32 +12,31 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 from openinference.instrumentation.dspy import DSPyInstrumentor
 
 
+# src: https://dspy-docs.vercel.app/docs/deep-dive/language_model_clients/custom-lm-client
 class CustomLM(LM):
     """A Fake LM to test instrumentation"""
 
-    def __init__(self, model, api_key):
+    def __init__(self, model, api_key, **kwargs):
         self.model = model
         self.api_key = api_key
         self.provider = "default"
+        self.kwargs = {
+            "temperature": 0.0,
+            "max_tokens": 150,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0,
+            "n": 1,
+            **kwargs,
+        }
         self.history = []
 
     def basic_request(self, prompt, **kwargs):
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "anthropic-beta": "messages-2023-12-15",
-            "content-type": "application/json",
-        }
-
-        data = {**kwargs, "model": self.model, "messages": [{"role": "user", "content": prompt}]}
-
-        response = requests.post(self.base_url, headers=headers, json=data)
-        response = response.json()
-
+        response = {"content": [{"text": "This is a test"}]}
         self.history.append(
             {
                 "prompt": prompt,
-                "response": response,
+                "response": "This is a test",
                 "kwargs": kwargs,
             }
         )

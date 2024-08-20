@@ -22,6 +22,8 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeGuard
 from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
+from logging import getLogger
+
 
 from openinference.instrumentation import (
     OITracer,
@@ -37,6 +39,8 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+
+logger = getLogger(__name__)
 
 try:
     from google.generativeai.types import GenerateContentResponse  # type: ignore
@@ -100,8 +104,8 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                     args=(_LMBasicRequestWrapper(self._tracer),),
                 )
             except Exception as e:
-                # Print and don't raise an exception if the wrapping fails
-                print(f"Error wrapping {lm.__name__}.basic_request: {e}")
+                # log and don't raise an exception if the wrapping fails
+                logger.warn(f"Error wrapping {lm.__name__}.basic_request: {e}")
 
         # Predict is a concrete (non-abstract) class that may be invoked
         # directly, but DSPy also has subclasses of Predict that override the
