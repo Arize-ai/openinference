@@ -1,4 +1,4 @@
-# OpenInference Vercel AI SDK Span Processor
+# OpenInference Vercel
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-instrumentation.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel)
 

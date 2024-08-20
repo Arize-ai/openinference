@@ -6,7 +6,7 @@
   "module": "dist/esm/index.js",
   "esnext": "dist/esnext/index.js",
   "types": "dist/src/index.d.ts",
-  "description": "OpenInference SpanProcessor for the Vercel ai-sdk",
+  "description": "OpenInference utilities for ingesting Vercel AI SDK spans",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",

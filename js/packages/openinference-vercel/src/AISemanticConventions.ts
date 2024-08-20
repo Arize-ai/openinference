@@ -1,9 +1,7 @@
 import { ValueOf } from "./typeUtils";
 
 /**
- * Below are the semantic conventions for @vercel/otel instrumentation.
- * Note these are not specifically called out as "semantic conventions" in the Vercel SDK documentation.
- * However, they are specified as what the collect and set on spans.
+ * Below are the semantic conventions for the Vercel AI SDK.
  * @see https://sdk.vercel.ai/docs/ai-sdk-core/telemetry#collected-data
  */
 const AI_PREFIX = "ai" as const;
@@ -18,22 +16,22 @@ const AIPrefixes = {
   result: "result",
 } as const;
 
-const VercelUsagePostfixes = {
+const AIUsagePostfixes = {
   completionTokens: "completionTokens",
   promptTokens: "promptTokens",
 } as const;
 
-const VercelResultPostfixes = {
+const AIResultPostfixes = {
   text: "text",
   toolCalls: "toolCalls",
   object: "object",
 } as const;
 
-const VercelPromptPostfixes = {
+const AIPromptPostfixes = {
   messages: "messages",
 } as const;
 
-const VercelToolCallPostfixes = {
+const AIToolCallPostfixes = {
   name: "name",
   args: "args",
   output: "output",
@@ -46,23 +44,23 @@ const MODEL_ID = `${AI_PREFIX}.${AIPrefixes.model}.id` as const;
 const METADATA = `${AI_PREFIX}.${AIPrefixes.telemetry}.metadata` as const;
 
 const TOKEN_COUNT_COMPLETION =
-  `${AI_PREFIX}.${AIPrefixes.usage}.${VercelUsagePostfixes.completionTokens}` as const;
+  `${AI_PREFIX}.${AIPrefixes.usage}.${AIUsagePostfixes.completionTokens}` as const;
 
 const TOKEN_COUNT_PROMPT =
-  `${AI_PREFIX}.${AIPrefixes.usage}.${VercelUsagePostfixes.promptTokens}` as const;
+  `${AI_PREFIX}.${AIPrefixes.usage}.${AIUsagePostfixes.promptTokens}` as const;
 
 const RESULT_TEXT =
-  `${AI_PREFIX}.${AIPrefixes.result}.${VercelResultPostfixes.text}` as const;
+  `${AI_PREFIX}.${AIPrefixes.result}.${AIResultPostfixes.text}` as const;
 
 const RESULT_TOOL_CALLS =
-  `${AI_PREFIX}.${AIPrefixes.result}.${VercelResultPostfixes.toolCalls}` as const;
+  `${AI_PREFIX}.${AIPrefixes.result}.${AIResultPostfixes.toolCalls}` as const;
 
 const RESULT_OBJECT =
-  `${AI_PREFIX}.${AIPrefixes.result}.${VercelResultPostfixes.object}` as const;
+  `${AI_PREFIX}.${AIPrefixes.result}.${AIResultPostfixes.object}` as const;
 
 const PROMPT = `${AI_PREFIX}.${AIPrefixes.prompt}` as const;
 
-const PROMPT_MESSAGES = `${PROMPT}.${VercelPromptPostfixes.messages}` as const;
+const PROMPT_MESSAGES = `${PROMPT}.${AIPromptPostfixes.messages}` as const;
 
 const EMBEDDING_TEXT = `${AI_PREFIX}.value` as const;
 const EMBEDDING_VECTOR = `${AI_PREFIX}.embedding` as const;
@@ -71,9 +69,9 @@ const EMBEDDING_TEXTS = `${AI_PREFIX}.values` as const;
 const EMBEDDING_VECTORS = `${AI_PREFIX}.embeddings` as const;
 
 const TOOL_CALL_NAME =
-  `${AI_PREFIX}.${AIPrefixes.toolCall}.${VercelToolCallPostfixes.name}` as const;
+  `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.name}` as const;
 const TOOL_CALL_ARGS =
-  `${AI_PREFIX}.${AIPrefixes.toolCall}.${VercelToolCallPostfixes.args}` as const;
+  `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.args}` as const;
 
 /**
  * The semantic conventions used by the Vercel AI SDK.

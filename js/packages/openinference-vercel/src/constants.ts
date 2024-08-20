@@ -9,11 +9,11 @@ import {
 import { OpenInferenceSemanticConventionKey } from "./types";
 
 /**
- * A map of Vercel SDK function names to OpenInference span kinds.
+ * A map of Vercel AI SDK function names to OpenInference span kinds.
  * @see https://sdk.vercel.ai/docs/ai-sdk-core/telemetry#collected-data
  * These are set on Vercel spans as under the operation.name attribute.
- * They are preceded by "ai.<wrapper-call-name>" and may be followed by a user provided functionID.
- * @example ai.<wrapper-call-name>.<vercel-sdk-function-name> <user provided functionId>
+ * They are preceded by "ai.<wrapper-name>" and may be followed by a user provided functionID.
+ * @example ai.<wrapper-name>.<ai-sdk-function-name> <user provided functionId>
  * @example ai.generateText.doGenerate my-chat-call
  */
 export const VercelSDKFunctionNameToSpanKindMap = new Map([
