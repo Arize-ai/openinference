@@ -62,6 +62,13 @@ const getOISpanKindFromAttributes = (
 };
 
 /**
+ * {@link getOISpanKindFromAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetOISpanKindFromAttributes = withSafety(
+  getOISpanKindFromAttributes,
+);
+
+/**
  * Takes the attributes from the span and accumulates the attributes that are prefixed with "ai.settings" to be used as the invocation parameters
  * @param attributes the initial attributes of the span
  * @returns the OpenInference attributes associated with the invocation parameters
@@ -327,17 +334,15 @@ const safelyGetMetadataAttributes = withSafety(getMetadataAttributes);
 /**
  * Gets the OpenInference attributes associated with the span from the initial attributes
  * @param attributesWithSpanKind the initial attributes of the span and the OpenInference span kind
- * @param attributesWithSpanKind.initialAttributes the initial attributes of the span
+ * @param attributesWithSpanKind.attributes the initial attributes of the span
  * @param attributesWithSpanKind.spanKind the OpenInference span kind
  * @returns The OpenInference attributes associated with the span
  */
-const getOpenInferenceAttributes = ({
-  initialAttributes,
-  spanKind,
-}: {
-  initialAttributes: Attributes;
-  spanKind?: OpenInferenceSpanKind | null;
-}): Attributes => {
+const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
+  const spanKind = safelyGetOISpanKindFromAttributes(attributes);
+  const openInferenceAttributes = {
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind ?? undefined,
+  };
   return VercelSemanticConventionsList.reduce(
     (openInferenceAttributes: Attributes, convention) => {
       /**
@@ -345,7 +350,7 @@ const getOpenInferenceAttributes = ({
        * @example ai.settings.<paramName> or ai.metadata.<metadataKey>
        */
       if (
-        !(convention in initialAttributes) &&
+        !(convention in attributes) &&
         convention !== VercelSemanticConventions.SETTINGS &&
         convention !== VercelSemanticConventions.METADATA
       ) {
@@ -358,7 +363,7 @@ const getOpenInferenceAttributes = ({
         case VercelSemanticConventions.METADATA:
           return {
             ...openInferenceAttributes,
-            ...safelyGetMetadataAttributes(initialAttributes),
+            ...safelyGetMetadataAttributes(attributes),
           };
         case VercelSemanticConventions.TOKEN_COUNT_COMPLETION:
         case VercelSemanticConventions.TOKEN_COUNT_PROMPT:
@@ -366,7 +371,7 @@ const getOpenInferenceAttributes = ({
         case VercelSemanticConventions.TOOL_CALL_ARGS:
           return {
             ...openInferenceAttributes,
-            [openInferenceKey]: initialAttributes[convention],
+            [openInferenceKey]: attributes[convention],
           };
         case VercelSemanticConventions.MODEL_ID: {
           const modelSemanticConvention =
@@ -375,13 +380,13 @@ const getOpenInferenceAttributes = ({
               : SemanticConventions.LLM_MODEL_NAME;
           return {
             ...openInferenceAttributes,
-            [modelSemanticConvention]: initialAttributes[convention],
+            [modelSemanticConvention]: attributes[convention],
           };
         }
         case VercelSemanticConventions.SETTINGS:
           return {
             ...openInferenceAttributes,
-            ...safelyGetInvocationParamAttributes(initialAttributes),
+            ...safelyGetInvocationParamAttributes(attributes),
           };
         case VercelSemanticConventions.PROMPT:
         case VercelSemanticConventions.RESULT_OBJECT:
@@ -389,7 +394,7 @@ const getOpenInferenceAttributes = ({
           return {
             ...openInferenceAttributes,
             ...safelyGetIOValueAttributes({
-              attributeValue: initialAttributes[convention],
+              attributeValue: attributes[convention],
               openInferenceSemanticConvention:
                 openInferenceKey as OpenInferenceIOConvention,
             }),
@@ -398,14 +403,12 @@ const getOpenInferenceAttributes = ({
         case VercelSemanticConventions.RESULT_TOOL_CALLS:
           return {
             ...openInferenceAttributes,
-            ...safelyGetToolCallMessageAttributes(
-              initialAttributes[convention],
-            ),
+            ...safelyGetToolCallMessageAttributes(attributes[convention]),
           };
         case VercelSemanticConventions.PROMPT_MESSAGES:
           return {
             ...openInferenceAttributes,
-            ...safelyGetInputMessageAttributes(initialAttributes[convention]),
+            ...safelyGetInputMessageAttributes(attributes[convention]),
           };
           break;
         case VercelSemanticConventions.EMBEDDING_TEXT:
@@ -415,7 +418,7 @@ const getOpenInferenceAttributes = ({
           return {
             ...openInferenceAttributes,
             ...safelyGetEmbeddingAttributes({
-              attributeValue: initialAttributes[convention],
+              attributeValue: attributes[convention],
               openInferenceSemanticConvention: openInferenceKey,
             }),
           };
@@ -423,16 +426,9 @@ const getOpenInferenceAttributes = ({
           return assertUnreachable(convention);
       }
     },
-    {} as Attributes,
+    openInferenceAttributes,
   );
 };
-
-/**
- * {@link getOISpanKindFromAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
- */
-export const safelyGetOISpanKindFromAttributes = withSafety(
-  getOISpanKindFromAttributes,
-);
 
 /**
  * {@link getOpenInferenceAttributes} wrapped in {@link withSafety} which will return null if any error is thrown

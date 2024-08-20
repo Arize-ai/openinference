@@ -1,9 +1,5 @@
 import { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-base";
-import {
-  safelyGetOISpanKindFromAttributes,
-  safelyGetOpenInferenceAttributes,
-} from "./utils";
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import { safelyGetOpenInferenceAttributes } from "./utils";
 import { ReadWriteSpan } from "./types";
 
 export class VercelSpanProcessor implements SpanProcessor {
@@ -20,13 +16,11 @@ export class VercelSpanProcessor implements SpanProcessor {
   }
 
   onEnd(span: ReadableSpan): void {
-    const initialAttributes = { ...span.attributes };
-    const spanKind = safelyGetOISpanKindFromAttributes(initialAttributes);
+    const attributes = { ...span.attributes };
 
     (span as ReadWriteSpan).attributes = {
       ...span.attributes,
-      ...safelyGetOpenInferenceAttributes({ initialAttributes, spanKind }),
-      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind ?? undefined,
+      ...safelyGetOpenInferenceAttributes(attributes),
     };
   }
 }
