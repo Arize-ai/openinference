@@ -79,6 +79,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         # Instrument LM (language model) calls
         from dsp.modules.lm import LM
+
         from dspy import Predict
 
         language_model_classes = LM.__subclasses__()
