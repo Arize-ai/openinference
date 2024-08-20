@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.1...python-openinference-instrumentation-crewai-v0.1.2) (2024-08-20)
+
+
+### Features
+
+* **crewai:** Add SpanKind and Token Count attributes ([#867](https://github.com/Arize-ai/openinference/issues/867)) ([a61e12a](https://github.com/Arize-ai/openinference/commit/a61e12a43773b933afcce28613db70fcceba43fd))
+* **crewAI:** Added trace config, context attributes, suppress tracing for CrewAI ([#851](https://github.com/Arize-ai/openinference/issues/851)) ([4ad22fa](https://github.com/Arize-ai/openinference/commit/4ad22fac38e051ea12dd53936f40741717743171))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.0...python-openinference-instrumentation-crewai-v0.1.1) (2024-08-07)
 
 
