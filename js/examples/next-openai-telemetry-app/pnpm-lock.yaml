@@ -14,9 +14,6 @@ dependencies:
   '@arizeai/openinference-vercel':
     specifier: ^0.1.0
     version: 0.1.0(@opentelemetry/api@1.9.0)
-  '@nanostores/react':
-    specifier: github:ai/react
-    version: git@github.com+ai/react/a240052fd6da7d85a20ee9c872aca48205ef555e(nanostores@0.11.2)(react@18.3.1)
   '@opentelemetry/api':
     specifier: ^1.9.0
     version: 1.9.0
@@ -53,9 +50,6 @@ dependencies:
   react-dom:
     specifier: ^18
     version: 18.3.1(react@18.3.1)
-  zod:
-    specifier: 3.23.8
-    version: 3.23.8
 
 devDependencies:
   '@types/node':
@@ -2874,11 +2868,6 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  /nanostores@0.11.2:
-    resolution: {integrity: sha512-6bucNxMJA5rNV554WQl+MWGng0QVMzlRgpKTHHfIbVLrhQ+yRXBychV9ECGVuuUfCMQPjfIG9bj8oJFZ9hYP/Q==}
-    engines: {node: ^18.0.0 || >=20.0.0}
-    dev: false
-
   /natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
     dev: true
@@ -4057,18 +4046,4 @@ packages:
 
   /zod@3.23.8:
     resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
-    dev: false
-
-  git@github.com+ai/react/a240052fd6da7d85a20ee9c872aca48205ef555e(nanostores@0.11.2)(react@18.3.1):
-    resolution: {commit: a240052fd6da7d85a20ee9c872aca48205ef555e, repo: git@github.com:ai/react.git, type: git}
-    id: git@github.com+ai/react/a240052fd6da7d85a20ee9c872aca48205ef555e
-    name: '@nanostores/react'
-    version: 0.7.3
-    engines: {node: ^18.0.0 || >=20.0.0}
-    peerDependencies:
-      nanostores: ^0.9.0 || ^0.10.0 || ^0.11.0
-      react: '>=18.0.0'
-    dependencies:
-      nanostores: 0.11.2
-      react: 18.3.1
     dev: false
