@@ -213,17 +213,14 @@ class _KickoffWrapper:
             )
             try:
                 crew_output = wrapped(*args, **kwargs)
-                usage_metrics = instance.usage_metrics
+                usage_metrics = crew.usage_metrics
                 if isinstance(usage_metrics, dict):
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT, int(usage_metrics.get("prompt_tokens", 0))
-                    )
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_COMPLETION, int(usage_metrics.get("completion_tokens", 0))
-                    )
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_TOTAL, int(usage_metrics.get("total_tokens", 0))
-                    )
+                    if "prompt_tokens" in usage_metrics:
+                        span.set_attribute(LLM_TOKEN_COUNT_PROMPT, int(usage_metrics["prompt_tokens"]))
+                    if "completion_tokens" in usage_metrics:
+                        span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, int(usage_metrics["completion_tokens"]))
+                    if "total_tokens" in usage_metrics:
+                        span.set_attribute(LLM_TOKEN_COUNT_TOTAL, int(usage_metrics["total_tokens"]))
                 else:
                     # version 0.51 and onwards
                     span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.prompt_tokens)
@@ -235,8 +232,8 @@ class _KickoffWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            if crew_output.to_dict():
-                span.set_attribute(OUTPUT_VALUE, json.dumps(crew_output.to_dict()))
+            if crew_output_dict := crew_output.to_dict():
+                span.set_attribute(OUTPUT_VALUE, json.dumps(crew_output_dict))
                 span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
             else:
                 span.set_attribute(OUTPUT_VALUE, str(crew_output))
