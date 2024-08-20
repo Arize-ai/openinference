@@ -1,6 +1,6 @@
 # Phoenix, Vercel AI SDK, Next.js, and OpenAI Generative Example with Telemetry
 
-This example shows how to use the [Vercel AI SDK](https://sdk.vercel.ai/docs) with [Next.js](https://nextjs.org/) and [OpenAI](https://openai.com) to create a sample generative application with [OpenTelemetry support](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry). 
+This example shows how to use the [Vercel AI SDK](https://sdk.vercel.ai/docs) with [Next.js](https://nextjs.org/) and [OpenAI](https://openai.com) to create a sample generative application with [OpenTelemetry support](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
 
 OTEL spans are processed by the [@arizeai/openinference-vercel](https://github.com/Arize-ai/openinference/tree/main/js/packages/openinference-vercel) package and collected and viewable in [Arize-Phoenix](https://github.com/Arize-ai/phoenix).
 
