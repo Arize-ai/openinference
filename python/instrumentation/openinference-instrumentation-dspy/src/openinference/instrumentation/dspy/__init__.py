@@ -17,12 +17,6 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeGuard
-from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
-
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
@@ -37,6 +31,11 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeGuard
+from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
 
 try:
     from google.generativeai.types import GenerateContentResponse  # type: ignore
