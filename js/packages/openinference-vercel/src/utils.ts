@@ -15,15 +15,18 @@ import {
 import {
   OpenInferenceIOConvention,
   OpenInferenceSemanticConvention,
-  ReadWriteSpan,
 } from "./types";
-import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import {
   assertUnreachable,
   isArrayOfObjects,
   isStringArray,
 } from "./typeUtils";
 import { isAttributeValue } from "@opentelemetry/core";
+import {
+  safelyJSONParse,
+  safelyJSONStringify,
+  withSafety,
+} from "@arizeai/openinference-core";
 
 /**
  *
@@ -43,7 +46,7 @@ const getVercelFunctionNameFromOperationName = (
  * @param attributes the attributes of the span
  * @returns the OpenInference span kind associated with the attributes or null if not found
  */
-export const getOISpanKindFromAttributes = (
+const getOISpanKindFromAttributes = (
   attributes: Attributes,
 ): OpenInferenceSpanKind | undefined => {
   const maybeOperationName = attributes["operation.name"];
@@ -79,9 +82,16 @@ const getInvocationParamAttributes = (attributes: Attributes) => {
 
   return {
     [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
-      JSON.stringify(settingAttributes),
+      safelyJSONStringify(settingAttributes) ?? undefined,
   };
 };
+
+/**
+ * {@link getInvocationParamAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetInvocationParamAttributes = withSafety(
+  getInvocationParamAttributes,
+);
 
 /**
  * Determines whether the value is a valid JSON string
@@ -92,13 +102,8 @@ const isValidJsonString = (value?: AttributeValue) => {
   if (typeof value !== "string") {
     return false;
   }
-
-  try {
-    const parsed = JSON.parse(value);
-    return typeof parsed === "object" && parsed !== null;
-  } catch (e) {
-    return false;
-  }
+  const parsed = safelyJSONParse(value);
+  return typeof parsed === "object" && parsed !== null;
 };
 
 /**
@@ -137,6 +142,11 @@ const getIOValueAttributes = ({
 };
 
 /**
+ * {@link getIOValueAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetIOValueAttributes = withSafety(getIOValueAttributes);
+
+/**
  * Formats an embedding attribute value (i.e., embedding text or vector) into the expected format
  * Vercel embedding vector attributes are stringified arrays, however, the OpenInference spec expects them to be un-stringified arrays
  * @param value the value to format (either embedding text or vector)
@@ -146,14 +156,11 @@ const formatEmbeddingValue = (value: AttributeValue) => {
   if (typeof value !== "string") {
     return value;
   }
-  try {
-    const parsedValue = JSON.parse(value);
-    if (isAttributeValue(parsedValue)) {
-      return parsedValue;
-    }
-  } catch (e) {
-    return value;
+  const parsedValue = safelyJSONParse(value);
+  if (isAttributeValue(parsedValue) && parsedValue !== null) {
+    return parsedValue;
   }
+  return value;
 };
 
 /**
@@ -188,6 +195,11 @@ const getEmbeddingAttributes = ({
 };
 
 /**
+ * {@link getEmbeddingAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetEmbeddingAttributes = withSafety(getEmbeddingAttributes);
+
+/**
  * Gets the input_messages OpenInference attributes
  * @param promptMessages the attribute value of the Vercel prompt messages
  * @returns input_messages attributes
@@ -197,7 +209,7 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
     return null;
   }
 
-  const messages = JSON.parse(promptMessages);
+  const messages = safelyJSONParse(promptMessages);
 
   if (!isArrayOfObjects(messages)) {
     return null;
@@ -237,6 +249,11 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
 };
 
 /**
+ * {@link getInputMessageAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetInputMessageAttributes = withSafety(getInputMessageAttributes);
+
+/**
  * Gets the output_messages tool_call OpenInference attributes
  * @param toolCalls the attribute value of the Vercel result.toolCalls
  * @returns output_messages tool_call attributes
@@ -246,7 +263,7 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
     return null;
   }
 
-  const parsedToolCalls = JSON.parse(toolCalls);
+  const parsedToolCalls = safelyJSONParse(toolCalls);
 
   if (!isArrayOfObjects(parsedToolCalls)) {
     return null;
@@ -258,16 +275,24 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
       "assistant",
     ...parsedToolCalls.reduce((acc: Attributes, toolCall, index) => {
       const TOOL_CALL_PREFIX = `${OUTPUT_MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}`;
+      const toolCallArgsJSON = safelyJSONStringify(toolCall.args);
       return {
         ...acc,
         [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
           isAttributeValue(toolCall.toolName) ? toolCall.toolName : undefined,
         [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
-          toolCall.args != null ? JSON.stringify(toolCall.args) : undefined,
+          toolCallArgsJSON != null ? toolCallArgsJSON : undefined,
       };
     }, {}),
   };
 };
+
+/**
+ * {@link getToolCallMessageAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetToolCallMessageAttributes = withSafety(
+  getToolCallMessageAttributes,
+);
 
 /**
  * Gets the OpenInference metadata attributes
@@ -280,18 +305,24 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
 const getMetadataAttributes = (attributes: Attributes) => {
   const metadataAttributeKeys = Object.keys(attributes)
     .filter((key) => key.startsWith(VercelSemanticConventions.METADATA))
-    .map((key) => ({ key: key.split(".")[2], value: attributes[key] }));
+    .map((key) => ({ key: key.split(".")[3], value: attributes[key] }));
   if (metadataAttributeKeys.length === 0) {
     return null;
   }
-  return metadataAttributeKeys.reduce(
-    (acc, { key, value }) => ({
-      ...acc,
-      [`${SemanticConventions.METADATA}.${key}`]: value,
-    }),
-    {},
-  );
+  return metadataAttributeKeys.reduce((acc, { key, value }) => {
+    return key != null
+      ? {
+          ...acc,
+          [`${SemanticConventions.METADATA}.${key}`]: value,
+        }
+      : acc;
+  }, {});
 };
+
+/**
+ * {@link getMetadataAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetMetadataAttributes = withSafety(getMetadataAttributes);
 
 /**
  * Gets the OpenInference attributes associated with the span from the initial attributes
@@ -300,12 +331,12 @@ const getMetadataAttributes = (attributes: Attributes) => {
  * @param attributesWithSpanKind.spanKind the OpenInference span kind
  * @returns The OpenInference attributes associated with the span
  */
-export const getOpenInferenceAttributes = ({
+const getOpenInferenceAttributes = ({
   initialAttributes,
   spanKind,
 }: {
   initialAttributes: Attributes;
-  spanKind?: OpenInferenceSpanKind;
+  spanKind?: OpenInferenceSpanKind | null;
 }): Attributes => {
   return VercelSemanticConventionsList.reduce(
     (openInferenceAttributes: Attributes, convention) => {
@@ -327,7 +358,7 @@ export const getOpenInferenceAttributes = ({
         case VercelSemanticConventions.METADATA:
           return {
             ...openInferenceAttributes,
-            ...getMetadataAttributes(initialAttributes),
+            ...safelyGetMetadataAttributes(initialAttributes),
           };
         case VercelSemanticConventions.TOKEN_COUNT_COMPLETION:
         case VercelSemanticConventions.TOKEN_COUNT_PROMPT:
@@ -350,14 +381,14 @@ export const getOpenInferenceAttributes = ({
         case VercelSemanticConventions.SETTINGS:
           return {
             ...openInferenceAttributes,
-            ...getInvocationParamAttributes(initialAttributes),
+            ...safelyGetInvocationParamAttributes(initialAttributes),
           };
         case VercelSemanticConventions.PROMPT:
         case VercelSemanticConventions.RESULT_OBJECT:
         case VercelSemanticConventions.RESULT_TEXT: {
           return {
             ...openInferenceAttributes,
-            ...getIOValueAttributes({
+            ...safelyGetIOValueAttributes({
               attributeValue: initialAttributes[convention],
               openInferenceSemanticConvention:
                 openInferenceKey as OpenInferenceIOConvention,
@@ -367,12 +398,14 @@ export const getOpenInferenceAttributes = ({
         case VercelSemanticConventions.RESULT_TOOL_CALLS:
           return {
             ...openInferenceAttributes,
-            ...getToolCallMessageAttributes(initialAttributes[convention]),
+            ...safelyGetToolCallMessageAttributes(
+              initialAttributes[convention],
+            ),
           };
         case VercelSemanticConventions.PROMPT_MESSAGES:
           return {
             ...openInferenceAttributes,
-            ...getInputMessageAttributes(initialAttributes[convention]),
+            ...safelyGetInputMessageAttributes(initialAttributes[convention]),
           };
           break;
         case VercelSemanticConventions.EMBEDDING_TEXT:
@@ -381,7 +414,7 @@ export const getOpenInferenceAttributes = ({
         case VercelSemanticConventions.EMBEDDING_VECTORS:
           return {
             ...openInferenceAttributes,
-            ...getEmbeddingAttributes({
+            ...safelyGetEmbeddingAttributes({
               attributeValue: initialAttributes[convention],
               openInferenceSemanticConvention: openInferenceKey,
             }),
@@ -390,50 +423,20 @@ export const getOpenInferenceAttributes = ({
           return assertUnreachable(convention);
       }
     },
-    {},
+    {} as Attributes,
   );
 };
 
 /**
- * Makes a copy of the spans passed to the exporter
- * Note: While these are typed as ReadableSpans, they are actually still Span instances.
- * As such, making a copy here does not deeply copy all of the methods on the span, however since this is happening at the exporter level, it is safe to assume that the spans will be read-only from this point on and will not need access to setter methods (e.g., addEvent, addLink, etc.)
- * @param spans the spans passed to the exporter
- * @returns a copy of the spans passed to the exporter with the ability to set attributes
+ * {@link getOISpanKindFromAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-const copySpans = (spans: ReadableSpan[]): ReadWriteSpan[] => {
-  return spans.map((span) => {
-    // spanContext is a getter so it needs to be explicitly copied
-    const mutableSpan: ReadWriteSpan = {
-      ...span,
-      spanContext: () => span.spanContext(),
-    };
-    return mutableSpan;
-  });
-};
+export const safelyGetOISpanKindFromAttributes = withSafety(
+  getOISpanKindFromAttributes,
+);
 
 /**
- * Takes the spans passed to the exporter and adds OpenInference attributes to them
- * @param spans the spans passed to the exporter
- * @returns spans with OpenInference attributes added
+ * {@link getOpenInferenceAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-export const addOpenInferenceAttributesToSpans = (
-  spans: ReadableSpan[],
-): ReadWriteSpan[] => {
-  const mutableSpans = copySpans(spans);
-  return mutableSpans.map((span) => {
-    const initialAttributes = span.attributes;
-    const spanKind = getOISpanKindFromAttributes(initialAttributes);
-
-    //  Only modify spans that have a corresponding OpenInferenceSpanKind
-    if (spanKind == null) {
-      return span;
-    }
-    span.attributes = {
-      ...span.attributes,
-      ...getOpenInferenceAttributes({ initialAttributes, spanKind }),
-      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind,
-    };
-    return span;
-  });
-};
+export const safelyGetOpenInferenceAttributes = withSafety(
+  getOpenInferenceAttributes,
+);
