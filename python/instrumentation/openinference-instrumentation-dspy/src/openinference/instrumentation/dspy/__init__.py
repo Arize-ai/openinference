@@ -79,7 +79,6 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         # Instrument LM (language model) calls
         from dsp.modules.lm import LM
-
         from dspy import Predict
 
         language_model_classes = LM.__subclasses__()
@@ -93,7 +92,10 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 # wrap the DSP module
                 module = _DSP_MODULE
             else:
-                module = top_level_module
+                # this is a custom LM. Patch the custom module
+                module = lm.__module__
+                # TODO remove
+                print(f"Custom LM: {module}")
 
             try:
                 wrap_object(
