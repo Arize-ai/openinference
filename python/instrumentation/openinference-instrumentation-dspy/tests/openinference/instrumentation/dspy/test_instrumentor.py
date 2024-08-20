@@ -158,8 +158,11 @@ def clear_cache() -> None:
     fixture clears the cache before each test case to ensure that our mocked
     responses are used.
     """
-    CacheMemory.clear()
-    NotebookCacheMemory.clear()
+    try:
+        CacheMemory.clear()
+        NotebookCacheMemory.clear()
+    except Exception:
+        pass
 
 
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
