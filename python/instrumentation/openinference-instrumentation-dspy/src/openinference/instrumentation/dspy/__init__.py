@@ -93,7 +93,8 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 # wrap the DSP module
                 module = _DSP_MODULE
             else:
-                module = top_level_module
+                # this is a custom LM. Patch the custom module
+                module = lm.__module__
 
             try:
                 wrap_object(
