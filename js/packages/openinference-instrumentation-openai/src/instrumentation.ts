@@ -140,6 +140,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                   JSON.stringify(invocationParameters),
                 ...getLLMInputMessagesAttributes(body),
+                ...getLLMToolsJSONSchema(body),
               },
             },
           );
@@ -405,6 +406,24 @@ function getLLMInputMessagesAttributes(
     for (const [key, value] of Object.entries(messageAttributes)) {
       acc[`${indexPrefix}${key}`] = value;
     }
+    return acc;
+  }, {} as Attributes);
+}
+
+/**
+ * Converts each tool definition into a json schema
+ */
+function getLLMToolsJSONSchema(
+  body: ChatCompletionCreateParamsBase,
+): Attributes {
+  if (!body.tools) {
+    // If tools is undefined, return an empty object
+    return {} as Attributes;
+  }
+  return body.tools.reduce((acc, tool, index) => {
+    const toolJsonSchema = JSON.stringify(tool);
+    const key = `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`;
+    acc[key] = toolJsonSchema;
     return acc;
   }, {} as Attributes);
 }
