@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 
+from anthropic.types import TextBlock, ToolUseBlock
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -182,8 +183,7 @@ class _MessagesWrapper(_WithTracer):
             span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(
                 {
-                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response.content[0].text,
-                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": response.role,
+                    **dict(_get_output_messages(response)),
                     LLM_TOKEN_COUNT_PROMPT: response.usage.input_tokens,
                     LLM_TOKEN_COUNT_COMPLETION: response.usage.output_tokens,
                     OUTPUT_VALUE: response.model_dump_json(),
@@ -241,8 +241,7 @@ class _AsyncMessagesWrapper(_WithTracer):
             span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(
                 {
-                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": response.content[0].text,
-                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": response.role,
+                    **dict(_get_output_messages(response)),
                     LLM_TOKEN_COUNT_PROMPT: response.usage.input_tokens,
                     LLM_TOKEN_COUNT_COMPLETION: response.usage.output_tokens,
                     OUTPUT_VALUE: response.model_dump_json(),
@@ -269,13 +268,6 @@ def _get_input_messages(messages: List[Dict[str, str]]) -> Any:
             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
 
 
-def _get_output_message(response: Any) -> Any:
-    if response.content:
-        yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", response.content[0].text
-    if response.role:
-        yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", response.role
-
-
 def _get_invocation_parameters(kwargs: Mapping[str, Any]) -> Any:
     """
     Extracts the invocation parameters from the call
@@ -285,6 +277,26 @@ def _get_invocation_parameters(kwargs: Mapping[str, Any]) -> Any:
         if _validate_invocation_parameter(key):
             invocation_parameters[key] = value
     return invocation_parameters
+
+
+def _get_output_messages(response: Any) -> Any:
+    """
+    Extracts the tool call information from the response
+    """
+    for i in range(len(response.content)):
+        block = response.content[i]
+        yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", response.role
+        if isinstance(block, ToolUseBlock):
+            yield (
+                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}",
+                block.name,
+            )
+            yield (
+                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                safe_json_dumps(block.input),
+            )
+        if isinstance(block, TextBlock):
+            yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.text
 
 
 def _validate_invocation_parameter(parameter: Any) -> bool:
@@ -339,6 +351,7 @@ LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
