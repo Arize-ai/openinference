@@ -38,7 +38,7 @@ instruments = [
   "guardrails-ai",
 ]
 test = [
-  "guardrails-ai <= 0.5.2",
+  "guardrails-ai == 0.4.5",
   "opentelemetry-sdk",
   "responses",
 ]
