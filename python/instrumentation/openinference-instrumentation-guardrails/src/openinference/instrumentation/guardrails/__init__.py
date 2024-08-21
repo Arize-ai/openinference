@@ -50,7 +50,9 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _instrument(self, **kwargs: Any) -> None:
         if version.parse(gd.__version__) >= version.parse("0.5.2"):
-            logger.info("Guardrails version >= 0.5.2 detected, skipping instrumentation in favor of native application instrumentation")
+            logger.info(
+                "Guardrails version >= 0.5.2 detected, skipping instrumentation in favor of native application instrumentation"
+            )
             return
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
