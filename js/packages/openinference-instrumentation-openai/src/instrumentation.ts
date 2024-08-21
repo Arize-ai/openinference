@@ -38,6 +38,8 @@ import {
 import { assertUnreachable, isString } from "./typeUtils";
 import { isTracingSuppressed } from "@opentelemetry/core";
 
+import { safelyJSONStringify } from "@arizeai/openinference-core";
+
 const MODULE_NAME = "openai";
 
 /**
@@ -418,14 +420,16 @@ function getLLMToolsJSONSchema(
 ): Attributes {
   if (!body.tools) {
     // If tools is undefined, return an empty object
-    return {} as Attributes;
+    return {};
   }
-  return body.tools.reduce((acc, tool, index) => {
-    const toolJsonSchema = JSON.stringify(tool);
+  return body.tools.reduce((acc: Attributes, tool, index) => {
+    const toolJsonSchema = safelyJSONStringify(tool);
     const key = `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`;
-    acc[key] = toolJsonSchema;
+    if (toolJsonSchema) {
+      acc[key] = toolJsonSchema;
+    }
     return acc;
-  }, {} as Attributes);
+  }, {});
 }
 
 function getChatCompletionInputMessageAttributes(
