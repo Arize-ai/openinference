@@ -1,6 +1,7 @@
 import contextvars
 import logging
 from importlib import import_module
+from packaging import version
 from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
@@ -48,6 +49,10 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        if version.parse(gd.__version__) >= version.parse("0.5.2"):
+            logger.info("Guardrails version >= 0.5.2 detected, skipping instrumentation in favor of native application instrumentation")
+            return
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):

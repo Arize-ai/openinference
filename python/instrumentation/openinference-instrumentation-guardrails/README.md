@@ -53,23 +53,6 @@ trace_api.set_tracer_provider(tracer_provider)
 GuardrailsInstrumentor().instrument()
 ```
 
-For `guardrails` version > 0.5.0, tracing is natively supported in the application. As long as the tracer provider is set, everything should work seamlessly. There is no need to run `GuardrailsInstrumentor().instrument()`.
-```python
-from opentelemetry import trace as trace_api
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-import os
-
-os.environ["OPENAI_API_KEY"] = "YOUR_KEY_HERE"
-
-endpoint = "http://127.0.0.1:6006/v1/traces"
-tracer_provider = trace_sdk.TracerProvider()
-tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-
-trace_api.set_tracer_provider(tracer_provider)
-```
-
 Set up a simple example of LLM call using a Guard
 ```python
 from guardrails import Guard
