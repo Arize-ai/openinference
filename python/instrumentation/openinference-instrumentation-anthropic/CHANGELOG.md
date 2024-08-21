@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.0...python-openinference-instrumentation-anthropic-v0.1.1) (2024-08-21)
+
+
+### Features
+
+* Tool calling for Anthropic instrumentor ([#939](https://github.com/Arize-ai/openinference/issues/939)) ([2566486](https://github.com/Arize-ai/openinference/commit/25664860f6226dcc4a4ef9b19e67fdc79135889b))
+
 ## 0.1.0 (2024-08-20)
 
 
