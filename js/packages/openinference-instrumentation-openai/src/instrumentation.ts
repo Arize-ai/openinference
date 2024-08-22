@@ -38,6 +38,8 @@ import {
 import { assertUnreachable, isString } from "./typeUtils";
 import { isTracingSuppressed } from "@opentelemetry/core";
 
+import { safelyJSONStringify } from "@arizeai/openinference-core";
+
 const MODULE_NAME = "openai";
 
 /**
@@ -140,6 +142,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                   JSON.stringify(invocationParameters),
                 ...getLLMInputMessagesAttributes(body),
+                ...getLLMToolsJSONSchema(body),
               },
             },
           );
@@ -407,6 +410,26 @@ function getLLMInputMessagesAttributes(
     }
     return acc;
   }, {} as Attributes);
+}
+
+/**
+ * Converts each tool definition into a json schema
+ */
+function getLLMToolsJSONSchema(
+  body: ChatCompletionCreateParamsBase,
+): Attributes {
+  if (!body.tools) {
+    // If tools is undefined, return an empty object
+    return {};
+  }
+  return body.tools.reduce((acc: Attributes, tool, index) => {
+    const toolJsonSchema = safelyJSONStringify(tool);
+    const key = `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`;
+    if (toolJsonSchema) {
+      acc[key] = toolJsonSchema;
+    }
+    return acc;
+  }, {});
 }
 
 function getChatCompletionInputMessageAttributes(
