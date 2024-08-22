@@ -263,7 +263,41 @@ def _get_input_messages(messages: List[Dict[str, str]]) -> Any:
     """
     for i in range(len(messages)):
         if content := messages[i].get("content"):
-            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+            if isinstance(content, str):
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+            elif isinstance(content, list):
+                for block_index in range(len(content)):
+                    block = content[block_index]
+                    if isinstance(block, ToolUseBlock):
+                        yield (
+                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{block_index}.{TOOL_CALL_FUNCTION_NAME}",
+                            block.name,
+                        )
+                        yield (
+                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{block_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            safe_json_dumps(block.input),
+                        )
+                    elif isinstance(block, TextBlock):
+                        yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.text
+                    elif isinstance(block, dict):
+                        block_type = block.get("type")
+                        if block_type == "tool_use":
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{block_index}.{TOOL_CALL_FUNCTION_NAME}",
+                                block.get("name"),
+                            )
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{block_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                safe_json_dumps(block.get("input")),
+                            )
+                        if block_type == "tool_result":
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
+                                block.get("content"),
+                            )
+                        if block_type == "text":
+                            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.get("text")
+
         if role := messages[i].get("role"):
             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
 
