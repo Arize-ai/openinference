@@ -65,5 +65,11 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_SyncChatWrapper(self._tracer, mistralai),
         )
 
+        wrap_function_wrapper(
+            module="mistralai.chat",
+            name="Chat.stream",
+            wrapper=_SyncChatWrapper(self._tracer, mistralai),
+        )
+
     def _uninstrument(self, **kwargs: Any) -> None:
         pass
