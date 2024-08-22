@@ -173,22 +173,6 @@ class _WithMistralAI(ABC):
         Monkey-patch the response object to trace the stream, or finish tracing if the response is
         not a stream.
         """
-        from mistralai.models.chat_completion import (
-            ChatCompletionResponse,
-            ChatCompletionStreamResponse,
-        )
-
-        if not isinstance(response, ChatCompletionResponse):  # assume it's a stream
-            response_accumulator = _ChatCompletionAccumulator(
-                request_parameters=request_parameters,
-                chat_completion_type=ChatCompletionStreamResponse,
-                response_attributes_extractor=self._response_attributes_extractor,
-            )
-            return _Stream(
-                stream=response,
-                with_span=with_span,
-                response_accumulator=response_accumulator,
-            )
         _finish_tracing(
             status=trace_api.Status(status_code=trace_api.StatusCode.OK),
             with_span=with_span,
