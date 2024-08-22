@@ -1,0 +1,4 @@
+anthropic
+openinference-instrumentation-anthropic
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
