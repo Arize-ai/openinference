@@ -102,36 +102,66 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
         ]);
         break;
       case AISemanticConventions.TOKEN_COUNT_COMPLETION:
-        testCases.push([
-          `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_COMPLETION}`,
-          {
-            vercelFunctionName: "ai.generateText.doGenerate",
-            vercelAttributes: {
-              [vercelSemanticConvention]: 10,
+        testCases.push(
+          [
+            `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_COMPLETION}`,
+            {
+              vercelFunctionName: "ai.generateText.doGenerate",
+              vercelAttributes: {
+                [vercelSemanticConvention]: 10,
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+              },
             },
-            addedOpenInferenceAttributes: {
-              [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
-              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                OpenInferenceSpanKind.LLM,
+          ],
+          [
+            `${vercelSemanticConvention} to nothing if a chain span`,
+            {
+              vercelFunctionName: "ai.generateText",
+              vercelAttributes: {
+                [vercelSemanticConvention]: 10,
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.CHAIN,
+              },
             },
-          },
-        ]);
+          ],
+        );
         break;
       case AISemanticConventions.TOKEN_COUNT_PROMPT:
-        testCases.push([
-          `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}`,
-          {
-            vercelFunctionName: "ai.generateText.doGenerate",
-            vercelAttributes: {
-              [vercelSemanticConvention]: 10,
+        testCases.push(
+          [
+            `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}`,
+            {
+              vercelFunctionName: "ai.generateText.doGenerate",
+              vercelAttributes: {
+                [vercelSemanticConvention]: 10,
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 10,
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+              },
             },
-            addedOpenInferenceAttributes: {
-              [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 10,
-              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                OpenInferenceSpanKind.LLM,
+          ],
+          [
+            `${vercelSemanticConvention} to nothing if a chain span`,
+            {
+              vercelFunctionName: "ai.generateText",
+              vercelAttributes: {
+                [vercelSemanticConvention]: 10,
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.CHAIN,
+              },
             },
-          },
-        ]);
+          ],
+        );
         break;
       case AISemanticConventions.RESULT_TEXT:
         testCases.push([
