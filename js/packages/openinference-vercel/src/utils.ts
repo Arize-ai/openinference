@@ -3,7 +3,7 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { Attributes, AttributeValue } from "@opentelemetry/api";
+import { Attributes, AttributeValue, diag } from "@opentelemetry/api";
 import {
   VercelSDKFunctionNameToSpanKindMap,
   AISemConvToOISemConvMap,
@@ -27,6 +27,12 @@ import {
   safelyJSONStringify,
   withSafety,
 } from "@arizeai/openinference-core";
+
+const onErrorCallback = (attributeType: string) => (error: unknown) => {
+  diag.warn(
+    `Unable to get OpenInference ${attributeType} attributes from AI attributes falling back to null: ${error}`,
+  );
+};
 
 /**
  *
@@ -64,9 +70,10 @@ const getOISpanKindFromAttributes = (
 /**
  * {@link getOISpanKindFromAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-const safelyGetOISpanKindFromAttributes = withSafety(
-  getOISpanKindFromAttributes,
-);
+const safelyGetOISpanKindFromAttributes = withSafety({
+  fn: getOISpanKindFromAttributes,
+  onError: onErrorCallback("span kind"),
+});
 
 /**
  * Takes the attributes from the span and accumulates the attributes that are prefixed with "ai.settings" to be used as the invocation parameters
@@ -96,9 +103,10 @@ const getInvocationParamAttributes = (attributes: Attributes) => {
 /**
  * {@link getInvocationParamAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-const safelyGetInvocationParamAttributes = withSafety(
-  getInvocationParamAttributes,
-);
+const safelyGetInvocationParamAttributes = withSafety({
+  fn: getInvocationParamAttributes,
+  onError: onErrorCallback("invocation parameters"),
+});
 
 /**
  * Determines whether the value is a valid JSON string
@@ -151,7 +159,10 @@ const getIOValueAttributes = ({
 /**
  * {@link getIOValueAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-const safelyGetIOValueAttributes = withSafety(getIOValueAttributes);
+const safelyGetIOValueAttributes = withSafety({
+  fn: getIOValueAttributes,
+  onError: onErrorCallback("input / output"),
+});
 
 /**
  * Formats an embedding attribute value (i.e., embedding text or vector) into the expected format
@@ -205,7 +216,10 @@ const getEmbeddingAttributes = ({
 /**
  * {@link getEmbeddingAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-const safelyGetEmbeddingAttributes = withSafety(getEmbeddingAttributes);
+const safelyGetEmbeddingAttributes = withSafety({
+  fn: getEmbeddingAttributes,
+  onError: onErrorCallback("embedding"),
+});
 
 /**
  * Gets the input_messages OpenInference attributes
@@ -259,7 +273,10 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
 /**
  * {@link getInputMessageAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-const safelyGetInputMessageAttributes = withSafety(getInputMessageAttributes);
+const safelyGetInputMessageAttributes = withSafety({
+  fn: getInputMessageAttributes,
+  onError: onErrorCallback("input message"),
+});
 
 /**
  * Gets the output_messages tool_call OpenInference attributes
@@ -298,9 +315,10 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
 /**
  * {@link getToolCallMessageAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-const safelyGetToolCallMessageAttributes = withSafety(
-  getToolCallMessageAttributes,
-);
+const safelyGetToolCallMessageAttributes = withSafety({
+  fn: getToolCallMessageAttributes,
+  onError: onErrorCallback("tool call"),
+});
 
 /**
  * Gets the OpenInference metadata attributes
@@ -330,7 +348,10 @@ const getMetadataAttributes = (attributes: Attributes) => {
 /**
  * {@link getMetadataAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-const safelyGetMetadataAttributes = withSafety(getMetadataAttributes);
+const safelyGetMetadataAttributes = withSafety({
+  fn: getMetadataAttributes,
+  onError: onErrorCallback("metadata"),
+});
 
 /**
  * Gets the OpenInference attributes associated with the span from the initial attributes
@@ -472,6 +493,7 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
 /**
  * {@link getOpenInferenceAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-export const safelyGetOpenInferenceAttributes = withSafety(
-  getOpenInferenceAttributes,
-);
+export const safelyGetOpenInferenceAttributes = withSafety({
+  fn: getOpenInferenceAttributes,
+  onError: onErrorCallback(""),
+});
