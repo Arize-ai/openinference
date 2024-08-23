@@ -30,11 +30,13 @@ def _to_assistant_message_param(
     content = []
     for block in message.content:
         if isinstance(block, TextBlock):
-            content.append(TextBlockParam(text=block.text, type=block.type))
+            #content.append(TextBlockParam(text=block.text, type=block.type))
+            content.append(block)
         elif isinstance(block, ToolUseBlock):
-            content.append(
-                ToolUseBlockParam(id=block.id, input=block.input, name=block.name, type=block.type)
-            )
+            # content.append(
+            #     ToolUseBlockParam(id=block.id, input=block.input, name=block.name, type=block.type)
+            # )
+            content.append(block)
         else:
             assert_never(block)
     return MessageParam(content=content, role="assistant")

@@ -353,25 +353,23 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
-    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
     assert (
-        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
     )
     assert isinstance(
         attributes.pop(
-            f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
         ),
         str,
     )
-    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "assistant"
     assert (
-        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
         == "get_time"
     )
     assert isinstance(
         attributes.pop(
-            f"{LLM_OUTPUT_MESSAGES}.2.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
         ),
         str,
     )

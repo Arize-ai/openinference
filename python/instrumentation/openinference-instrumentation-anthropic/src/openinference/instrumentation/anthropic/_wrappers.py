@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 
-from anthropic.types import TextBlock, ToolUseBlock
+from anthropic.types import TextBlock, TextBlockParam, ToolUseBlock, ToolUseBlockParam
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -262,34 +262,36 @@ def _get_input_messages(messages: List[Dict[str, str]]) -> Any:
     Extracts the messages from the chat response
     """
     for i in range(len(messages)):
+        tool_index = 0
         if content := messages[i].get("content"):
             if isinstance(content, str):
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
             elif isinstance(content, list):
-                for block_index in range(len(content)):
-                    block = content[block_index]
+                for block in content:
                     if isinstance(block, ToolUseBlock):
                         yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{block_index}.{TOOL_CALL_FUNCTION_NAME}",
+                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
                             block.name,
                         )
                         yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{block_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             safe_json_dumps(block.input),
                         )
+                        tool_index += 1
                     elif isinstance(block, TextBlock):
                         yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.text
                     elif isinstance(block, dict):
                         block_type = block.get("type")
                         if block_type == "tool_use":
                             yield (
-                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{block_index}.{TOOL_CALL_FUNCTION_NAME}",
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
                                 block.get("name"),
                             )
                             yield (
-                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{block_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                                 safe_json_dumps(block.get("input")),
                             )
+                            tool_index += 1
                         if block_type == "tool_result":
                             yield (
                                 f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
@@ -317,20 +319,21 @@ def _get_output_messages(response: Any) -> Any:
     """
     Extracts the tool call information from the response
     """
-    for i in range(len(response.content)):
-        block = response.content[i]
-        yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", response.role
+    tool_index = 0
+    for block in response.content:
+        yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_ROLE}", response.role
         if isinstance(block, ToolUseBlock):
             yield (
-                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}",
+                f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
                 block.name,
             )
             yield (
-                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                 safe_json_dumps(block.input),
             )
+            tool_index += 1
         if isinstance(block, TextBlock):
-            yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.text
+            yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_CONTENT}", block.text
 
 
 def _validate_invocation_parameter(parameter: Any) -> bool:
