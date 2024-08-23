@@ -8,6 +8,7 @@ import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
 import { OpenInferenceSpanProcessor } from "../src";
 import {
   MimeType,
+  OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import {
@@ -23,7 +24,7 @@ type SpanProcessorTestCase = [
   {
     vercelFunctionName: string;
     vercelAttributes: Attributes;
-    expectedAttributes: Attributes;
+    addedOpenInferenceAttributes: Attributes;
   },
 ];
 
@@ -38,8 +39,10 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             {
               vercelFunctionName: "ai.generateText.doGenerate",
               vercelAttributes: { [vercelSemanticConvention]: "test-llm" },
-              expectedAttributes: {
+              addedOpenInferenceAttributes: {
                 [SemanticConventions.LLM_MODEL_NAME]: "test-llm",
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
               },
             },
           ],
@@ -50,9 +53,11 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
               vercelAttributes: {
                 [vercelSemanticConvention]: "test-embedding-model",
               },
-              expectedAttributes: {
+              addedOpenInferenceAttributes: {
                 [SemanticConventions.EMBEDDING_MODEL_NAME]:
                   "test-embedding-model",
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.EMBEDDING,
               },
             },
           ],
@@ -67,9 +72,11 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
               [`${vercelSemanticConvention}.key1`]: "value1",
               [`${vercelSemanticConvention}.key2`]: "value2",
             },
-            expectedAttributes: {
+            addedOpenInferenceAttributes: {
               [`${SemanticConventions.METADATA}.key1`]: "value1",
               [`${SemanticConventions.METADATA}.key2`]: "value2",
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.LLM,
             },
           },
         ]);
@@ -83,42 +90,78 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
               [`${vercelSemanticConvention}.key1`]: "value1",
               [`${vercelSemanticConvention}.key2`]: "value2",
             },
-            expectedAttributes: {
+            addedOpenInferenceAttributes: {
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify({
                 key1: "value1",
                 key2: "value2",
               }),
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.LLM,
             },
           },
         ]);
         break;
       case AISemanticConventions.TOKEN_COUNT_COMPLETION:
-        testCases.push([
-          `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_COMPLETION}`,
-          {
-            vercelFunctionName: "ai.generateText.doGenerate",
-            vercelAttributes: {
-              [vercelSemanticConvention]: 10,
+        testCases.push(
+          [
+            `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_COMPLETION}`,
+            {
+              vercelFunctionName: "ai.generateText.doGenerate",
+              vercelAttributes: {
+                [vercelSemanticConvention]: 10,
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+              },
             },
-            expectedAttributes: {
-              [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+          ],
+          [
+            `${vercelSemanticConvention} to nothing if a chain span`,
+            {
+              vercelFunctionName: "ai.generateText",
+              vercelAttributes: {
+                [vercelSemanticConvention]: 10,
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.CHAIN,
+              },
             },
-          },
-        ]);
+          ],
+        );
         break;
       case AISemanticConventions.TOKEN_COUNT_PROMPT:
-        testCases.push([
-          `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}`,
-          {
-            vercelFunctionName: "ai.generateText.doGenerate",
-            vercelAttributes: {
-              [vercelSemanticConvention]: 10,
+        testCases.push(
+          [
+            `${vercelSemanticConvention} to ${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}`,
+            {
+              vercelFunctionName: "ai.generateText.doGenerate",
+              vercelAttributes: {
+                [vercelSemanticConvention]: 10,
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 10,
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+              },
             },
-            expectedAttributes: {
-              [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 10,
+          ],
+          [
+            `${vercelSemanticConvention} to nothing if a chain span`,
+            {
+              vercelFunctionName: "ai.generateText",
+              vercelAttributes: {
+                [vercelSemanticConvention]: 10,
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.CHAIN,
+              },
             },
-          },
-        ]);
+          ],
+        );
         break;
       case AISemanticConventions.RESULT_TEXT:
         testCases.push([
@@ -128,9 +171,11 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             vercelAttributes: {
               [vercelSemanticConvention]: "hello",
             },
-            expectedAttributes: {
+            addedOpenInferenceAttributes: {
               [SemanticConventions.OUTPUT_VALUE]: "hello",
               [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.LLM,
             },
           },
         ]);
@@ -143,16 +188,19 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             vercelAttributes: {
               [vercelSemanticConvention]: JSON.stringify({ key: "value" }),
             },
-            expectedAttributes: {
+            addedOpenInferenceAttributes: {
               [SemanticConventions.OUTPUT_VALUE]: JSON.stringify({
                 key: "value",
               }),
               [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.LLM,
             },
           },
         ]);
         break;
-      case AISemanticConventions.RESULT_TOOL_CALLS:
+      case AISemanticConventions.RESULT_TOOL_CALLS: {
+        const firstOutputMessageToolPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}`;
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.MESSAGE_TOOL_CALLS} on ${SemanticConventions.LLM_OUTPUT_MESSAGES}`,
           {
@@ -163,19 +211,24 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
                 { toolName: "test-tool-2", args: { test2: "test-2" } },
               ]),
             },
-            expectedAttributes: {
-              [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+            addedOpenInferenceAttributes: {
+              [`${firstOutputMessageToolPrefix}.0.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
                 "test-tool-1",
-              [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+              [`${firstOutputMessageToolPrefix}.0.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
                 JSON.stringify({ test1: "test-1" }),
-              [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+              [`${firstOutputMessageToolPrefix}.1.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
                 "test-tool-2",
-              [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+              [`${firstOutputMessageToolPrefix}.1.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
                 JSON.stringify({ test2: "test-2" }),
+              [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+                "assistant",
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.TOOL,
             },
           },
         ]);
         break;
+      }
       case AISemanticConventions.PROMPT:
         testCases.push(
           [
@@ -185,9 +238,11 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
               vercelAttributes: {
                 [vercelSemanticConvention]: "hello",
               },
-              expectedAttributes: {
+              addedOpenInferenceAttributes: {
                 [SemanticConventions.INPUT_VALUE]: "hello",
                 [SemanticConventions.INPUT_MIME_TYPE]: MimeType.TEXT,
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
               },
             },
           ],
@@ -198,15 +253,18 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
               vercelAttributes: {
                 [vercelSemanticConvention]: JSON.stringify({}),
               },
-              expectedAttributes: {
+              addedOpenInferenceAttributes: {
                 [SemanticConventions.INPUT_VALUE]: "{}",
                 [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
               },
             },
           ],
         );
         break;
-      case AISemanticConventions.PROMPT_MESSAGES:
+      case AISemanticConventions.PROMPT_MESSAGES: {
+        const firstInputMessageContentsPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}`;
         testCases.push(
           [
             `${vercelSemanticConvention} to ${SemanticConventions.LLM_INPUT_MESSAGES} with role and content for string content messages`,
@@ -218,7 +276,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
                   { role: "user", content: "world" },
                 ]),
               },
-              expectedAttributes: {
+              addedOpenInferenceAttributes: {
                 [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
                   "assistant",
                 [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
@@ -227,6 +285,8 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
                   "user",
                 [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_CONTENT}`]:
                   "world",
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
               },
             },
           ],
@@ -245,22 +305,29 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
                   },
                 ]),
               },
-              expectedAttributes: {
+              addedOpenInferenceAttributes: {
                 [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
                   "assistant",
-                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+                [`${firstInputMessageContentsPrefix}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
                   "text",
-                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+                [`${firstInputMessageContentsPrefix}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
                   "hello",
-                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.1.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+                [`${firstInputMessageContentsPrefix}.0.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
+                  undefined,
+                [`${firstInputMessageContentsPrefix}.1.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
                   "image",
-                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.1.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
+                [`${firstInputMessageContentsPrefix}.1.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
                   "image.com",
+                [`${firstInputMessageContentsPrefix}.1.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+                  undefined,
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
               },
             },
           ],
         );
         break;
+      }
       case AISemanticConventions.EMBEDDING_TEXT:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.EMBEDDING_TEXT}`,
@@ -269,9 +336,11 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             vercelAttributes: {
               [vercelSemanticConvention]: "hello",
             },
-            expectedAttributes: {
+            addedOpenInferenceAttributes: {
               [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
                 "hello",
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.EMBEDDING,
             },
           },
         ]);
@@ -284,11 +353,13 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             vercelAttributes: {
               [vercelSemanticConvention]: ["hello", "world"],
             },
-            expectedAttributes: {
+            addedOpenInferenceAttributes: {
               [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
                 "hello",
               [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.1.${SemanticConventions.EMBEDDING_TEXT}`]:
                 "world",
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.EMBEDDING,
             },
           },
         ]);
@@ -301,9 +372,11 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             vercelAttributes: {
               [vercelSemanticConvention]: JSON.stringify([1, 2]),
             },
-            expectedAttributes: {
+            addedOpenInferenceAttributes: {
               [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]:
                 [1, 2],
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.EMBEDDING,
             },
           },
         ]);
@@ -316,11 +389,13 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             vercelAttributes: {
               [vercelSemanticConvention]: ["[1, 2]", "[3, 4]"],
             },
-            expectedAttributes: {
+            addedOpenInferenceAttributes: {
               [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]:
                 [1, 2],
               [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.1.${SemanticConventions.EMBEDDING_VECTOR}`]:
                 [3, 4],
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.EMBEDDING,
             },
           },
         ]);
@@ -333,27 +408,100 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             vercelAttributes: {
               [vercelSemanticConvention]: "test-tool",
             },
-            expectedAttributes: {
+            addedOpenInferenceAttributes: {
               [SemanticConventions.TOOL_NAME]: "test-tool",
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.TOOL,
             },
           },
         ]);
         break;
       case AISemanticConventions.TOOL_CALL_ARGS:
-        testCases.push([
-          `${vercelSemanticConvention} to ${SemanticConventions.TOOL_PARAMETERS}`,
-          {
-            vercelFunctionName: "ai.toolCall",
-            vercelAttributes: {
-              [vercelSemanticConvention]: JSON.stringify({ test1: "test-1" }),
+        testCases.push(
+          [
+            `${vercelSemanticConvention} to ${SemanticConventions.TOOL_PARAMETERS} with params as input.value for tool spans`,
+            {
+              vercelFunctionName: "ai.toolCall",
+              vercelAttributes: {
+                [vercelSemanticConvention]: JSON.stringify({ test1: "test-1" }),
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify({
+                  test1: "test-1",
+                }),
+                [SemanticConventions.INPUT_VALUE]: JSON.stringify({
+                  test1: "test-1",
+                }),
+                [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.TOOL,
+              },
             },
-            expectedAttributes: {
-              [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify({
-                test1: "test-1",
-              }),
+          ],
+          [
+            `${vercelSemanticConvention} to ${SemanticConventions.TOOL_PARAMETERS} with no input.value for non-tool spans`,
+            {
+              vercelFunctionName: "ai.generateText.doGenerate",
+              vercelAttributes: {
+                [vercelSemanticConvention]: "test-args",
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.TOOL_PARAMETERS]: "test-args",
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+              },
             },
-          },
-        ]);
+          ],
+        );
+        break;
+      case AISemanticConventions.TOOL_CALL_RESULT:
+        testCases.push(
+          [
+            `${vercelSemanticConvention} to ${SemanticConventions.OUTPUT_VALUE} with MIME type ${MimeType.TEXT}`,
+            {
+              vercelFunctionName: "ai.toolCall",
+              vercelAttributes: {
+                [vercelSemanticConvention]: "test-result",
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
+                [SemanticConventions.OUTPUT_VALUE]: "test-result",
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.TOOL,
+              },
+            },
+          ],
+          [
+            `${vercelSemanticConvention} to ${SemanticConventions.OUTPUT_VALUE} with MIME type ${MimeType.JSON}`,
+            {
+              vercelFunctionName: "ai.toolCall",
+              vercelAttributes: {
+                [vercelSemanticConvention]: JSON.stringify({ key: "value" }),
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                [SemanticConventions.OUTPUT_VALUE]: JSON.stringify({
+                  key: "value",
+                }),
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.TOOL,
+              },
+            },
+          ],
+          [
+            `${vercelSemanticConvention} to nothing if not a tool call`,
+            {
+              vercelFunctionName: "ai.generateText.doGenerate",
+              vercelAttributes: {
+                [vercelSemanticConvention]: JSON.stringify({ key: "value" }),
+              },
+              addedOpenInferenceAttributes: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+              },
+            },
+          ],
+        );
         break;
       default:
         assertUnreachable(vercelSemanticConvention);
@@ -389,17 +537,23 @@ describe("OpenInferenceSpanProcessor", () => {
 
   test.each(generateVercelAttributeTestCases())(
     "should map %s",
-    (_name, { vercelFunctionName, vercelAttributes, expectedAttributes }) => {
+    (
+      _name,
+      { vercelFunctionName, vercelAttributes, addedOpenInferenceAttributes },
+    ) => {
       const tracer = trace.getTracer("test-tracer");
       const span = tracer.startSpan(vercelFunctionName);
-      span.setAttribute("operation.name", vercelFunctionName);
-      span.setAttributes(vercelAttributes);
+      const vercelAttributesWithOperationName = {
+        ...vercelAttributes,
+        "operation.name": vercelFunctionName,
+      };
+      span.setAttributes(vercelAttributesWithOperationName);
       span.end();
       const spans = memoryExporter.getFinishedSpans();
       expect(spans.length).toBe(1);
-      expect(spans[0].attributes).toMatchObject({
-        ...vercelAttributes,
-        ...expectedAttributes,
+      expect(spans[0].attributes).toStrictEqual({
+        ...vercelAttributesWithOperationName,
+        ...addedOpenInferenceAttributes,
       });
     },
   );

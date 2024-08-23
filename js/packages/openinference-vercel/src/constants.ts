@@ -59,4 +59,5 @@ export const AISemConvToOISemConvMap: Record<
     SemanticConventions.EMBEDDING_VECTOR,
   [AISemanticConventions.TOOL_CALL_NAME]: SemanticConventions.TOOL_NAME,
   [AISemanticConventions.TOOL_CALL_ARGS]: SemanticConventions.TOOL_PARAMETERS,
+  [AISemanticConventions.TOOL_CALL_RESULT]: SemanticConventions.OUTPUT_VALUE,
 } as const;
