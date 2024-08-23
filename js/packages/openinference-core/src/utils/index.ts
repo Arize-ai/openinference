@@ -1,5 +1,4 @@
 import { GenericFunction, SafeFunction } from "./types";
-import { diag } from "@opentelemetry/api";
 export * from "./typeUtils";
 
 /**
@@ -7,22 +6,25 @@ export * from "./typeUtils";
  * @param fn - A function to wrap with a try-catch block.
  * @returns A function that returns null if an error is thrown.
  */
-export function withSafety<T extends GenericFunction>(
-  fn: T,
-  fallbackMessage?: string,
-): SafeFunction<T> {
+export function withSafety<T extends GenericFunction>({
+  fn,
+  onError,
+}: {
+  fn: T;
+  onError?: (error: unknown) => void;
+}): SafeFunction<T> {
   return (...args) => {
     try {
       return fn(...args);
     } catch (error) {
-      if (fallbackMessage) {
-        diag.error(`${fallbackMessage} ${error}`);
+      if (onError) {
+        onError(error);
       }
       return null;
     }
   };
 }
 
-export const safelyJSONStringify = withSafety(JSON.stringify);
+export const safelyJSONStringify = withSafety({ fn: JSON.stringify });
 
-export const safelyJSONParse = withSafety(JSON.parse);
+export const safelyJSONParse = withSafety({ fn: JSON.parse });

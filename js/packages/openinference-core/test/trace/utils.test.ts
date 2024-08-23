@@ -8,13 +8,13 @@ describe("withSafety", () => {
     jest.restoreAllMocks();
   });
   it("should return a function", () => {
-    const safeFunction = withSafety(() => {});
+    const safeFunction = withSafety({ fn: () => {} });
     expect(typeof safeFunction).toBe("function");
   });
 
   it("should execute the provided function without errors", () => {
     const mockFn = jest.fn();
-    const safeFunction = withSafety(mockFn);
+    const safeFunction = withSafety({ fn: mockFn });
     safeFunction();
     expect(mockFn).toHaveBeenCalled();
   });
@@ -25,7 +25,7 @@ describe("withSafety", () => {
       throw error;
     });
     const diagMock = jest.spyOn(diag, "error");
-    const safeFunction = withSafety(mockFn);
+    const safeFunction = withSafety({ fn: mockFn });
     const result = safeFunction(1);
     expect(result).toBeNull();
     expect(mockFn).toHaveBeenCalledWith(1);
@@ -38,7 +38,10 @@ describe("withSafety", () => {
       throw error;
     });
     const diagMock = jest.spyOn(diag, "error");
-    const safeFunction = withSafety(mockFn, "Test message");
+    const safeFunction = withSafety({
+      fn: mockFn,
+      onError: (error) => diag.error(`Test message ${error}`),
+    });
     const result = safeFunction(1);
     expect(result).toBeNull();
     expect(mockFn).toHaveBeenCalledWith(1);
