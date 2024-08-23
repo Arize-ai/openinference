@@ -368,9 +368,8 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
           };
         case AISemanticConventions.TOKEN_COUNT_COMPLETION:
         case AISemanticConventions.TOKEN_COUNT_PROMPT:
-          // Do not capture token counts for chain spans as they are captured by the LLM spans below
-          // Capturing on chains as well results in double token counts
-          if (spanKind === OpenInferenceSpanKind.CHAIN) {
+          // Do not capture token counts for non LLM spans to avoid double token counts
+          if (spanKind !== OpenInferenceSpanKind.LLM) {
             return openInferenceAttributes;
           }
           return {
