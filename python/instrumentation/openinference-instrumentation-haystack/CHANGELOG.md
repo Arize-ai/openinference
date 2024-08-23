@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.10...python-openinference-instrumentation-haystack-v0.1.11) (2024-08-23)
+
+
+### Bug Fixes
+
+* **haystack:** remove remaining haystack import ([#961](https://github.com/Arize-ai/openinference/issues/961)) ([fe62e3f](https://github.com/Arize-ai/openinference/commit/fe62e3f23c31f88ba99ddab2ca6b453677e7dd31))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.9...python-openinference-instrumentation-haystack-v0.1.10) (2024-08-23)
 
 
