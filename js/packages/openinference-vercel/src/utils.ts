@@ -368,11 +368,50 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
           };
         case AISemanticConventions.TOKEN_COUNT_COMPLETION:
         case AISemanticConventions.TOKEN_COUNT_PROMPT:
-        case AISemanticConventions.TOOL_CALL_NAME:
-        case AISemanticConventions.TOOL_CALL_ARGS:
+          // Do not capture token counts for chain spans as they are captured by the LLM spans below
+          // Capturing on chains as well results in double token counts
+          if (spanKind === OpenInferenceSpanKind.CHAIN) {
+            return openInferenceAttributes;
+          }
           return {
             ...openInferenceAttributes,
             [openInferenceKey]: attributes[convention],
+          };
+        case AISemanticConventions.TOOL_CALL_NAME:
+          return {
+            ...openInferenceAttributes,
+            [openInferenceKey]: attributes[convention],
+          };
+        case AISemanticConventions.TOOL_CALL_ARGS: {
+          let argsAttributes = {
+            [openInferenceKey]: attributes[convention],
+          };
+          // For tool spans, capture the arguments as input value
+          if (spanKind === OpenInferenceSpanKind.TOOL) {
+            argsAttributes = {
+              ...argsAttributes,
+              [SemanticConventions.INPUT_VALUE]: attributes[convention],
+              [SemanticConventions.INPUT_MIME_TYPE]: getMimeTypeFromValue(
+                attributes[convention],
+              ),
+            };
+          }
+          return {
+            ...openInferenceAttributes,
+            ...argsAttributes,
+          };
+        }
+        case AISemanticConventions.TOOL_CALL_RESULT:
+          // For tool spans, capture the result as output value, for non tool spans ignore
+          if (spanKind !== OpenInferenceSpanKind.TOOL) {
+            return openInferenceAttributes;
+          }
+          return {
+            ...openInferenceAttributes,
+            [openInferenceKey]: attributes[convention],
+            [SemanticConventions.OUTPUT_MIME_TYPE]: getMimeTypeFromValue(
+              attributes[convention],
+            ),
           };
         case AISemanticConventions.MODEL_ID: {
           const modelSemanticConvention =

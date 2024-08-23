@@ -34,7 +34,7 @@ const AIPromptPostfixes = {
 const AIToolCallPostfixes = {
   name: "name",
   args: "args",
-  output: "output",
+  result: "result",
 } as const;
 
 const SETTINGS = `${AI_PREFIX}.${AIPrefixes.settings}` as const;
@@ -72,6 +72,8 @@ const TOOL_CALL_NAME =
   `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.name}` as const;
 const TOOL_CALL_ARGS =
   `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.args}` as const;
+const TOOL_CALL_RESULT =
+  `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.result}` as const;
 
 /**
  * The semantic conventions used by the Vercel AI SDK.
@@ -94,6 +96,7 @@ export const AISemanticConventions = {
   EMBEDDING_VECTORS,
   TOOL_CALL_NAME,
   TOOL_CALL_ARGS,
+  TOOL_CALL_RESULT,
 } as const;
 
 export const AISemanticConventionsList = Object.freeze(
