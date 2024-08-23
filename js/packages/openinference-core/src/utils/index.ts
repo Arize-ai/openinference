@@ -7,12 +7,17 @@ export * from "./typeUtils";
  * @param fn - A function to wrap with a try-catch block.
  * @returns A function that returns null if an error is thrown.
  */
-export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
+export function withSafety<T extends GenericFunction>(
+  fn: T,
+  fallbackMessage?: string,
+): SafeFunction<T> {
   return (...args) => {
     try {
       return fn(...args);
     } catch (error) {
-      diag.error(`Failed to get attributes for span: ${error}`);
+      if (fallbackMessage) {
+        diag.error(`${fallbackMessage} ${error}`);
+      }
       return null;
     }
   };
