@@ -1,9 +1,5 @@
 import json
-from typing import (
-    Any,
-    Dict,
-    Generator,
-)
+from typing import Any, Dict, Generator, Optional
 
 import anthropic
 import pytest
@@ -13,10 +9,20 @@ from anthropic.resources.messages import (
     AsyncMessages,
     Messages,
 )
+from anthropic.types import (
+    Message,
+    MessageParam,
+    TextBlock,
+    TextBlockParam,
+    ToolResultBlockParam,
+    ToolUseBlock,
+    ToolUseBlockParam,
+)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from typing_extensions import assert_never
 from wrapt import BoundFunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -62,6 +68,27 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
     """
     response["headers"] = {}
     return response
+
+
+def _to_assistant_message_param(
+    message: Message,
+) -> MessageParam:
+    content = []
+    for block in message.content:
+        if isinstance(block, TextBlock):
+            content.append(block)
+        elif isinstance(block, ToolUseBlock):
+            content.append(block)
+        else:
+            assert_never(block)
+    return MessageParam(content=content, role="assistant")
+
+
+def _get_tool_use_id(message: Message) -> Optional[str]:
+    for block in message.content:
+        if isinstance(block, ToolUseBlock):
+            return block.id
+    return None
 
 
 @pytest.fixture()
@@ -379,6 +406,129 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert isinstance(attributes.pop(OUTPUT_MIME_TYPE), str)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert not attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+@pytest.mark.parametrize(
+    "assistant_message",
+    (
+        pytest.param(
+            {
+                "content": [
+                    TextBlock(
+                        text="Certainly! I can help you get the current weather information for"
+                        " San Francisco in Fahrenheit. To do this, I'll use the get_weather"
+                        " function. Let me fetch that information for you right away.",
+                        type="text",
+                    ),
+                    ToolUseBlock(
+                        id="toolu_01KBqpqR73qWGsMaW3vBzEjz",
+                        input={"location": "San Francisco, CA", "unit": "fahrenheit"},
+                        name="get_weather",
+                        type="tool_use",
+                    ),
+                ],
+                "role": "assistant",
+            },
+        id = "with_blocks"),
+        pytest.param(
+            {
+                "content": [
+                    TextBlockParam(
+                        text="Certainly! I can help you get the current weather information for"
+                             " San Francisco in Fahrenheit. To do this, I'll use the get_weather"
+                             " function. Let me fetch that information for you right away.",
+                        type="text",
+                    ),
+                    ToolUseBlockParam(
+                        id="toolu_01KBqpqR73qWGsMaW3vBzEjz",
+                        input={"location": "San Francisco, CA", "unit": "fahrenheit"},
+                        name="get_weather",
+                        type="tool_use",
+                    ),
+                ],
+                "role": "assistant",
+            },
+            id="with_block_params"),
+    ),
+)
+def test_anthropic_instrumentation_tool_use_in_input(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+    assistant_message: MessageParam,
+) -> None:
+    client = anthropic.Anthropic(
+        api_key="fake"
+    )
+    messages = [
+        {"role": "user", "content": "What is the weather like in San Francisco in Fahrenheit?"},
+        assistant_message,
+        MessageParam(
+            content=[
+                ToolResultBlockParam(
+                    tool_use_id="toolu_01KBqpqR73qWGsMaW3vBzEjz",
+                    content='{"weather": "sunny", "temperature": "75"}',
+                    type="tool_result",
+                    is_error=False,
+                )
+            ],
+            role="user",
+        ),
+    ]
+
+    client.messages.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens=1024,
+        tools=[
+            {
+                "name": "get_weather",
+                "description": "Get the current weather in a given location",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": 'The unit of temperature, either "celsius" or "fahrenheit"',
+                        },
+                    },
+                    "required": ["location"],
+                },
+            }
+        ],
+        messages=messages,
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    attributes = dict(spans[0].attributes or {})
+
+    assert (
+        attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert (
+        attributes.get(
+            f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        )
+        == '{"location": "San Francisco, CA", "unit": "fahrenheit"}'
+    )
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+
+    assert (
+        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
+        == '{"weather": "sunny", "temperature": "75"}'
+    )
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
 
 
 @pytest.mark.vcr(
