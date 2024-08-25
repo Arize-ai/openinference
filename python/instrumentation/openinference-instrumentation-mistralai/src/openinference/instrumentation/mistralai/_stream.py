@@ -142,3 +142,21 @@ class _Stream(ObjectProxy):  # type: ignore
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if self._self_response_accumulator is not None:
             yield from self._self_response_accumulator.get_extra_attributes()
+
+    async def stream_async_with_accumulator(self):
+        async def generator():
+            try:
+                async for event in await self.stream:
+                    print(f"Received event: {event}")
+                    self._process_chunk(event)
+                    yield event
+            except Exception as exception:
+                # Handle exceptions that occur during the async for loop
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                self._self_with_span.record_exception(exception)
+                self._finish_tracing(status=status)
+                raise
+        return generator()

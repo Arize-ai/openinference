@@ -175,6 +175,7 @@ class _WithMistralAI(ABC):
         """
         from mistralai.models.chatcompletionresponse import ChatCompletionResponse
         from mistralai.models.completionevent import CompletionEvent
+        return stream_async_with_accumulator(response)
         if not isinstance(response, ChatCompletionResponse):  # assume it's a stream
             response_accumulator = _ChatCompletionAccumulator(
                 request_parameters=request_parameters,
@@ -197,6 +198,13 @@ class _WithMistralAI(ABC):
         )
         return response
 
+async def stream_async_with_accumulator(stream_async_response):
+    async def generator():
+        async for event in await stream_async_response:
+            print(f"Received event: {event}")
+            yield event
+
+    return generator()
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
