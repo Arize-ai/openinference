@@ -30,7 +30,7 @@ from openinference.instrumentation.mistralai._response_accumulator import _ChatC
 from openinference.instrumentation.mistralai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.mistralai._stream import _Stream
+from openinference.instrumentation.mistralai._stream import _AsyncStream, _Stream
 from openinference.instrumentation.mistralai._utils import (
     _as_input_attributes,
     _finish_tracing,
@@ -175,18 +175,17 @@ class _WithMistralAI(ABC):
         """
         from mistralai.models.chatcompletionresponse import ChatCompletionResponse
         from mistralai.models.completionevent import CompletionEvent
-        return stream_async_with_accumulator(response)
         if not isinstance(response, ChatCompletionResponse):  # assume it's a stream
             response_accumulator = _ChatCompletionAccumulator(
                 request_parameters=request_parameters,
                 chat_completion_type=CompletionEvent,
                 response_attributes_extractor=self._response_attributes_extractor,
             )
-            return _Stream(
+            return _AsyncStream(
                 stream=response,
                 with_span=with_span,
                 response_accumulator=response_accumulator,
-            )
+            ).stream_async_with_accumulator()
         _finish_tracing(
             status=trace_api.Status(status_code=trace_api.StatusCode.OK),
             with_span=with_span,

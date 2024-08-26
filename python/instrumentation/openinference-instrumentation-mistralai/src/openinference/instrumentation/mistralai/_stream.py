@@ -143,12 +143,36 @@ class _Stream(ObjectProxy):  # type: ignore
         if self._self_response_accumulator is not None:
             yield from self._self_response_accumulator.get_extra_attributes()
 
+
+class _AsyncStream:
+    __slots__ = (
+        "stream",
+        "_self_with_span",
+        "_self_iteration_count",
+        "_self_is_finished",
+        "_self_response_accumulator",
+    )
+
+    def __init__(
+            self,
+            stream: Any,
+            with_span: _WithSpan,
+            response_accumulator: Optional[_ResponseAccumulator] = None,
+    ) -> None:
+        self.stream = stream
+        self._self_with_span = with_span
+        self._self_iteration_count = 0
+        self._self_is_finished = with_span.is_finished
+        self._self_response_accumulator = response_accumulator
+
     async def stream_async_with_accumulator(self):
         async def generator():
             try:
                 async for event in await self.stream:
                     print(f"Received event: {event}")
                     self._process_chunk(event)
+                    if event.data.choices[0].finish_reason is not None:
+                        self._finish_tracing()
                     yield event
             except Exception as exception:
                 # Handle exceptions that occur during the async for loop
@@ -160,3 +184,35 @@ class _Stream(ObjectProxy):  # type: ignore
                 self._finish_tracing(status=status)
                 raise
         return generator()
+
+    def _process_chunk(self, chunk: Any) -> None:
+        if not self._self_iteration_count:
+            try:
+                self._self_with_span.add_event("First Token Stream Event")
+            except Exception:
+                logger.exception("Failed to add event to span")
+        self._self_iteration_count += 1
+        if self._self_response_accumulator is not None:
+            try:
+                self._self_response_accumulator.process_chunk(chunk)
+            except Exception:
+                logger.exception("Failed to accumulate response")
+
+    def _finish_tracing(
+            self,
+            status: Optional[trace_api.Status] = None,
+    ) -> None:
+        _finish_tracing(
+            status=status,
+            with_span=self._self_with_span,
+            has_attributes=self,
+        )
+        self._self_is_finished = True
+
+    def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+        if self._self_response_accumulator is not None:
+            yield from self._self_response_accumulator.get_attributes()
+
+    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+        if self._self_response_accumulator is not None:
+            yield from self._self_response_accumulator.get_extra_attributes()
