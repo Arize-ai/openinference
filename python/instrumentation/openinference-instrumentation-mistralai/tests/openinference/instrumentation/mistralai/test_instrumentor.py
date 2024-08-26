@@ -517,18 +517,18 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        return mistral_sync_client.chat(
+        return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
+                {
+                    "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    "role": "user",
+                }
             ],
             temperature=0.1,
         )
 
-    with pytest.raises(MistralAPIException):
+    with pytest.raises(Exception):
         if use_context_attributes:
             with using_attributes(
                 session_id=session_id,
