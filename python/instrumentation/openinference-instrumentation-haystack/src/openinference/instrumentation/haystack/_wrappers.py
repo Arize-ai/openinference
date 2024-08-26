@@ -593,7 +593,7 @@ def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[
             )
 
 
-def _get_embedding_model_attributes(component: Component) -> Iterator[Tuple[str, Any]]:
+def _get_embedding_model_attributes(component: "Component") -> Iterator[Tuple[str, Any]]:
     """
     Yields attributes for embedding model.
     """
