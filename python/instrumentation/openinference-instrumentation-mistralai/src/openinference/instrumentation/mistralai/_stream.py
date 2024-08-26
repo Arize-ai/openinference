@@ -169,7 +169,6 @@ class _AsyncStream:
         async def generator():
             try:
                 async for event in await self.stream:
-                    print(f"Received event: {event}")
                     self._process_chunk(event)
                     if event.data.choices[0].finish_reason is not None:
                         self._finish_tracing()

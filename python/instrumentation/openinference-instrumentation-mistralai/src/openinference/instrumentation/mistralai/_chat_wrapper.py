@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import warnings
@@ -181,11 +182,20 @@ class _WithMistralAI(ABC):
                 chat_completion_type=CompletionEvent,
                 response_attributes_extractor=self._response_attributes_extractor,
             )
-            return _AsyncStream(
-                stream=response,
-                with_span=with_span,
-                response_accumulator=response_accumulator,
-            ).stream_async_with_accumulator()
+            if asyncio.iscoroutine(response):
+                return _AsyncStream(
+                    stream=response,
+                    with_span=with_span,
+                    response_accumulator=response_accumulator,
+                ).stream_async_with_accumulator()
+            elif isinstance(response, Iterable):
+                return _Stream(
+                    stream=response,
+                    with_span=with_span,
+                    response_accumulator=response_accumulator,
+                )
+            else:
+                raise TypeError("Response must be either a coroutine or an iterable")
         _finish_tracing(
             status=trace_api.Status(status_code=trace_api.StatusCode.OK),
             with_span=with_span,
@@ -197,13 +207,6 @@ class _WithMistralAI(ABC):
         )
         return response
 
-async def stream_async_with_accumulator(stream_async_response):
-    async def generator():
-        async for event in await stream_async_response:
-            print(f"Received event: {event}")
-            yield event
-
-    return generator()
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
