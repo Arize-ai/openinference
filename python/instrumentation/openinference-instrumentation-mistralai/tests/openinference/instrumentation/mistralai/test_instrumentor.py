@@ -18,6 +18,7 @@ from httpx import AsyncByteStream, Response
 from mistralai import Mistral
 from mistralai.models import (
     ChatCompletionResponse,
+    CompletionEvent,
     FunctionCall,
     ToolCall,
     ToolChoice,
@@ -39,6 +40,39 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+
+
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
+
 
 
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
@@ -803,13 +837,14 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+)
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_streaming_chat_completions_emits_expected_span(
     use_context_attributes: bool,
-    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
-    chat_stream: AsyncByteStream,
-    respx_mock: Any,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -818,21 +853,15 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
-        return_value=Response(
-            200,
-            stream=chat_stream,
-        )
-    )
-
-    def mistral_stream() -> Iterable[ChatCompletionStreamResponse]:
-        return mistral_sync_client.chat_stream(
-            model="mistral-large-latest",
+    def mistral_stream() -> Generator[CompletionEvent, None, None]:
+        mistral_client = Mistral(api_key="redacted")
+        return mistral_client.chat.stream(
+            model="mistral-small-latest",
             messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
+                {
+                    "content": "Who won the World Cup in 2018? Answer in three word, three words no punctuation.",
+                    "role": "user",
+                }
             ],
             temperature=0.1,
         )
@@ -852,12 +881,12 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
         response_stream = mistral_stream()
     response_content = ""
     for chunk in response_stream:
-        if chunk_content := chunk.choices[0].delta.content:
+        if chunk_content := chunk.data.choices[0].delta.content:
             response_content += chunk_content
 
     assert (
         response_content
-        == "The 2018 FIFA World Cup was won by the French national team. They defeated Croatia 4-2 in the final, which took place on July 15, 2018, in Moscow, Russia. This was France's second World Cup title; they had previously won the tournament in 1998 when they hosted the event. Did you know that the World Cup is the most prestigious tournament in international football and is often considered as the height of a footballer's career?"  # noqa: E501
+        == "France won World Cup"  # noqa: E501
     )  # noqa: E501
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -878,14 +907,14 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
-        "model": "mistral-large-latest",
+        "model": "mistral-small-latest",
         "temperature": 0.1,
     }
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
-        == "Who won the World Cup in 2018? Answer in one word, no punctuation."
+        == "Who won the World Cup in 2018? Answer in three word, three words no punctuation."
     )
 
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
@@ -904,7 +933,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 109
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 124
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
     if use_context_attributes:
         _check_context_attributes(
             attributes,
