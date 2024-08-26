@@ -241,7 +241,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
 
         return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
-            tool_choice=ToolChoice.any,
+            tool_choice="any",
             tools=[tool],
             messages=[
                 {
