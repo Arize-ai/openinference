@@ -87,6 +87,7 @@ class _Stream(ObjectProxy):  # type: ignore
     def __aiter__(self) -> AsyncIterator[Any]:
         return self
 
+    #TODO(harrison): delete this funciton no longer needed
     async def __anext__(self) -> Any:
         # pass through mistaken calls
         if not hasattr(self.__wrapped__, "__anext__"):
