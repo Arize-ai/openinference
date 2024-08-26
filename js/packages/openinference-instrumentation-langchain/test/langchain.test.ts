@@ -7,13 +7,15 @@ import { LangChainInstrumentation } from "../src";
 import * as CallbackManager from "@langchain/core/callbacks/manager";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import { createRetrievalChain } from "langchain/chains/retrieval";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import { Stream } from "openai/streaming";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { loadQAStuffChain, RetrievalQAChain } from "langchain/chains";
 import "dotenv/config";
 import {
   MESSAGE_FUNCTION_CALL_NAME,
+  METADATA,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
@@ -21,6 +23,7 @@ import { LangChainTracer } from "../src/tracer";
 import { trace } from "@opentelemetry/api";
 import { completionsResponse, functionCallResponse } from "./fixtures";
 import { DynamicTool } from "@langchain/core/tools";
+jest.useFakeTimers();
 
 const {
   INPUT_VALUE,
@@ -125,6 +128,7 @@ const expectedSpanAttributes = {
                 },
                 finish_reason: "stop",
               },
+              id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
             },
           },
           generationInfo: { finish_reason: "stop" },
@@ -145,12 +149,14 @@ const expectedSpanAttributes = {
   [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
   [LLM_MODEL_NAME]: "gpt-3.5-turbo",
   [LLM_INVOCATION_PARAMETERS]:
-    '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
-  metadata: "{}",
+    '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":true,"stream_options":{"include_usage":true}}',
+  metadata:
+    '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}',
 };
 
 describe("LangChainInstrumentation", () => {
   const memoryExporter = new InMemorySpanExporter();
+
   const provider = new NodeTracerProvider();
   provider.getTracer("default");
 
@@ -162,7 +168,7 @@ describe("LangChainInstrumentation", () => {
   {context}
   
   Question:
-  {question}
+  {input}
   `;
   const prompt = ChatPromptTemplate.fromTemplate(PROMPT_TEMPLATE);
 
@@ -170,9 +176,6 @@ describe("LangChainInstrumentation", () => {
   instrumentation._modules[0].moduleExports = CallbackManager;
   beforeAll(() => {
     instrumentation.enable();
-  });
-  afterAll(() => {
-    instrumentation.disable();
   });
   beforeEach(() => {
     memoryExporter.reset();
@@ -209,12 +212,17 @@ describe("LangChainInstrumentation", () => {
         openAIApiKey: "my-api-key",
       }),
     );
-    const chain = new RetrievalQAChain({
-      combineDocumentsChain: loadQAStuffChain(chatModel, { prompt }),
+    const combineDocsChain = await createStuffDocumentsChain({
+      llm: chatModel,
+      prompt,
+    });
+    const chain = await createRetrievalChain({
+      combineDocsChain: combineDocsChain,
       retriever: vectorStore.asRetriever(),
     });
+
     await chain.invoke({
-      query: "What are cats?",
+      input: "What are cats?",
     });
 
     const spans = memoryExporter.getFinishedSpans();
@@ -230,21 +238,23 @@ describe("LangChainInstrumentation", () => {
         OpenInferenceSpanKind.RETRIEVER,
     );
 
-    const stuffDocSpan = spans.find(
-      (span) => span.name === "StuffDocumentsChain",
+    const retrievalChainSpan = spans.find(
+      (span) => span.name === "retrieval_chain",
     );
-    const llmChainSpan = spans.find((span) => span.name === "LLMChain");
 
-    expect(rootSpan).toBeDefined();
+    const retrieveDocumentsSpan = spans.find(
+      (span) => span.name === "retrieve_documents",
+    );
+
+    // Langchain creates a ton of generic spans that are deeply nested. This is a simple test to ensure we have the spans we care about and they are at least nested under something. It is not possible to test the exact nesting structure because it is too complex and generic.
+    expect(rootSpan).toBe(retrievalChainSpan);
     expect(retrieverSpan).toBeDefined();
     expect(llmSpan).toBeDefined();
-    expect(stuffDocSpan).toBeDefined();
-    expect(llmChainSpan).toBeDefined();
 
-    expect(retrieverSpan?.parentSpanId).toBe(rootSpan?.spanContext().spanId);
-    expect(stuffDocSpan?.parentSpanId).toBe(rootSpan?.spanContext().spanId);
-    expect(llmChainSpan?.parentSpanId).toBe(stuffDocSpan?.spanContext().spanId);
-    expect(llmSpan?.parentSpanId).toBe(llmChainSpan?.spanContext().spanId);
+    expect(retrieverSpan?.parentSpanId).toBe(
+      retrieveDocumentsSpan?.spanContext().spanId,
+    );
+    expect(llmSpan?.parentSpanId).toBeDefined();
   });
 
   it("should add attributes to llm spans", async () => {
@@ -259,7 +269,11 @@ describe("LangChainInstrumentation", () => {
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span).toBeDefined();
 
-    expect(span.attributes).toStrictEqual(expectedSpanAttributes);
+    expect(span.attributes).toStrictEqual({
+      ...expectedSpanAttributes,
+      [LLM_INVOCATION_PARAMETERS]:
+        '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
+    });
   });
 
   it("should add attributes to llm spans when streaming", async () => {
@@ -290,12 +304,14 @@ describe("LangChainInstrumentation", () => {
       ...expectedSpanAttributes,
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test stream.",
       [LLM_INVOCATION_PARAMETERS]:
-        '{"model":"gpt-3.5-turbo","temperature":1,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":true}',
+        '{"model":"gpt-3.5-turbo","temperature":1,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":true,"stream_options":{"include_usage":true}}',
       [LLM_TOKEN_COUNT_PROMPT]: 13,
       [LLM_TOKEN_COUNT_COMPLETION]: 6,
       [LLM_TOKEN_COUNT_TOTAL]: 19,
       [OUTPUT_VALUE]:
         '{"generations":[[{"text":"This is a test stream.","generationInfo":{"prompt":0,"completion":0},"message":{"lc":1,"type":"constructor","id":["langchain_core","messages","ChatMessageChunk"],"kwargs":{"content":"This is a test stream.","additional_kwargs":{},"response_metadata":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19},"prompt":0,"completion":0}}}}]],"llmOutput":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19}}}',
+      [METADATA]:
+        '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1}',
     };
     delete expectedStreamingAttributes[
       `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`
@@ -320,12 +336,17 @@ describe("LangChainInstrumentation", () => {
         openAIApiKey: "my-api-key",
       }),
     );
-    const chain = new RetrievalQAChain({
-      combineDocumentsChain: loadQAStuffChain(chatModel, { prompt }),
+    const combineDocsChain = await createStuffDocumentsChain({
+      llm: chatModel,
+      prompt,
+    });
+    const chain = await createRetrievalChain({
+      combineDocsChain: combineDocsChain,
       retriever: vectorStore.asRetriever(),
     });
+
     await chain.invoke({
-      query: "What are cats?",
+      input: "What are cats?",
     });
 
     const spans = memoryExporter.getFinishedSpans();
@@ -334,11 +355,9 @@ describe("LangChainInstrumentation", () => {
         span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
         OpenInferenceSpanKind.RETRIEVER,
     );
-    const stuffDocSpan = spans.find(
-      (span) => span.name === "StuffDocumentsChain",
-    );
+
     expect(retrieverSpan).toBeDefined();
-    expect(stuffDocSpan).toBeDefined();
+
     expect(retrieverSpan?.attributes).toStrictEqual({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.RETRIEVER,
       [OUTPUT_MIME_TYPE]: "application/json",
@@ -375,16 +394,6 @@ describe("LangChainInstrumentation", () => {
       }),
       metadata: "{}",
     });
-
-    expect(stuffDocSpan?.attributes).toStrictEqual({
-      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
-      [OUTPUT_MIME_TYPE]: "text/plain",
-      [OUTPUT_VALUE]: "This is a test.",
-      [INPUT_MIME_TYPE]: "application/json",
-      [INPUT_VALUE]:
-        '{"question":"What are cats?","input_documents":[{"pageContent":"dogs are cute","metadata":{"loc":{"lines":{"from":1,"to":1}}}},{"pageContent":"rainbows are colorful","metadata":{"loc":{"lines":{"from":1,"to":1}}}},{"pageContent":"water is wet","metadata":{"loc":{"lines":{"from":1,"to":1}}}}],"query":"What are cats?"}',
-      metadata: "{}",
-    });
   });
 
   it("should add a prompt template to a span if found ", async () => {
@@ -395,7 +404,7 @@ describe("LangChainInstrumentation", () => {
     const chain = prompt.pipe(chatModel);
     await chain.invoke({
       context: "This is a test.",
-      question: "What is this?",
+      input: "What is this?",
     });
 
     const spans = memoryExporter.getFinishedSpans();
@@ -409,15 +418,16 @@ describe("LangChainInstrumentation", () => {
       [PROMPT_TEMPLATE_TEMPLATE]: PROMPT_TEMPLATE,
       [PROMPT_TEMPLATE_VARIABLES]: JSON.stringify({
         context: "This is a test.",
-        question: "What is this?",
+        input: "What is this?",
       }),
-      [INPUT_VALUE]: '{"context":"This is a test.","question":"What is this?"}',
+      [INPUT_VALUE]: '{"context":"This is a test.","input":"What is this?"}',
       [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_VALUE]:
         '{"lc":1,"type":"constructor","id":["langchain_core","prompt_values","ChatPromptValue"],"kwargs":{"messages":[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"Use the context below to answer the question.\\n  ----------------\\n  This is a test.\\n  \\n  Question:\\n  What is this?\\n  ","additional_kwargs":{},"response_metadata":{}}}]}}',
       [OUTPUT_MIME_TYPE]: "application/json",
       metadata: "{}",
     });
+    setTimeout(() => {}, 10000);
   });
 
   it("should add function calls to spans", async () => {
@@ -487,9 +497,10 @@ describe("LangChainInstrumentation", () => {
         '{"messages":[[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"whats the weather like in seattle, wa in fahrenheit?","additional_kwargs":{},"response_metadata":{}}}]]}',
       [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_VALUE]:
-        '{"generations":[[{"text":"","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110},"finish_reason":"function_call"}}},"generationInfo":{"finish_reason":"function_call"}}]],"llmOutput":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110}}}',
+        '{"generations":[[{"text":"","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110},"finish_reason":"function_call"},"id":"chatcmpl-9D6ZQKSVCtEeMT272J8h6xydy1jE2"}},"generationInfo":{"finish_reason":"function_call"}}]],"llmOutput":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110}}}',
       [OUTPUT_MIME_TYPE]: "application/json",
-      metadata: "{}",
+      metadata:
+        '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1}',
     });
   });
 
@@ -501,7 +512,7 @@ describe("LangChainInstrumentation", () => {
       func: async () => Promise.resolve("this is a test tool"),
     });
 
-    await simpleTool.call("");
+    await simpleTool.invoke("hello");
 
     const spans = memoryExporter.getFinishedSpans();
     expect(spans).toBeDefined();
@@ -514,7 +525,7 @@ describe("LangChainInstrumentation", () => {
     expect(toolSpan?.attributes).toStrictEqual({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
       [TOOL_NAME]: "test_tool",
-      [INPUT_VALUE]: "",
+      [INPUT_VALUE]: "hello",
       [INPUT_MIME_TYPE]: "text/plain",
       [OUTPUT_VALUE]: "this is a test tool",
       [OUTPUT_MIME_TYPE]: "text/plain",

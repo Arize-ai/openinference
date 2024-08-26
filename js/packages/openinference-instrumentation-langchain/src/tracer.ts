@@ -41,8 +41,8 @@ export class LangChainTracer extends BaseTracer {
     return Promise.resolve();
   }
 
-  protected async _startTrace(run: Run) {
-    await super._startTrace(run);
+  async onRunCreate(run: Run) {
+    await super.onRunCreate?.(run);
     if (isTracingSuppressed(context.active())) {
       return;
     }

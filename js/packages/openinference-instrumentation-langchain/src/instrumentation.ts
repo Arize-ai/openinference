@@ -48,7 +48,7 @@ export class LangChainInstrumentation extends InstrumentationBase<
       typeof CallbackManagerModule
     >(
       "@langchain/core/dist/callbacks/manager.cjs",
-      ["^0.1.0"],
+      ["^0.2.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -69,13 +69,17 @@ export class LangChainInstrumentation extends InstrumentationBase<
     if (module?.openInferencePatched || _isOpenInferencePatched) {
       return module;
     }
-    this.tracer;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const instrumentation = this;
 
-    this._wrap(module.CallbackManager, "configure", (original) => {
-      return (...args: Parameters<typeof original>) => {
+    this._wrap(module.CallbackManager, "_configureSync", (original) => {
+      return function (
+        this: CallbackManagerModule.CallbackManager,
+        ...args: Parameters<typeof original>
+      ) {
         const inheritableHandlers = args[0];
         const newInheritableHandlers = addTracerToHandlers(
-          this.tracer,
+          instrumentation.tracer,
           inheritableHandlers,
         );
         args[0] = newInheritableHandlers;
