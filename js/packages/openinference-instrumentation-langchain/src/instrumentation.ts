@@ -1,4 +1,5 @@
-import type * as CallbackManagerModule from "@langchain/core/callbacks/manager";
+import type * as CallbackManagerModuleV2 from "@langchain/core/callbacks/manager";
+import type * as CallbackManagerModuleV1 from "@langchain/coreV1/callbacks/manager";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -25,9 +26,11 @@ export function isPatched() {
   return _isOpenInferencePatched;
 }
 
-export class LangChainInstrumentation extends InstrumentationBase<
-  typeof CallbackManagerModule
-> {
+type CallbackManagerModule =
+  | typeof CallbackManagerModuleV1
+  | typeof CallbackManagerModuleV2;
+
+export class LangChainInstrumentation extends InstrumentationBase<CallbackManagerModule> {
   constructor(config?: InstrumentationConfig) {
     super(
       "@arizeai/openinference-instrumentation-langchain",
@@ -36,27 +39,24 @@ export class LangChainInstrumentation extends InstrumentationBase<
     );
   }
 
-  manuallyInstrument(module: typeof CallbackManagerModule) {
+  manuallyInstrument(module: CallbackManagerModule) {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
   }
 
-  protected init(): InstrumentationModuleDefinition<
-    typeof CallbackManagerModule
-  > {
-    const module = new InstrumentationNodeModuleDefinition<
-      typeof CallbackManagerModule
-    >(
-      "@langchain/core/dist/callbacks/manager.cjs",
-      ["^0.2.0"],
-      this.patch.bind(this),
-      this.unpatch.bind(this),
-    );
+  protected init(): InstrumentationModuleDefinition<CallbackManagerModule> {
+    const module =
+      new InstrumentationNodeModuleDefinition<CallbackManagerModule>(
+        "@langchain/core/dist/callbacks/manager.cjs",
+        ["^0.1.0", "^0.2.0"],
+        this.patch.bind(this),
+        this.unpatch.bind(this),
+      );
     return module;
   }
 
   private patch(
-    module: typeof CallbackManagerModule & {
+    module: CallbackManagerModule & {
       openInferencePatched?: boolean;
     },
     moduleVersion?: string,
@@ -72,17 +72,22 @@ export class LangChainInstrumentation extends InstrumentationBase<
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation = this;
 
-    this._wrap(module.CallbackManager, "_configureSync", (original) => {
-      return function (
-        this: CallbackManagerModule.CallbackManager,
-        ...args: Parameters<typeof original>
-      ) {
+    this._wrap(module.CallbackManager, "configure", (original) => {
+      return function <
+        T extends
+          | (typeof CallbackManagerModuleV1)["CallbackManager"]
+          | (typeof CallbackManagerModuleV2)["CallbackManager"],
+      >(this: T, ...args: Parameters<T["configure"]>) {
         const inheritableHandlers = args[0];
         const newInheritableHandlers = addTracerToHandlers(
           instrumentation.tracer,
           inheritableHandlers,
         );
         args[0] = newInheritableHandlers;
+
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore the types of the callback manager are slightly different between v1 and v2
+        // Here, we will only be calling with one or the other so we know they will be compatible and can ignore the error
         return original.apply(this, args);
       };
     });
@@ -98,7 +103,7 @@ export class LangChainInstrumentation extends InstrumentationBase<
   }
 
   private unpatch(
-    module?: typeof CallbackManagerModule & {
+    module?: CallbackManagerModule & {
       openInferencePatched?: boolean;
     },
     moduleVersion?: string,
@@ -125,10 +130,11 @@ export class LangChainInstrumentation extends InstrumentationBase<
   }
 }
 
-function addTracerToHandlers(
-  tracer: Tracer,
-  handlers?: CallbackManagerModule.Callbacks,
-) {
+function addTracerToHandlers<
+  T extends
+    | CallbackManagerModuleV1.Callbacks
+    | CallbackManagerModuleV2.Callbacks,
+>(tracer: Tracer, handlers?: T) {
   if (handlers == null) {
     return [new LangChainTracer(tracer)];
   }
@@ -148,6 +154,9 @@ function addTracerToHandlers(
   if (tracerAlreadyRegistered) {
     return handlers;
   }
-  handlers.addHandler(new LangChainTracer(tracer), true);
+  // There are some slight differences in teh BaseCallbackHandler interface between v1 and v2
+  // We support both versions and our tracer is compatible with either
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handlers.addHandler(new LangChainTracer(tracer) as any, true);
   return handlers;
 }

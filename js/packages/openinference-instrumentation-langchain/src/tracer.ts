@@ -41,8 +41,27 @@ export class LangChainTracer extends BaseTracer {
     return Promise.resolve();
   }
 
+  protected async _startTrace(run: Run) {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore _startTrace only exists on langchain ^0.1.0 BaseTracer and has been replaced in 0.2 by onRunCreate, we support both 0.1 and 0.2
+    if (typeof super._startTrace === "function") {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore _startTrace only exists on langchain ^0.1.0 BaseTracer and has been replaced in 0.2 by onRunCreate, we support both 0.1 and 0.2
+      await super._startTrace(run);
+    }
+    await this.startOpenInferenceSpan(run);
+  }
+
   async onRunCreate(run: Run) {
-    await super.onRunCreate?.(run);
+    // This method was introduced in langchain ^0.2.0
+    // We support both 0.1 and 0.2 so we need to check if the method exists on the super class before calling it, see above for the same pattern for _startTrace
+    if (typeof super.onRunCreate === "function") {
+      await super.onRunCreate(run);
+    }
+    await this.startOpenInferenceSpan(run);
+  }
+
+  async startOpenInferenceSpan(run: Run) {
     if (isTracingSuppressed(context.active())) {
       return;
     }
@@ -72,6 +91,7 @@ export class LangChainTracer extends BaseTracer {
 
     this.runs[run.id] = { run, span };
   }
+
   protected async _endTrace(run: Run) {
     await super._endTrace(run);
     if (isTracingSuppressed(context.active())) {

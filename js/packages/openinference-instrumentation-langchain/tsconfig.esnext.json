@@ -6,5 +6,10 @@
     "tsBuildInfoFile": "dist/esnext/tsconfig.esnext.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "references": []
+  "references": [],
+  "paths": {
+    "langchainV1/*": ["node_modules/langchainV1/*"],
+    "@langchain/coreV1/*": ["node_modules/@langchain/coreV1/*"],
+    "@langchain/openaiV1/*": ["node_modules/@langchain/openaiV1/*"]
+  }
 }
