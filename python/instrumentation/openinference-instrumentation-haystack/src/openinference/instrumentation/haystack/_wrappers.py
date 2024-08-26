@@ -99,7 +99,7 @@ class _ComponentWrapper(_WithTracer):
                 span.set_attributes(
                     {
                         **dict(_get_span_kind_attributes(EMBEDDING)),
-                        **dict(_get_embedding_model_attributes(component.model)),
+                        **dict(_get_embedding_model_attributes(component)),
                     }
                 )
             elif component_type is ComponentType.RANKER:
@@ -593,11 +593,14 @@ def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[
             )
 
 
-def _get_embedding_model_attributes(model: Any) -> Iterator[Tuple[str, Any]]:
+def _get_embedding_model_attributes(component: "Component") -> Iterator[Tuple[str, Any]]:
     """
     Yields attributes for embedding model.
     """
-    if isinstance(model, str):
+
+    if (
+        model := (getattr(component, "model", None) or getattr(component, "model_name", None))
+    ) and isinstance(model, str):
         yield EMBEDDING_MODEL_NAME, model
 
 
