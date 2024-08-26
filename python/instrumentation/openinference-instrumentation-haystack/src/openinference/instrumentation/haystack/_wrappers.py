@@ -598,7 +598,9 @@ def _get_embedding_model_attributes(component: Component) -> Iterator[Tuple[str,
     Yields attributes for embedding model.
     """
 
-    if (model := getattr(component, "model", None)) and isinstance(model, str):
+    if (
+        model := (getattr(component, "model", None) or getattr(component, "model_name", None))
+    ) and isinstance(model, str):
         yield EMBEDDING_MODEL_NAME, model
 
 
