@@ -15,7 +15,6 @@ from typing import (
 import pytest
 import respx
 from httpx import AsyncByteStream, Response
-from mistralai.async_client import MistralAsyncClient
 from mistralai import Mistral
 from mistralai.models import (
     ChatCompletionResponse,
@@ -589,7 +588,7 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_chat_completions_emits_expected_span(
     use_context_attributes: bool,
-    mistral_async_client: MistralAsyncClient,
+    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
     session_id: str,
@@ -626,13 +625,13 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     )
 
     async def mistral_chat() -> ChatCompletionResponse:
-        return await mistral_async_client.chat(
+        return await mistral_sync_client.chat.complete_async(
             model="mistral-large-latest",
             messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
+                {
+                    "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    "role": "user",
+                }
             ],
             temperature=0.1,
         )
@@ -717,7 +716,7 @@ async def test_asynchronous_chat_completions_emits_expected_span(
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_error(
     use_context_attributes: bool,
-    mistral_async_client: MistralAsyncClient,
+    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
     session_id: str,
@@ -736,7 +735,7 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
     )
 
     async def mistral_chat() -> ChatCompletionResponse:
-        return await mistral_async_client.chat(
+        return await mistral_sync_client.chat.complete_async(
             model="mistral-large-latest",
             messages=[
                 ChatMessage(
@@ -924,7 +923,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     use_context_attributes: bool,
-    mistral_async_client: MistralAsyncClient,
+    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     chat_stream: AsyncByteStream,
     respx_mock: Any,
@@ -944,7 +943,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     )
 
     async def mistral_stream() -> AsyncIterator[ChatCompletionStreamResponse]:
-        return mistral_async_client.chat_stream(
+        return mistral_sync_client.chat_stream(
             model="mistral-large-latest",
             messages=[
                 ChatMessage(
@@ -1259,11 +1258,6 @@ def prompt_template_variables() -> Dict[str, Any]:
 @pytest.fixture(scope="module")
 def mistral_sync_client() -> Mistral:
     return Mistral(api_key="123")
-
-
-@pytest.fixture(scope="module")
-def mistral_async_client() -> MistralAsyncClient:
-    return MistralAsyncClient(api_key="123")
 
 
 @pytest.fixture(scope="module")
