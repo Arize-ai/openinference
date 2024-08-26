@@ -145,9 +145,7 @@ class _WithMistralAI(ABC):
         request_data: Dict[str, Any] = {}
         for key, value in bound_arguments.items():
             try:
-                if key == "messages":
-                    request_data[key] = mistral_client._parse_messages(value)
-                elif key == "tools":
+                if key == "tools":
                     request_data[key] = mistral_client._parse_tools(value)
                 elif key == "tool_choice":
                     request_data[key] = mistral_client._parse_tool_choice(value)
@@ -161,6 +159,7 @@ class _WithMistralAI(ABC):
                     except json.JSONDecodeError:
                         request_data[key] = str(value)
             except Exception:
+                print("HARRISON THIS IS BAD THIS IS SILENTLY MAKING YOU CRAZY")
                 request_data[key] = str(value)
         return request_data
 

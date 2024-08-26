@@ -59,6 +59,10 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
                 "Could not import mistralai. Please install with `pip install mistralai`."
             ) from err
 
+        self._original_sync_chat_method = Chat.complete
+        self._original_sync_stream_chat_method = Chat.stream
+        self._original_async_chat_method = Chat.complete_async
+        self._original_async_stream_chat_method = Chat.stream_async
         wrap_function_wrapper(
             module="mistralai.chat",
             name="Chat.complete",
@@ -84,4 +88,9 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        pass
+        from mistralai.chat import Chat
+
+        Chat.complete = self._original_sync_chat_method  # type: ignore
+        Chat.stream = self._original_sync_stream_chat_method  # type: ignore
+        Chat.complete_async = self._original_async_chat_method  # type: ignore
+        Chat.stream_async = self._original_async_stream_chat_method  # type: ignore
