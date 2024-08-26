@@ -377,27 +377,30 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        return mistral_sync_client.chat(
+        return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             messages=[
-                ChatMessage(
-                    content="What's the weather like in San Francisco?",
-                    role="user",
-                ),
-                ChatMessage(
-                    content="",
-                    role="assistant",
-                    tool_calls=[
-                        ToolCall(
-                            function=FunctionCall(
-                                name="get_weather", arguments='{"city": "San Francisco"}'
-                            )
-                        )
+                {
+                    "content": "What's the weather like in San Francisco?",
+                    "role": "user",
+                },
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": '{"city": "San Francisco"}'
+                            }
+                        }
                     ],
-                ),
-                ChatMessage(
-                    role="tool", name="get_weather", content='{"weather_category": "sunny"}'
-                ),
+                },
+                {
+                    "role": "tool",
+                    "name": "get_weather",
+                    "content": '{"weather_category": "sunny"}'
+                },
             ],
         )
 
