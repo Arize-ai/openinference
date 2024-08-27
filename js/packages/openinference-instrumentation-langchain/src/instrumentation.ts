@@ -1,5 +1,5 @@
-import type * as CallbackManagerModuleV2 from "@langchain/core/callbacks/manager";
-import type * as CallbackManagerModuleV1 from "@langchain/coreV1/callbacks/manager";
+import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
+import type * as CallbackManagerModuleV01 from "@langchain/coreV0.1/callbacks/manager";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -27,8 +27,8 @@ export function isPatched() {
 }
 
 type CallbackManagerModule =
-  | typeof CallbackManagerModuleV1
-  | typeof CallbackManagerModuleV2;
+  | typeof CallbackManagerModuleV01
+  | typeof CallbackManagerModuleV02;
 
 export class LangChainInstrumentation extends InstrumentationBase<CallbackManagerModule> {
   constructor(config?: InstrumentationConfig) {
@@ -72,12 +72,20 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation = this;
 
+    /**
+     * _configureSync is only available in v0.2.0 and above
+     * It was added as a replacement to the configure method which is marked as soon to be deprecated
+     * In v0.2.0 and above, the configure method is a wrapper around _configureSync
+     * However, configure is not always called, where as _configureSync is always called
+     * so we want to patch only configure sync if it's available
+     * and only configure if _configureSync is not available so we don't get duplicate traces
+     */
     if ("_configureSync" in module.CallbackManager) {
       this._wrap(module.CallbackManager, "_configureSync", (original) => {
         return function (
-          this: typeof CallbackManagerModuleV2,
+          this: typeof CallbackManagerModuleV02,
           ...args: Parameters<
-            (typeof CallbackManagerModuleV2.CallbackManager)["_configureSync"]
+            (typeof CallbackManagerModuleV02.CallbackManager)["_configureSync"]
           >
         ) {
           const inheritableHandlers = args[0];
@@ -93,9 +101,9 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     } else {
       this._wrap(module.CallbackManager, "configure", (original) => {
         return function (
-          this: typeof CallbackManagerModuleV1,
+          this: typeof CallbackManagerModuleV01,
           ...args: Parameters<
-            (typeof CallbackManagerModuleV1.CallbackManager)["configure"]
+            (typeof CallbackManagerModuleV01.CallbackManager)["configure"]
           >
         ) {
           const handlers = args[0];
@@ -137,6 +145,10 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     if (isWrapped(module.CallbackManager.configure)) {
       this._unwrap(module.CallbackManager, "configure");
     }
+    /**
+     * _configureSync is only available in v0.2.0 and above
+     * Thus we only want to unwrap it if it's available and has been wrapped
+     */
     if (
       "_configureSync" in module.CallbackManager &&
       isWrapped(module.CallbackManager._configureSync)

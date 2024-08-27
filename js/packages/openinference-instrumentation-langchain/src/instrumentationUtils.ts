@@ -1,12 +1,24 @@
 import type * as CallbackManagerModuleV2 from "@langchain/core/callbacks/manager";
-import type * as CallbackManagerModuleV1 from "@langchain/coreV1/callbacks/manager";
+import type * as CallbackManagerModuleV01 from "@langchain/coreV0.1/callbacks/manager";
 import { Tracer } from "@opentelemetry/api";
 import { LangChainTracer } from "./tracer";
 
+/**
+ * Adds the {@link LangChainTracer} to the callback handlers if it is not already present
+ * @param tracer the {@link tracer} to pass into the {@link LangChainTracer} when added to handlers
+ * @param handlers the LangChain callback handlers which may be an array of handlers or a CallbackManager
+ * @returns the callback handlers with the {@link LangChainTracer} added
+ *
+ * If the handlers are an array, we add the tracer to the array if it is not already present
+ *
+ * There are some slight differences in the CallbackHandler interface between V0.1 and v0.2
+ * So we have to cast our tracer to any to avoid type errors
+ * We support both versions and our tracer is compatible with either as it will extend the BaseTracer from the installed version which will be the same as the version of handlers passed in here
+ */
 export function addTracerToHandlers(
   tracer: Tracer,
-  handlers?: CallbackManagerModuleV1.Callbacks,
-): CallbackManagerModuleV1.Callbacks;
+  handlers?: CallbackManagerModuleV01.Callbacks,
+): CallbackManagerModuleV01.Callbacks;
 export function addTracerToHandlers(
   tracer: Tracer,
   handlers?: CallbackManagerModuleV2.Callbacks,
@@ -14,11 +26,10 @@ export function addTracerToHandlers(
 export function addTracerToHandlers(
   tracer: Tracer,
   handlers?:
-    | CallbackManagerModuleV1.Callbacks
+    | CallbackManagerModuleV01.Callbacks
     | CallbackManagerModuleV2.Callbacks,
-): CallbackManagerModuleV1.Callbacks | CallbackManagerModuleV2.Callbacks {
+): CallbackManagerModuleV01.Callbacks | CallbackManagerModuleV2.Callbacks {
   if (handlers == null) {
-    // There are some slight differences in the Callbacks interface between v1 and v2
     return [new LangChainTracer(tracer)];
   }
   if (Array.isArray(handlers)) {
@@ -26,21 +37,19 @@ export function addTracerToHandlers(
       (handler) => handler instanceof LangChainTracer,
     );
     if (!tracerAlreadyRegistered) {
-      // There are some slight differences in the CallbackHandler interface between v1 and v2
-      // We support both versions and our tracer is compatible with either as it will extend the class from the installed version
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       handlers.push(new LangChainTracer(tracer) as any);
     }
     return handlers;
   }
-  const tracerAlreadyRegistered = handlers.inheritableHandlers.some(
-    (handler) => handler instanceof LangChainTracer,
-  );
+  const tracerAlreadyRegistered =
+    handlers.inheritableHandlers.some(
+      (handler) => handler instanceof LangChainTracer,
+    ) ||
+    handlers.handlers.some((handler) => handler instanceof LangChainTracer);
   if (tracerAlreadyRegistered) {
     return handlers;
   }
-  // There are some slight differences in the CallbackHandler interface between v1 and v2
-  // We support both versions and our tracer is compatible with either as it will extend the class from the installed version
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handlers.addHandler(new LangChainTracer(tracer) as any, true);
   return handlers;

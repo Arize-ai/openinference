@@ -32,9 +32,9 @@ export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
 
 /**
- * Callback function to handle errors.
+ * Handler for any unexpected errors that occur during processing.
  */
-const utilErrorCallback = (message: string) => (error: unknown) => {
+const onError = (message: string) => (error: unknown) => {
   diag.warn(
     `OpenInference-LangChain: error processing langchain run, falling back to null. ${message}. ${error}`,
   );
@@ -42,7 +42,7 @@ const utilErrorCallback = (message: string) => (error: unknown) => {
 
 const safelyJSONStringify = withSafety({
   fn: JSON.stringify,
-  onError: utilErrorCallback("Error stringifying JSON"),
+  onError: onError("Error stringifying JSON"),
 });
 
 /**
@@ -595,51 +595,49 @@ function formatMetadata(run: Run) {
 
 export const safelyFlattenAttributes = withSafety({
   fn: flattenAttributes,
-  onError: utilErrorCallback("Error flattening attributes"),
+  onError: onError("Error flattening attributes"),
 });
 export const safelyFormatIO = withSafety({
   fn: formatIO,
-  onError: utilErrorCallback("Error formatting IO"),
+  onError: onError("Error formatting IO"),
 });
 export const safelyFormatInputMessages = withSafety({
   fn: formatInputMessages,
-  onError: utilErrorCallback("Error formatting input messages"),
+  onError: onError("Error formatting input messages"),
 });
 export const safelyFormatOutputMessages = withSafety({
   fn: formatOutputMessages,
-  onError: utilErrorCallback("Error formatting output messages"),
+  onError: onError("Error formatting output messages"),
 });
 export const safelyGetOpenInferenceSpanKindFromRunType = withSafety({
   fn: getOpenInferenceSpanKindFromRunType,
-  onError: utilErrorCallback(
-    "Error getting OpenInference span kind from run type",
-  ),
+  onError: onError("Error getting OpenInference span kind from run type"),
 });
 export const safelyFormatRetrievalDocuments = withSafety({
   fn: formatRetrievalDocuments,
-  onError: utilErrorCallback("Error formatting retrieval documents"),
+  onError: onError("Error formatting retrieval documents"),
 });
 export const safelyFormatLLMParams = withSafety({
   fn: formatLLMParams,
-  onError: utilErrorCallback("Error formatting LLM params"),
+  onError: onError("Error formatting LLM params"),
 });
 export const safelyFormatPromptTemplate = withSafety({
   fn: formatPromptTemplate,
-  onError: utilErrorCallback("Error formatting prompt template"),
+  onError: onError("Error formatting prompt template"),
 });
 export const safelyFormatTokenCounts = withSafety({
   fn: formatTokenCounts,
-  onError: utilErrorCallback("Error formatting token counts"),
+  onError: onError("Error formatting token counts"),
 });
 export const safelyFormatFunctionCalls = withSafety({
   fn: formatFunctionCalls,
-  onError: utilErrorCallback("Error formatting function calls"),
+  onError: onError("Error formatting function calls"),
 });
 export const safelyFormatToolCalls = withSafety({
   fn: formatToolCalls,
-  onError: utilErrorCallback("Error formatting tool calls"),
+  onError: onError("Error formatting tool calls"),
 });
 export const safelyFormatMetadata = withSafety({
   fn: formatMetadata,
-  onError: utilErrorCallback("Error formatting metadata"),
+  onError: onError("Error formatting metadata"),
 });

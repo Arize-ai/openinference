@@ -100,13 +100,13 @@ importers:
       '@langchain/core':
         specifier: ^0.2.30
         version: 0.2.30(langchain@0.2.17(@langchain/community@0.0.57)(ignore@5.3.1)(openai@4.56.0(zod@3.23.8)))(openai@4.56.0(zod@3.23.8))
-      '@langchain/coreV1':
+      '@langchain/coreV0.1':
         specifier: npm:@langchain/core@^0.1.0
         version: '@langchain/core@0.1.63(langchain@0.2.17(@langchain/community@0.0.57)(ignore@5.3.1)(openai@4.56.0(zod@3.23.8)))(openai@4.56.0(zod@3.23.8))'
       '@langchain/openai':
         specifier: ^0.2.8
         version: 0.2.8(langchain@0.2.17(@langchain/community@0.0.57)(ignore@5.3.1)(openai@4.56.0(zod@3.23.8)))
-      '@langchain/openaiV1':
+      '@langchain/openaiV0.1':
         specifier: npm:@langchain/openai@^0.1.0
         version: '@langchain/openai@0.1.3(langchain@0.2.17(@langchain/community@0.0.57)(ignore@5.3.1)(openai@4.56.0(zod@3.23.8)))'
       '@opentelemetry/exporter-trace-otlp-proto':
@@ -139,7 +139,7 @@ importers:
       langchain:
         specifier: ^0.2.17
         version: 0.2.17(@langchain/community@0.0.57)(ignore@5.3.1)(openai@4.56.0(zod@3.23.8))
-      langchainV1:
+      langchainV0.1:
         specifier: npm:langchain@^0.1.0
         version: langchain@0.1.37(ignore@5.3.1)(openai@4.56.0(zod@3.23.8))
       openai:

@@ -4,11 +4,11 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { LangChainInstrumentation } from "../src";
-import * as CallbackManager from "@langchain/coreV1/callbacks/manager";
-import { ChatPromptTemplate } from "@langchain/coreV1/prompts";
-import { MemoryVectorStore } from "langchainV1/vectorstores/memory";
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openaiV1";
-import { RecursiveCharacterTextSplitter } from "langchainV1/text_splitter";
+import * as CallbackManager from "@langchain/coreV0.1/callbacks/manager";
+import { ChatPromptTemplate } from "@langchain/coreV0.1/prompts";
+import { MemoryVectorStore } from "langchainV0.1/vectorstores/memory";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openaiV0.1";
+import { RecursiveCharacterTextSplitter } from "langchainV0.1/text_splitter";
 import "dotenv/config";
 import { Stream } from "openai/streaming";
 import {
@@ -19,9 +19,9 @@ import {
 import { LangChainTracer } from "../src/tracer";
 import { trace } from "@opentelemetry/api";
 import { completionsResponse, functionCallResponse } from "./fixtures";
-import { DynamicTool } from "@langchain/coreV1/tools";
-import { createRetrievalChain } from "langchainV1/chains/retrieval";
-import { createStuffDocumentsChain } from "langchainV1/chains/combine_documents";
+import { DynamicTool } from "@langchain/coreV0.1/tools";
+import { createRetrievalChain } from "langchainV0.1/chains/retrieval";
+import { createStuffDocumentsChain } from "langchainV0.1/chains/combine_documents";
 
 const {
   INPUT_VALUE,
@@ -54,8 +54,8 @@ tracerProvider.register();
 const instrumentation = new LangChainInstrumentation();
 instrumentation.disable();
 
-jest.mock("@langchain/openaiV1", () => {
-  const originalModule = jest.requireActual("@langchain/openaiV1");
+jest.mock("@langchain/openaiV0.1", () => {
+  const originalModule = jest.requireActual("@langchain/openaiV0.1");
   class MockChatOpenAI extends originalModule.ChatOpenAI {
     constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
       super(...args);
@@ -214,7 +214,7 @@ describe("LangChainInstrumentation", () => {
   it("should add attributes to llm spans when streaming", async () => {
     // Do this to update the mock to return a streaming response
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ChatOpenAI } = jest.requireMock("@langchain/openaiV1");
+    const { ChatOpenAI } = jest.requireMock("@langchain/openaiV0.1");
 
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
@@ -393,7 +393,7 @@ describe("LangChainInstrumentation", () => {
   it("should add function calls to spans", async () => {
     // Do this to update the mock to return a function call response
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ChatOpenAI } = jest.requireMock("@langchain/openaiV1");
+    const { ChatOpenAI } = jest.requireMock("@langchain/openaiV0.1");
 
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
