@@ -112,7 +112,7 @@ def test_synchronous_chat_completions_emits_expected_span(
         )
     )
 
-    def mistral_chat() -> Optional[ChatCompletionResponse]:
+    def mistral_chat() -> ChatCompletionResponse:
         return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             messages=[
