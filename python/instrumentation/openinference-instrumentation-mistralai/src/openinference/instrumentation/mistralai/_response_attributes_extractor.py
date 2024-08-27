@@ -17,7 +17,7 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    from mistralai.models.chat_completion import ChatCompletionResponse, CompletionEvent
+    from mistralai.models import ChatCompletionResponse
 
 __all__ = ("_ResponseAttributesExtractor",)
 
@@ -60,7 +60,7 @@ class _StreamResponseAttributesExtractor:
 
 
 def _get_attributes_from_stream_chat_completion_response(
-    response: "CompletionEvent",
+    response: Any,
 ) -> Iterator[Tuple[str, AttributeValue]]:
     data = response.data
     if model := data.get("model", None):

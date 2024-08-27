@@ -26,7 +26,7 @@ from openinference.instrumentation.mistralai._utils import (
 from openinference.semconv.trace import OpenInferenceMimeTypeValues
 
 if TYPE_CHECKING:
-    from mistralai.models.chat_completion import ChatCompletionStreamResponse
+    from mistralai.models import CompletionEvent
 
 __all__ = ("_ChatCompletionAccumulator",)
 
@@ -52,7 +52,7 @@ class _ChatCompletionAccumulator:
     def __init__(
         self,
         request_parameters: Mapping[str, Any],
-        chat_completion_type: Type["ChatCompletionStreamResponse"],
+        chat_completion_type: Type["CompletionEvent"],
         response_attributes_extractor: Optional[_CanGetAttributesFromResponse] = None,
     ) -> None:
         self._chat_completion_type = chat_completion_type
@@ -77,7 +77,7 @@ class _ChatCompletionAccumulator:
             ),
         )
 
-    def process_chunk(self, chunk: "ChatCompletionStreamResponse") -> None:
+    def process_chunk(self, chunk: "CompletionEvent") -> None:
         self._is_null = False
         self._cached_result = None
         values = chunk.model_dump(exclude_unset=True, warnings=False)

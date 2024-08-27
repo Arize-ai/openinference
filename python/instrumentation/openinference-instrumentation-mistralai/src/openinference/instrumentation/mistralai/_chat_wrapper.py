@@ -185,7 +185,7 @@ class _WithMistralAI(ABC):
                 ).stream_async_with_accumulator()
             elif isinstance(response, Iterable):
                 return _Stream(
-                    stream=response,
+                    stream=response,  # type: ignore
                     with_span=with_span,
                     response_accumulator=response_accumulator,
                 )

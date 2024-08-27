@@ -17,7 +17,6 @@ from mistralai.models import (
     ChatCompletionChoice,
     ChatCompletionResponse,
     CompletionEvent,
-    Tool,
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
@@ -249,7 +248,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        tool: Tool = {
+        tool = {
             "type": "function",
             "function": {
                 "name": "get_weather",
@@ -270,7 +269,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
         return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             tool_choice="any",
-            tools=[tool],
+            tools=[tool],  # type: ignore
             messages=[
                 {
                     "content": "What's the weather like in San Francisco?",
@@ -960,7 +959,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
 ) -> None:
     mistral_client = Mistral(api_key="redact")
 
-    async def get_response_stream() -> Generator[CompletionEvent, None, None]:
+    async def get_response_stream():  # type: ignore
         return await mistral_client.chat.stream_async(
             model="mistral-small-latest",
             messages=[
@@ -984,9 +983,9 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         ):
-            response_stream = await get_response_stream()
+            response_stream = await get_response_stream()  # type: ignore
     else:
-        response_stream = await get_response_stream()
+        response_stream = await get_response_stream()  # type: ignore
 
     response_content = ""
     async for chunk in response_stream:
@@ -1072,7 +1071,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    tool: Tool = {
+    tool = {
         "type": "function",
         "function": {
             "name": "get_weather",
@@ -1095,7 +1094,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
         return mistral.chat.stream(
             model="mistral-small-latest",
             tool_choice="any",
-            tools=[tool],
+            tools=[tool],  # type: ignore
             messages=[  # type: ignore
                 {
                     "content": "What's the weather like in San Francisco?",
