@@ -38,10 +38,7 @@ if __name__ == "__main__":
         response = client.chat.complete(
             model="mistral-small-latest",
             messages=[
-                {
-                    "content": "Who won the World Cup in 2018?",
-                    "role": "user"
-                },
+                {"content": "Who won the World Cup in 2018?", "role": "user"},
             ],
         )
         print(response)

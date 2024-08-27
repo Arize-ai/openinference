@@ -17,9 +17,7 @@ if __name__ == "__main__":
     from mistralai import Mistral
     import os
 
-    client = Mistral(
-        api_key="redacted"
-    )
+    client = Mistral(api_key="redacted")
 
     response_stream = client.chat.stream(
         model="mistral-small-latest",

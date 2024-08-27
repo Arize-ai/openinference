@@ -87,7 +87,7 @@ class _Stream(ObjectProxy):  # type: ignore
     def __aiter__(self) -> AsyncIterator[Any]:
         return self
 
-    #TODO(harrison): delete this funciton no longer needed
+    # TODO(harrison): delete this funciton no longer needed
     async def __anext__(self) -> Any:
         # pass through mistaken calls
         if not hasattr(self.__wrapped__, "__anext__"):
@@ -155,10 +155,10 @@ class _AsyncStream:
     )
 
     def __init__(
-            self,
-            stream: Any,
-            with_span: _WithSpan,
-            response_accumulator: Optional[_ResponseAccumulator] = None,
+        self,
+        stream: Any,
+        with_span: _WithSpan,
+        response_accumulator: Optional[_ResponseAccumulator] = None,
     ) -> None:
         self.stream = stream
         self._self_with_span = with_span
@@ -183,6 +183,7 @@ class _AsyncStream:
                 self._self_with_span.record_exception(exception)
                 self._finish_tracing(status=status)
                 raise
+
         return generator()
 
     def _process_chunk(self, chunk: Any) -> None:
@@ -199,8 +200,8 @@ class _AsyncStream:
                 logger.exception("Failed to accumulate response")
 
     def _finish_tracing(
-            self,
-            status: Optional[trace_api.Status] = None,
+        self,
+        status: Optional[trace_api.Status] = None,
     ) -> None:
         _finish_tracing(
             status=status,

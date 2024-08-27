@@ -172,6 +172,7 @@ class _WithMistralAI(ABC):
         """
         from mistralai.models.chatcompletionresponse import ChatCompletionResponse
         from mistralai.models.completionevent import CompletionEvent
+
         if not isinstance(response, ChatCompletionResponse):  # assume it's a stream
             response_accumulator = _ChatCompletionAccumulator(
                 request_parameters=request_parameters,

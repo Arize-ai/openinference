@@ -16,6 +16,7 @@ trace_api.set_tracer_provider(tracer_provider)
 
 MistralAIInstrumentor().instrument()
 
+
 async def chat_completions_async():
     client = Mistral(
         api_key="redacted",
@@ -51,6 +52,7 @@ async def chat_completions_async():
         )
         if res is not None:
             print(res.choices[0].message.content)
+
 
 if __name__ == "__main__":
     asyncio.run(chat_completions_async())

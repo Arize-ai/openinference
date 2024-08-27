@@ -71,7 +71,6 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
     return response
 
 
-
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
 def test_oitracer() -> None:
     assert isinstance(MistralAIInstrumentor()._tracer, OITracer)
@@ -421,16 +420,12 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
                         {
                             "function": {
                                 "name": "get_weather",
-                                "arguments": '{"city": "San Francisco"}'
+                                "arguments": '{"city": "San Francisco"}',
                             }
                         }
                     ],
                 },
-                {
-                    "role": "tool",
-                    "name": "get_weather",
-                    "content": '{"weather_category": "sunny"}'
-                },
+                {"role": "tool", "name": "get_weather", "content": '{"weather_category": "sunny"}'},
             ],
         )
 
@@ -882,8 +877,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
             response_content += chunk_content
 
     assert (
-        response_content
-        == "France won World Cup"  # noqa: E501
+        response_content == "France won World Cup"  # noqa: E501
     )  # noqa: E501
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -963,6 +957,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     mistral_client = Mistral(api_key="redact")
+
     async def get_response_stream():
         return await mistral_client.chat.stream_async(
             model="mistral-small-latest",
@@ -995,8 +990,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
             response_content += chunk_content
 
     assert (
-        response_content
-        == "France won"  # noqa: E501
+        response_content == "France won"  # noqa: E501
     )  # noqa: E501
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1092,6 +1086,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
         },
     }
     mistral = Mistral(api_key="redacted")
+
     def mistral_chat():
         return mistral.chat.stream(
             model="mistral-small-latest",
