@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 
-from anthropic.types import TextBlock, TextBlockParam, ToolUseBlock, ToolUseBlockParam
+from anthropic.types import TextBlock, ToolUseBlock
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,

@@ -78,7 +78,7 @@ def _to_assistant_message_param(
         if isinstance(block, TextBlock):
             content.append(block)
         elif isinstance(block, ToolUseBlock):
-            content.append(block)
+            content.append(block)  # type: ignore
         else:
             assert_never(block)
     return MessageParam(content=content, role="assistant")
@@ -434,14 +434,15 @@ def test_anthropic_instrumentation_multiple_tool_calling(
                 ],
                 "role": "assistant",
             },
-        id = "with_blocks"),
+            id="with_blocks",
+        ),
         pytest.param(
             {
                 "content": [
                     TextBlockParam(
                         text="Certainly! I can help you get the current weather information for"
-                             " San Francisco in Fahrenheit. To do this, I'll use the get_weather"
-                             " function. Let me fetch that information for you right away.",
+                        " San Francisco in Fahrenheit. To do this, I'll use the get_weather"
+                        " function. Let me fetch that information for you right away.",
                         type="text",
                     ),
                     ToolUseBlockParam(
@@ -453,7 +454,8 @@ def test_anthropic_instrumentation_multiple_tool_calling(
                 ],
                 "role": "assistant",
             },
-            id="with_block_params"),
+            id="with_block_params",
+        ),
     ),
 )
 def test_anthropic_instrumentation_tool_use_in_input(
@@ -462,9 +464,7 @@ def test_anthropic_instrumentation_tool_use_in_input(
     setup_anthropic_instrumentation: Any,
     assistant_message: MessageParam,
 ) -> None:
-    client = anthropic.Anthropic(
-        api_key="fake"
-    )
+    client = anthropic.Anthropic(api_key="fake")
     messages = [
         {"role": "user", "content": "What is the weather like in San Francisco in Fahrenheit?"},
         assistant_message,
@@ -498,14 +498,15 @@ def test_anthropic_instrumentation_tool_use_in_input(
                         "unit": {
                             "type": "string",
                             "enum": ["celsius", "fahrenheit"],
-                            "description": 'The unit of temperature, either "celsius" or "fahrenheit"',
+                            "description": "The unit of temperature,"
+                            ' either "celsius" or "fahrenheit"',
                         },
                     },
                     "required": ["location"],
                 },
             }
         ],
-        messages=messages,
+        messages=messages,  # type: ignore
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
