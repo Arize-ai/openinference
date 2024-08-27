@@ -1,4 +1,4 @@
-import { Attributes, diag } from "@opentelemetry/api";
+import { Attributes } from "@opentelemetry/api";
 import {
   assertUnreachable,
   isNonEmptyArray,
@@ -16,7 +16,6 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import { Run } from "@langchain/core/tracers/base";
 import {
-  GenericFunction,
   LLMMessage,
   LLMMessageFunctionCall,
   LLMMessageToolCalls,
@@ -24,31 +23,13 @@ import {
   LLMParameterAttributes,
   PromptTemplateAttributes,
   RetrievalDocument,
-  SafeFunction,
   TokenCountAttributes,
   ToolAttributes,
 } from "./types";
+import { safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
 
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
-
-/**
- * Wraps a function with a try-catch block to catch and log any errors.
- * @param fn - A function to wrap with a try-catch block.
- * @returns A function that returns null if an error is thrown.
- */
-export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
-  return (...args) => {
-    try {
-      return fn(...args);
-    } catch (error) {
-      diag.error(`Failed to get attributes for span: ${error}`);
-      return null;
-    }
-  };
-}
-
-const safelyJSONStringify = withSafety(JSON.stringify);
 
 /**
  * Flattens a nested object into a single level object with keys as dot-separated paths.

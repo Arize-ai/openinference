@@ -81,6 +81,9 @@ importers:
 
   packages/openinference-instrumentation-langchain:
     dependencies:
+      '@arizeai/openinference-core':
+        specifier: workspace:*
+        version: link:../openinference-core
       '@arizeai/openinference-semantic-conventions':
         specifier: workspace:*
         version: link:../openinference-semantic-conventions
