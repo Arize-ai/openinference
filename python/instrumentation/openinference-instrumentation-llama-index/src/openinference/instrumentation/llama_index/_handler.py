@@ -107,6 +107,7 @@ from llama_index.core.multi_modal_llms import MultiModalLLM
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
 from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
+from llama_index.core.workflow.errors import WorkflowDone
 from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
@@ -244,10 +245,7 @@ class _Span(BaseSpan):
             self[OUTPUT_VALUE] = str(result)
         elif isinstance(result, BaseModel):
             try:
-                if LLAMA_INDEX_VERSION >= (0, 11, 1):
-                    self[OUTPUT_VALUE] = result.model_dump_json(exclude_unset=True)  # type: ignore[attr-defined,unused-ignore]  # noqa E501
-                else:
-                    self[OUTPUT_VALUE] = result.json(exclude_unset=True, encoder=_encoder)  # type: ignore[attr-defined,unused-ignore]  # noqa E501
+                self[OUTPUT_VALUE] = result.model_dump_json(exclude_unset=True)
                 self[OUTPUT_MIME_TYPE] = JSON
             except BaseException as e:
                 logger.exception(str(e))
@@ -783,14 +781,9 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         if token:
             detach(token)
         if span:
-            if LLAMA_INDEX_VERSION >= (0, 10, 61):
-                from llama_index.core.workflow.errors import (  # type: ignore[import-not-found,unused-ignore]
-                    WorkflowDone,
-                )
-
-                if err and isinstance(err, WorkflowDone):
-                    span.end()
-                    return span
+            if err and isinstance(err, WorkflowDone):
+                span.end()
+                return span
             span.end(err)
         else:
             logger.warning(f"Open span is missing for {id_=}")
