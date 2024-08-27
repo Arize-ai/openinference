@@ -1,9 +1,8 @@
 import logging
 from typing import (
-    TYPE_CHECKING,
     Any,
     AsyncIterator,
-    Iterable,
+    Generator,
     Iterator,
     Optional,
     Protocol,
@@ -14,11 +13,9 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
+from mistralai.models import CompletionEvent
 from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
-
-if TYPE_CHECKING:
-    from mistral.models.chat_completion import ChatCompletionStreamResponse
 
 __all__ = (
     "_Stream",
@@ -47,7 +44,7 @@ class _Stream(ObjectProxy):  # type: ignore
 
     def __init__(
         self,
-        stream: Iterable["ChatCompletionStreamResponse"],
+        stream: Optional[Generator[CompletionEvent, None, None]],
         with_span: _WithSpan,
         response_accumulator: Optional[_ResponseAccumulator] = None,
     ) -> None:
