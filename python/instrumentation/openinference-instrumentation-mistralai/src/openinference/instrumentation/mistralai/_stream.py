@@ -18,7 +18,7 @@ from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
 
 if TYPE_CHECKING:
-    from mistralai.models.chat_completion import ChatCompletionStreamResponse
+    from mistral.models.chat_completion import ChatCompletionStreamResponse
 
 __all__ = (
     "_Stream",
@@ -166,8 +166,8 @@ class _AsyncStream:
         self._self_is_finished = with_span.is_finished
         self._self_response_accumulator = response_accumulator
 
-    async def stream_async_with_accumulator(self):
-        async def generator():
+    async def stream_async_with_accumulator(self) -> AsyncIterator[Any]:
+        async def generator() -> AsyncIterator[Any]:
             try:
                 async for event in await self.stream:
                     self._process_chunk(event)
