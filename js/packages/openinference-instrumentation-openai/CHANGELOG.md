@@ -1,5 +1,16 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 0.5.0
+
+### Minor Changes
+
+- 32968be: Add tool call schema to openAI instrumentation
+
+### Patch Changes
+
+- Updated dependencies [3b8702a]
+  - @arizeai/openinference-core@0.2.0
+
 ## 0.4.1
 
 ### Patch Changes
