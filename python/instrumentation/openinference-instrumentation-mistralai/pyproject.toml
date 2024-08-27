@@ -34,10 +34,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "mistralai >= 1.0.0",
+  "mistralai >= 1.0.2",
 ]
 test = [
-  "mistralai == 1.0.0",
+  "mistralai == 1.0.2",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "respx",
