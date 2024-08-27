@@ -8,7 +8,7 @@ import { Resource } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SEMRESATTRS_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
-import * as CallbackManagerModule from "@langchain/coreV1/callbacks/manager";
+import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 

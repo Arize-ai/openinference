@@ -164,12 +164,12 @@ describe("LangChainInstrumentation", () => {
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
 
   const PROMPT_TEMPLATE = `Use the context below to answer the question.
-    ----------------
-    {context}
+  ----------------
+  {context}
     
-    Question:
-    {input}
-    `;
+  Question:
+  {input}
+  `;
   const prompt = ChatPromptTemplate.fromTemplate(PROMPT_TEMPLATE);
 
   // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
@@ -426,7 +426,7 @@ describe("LangChainInstrumentation", () => {
       [INPUT_VALUE]: '{"context":"This is a test.","input":"What is this?"}',
       [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_VALUE]:
-        '{"lc":1,"type":"constructor","id":["langchain_core","prompt_values","ChatPromptValue"],"kwargs":{"messages":[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"Use the context below to answer the question.\\n  ----------------\\n  This is a test.\\n  \\n  Question:\\n  What is this?\\n  ","additional_kwargs":{},"response_metadata":{}}}]}}',
+        '{"lc":1,"type":"constructor","id":["langchain_core","prompt_values","ChatPromptValue"],"kwargs":{"messages":[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"Use the context below to answer the question.\\n  ----------------\\n  This is a test.\\n    \\n  Question:\\n  What is this?\\n  ","additional_kwargs":{},"response_metadata":{}}}]}}',
       [OUTPUT_MIME_TYPE]: "application/json",
       metadata: "{}",
     });

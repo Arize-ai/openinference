@@ -8,8 +8,8 @@ import {
   isWrapped,
 } from "@opentelemetry/instrumentation";
 import { VERSION } from "./version";
-import { Tracer, diag } from "@opentelemetry/api";
-import { LangChainTracer } from "./tracer";
+import { diag } from "@opentelemetry/api";
+import { addTracerToHandlers } from "./instrumentationUtils";
 
 const MODULE_NAME = "@langchain/core/callbacks";
 
@@ -72,25 +72,43 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation = this;
 
-    this._wrap(module.CallbackManager, "configure", (original) => {
-      return function <
-        T extends
-          | (typeof CallbackManagerModuleV1)["CallbackManager"]
-          | (typeof CallbackManagerModuleV2)["CallbackManager"],
-      >(this: T, ...args: Parameters<T["configure"]>) {
-        const inheritableHandlers = args[0];
-        const newInheritableHandlers = addTracerToHandlers(
-          instrumentation.tracer,
-          inheritableHandlers,
-        );
-        args[0] = newInheritableHandlers;
+    if ("_configureSync" in module.CallbackManager) {
+      this._wrap(module.CallbackManager, "_configureSync", (original) => {
+        return function (
+          this: typeof CallbackManagerModuleV2,
+          ...args: Parameters<
+            (typeof CallbackManagerModuleV2.CallbackManager)["_configureSync"]
+          >
+        ) {
+          const inheritableHandlers = args[0];
+          const newInheritableHandlers = addTracerToHandlers(
+            instrumentation.tracer,
+            inheritableHandlers,
+          );
+          args[0] = newInheritableHandlers;
 
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore the types of the callback manager are slightly different between v1 and v2
-        // Here, we will only be calling with one or the other so we know they will be compatible and can ignore the error
-        return original.apply(this, args);
-      };
-    });
+          return original.apply(this, args);
+        };
+      });
+    } else {
+      this._wrap(module.CallbackManager, "configure", (original) => {
+        return function (
+          this: typeof CallbackManagerModuleV1,
+          ...args: Parameters<
+            (typeof CallbackManagerModuleV1.CallbackManager)["configure"]
+          >
+        ) {
+          const handlers = args[0];
+          const newHandlers = addTracerToHandlers(
+            instrumentation.tracer,
+            handlers,
+          );
+          args[0] = newHandlers;
+
+          return original.apply(this, args);
+        };
+      });
+    }
     _isOpenInferencePatched = true;
     try {
       // This can fail if the module is made immutable via the runtime or bundler
@@ -119,6 +137,12 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     if (isWrapped(module.CallbackManager.configure)) {
       this._unwrap(module.CallbackManager, "configure");
     }
+    if (
+      "_configureSync" in module.CallbackManager &&
+      isWrapped(module.CallbackManager._configureSync)
+    ) {
+      this._unwrap(module.CallbackManager, "_configureSync");
+    }
     _isOpenInferencePatched = false;
     try {
       // This can fail if the module is made immutable via the runtime or bundler
@@ -128,35 +152,4 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     }
     return module;
   }
-}
-
-function addTracerToHandlers<
-  T extends
-    | CallbackManagerModuleV1.Callbacks
-    | CallbackManagerModuleV2.Callbacks,
->(tracer: Tracer, handlers?: T) {
-  if (handlers == null) {
-    return [new LangChainTracer(tracer)];
-  }
-  if (Array.isArray(handlers)) {
-    const newHandlers = handlers;
-    const tracerAlreadyRegistered = newHandlers.some(
-      (handler) => handler instanceof LangChainTracer,
-    );
-    if (!tracerAlreadyRegistered) {
-      newHandlers.push(new LangChainTracer(tracer));
-    }
-    return newHandlers;
-  }
-  const tracerAlreadyRegistered = handlers.inheritableHandlers.some(
-    (handler) => handler instanceof LangChainTracer,
-  );
-  if (tracerAlreadyRegistered) {
-    return handlers;
-  }
-  // There are some slight differences in teh BaseCallbackHandler interface between v1 and v2
-  // We support both versions and our tracer is compatible with either
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handlers.addHandler(new LangChainTracer(tracer) as any, true);
-  return handlers;
 }
