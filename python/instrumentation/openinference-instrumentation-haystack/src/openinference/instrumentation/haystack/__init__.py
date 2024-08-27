@@ -7,7 +7,6 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 )
 from wrapt import wrap_function_wrapper
 
-import haystack
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.haystack._wrappers import _ComponentWrapper, _PipelineWrapper
 from openinference.instrumentation.haystack.version import __version__
@@ -26,6 +25,8 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        import haystack
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
@@ -51,6 +52,8 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        import haystack
+
         if self._original_pipeline_run is not None:
             haystack.Pipeline.run = self._original_pipeline_run
 
