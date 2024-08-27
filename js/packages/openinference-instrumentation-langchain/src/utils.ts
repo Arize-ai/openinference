@@ -16,7 +16,6 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import { Run } from "@langchain/core/tracers/base";
 import {
-  GenericFunction,
   LLMMessage,
   LLMMessageFunctionCall,
   LLMMessageToolCalls,
@@ -24,31 +23,27 @@ import {
   LLMParameterAttributes,
   PromptTemplateAttributes,
   RetrievalDocument,
-  SafeFunction,
   TokenCountAttributes,
   ToolAttributes,
 } from "./types";
+import { withSafety } from "@arizeai/openinference-core";
 
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
 
 /**
- * Wraps a function with a try-catch block to catch and log any errors.
- * @param fn - A function to wrap with a try-catch block.
- * @returns A function that returns null if an error is thrown.
+ * Handler for any unexpected errors that occur during processing.
  */
-export function withSafety<T extends GenericFunction>(fn: T): SafeFunction<T> {
-  return (...args) => {
-    try {
-      return fn(...args);
-    } catch (error) {
-      diag.error(`Failed to get attributes for span: ${error}`);
-      return null;
-    }
-  };
-}
+const onError = (message: string) => (error: unknown) => {
+  diag.warn(
+    `OpenInference-LangChain: error processing langchain run, falling back to null. ${message}. ${error}`,
+  );
+};
 
-const safelyJSONStringify = withSafety(JSON.stringify);
+const safelyJSONStringify = withSafety({
+  fn: JSON.stringify,
+  onError: onError("Error stringifying JSON"),
+});
 
 /**
  * Flattens a nested object into a single level object with keys as dot-separated paths.
@@ -454,7 +449,9 @@ function getTemplateFromSerialized(serialized: Run["serialized"]) {
   return template;
 }
 
-const safelyGetTemplateFromSerialized = withSafety(getTemplateFromSerialized);
+const safelyGetTemplateFromSerialized = withSafety({
+  fn: getTemplateFromSerialized,
+});
 
 /**
  * A best effort function to extract the prompt template from a langchain run.
@@ -596,19 +593,51 @@ function formatMetadata(run: Run) {
   };
 }
 
-export const safelyFlattenAttributes = withSafety(flattenAttributes);
-export const safelyFormatIO = withSafety(formatIO);
-export const safelyFormatInputMessages = withSafety(formatInputMessages);
-export const safelyFormatOutputMessages = withSafety(formatOutputMessages);
-export const safelyGetOpenInferenceSpanKindFromRunType = withSafety(
-  getOpenInferenceSpanKindFromRunType,
-);
-export const safelyFormatRetrievalDocuments = withSafety(
-  formatRetrievalDocuments,
-);
-export const safelyFormatLLMParams = withSafety(formatLLMParams);
-export const safelyFormatPromptTemplate = withSafety(formatPromptTemplate);
-export const safelyFormatTokenCounts = withSafety(formatTokenCounts);
-export const safelyFormatFunctionCalls = withSafety(formatFunctionCalls);
-export const safelyFormatToolCalls = withSafety(formatToolCalls);
-export const safelyFormatMetadata = withSafety(formatMetadata);
+export const safelyFlattenAttributes = withSafety({
+  fn: flattenAttributes,
+  onError: onError("Error flattening attributes"),
+});
+export const safelyFormatIO = withSafety({
+  fn: formatIO,
+  onError: onError("Error formatting IO"),
+});
+export const safelyFormatInputMessages = withSafety({
+  fn: formatInputMessages,
+  onError: onError("Error formatting input messages"),
+});
+export const safelyFormatOutputMessages = withSafety({
+  fn: formatOutputMessages,
+  onError: onError("Error formatting output messages"),
+});
+export const safelyGetOpenInferenceSpanKindFromRunType = withSafety({
+  fn: getOpenInferenceSpanKindFromRunType,
+  onError: onError("Error getting OpenInference span kind from run type"),
+});
+export const safelyFormatRetrievalDocuments = withSafety({
+  fn: formatRetrievalDocuments,
+  onError: onError("Error formatting retrieval documents"),
+});
+export const safelyFormatLLMParams = withSafety({
+  fn: formatLLMParams,
+  onError: onError("Error formatting LLM params"),
+});
+export const safelyFormatPromptTemplate = withSafety({
+  fn: formatPromptTemplate,
+  onError: onError("Error formatting prompt template"),
+});
+export const safelyFormatTokenCounts = withSafety({
+  fn: formatTokenCounts,
+  onError: onError("Error formatting token counts"),
+});
+export const safelyFormatFunctionCalls = withSafety({
+  fn: formatFunctionCalls,
+  onError: onError("Error formatting function calls"),
+});
+export const safelyFormatToolCalls = withSafety({
+  fn: formatToolCalls,
+  onError: onError("Error formatting tool calls"),
+});
+export const safelyFormatMetadata = withSafety({
+  fn: formatMetadata,
+  onError: onError("Error formatting metadata"),
+});

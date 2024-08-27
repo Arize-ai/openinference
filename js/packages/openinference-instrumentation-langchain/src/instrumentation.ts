@@ -1,4 +1,5 @@
-import type * as CallbackManagerModule from "@langchain/core/callbacks/manager";
+import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
+import type * as CallbackManagerModuleV01 from "@langchain/coreV0.1/callbacks/manager";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -7,8 +8,8 @@ import {
   isWrapped,
 } from "@opentelemetry/instrumentation";
 import { VERSION } from "./version";
-import { Tracer, diag } from "@opentelemetry/api";
-import { LangChainTracer } from "./tracer";
+import { diag } from "@opentelemetry/api";
+import { addTracerToHandlers } from "./instrumentationUtils";
 
 const MODULE_NAME = "@langchain/core/callbacks";
 
@@ -25,9 +26,11 @@ export function isPatched() {
   return _isOpenInferencePatched;
 }
 
-export class LangChainInstrumentation extends InstrumentationBase<
-  typeof CallbackManagerModule
-> {
+type CallbackManagerModule =
+  | typeof CallbackManagerModuleV01
+  | typeof CallbackManagerModuleV02;
+
+export class LangChainInstrumentation extends InstrumentationBase<CallbackManagerModule> {
   constructor(config?: InstrumentationConfig) {
     super(
       "@arizeai/openinference-instrumentation-langchain",
@@ -36,27 +39,24 @@ export class LangChainInstrumentation extends InstrumentationBase<
     );
   }
 
-  manuallyInstrument(module: typeof CallbackManagerModule) {
+  manuallyInstrument(module: CallbackManagerModule) {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
   }
 
-  protected init(): InstrumentationModuleDefinition<
-    typeof CallbackManagerModule
-  > {
-    const module = new InstrumentationNodeModuleDefinition<
-      typeof CallbackManagerModule
-    >(
-      "@langchain/core/dist/callbacks/manager.cjs",
-      ["^0.1.0"],
-      this.patch.bind(this),
-      this.unpatch.bind(this),
-    );
+  protected init(): InstrumentationModuleDefinition<CallbackManagerModule> {
+    const module =
+      new InstrumentationNodeModuleDefinition<CallbackManagerModule>(
+        "@langchain/core/dist/callbacks/manager.cjs",
+        ["^0.1.0", "^0.2.0"],
+        this.patch.bind(this),
+        this.unpatch.bind(this),
+      );
     return module;
   }
 
   private patch(
-    module: typeof CallbackManagerModule & {
+    module: CallbackManagerModule & {
       openInferencePatched?: boolean;
     },
     moduleVersion?: string,
@@ -69,19 +69,54 @@ export class LangChainInstrumentation extends InstrumentationBase<
     if (module?.openInferencePatched || _isOpenInferencePatched) {
       return module;
     }
-    this.tracer;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const instrumentation = this;
 
-    this._wrap(module.CallbackManager, "configure", (original) => {
-      return (...args: Parameters<typeof original>) => {
-        const inheritableHandlers = args[0];
-        const newInheritableHandlers = addTracerToHandlers(
-          this.tracer,
-          inheritableHandlers,
-        );
-        args[0] = newInheritableHandlers;
-        return original.apply(this, args);
-      };
-    });
+    /**
+     * _configureSync is only available in v0.2.0 and above
+     * It was added as a replacement to the configure method which is marked as soon to be deprecated
+     * In v0.2.0 and above, the configure method is a wrapper around _configureSync
+     * However, configure is not always called, where as _configureSync is always called
+     * so we want to patch only configure sync if it's available
+     * and only configure if _configureSync is not available so we don't get duplicate traces
+     */
+    if ("_configureSync" in module.CallbackManager) {
+      this._wrap(module.CallbackManager, "_configureSync", (original) => {
+        return function (
+          this: typeof CallbackManagerModuleV02,
+          ...args: Parameters<
+            (typeof CallbackManagerModuleV02.CallbackManager)["_configureSync"]
+          >
+        ) {
+          const inheritableHandlers = args[0];
+          const newInheritableHandlers = addTracerToHandlers(
+            instrumentation.tracer,
+            inheritableHandlers,
+          );
+          args[0] = newInheritableHandlers;
+
+          return original.apply(this, args);
+        };
+      });
+    } else {
+      this._wrap(module.CallbackManager, "configure", (original) => {
+        return function (
+          this: typeof CallbackManagerModuleV01,
+          ...args: Parameters<
+            (typeof CallbackManagerModuleV01.CallbackManager)["configure"]
+          >
+        ) {
+          const handlers = args[0];
+          const newHandlers = addTracerToHandlers(
+            instrumentation.tracer,
+            handlers,
+          );
+          args[0] = newHandlers;
+
+          return original.apply(this, args);
+        };
+      });
+    }
     _isOpenInferencePatched = true;
     try {
       // This can fail if the module is made immutable via the runtime or bundler
@@ -94,7 +129,7 @@ export class LangChainInstrumentation extends InstrumentationBase<
   }
 
   private unpatch(
-    module?: typeof CallbackManagerModule & {
+    module?: CallbackManagerModule & {
       openInferencePatched?: boolean;
     },
     moduleVersion?: string,
@@ -110,6 +145,16 @@ export class LangChainInstrumentation extends InstrumentationBase<
     if (isWrapped(module.CallbackManager.configure)) {
       this._unwrap(module.CallbackManager, "configure");
     }
+    /**
+     * _configureSync is only available in v0.2.0 and above
+     * Thus we only want to unwrap it if it's available and has been wrapped
+     */
+    if (
+      "_configureSync" in module.CallbackManager &&
+      isWrapped(module.CallbackManager._configureSync)
+    ) {
+      this._unwrap(module.CallbackManager, "_configureSync");
+    }
     _isOpenInferencePatched = false;
     try {
       // This can fail if the module is made immutable via the runtime or bundler
@@ -119,31 +164,4 @@ export class LangChainInstrumentation extends InstrumentationBase<
     }
     return module;
   }
-}
-
-function addTracerToHandlers(
-  tracer: Tracer,
-  handlers?: CallbackManagerModule.Callbacks,
-) {
-  if (handlers == null) {
-    return [new LangChainTracer(tracer)];
-  }
-  if (Array.isArray(handlers)) {
-    const newHandlers = handlers;
-    const tracerAlreadyRegistered = newHandlers.some(
-      (handler) => handler instanceof LangChainTracer,
-    );
-    if (!tracerAlreadyRegistered) {
-      newHandlers.push(new LangChainTracer(tracer));
-    }
-    return newHandlers;
-  }
-  const tracerAlreadyRegistered = handlers.inheritableHandlers.some(
-    (handler) => handler instanceof LangChainTracer,
-  );
-  if (tracerAlreadyRegistered) {
-    return handlers;
-  }
-  handlers.addHandler(new LangChainTracer(tracer), true);
-  return handlers;
 }

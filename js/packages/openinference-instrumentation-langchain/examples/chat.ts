@@ -8,6 +8,10 @@ const main = async () => {
   });
 
   const response = await chatModel.invoke("Hello! How are you?");
+
+  // eslint-disable-next-line no-console
+  console.log(response.content);
+
   return response;
 };
 
