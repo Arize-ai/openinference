@@ -139,12 +139,12 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 response["body"] = BufferedStreamingBody(
                     response["body"]._raw_stream, response["body"]._content_length
                 )
-                if raw_request_body := kwargs.get("body"):
-                    request_body = json.loads(raw_request_body)
+                raw_request_body = kwargs["body"]
+                request_body = json.loads(raw_request_body)
                 response_body = json.loads(response.get("body").read())
                 response["body"].reset()
 
-                prompt = request_body.pop("prompt")
+                prompt = request_body.pop("prompt", None)
                 invocation_parameters = safe_json_dumps(request_body)
                 _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
                 _set_span_attribute(
