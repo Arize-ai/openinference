@@ -1061,13 +1061,15 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+)
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_expected_spans(
     use_context_attributes: bool,
-    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     chat_stream_with_tool_call: AsyncByteStream,
-    respx_mock: Any,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -1076,12 +1078,6 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
-        return_value=Response(
-            200,
-            stream=chat_stream_with_tool_call,
-        )
-    )
     tool = {
         "type": "function",
         "function": {
@@ -1099,17 +1095,17 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
             },
         },
     }
-
-    def mistral_chat() -> Iterable[ChatCompletionStreamResponse]:
-        return mistral_sync_client.chat_stream(
-            model="mistral-large-latest",
-            tool_choice=ToolChoice.any,
+    mistral = Mistral(api_key="redacted")
+    def mistral_chat():
+        return mistral.chat.stream(
+            model="mistral-small-latest",
+            tool_choice="any",
             tools=[tool],
             messages=[
-                ChatMessage(
-                    content="What's the weather like in San Francisco?",
-                    role="user",
-                )
+                {
+                    "content": "What's the weather like in San Francisco?",
+                    "role": "user",
+                }
             ],
         )
 
@@ -1128,7 +1124,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
         response_stream = mistral_chat()
 
     for chunk in response_stream:
-        delta = chunk.choices[0].delta
+        delta = chunk.data.choices[0].delta
         assert not delta.content
         if tool_calls := delta.tool_calls:
             tool_call = tool_calls[0]
@@ -1153,7 +1149,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
-        "model": "mistral-large-latest",
+        "model": "mistral-small-latest",
         "tool_choice": "any",
     }
 
@@ -1185,7 +1181,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 96
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
     if use_context_attributes:
         _check_context_attributes(
             attributes,
