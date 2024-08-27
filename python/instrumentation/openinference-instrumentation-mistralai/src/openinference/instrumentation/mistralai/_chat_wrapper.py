@@ -177,7 +177,8 @@ class _WithMistralAI(ABC):
                 chat_completion_type=CompletionEvent,
                 response_attributes_extractor=_StreamResponseAttributesExtractor(),
             )
-            # we need to run this check first because in python 3.9 iterators are considered coroutines
+            # we need to run this check first because in python 3.9 iterators are
+            # considered coroutines
             if isinstance(response, Iterable):
                 return _Stream(
                     stream=response,  # type: ignore
