@@ -22,7 +22,7 @@ provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 provider.addSpanProcessor(
   new SimpleSpanProcessor(
     new OTLPTraceExporter({
-      url: "http://localhost:6006/V0.1/traces",
+      url: "http://localhost:6006/v1/traces",
     }),
   ),
 );
