@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.4...python-openinference-instrumentation-llama-index-v3.0.0) (2024-08-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* support pydanticV2 for llama-index 0.11 ([#971](https://github.com/Arize-ai/openinference/issues/971))
+
+### Features
+
+* support pydanticV2 for llama-index 0.11 ([#971](https://github.com/Arize-ai/openinference/issues/971)) ([ba203b8](https://github.com/Arize-ai/openinference/commit/ba203b8bb16c73113c273516d0a4bf7b0d553bf1))
+
 ## [2.2.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.3...python-openinference-instrumentation-llama-index-v2.2.4) (2024-08-10)
 
 
