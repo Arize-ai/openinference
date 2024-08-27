@@ -146,11 +146,7 @@ class _WithMistralAI(ABC):
         request_data: Dict[str, Any] = {}
         for key, value in bound_arguments.items():
             try:
-                if key == "tools":
-                    request_data[key] = mistral_client._parse_tools(value)
-                elif key == "tool_choice":
-                    request_data[key] = mistral_client._parse_tool_choice(value)
-                elif key == "response_format" and value is not None:
+                if key == "response_format" and value is not None:
                     request_data[key] = mistral_client._parse_response_format(value)
                 elif value is not None:
                     try:
