@@ -32,7 +32,7 @@ from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
 from opentelemetry.util.types import AttributeValue
-from pydantic import PrivateAttr, ConfigDict, Field
+from pydantic import ConfigDict, Field, PrivateAttr
 from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
 
