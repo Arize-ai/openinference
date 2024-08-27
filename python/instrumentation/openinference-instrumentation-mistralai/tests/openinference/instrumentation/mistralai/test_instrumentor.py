@@ -120,7 +120,7 @@ def test_synchronous_chat_completions_emits_expected_span(
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
                 }
-            ],
+            ],  # type: ignore
             temperature=0.1,
         )
 
@@ -274,7 +274,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
                     "content": "What's the weather like in San Francisco?",
                     "role": "user",
                 }
-            ],
+            ],  # type: ignore
         )
 
     if use_context_attributes:
@@ -423,7 +423,7 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
                     ],
                 },
                 {"role": "tool", "name": "get_weather", "content": '{"weather_category": "sunny"}'},
-            ],
+            ],  # type: ignore
         )
 
     if use_context_attributes:
@@ -539,13 +539,13 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        return mistral_sync_client.chat.complete(
+        return mistral_sync_client.chat.complete(  # type: ignore
             model="mistral-large-latest",
             messages=[
                 {
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
-                }
+                }  # type: ignore
             ],
             temperature=0.1,
         )
@@ -648,13 +648,13 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     )
 
     async def mistral_chat() -> ChatCompletionResponse:
-        return await mistral_sync_client.chat.complete_async(
+        return await mistral_sync_client.chat.complete_async(  # type: ignore
             model="mistral-large-latest",
             messages=[
                 {
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
-                }
+                }  # type: ignore
             ],
             temperature=0.1,
         )
@@ -758,13 +758,13 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
     )
 
     async def mistral_chat() -> ChatCompletionResponse:
-        return await mistral_sync_client.chat.complete_async(
+        return await mistral_sync_client.chat.complete_async(  # type: ignore
             model="mistral-large-latest",
             messages=[
                 {
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
-                }
+                }  # type: ignore
             ],
             temperature=0.1,
         )
@@ -844,7 +844,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
 ) -> None:
     def mistral_stream() -> Generator[CompletionEvent, None, None]:
         mistral_client = Mistral(api_key="redacted")
-        return mistral_client.chat.stream(
+        return mistral_client.chat.stream(  # type: ignore
             model="mistral-small-latest",
             messages=[
                 {
@@ -853,7 +853,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
                         "three words no punctuation."
                     ),
                     "role": "user",
-                }
+                }  # type: ignore
             ],
             temperature=0.1,
         )
@@ -959,7 +959,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     mistral_client = Mistral(api_key="redact")
 
     async def get_response_stream():
-        return await mistral_client.chat.stream_async(
+        return await mistral_client.chat.stream_async(  # type: ignore
             model="mistral-small-latest",
             messages=[
                 {
@@ -967,7 +967,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
                         "Who won the World Cup in 2018? Answer in three words, no punctuation."
                     ),
                     "role": "user",
-                }
+                }  # type: ignore
             ],
             temperature=0.1,
         )
@@ -1090,7 +1090,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     mistral = Mistral(api_key="redacted")
 
     def mistral_chat():
-        return mistral.chat.stream(
+        return mistral.chat.stream(  # type: ignore[arg-type]
             model="mistral-small-latest",
             tool_choice="any",
             tools=[tool],
