@@ -46,7 +46,7 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    from mistralai.client_base import ClientBase
+    from mistralai import Mistral
 
 __all__ = ("_SyncChatWrapper",)
 
@@ -133,7 +133,7 @@ class _WithMistralAI(ABC):
     def _parse_args(
         self,
         signature: Signature,
-        mistral_client: "ClientBase",
+        mistral_client: "Mistral",
         *args: Tuple[Any],
         **kwargs: Mapping[str, Any],
     ) -> Dict[str, Any]:
@@ -146,9 +146,7 @@ class _WithMistralAI(ABC):
         request_data: Dict[str, Any] = {}
         for key, value in bound_arguments.items():
             try:
-                if key == "response_format" and value is not None:
-                    request_data[key] = mistral_client._parse_response_format(value)
-                elif value is not None:
+                if value is not None:
                     try:
                         # ensure the value is JSON-serializable
                         safe_json_dumps(value)
@@ -209,7 +207,7 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: "ClientBase",
+        instance: "Mistral",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
@@ -255,7 +253,7 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
     async def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: "ClientBase",
+        instance: "Mistral",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
@@ -301,7 +299,7 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: "ClientBase",
+        instance: "Mistral",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
