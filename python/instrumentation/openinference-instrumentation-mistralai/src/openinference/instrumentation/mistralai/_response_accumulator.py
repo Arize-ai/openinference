@@ -61,14 +61,16 @@ class _ChatCompletionAccumulator:
         self._is_null = True
         self._cached_result: Optional[Dict[str, Any]] = None
         self._values = _ValuesAccumulator(
-            choices=_IndexedAccumulator(
-                lambda: _ValuesAccumulator(
-                    message=_ValuesAccumulator(
-                        content=_StringAccumulator(),
-                        tool_calls=_IndexedAccumulator(
-                            lambda: _ValuesAccumulator(
-                                function=_ValuesAccumulator(arguments=_StringAccumulator()),
-                            )
+            data=_ValuesAccumulator(
+                choices=_IndexedAccumulator(
+                    lambda: _ValuesAccumulator(
+                        message=_ValuesAccumulator(
+                            content=_StringAccumulator(),
+                            tool_calls=_IndexedAccumulator(
+                                lambda: _ValuesAccumulator(
+                                    function=_ValuesAccumulator(arguments=_StringAccumulator()),
+                                )
+                            ),
                         ),
                     ),
                 ),
@@ -79,7 +81,8 @@ class _ChatCompletionAccumulator:
         self._is_null = False
         self._cached_result = None
         values = chunk.model_dump(exclude_unset=True, warnings=False)
-        for choice in values.get("choices", ()):
+        data = values.get("data", ())
+        for choice in data.get("choices", ()):
             if delta := choice.pop("delta", None):
                 choice["message"] = delta
         self._values += values

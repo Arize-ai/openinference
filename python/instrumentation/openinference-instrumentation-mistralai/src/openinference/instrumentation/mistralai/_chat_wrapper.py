@@ -30,6 +30,7 @@ from openinference.instrumentation.mistralai._request_attributes_extractor impor
 from openinference.instrumentation.mistralai._response_accumulator import _ChatCompletionAccumulator
 from openinference.instrumentation.mistralai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
+    _StreamResponseAttributesExtractor,
 )
 from openinference.instrumentation.mistralai._stream import _AsyncStream, _Stream
 from openinference.instrumentation.mistralai._utils import (
@@ -179,7 +180,7 @@ class _WithMistralAI(ABC):
             response_accumulator = _ChatCompletionAccumulator(
                 request_parameters=request_parameters,
                 chat_completion_type=CompletionEvent,
-                response_attributes_extractor=self._response_attributes_extractor,
+                response_attributes_extractor=_StreamResponseAttributesExtractor(),
             )
             if asyncio.iscoroutine(response):
                 return _AsyncStream(

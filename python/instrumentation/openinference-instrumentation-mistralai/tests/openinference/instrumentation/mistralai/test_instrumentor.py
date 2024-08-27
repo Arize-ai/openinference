@@ -930,9 +930,9 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 109
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 124
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 26
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 4
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 30
     assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
     if use_context_attributes:
         _check_context_attributes(
