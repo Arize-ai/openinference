@@ -165,10 +165,7 @@ class _Span(BaseSpan):
     end_time: Optional[int]
     last_updated_at: float
 
-    model_config = ConfigDict(
-        extra='allow',
-        ignored_types=(singledispatchmethod, property)
-    )
+    model_config = ConfigDict(extra="allow", ignored_types=(singledispatchmethod, property))
 
     def __init__(
         self,
@@ -177,11 +174,7 @@ class _Span(BaseSpan):
         parent: Optional["_Span"] = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(
-            end_time=None,
-            last_updated_at=time(),
-            **kwargs
-        )
+        super().__init__(end_time=None, last_updated_at=time(), **kwargs)
         self._otel_span = otel_span
         self._active = otel_span.is_recording()
         self._span_kind = span_kind
@@ -804,9 +797,7 @@ class EventHandler(BaseEventHandler, extra="allow"):
     span_handler: _SpanHandler
 
     def __init__(self, tracer: Tracer) -> None:
-        super().__init__(
-            span_handler = _SpanHandler(tracer=tracer)
-        )
+        super().__init__(span_handler=_SpanHandler(tracer=tracer))
 
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
