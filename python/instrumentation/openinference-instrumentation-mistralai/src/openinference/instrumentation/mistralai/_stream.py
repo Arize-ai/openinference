@@ -84,31 +84,6 @@ class _Stream(ObjectProxy):  # type: ignore
     def __aiter__(self) -> AsyncIterator[Any]:
         return self
 
-    # TODO(harrison): delete this funciton no longer needed
-    async def __anext__(self) -> Any:
-        # pass through mistaken calls
-        if not hasattr(self.__wrapped__, "__anext__"):
-            self.__wrapped__.__anext__()
-        try:
-            chunk: Any = await self.__wrapped__.__anext__()
-        except Exception as exception:
-            if not self._self_is_finished:
-                if isinstance(exception, StopAsyncIteration):
-                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
-                else:
-                    status = trace_api.Status(
-                        status_code=trace_api.StatusCode.ERROR,
-                        # Follow the format in OTEL SDK for description, see:
-                        # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
-                        description=f"{type(exception).__name__}: {exception}",
-                    )
-                    self._self_with_span.record_exception(exception)
-                self._finish_tracing(status=status)
-            raise
-        else:
-            self._process_chunk(chunk)
-            return chunk
-
     def _process_chunk(self, chunk: Any) -> None:
         if not self._self_iteration_count:
             try:
