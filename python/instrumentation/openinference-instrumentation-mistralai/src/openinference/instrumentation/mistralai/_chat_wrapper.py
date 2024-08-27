@@ -177,18 +177,19 @@ class _WithMistralAI(ABC):
                 chat_completion_type=CompletionEvent,
                 response_attributes_extractor=_StreamResponseAttributesExtractor(),
             )
-            if asyncio.iscoroutine(response):
-                return _AsyncStream(
-                    stream=response,
-                    with_span=with_span,
-                    response_accumulator=response_accumulator,
-                ).stream_async_with_accumulator()
-            elif isinstance(response, Iterable):
+            # we need to run this check first because in python 3.9 iterators are considered coroutines
+            if isinstance(response, Iterable):
                 return _Stream(
                     stream=response,  # type: ignore
                     with_span=with_span,
                     response_accumulator=response_accumulator,
                 )
+            elif asyncio.iscoroutine(response):
+                return _AsyncStream(
+                    stream=response,
+                    with_span=with_span,
+                    response_accumulator=response_accumulator,
+                ).stream_async_with_accumulator()
             else:
                 raise TypeError("Response must be either a coroutine or an iterable")
         _finish_tracing(
