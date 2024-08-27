@@ -1,4 +1,4 @@
-import type * as CallbackManagerModuleV2 from "@langchain/core/callbacks/manager";
+import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
 import type * as CallbackManagerModuleV01 from "@langchain/coreV0.1/callbacks/manager";
 import { Tracer } from "@opentelemetry/api";
 import { LangChainTracer } from "./tracer";
@@ -21,14 +21,14 @@ export function addTracerToHandlers(
 ): CallbackManagerModuleV01.Callbacks;
 export function addTracerToHandlers(
   tracer: Tracer,
-  handlers?: CallbackManagerModuleV2.Callbacks,
-): CallbackManagerModuleV2.Callbacks;
+  handlers?: CallbackManagerModuleV02.Callbacks,
+): CallbackManagerModuleV02.Callbacks;
 export function addTracerToHandlers(
   tracer: Tracer,
   handlers?:
     | CallbackManagerModuleV01.Callbacks
-    | CallbackManagerModuleV2.Callbacks,
-): CallbackManagerModuleV01.Callbacks | CallbackManagerModuleV2.Callbacks {
+    | CallbackManagerModuleV02.Callbacks,
+): CallbackManagerModuleV01.Callbacks | CallbackManagerModuleV02.Callbacks {
   if (handlers == null) {
     return [new LangChainTracer(tracer)];
   }
