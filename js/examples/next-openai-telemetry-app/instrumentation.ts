@@ -21,7 +21,9 @@ export function register() {
           headers: {
             api_key: process.env["PHOENIX_API_KEY"],
           },
-          url: "https://app.phoenix.arize.com/v1/traces",
+          url:
+            process.env["PHOENIX_COLLECTOR_ENDPOINT"] ||
+            "https://app.phoenix.arize.com/v1/traces",
         }),
       ),
     ],
