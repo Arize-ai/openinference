@@ -5,10 +5,8 @@ from anthropic.types import (
     Message,
     MessageParam,
     TextBlock,
-    TextBlockParam,
     ToolResultBlockParam,
     ToolUseBlock,
-    ToolUseBlockParam,
 )
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -30,12 +28,8 @@ def _to_assistant_message_param(
     content = []
     for block in message.content:
         if isinstance(block, TextBlock):
-            #content.append(TextBlockParam(text=block.text, type=block.type))
             content.append(block)
         elif isinstance(block, ToolUseBlock):
-            # content.append(
-            #     ToolUseBlockParam(id=block.id, input=block.input, name=block.name, type=block.type)
-            # )
             content.append(block)
         else:
             assert_never(block)
@@ -78,6 +72,7 @@ response = client.messages.create(
     messages=messages,
 )
 messages.append(_to_assistant_message_param(response))
+
 assert (tool_use_id := _get_tool_use_id(response)) is not None, "tool was not called"
 messages.append(
     MessageParam(
