@@ -42,6 +42,7 @@ test = [
   "opentelemetry-instrumentation-httpx",
   "respx",
   "pytest-asyncio",
+  "pytest.recording",
 ]
 
 [project.urls]
