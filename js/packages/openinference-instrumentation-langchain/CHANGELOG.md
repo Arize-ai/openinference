@@ -1,5 +1,16 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 0.2.0
+
+### Minor Changes
+
+- 14ac4ae: add support for langchain version ^0.2
+
+### Patch Changes
+
+- Updated dependencies [3b8702a]
+  - @arizeai/openinference-core@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
