@@ -848,7 +848,10 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
             model="mistral-small-latest",
             messages=[
                 {
-                    "content": "Who won the World Cup in 2018? Answer in three word, three words no punctuation.",
+                    "content": (
+                        "Who won the World Cup in 2018? Answer in three word, "
+                        "three words no punctuation."
+                    ),
                     "role": "user",
                 }
             ],
@@ -960,7 +963,10 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
             model="mistral-small-latest",
             messages=[
                 {
-                    "content": "Who won the World Cup in 2018? Answer in three words, no punctuation.",
+                    "content": (
+                        "Who won the World Cup in 2018? Answer in three words, "
+                        "no punctuation."
+                    ),
                     "role": "user",
                 }
             ],
