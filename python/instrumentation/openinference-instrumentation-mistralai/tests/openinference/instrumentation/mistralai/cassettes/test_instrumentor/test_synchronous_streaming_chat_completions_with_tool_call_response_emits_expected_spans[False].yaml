@@ -8,10 +8,10 @@ interactions:
     uri: https://api.mistral.ai/v1/chat/completions#stream
   response:
     body:
-      string: 'data: {"id":"3f4894c311444f6dbb39346172a62a14","object":"chat.completion.chunk","created":1724724424,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}
+      string: 'data: {"id":"8d641f96950f401892c98eff1e4335cd","object":"chat.completion.chunk","created":1724786761,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}
 
 
-        data: {"id":"3f4894c311444f6dbb39346172a62a14","object":"chat.completion.chunk","created":1724724424,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"id":"2hUDpjvL4","function":{"name":"get_weather","arguments":"{\"city\":
+        data: {"id":"8d641f96950f401892c98eff1e4335cd","object":"chat.completion.chunk","created":1724786761,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"id":"EscTeQY62","function":{"name":"get_weather","arguments":"{\"city\":
         \"San Francisco\"}"}}]},"finish_reason":"tool_calls","logprobs":null}],"usage":{"prompt_tokens":96,"total_tokens":119,"completion_tokens":23}}
 
 
@@ -23,13 +23,13 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8b988177d820c44f-EWR
+      - 8b9e7367cad84229-EWR
       Connection:
       - keep-alive
       Content-Type:
       - text/event-stream; charset=utf-8
       Date:
-      - Tue, 27 Aug 2024 02:07:04 GMT
+      - Tue, 27 Aug 2024 19:26:01 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -43,25 +43,25 @@ interactions:
       ratelimitbysize-query-cost:
       - '32010'
       ratelimitbysize-remaining:
-      - '406574'
+      - '342032'
       ratelimitbysize-reset:
-      - '58'
+      - '60'
       x-envoy-upstream-service-time:
-      - '1926'
+      - '116'
       x-kong-proxy-latency:
       - '2'
       x-kong-request-id:
-      - cc8f80507021ea2abdf40957523fe97c
+      - 7cd5ca62d2c88b0c49547040e9553847
       x-kong-upstream-latency:
-      - '1926'
+      - '117'
       x-ratelimitbysize-limit-minute:
       - '500000'
       x-ratelimitbysize-limit-month:
       - '1000000000'
       x-ratelimitbysize-remaining-minute:
-      - '406574'
+      - '342032'
       x-ratelimitbysize-remaining-month:
-      - '997567067'
+      - '997342940'
     status:
       code: 200
       message: OK

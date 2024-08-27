@@ -7,17 +7,17 @@ interactions:
     uri: https://api.mistral.ai/v1/chat/completions#stream
   response:
     body:
-      string: 'data: {"id":"e095472a9e304cd0a572f67800eacf3d","object":"chat.completion.chunk","created":1724720477,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}
+      string: 'data: {"id":"1393b385a8d74798adec184b253dbfe6","object":"chat.completion.chunk","created":1724786727,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}
 
 
-        data: {"id":"e095472a9e304cd0a572f67800eacf3d","object":"chat.completion.chunk","created":1724720477,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"France"},"finish_reason":null,"logprobs":null}]}
+        data: {"id":"1393b385a8d74798adec184b253dbfe6","object":"chat.completion.chunk","created":1724786727,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"France"},"finish_reason":null,"logprobs":null}]}
 
 
-        data: {"id":"e095472a9e304cd0a572f67800eacf3d","object":"chat.completion.chunk","created":1724720477,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"
+        data: {"id":"1393b385a8d74798adec184b253dbfe6","object":"chat.completion.chunk","created":1724786727,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"
         won"},"finish_reason":null,"logprobs":null}]}
 
 
-        data: {"id":"e095472a9e304cd0a572f67800eacf3d","object":"chat.completion.chunk","created":1724720477,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop","logprobs":null}],"usage":{"prompt_tokens":24,"total_tokens":26,"completion_tokens":2}}
+        data: {"id":"1393b385a8d74798adec184b253dbfe6","object":"chat.completion.chunk","created":1724786727,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop","logprobs":null}],"usage":{"prompt_tokens":24,"total_tokens":26,"completion_tokens":2}}
 
 
         data: [DONE]
@@ -28,13 +28,13 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8b98212a1d06436c-EWR
+      - 8b9e72970f888cd6-EWR
       Connection:
       - keep-alive
       Content-Type:
       - text/event-stream; charset=utf-8
       Date:
-      - Tue, 27 Aug 2024 01:01:17 GMT
+      - Tue, 27 Aug 2024 19:25:27 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -48,25 +48,25 @@ interactions:
       ratelimitbysize-query-cost:
       - '32018'
       ratelimitbysize-remaining:
-      - '467982'
+      - '401381'
       ratelimitbysize-reset:
-      - '43'
+      - '33'
       x-envoy-upstream-service-time:
-      - '57'
+      - '69'
       x-kong-proxy-latency:
       - '0'
       x-kong-request-id:
-      - 04df712907db8517fe2467405ab7c62d
+      - 8a33c573d883537733d8593bf5852173
       x-kong-upstream-latency:
-      - '58'
+      - '70'
       x-ratelimitbysize-limit-minute:
       - '500000'
       x-ratelimitbysize-limit-month:
       - '1000000000'
       x-ratelimitbysize-remaining-minute:
-      - '467982'
+      - '401381'
       x-ratelimitbysize-remaining-month:
-      - '997727130'
+      - '997438986'
     status:
       code: 200
       message: OK

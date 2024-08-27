@@ -957,7 +957,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    mistral_client = Mistral(api_key="redact")
+    mistral_client = Mistral(api_key="redacted")
 
     async def get_response_stream():  # type: ignore
         return await mistral_client.chat.stream_async(

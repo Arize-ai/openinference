@@ -7,25 +7,25 @@ interactions:
     uri: https://api.mistral.ai/v1/chat/completions#stream
   response:
     body:
-      string: 'data: {"id":"d6a2e7fb0b284b94943543dbb3b907e2","object":"chat.completion.chunk","created":1724712930,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}
+      string: 'data: {"id":"37dd84141b814607bd0cf8bc6b2dfd1e","object":"chat.completion.chunk","created":1724786681,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}
 
 
-        data: {"id":"d6a2e7fb0b284b94943543dbb3b907e2","object":"chat.completion.chunk","created":1724712930,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"France"},"finish_reason":null,"logprobs":null}]}
+        data: {"id":"37dd84141b814607bd0cf8bc6b2dfd1e","object":"chat.completion.chunk","created":1724786681,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"France"},"finish_reason":null,"logprobs":null}]}
 
 
-        data: {"id":"d6a2e7fb0b284b94943543dbb3b907e2","object":"chat.completion.chunk","created":1724712930,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"
+        data: {"id":"37dd84141b814607bd0cf8bc6b2dfd1e","object":"chat.completion.chunk","created":1724786681,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"
         won"},"finish_reason":null,"logprobs":null}]}
 
 
-        data: {"id":"d6a2e7fb0b284b94943543dbb3b907e2","object":"chat.completion.chunk","created":1724712930,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"
+        data: {"id":"37dd84141b814607bd0cf8bc6b2dfd1e","object":"chat.completion.chunk","created":1724786681,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"
         World"},"finish_reason":null,"logprobs":null}]}
 
 
-        data: {"id":"d6a2e7fb0b284b94943543dbb3b907e2","object":"chat.completion.chunk","created":1724712930,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"
+        data: {"id":"37dd84141b814607bd0cf8bc6b2dfd1e","object":"chat.completion.chunk","created":1724786681,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"
         Cup"},"finish_reason":null,"logprobs":null}]}
 
 
-        data: {"id":"d6a2e7fb0b284b94943543dbb3b907e2","object":"chat.completion.chunk","created":1724712930,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop","logprobs":null}],"usage":{"prompt_tokens":26,"total_tokens":30,"completion_tokens":4}}
+        data: {"id":"37dd84141b814607bd0cf8bc6b2dfd1e","object":"chat.completion.chunk","created":1724786681,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop","logprobs":null}],"usage":{"prompt_tokens":26,"total_tokens":30,"completion_tokens":4}}
 
 
         data: [DONE]
@@ -36,13 +36,13 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8b9768d6aee519bf-EWR
+      - 8b9e7178fb8b7c87-EWR
       Connection:
       - keep-alive
       Content-Type:
       - text/event-stream; charset=utf-8
       Date:
-      - Mon, 26 Aug 2024 22:55:30 GMT
+      - Tue, 27 Aug 2024 19:24:41 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -58,15 +58,15 @@ interactions:
       ratelimitbysize-remaining:
       - '467979'
       ratelimitbysize-reset:
-      - '33'
+      - '19'
       x-envoy-upstream-service-time:
-      - '2279'
+      - '53'
       x-kong-proxy-latency:
-      - '4'
+      - '10'
       x-kong-request-id:
-      - aef7f750aaf1ba1bb289000bb3c2260f
+      - d1f3ac4ea1c9246dc98ee24de757495d
       x-kong-upstream-latency:
-      - '2279'
+      - '54'
       x-ratelimitbysize-limit-minute:
       - '500000'
       x-ratelimitbysize-limit-month:
@@ -74,7 +74,7 @@ interactions:
       x-ratelimitbysize-remaining-minute:
       - '467979'
       x-ratelimitbysize-remaining-month:
-      - '997855205'
+      - '997535046'
     status:
       code: 200
       message: OK
