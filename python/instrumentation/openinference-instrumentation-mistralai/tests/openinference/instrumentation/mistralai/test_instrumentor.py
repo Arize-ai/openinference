@@ -14,8 +14,10 @@ import respx
 from httpx import Response
 from mistralai import Mistral
 from mistralai.models import (
+    ChatCompletionChoice,
     ChatCompletionResponse,
     CompletionEvent,
+    Tool,
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
@@ -137,8 +139,8 @@ def test_synchronous_chat_completions_emits_expected_span(
             response = mistral_chat()
     else:
         response = mistral_chat()
-    choices = response.choices
-    assert len(choices) == 1
+    choices: Optional[List[ChatCompletionChoice]] = response.choices
+    assert choices is not None and len(choices) == 1
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "France" in response_content
@@ -247,7 +249,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        tool = {
+        tool: Tool = {
             "type": "function",
             "function": {
                 "name": "get_weather",
@@ -290,8 +292,8 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
             response = mistral_chat()
     else:
         response = mistral_chat()
-    choices = response.choices
-    assert len(choices) == 1
+    choices: Optional[List[ChatCompletionChoice]] = response.choices
+    assert choices is not None and len(choices) == 1
     assert choices[0].message.content == ""
 
     assert (tool_calls := choices[0].message.tool_calls)
@@ -439,8 +441,8 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
             response = mistral_chat()
     else:
         response = mistral_chat()
-    choices = response.choices
-    assert len(choices) == 1
+    choices: Optional[List[ChatCompletionChoice]] = response.choices
+    assert choices is not None and len(choices) == 1
     assert choices[0].message.content == "The weather in San Francisco is currently sunny."
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -648,13 +650,13 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     )
 
     async def mistral_chat() -> ChatCompletionResponse:
-        return await mistral_sync_client.chat.complete_async(  # type: ignore
+        return await mistral_sync_client.chat.complete_async(
             model="mistral-large-latest",
             messages=[
                 {
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
-                }  # type: ignore
+                }
             ],
             temperature=0.1,
         )
@@ -672,8 +674,8 @@ async def test_asynchronous_chat_completions_emits_expected_span(
             response = await mistral_chat()
     else:
         response = await mistral_chat()
-    choices = response.choices
-    assert len(choices) == 1
+    choices: Optional[List[ChatCompletionChoice]] = response.choices
+    assert choices is not None and len(choices) == 1
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "France" in response_content
@@ -758,13 +760,13 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
     )
 
     async def mistral_chat() -> ChatCompletionResponse:
-        return await mistral_sync_client.chat.complete_async(  # type: ignore
+        return await mistral_sync_client.chat.complete_async(
             model="mistral-large-latest",
             messages=[
                 {
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
-                }  # type: ignore
+                }
             ],
             temperature=0.1,
         )
@@ -853,7 +855,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
                         "three words no punctuation."
                     ),
                     "role": "user",
-                }  # type: ignore
+                }
             ],
             temperature=0.1,
         )
@@ -958,8 +960,8 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
 ) -> None:
     mistral_client = Mistral(api_key="redact")
 
-    async def get_response_stream():
-        return await mistral_client.chat.stream_async(  # type: ignore
+    async def get_response_stream() -> Generator[CompletionEvent, None, None]:
+        return await mistral_client.chat.stream_async(
             model="mistral-small-latest",
             messages=[
                 {
@@ -967,7 +969,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
                         "Who won the World Cup in 2018? Answer in three words, no punctuation."
                     ),
                     "role": "user",
-                }  # type: ignore
+                }
             ],
             temperature=0.1,
         )
@@ -1070,7 +1072,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    tool = {
+    tool: Tool = {
         "type": "function",
         "function": {
             "name": "get_weather",
@@ -1089,8 +1091,8 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     }
     mistral = Mistral(api_key="redacted")
 
-    def mistral_chat():
-        return mistral.chat.stream(  # type: ignore[arg-type]
+    def mistral_chat() -> Generator[CompletionEvent, None, None]:
+        return mistral.chat.stream(
             model="mistral-small-latest",
             tool_choice="any",
             tools=[tool],
