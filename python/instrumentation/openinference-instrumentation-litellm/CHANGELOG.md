@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.3...python-openinference-instrumentation-litellm-v0.1.4) (2024-08-27)
+
+
+### Features
+
+* **liteLLM:** Implemented image support and corresponding tests ([#900](https://github.com/Arize-ai/openinference/issues/900)) ([f6d11eb](https://github.com/Arize-ai/openinference/commit/f6d11eb602f37770fbdf7ab144c03980c7f90fb7))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.2...python-openinference-instrumentation-litellm-v0.1.3) (2024-08-13)
 
 
