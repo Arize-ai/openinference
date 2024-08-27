@@ -154,7 +154,6 @@ class _WithMistralAI(ABC):
                     except json.JSONDecodeError:
                         request_data[key] = str(value)
             except Exception:
-                print("HARRISON THIS IS BAD THIS IS SILENTLY MAKING YOU CRAZY")
                 request_data[key] = str(value)
         return request_data
 
