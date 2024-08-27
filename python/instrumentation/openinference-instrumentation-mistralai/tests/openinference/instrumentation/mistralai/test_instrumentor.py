@@ -948,14 +948,15 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     use_context_attributes: bool,
-    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
-    chat_stream: AsyncByteStream,
-    respx_mock: Any,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -964,25 +965,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
-        return_value=Response(
-            200,
-            stream=chat_stream,
-        )
-    )
-
-    async def mistral_stream() -> AsyncIterator[ChatCompletionStreamResponse]:
-        return mistral_sync_client.chat_stream(
-            model="mistral-large-latest",
-            messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
-            ],
-            temperature=0.1,
-        )
-
+    mistral_client = Mistral(api_key="redact")
     if use_context_attributes:
         with using_attributes(
             session_id=session_id,
@@ -993,17 +976,35 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         ):
-            response_stream = await mistral_stream()
+            response_stream = await mistral_client.chat.stream_async(
+                model="mistral-small-latest",
+                messages=[
+                    {
+                        "content": "Who won the World Cup in 2018? Answer in three words, no punctuation.",
+                        "role": "user",
+                    }
+                ],
+                temperature=0.1,
+            )
     else:
-        response_stream = await mistral_stream()
+        response_stream = await mistral_client.chat.stream_async(
+            model="mistral-small-latest",
+            messages=[
+                {
+                    "content": "Who won the World Cup in 2018? Answer in three words, no punctuation.",
+                    "role": "user",
+                }
+            ],
+            temperature=0.1,
+        )
     response_content = ""
     async for chunk in response_stream:
-        if chunk_content := chunk.choices[0].delta.content:
+        if chunk_content := chunk.data.choices[0].delta.content:
             response_content += chunk_content
 
     assert (
         response_content
-        == "The 2018 FIFA World Cup was won by the French national team. They defeated Croatia 4-2 in the final, which took place on July 15, 2018, in Moscow, Russia. This was France's second World Cup title; they had previously won the tournament in 1998 when they hosted the event. Did you know that the World Cup is the most prestigious tournament in international football and is often considered as the height of a footballer's career?"  # noqa: E501
+        == "France won"  # noqa: E501
     )  # noqa: E501
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1024,14 +1025,14 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
-        "model": "mistral-large-latest",
+        "model": "mistral-small-latest",
         "temperature": 0.1,
     }
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
-        == "Who won the World Cup in 2018? Answer in one word, no punctuation."
+        == "Who won the World Cup in 2018? Answer in three words, no punctuation."
     )
 
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
@@ -1047,10 +1048,10 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 109
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 124
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 24
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 2
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 26
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
     if use_context_attributes:
         _check_context_attributes(
             attributes,
