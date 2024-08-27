@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.10...python-openinference-instrumentation-bedrock-v0.1.11) (2024-08-27)
+
+
+### Bug Fixes
+
+* **bedrock:** ensure bedrock instrumentation does not break runtime for BedrockEmbeddings model from langchain ([#975](https://github.com/Arize-ai/openinference/issues/975)) ([fbb78cd](https://github.com/Arize-ai/openinference/commit/fbb78cdf13cc895add911575dc7fb400afafff7d))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.9...python-openinference-instrumentation-bedrock-v0.1.10) (2024-08-10)
 
 
