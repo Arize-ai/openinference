@@ -657,7 +657,7 @@ async def test_asynchronous_chat_completions_emits_expected_span(
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
                 }
-            ],
+            ],  # type: ignore
             temperature=0.1,
         )
 
@@ -767,7 +767,7 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
                 }
-            ],
+            ],  # type: ignore
             temperature=0.1,
         )
 
@@ -970,7 +970,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
                     ),
                     "role": "user",
                 }
-            ],
+            ],  # type: ignore
             temperature=0.1,
         )
 
