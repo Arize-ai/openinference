@@ -32,7 +32,7 @@ from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
 from opentelemetry.util.types import AttributeValue
-from pydantic import PrivateAttr
+from pydantic import PrivateAttr, ConfigDict, Field
 from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
 
@@ -154,11 +154,7 @@ class _StreamingStatus(Enum):
     IN_PROGRESS = auto()
 
 
-class _Span(
-    BaseSpan,
-    extra="allow",
-    keep_untouched=(singledispatchmethod, property),
-):
+class _Span(BaseSpan):
     _otel_span: Span = PrivateAttr()
     _attributes: Dict[str, AttributeValue] = PrivateAttr()
     _active: bool = PrivateAttr()
@@ -166,8 +162,13 @@ class _Span(
     _parent: Optional["_Span"] = PrivateAttr()
     _first_token_timestamp: Optional[int] = PrivateAttr()
 
-    end_time: Optional[int] = PrivateAttr()
-    last_updated_at: float = PrivateAttr()
+    end_time: Optional[int]
+    last_updated_at: float
+
+    model_config = ConfigDict(
+        extra='allow',
+        ignored_types=(singledispatchmethod, property)
+    )
 
     def __init__(
         self,
@@ -176,15 +177,17 @@ class _Span(
         parent: Optional["_Span"] = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(
+            end_time=None,
+            last_updated_at=time(),
+            **kwargs
+        )
         self._otel_span = otel_span
         self._active = otel_span.is_recording()
         self._span_kind = span_kind
         self._parent = parent
         self._first_token_timestamp = None
         self._attributes = {}
-        self.end_time = None
-        self.last_updated_at = time()
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
         self._attributes[key] = value
@@ -697,13 +700,12 @@ class _ExportQueue:
 class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _context_tokens: Dict[str, object] = PrivateAttr()
     _otel_tracer: Tracer = PrivateAttr()
-    export_queue: _ExportQueue = PrivateAttr()
+    export_queue: _ExportQueue = Field(default_factory=_ExportQueue)
 
     def __init__(self, tracer: Tracer) -> None:
         super().__init__()
         self._context_tokens: Dict[str, object] = {}
         self._otel_tracer = tracer
-        self.export_queue = _ExportQueue()
 
     def new_span(
         self,
@@ -799,11 +801,12 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
 
 
 class EventHandler(BaseEventHandler, extra="allow"):
-    span_handler: _SpanHandler = PrivateAttr()
+    span_handler: _SpanHandler
 
     def __init__(self, tracer: Tracer) -> None:
-        super().__init__()
-        self.span_handler = _SpanHandler(tracer=tracer)
+        super().__init__(
+            span_handler = _SpanHandler(tracer=tracer)
+        )
 
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
