@@ -40,5 +40,10 @@
   "packageManager": "pnpm@9.8.0",
   "eslintIgnore": [
     "examples/**/*"
-  ]
+  ],
+  "pnpm": {
+    "overrides": {
+      "@langchain/openai@^0.1>@langchain/core": "^0.1.63"
+    }
+  }
 }

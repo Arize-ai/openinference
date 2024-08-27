@@ -18,45 +18,10 @@ import {
   safelyFormatTokenCounts,
   safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
-  withSafety,
 } from "../src/utils";
 import { diag } from "@opentelemetry/api";
 import { getLangchainMessage, getLangchainRun } from "./fixtures";
 import { LLMMessage } from "../src/types";
-
-describe("withSafety", () => {
-  afterEach(() => {
-    jest.clearAllMocks();
-    jest.resetModules();
-    jest.restoreAllMocks();
-  });
-  it("should return a function", () => {
-    const safeFunction = withSafety(() => {});
-    expect(typeof safeFunction).toBe("function");
-  });
-
-  it("should execute the provided function without errors", () => {
-    const mockFn = jest.fn();
-    const safeFunction = withSafety(mockFn);
-    safeFunction();
-    expect(mockFn).toHaveBeenCalled();
-  });
-
-  it("should return null and log an error when the provided function throws an error", () => {
-    const error = new Error("Test error");
-    const mockFn = jest.fn((_a: number) => {
-      throw error;
-    });
-    const diagMock = jest.spyOn(diag, "error");
-    const safeFunction = withSafety(mockFn);
-    const result = safeFunction(1);
-    expect(result).toBeNull();
-    expect(mockFn).toHaveBeenCalledWith(1);
-    expect(diagMock).toHaveBeenCalledWith(
-      `Failed to get attributes for span: ${error}`,
-    );
-  });
-});
 
 describe("safelyFlattenAttributes", () => {
   const testAttributes = {
@@ -446,7 +411,7 @@ describe("formatLLMParams", () => {
   });
 
   it("should return swallow errors stringifying invocation params, but still add model_name if possible", () => {
-    const diagMock = jest.spyOn(diag, "error");
+    const diagMock = jest.spyOn(diag, "warn");
     const runExtra = getLangchainRun({
       extra: { invocation_params: { badKey: BigInt(1), model_name: "gpt-4" } },
     }).extra;
@@ -456,7 +421,7 @@ describe("formatLLMParams", () => {
       [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
     });
     expect(diagMock).toHaveBeenCalledWith(
-      "Failed to get attributes for span: TypeError: Do not know how to serialize a BigInt",
+      "OpenInference-LangChain: error processing langchain run, falling back to null. Error stringifying JSON. TypeError: Do not know how to serialize a BigInt",
     );
   });
 
