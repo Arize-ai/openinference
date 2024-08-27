@@ -1,4 +1,4 @@
-import { Attributes } from "@opentelemetry/api";
+import { Attributes, diag } from "@opentelemetry/api";
 import {
   assertUnreachable,
   isNonEmptyArray,
@@ -26,10 +26,24 @@ import {
   TokenCountAttributes,
   ToolAttributes,
 } from "./types";
-import { safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
+import { withSafety } from "@arizeai/openinference-core";
 
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
+
+/**
+ * Callback function to handle errors.
+ */
+const utilErrorCallback = (message: string) => (error: unknown) => {
+  diag.warn(
+    `OpenInference-LangChain: error processing langchain run, falling back to null. ${message}. ${error}`,
+  );
+};
+
+const safelyJSONStringify = withSafety({
+  fn: JSON.stringify,
+  onError: utilErrorCallback("Error stringifying JSON"),
+});
 
 /**
  * Flattens a nested object into a single level object with keys as dot-separated paths.
@@ -435,7 +449,9 @@ function getTemplateFromSerialized(serialized: Run["serialized"]) {
   return template;
 }
 
-const safelyGetTemplateFromSerialized = withSafety(getTemplateFromSerialized);
+const safelyGetTemplateFromSerialized = withSafety({
+  fn: getTemplateFromSerialized,
+});
 
 /**
  * A best effort function to extract the prompt template from a langchain run.
@@ -577,19 +593,53 @@ function formatMetadata(run: Run) {
   };
 }
 
-export const safelyFlattenAttributes = withSafety(flattenAttributes);
-export const safelyFormatIO = withSafety(formatIO);
-export const safelyFormatInputMessages = withSafety(formatInputMessages);
-export const safelyFormatOutputMessages = withSafety(formatOutputMessages);
-export const safelyGetOpenInferenceSpanKindFromRunType = withSafety(
-  getOpenInferenceSpanKindFromRunType,
-);
-export const safelyFormatRetrievalDocuments = withSafety(
-  formatRetrievalDocuments,
-);
-export const safelyFormatLLMParams = withSafety(formatLLMParams);
-export const safelyFormatPromptTemplate = withSafety(formatPromptTemplate);
-export const safelyFormatTokenCounts = withSafety(formatTokenCounts);
-export const safelyFormatFunctionCalls = withSafety(formatFunctionCalls);
-export const safelyFormatToolCalls = withSafety(formatToolCalls);
-export const safelyFormatMetadata = withSafety(formatMetadata);
+export const safelyFlattenAttributes = withSafety({
+  fn: flattenAttributes,
+  onError: utilErrorCallback("Error flattening attributes"),
+});
+export const safelyFormatIO = withSafety({
+  fn: formatIO,
+  onError: utilErrorCallback("Error formatting IO"),
+});
+export const safelyFormatInputMessages = withSafety({
+  fn: formatInputMessages,
+  onError: utilErrorCallback("Error formatting input messages"),
+});
+export const safelyFormatOutputMessages = withSafety({
+  fn: formatOutputMessages,
+  onError: utilErrorCallback("Error formatting output messages"),
+});
+export const safelyGetOpenInferenceSpanKindFromRunType = withSafety({
+  fn: getOpenInferenceSpanKindFromRunType,
+  onError: utilErrorCallback(
+    "Error getting OpenInference span kind from run type",
+  ),
+});
+export const safelyFormatRetrievalDocuments = withSafety({
+  fn: formatRetrievalDocuments,
+  onError: utilErrorCallback("Error formatting retrieval documents"),
+});
+export const safelyFormatLLMParams = withSafety({
+  fn: formatLLMParams,
+  onError: utilErrorCallback("Error formatting LLM params"),
+});
+export const safelyFormatPromptTemplate = withSafety({
+  fn: formatPromptTemplate,
+  onError: utilErrorCallback("Error formatting prompt template"),
+});
+export const safelyFormatTokenCounts = withSafety({
+  fn: formatTokenCounts,
+  onError: utilErrorCallback("Error formatting token counts"),
+});
+export const safelyFormatFunctionCalls = withSafety({
+  fn: formatFunctionCalls,
+  onError: utilErrorCallback("Error formatting function calls"),
+});
+export const safelyFormatToolCalls = withSafety({
+  fn: formatToolCalls,
+  onError: utilErrorCallback("Error formatting tool calls"),
+});
+export const safelyFormatMetadata = withSafety({
+  fn: formatMetadata,
+  onError: utilErrorCallback("Error formatting metadata"),
+});
