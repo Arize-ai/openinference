@@ -1,11 +1,8 @@
 import json
 from typing import (
     Any,
-    AsyncIterator,
     Dict,
     Generator,
-    Iterable,
-    Iterator,
     List,
     Mapping,
     Optional,
@@ -14,7 +11,7 @@ from typing import (
 
 import pytest
 import respx
-from httpx import AsyncByteStream, Response
+from httpx import Response
 from mistralai import Mistral
 from mistralai.models import (
     ChatCompletionResponse,

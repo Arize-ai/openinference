@@ -1,10 +1,11 @@
 import asyncio
+
 from mistralai import Mistral
-import os
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
 

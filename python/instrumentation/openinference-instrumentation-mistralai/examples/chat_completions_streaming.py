@@ -3,7 +3,6 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 
-from openinference.instrumentation import using_attributes
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
 
 tracer_provider = trace_sdk.TracerProvider()
@@ -14,8 +13,8 @@ MistralAIInstrumentor().instrument()
 
 
 if __name__ == "__main__":
+
     from mistralai import Mistral
-    import os
 
     client = Mistral(api_key="redacted")
 
