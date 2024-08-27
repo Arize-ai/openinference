@@ -966,6 +966,18 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     mistral_client = Mistral(api_key="redact")
+    async def get_response_stream():
+        return await mistral_client.chat.stream_async(
+            model="mistral-small-latest",
+            messages=[
+                {
+                    "content": "Who won the World Cup in 2018? Answer in three words, no punctuation.",
+                    "role": "user",
+                }
+            ],
+            temperature=0.1,
+        )
+
     if use_context_attributes:
         with using_attributes(
             session_id=session_id,
@@ -976,27 +988,10 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         ):
-            response_stream = await mistral_client.chat.stream_async(
-                model="mistral-small-latest",
-                messages=[
-                    {
-                        "content": "Who won the World Cup in 2018? Answer in three words, no punctuation.",
-                        "role": "user",
-                    }
-                ],
-                temperature=0.1,
-            )
+            response_stream = await get_response_stream()
     else:
-        response_stream = await mistral_client.chat.stream_async(
-            model="mistral-small-latest",
-            messages=[
-                {
-                    "content": "Who won the World Cup in 2018? Answer in three words, no punctuation.",
-                    "role": "user",
-                }
-            ],
-            temperature=0.1,
-        )
+        response_stream = await get_response_stream()
+
     response_content = ""
     async for chunk in response_stream:
         if chunk_content := chunk.data.choices[0].delta.content:
