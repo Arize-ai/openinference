@@ -848,7 +848,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
         mistral_client = Mistral(api_key="redacted")
         return mistral_client.chat.stream(  # type: ignore
             model="mistral-small-latest",
-            messages=[
+            messages=[  # type: ignore
                 {
                     "content": (
                         "Who won the World Cup in 2018? Answer in three word, "
@@ -1096,7 +1096,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
             model="mistral-small-latest",
             tool_choice="any",
             tools=[tool],
-            messages=[
+            messages=[  # type: ignore
                 {
                     "content": "What's the weather like in San Francisco?",
                     "role": "user",
