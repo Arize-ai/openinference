@@ -964,8 +964,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
             messages=[
                 {
                     "content": (
-                        "Who won the World Cup in 2018? Answer in three words, "
-                        "no punctuation."
+                        "Who won the World Cup in 2018? Answer in three words, no punctuation."
                     ),
                     "role": "user",
                 }

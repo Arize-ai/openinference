@@ -13,7 +13,6 @@ MistralAIInstrumentor().instrument()
 
 
 if __name__ == "__main__":
-
     from mistralai import Mistral
 
     client = Mistral(api_key="redacted")
