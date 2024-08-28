@@ -15,6 +15,7 @@ import {
 import {
   OpenInferenceIOConventionKey,
   OpenInferenceSemanticConventionKey,
+  ReadWriteSpan,
 } from "./types";
 import {
   assertUnreachable,
@@ -27,6 +28,7 @@ import {
   safelyJSONStringify,
   withSafety,
 } from "@arizeai/openinference-core";
+import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(
@@ -497,3 +499,41 @@ export const safelyGetOpenInferenceAttributes = withSafety({
   fn: getOpenInferenceAttributes,
   onError: onErrorCallback(""),
 });
+
+const isOpenInferenceSpan = (span: ReadableSpan) => {
+  const maybeOpenInferenceSpanKind =
+    span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
+  return (
+    typeof maybeOpenInferenceSpanKind === "string" &&
+    maybeOpenInferenceSpanKind in OpenInferenceSpanKind
+  );
+};
+
+/**
+ * Determines whether a span should be exported based on configuration and the spans attributes.
+ * @param span the spn to check for export eligibility.
+ * @param onlyExportOpenInferenceSpans whether or not to only export OpenInference spans.
+ * @returns true if the span should be exported, false otherwise.
+ */
+export const shouldExportSpan = ({
+  onlyExportOpenInferenceSpans,
+  span,
+}: {
+  span: ReadableSpan;
+  onlyExportOpenInferenceSpans: boolean;
+}): boolean => {
+  return !onlyExportOpenInferenceSpans || isOpenInferenceSpan(span);
+};
+
+/**
+ * Adds OpenInference attributes to a span based on the span's existing attributes.
+ * @param span - The span to add OpenInference attributes to.
+ */
+export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
+  const attributes = { ...span.attributes };
+
+  (span as ReadWriteSpan).attributes = {
+    ...span.attributes,
+    ...safelyGetOpenInferenceAttributes(attributes),
+  };
+};
