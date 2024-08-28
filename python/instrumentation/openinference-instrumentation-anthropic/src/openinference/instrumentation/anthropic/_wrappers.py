@@ -262,8 +262,44 @@ def _get_input_messages(messages: List[Dict[str, str]]) -> Any:
     Extracts the messages from the chat response
     """
     for i in range(len(messages)):
+        tool_index = 0
         if content := messages[i].get("content"):
-            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+            if isinstance(content, str):
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+            elif isinstance(content, list):
+                for block in content:
+                    if isinstance(block, ToolUseBlock):
+                        yield (
+                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
+                            block.name,
+                        )
+                        yield (
+                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            safe_json_dumps(block.input),
+                        )
+                        tool_index += 1
+                    elif isinstance(block, TextBlock):
+                        yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.text
+                    elif isinstance(block, dict):
+                        block_type = block.get("type")
+                        if block_type == "tool_use":
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
+                                block.get("name"),
+                            )
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                safe_json_dumps(block.get("input")),
+                            )
+                            tool_index += 1
+                        if block_type == "tool_result":
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
+                                block.get("content"),
+                            )
+                        if block_type == "text":
+                            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.get("text")
+
         if role := messages[i].get("role"):
             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
 
@@ -283,20 +319,21 @@ def _get_output_messages(response: Any) -> Any:
     """
     Extracts the tool call information from the response
     """
-    for i in range(len(response.content)):
-        block = response.content[i]
-        yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", response.role
+    tool_index = 0
+    for block in response.content:
+        yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_ROLE}", response.role
         if isinstance(block, ToolUseBlock):
             yield (
-                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}",
+                f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
                 block.name,
             )
             yield (
-                f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                 safe_json_dumps(block.input),
             )
+            tool_index += 1
         if isinstance(block, TextBlock):
-            yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.text
+            yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_CONTENT}", block.text
 
 
 def _validate_invocation_parameter(parameter: Any) -> bool:
