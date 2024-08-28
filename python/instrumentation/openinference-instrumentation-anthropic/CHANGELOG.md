@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.1...python-openinference-instrumentation-anthropic-v0.1.2) (2024-08-28)
+
+
+### Bug Fixes
+
+* Fix input message attribute issues + toolcalling from dogfooding ([#948](https://github.com/Arize-ai/openinference/issues/948)) ([dde31f5](https://github.com/Arize-ai/openinference/commit/dde31f51755e5883561d0e9dc195cff13f38f56e))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.0...python-openinference-instrumentation-anthropic-v0.1.1) (2024-08-21)
 
 
