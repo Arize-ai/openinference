@@ -19,3 +19,5 @@ export type OpenInferenceIOConventionKey = Extract<
   | typeof SemanticConventions.OUTPUT_VALUE
   | typeof SemanticConventions.INPUT_VALUE
 >;
+
+export type SpanFilter = (span: ReadableSpan) => boolean;

@@ -16,6 +16,7 @@ import {
   OpenInferenceIOConventionKey,
   OpenInferenceSemanticConventionKey,
   ReadWriteSpan,
+  SpanFilter,
 } from "./types";
 import {
   assertUnreachable,
@@ -500,29 +501,29 @@ export const safelyGetOpenInferenceAttributes = withSafety({
   onError: onErrorCallback(""),
 });
 
-const isOpenInferenceSpan = (span: ReadableSpan) => {
+export const isOpenInferenceSpan = (span: ReadableSpan) => {
   const maybeOpenInferenceSpanKind =
     span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
-  return (
-    typeof maybeOpenInferenceSpanKind === "string" &&
-    maybeOpenInferenceSpanKind in OpenInferenceSpanKind
-  );
+  return typeof maybeOpenInferenceSpanKind === "string";
 };
 
 /**
  * Determines whether a span should be exported based on configuration and the spans attributes.
  * @param span the spn to check for export eligibility.
- * @param onlyExportOpenInferenceSpans whether or not to only export OpenInference spans.
+ * @param spanFilters a list of filters to apply to a span before exporting. If at least one filter returns true for a given span, the span will be exported.
  * @returns true if the span should be exported, false otherwise.
  */
 export const shouldExportSpan = ({
-  onlyExportOpenInferenceSpans,
   span,
+  spanFilters,
 }: {
   span: ReadableSpan;
-  onlyExportOpenInferenceSpans: boolean;
+  spanFilters?: SpanFilter[];
 }): boolean => {
-  return !onlyExportOpenInferenceSpans || isOpenInferenceSpan(span);
+  if (spanFilters == null) {
+    return true;
+  }
+  return spanFilters.some((filter) => filter(span));
 };
 
 /**

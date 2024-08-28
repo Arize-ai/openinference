@@ -5,8 +5,10 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
 import {
+  isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
   OpenInferenceSimpleSpanProcessor,
+  SpanFilter,
 } from "../src";
 import {
   MimeType,
@@ -517,12 +519,12 @@ let processor:
   | OpenInferenceBatchSpanProcessor;
 function setupTraceProvider({
   Processor,
-  onlyExportOpenInferenceSpans,
+  spanFilters,
 }: {
   Processor:
     | typeof OpenInferenceBatchSpanProcessor
     | typeof OpenInferenceSimpleSpanProcessor;
-  onlyExportOpenInferenceSpans?: boolean;
+  spanFilters?: SpanFilter[];
 }) {
   memoryExporter.reset();
   trace.disable();
@@ -530,7 +532,7 @@ function setupTraceProvider({
   memoryExporter = new InMemorySpanExporter();
   processor = new Processor({
     exporter: memoryExporter,
-    onlyExportOpenInferenceSpans,
+    spanFilters,
   });
   traceProvider.addSpanProcessor(processor);
   trace.setGlobalTracerProvider(traceProvider);
@@ -590,17 +592,11 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
     const nonOpenInferenceSpan = tracer.startSpan("non-ai-span");
     nonOpenInferenceSpan.end();
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans.length).toBe(1);
-    expect(spans[0].attributes).toStrictEqual({
-      "operation.name": "ai.generateText",
-      [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-        OpenInferenceSpanKind.CHAIN,
-    });
+    expect(spans.length).toBe(2);
   });
-  it("should export all spans if onlyExportOpenInferenceSpans is false", () => {
+  it("should export all spans if there are no filters", () => {
     setupTraceProvider({
       Processor: OpenInferenceSimpleSpanProcessor,
-      onlyExportOpenInferenceSpans: false,
     });
 
     const tracer = trace.getTracer("test-tracer");
@@ -609,7 +605,19 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
     span.end();
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
-    memoryExporter.reset();
+  });
+
+  it("should not export spans that do not pass the filter", () => {
+    setupTraceProvider({
+      Processor: OpenInferenceSimpleSpanProcessor,
+      spanFilters: [isOpenInferenceSpan],
+    });
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("not ai");
+    span.setAttribute("operation.name", "not ai stuff");
+    span.end();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(0);
   });
 });
 
@@ -652,17 +660,11 @@ describe("OpenInferenceBatchSpanProcessor", () => {
     nonOpenInferenceSpan.end();
     const spans = memoryExporter.getFinishedSpans();
     await processor.forceFlush();
-    expect(spans.length).toBe(1);
-    expect(spans[0].attributes).toStrictEqual({
-      "operation.name": "ai.generateText",
-      [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-        OpenInferenceSpanKind.CHAIN,
-    });
+    expect(spans.length).toBe(2);
   });
-  it("should export all spans if onlyExportOpenInferenceSpans is false", async () => {
+  it("should export all spans if there are no filters", async () => {
     setupTraceProvider({
       Processor: OpenInferenceBatchSpanProcessor,
-      onlyExportOpenInferenceSpans: false,
     });
 
     const tracer = trace.getTracer("test-tracer");
@@ -672,6 +674,19 @@ describe("OpenInferenceBatchSpanProcessor", () => {
     await processor.forceFlush();
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
-    memoryExporter.reset();
+  });
+
+  it("should not export spans that do not pass the filter", async () => {
+    setupTraceProvider({
+      Processor: OpenInferenceBatchSpanProcessor,
+      spanFilters: [isOpenInferenceSpan],
+    });
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("not ai");
+    span.setAttribute("operation.name", "not ai stuff");
+    span.end();
+    await processor.forceFlush();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(0);
   });
 });

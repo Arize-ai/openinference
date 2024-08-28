@@ -6,6 +6,7 @@ import {
   SpanExporter,
 } from "@opentelemetry/sdk-trace-base";
 import { addOpenInferenceAttributesToSpan, shouldExportSpan } from "./utils";
+import { SpanFilter } from "./types";
 
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.
@@ -24,23 +25,24 @@ import { addOpenInferenceAttributesToSpan, shouldExportSpan } from "./utils";
  * ```
  */
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
-  private readonly onlyExportOpenInferenceSpans: boolean;
+  private readonly spanFilters?: SpanFilter[];
   constructor({
     exporter,
-    onlyExportOpenInferenceSpans = true,
+    spanFilters,
   }: {
     /**
      * The exporter to pass spans to.
      */
     readonly exporter: SpanExporter;
     /**
-     * Whether or not to only export OpenInference spans.
-     * @default true
+     * A list of filters to apply to spans before exporting. If at least one filter returns true for a given span, the span will be exported.
      */
-    readonly onlyExportOpenInferenceSpans?: boolean;
+    readonly spanFilters?: SpanFilter[];
+
+    config?: BufferConfig;
   }) {
     super(exporter);
-    this.onlyExportOpenInferenceSpans = onlyExportOpenInferenceSpans;
+    this.spanFilters = spanFilters;
   }
 
   onEnd(span: ReadableSpan): void {
@@ -48,7 +50,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
     if (
       shouldExportSpan({
         span,
-        onlyExportOpenInferenceSpans: this.onlyExportOpenInferenceSpans,
+        spanFilters: this.spanFilters,
       })
     ) {
       super.onEnd(span);
@@ -74,10 +76,10 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
  * ```
  */
 export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
-  private readonly onlyExportOpenInferenceSpans: boolean;
+  private readonly spanFilters?: SpanFilter[];
   constructor({
     exporter,
-    onlyExportOpenInferenceSpans = true,
+    spanFilters,
     config,
   }: {
     /**
@@ -85,17 +87,16 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
      */
     readonly exporter: SpanExporter;
     /**
-     * Whether or not to only export OpenInference spans.
-     * @default true
+     * A list of filters to apply to spans before exporting. If at least one filter returns true for a given span, the span will be exported.
      */
-    readonly onlyExportOpenInferenceSpans?: boolean;
+    readonly spanFilters?: SpanFilter[];
     /**
      * The configuration options for processor.
      */
     config?: BufferConfig;
   }) {
     super(exporter, config);
-    this.onlyExportOpenInferenceSpans = onlyExportOpenInferenceSpans;
+    this.spanFilters = spanFilters;
   }
 
   onEnd(span: ReadableSpan): void {
@@ -103,7 +104,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     if (
       shouldExportSpan({
         span,
-        onlyExportOpenInferenceSpans: this.onlyExportOpenInferenceSpans,
+        spanFilters: this.spanFilters,
       })
     ) {
       super.onEnd(span);
