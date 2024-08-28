@@ -2,9 +2,10 @@ import { Request, Response } from "express";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { loadQAStuffChain, RetrievalQAChain } from "langchain/chains";
 import { SYSTEM_PROMPT_TEMPLATE } from "../constants";
 import { getMessageHistoryFromChat, getUserQuestion } from "../utils";
+import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import { createRetrievalChain } from "langchain/chains/retrieval";
 import { Message } from "../types";
 
 export const createChatController =
@@ -26,22 +27,22 @@ export const createChatController =
       const qaPrompt = ChatPromptTemplate.fromMessages([
         ["system", SYSTEM_PROMPT_TEMPLATE],
         ...getMessageHistoryFromChat(messages),
-        ["human", "{question}"],
+        ["human", "{input}"],
       ]);
 
       const retriever = vectorStore.asRetriever();
 
-      const ragChain = new RetrievalQAChain({
-        combineDocumentsChain: loadQAStuffChain(llm, {
-          prompt: qaPrompt,
-          verbose: true,
-        }),
+      const combineDocsChain = await createStuffDocumentsChain({
+        llm,
+        prompt: qaPrompt,
+      });
+      const ragChain = await createRetrievalChain({
+        combineDocsChain,
         retriever,
-        verbose: true,
       });
 
       const response = await ragChain.invoke({
-        query: getUserQuestion(messages),
+        input: getUserQuestion(messages),
         llm,
       });
 

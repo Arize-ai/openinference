@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.11...python-openinference-instrumentation-haystack-v0.1.12) (2024-08-26)
+
+
+### Bug Fixes
+
+* **haystack:** safely get embedding model name ([#965](https://github.com/Arize-ai/openinference/issues/965)) ([3a9286b](https://github.com/Arize-ai/openinference/commit/3a9286b64d62d289d2cbaacb5672e01f4fc6fa3a))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.10...python-openinference-instrumentation-haystack-v0.1.11) (2024-08-23)
+
+
+### Bug Fixes
+
+* **haystack:** remove remaining haystack import ([#961](https://github.com/Arize-ai/openinference/issues/961)) ([fe62e3f](https://github.com/Arize-ai/openinference/commit/fe62e3f23c31f88ba99ddab2ca6b453677e7dd31))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.9...python-openinference-instrumentation-haystack-v0.1.10) (2024-08-23)
+
+
+### Bug Fixes
+
+* **haystack:** ensure haystack is not a runtime dependency ([#959](https://github.com/Arize-ai/openinference/issues/959)) ([c06813c](https://github.com/Arize-ai/openinference/commit/c06813c709331b76b5d65400eca337510d1e7ed3))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.8...python-openinference-instrumentation-haystack-v0.1.9) (2024-08-16)
 
 

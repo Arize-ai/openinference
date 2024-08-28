@@ -3,6 +3,7 @@ from abc import ABC
 from enum import Enum, auto
 from inspect import BoundArguments, Parameter, signature
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -21,10 +22,6 @@ import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from typing_extensions import TypeGuard, assert_never
 
-from haystack import Document, Pipeline
-from haystack.components.builders import PromptBuilder
-from haystack.core.component import Component
-from haystack.dataclasses import ChatMessage
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -36,6 +33,10 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+
+if TYPE_CHECKING:
+    from haystack import Document, Pipeline
+    from haystack.core.component import Component
 
 
 class _WithTracer(ABC):
@@ -98,7 +99,7 @@ class _ComponentWrapper(_WithTracer):
                 span.set_attributes(
                     {
                         **dict(_get_span_kind_attributes(EMBEDDING)),
-                        **dict(_get_embedding_model_attributes(component.model)),
+                        **dict(_get_embedding_model_attributes(component)),
                     }
                 )
             elif component_type is ComponentType.RANKER:
@@ -205,7 +206,7 @@ class ComponentType(Enum):
     UNKNOWN = auto()
 
 
-def _get_component_by_name(pipeline: Pipeline, component_name: str) -> Optional[Component]:
+def _get_component_by_name(pipeline: "Pipeline", component_name: str) -> Optional["Component"]:
     """
     Gets the component invoked by `haystack.Pipeline._run_component` (if one exists).
     """
@@ -216,7 +217,7 @@ def _get_component_by_name(pipeline: Pipeline, component_name: str) -> Optional[
     return component
 
 
-def _get_component_class_name(component: Component) -> str:
+def _get_component_class_name(component: "Component") -> str:
     """
     Gets the name of the component.
     """
@@ -230,12 +231,15 @@ def _get_component_span_name(*, component_class_name: str, component_name: str) 
     return f"{component_class_name} ({component_name})"
 
 
-def _get_component_type(component: Component) -> ComponentType:
+def _get_component_type(component: "Component") -> ComponentType:
     """
     Haystack has a single `Component` interface that produces unstructured
     outputs. In the absence of typing information, we make a best-effort attempt
     to infer the component type.
     """
+
+    from haystack.components.builders import PromptBuilder
+
     component_name = _get_component_class_name(component)
     if (run_method := _get_component_run_method(component)) is None:
         return ComponentType.UNKNOWN
@@ -254,7 +258,7 @@ def _get_component_type(component: Component) -> ComponentType:
     return ComponentType.UNKNOWN
 
 
-def _get_component_run_method(component: Component) -> Optional[Callable[..., Any]]:
+def _get_component_run_method(component: "Component") -> Optional[Callable[..., Any]]:
     """
     Gets the `run` method for a component (if one exists).
     """
@@ -287,6 +291,8 @@ def _has_generator_output_type(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a generator-like `run` method.
     """
+    from haystack.dataclasses import ChatMessage
+
     if (output_types := _get_run_method_output_types(run_method)) is None or (
         replies := output_types.get("replies")
     ) is None:
@@ -298,6 +304,8 @@ def _has_ranker_io_types(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a ranker-like `run` method.
     """
+    from haystack import Document
+
     if (input_types := _get_run_method_input_types(run_method)) is None or (
         output_types := _get_run_method_output_types(run_method)
     ) is None:
@@ -314,6 +322,8 @@ def _has_retriever_io_types(run_method: Callable[..., Any]) -> bool:
     This is used to find unusual retrievers such as `SerperDevWebSearch`. See:
     https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/components/websearch/serper_dev.py#L93
     """
+    from haystack import Document
+
     if (input_types := _get_run_method_input_types(run_method)) is None or (
         output_types := _get_run_method_output_types(run_method)
     ) is None:
@@ -364,6 +374,8 @@ def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[
     """
     Extracts input messages.
     """
+    from haystack.dataclasses import ChatMessage
+
     if isinstance(messages := arguments.get("messages"), Sequence) and all(
         map(lambda x: isinstance(x, ChatMessage), messages)
     ):
@@ -383,6 +395,7 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
     """
     Extracts output messages.
     """
+    from haystack.dataclasses import ChatMessage
 
     if not isinstance(replies := response.get("replies"), Sequence):
         return
@@ -424,6 +437,8 @@ def _get_llm_model_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str
     """
     Extracts LLM model attributes from response.
     """
+    from haystack.dataclasses import ChatMessage
+
     if (
         isinstance(response_meta := response.get("meta"), Sequence)
         and response_meta
@@ -443,6 +458,8 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
     """
     Extracts token counts from response.
     """
+    from haystack.dataclasses import ChatMessage
+
     token_usage = None
     if (
         isinstance(response_meta := response.get("meta"), Sequence)
@@ -468,7 +485,7 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
 
 
 def _get_llm_prompt_template_attributes_from_prompt_builder(
-    component: Component, run_bound_args: BoundArguments
+    component: "Component", run_bound_args: BoundArguments
 ) -> Iterator[Tuple[str, str]]:
     """
     Extracts prompt template attributes from a prompt builder component.
@@ -509,7 +526,7 @@ def _get_output_attributes_for_prompt_builder(
         yield from _get_output_attributes(response)
 
 
-def _get_reranker_model_attributes(component: Component) -> Iterator[Tuple[str, Any]]:
+def _get_reranker_model_attributes(component: "Component") -> Iterator[Tuple[str, Any]]:
     """
     A best-effort attempt to get the model name from a ranker component.
     """
@@ -554,6 +571,8 @@ def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[
     """
     Extracts retriever-related attributes from the response.
     """
+    from haystack import Document
+
     if (
         (documents := response.get("documents")) is None
         or not isinstance(documents, Sequence)
@@ -574,11 +593,14 @@ def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[
             )
 
 
-def _get_embedding_model_attributes(model: Any) -> Iterator[Tuple[str, Any]]:
+def _get_embedding_model_attributes(component: "Component") -> Iterator[Tuple[str, Any]]:
     """
     Yields attributes for embedding model.
     """
-    if isinstance(model, str):
+
+    if (
+        model := (getattr(component, "model", None) or getattr(component, "model_name", None))
+    ) and isinstance(model, str):
         yield EMBEDDING_MODEL_NAME, model
 
 
@@ -612,6 +634,8 @@ def _is_embedding_doc(maybe_doc: Any) -> bool:
     Returns true if the input is a `haystack.Document` with embedding
     attributes.
     """
+    from haystack import Document
+
     return (
         isinstance(maybe_doc, Document)
         and isinstance(maybe_doc.content, str)
@@ -641,10 +665,12 @@ def _is_vector(
     return is_sequence_of_numbers
 
 
-def _is_list_of_documents(value: Any) -> TypeGuard[Sequence[Document]]:
+def _is_list_of_documents(value: Any) -> TypeGuard[Sequence["Document"]]:
     """
     Checks for a list of documents.
     """
+
+    from haystack import Document
 
     return isinstance(value, Sequence) and all(map(lambda x: isinstance(x, Document), value))
 

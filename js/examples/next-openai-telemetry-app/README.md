@@ -23,14 +23,14 @@ To run the example locally you need to:
 
 1. Set the required OpenAI environment variable as the token value as shown [the example env file](./.env.local.example) but in a new file called `.env.local`.
 2. To run [Arize-Phoenix](https://github.com/Arize-ai/phoenix) locally run `docker run -p 6006:6006 -i -t arizephoenix/phoenix`
-3. `pnpm install --frozen-lockfile --ignore-workspace` to install the required dependencies.
-4. `pnpm run dev` to launch the development server.
+3. `npm ci` to install the required dependencies.
+4. `npm run dev` to launch the development server.
 
 To view [Arize-Phoenix](https://github.com/Arize-ai/phoenix) and the example app visit:
 
 - **App:** [localhost:3000](http://localhost:3000)
 
-- **Phoenix:** [localhost:6006](http://localhost:6006)
+- **Phoenix:** [localhost:6006](http://localhost:6006) or [app.phoenix.arize.com](https://app.phoenix.arize.com)
 
 ## Learn More
 

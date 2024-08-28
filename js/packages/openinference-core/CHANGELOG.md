@@ -1,5 +1,11 @@
 # @arizeai/openinference-core
 
+## 0.2.0
+
+### Minor Changes
+
+- 3b8702a: remove generic log from withSafety and add onError callback
+
 ## 0.1.1
 
 ### Patch Changes
