@@ -11,6 +11,7 @@
         "instrumentator",
         "Instrumentor",
         "langchain",
+        "litellm",
         "llms",
         "nextjs",
         "openinference",
