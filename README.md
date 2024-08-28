@@ -45,22 +45,23 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 
 ### Examples
 
-| Name                                                                                           | Description                                                                                  | Complexity Level |
-|------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------|
-| [OpenAI SDK](python/instrumentation/openinference-instrumentation-openai/examples/)            | OpenAI Python SDK, including chat completions and embeddings                                 | Beginner         |
-| [MistralAI SDK](python/instrumentation/openinference-instrumentation-mistralai/examples/)      | MistralAI Python SDK                                                                         | Beginner         |
-| [VertexAI SDK](python/instrumentation/openinference-instrumentation-vertexai/examples/)        | VertexAI Python SDK                                                                          | Beginner         |
-| [LlamaIndex](python/instrumentation/openinference-instrumentation-llama-index/examples/)       | LlamaIndex query engines                                                                     | Beginner         |
-| [DSPy](python/instrumentation/openinference-instrumentation-dspy/examples/)                    | DSPy primitives and custom RAG modules                                                       | Beginner         |
-| [Boto3 Bedrock Client](python/instrumentation/openinference-instrumentation-bedrock/examples/) | Boto3 Bedrock client                                                                         | Beginner         |
-| [LangChain](python/instrumentation/openinference-instrumentation-langchain/examples/)          | LangChain primitives and simple chains                                                       | Beginner         |
-| [LiteLLM](python/instrumentation/openinference-instrumentation-litellm/)                       | A lightweight LiteLLM framework                                                              | Beginner         |
-| [Groq](python/instrumentation/openinference-instrumentation-groq/examples/)                    | Groq and AsyncGroq chat completions                                                          | Beginner         |
-| [Anthropic](python/instrumentation/openinference-instrumentation-anthropic/examples/)          | Anthropic Messages client                                                                    | Beginner         |
-| [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                   | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
-| [LangServe](python/examples/langserve/)                                                        | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
-| [DSPy](python/examples/dspy-rag-fastapi/)                                                      | A DSPy RAG application using FastAPI, Weaviate, and Cohere                                   | Intermediate     |
-| [Haystack](python/instrumentation/openinference-instrumentation-haystack/examples/)            | A Haystack QA RAG application                                                                | Intermediate     |
+| Name                                                                                                 | Description                                                                                  | Complexity Level |
+|------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------|
+| [OpenAI SDK](python/instrumentation/openinference-instrumentation-openai/examples/)                  | OpenAI Python SDK, including chat completions and embeddings                                 | Beginner         |
+| [MistralAI SDK](python/instrumentation/openinference-instrumentation-mistralai/examples/)            | MistralAI Python SDK                                                                         | Beginner         |
+| [VertexAI SDK](python/instrumentation/openinference-instrumentation-vertexai/examples/)              | VertexAI Python SDK                                                                          | Beginner         |
+| [LlamaIndex](python/instrumentation/openinference-instrumentation-llama-index/examples/)             | LlamaIndex query engines                                                                     | Beginner         |
+| [DSPy](python/instrumentation/openinference-instrumentation-dspy/examples/)                          | DSPy primitives and custom RAG modules                                                       | Beginner         |
+| [Boto3 Bedrock Client](python/instrumentation/openinference-instrumentation-bedrock/examples/)       | Boto3 Bedrock client                                                                         | Beginner         |
+| [LangChain](python/instrumentation/openinference-instrumentation-langchain/examples/)                | LangChain primitives and simple chains                                                       | Beginner         |
+| [LiteLLM](python/instrumentation/openinference-instrumentation-litellm/)                             | A lightweight LiteLLM framework                                                              | Beginner         |
+| [LiteLLM Proxy](python/instrumentation/openinference-instrumentation-litellm/examples/litellm-proxy/)| LiteLLM Proxy to log OpenAI, Azure, Vertex, Bedrock                                          | Beginner         |
+| [Groq](python/instrumentation/openinference-instrumentation-groq/examples/)                          | Groq and AsyncGroq chat completions                                                          | Beginner         |
+| [Anthropic](python/instrumentation/openinference-instrumentation-anthropic/examples/)                | Anthropic Messages client                                                                    | Beginner         |
+| [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                         | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
+| [LangServe](python/examples/langserve/)                                                              | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
+| [DSPy](python/examples/dspy-rag-fastapi/)                                                            | A DSPy RAG application using FastAPI, Weaviate, and Cohere                                   | Intermediate     |
+| [Haystack](python/instrumentation/openinference-instrumentation-haystack/examples/)                  | A Haystack QA RAG application                                                                | Intermediate     |
 
 ## JavaScript
 
