@@ -20,4 +20,7 @@ export type OpenInferenceIOConventionKey = Extract<
   | typeof SemanticConventions.INPUT_VALUE
 >;
 
+/**
+ * A filter to apply to a {@link ReadableSpan}.
+ */
 export type SpanFilter = (span: ReadableSpan) => boolean;

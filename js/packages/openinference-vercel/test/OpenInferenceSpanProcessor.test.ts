@@ -594,7 +594,7 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(2);
   });
-  it("should export all spans if there are no filters", () => {
+  it("should export all spans if there is no filter", () => {
     setupTraceProvider({
       Processor: OpenInferenceSimpleSpanProcessor,
     });
@@ -662,7 +662,7 @@ describe("OpenInferenceBatchSpanProcessor", () => {
     await processor.forceFlush();
     expect(spans.length).toBe(2);
   });
-  it("should export all spans if there are no filters", async () => {
+  it("should export all spans if there is no filter", async () => {
     setupTraceProvider({
       Processor: OpenInferenceBatchSpanProcessor,
     });

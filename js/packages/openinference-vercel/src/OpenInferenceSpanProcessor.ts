@@ -16,10 +16,13 @@ import { SpanFilter } from "./types";
  *
  * @example
  * ```typescript
+ * import { OpenInferenceSimpleSpanProcessor, isOpenInferenceSpan } from "@arizeai/openinference-vercel";
+ * import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto"
+ *
  * const exporter = new OTLPTraceExporter();
  * const processor = new OpenInferenceSimpleSpanProcessor({
  *   exporter,
- *   onlyExportOpenInferenceSpans: true,
+ *   spanFilter: isOpenInferenceSpan,
  * });
  * tracerProvider.addSpanProcessor(processor);
  * ```
@@ -35,7 +38,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
      */
     readonly exporter: SpanExporter;
     /**
-     * A list of filters to apply to spans before exporting. If at least one filter returns true for a given span, the span will be exported.
+     * A filter to apply to spans before exporting. If it returns true for a given span, that span will be exported.
      */
     readonly spanFilter?: SpanFilter;
 
@@ -66,11 +69,14 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
  *
  * @example
  * ```typescript
+ * import { OpenInferenceBatchSpanProcessor, isOpenInferenceSpan } from "@arizeai/openinference-vercel";
+ * import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto"
+ *
  * const exporter = new OTLPTraceExporter();
  * const processor = new OpenInferenceBatchSpanProcessor({
  *   exporter,
- *   onlyExportOpenInferenceSpans: true,
- *   config: { maxQueueSize: 2048, scheduledDelayMillis: 5000 }
+ *   spanFilter: isOpenInferenceSpan,
+ *   config: { maxQueueSize: 2048, scheduledDelayMillis: 5000 },
  * });
  * tracerProvider.addSpanProcessor(processor);
  * ```
@@ -87,7 +93,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
      */
     readonly exporter: SpanExporter;
     /**
-     * A list of filters to apply to spans before exporting. If at least one filter returns true for a given span, the span will be exported.
+     * A filter to apply to spans before exporting. If it returns true for a given span, that span will be exported.
      */
     readonly spanFilter?: SpanFilter;
     /**

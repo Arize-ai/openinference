@@ -510,7 +510,7 @@ export const isOpenInferenceSpan = (span: ReadableSpan) => {
 /**
  * Determines whether a span should be exported based on configuration and the spans attributes.
  * @param span the spn to check for export eligibility.
- * @param spanFilter a list of filters to apply to a span before exporting. If at least one filter returns true for a given span, the span will be exported.
+ * @param spanFilter a filter to apply to a span before exporting. If it returns true for a given span, the span will be exported.
  * @returns true if the span should be exported, false otherwise.
  */
 export const shouldExportSpan = ({
