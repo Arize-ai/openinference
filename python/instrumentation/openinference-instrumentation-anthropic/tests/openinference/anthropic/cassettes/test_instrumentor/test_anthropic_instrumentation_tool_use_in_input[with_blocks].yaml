@@ -1,0 +1,36 @@
+interactions:
+- request:
+    body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": "What is
+      the weather like in San Francisco in Fahrenheit?"}, {"content": [{"text": "Certainly!
+      I can help you get the current weather information for San Francisco in Fahrenheit.
+      To do this, I''ll use the get_weather function. Let me fetch that information
+      for you right away.", "type": "text"}, {"id": "toolu_01KBqpqR73qWGsMaW3vBzEjz",
+      "input": {"location": "San Francisco, CA", "unit": "fahrenheit"}, "name": "get_weather",
+      "type": "tool_use"}], "role": "assistant"}, {"content": [{"tool_use_id": "toolu_01KBqpqR73qWGsMaW3vBzEjz",
+      "content": "{\"weather\": \"sunny\", \"temperature\": \"75\"}", "type": "tool_result",
+      "is_error": false}], "role": "user"}], "model": "claude-3-5-sonnet-20240620",
+      "tools": [{"name": "get_weather", "description": "Get the current weather in
+      a given location", "input_schema": {"type": "object", "properties": {"location":
+      {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
+      "unit": {"type": "string", "enum": ["celsius", "fahrenheit"], "description":
+      "The unit of temperature, either \"celsius\" or \"fahrenheit\""}}, "required":
+      ["location"]}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: "{\"id\":\"msg_01D1W4HqvciREYXMXJjKNa28\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-3-5-sonnet-20240620\",\"content\":[{\"type\":\"text\",\"text\":\"Based
+        on the information I've received, here's the current weather in San Francisco:\\n\\nThe
+        weather in San Francisco is currently sunny with a temperature of 75\xB0F
+        (Fahrenheit).\\n\\nThis is quite pleasant weather for San Francisco! It's
+        a warm, sunny day, which is great for outdoor activities or sightseeing if
+        you're in the area. Remember that San Francisco's weather can change quickly,
+        so it's always a good idea to bring layers, even on sunny days.\\n\\nIs there
+        anything else you'd like to know about the weather in San Francisco or any
+        other location?\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":568,\"output_tokens\":126}}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
