@@ -25,10 +25,10 @@ import { SpanFilter } from "./types";
  * ```
  */
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
-  private readonly spanFilters?: SpanFilter[];
+  private readonly spanFilter?: SpanFilter;
   constructor({
     exporter,
-    spanFilters,
+    spanFilter,
   }: {
     /**
      * The exporter to pass spans to.
@@ -37,12 +37,12 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
     /**
      * A list of filters to apply to spans before exporting. If at least one filter returns true for a given span, the span will be exported.
      */
-    readonly spanFilters?: SpanFilter[];
+    readonly spanFilter?: SpanFilter;
 
     config?: BufferConfig;
   }) {
     super(exporter);
-    this.spanFilters = spanFilters;
+    this.spanFilter = spanFilter;
   }
 
   onEnd(span: ReadableSpan): void {
@@ -50,7 +50,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
     if (
       shouldExportSpan({
         span,
-        spanFilters: this.spanFilters,
+        spanFilter: this.spanFilter,
       })
     ) {
       super.onEnd(span);
@@ -76,10 +76,10 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
  * ```
  */
 export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
-  private readonly spanFilters?: SpanFilter[];
+  private readonly spanFilter?: SpanFilter;
   constructor({
     exporter,
-    spanFilters,
+    spanFilter,
     config,
   }: {
     /**
@@ -89,14 +89,14 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     /**
      * A list of filters to apply to spans before exporting. If at least one filter returns true for a given span, the span will be exported.
      */
-    readonly spanFilters?: SpanFilter[];
+    readonly spanFilter?: SpanFilter;
     /**
      * The configuration options for processor.
      */
     config?: BufferConfig;
   }) {
     super(exporter, config);
-    this.spanFilters = spanFilters;
+    this.spanFilter = spanFilter;
   }
 
   onEnd(span: ReadableSpan): void {
@@ -104,7 +104,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     if (
       shouldExportSpan({
         span,
-        spanFilters: this.spanFilters,
+        spanFilter: this.spanFilter,
       })
     ) {
       super.onEnd(span);

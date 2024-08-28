@@ -519,12 +519,12 @@ let processor:
   | OpenInferenceBatchSpanProcessor;
 function setupTraceProvider({
   Processor,
-  spanFilters,
+  spanFilter,
 }: {
   Processor:
     | typeof OpenInferenceBatchSpanProcessor
     | typeof OpenInferenceSimpleSpanProcessor;
-  spanFilters?: SpanFilter[];
+  spanFilter?: SpanFilter;
 }) {
   memoryExporter.reset();
   trace.disable();
@@ -532,7 +532,7 @@ function setupTraceProvider({
   memoryExporter = new InMemorySpanExporter();
   processor = new Processor({
     exporter: memoryExporter,
-    spanFilters,
+    spanFilter,
   });
   traceProvider.addSpanProcessor(processor);
   trace.setGlobalTracerProvider(traceProvider);
@@ -610,7 +610,7 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
   it("should not export spans that do not pass the filter", () => {
     setupTraceProvider({
       Processor: OpenInferenceSimpleSpanProcessor,
-      spanFilters: [isOpenInferenceSpan],
+      spanFilter: isOpenInferenceSpan,
     });
     const tracer = trace.getTracer("test-tracer");
     const span = tracer.startSpan("not ai");
@@ -679,7 +679,7 @@ describe("OpenInferenceBatchSpanProcessor", () => {
   it("should not export spans that do not pass the filter", async () => {
     setupTraceProvider({
       Processor: OpenInferenceBatchSpanProcessor,
-      spanFilters: [isOpenInferenceSpan],
+      spanFilter: isOpenInferenceSpan,
     });
     const tracer = trace.getTracer("test-tracer");
     const span = tracer.startSpan("not ai");
