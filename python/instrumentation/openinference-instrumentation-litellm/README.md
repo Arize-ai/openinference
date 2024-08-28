@@ -1,6 +1,6 @@
 # OpenInference LiteLLM Instrumentation
 
-[LiteLLM](https://github.com/BerriAI/litellm) allows developers to call all LLM APIs using the openAI format. [LiteLLM Proxy](https://docs.litellm.ai/docs/simple_proxy) is a proxy server to call 100+ LLMs in OpenAI format. Both are supported by this autoinstrumentation library.
+[LiteLLM](https://github.com/BerriAI/litellm) allows developers to call all LLM APIs using the openAI format. [LiteLLM Proxy](https://docs.litellm.ai/docs/simple_proxy) is a proxy server to call 100+ LLMs in OpenAI format. Both are supported by this auto-instrumentation.
 
 This package implements OpenInference tracing for the following LiteLLM functions:
 - completion()
