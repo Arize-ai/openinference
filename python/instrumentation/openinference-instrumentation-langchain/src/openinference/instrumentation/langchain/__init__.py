@@ -2,16 +2,19 @@ import logging
 from typing import TYPE_CHECKING, Any, Callable, Collection, Optional
 from uuid import UUID
 
-from openinference.instrumentation.langchain.package import _instruments
-from openinference.instrumentation.langchain.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Span
 from wrapt import wrap_function_wrapper  # type: ignore
 
+from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.langchain.package import _instruments
+from openinference.instrumentation.langchain.version import __version__
+
 if TYPE_CHECKING:
     from langchain_core.callbacks import BaseCallbackManager
     from langchain_core.runnables.config import var_child_runnable_config  # noqa F401
+
     from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 
 logger = logging.getLogger(__name__)
@@ -31,10 +34,18 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
         import langchain_core
+
         from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 
+        tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
         self._tracer: Optional[OpenInferenceTracer] = OpenInferenceTracer(tracer)
         self._original_callback_manager_init = langchain_core.callbacks.BaseCallbackManager.__init__
         wrap_function_wrapper(

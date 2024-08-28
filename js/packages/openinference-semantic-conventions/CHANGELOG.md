@@ -1,5 +1,18 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.10.0
+
+### Minor Changes
+
+- ba142d5: Added attributes for tools and their json_schema
+
+## 0.9.0
+
+### Minor Changes
+
+- 28a4ea2: adds missing evaluator span kind, reranker, metadata, tag, and tool parameter semantic conventions
+- 96af3d6: export image conventions
+
 ## 0.8.0
 
 ### Minor Changes

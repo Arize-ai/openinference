@@ -31,6 +31,13 @@ import wrapt  # type: ignore
 from langchain_core.messages import BaseMessage
 from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.util.types import AttributeValue
+from wrapt import ObjectProxy
+
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -44,12 +51,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
-from opentelemetry.util.types import AttributeValue
-from wrapt import ObjectProxy
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -570,23 +571,13 @@ def _model_name(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
 @stop_on_exception
 def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, int]]:
     """Yields token count information if present."""
-    if not outputs:
-        return
-    assert hasattr(outputs, "get"), f"expected Mapping, found {type(outputs)}"
-    if not (llm_output := outputs.get("llm_output")):
-        return
-    assert hasattr(llm_output, "get"), f"expected Mapping, found {type(llm_output)}"
     if not (
-        token_usage := _get_first_value(
-            llm_output,
-            (
-                "token_usage",
-                "usage",  # Anthropic-specific key
-            ),
+        token_usage := (
+            _parse_token_usage_for_non_streaming_outputs(outputs)
+            or _parse_token_usage_for_streaming_outputs(outputs)
         )
     ):
         return
-    assert hasattr(token_usage, "get"), f"expected Mapping, found {type(token_usage)}"
     for attribute_name, keys in [
         (
             LLM_TOKEN_COUNT_PROMPT,
@@ -606,6 +597,58 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
     ]:
         if (token_count := _get_first_value(token_usage, keys)) is not None:
             yield attribute_name, token_count
+
+
+def _parse_token_usage_for_non_streaming_outputs(
+    outputs: Optional[Mapping[str, Any]],
+) -> Any:
+    """
+    Parses output to get token usage information for non-streaming LLMs, i.e.,
+    when `stream_usage` is set to false.
+    """
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (llm_output := outputs.get("llm_output"))
+        and hasattr(llm_output, "get")
+        and (
+            token_usage := _get_first_value(
+                llm_output,
+                (
+                    "token_usage",
+                    "usage",  # Anthropic-specific key
+                ),
+            )
+        )
+    ):
+        return token_usage
+    return None
+
+
+def _parse_token_usage_for_streaming_outputs(
+    outputs: Optional[Mapping[str, Any]],
+) -> Any:
+    """
+    Parses output to get token usage information for streaming LLMs, i.e., when
+    `stream_usage` is set to true.
+    """
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (generations := outputs.get("generations"))
+        and hasattr(generations, "__getitem__")
+        and generations[0]
+        and hasattr(generations[0], "__getitem__")
+        and (generation := generations[0][0])
+        and hasattr(generation, "get")
+        and (message := generation.get("message"))
+        and hasattr(message, "get")
+        and (kwargs := message.get("kwargs"))
+        and hasattr(kwargs, "get")
+        and (token_usage := kwargs.get("usage_metadata"))
+    ):
+        return token_usage
+    return None
 
 
 @stop_on_exception
@@ -707,6 +750,8 @@ def _get_first_value(
     Returns the first non-null value corresponding to an input key, or None if
     no non-null value is found.
     """
+    if not hasattr(mapping, "get"):
+        return None
     return next(
         (value for key in keys if (value := mapping.get(key)) is not None),
         None,

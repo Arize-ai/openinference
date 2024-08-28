@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.11...python-openinference-instrumentation-dspy-v0.1.12) (2024-08-20)
+
+
+### Bug Fixes
+
+* **dspy:** custom LM instrumentation ([#930](https://github.com/Arize-ai/openinference/issues/930)) ([7f91317](https://github.com/Arize-ai/openinference/commit/7f91317631302cb23c4b12701be2ba0b5fa3c3f0))
+* **dspy:** module resolution for custom LM ([#934](https://github.com/Arize-ai/openinference/issues/934)) ([ef809be](https://github.com/Arize-ai/openinference/commit/ef809bebf4c2a19cc932b3a828cf6137be73148b))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.10...python-openinference-instrumentation-dspy-v0.1.11) (2024-08-10)
+
+
+### Documentation
+
+* TraceConfig and context attributes ([#793](https://github.com/Arize-ai/openinference/issues/793)) ([d3808c4](https://github.com/Arize-ai/openinference/commit/d3808c4bea3f6a4c72d3a7ea09b54e78072be6fd))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.9...python-openinference-instrumentation-dspy-v0.1.10) (2024-08-03)
+
+
+### Features
+
+* Enable config propagation ([#741](https://github.com/Arize-ai/openinference/issues/741)) ([16cdc6b](https://github.com/Arize-ai/openinference/commit/16cdc6b71fb14728a3eca7db27a55b68187cb4aa))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.8...python-openinference-instrumentation-dspy-v0.1.9) (2024-05-21)
 
 

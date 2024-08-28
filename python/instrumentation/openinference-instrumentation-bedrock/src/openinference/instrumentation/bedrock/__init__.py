@@ -1,19 +1,28 @@
+import base64
 import io
 import json
+import logging
+from enum import Enum
 from functools import wraps
 from importlib import import_module
 from inspect import signature
-from typing import IO, Any, Callable, Collection, Dict, Optional, Tuple, TypeVar, cast
+from typing import (
+    IO,
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    cast,
+)
 
 from botocore.client import BaseClient
 from botocore.response import StreamingBody
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
-from openinference.instrumentation.bedrock.package import _instruments
-from openinference.instrumentation.bedrock.version import __version__
-from openinference.semconv.trace import (
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -22,11 +31,30 @@ from opentelemetry.trace import Tracer
 from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
 
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    get_attributes_from_context,
+    safe_json_dumps,
+)
+from openinference.instrumentation.bedrock.package import _instruments
+from openinference.instrumentation.bedrock.version import __version__
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+
 ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
 
 _MODULE = "botocore.client"
 _BASE_MODULE = "botocore"
 _MINIMUM_CONVERSE_BOTOCORE_VERSION = "1.34.116"
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class InstrumentedClient(BaseClient):  # type: ignore
@@ -111,12 +139,12 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 response["body"] = BufferedStreamingBody(
                     response["body"]._raw_stream, response["body"]._content_length
                 )
-                if raw_request_body := kwargs.get("body"):
-                    request_body = json.loads(raw_request_body)
+                raw_request_body = kwargs["body"]
+                request_body = json.loads(raw_request_body)
                 response_body = json.loads(response.get("body").read())
                 response["body"].reset()
 
-                prompt = request_body.pop("prompt")
+                prompt = request_body.pop("prompt", None)
                 invocation_parameters = safe_json_dumps(request_body)
                 _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
                 _set_span_attribute(
@@ -214,28 +242,25 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
                     )
 
                 aggregated_messages.extend(kwargs.get("messages", []))
-                for idx, request_msg in enumerate(aggregated_messages):
-                    # Currently only supports text-based data
-                    # Future implementation can be extended to handle different media types
-                    if (
-                        isinstance(request_msg, dict)
-                        and (request_msg_role := str(request_msg.get("role")))
-                        and (request_msg_content := request_msg.get("content"))
-                    ):
-                        request_msg_prompt = "\n".join(
-                            content_input.get("text", "")  # type: ignore
-                            for content_input in request_msg_content
-                        )
-                        if idx == len(aggregated_messages) - 1:
-                            _set_span_attribute(
-                                span, SpanAttributes.INPUT_VALUE, request_msg_prompt
-                            )
-
-                        span_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}"
-                        _set_span_attribute(span, f"{span_prefix}.message.role", request_msg_role)
+                for idx, msg in enumerate(aggregated_messages):
+                    if not isinstance(msg, dict):
+                        # Only dictionaries supported for now
+                        continue
+                    for key, value in _get_attributes_from_message_param(msg):
                         _set_span_attribute(
-                            span, f"{span_prefix}.message.content", request_msg_prompt
+                            span,
+                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{key}",
+                            value,
                         )
+                last_message = aggregated_messages[-1]
+                if isinstance(last_message, dict) and (
+                    request_msg_content := last_message.get("content")
+                ):
+                    request_msg_prompt = "\n".join(
+                        content_input.get("text", "")  # type: ignore
+                        for content_input in request_msg_content
+                    ).strip("\n")
+                    _set_span_attribute(span, SpanAttributes.INPUT_VALUE, request_msg_prompt)
 
                 response = wrapped_client._unwrapped_converse(*args, **kwargs)
                 if (
@@ -278,7 +303,10 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
 
 
 class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
-    __slots__ = ("_original_client_creator",)
+    __slots__ = (
+        "_tracer",
+        "_original_client_creator",
+    )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -286,7 +314,14 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        self._tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
 
         boto = import_module(_MODULE)
         botocore = import_module(_BASE_MODULE)
@@ -295,7 +330,9 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             module=_MODULE,
             name="ClientCreator.create_client",
-            wrapper=_client_creation_wrapper(tracer=tracer, module_version=botocore.__version__),
+            wrapper=_client_creation_wrapper(
+                tracer=self._tracer, module_version=botocore.__version__
+            ),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -307,3 +344,61 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
     if value is not None and value != "":
         span.set_attribute(name, value)
+
+
+def _get_attributes_from_message_param(
+    message: Dict[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if not hasattr(message, "get"):
+        return
+    if role := message.get("role"):
+        yield (
+            MessageAttributes.MESSAGE_ROLE,
+            role.value if isinstance(role, Enum) else role,
+        )
+
+    if content := message.get("content"):
+        if isinstance(content, str):
+            yield MessageAttributes.MESSAGE_CONTENT, content
+        elif is_iterable_of(content, dict):
+            for index, c in list(enumerate(content)):
+                for key, value in _get_attributes_from_message_content(c):
+                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
+        elif isinstance(content, List):
+            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_user_message_param.py#L14  # noqa: E501
+            try:
+                value = safe_json_dumps(content)
+            except Exception:
+                logger.exception("Failed to serialize message content")
+            yield MessageAttributes.MESSAGE_CONTENT, value
+
+
+def _get_attributes_from_message_content(
+    content: Dict[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    content = dict(content)
+    if text := content.get("text"):
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+    if image := content.get("image"):
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+        for key, value in _get_attributes_from_image(image):
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+
+
+def _get_attributes_from_image(
+    image: Dict[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if (source := image.get("source")) and (img_bytes := source.get("bytes")):
+        base64_img = base64.b64encode(img_bytes).decode("utf-8")
+        yield (
+            f"{ImageAttributes.IMAGE_URL}",
+            f"data:image/jpeg;base64,{base64_img}",
+        )
+
+
+T = TypeVar("T", bound=type)
+
+
+def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
+    return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)

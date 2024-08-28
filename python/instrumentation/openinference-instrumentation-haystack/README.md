@@ -17,7 +17,7 @@ This quickstart shows you how to instrument your Haystack-orchestrated LLM appli
 Through your *terminal*, install required packages.
 
 ```shell
-pip install openinference-instrumentation-haystack haystack arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install openinference-instrumentation-haystack haystack-ai arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 You can install Phoenix and start it with the following terminal commands:
@@ -77,3 +77,9 @@ print(response)
 ```
 Now, on the Phoenix UI on your browser, you should see the traces from your Haystack application. Specifically, you can see attributes from the execution of the OpenAIGenerator.
 
+
+## More Info
+
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

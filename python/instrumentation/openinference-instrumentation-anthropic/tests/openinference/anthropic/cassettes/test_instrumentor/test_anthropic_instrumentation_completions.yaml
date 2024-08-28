@@ -1,0 +1,35 @@
+interactions:
+- request:
+    body: '{"max_tokens_to_sample": 1000, "model": "claude-2.1", "prompt": "\n\nHuman:
+      how does a court case get to the Supreme Court? \n\nAssistant:"}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/complete
+  response:
+    body:
+      string: '{"type":"completion","id":"compl_01N6jAWfEZtyE338jUQFx9LC","completion":"
+        A court case can reach the Supreme Court in a few different ways:\n\n1. Appeal
+        from lower courts. Most cases that reach the Supreme Court are appeals from
+        decisions of federal courts of appeals or state supreme courts. Typically
+        there has to be an important constitutional issue or federal law question
+        for the Supreme Court to accept such an appeal.\n\n2. Original jurisdiction
+        cases. The Supreme Court has original jurisdiction over certain types of cases,
+        meaning they can hear the case directly without it coming from a lower court.
+        These include cases between two or more U.S. states or cases involving ambassadors
+        and other diplomats.\n\n3. Certiorari. This is the process by which the Supreme
+        Court selects most of the cases it hears. Parties to a case petition the Court
+        to review the case, and the Court grants \"cert\" if four of the nine justices
+        agree to hear it. The Court typically grants certiorari in cases that have
+        broad legal impact or important constitutional questions.\n\n4. Certificate
+        from appeals courts. A federal appeals court can also ask the Supreme Court
+        to take a case by granting a certificate of ascertainability. This happens
+        when the appeals court determines there is a critical question of law that
+        requires the Supreme Court''s review. \n\nSo in most cases, the Supreme Court
+        exercises discretionary review via petitions for certiorari or certificates
+        from lower courts. Its original jurisdiction over certain types of cases also
+        allows some direct access for parties.","stop_reason":"stop_sequence","model":"claude-2.1","stop":"\n\nHuman:","log_id":"compl_01N6jAWfEZtyE338jUQFx9LC"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

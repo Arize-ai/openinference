@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.14...python-openinference-instrumentation-v0.1.15) (2024-08-16)
+
+
+### Features
+
+* attribute prioritization ([#906](https://github.com/Arize-ai/openinference/issues/906)) ([0add042](https://github.com/Arize-ai/openinference/commit/0add0421b5f0d9b64c579027c469513359863a68))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.13...python-openinference-instrumentation-v0.1.14) (2024-08-15)
+
+
+### Bug Fixes
+
+* mask attributes when starting span ([#892](https://github.com/Arize-ai/openinference/issues/892)) ([9b72287](https://github.com/Arize-ai/openinference/commit/9b72287401d5c424a8951e1d6a15cca14fcd05cc))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.12...python-openinference-instrumentation-v0.1.13) (2024-08-10)
+
+
+### Documentation
+
+* TraceConfig and context attributes ([#793](https://github.com/Arize-ai/openinference/issues/793)) ([d3808c4](https://github.com/Arize-ai/openinference/commit/d3808c4bea3f6a4c72d3a7ea09b54e78072be6fd))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.11...python-openinference-instrumentation-v0.1.12) (2024-08-01)
+
+
+### Bug Fixes
+
+* Rename base tracer and masked span ([#693](https://github.com/Arize-ai/openinference/issues/693)) ([861ea4b](https://github.com/Arize-ai/openinference/commit/861ea4ba45cf02a1d0519a7cd2c5c6ca5d74115b))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.10...python-openinference-instrumentation-v0.1.11) (2024-07-31)
+
+
+### Bug Fixes
+
+* Ensure string type to check URLs ([#682](https://github.com/Arize-ai/openinference/issues/682)) ([24c51ec](https://github.com/Arize-ai/openinference/commit/24c51ece2b50a36c791f9e0c72088360fe91ca5f))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.9...python-openinference-instrumentation-v0.1.10) (2024-07-31)
 
 

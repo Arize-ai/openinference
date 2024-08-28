@@ -74,6 +74,11 @@ class SpanAttributes:
     Total number of tokens, including both prompt and completion.
     """
 
+    LLM_TOOLS = "llm.tools"
+    """
+    List of tools that are advertised to the LLM to be able to call
+    """
+
     TOOL_NAME = "tool.name"
     """
     Name of the tool being used.
@@ -265,6 +270,18 @@ class ToolCallAttributes:
     """
     The JSON string representing the arguments passed to the function
     during a tool call.
+    """
+
+
+class ToolAttributes:
+    """
+    Attributes for a tools
+    """
+
+    TOOL_JSON_SCHEMA = "tool.json_schema"
+    """
+    The json schema of a tool input, It is RECOMMENDED that this be in the
+    OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
     """
 
 

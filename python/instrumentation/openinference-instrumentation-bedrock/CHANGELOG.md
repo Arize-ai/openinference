@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.10...python-openinference-instrumentation-bedrock-v0.1.11) (2024-08-27)
+
+
+### Bug Fixes
+
+* **bedrock:** ensure bedrock instrumentation does not break runtime for BedrockEmbeddings model from langchain ([#975](https://github.com/Arize-ai/openinference/issues/975)) ([fbb78cd](https://github.com/Arize-ai/openinference/commit/fbb78cdf13cc895add911575dc7fb400afafff7d))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.9...python-openinference-instrumentation-bedrock-v0.1.10) (2024-08-10)
+
+
+### Documentation
+
+* TraceConfig and context attributes ([#793](https://github.com/Arize-ai/openinference/issues/793)) ([d3808c4](https://github.com/Arize-ai/openinference/commit/d3808c4bea3f6a4c72d3a7ea09b54e78072be6fd))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.8...python-openinference-instrumentation-bedrock-v0.1.9) (2024-08-07)
+
+
+### Features
+
+* Capture images tracing converse API ([#753](https://github.com/Arize-ai/openinference/issues/753)) ([2a2fe15](https://github.com/Arize-ai/openinference/commit/2a2fe15f2b48fe67b14974137c105606072394f3))
+
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.7...python-openinference-instrumentation-bedrock-v0.1.8) (2024-08-03)
+
+
+### Features
+
+* Enable config propagation ([#741](https://github.com/Arize-ai/openinference/issues/741)) ([16cdc6b](https://github.com/Arize-ai/openinference/commit/16cdc6b71fb14728a3eca7db27a55b68187cb4aa))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.6...python-openinference-instrumentation-bedrock-v0.1.7) (2024-07-18)
 
 

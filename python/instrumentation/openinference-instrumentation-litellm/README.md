@@ -102,4 +102,7 @@ Now any liteLLM function calls you make will not send traces to Phoenix until in
 
 ## More Info
 
-More details about how to setup instrumentation with [LiteLLM Proxy](https://docs.litellm.ai/docs/observability/arize_integration)
+* Details on how to setup a [LiteLLM Proxy](https://docs.litellm.ai/docs/observability/arize_integration)
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

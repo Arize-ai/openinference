@@ -1,6 +1,8 @@
 datasets
-haystack
+haystack-ai
 openinference-instrumentation-haystack
+openinference-instrumentation-openai
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
 sentence-transformers
+cohere-haystack

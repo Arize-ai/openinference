@@ -1,0 +1,37 @@
+interactions:
+- request:
+    body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": "What is
+      the weather like in San Francisco in Fahrenheit?"}, {"content": [{"text": "Certainly!
+      I can help you get the current weather information for San Francisco in Fahrenheit.
+      To do this, I''ll use the get_weather function. Let me fetch that information
+      for you right away.", "type": "text"}, {"id": "toolu_01KBqpqR73qWGsMaW3vBzEjz",
+      "input": {"location": "San Francisco, CA", "unit": "fahrenheit"}, "name": "get_weather",
+      "type": "tool_use"}], "role": "assistant"}, {"content": [{"tool_use_id": "toolu_01KBqpqR73qWGsMaW3vBzEjz",
+      "content": "{\"weather\": \"sunny\", \"temperature\": \"75\"}", "type": "tool_result",
+      "is_error": false}], "role": "user"}], "model": "claude-3-5-sonnet-20240620",
+      "tools": [{"name": "get_weather", "description": "Get the current weather in
+      a given location", "input_schema": {"type": "object", "properties": {"location":
+      {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
+      "unit": {"type": "string", "enum": ["celsius", "fahrenheit"], "description":
+      "The unit of temperature, either \"celsius\" or \"fahrenheit\""}}, "required":
+      ["location"]}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: "{\"id\":\"msg_01Wyq8BmnzSNNQ2nEcfHdxwh\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-3-5-sonnet-20240620\",\"content\":[{\"type\":\"text\",\"text\":\"Great!
+        I've received the current weather information for San Francisco. Here's what
+        I can tell you:\\n\\nThe weather in San Francisco is currently sunny, and
+        the temperature is 75\xB0F (Fahrenheit).\\n\\nIt's a pleasant day in San Francisco
+        with warm temperatures and clear skies. This kind of weather is great for
+        outdoor activities or sightseeing if you're in the area. Remember that San
+        Francisco's weather can change throughout the day, so it's always a good idea
+        to be prepared for potential shifts in temperature or conditions.\\n\\nIs
+        there anything else you'd like to know about the weather in San Francisco
+        or any other location?\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":568,\"output_tokens\":137}}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

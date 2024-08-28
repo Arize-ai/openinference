@@ -4,7 +4,14 @@ from contextlib import contextmanager
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
-from openinference.instrumentation import TraceConfig, get_attributes_from_context
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeAlias
+
+from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -24,12 +31,6 @@ from openinference.instrumentation.openai._utils import (
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeAlias
 
 __all__ = (
     "_Request",
@@ -80,24 +81,18 @@ _RequestParameters: TypeAlias = Mapping[str, Any]
 class _WithOpenAI(ABC):
     __slots__ = (
         "_openai",
-        "_config",
         "_stream_types",
         "_request_attributes_extractor",
         "_response_attributes_extractor",
         "_response_accumulator_factories",
     )
 
-    def __init__(self, openai: ModuleType, config: TraceConfig, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, openai: ModuleType, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._openai = openai
-        self._config = config
         self._stream_types = (openai.Stream, openai.AsyncStream)
-        self._request_attributes_extractor = _RequestAttributesExtractor(
-            openai=openai, config=config
-        )
-        self._response_attributes_extractor = _ResponseAttributesExtractor(
-            openai=openai, config=config
-        )
+        self._request_attributes_extractor = _RequestAttributesExtractor(openai=openai)
+        self._response_attributes_extractor = _ResponseAttributesExtractor(openai=openai)
         self._response_accumulator_factories: Mapping[
             type, Callable[[_RequestParameters], _ResponseAccumulator]
         ] = {
@@ -105,13 +100,11 @@ class _WithOpenAI(ABC):
                 request_parameters=request_parameters,
                 completion_type=openai.types.Completion,
                 response_attributes_extractor=self._response_attributes_extractor,
-                config=config,
             ),
             openai.types.chat.ChatCompletion: lambda request_parameters: _ChatCompletionAccumulator(
                 request_parameters=request_parameters,
                 chat_completion_type=openai.types.chat.ChatCompletion,
                 response_attributes_extractor=self._response_attributes_extractor,
-                config=config,
             ),
         }
 
@@ -131,7 +124,6 @@ class _WithOpenAI(ABC):
         try:
             yield from _as_input_attributes(
                 _io_value_and_type(request_parameters),
-                hide_input_value=self._config.hide_inputs,
             )
         except Exception:
             logger.exception(
@@ -243,7 +235,6 @@ class _WithOpenAI(ABC):
                 request_parameters=request_parameters,
                 response=response,
                 response_attributes_extractor=self._response_attributes_extractor,
-                config=self._config,
             ),
         )
         return response
@@ -384,14 +375,13 @@ def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]
 
 
 class _ResponseAttributes:
-    __slots__ = ("_response", "_request_parameters", "_response_attributes_extractor", "_config")
+    __slots__ = ("_response", "_request_parameters", "_response_attributes_extractor")
 
     def __init__(
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
         response_attributes_extractor: _ResponseAttributesExtractor,
-        config: TraceConfig,
     ) -> None:
         if hasattr(response, "parse") and callable(response.parse):
             # E.g. see https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/_base_client.py#L518  # noqa: E501
@@ -402,12 +392,10 @@ class _ResponseAttributes:
         self._request_parameters = request_parameters
         self._response = response
         self._response_attributes_extractor = response_attributes_extractor
-        self._config = config
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         yield from _as_output_attributes(
             _io_value_and_type(self._response),
-            hide_output_value=self._config.hide_outputs,
         )
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:

@@ -14,7 +14,8 @@ from typing import (
     Type,
 )
 
-from openinference.instrumentation import REDACTED_VALUE, TraceConfig
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation.openai._utils import _get_openai_version, _get_texts
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -22,7 +23,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
@@ -43,15 +43,13 @@ except ImportError:
 class _ResponseAttributesExtractor:
     __slots__ = (
         "_openai",
-        "_config",
         "_chat_completion_type",
         "_completion_type",
         "_create_embedding_response_type",
     )
 
-    def __init__(self, openai: ModuleType, config: TraceConfig) -> None:
+    def __init__(self, openai: ModuleType) -> None:
         self._openai = openai
-        self._config = config
         self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
         self._completion_type: Type["Completion"] = openai.types.Completion
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
@@ -92,8 +90,6 @@ class _ResponseAttributesExtractor:
         if usage := getattr(completion, "usage", None):
             yield from self._get_attributes_from_completion_usage(usage)
 
-        if self._config.hide_outputs or self._config.hide_output_messages:
-            return
         if (choices := getattr(completion, "choices", None)) and isinstance(choices, Iterable):
             for choice in choices:
                 if (index := getattr(choice, "index", None)) is None:
@@ -139,11 +135,6 @@ class _ResponseAttributesExtractor:
                 for key, value in self._get_attributes_from_embedding(embedding):
                     yield f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{key}", value
 
-        should_hide_emb_text = (
-            self._config.hide_inputs
-            or self._config.hide_input_messages
-            or self._config.hide_input_text
-        )
         embedding_input = request_parameters.get("input")
         for index, text in enumerate(_get_texts(embedding_input, model)):
             # FIXME: this step should move to request attributes extractor if decoding is not necessary.# noqa: E501
@@ -151,13 +142,12 @@ class _ResponseAttributesExtractor:
             # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/embedding_create_params.py#L12
             # FIXME: tokens (List[int], List[List[int]]) can't be decoded reliably because model
             # names are not reliable (across OpenAI and Azure).
-            value = REDACTED_VALUE if should_hide_emb_text else text
             yield (
                 (
                     f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}."
                     f"{EmbeddingAttributes.EMBEDDING_TEXT}"
                 ),
-                value,
+                text,
             )
 
     def _get_attributes_from_embedding(
@@ -166,9 +156,7 @@ class _ResponseAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # openai.types.Embedding
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/embedding.py#L11  # noqa: E501
-        if self._config.hide_embedding_vectors or not (
-            _vector := getattr(embedding, "embedding", None)
-        ):
+        if not (_vector := getattr(embedding, "embedding", None)):
             return
         if isinstance(_vector, Sequence) and len(_vector) and isinstance(_vector[0], float):
             vector = list(_vector)
@@ -193,8 +181,7 @@ class _ResponseAttributesExtractor:
         if role := getattr(message, "role", None):
             yield MessageAttributes.MESSAGE_ROLE, role
         if content := getattr(message, "content", None):
-            value = REDACTED_VALUE if self._config.hide_output_text else content
-            yield MessageAttributes.MESSAGE_CONTENT, value
+            yield MessageAttributes.MESSAGE_CONTENT, content
         if function_call := getattr(message, "function_call", None):
             # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_message.py#L12  # noqa: E501
             if name := getattr(function_call, "name", None):

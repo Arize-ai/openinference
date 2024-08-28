@@ -28,24 +28,6 @@ from typing import (
     Union,
 )
 
-from openinference.instrumentation import (
-    REDACTED_VALUE,
-    TraceConfig,
-    get_attributes_from_context,
-    safe_json_dumps,
-)
-from openinference.semconv.trace import (
-    DocumentAttributes,
-    EmbeddingAttributes,
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    RerankerAttributes,
-    SpanAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
@@ -125,6 +107,23 @@ from llama_index.core.multi_modal_llms import MultiModalLLM
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
 from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
+from llama_index.core.workflow.errors import WorkflowDone
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    safe_json_dumps,
+)
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    RerankerAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -156,104 +155,35 @@ class _StreamingStatus(Enum):
     IN_PROGRESS = auto()
 
 
-class _Span(
-    BaseSpan,
-    extra="allow",
-    keep_untouched=(singledispatchmethod, property),
-):
+class _Span(BaseSpan):
     _otel_span: Span = PrivateAttr()
-    _config: TraceConfig = PrivateAttr()
     _attributes: Dict[str, AttributeValue] = PrivateAttr()
     _active: bool = PrivateAttr()
     _span_kind: Optional[str] = PrivateAttr()
     _parent: Optional["_Span"] = PrivateAttr()
     _first_token_timestamp: Optional[int] = PrivateAttr()
 
-    end_time: Optional[int] = PrivateAttr()
-    last_updated_at: float = PrivateAttr()
+    _end_time: Optional[int] = PrivateAttr()
+    _last_updated_at: float = PrivateAttr()
 
     def __init__(
         self,
         otel_span: Span,
-        config: TraceConfig,
         span_kind: Optional[str] = None,
         parent: Optional["_Span"] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._otel_span = otel_span
-        self._config = config
         self._active = otel_span.is_recording()
         self._span_kind = span_kind
         self._parent = parent
         self._first_token_timestamp = None
         self._attributes = {}
-        self.end_time = None
-        self.last_updated_at = time()
+        self._end_time = None
+        self._last_updated_at = time()
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
-        if key == INPUT_VALUE and self._config.hide_inputs:
-            value = REDACTED_VALUE
-        if key == INPUT_MIME_TYPE and self._config.hide_inputs:
-            return
-        if key == OUTPUT_VALUE and self._config.hide_outputs:
-            value = REDACTED_VALUE
-        if key == OUTPUT_MIME_TYPE and self._config.hide_outputs:
-            return
-        if LLM_INPUT_MESSAGES in key and (
-            self._config.hide_inputs or self._config.hide_input_messages
-        ):
-            return
-        if LLM_OUTPUT_MESSAGES in key and (
-            self._config.hide_outputs or self._config.hide_output_messages
-        ):
-            return
-        if (
-            LLM_INPUT_MESSAGES in key
-            and MESSAGE_CONTENT in key
-            and MESSAGE_CONTENTS not in key
-            and self._config.hide_input_text
-        ):
-            value = REDACTED_VALUE
-        if (
-            LLM_OUTPUT_MESSAGES in key
-            and MESSAGE_CONTENT in key
-            and MESSAGE_CONTENTS not in key
-            and self._config.hide_output_text
-        ):
-            value = REDACTED_VALUE
-        if (
-            LLM_INPUT_MESSAGES in key
-            and MESSAGE_CONTENT_TEXT in key
-            and self._config.hide_input_text
-        ):
-            value = REDACTED_VALUE
-        if (
-            LLM_OUTPUT_MESSAGES in key
-            and MESSAGE_CONTENT_TEXT in key
-            and self._config.hide_output_text
-        ):
-            value = REDACTED_VALUE
-        if (
-            LLM_INPUT_MESSAGES in key
-            and MESSAGE_CONTENT_IMAGE in key
-            and self._config.hide_input_images
-        ):
-            return
-        if (
-            LLM_INPUT_MESSAGES in key
-            and MESSAGE_CONTENT_IMAGE in key
-            and key.endswith(ImageAttributes.IMAGE_URL)
-            and is_base64_url(value)  # type:ignore
-            and len(value) > self._config.base64_image_max_length  # type:ignore
-        ):
-            value = REDACTED_VALUE
-        if (
-            EMBEDDING_EMBEDDINGS in key
-            and EMBEDDING_VECTOR in key
-            and self._config.hide_embedding_vectors
-        ):
-            return
         self._attributes[key] = value
 
     def record_exception(self, exception: BaseException) -> None:
@@ -274,11 +204,11 @@ class _Span(
         self[OPENINFERENCE_SPAN_KIND] = self._span_kind or CHAIN
         self._otel_span.set_status(status=status)
         self._otel_span.set_attributes(self._attributes)
-        self._otel_span.end(end_time=self.end_time)
+        self._otel_span.end(end_time=self._end_time)
 
     @property
     def waiting_for_streaming(self) -> bool:
-        return self._active and bool(self.end_time)
+        return self._active and bool(self._end_time)
 
     @property
     def active(self) -> bool:
@@ -315,7 +245,7 @@ class _Span(
             self[OUTPUT_VALUE] = str(result)
         elif isinstance(result, BaseModel):
             try:
-                self[OUTPUT_VALUE] = result.json(exclude_unset=True, encoder=_encoder)
+                self[OUTPUT_VALUE] = result.model_dump_json(exclude_unset=True)
                 self[OUTPUT_MIME_TYPE] = JSON
             except BaseException as e:
                 logger.exception(str(e))
@@ -368,7 +298,7 @@ class _Span(
                 timestamp = time_ns()
                 self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
                 self._first_token_timestamp = timestamp
-            self.last_updated_at = time()
+            self._last_updated_at = time()
             self.notify_parent(_StreamingStatus.IN_PROGRESS)
         elif isinstance(event, ExceptionEvent):
             self.end(event.exception)
@@ -378,7 +308,7 @@ class _Span(
         if not (parent := self._parent) or not parent.waiting_for_streaming:
             return
         if status is _StreamingStatus.IN_PROGRESS:
-            parent.last_updated_at = time()
+            parent._last_updated_at = time()
         else:
             parent.end()
         parent.notify_parent(status)
@@ -752,7 +682,7 @@ class _ExportQueue:
                 if not span.active:
                     self._del(item)
                     continue
-                if t - span.last_updated_at > 60:
+                if t - span._last_updated_at > 60:
                     span.end()
                     self._del(item)
                     continue
@@ -764,15 +694,13 @@ class _ExportQueue:
 class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _context_tokens: Dict[str, object] = PrivateAttr()
     _otel_tracer: Tracer = PrivateAttr()
-    _config: TraceConfig = PrivateAttr()
-    export_queue: _ExportQueue = PrivateAttr()
+    _export_queue: _ExportQueue = PrivateAttr()
 
-    def __init__(self, tracer: Tracer, config: TraceConfig) -> None:
+    def __init__(self, tracer: Tracer) -> None:
         super().__init__()
         self._context_tokens: Dict[str, object] = {}
         self._otel_tracer = tracer
-        self._config = config
-        self.export_queue = _ExportQueue()
+        self._export_queue = _ExportQueue()
 
     def new_span(
         self,
@@ -780,6 +708,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         bound_args: inspect.BoundArguments,
         instance: Optional[Any] = None,
         parent_span_id: Optional[str] = None,
+        tags: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> Optional[_Span]:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -796,7 +725,6 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             self._context_tokens[id_] = attach(set_span_in_context(otel_span))
         span = _Span(
             otel_span=otel_span,
-            config=self._config,
             span_kind=_init_span_kind(instance),
             parent=parent,
             id_=id_,
@@ -828,8 +756,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
                 or isinstance(result, AsyncGenerator)
                 and result.ag_frame is not None
             ):
-                span.end_time = time_ns()
-                self.export_queue.put(span)
+                span._end_time = time_ns()
+                self._export_queue.put(span)
                 return span
             span.process_output(instance, result)
             span.end()
@@ -853,6 +781,9 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         if token:
             detach(token)
         if span:
+            if err and isinstance(err, WorkflowDone):
+                span.end()
+                return span
             span.end(err)
         else:
             logger.warning(f"Open span is missing for {id_=}")
@@ -860,20 +791,20 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
 
 
 class EventHandler(BaseEventHandler, extra="allow"):
-    span_handler: _SpanHandler = PrivateAttr()
+    _span_handler: _SpanHandler = PrivateAttr()
 
-    def __init__(self, tracer: Tracer, config: TraceConfig) -> None:
+    def __init__(self, tracer: Tracer) -> None:
         super().__init__()
-        self.span_handler = _SpanHandler(tracer=tracer, config=config)
+        self._span_handler = _SpanHandler(tracer=tracer)
 
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
         if not event.span_id:
             return event
-        span = self.span_handler.open_spans.get(event.span_id)
+        span = self._span_handler.open_spans.get(event.span_id)
         if span is None:
-            span = self.span_handler.export_queue.find(event.span_id)
+            span = self._span_handler._export_queue.find(event.span_id)
         if span is None:
             logger.warning(f"Open span is missing for {event.span_id=}, {event.id_=}")
         else:

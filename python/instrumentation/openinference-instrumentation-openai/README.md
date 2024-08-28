@@ -34,7 +34,6 @@ In a python file, setup the `OpenAIInstrumentor` and configure the tracer to sen
 ```python
 import openai
 from openinference.instrumentation.openai import OpenAIInstrumentor
-from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -81,6 +80,6 @@ python your_file.py
 
 ## More Info
 
-Fore details about tracing with OpenInference and Phoenix, consult the [Phoenix documentation](https://docs.arize.com/phoenix).
-
-For AI/ML observability solutions in production, check out the docs on [Arize](https://docs.arize.com/arize).
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

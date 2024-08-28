@@ -32,6 +32,7 @@ export const LLMAttributePostfixes = {
   prompts: "prompts",
   prompt_template: "prompt_template",
   function_call: "function_call",
+  tools: "tools",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -62,6 +63,7 @@ export const ToolAttributePostfixes = {
   name: "name",
   description: "description",
   parameters: "parameters",
+  json_schema: "json_schema",
 } as const;
 
 export const MessageAttributePostfixes = {
@@ -308,6 +310,12 @@ export const LLM_FUNCTION_CALL =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.function_call}` as const;
 
 /**
+ * List of tools that are advertised to the LLM to be able to call
+ */
+export const LLM_TOOLS =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.tools}` as const;
+
+/**
  * The name of a tool
  */
 export const TOOL_NAME =
@@ -318,6 +326,19 @@ export const TOOL_NAME =
  */
 export const TOOL_DESCRIPTION =
   `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.description}` as const;
+
+/**
+ * The parameters of the tool represented as a JSON string
+ */
+export const TOOL_PARAMETERS =
+  `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.parameters}` as const;
+
+/**
+ * The json schema of a tool input, It is RECOMMENDED that this be in the
+ * OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
+ */
+export const TOOL_JSON_SCHEMA =
+  `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.json_schema}` as const;
 
 /**
  * The session id of a trace. Used to correlate spans in a single session.
@@ -331,7 +352,55 @@ export const SESSION_ID =
 export const USER_ID =
   `${SemanticAttributePrefixes.user}.${UserAttributePostfixes.id}` as const;
 
+/**
+ * The documents used as input to the reranker
+ */
+export const RERANKER_INPUT_DOCUMENTS =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.input_documents}` as const;
+
+/**
+ * The documents output by the reranker
+ */
+export const RERANKER_OUTPUT_DOCUMENTS =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.output_documents}` as const;
+
+/**
+ * The query string for the reranker
+ */
+export const RERANKER_QUERY =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.query}` as const;
+
+/**
+ * The model name for the reranker
+ */
+export const RERANKER_MODEL_NAME =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.model_name}` as const;
+
+/**
+ * The top k parameter for the reranker
+ */
+export const RERANKER_TOP_K =
+  `${SemanticAttributePrefixes.reranker}.${RerankerAttributePostfixes.top_k}` as const;
+
+/**
+ * Metadata for a span, used to store user-defined key-value pairs
+ */
+export const METADATA = "metadata" as const;
+
+/**
+ * A prompt template version
+ */
+export const PROMPT_TEMPLATE_VERSION =
+  `${PROMPT_TEMPLATE_PREFIX}.version` as const;
+
+/**
+ * The tags associated with a span
+ */
+export const TAG_TAGS =
+  `${SemanticAttributePrefixes.tag}.${TagAttributePostfixes.tags}` as const;
+
 export const SemanticConventions = {
+  IMAGE_URL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
   OUTPUT_VALUE,
@@ -344,6 +413,7 @@ export const SemanticConventions = {
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_TOTAL,
+  LLM_TOOLS,
   MESSAGE_ROLE,
   MESSAGE_NAME,
   MESSAGE_TOOL_CALLS,
@@ -352,6 +422,10 @@ export const SemanticConventions = {
   MESSAGE_FUNCTION_CALL_NAME,
   MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON,
   MESSAGE_CONTENT,
+  MESSAGE_CONTENTS,
+  MESSAGE_CONTENT_IMAGE,
+  MESSAGE_CONTENT_TEXT,
+  MESSAGE_CONTENT_TYPE,
   DOCUMENT_ID,
   DOCUMENT_CONTENT,
   DOCUMENT_SCORE,
@@ -362,13 +436,22 @@ export const SemanticConventions = {
   EMBEDDING_VECTOR,
   TOOL_DESCRIPTION,
   TOOL_NAME,
+  TOOL_PARAMETERS,
+  TOOL_JSON_SCHEMA,
   PROMPT_TEMPLATE_VARIABLES,
   PROMPT_TEMPLATE_TEMPLATE,
+  PROMPT_TEMPLATE_VERSION,
+  RERANKER_INPUT_DOCUMENTS,
+  RERANKER_OUTPUT_DOCUMENTS,
+  RERANKER_QUERY,
+  RERANKER_MODEL_NAME,
+  RERANKER_TOP_K,
   LLM_FUNCTION_CALL,
   RETRIEVAL_DOCUMENTS,
   SESSION_ID,
   USER_ID,
-  // OpenInference steps
+  METADATA,
+  TAG_TAGS,
   OPENINFERENCE_SPAN_KIND: `${SemanticAttributePrefixes.openinference}.span.kind`,
 } as const;
 
@@ -381,6 +464,7 @@ export enum OpenInferenceSpanKind {
   EMBEDDING = "EMBEDDING",
   AGENT = "AGENT",
   GUARDRAIL = "GUARDRAIL",
+  EVALUATOR = "EVALUATOR",
 }
 
 export enum MimeType {

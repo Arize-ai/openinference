@@ -10,7 +10,6 @@ from typing import (
     Any,
     AsyncIterator,
     Dict,
-    Generator,
     Iterable,
     Iterator,
     List,
@@ -24,6 +23,12 @@ from typing import (
 
 import pytest
 from httpx import AsyncByteStream, Response
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
+from respx import MockRouter
+
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
@@ -36,15 +41,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
-from respx import MockRouter
 
 for name, logger in logging.root.manager.loggerDict.items():
     if name.startswith("openinference.") and isinstance(logger, logging.Logger):
@@ -693,11 +689,14 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
-    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
-        == OpenInferenceMimeTypeValues.JSON
-    )
+    if hide_inputs:
+        assert attributes.pop(INPUT_VALUE, None) == REDACTED_VALUE
+    else:
+        assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+        assert (
+            OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
+            == OpenInferenceMimeTypeValues.JSON
+        )
     assert (
         json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
@@ -820,11 +819,16 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
                 hide_text=hide_output_text,
             )
 
-    assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
-        == OpenInferenceMimeTypeValues.JSON
-    )
+    output_value = attributes.pop(OUTPUT_VALUE, None)
+    assert output_value is not None
+    if hide_outputs:
+        output_value == REDACTED_VALUE
+    else:
+        assert isinstance(output_value, str)
+        assert (
+            OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
+            == OpenInferenceMimeTypeValues.JSON
+        )
     # Usage is not available for streaming in general.
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == completion_usage["prompt_tokens"]
@@ -861,7 +865,6 @@ def _check_llm_message(
                 else:
                     assert content_item_text == expected_content_item.get("text")
             elif content_item_type == "image":
-                print(attributes.keys())
                 content_item_image_url = attributes.pop(
                     message_contents_image_url(prefix, i, j), None
                 )
@@ -976,34 +979,6 @@ def prompt_template_variables() -> Dict[str, Any]:
         "var_str": "2",
         "var_list": [1, 2, 3],
     }
-
-
-@pytest.fixture(scope="module")
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture(scope="module")
-def tracer_provider(
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> trace_api.TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = trace_sdk.TracerProvider(resource=resource)
-    span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
-    tracer_provider.add_span_processor(span_processor=span_processor)
-    HTTPXClientInstrumentor().instrument(tracer_provider=tracer_provider)
-    return tracer_provider
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    OpenAIInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
 
 
 @pytest.fixture(scope="module")

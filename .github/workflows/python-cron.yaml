@@ -1,0 +1,46 @@
+name: Python Canary Cron
+
+on:
+  schedule:
+    - cron: "0 18 * * 1-5"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: ./python
+
+jobs:
+  canary:
+    runs-on: oss-4-core-runner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: |
+            3.8
+            3.9
+            3.10
+            3.11
+            3.12
+      - run: pip install tox-uv==1.11.2
+      - run: >-
+          tox run-parallel --parallel-no-spinner
+          -e $(tox -l | egrep -e '-latest$' | paste -sd, -)
+          --result-json=${{ runner.temp }}/.tox-result.json
+      - run: >-
+          echo "testenvs=$(cat ${{ runner.temp }}/.tox-result.json
+          | jq -r '.testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]'
+          | sort
+          | paste -sd, -)"
+          >> "$GITHUB_OUTPUT"
+        id: failed
+        if: failure()
+      - uses: slackapi/slack-github-action@v1
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          payload: |
+            {
+              "text": "CI Failures for Python Packages: ${{ steps.failed.outputs.testenvs }}"
+            }

@@ -3,10 +3,12 @@ from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
-from openinference.instrumentation import safe_json_dumps
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -88,6 +90,8 @@ class _ExecuteCoreWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         if instance:
             span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
         else:
@@ -130,6 +134,7 @@ class _ExecuteCoreWrapper:
                 raise
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, response)
+            span.set_attributes(dict(get_attributes_from_context()))
         return response
 
 
@@ -144,11 +149,20 @@ class _KickoffWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         span_name = f"{instance.__class__.__name__}.kickoff"
         with self._tracer.start_as_current_span(
             span_name,
             record_exception=False,
             set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                    }
+                )
+            ),
         ) as span:
             crew = instance
             inputs = kwargs.get("inputs", None) or (args[0] if args else None)
@@ -199,14 +213,33 @@ class _KickoffWrapper:
                 ),
             )
             try:
-                response = wrapped(*args, **kwargs)
+                crew_output = wrapped(*args, **kwargs)
+                usage_metrics = crew.usage_metrics
+                if isinstance(usage_metrics, dict):
+                    if (prompt_tokens := usage_metrics.get("prompt_tokens")) is not None:
+                        span.set_attribute(LLM_TOKEN_COUNT_PROMPT, int(prompt_tokens))
+                    if (completion_tokens := usage_metrics.get("completion_tokens")) is not None:
+                        span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, int(completion_tokens))
+                    if (total_tokens := usage_metrics.get("total_tokens")) is not None:
+                        span.set_attribute(LLM_TOKEN_COUNT_TOTAL, int(total_tokens))
+                else:
+                    # version 0.51 and onwards
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.prompt_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, usage_metrics.completion_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, usage_metrics.total_tokens)
+
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
-        return response
+            if crew_output_dict := crew_output.to_dict():
+                span.set_attribute(OUTPUT_VALUE, json.dumps(crew_output_dict))
+                span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+            else:
+                span.set_attribute(OUTPUT_VALUE, str(crew_output))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return crew_output
 
 
 class _ToolUseWrapper:
@@ -220,6 +253,8 @@ class _ToolUseWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
         if instance:
             span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
         else:
@@ -255,9 +290,14 @@ class _ToolUseWrapper:
                 raise
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, response)
+            span.set_attributes(dict(get_attributes_from_context()))
         return response
 
 
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL

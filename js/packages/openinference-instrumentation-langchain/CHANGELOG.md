@@ -1,5 +1,35 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 0.2.0
+
+### Minor Changes
+
+- 14ac4ae: add support for langchain version ^0.2
+
+### Patch Changes
+
+- Updated dependencies [3b8702a]
+  - @arizeai/openinference-core@0.2.0
+
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [ba142d5]
+  - @arizeai/openinference-semantic-conventions@0.10.0
+
+## 0.1.0
+
+### Minor Changes
+
+- af1184e: Fix the way that instrumentation stores whether or not it is patched by storing patched state in the closure"
+
+### Patch Changes
+
+- Updated dependencies [28a4ea2]
+- Updated dependencies [96af3d6]
+  - @arizeai/openinference-semantic-conventions@0.9.0
+
 ## 0.0.9
 
 ### Patch Changes

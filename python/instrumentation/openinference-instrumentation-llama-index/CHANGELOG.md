@@ -1,5 +1,52 @@
 # Changelog
 
+## [3.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.4...python-openinference-instrumentation-llama-index-v3.0.0) (2024-08-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* support pydanticV2 for llama-index 0.11 ([#971](https://github.com/Arize-ai/openinference/issues/971))
+
+### Features
+
+* support pydanticV2 for llama-index 0.11 ([#971](https://github.com/Arize-ai/openinference/issues/971)) ([ba203b8](https://github.com/Arize-ai/openinference/commit/ba203b8bb16c73113c273516d0a4bf7b0d553bf1))
+
+## [2.2.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.3...python-openinference-instrumentation-llama-index-v2.2.4) (2024-08-10)
+
+
+### Documentation
+
+* TraceConfig and context attributes ([#793](https://github.com/Arize-ai/openinference/issues/793)) ([d3808c4](https://github.com/Arize-ai/openinference/commit/d3808c4bea3f6a4c72d3a7ea09b54e78072be6fd))
+
+## [2.2.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.2...python-openinference-instrumentation-llama-index-v2.2.3) (2024-08-06)
+
+
+### Bug Fixes
+
+* **llama-index:** Adjust newspan args in BaseHandler ([#773](https://github.com/Arize-ai/openinference/issues/773)) ([ab216d1](https://github.com/Arize-ai/openinference/commit/ab216d1fe4cf6ba8cf5461a98c4fc65be6a762de))
+
+## [2.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.1...python-openinference-instrumentation-llama-index-v2.2.2) (2024-08-06)
+
+
+### Bug Fixes
+
+* ignore `WorkflowDone` exception ([#769](https://github.com/Arize-ai/openinference/issues/769)) ([4fb34a4](https://github.com/Arize-ai/openinference/commit/4fb34a4b5668bb9e14247db10ac734645bcefa8e))
+
+## [2.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.0...python-openinference-instrumentation-llama-index-v2.2.1) (2024-08-01)
+
+
+### Bug Fixes
+
+* Rename base tracer and masked span ([#693](https://github.com/Arize-ai/openinference/issues/693)) ([861ea4b](https://github.com/Arize-ai/openinference/commit/861ea4ba45cf02a1d0519a7cd2c5c6ca5d74115b))
+
+## [2.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.1.1...python-openinference-instrumentation-llama-index-v2.2.0) (2024-07-31)
+
+
+### Features
+
+* Add config handling to instrumentation ([#653](https://github.com/Arize-ai/openinference/issues/653)) ([7d60bb1](https://github.com/Arize-ai/openinference/commit/7d60bb155291e576ab25c583f387213ac47979c8))
+* Move attribute censorship based on config to common instrumentation ([#679](https://github.com/Arize-ai/openinference/issues/679)) ([04f885a](https://github.com/Arize-ai/openinference/commit/04f885a5934af6fe885e7498332785da110cb500))
+
 ## [2.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.1.0...python-openinference-instrumentation-llama-index-v2.1.1) (2024-07-25)
 
 

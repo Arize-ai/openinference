@@ -7,11 +7,23 @@ from typing import (
     Dict,
     Iterator,
     Optional,
+    Sequence,
     Union,
+    cast,
     get_args,
 )
 
 import wrapt
+from opentelemetry.context import (
+    _SUPPRESS_INSTRUMENTATION_KEY,
+    Context,
+    attach,
+    detach,
+    set_value,
+)
+from opentelemetry.trace import Link, Span, SpanKind, Tracer, use_span
+from opentelemetry.util.types import Attributes, AttributeValue
+
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -19,14 +31,6 @@ from openinference.semconv.trace import (
     MessageContentAttributes,
     SpanAttributes,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.context import (
-    _SUPPRESS_INSTRUMENTATION_KEY,
-    attach,
-    detach,
-    set_value,
-)
-from opentelemetry.util.types import AttributeValue
 
 from .logging import logger
 
@@ -189,11 +193,11 @@ class TraceConfig:
                 f.metadata["default_value"],
             )
 
-    def censor(
+    def mask(
         self,
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
-    ) -> Optional[Union[AttributeValue, Callable[[], AttributeValue]]]:
+    ) -> Optional[AttributeValue]:
         if self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
@@ -256,7 +260,7 @@ class TraceConfig:
             and EmbeddingAttributes.EMBEDDING_VECTOR in key
         ):
             return
-        return value
+        return value() if callable(value) else value
 
     def _parse_value(
         self,
@@ -304,10 +308,16 @@ class TraceConfig:
             return cast_to(value)
 
 
-class _CensoredSpan(wrapt.ObjectProxy):  # type: ignore[misc]
-    def __init__(self, wrapped: trace_api.Span, config: TraceConfig) -> None:
+_IMPORTANT_ATTRIBUTES = [
+    SpanAttributes.OPENINFERENCE_SPAN_KIND,
+]
+
+
+class _WrappedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
+    def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
+        self._self_important_attributes: Dict[str, AttributeValue] = {}
 
     def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
         for k, v in attributes.items():
@@ -318,28 +328,86 @@ class _CensoredSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> None:
-        value = self._self_config.censor(key, value)
+        value = self._self_config.mask(key, value)
         if value is not None:
-            span = self.__wrapped__
-            span.set_attribute(key, value)
+            if key in _IMPORTANT_ATTRIBUTES:
+                self._self_important_attributes[key] = value
+            else:
+                span = cast(Span, self.__wrapped__)
+                span.set_attribute(key, value)
+
+    def end(self, end_time: Optional[int] = None) -> None:
+        span = cast(Span, self.__wrapped__)
+        for k, v in reversed(self._self_important_attributes.items()):
+            span.set_attribute(k, v)
+        span.end(end_time)
 
 
-class ConfigTracer(wrapt.ObjectProxy):  # type: ignore[misc]
-    def __init__(self, wrapped: trace_api.Tracer, config: TraceConfig) -> None:
+class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
+    def __init__(self, wrapped: Tracer, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
 
     @contextmanager
-    def start_as_current_span(self, *args, **kwargs) -> Iterator[trace_api.Span]:
-        with self.__wrapped__.start_as_current_span(*args, **kwargs) as span:
-            yield _CensoredSpan(span, self._self_config)
-
-    def start_span(self, *args, **kwargs) -> trace_api.Span:
-        return _CensoredSpan(
-            self.__wrapped__.start_span(*args, **kwargs),
-            config=self._self_config,
+    def start_as_current_span(
+        self,
+        name: str,
+        context: Optional[Context] = None,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Attributes = None,
+        links: Optional[Sequence[Link]] = (),
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+        end_on_exit: bool = True,
+    ) -> Iterator[Span]:
+        span = self.start_span(
+            name=name,
+            context=context,
+            kind=kind,
+            attributes=attributes,
+            links=links,
+            start_time=start_time,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
         )
+        with use_span(
+            span,
+            end_on_exit=end_on_exit,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        ) as span:
+            yield span
+
+    def start_span(
+        self,
+        name: str,
+        context: Optional[Context] = None,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Attributes = None,
+        links: Optional[Sequence[Link]] = (),
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+    ) -> Span:
+        tracer = cast(Tracer, self.__wrapped__)
+        span = tracer.start_span(
+            name=name,
+            context=context,
+            kind=kind,
+            attributes=None,
+            links=links,
+            start_time=start_time,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        )
+        span = _WrappedSpan(span, config=self._self_config)
+        if attributes:
+            span.set_attributes(attributes)
+        return span
 
 
 def is_base64_url(url: str) -> bool:
+    if not isinstance(url, str):
+        return False
     return url.startswith("data:image/") and "base64" in url

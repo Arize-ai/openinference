@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.9...python-openinference-instrumentation-mistralai-v0.0.10) (2024-08-13)
+
+
+### Documentation
+
+* TraceConfig and context attributes ([#793](https://github.com/Arize-ai/openinference/issues/793)) ([d3808c4](https://github.com/Arize-ai/openinference/commit/d3808c4bea3f6a4c72d3a7ea09b54e78072be6fd))
+
+## [0.0.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.8...python-openinference-instrumentation-mistralai-v0.0.9) (2024-08-03)
+
+
+### Features
+
+* Enable config propagation ([#741](https://github.com/Arize-ai/openinference/issues/741)) ([16cdc6b](https://github.com/Arize-ai/openinference/commit/16cdc6b71fb14728a3eca7db27a55b68187cb4aa))
+
 ## [0.0.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.7...python-openinference-instrumentation-mistralai-v0.0.8) (2024-05-30)
 
 

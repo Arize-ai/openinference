@@ -395,6 +395,8 @@ describe("OpenAIInstrumentation", () => {
         "llm.token_count.completion": 7,
         "llm.token_count.prompt": 70,
         "llm.token_count.total": 77,
+        "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}}",
+        "llm.tools.1.tool.json_schema": "{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}",
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "output.value": "{"id":"chatcmpl-8hhqZDFTRD0vzExhqWnMLE7viVl7E","object":"chat.completion","created":1705427343,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}"}}]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":70,"completion_tokens":7,"total_tokens":77},"system_fingerprint":null}",
@@ -402,62 +404,66 @@ describe("OpenAIInstrumentation", () => {
     `);
     expect(span2.name).toBe("OpenAI Chat Completions");
     expect(span2.attributes).toMatchInlineSnapshot(`
-      {
-        "input.mime_type": "application/json",
-        "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}"}}]},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
-        "llm.input_messages.0.message.content": "How is the weather this week?",
-        "llm.input_messages.0.message.role": "user",
-        "llm.input_messages.1.message.role": "assistant",
-        "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{}",
-        "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "getCurrentLocation",
-        "llm.input_messages.2.message.content": "Boston",
-        "llm.input_messages.2.message.role": "tool",
-        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
-        "llm.model_name": "gpt-3.5-turbo-0613",
-        "llm.output_messages.0.message.role": "assistant",
-        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{
-        "location": "Boston"
-      }",
-        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "getWeather",
-        "llm.token_count.completion": 15,
-        "llm.token_count.prompt": 86,
-        "llm.token_count.total": 101,
-        "openinference.span.kind": "LLM",
-        "output.mime_type": "application/json",
-        "output.value": "{"id":"chatcmpl-8hhsP9eAplUFYB3mHUJxBkq7IwnjZ","object":"chat.completion","created":1705427457,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"name":"getWeather","arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}"}}]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101},"system_fingerprint":null}",
-      }
-    `);
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}","parsed_arguments":null}}],"parsed":null},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
+  "llm.input_messages.0.message.content": "How is the weather this week?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.input_messages.1.message.role": "assistant",
+  "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{}",
+  "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "getCurrentLocation",
+  "llm.input_messages.2.message.content": "Boston",
+  "llm.input_messages.2.message.role": "tool",
+  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
+  "llm.model_name": "gpt-3.5-turbo-0613",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{
+  "location": "Boston"
+}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "getWeather",
+  "llm.token_count.completion": 15,
+  "llm.token_count.prompt": 86,
+  "llm.token_count.total": 101,
+  "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}}",
+  "llm.tools.1.tool.json_schema": "{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"chatcmpl-8hhsP9eAplUFYB3mHUJxBkq7IwnjZ","object":"chat.completion","created":1705427457,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"name":"getWeather","arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}"}}]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101},"system_fingerprint":null}",
+}
+`);
     expect(span3.name).toBe("OpenAI Chat Completions");
     expect(span3.attributes).toMatchInlineSnapshot(`
-      {
-        "input.mime_type": "application/json",
-        "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}"}}]},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"name":"getWeather","arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}"}}]},{"role":"tool","tool_call_id":"call_0LCdYLkdRUt3rV3dawoIFHBf","content":"{\\"temperature\\":52,\\"precipitation\\":\\"rainy\\"}"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
-        "llm.input_messages.0.message.content": "How is the weather this week?",
-        "llm.input_messages.0.message.role": "user",
-        "llm.input_messages.1.message.role": "assistant",
-        "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{}",
-        "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "getCurrentLocation",
-        "llm.input_messages.2.message.content": "Boston",
-        "llm.input_messages.2.message.role": "tool",
-        "llm.input_messages.3.message.role": "assistant",
-        "llm.input_messages.3.message.tool_calls.0.tool_call.function.arguments": "{
-        "location": "Boston"
-      }",
-        "llm.input_messages.3.message.tool_calls.0.tool_call.function.name": "getWeather",
-        "llm.input_messages.4.message.content": "{"temperature":52,"precipitation":"rainy"}",
-        "llm.input_messages.4.message.role": "tool",
-        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
-        "llm.model_name": "gpt-3.5-turbo-0613",
-        "llm.output_messages.0.message.content": "The weather in Boston this week is expected to be rainy with a temperature of 52 degrees.",
-        "llm.output_messages.0.message.role": "assistant",
-        "llm.token_count.completion": 20,
-        "llm.token_count.prompt": 121,
-        "llm.token_count.total": 141,
-        "openinference.span.kind": "LLM",
-        "output.mime_type": "application/json",
-        "output.value": "{"id":"chatcmpl-8hhtfzSD33tsG7XJiBg4F9MqnXKDp","object":"chat.completion","created":1705427535,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"The weather in Boston this week is expected to be rainy with a temperature of 52 degrees."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":121,"completion_tokens":20,"total_tokens":141},"system_fingerprint":null}",
-      }
-    `);
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"How is the weather this week?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","type":"function","function":{"name":"getCurrentLocation","arguments":"{}","parsed_arguments":null}}],"parsed":null},{"role":"tool","tool_call_id":"call_5ERYvu4iTGSvDlcDQjDP3g3J","content":"Boston"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_0LCdYLkdRUt3rV3dawoIFHBf","type":"function","function":{"name":"getWeather","arguments":"{\\n  \\"location\\": \\"Boston\\"\\n}","parsed_arguments":null}}],"parsed":null},{"role":"tool","tool_call_id":"call_0LCdYLkdRUt3rV3dawoIFHBf","content":"{\\"temperature\\":52,\\"precipitation\\":\\"rainy\\"}"}],"tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
+  "llm.input_messages.0.message.content": "How is the weather this week?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.input_messages.1.message.role": "assistant",
+  "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{}",
+  "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "getCurrentLocation",
+  "llm.input_messages.2.message.content": "Boston",
+  "llm.input_messages.2.message.role": "tool",
+  "llm.input_messages.3.message.role": "assistant",
+  "llm.input_messages.3.message.tool_calls.0.tool_call.function.arguments": "{
+  "location": "Boston"
+}",
+  "llm.input_messages.3.message.tool_calls.0.tool_call.function.name": "getWeather",
+  "llm.input_messages.4.message.content": "{"temperature":52,"precipitation":"rainy"}",
+  "llm.input_messages.4.message.role": "tool",
+  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","tools":[{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}},{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}],"tool_choice":"auto","stream":false}",
+  "llm.model_name": "gpt-3.5-turbo-0613",
+  "llm.output_messages.0.message.content": "The weather in Boston this week is expected to be rainy with a temperature of 52 degrees.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.token_count.completion": 20,
+  "llm.token_count.prompt": 121,
+  "llm.token_count.total": 141,
+  "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}}",
+  "llm.tools.1.tool.json_schema": "{"type":"function","function":{"name":"getWeather","parameters":{"type":"object","properties":{"location":{"type":"string"}}},"description":"Get the weather for a location."}}",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"chatcmpl-8hhtfzSD33tsG7XJiBg4F9MqnXKDp","object":"chat.completion","created":1705427535,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"The weather in Boston this week is expected to be rainy with a temperature of 52 degrees."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":121,"completion_tokens":20,"total_tokens":141},"system_fingerprint":null}",
+}
+`);
   });
   it("should capture tool calls with streaming", async () => {
     jest.spyOn(openai, "post").mockImplementation(
@@ -580,6 +586,8 @@ describe("OpenAIInstrumentation", () => {
   "llm.output_messages.0.message.role": "assistant",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{}",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "getWeather",
+  "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"getCurrentLocation","parameters":{"type":"object","properties":{}},"description":"Get the current location of the user."}}",
+  "llm.tools.1.tool.json_schema": "{"type":"function","function":{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}}}",
   "openinference.span.kind": "LLM",
   "output.mime_type": "text/plain",
   "output.value": "",
@@ -740,5 +748,78 @@ describe("OpenAIInstrumentation", () => {
     });
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(0);
+  });
+  it("should capture image in request", async () => {
+    const response = {
+      id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
+      object: "chat.completion",
+      created: 1703743645,
+      model: "gpt-3.5-turbo-0613",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "This is a test.",
+          },
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 12,
+        completion_tokens: 5,
+        total_tokens: 17,
+      },
+    };
+    // Mock out the chat completions endpoint
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+    await openai.chat.completions.create({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Say this is a test" },
+            {
+              type: "image_url",
+              image_url: {
+                url: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+              },
+            },
+          ],
+        },
+      ],
+      model: "gpt-3.5-turbo",
+    });
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"messages":[{"role":"user","content":[{"type":"text","text":"Say this is a test"},{"type":"image_url","image_url":{"url":"data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="}}]}],"model":"gpt-3.5-turbo"}",
+        "llm.input_messages.0.message.contents.0.message_content.text": "Say this is a test",
+        "llm.input_messages.0.message.contents.0.message_content.type": "text",
+        "llm.input_messages.0.message.contents.1.message_content.image": "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+        "llm.input_messages.0.message.contents.1.message_content.type": "image",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo"}",
+        "llm.model_name": "gpt-3.5-turbo-0613",
+        "llm.output_messages.0.message.content": "This is a test.",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.token_count.completion": 5,
+        "llm.token_count.prompt": 12,
+        "llm.token_count.total": 17,
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "application/json",
+        "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+      }
+    `);
   });
 });

@@ -3,6 +3,7 @@ from abc import ABC
 from copy import copy, deepcopy
 from enum import Enum
 from inspect import signature
+from logging import getLogger
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -17,7 +18,18 @@ from typing import (
 )
 
 import opentelemetry.context as context_api
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeGuard
+from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
+
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    get_attributes_from_context,
+    safe_json_dumps,
+)
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
 from openinference.semconv.trace import (
@@ -26,11 +38,8 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeGuard
-from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
+
+logger = getLogger(__name__)
 
 try:
     from google.generativeai.types import GenerateContentResponse  # type: ignore
@@ -59,7 +68,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        if not (config := kwargs.get("config")):
+            config = TraceConfig()
+        else:
+            assert isinstance(config, TraceConfig)
+        self._tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
 
         # Instrument LM (language model) calls
         from dsp.modules.lm import LM
@@ -68,12 +84,28 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         language_model_classes = LM.__subclasses__()
         for lm in language_model_classes:
-            wrap_object(
-                module=_DSP_MODULE,
-                name=lm.__name__ + ".basic_request",
-                factory=CopyableFunctionWrapper,
-                args=(_LMBasicRequestWrapper(tracer),),
-            )
+            # Determine the top-level module of the class
+            top_level_module = lm.__module__.split(".")[0]
+
+            # Set the module based on the top-level module name
+            # E.g. this means it's a built-in DSP model
+            if top_level_module in {_DSP_MODULE, _DSPY_MODULE}:
+                # wrap the DSP module
+                module = _DSP_MODULE
+            else:
+                # this is a custom LM. Patch the custom module
+                module = lm.__module__
+
+            try:
+                wrap_object(
+                    module=module,
+                    name=f"{lm.__name__}.basic_request",
+                    factory=CopyableFunctionWrapper,
+                    args=(_LMBasicRequestWrapper(self._tracer),),
+                )
+            except Exception as e:
+                # log and don't raise an exception if the wrapping fails
+                logger.warn(f"Error wrapping {lm.__name__}.basic_request: {e}")
 
         # Predict is a concrete (non-abstract) class that may be invoked
         # directly, but DSPy also has subclasses of Predict that override the
@@ -83,7 +115,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSPY_MODULE,
             name="Predict.forward",
             factory=CopyableFunctionWrapper,
-            args=(_PredictForwardWrapper(tracer),),
+            args=(_PredictForwardWrapper(self._tracer),),
         )
 
         predict_subclasses = Predict.__subclasses__()
@@ -92,14 +124,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".forward",
                 factory=CopyableFunctionWrapper,
-                args=(_PredictForwardWrapper(tracer),),
+                args=(_PredictForwardWrapper(self._tracer),),
             )
 
         wrap_object(
             module=_DSPY_MODULE,
             name="Retrieve.forward",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverForwardWrapper(tracer),),
+            args=(_RetrieverForwardWrapper(self._tracer),),
         )
 
         wrap_object(
@@ -109,7 +141,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             # forward method and invokes that method using __call__.
             name="Module.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_ModuleForwardWrapper(tracer),),
+            args=(_ModuleForwardWrapper(self._tracer),),
         )
 
         # At this time, there is no common parent class for retriever models as
@@ -119,7 +151,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSP_MODULE,
             name="ColBERTv2.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverModelCallWrapper(tracer),),
+            args=(_RetrieverModelCallWrapper(self._tracer),),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

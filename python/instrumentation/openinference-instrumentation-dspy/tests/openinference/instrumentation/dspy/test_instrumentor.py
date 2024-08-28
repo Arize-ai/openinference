@@ -24,7 +24,14 @@ from dspy.teleprompt import BootstrapFewShotWithRandomSearch
 from google.generativeai import GenerativeModel  # type: ignore
 from google.generativeai.types import GenerateContentResponse  # type: ignore
 from httpx import Response
-from openinference.instrumentation import using_attributes
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.dspy import DSPyInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -35,12 +42,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
 
 VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy-ai").split(".")[:3])))
 
@@ -157,8 +158,16 @@ def clear_cache() -> None:
     fixture clears the cache before each test case to ensure that our mocked
     responses are used.
     """
-    CacheMemory.clear()
-    NotebookCacheMemory.clear()
+    try:
+        CacheMemory.clear()
+        NotebookCacheMemory.clear()
+    except Exception:
+        pass
+
+
+# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
+def test_oitracer() -> None:
+    assert isinstance(DSPyInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -747,7 +756,7 @@ def test_compilation(
         )
     )
 
-    with dspy.context(lm=dspy.OpenAI(model="gpt-4")):
+    with dspy.context(lm=dspy.OpenAI(model="gpt-4", api_key="sk-fake-key")):
         teleprompter = BootstrapFewShotWithRandomSearch(
             metric=exact_match,
             max_bootstrapped_demos=1,
@@ -767,7 +776,7 @@ def test_compilation(
     spans = in_memory_span_exporter.get_finished_spans()
     assert spans, "no spans were recorded"
     for span in spans:
-        assert not span.events, "spans should not contain exception events"
+        assert not span.events, f"spans should not contain exception events {str(span.events)}"
 
 
 def _check_context_attributes(

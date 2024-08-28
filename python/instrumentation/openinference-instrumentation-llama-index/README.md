@@ -15,8 +15,9 @@ pip install openinference-instrumentation-llama-index
 
 | llama-index version | openinference-instrumentation-llama-index version |
 |---------------------|---------------------------------------------------|
-| \>=0.10.43          | \>=2.0.0                                          |
-| \>=0.10.0, <0.10.43 | \>=1.0.0, <0.2                                    |
+| \>=0.11.0           | \>=3.0                                            |
+| \>=0.10.43          | \>=2.0, <3.0                                      |
+| \>=0.10.0, <0.10.43 | \>=1.0, <0.2                                      |
 | \>=0.9.14, <0.10.0  | 0.1.3                                             |
 
 ## Quickstart
@@ -91,6 +92,6 @@ Visit the Phoenix app at `http://localhost:6006` to see the traces.
 
 ## More Info
 
-More details about tracing with OpenInference and Phoenix can be found in the [Phoenix documentation](https://docs.arize.com/phoenix).
-
-For AI/ML observability solutions in production, including a cloud-based trace collector, visit [Arize](https://docs.arize.com/arize).
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

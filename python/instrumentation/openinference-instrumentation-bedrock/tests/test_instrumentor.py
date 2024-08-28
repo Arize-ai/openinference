@@ -1,12 +1,19 @@
+import base64
 import io
 import json
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator, List, Tuple
 from unittest.mock import MagicMock
 
 import boto3
 import pytest
 from botocore.response import StreamingBody
-from openinference.instrumentation import using_attributes
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.bedrock import (
     _MINIMUM_CONVERSE_BOTOCORE_VERSION,
     BedrockInstrumentor,
@@ -16,11 +23,14 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+
+@pytest.fixture()
+def image_bytes_and_format() -> Tuple[bytes, str]:
+    return (
+        b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",  # noqa: E501
+        "webp",
+    )
 
 
 @pytest.fixture()
@@ -96,6 +106,11 @@ def instrument(
     yield
     BedrockInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
+
+
+# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
+def test_oitracer() -> None:
+    assert isinstance(BedrockInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -754,6 +769,127 @@ def test_converse_multiple_models(
     )
 
 
+@pytest.mark.parametrize("use_context_attributes", [False])  # , True])
+def test_converse_multimodal(
+    use_context_attributes: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    image_bytes_and_format: Tuple[bytes, str],
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+        pytest.xfail(
+            f"Botocore {version} does not support the Converse API. "
+            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
+        )
+    system = [{"text": "return a short response"}]
+    inference_config = {"maxTokens": 1024, "temperature": 0.0}
+    output = {
+        "message": {
+            "role": "assistant",
+            "content": [{"text": "Hi there! How can I assist you today?"}],
+        }
+    }
+    mock_response = {
+        "ResponseMetadata": {
+            "RequestId": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
+            "HTTPStatusCode": 200,
+            "HTTPHeaders": {
+                "date": "Sun, 21 Jan 2024 20:00:00 GMT",
+                "content-type": "application/json",
+                "content-length": "74",
+                "connection": "keep-alive",
+                "x-amzn-requestid": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
+                "x-amzn-bedrock-invocation-latency": "425",
+                "x-amzn-bedrock-output-token-count": "6",
+                "x-amzn-bedrock-input-token-count": "12",
+            },
+            "RetryAttempts": 0,
+        },
+        "output": output,
+        "usage": {"inputTokens": 12, "outputTokens": 6, "totalTokens": 18},
+    }
+    session = boto3.session.Session()
+    client = session.client("bedrock-runtime", region_name="us-east-1")
+    # instead of mocking the HTTP response, we mock the boto client method directly to avoid
+    # complexities with mocking auth
+    client._unwrapped_converse = MagicMock(return_value=mock_response)
+    model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    input_text = "What's in this image?"
+
+    img_bytes, format = image_bytes_and_format
+    message = {
+        "role": "user",
+        "content": [
+            {
+                "text": input_text,
+            },
+            {
+                "image": {
+                    "format": format,
+                    "source": {
+                        "bytes": img_bytes,
+                    },
+                }
+            },
+        ],
+    }
+
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            client.converse(
+                modelId=model_name,
+                system=system,
+                messages=[message],
+                inferenceConfig=inference_config,
+            )
+    else:
+        client.converse(
+            modelId=model_name,
+            system=system,
+            messages=[message],
+            inferenceConfig=inference_config,
+        )
+
+    llm_input_messages_truths = [
+        {"role": "system", "content": system[0]["text"]},
+        {"role": message.get("role"), "content": message.get("content")},
+    ]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    _run_converse_checks(
+        use_context_attributes,
+        session_id,
+        user_id,
+        metadata,
+        tags,
+        prompt_template,
+        prompt_template_version,
+        prompt_template_variables,
+        span=spans[0],
+        llm_input_messages_truth=llm_input_messages_truths,  # type:ignore
+        input=message["content"][0]["text"],  # type: ignore
+        output=output,
+        model_name=model_name,
+        token_counts=mock_response["usage"],  # type: ignore
+        invocation_parameters=inference_config,
+    )
+
+
 def _check_context_attributes(
     attributes: Dict[str, Any],
     session_id: str,
@@ -823,11 +959,26 @@ def _run_converse_checks(
     assert attributes.pop(INPUT_VALUE) == input
     for msg_idx, msg in enumerate(llm_input_messages_truth):
         role_key = f"llm.input_messages.{msg_idx}.message.role"
-        content_key = f"llm.input_messages.{msg_idx}.message.content"
+        content_key = f"llm.input_messages.{msg_idx}.message.contents"
         assert attributes.pop(role_key) == msg["role"], f"Role mismatch for message {msg_idx}."
-        assert (
-            attributes.pop(content_key) == msg["content"]
-        ), f"Content mismatch for message {msg_idx}."
+        content = msg["content"]
+        if isinstance(content, str):
+            content = [{"text": content}]  # type:ignore
+        for content_idx, content_item in enumerate(content):
+            if content_item.get("image"):  # type:ignore
+                expected_type = "image"
+                base64_img = base64.b64encode(content_item["image"]["source"]["bytes"]).decode(  # type:ignore
+                    "utf-8"
+                )
+                expected_value = f"data:image/jpeg;base64,{base64_img}"
+                value_key = f"{content_key}.{content_idx}.message_content.image.image.url"
+            else:
+                expected_type = "text"
+                expected_value = content_item["text"]  # type:ignore
+                value_key = f"{content_key}.{content_idx}.message_content.text"
+            type_key = f"{content_key}.{content_idx}.message_content.type"
+            assert attributes.pop(type_key) == expected_type
+            assert attributes.pop(value_key) == expected_value
 
     if use_context_attributes:
         _check_context_attributes(

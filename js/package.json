@@ -31,13 +31,19 @@
     "prettier": "^3.3.3",
     "rimraf": "^5.0.9",
     "ts-jest": "^29.2.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.4"
   },
   "engines": {
     "node": ">=10",
     "pnpm": ">=3"
   },
+  "packageManager": "pnpm@9.8.0",
   "eslintIgnore": [
     "examples/**/*"
-  ]
+  ],
+  "pnpm": {
+    "overrides": {
+      "@langchain/openai@^0.1>@langchain/core": "^0.1.63"
+    }
+  }
 }

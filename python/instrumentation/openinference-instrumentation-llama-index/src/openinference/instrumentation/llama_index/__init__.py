@@ -1,11 +1,12 @@
 import logging
 from typing import Any, Collection
 
-from openinference.instrumentation import TraceConfig
-from openinference.instrumentation.llama_index.package import _instruments
-from openinference.instrumentation.llama_index.version import __version__
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+
+from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.llama_index.package import _instruments
+from openinference.instrumentation.llama_index.version import __version__
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -49,15 +50,17 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
                     "Legacy callback handler is not available. "
                     "Using new instrumentation event/span handler instead."
                 )
-        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        tracer = OITracer(
+            trace_api.get_tracer(__name__, __version__, tracer_provider),
+            config=config,
+        )
         self._event_handler = None
 
         if self._use_legacy_callback_handler:
+            import llama_index.core
             from openinference.instrumentation.llama_index._callback import (
                 OpenInferenceTraceCallbackHandler,
             )
-
-            import llama_index.core
 
             self._original_global_handler = llama_index.core.global_handler
             llama_index.core.global_handler = OpenInferenceTraceCallbackHandler(tracer=tracer)
@@ -66,8 +69,8 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
 
             from ._handler import EventHandler
 
-            self._event_handler = EventHandler(tracer=tracer, config=config)
-            self._span_handler = self._event_handler.span_handler
+            self._event_handler = EventHandler(tracer=tracer)
+            self._span_handler = self._event_handler._span_handler
             dispatcher = get_dispatcher()
             for span_handler in dispatcher.span_handlers:
                 if isinstance(span_handler, type(self._span_handler)):

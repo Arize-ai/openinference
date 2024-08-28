@@ -35,7 +35,6 @@ guardrails hub install hub://guardrails/two_words
 ```
 
 Set up `GuardrailsInstrumentor` to trace your guardrails application and sends the traces to Phoenix at the endpoint defined below.
-
 ```python
 from openinference.instrumentation.guardrails import GuardrailsInstrumentor
 from opentelemetry import trace as trace_api
@@ -48,8 +47,8 @@ os.environ["OPENAI_API_KEY"] = "YOUR_KEY_HERE"
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
-trace_api.set_tracer_provider(tracer_provider)
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
+trace_api.set_tracer_provider(tracer_provider)
 
 GuardrailsInstrumentor().instrument()
 ```
@@ -73,3 +72,9 @@ response = guard(
 
 print(response)
 ```
+
+## More Info
+
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

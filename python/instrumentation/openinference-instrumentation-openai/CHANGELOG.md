@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.13...python-openinference-instrumentation-openai-v0.1.14) (2024-08-16)
+
+
+### Features
+
+* Added tools attribute ([#904](https://github.com/Arize-ai/openinference/issues/904)) ([f1eb980](https://github.com/Arize-ai/openinference/commit/f1eb980a4a91d832c80252b254bf94a273c79031))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.12...python-openinference-instrumentation-openai-v0.1.13) (2024-08-10)
+
+
+### Documentation
+
+* TraceConfig and context attributes ([#793](https://github.com/Arize-ai/openinference/issues/793)) ([d3808c4](https://github.com/Arize-ai/openinference/commit/d3808c4bea3f6a4c72d3a7ea09b54e78072be6fd))
+* update openai readme ([#751](https://github.com/Arize-ai/openinference/issues/751)) ([10f20c2](https://github.com/Arize-ai/openinference/commit/10f20c2dd68f0ee8c90d8e43c0d71b408230dd66))
+* update openai readme ([#754](https://github.com/Arize-ai/openinference/issues/754)) ([4b8b967](https://github.com/Arize-ai/openinference/commit/4b8b96799b255d46d95a201dd7188f545c9d1228))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.11...python-openinference-instrumentation-openai-v0.1.12) (2024-08-02)
+
+
+### Bug Fixes
+
+* set higher lower-bound for OpenInference dependency ([#739](https://github.com/Arize-ai/openinference/issues/739)) ([08f9bef](https://github.com/Arize-ai/openinference/commit/08f9bef9391856b5d4f4dbb69a2c2867fd47bc51))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.10...python-openinference-instrumentation-openai-v0.1.11) (2024-08-01)
+
+
+### Bug Fixes
+
+* Rename base tracer and masked span ([#693](https://github.com/Arize-ai/openinference/issues/693)) ([861ea4b](https://github.com/Arize-ai/openinference/commit/861ea4ba45cf02a1d0519a7cd2c5c6ca5d74115b))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.9...python-openinference-instrumentation-openai-v0.1.10) (2024-07-31)
+
+
+### Features
+
+* Move attribute censorship based on config to common instrumentation ([#679](https://github.com/Arize-ai/openinference/issues/679)) ([04f885a](https://github.com/Arize-ai/openinference/commit/04f885a5934af6fe885e7498332785da110cb500))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.8...python-openinference-instrumentation-openai-v0.1.9) (2024-07-30)
 
 

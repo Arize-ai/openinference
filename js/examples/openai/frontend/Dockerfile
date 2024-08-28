@@ -16,7 +16,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Set the chat api url. This environment variable must be set at build time.
 # See https://github.com/vercel/next.js/discussions/44628#discussioncomment-7040424 for more information.
-ENV NEXT_PUBLIC_CHAT_API http://localhost:8000/api/chat
+ENV NEXT_PUBLIC_API_ENDPOINT http://localhost:8000
 RUN npm run build
 
 # Production image, copy all the files and run next

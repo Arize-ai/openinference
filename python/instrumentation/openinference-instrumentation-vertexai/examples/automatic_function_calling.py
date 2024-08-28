@@ -1,6 +1,5 @@
 # FIXME: This example isn't working due to a bug inside vertexai==1.49.0
 import vertexai
-from openinference.instrumentation.vertexai import VertexAIInstrumentor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -10,6 +9,8 @@ from vertexai.preview.generative_models import (
     GenerativeModel,
     Tool,
 )
+
+from openinference.instrumentation.vertexai import VertexAIInstrumentor
 
 endpoint = "http://127.0.0.1:4317"
 tracer_provider = TracerProvider()

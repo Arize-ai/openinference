@@ -27,7 +27,7 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.7",
+  "openinference-instrumentation>=0.1.12",
   "openinference-semantic-conventions",
   "wrapt",
 ]
@@ -61,6 +61,9 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = [
+  "tests",
+]
 
 [tool.mypy]
 strict = true
