@@ -14,5 +14,5 @@
     "python/instrumentation/openinference-instrumentation-litellm": "0.1.4",
     "python/instrumentation/openinference-instrumentation-groq": "0.1.2",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.1",
-    "python/instrumentation/openinference-instrumentation-anthropic": "0.1.1"
+    "python/instrumentation/openinference-instrumentation-anthropic": "0.1.2"
 }
