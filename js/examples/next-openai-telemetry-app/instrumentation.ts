@@ -1,8 +1,10 @@
 import { registerOTel } from "@vercel/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
-import { OpenInferenceSpanProcessor } from "@arizeai/openinference-vercel";
+import {
+  isOpenInferenceSpan,
+  OpenInferenceSimpleSpanProcessor,
+} from "@arizeai/openinference-vercel";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
@@ -15,9 +17,8 @@ export function register() {
       [SEMRESATTRS_PROJECT_NAME]: "phoenix-next-app",
     },
     spanProcessors: [
-      new OpenInferenceSpanProcessor(),
-      new SimpleSpanProcessor(
-        new OTLPTraceExporter({
+      new OpenInferenceSimpleSpanProcessor({
+        exporter: new OTLPTraceExporter({
           headers: {
             api_key: process.env["PHOENIX_API_KEY"],
           },
@@ -25,7 +26,11 @@ export function register() {
             process.env["PHOENIX_COLLECTOR_ENDPOINT"] ||
             "https://app.phoenix.arize.com/v1/traces",
         }),
-      ),
+        spanFilter: (span) => {
+          // Only export spans that are OpenInference spans to negate
+          return isOpenInferenceSpan(span);
+        },
+      }),
     ],
   });
 }
