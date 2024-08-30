@@ -2,10 +2,14 @@ import { Attributes, trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
-  SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
-import { OpenInferenceSpanProcessor } from "../src";
+import {
+  isOpenInferenceSpan,
+  OpenInferenceBatchSpanProcessor,
+  OpenInferenceSimpleSpanProcessor,
+  SpanFilter,
+} from "../src";
 import {
   MimeType,
   OpenInferenceSpanKind,
@@ -16,8 +20,6 @@ import {
   AISemanticConventionsList,
 } from "../src/AISemanticConventions";
 import { assertUnreachable } from "../src/typeUtils";
-
-const traceProvider = new BasicTracerProvider();
 
 type SpanProcessorTestCase = [
   string,
@@ -510,14 +512,38 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
   return testCases;
 };
 
-describe("OpenInferenceSpanProcessor", () => {
-  const memoryExporter = new InMemorySpanExporter();
-  traceProvider.addSpanProcessor(new OpenInferenceSpanProcessor());
-  traceProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+let traceProvider = new BasicTracerProvider();
+let memoryExporter = new InMemorySpanExporter();
+let processor:
+  | OpenInferenceSimpleSpanProcessor
+  | OpenInferenceBatchSpanProcessor;
+function setupTraceProvider({
+  Processor,
+  spanFilter,
+}: {
+  Processor:
+    | typeof OpenInferenceBatchSpanProcessor
+    | typeof OpenInferenceSimpleSpanProcessor;
+  spanFilter?: SpanFilter;
+}) {
+  memoryExporter.reset();
+  trace.disable();
+  traceProvider = new BasicTracerProvider();
+  memoryExporter = new InMemorySpanExporter();
+  processor = new Processor({
+    exporter: memoryExporter,
+    spanFilter,
+  });
+  traceProvider.addSpanProcessor(processor);
   trace.setGlobalTracerProvider(traceProvider);
+}
 
+describe("OpenInferenceSimpleSpanProcessor", () => {
   beforeEach(() => {
-    memoryExporter.reset();
+    setupTraceProvider({ Processor: OpenInferenceSimpleSpanProcessor });
+  });
+  afterEach(() => {
+    trace.disable();
   });
 
   it("should get the span kind from attributes", () => {
@@ -557,4 +583,110 @@ describe("OpenInferenceSpanProcessor", () => {
       });
     },
   );
+
+  it("should not export non-AI spans", () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("ai.generateText");
+    span.setAttribute("operation.name", "ai.generateText");
+    span.end();
+    const nonOpenInferenceSpan = tracer.startSpan("non-ai-span");
+    nonOpenInferenceSpan.end();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(2);
+  });
+  it("should export all spans if there is no filter", () => {
+    setupTraceProvider({
+      Processor: OpenInferenceSimpleSpanProcessor,
+    });
+
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("not ai");
+    span.setAttribute("operation.name", "not ai stuff");
+    span.end();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+  });
+
+  it("should not export spans that do not pass the filter", () => {
+    setupTraceProvider({
+      Processor: OpenInferenceSimpleSpanProcessor,
+      spanFilter: isOpenInferenceSpan,
+    });
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("not ai");
+    span.setAttribute("operation.name", "not ai stuff");
+    span.end();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(0);
+  });
+});
+
+describe("OpenInferenceBatchSpanProcessor", () => {
+  beforeEach(() => {
+    setupTraceProvider({ Processor: OpenInferenceBatchSpanProcessor });
+  });
+
+  test.each(generateVercelAttributeTestCases())(
+    "should map %s",
+    async (
+      _name,
+      { vercelFunctionName, vercelAttributes, addedOpenInferenceAttributes },
+    ) => {
+      const tracer = trace.getTracer("test-tracer");
+      const span = tracer.startSpan(vercelFunctionName);
+      const vercelAttributesWithOperationName = {
+        ...vercelAttributes,
+        "operation.name": vercelFunctionName,
+      };
+
+      span.setAttributes(vercelAttributesWithOperationName);
+      span.end();
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(spans[0].attributes).toStrictEqual({
+        ...vercelAttributesWithOperationName,
+        ...addedOpenInferenceAttributes,
+      });
+    },
+  );
+
+  it("should not export non-AI spans", async () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("ai.generateText");
+    span.setAttribute("operation.name", "ai.generateText");
+    span.end();
+    const nonOpenInferenceSpan = tracer.startSpan("non-ai-span");
+    nonOpenInferenceSpan.end();
+    const spans = memoryExporter.getFinishedSpans();
+    await processor.forceFlush();
+    expect(spans.length).toBe(2);
+  });
+  it("should export all spans if there is no filter", async () => {
+    setupTraceProvider({
+      Processor: OpenInferenceBatchSpanProcessor,
+    });
+
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("not ai");
+    span.setAttribute("operation.name", "not ai stuff");
+    span.end();
+    await processor.forceFlush();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+  });
+
+  it("should not export spans that do not pass the filter", async () => {
+    setupTraceProvider({
+      Processor: OpenInferenceBatchSpanProcessor,
+      spanFilter: isOpenInferenceSpan,
+    });
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("not ai");
+    span.setAttribute("operation.name", "not ai stuff");
+    span.end();
+    await processor.forceFlush();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(0);
+  });
 });
