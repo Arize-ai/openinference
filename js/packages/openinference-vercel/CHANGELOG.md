@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 1.0.0
+
+### Major Changes
+
+- 4f9246f: migrate OpenInferenceSpanProcessor to OpenInferenceSimpleSpanProcessor and OpenInferenceBatchSpanProcessor to allow for filtering exported spans
+
 ## 0.1.1
 
 ### Patch Changes
