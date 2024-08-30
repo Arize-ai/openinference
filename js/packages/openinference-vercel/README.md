@@ -58,7 +58,7 @@ export function register() {
             "https://app.phoenix.arize.com/v1/traces",
         }),
         spanFilter: (span) => {
-          // Only export spans that are OpenInference spans to negate
+          // Only export spans that are OpenInference to negate non-generative spans
           // This should be removed if you want to export all spans
           return isOpenInferenceSpan(span);
         },
