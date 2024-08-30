@@ -9,6 +9,6 @@ class _Stream(ObjectProxy):
         super().__init__(stream)
 
     def __iter__(self):
-        completion = self.__wrapped__.__iter__()
-        print("harrison got {}".format(completion))
-        yield completion
+        for item in self.__wrapped__:
+            print("harrison got {}".format(item))
+            yield item

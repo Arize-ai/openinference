@@ -1,0 +1,27 @@
+interactions:
+- request:
+    body: '{"max_tokens_to_sample": 1000, "model": "claude-2.1", "prompt": "\n\nHuman:
+      why is the sky blue? respond in five words or less. \n\nAssistant:", "stream":
+      true}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/complete
+  response:
+    body:
+      string: "event: completion\r\ndata: {\"type\":\"completion\",\"id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\",\"completion\":\"
+        Light\",\"stop_reason\":null,\"model\":\"claude-2.1\",\"stop\":null,\"log_id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\"
+        \    }\r\n\r\nevent: completion\r\ndata: {\"type\":\"completion\",\"id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\",\"completion\":\"
+        sc\",\"stop_reason\":null,\"model\":\"claude-2.1\",\"stop\":null,\"log_id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\"
+        \       }\r\n\r\nevent: ping\r\ndata: {\"type\": \"ping\"}\r\n\r\nevent: completion\r\ndata:
+        {\"type\":\"completion\",\"id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\",\"completion\":\"at\",\"stop_reason\":null,\"model\":\"claude-2.1\",\"stop\":null,\"log_id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\"
+        \   }\r\n\r\nevent: completion\r\ndata: {\"type\":\"completion\",\"id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\",\"completion\":\"ters\",\"stop_reason\":null,\"model\":\"claude-2.1\",\"stop\":null,\"log_id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\"
+        \          }\r\n\r\nevent: completion\r\ndata: {\"type\":\"completion\",\"id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\",\"completion\":\"
+        blue\",\"stop_reason\":null,\"model\":\"claude-2.1\",\"stop\":null,\"log_id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\"}\r\n\r\nevent:
+        completion\r\ndata: {\"type\":\"completion\",\"id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\",\"completion\":\".\",\"stop_reason\":null,\"model\":\"claude-2.1\",\"stop\":null,\"log_id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\"
+        \         }\r\n\r\nevent: completion\r\ndata: {\"type\":\"completion\",\"id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\",\"completion\":\"\",\"stop_reason\":\"stop_sequence\",\"model\":\"claude-2.1\",\"stop\":\"\\n\\nHuman:\",\"log_id\":\"compl_015dfgyiT7JLszAiMbGMtgeG\"
+        \     }\r\n\r\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

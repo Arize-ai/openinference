@@ -5,6 +5,7 @@ import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 
 from anthropic.types import TextBlock, ToolUseBlock
+from openinference.instrumentation.anthropic._stream import _Stream
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -72,14 +73,17 @@ class _CompletionsWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(
-                {
-                    OUTPUT_VALUE: response.model_dump_json(),
-                    OUTPUT_MIME_TYPE: JSON,
-                }
-            )
+            # TODO(harrison) This is in the else statement when not streaming
+            #span.set_attributes(
+            #    {
+            #        OUTPUT_VALUE: response.model_dump_json(),
+            #        OUTPUT_MIME_TYPE: JSON,
+            #    }
+            #)
 
-        return response
+        # TODO(harrison): this is going to cause bugs
+        stream_response = _Stream(response)
+        return stream_response
 
 
 class _AsyncCompletionsWrapper(_WithTracer):
