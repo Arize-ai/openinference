@@ -118,6 +118,49 @@ def setup_anthropic_instrumentation(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
+def test_anthropic_instrumentation_completions_streaming(
+) -> None:
+    client = Anthropic(api_key="fake")
+
+    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000}
+
+    prompt = (
+        f"{anthropic.HUMAN_PROMPT}"
+        f" why is the sky blue? respond in five words or less."
+        f" {anthropic.AI_PROMPT}"
+    )
+
+    stream = client.completions.create(
+        model="claude-2.1",
+        prompt=prompt,
+        max_tokens_to_sample=1000,
+        stream=True,
+    )
+    for event in stream:
+        print(event.completion)
+
+    #spans = in_memory_span_exporter.get_finished_spans()
+
+    #assert spans[0].name == "Completions"
+    #attributes = dict(spans[0].attributes or {})
+
+    #assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    #assert isinstance(attributes.pop(INPUT_VALUE), str)
+    #assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    #assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    #assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    #assert attributes.pop(LLM_PROMPTS) == (prompt,)
+    #assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    #assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    #assert json.loads(inv_params) == invocation_params
+    #assert not attributes
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_anthropic_instrumentation_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
