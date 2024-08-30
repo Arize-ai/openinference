@@ -15,7 +15,7 @@ npm install --save @arizeai/openinference-vercel
 You will also need to install OpenTelemetry and Vercel packages to your project.
 
 ```shell
-npm i @opentelemetry/api @vercel/otel @opentelemetry/exporter-trace-otlp-proto
+npm i @opentelemetry/api @vercel/otel @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-semantic-conventions
 ```
 
 ## Usage
