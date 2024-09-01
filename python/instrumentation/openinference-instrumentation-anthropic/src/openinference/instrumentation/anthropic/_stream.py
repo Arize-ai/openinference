@@ -45,7 +45,7 @@ class _Stream(ObjectProxy):  # type: ignore
         self._response_accumulator = _ResponseAccumulator()
         self._with_span = with_span
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Completion]:
         try:
             for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
@@ -81,9 +81,7 @@ class _ResponseAccumulator:
         "_values",
     )
 
-    def __init__(
-        self,
-    ) -> None:
+    def __init__(self) -> None:
         self._is_null = True
         self._values = _ValuesAccumulator(
             completion=_StringAccumulator(),
@@ -91,7 +89,7 @@ class _ResponseAccumulator:
             stop_reason=_SimpleStringReplace(),
         )
 
-    def process_chunk(self, chunk) -> None:
+    def process_chunk(self, chunk: Completion) -> None:
         self._is_null = False
         values = chunk.model_dump(exclude_unset=True, warnings=False)
         self._values += values

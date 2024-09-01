@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import (
@@ -43,7 +43,7 @@ class _WithSpan:
         except Exception:
             logger.exception("Failed to record exception on span")
 
-    def set_status(self, status: trace_api.Status) -> None:
+    def set_status(self, status: Union[trace_api.Status, trace_api.StatusCode]) -> None:
         if self._is_finished:
             return
         try:

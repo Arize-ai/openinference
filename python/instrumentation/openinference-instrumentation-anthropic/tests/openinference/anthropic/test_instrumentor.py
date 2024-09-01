@@ -121,7 +121,7 @@ def setup_anthropic_instrumentation(
 def test_anthropic_instrumentation_completions_streaming(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-    setup_anthropic_instrumentation,
+    setup_anthropic_instrumentation: Any,
 ) -> None:
     client = Anthropic(api_key="fake")
 
