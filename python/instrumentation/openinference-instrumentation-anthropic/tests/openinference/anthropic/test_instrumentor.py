@@ -263,6 +263,62 @@ def test_anthropic_instrumentation_messages(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
+def test_anthropic_instrumentation_messages_streaming(
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_anthropic_instrumentation: Any,
+) -> None:
+    client = Anthropic(api_key="fake")
+    input_message = "Why is the sky blue? Answer in 5 words or less"
+
+    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-20240229"}
+
+    stream = client.messages.create(
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": input_message,
+            }
+        ],
+        model="claude-2.1",
+        stream=True
+    )
+
+    for event in stream:
+        print(event)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "Messages"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert isinstance(
+        msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+    )
+    assert "paris" in msg_content.lower()
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-20240229"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
+    assert not attributes
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 async def test_anthropic_instrumentation_async_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,

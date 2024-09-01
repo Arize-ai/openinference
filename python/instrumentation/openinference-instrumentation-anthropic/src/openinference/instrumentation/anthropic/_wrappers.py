@@ -8,7 +8,10 @@ from opentelemetry.trace import INVALID_SPAN
 
 from anthropic.types import TextBlock, ToolUseBlock
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
-from openinference.instrumentation.anthropic._stream import _Stream
+from openinference.instrumentation.anthropic._stream import (
+    _MessagesStream,
+    _Stream,
+)
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -190,10 +193,8 @@ class _MessagesWrapper(_WithTracer):
         invocation_parameters = _get_invocation_parameters(arguments)
 
         span_name = "Messages"
-        with self._tracer.start_as_current_span(
+        with self._start_as_current_span(
             span_name,
-            record_exception=False,
-            set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -213,18 +214,22 @@ class _MessagesWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(
-                {
-                    **dict(_get_output_messages(response)),
-                    LLM_TOKEN_COUNT_PROMPT: response.usage.input_tokens,
-                    LLM_TOKEN_COUNT_COMPLETION: response.usage.output_tokens,
-                    OUTPUT_VALUE: response.model_dump_json(),
-                    OUTPUT_MIME_TYPE: JSON,
-                }
-            )
-
-        return response
+            streaming = kwargs.get("stream", False)
+            if streaming:
+                return _MessagesStream(response, span)
+            else:
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(
+                    {
+                        **dict(_get_output_messages(response)),
+                        LLM_TOKEN_COUNT_PROMPT: response.usage.input_tokens,
+                        LLM_TOKEN_COUNT_COMPLETION: response.usage.output_tokens,
+                        OUTPUT_VALUE: response.model_dump_json(),
+                        OUTPUT_MIME_TYPE: JSON,
+                    }
+                )
+                span.finish_tracing()
+                return response
 
 
 class _AsyncMessagesWrapper(_WithTracer):
