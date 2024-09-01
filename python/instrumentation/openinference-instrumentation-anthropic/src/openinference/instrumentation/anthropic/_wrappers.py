@@ -104,6 +104,7 @@ class _CompletionsWrapper(_WithTracer):
             if streaming:
                 return _Stream(response, span)
             else:
+                span.set_status(trace_api.StatusCode.OK)
                 span.set_attributes(
                     {
                         OUTPUT_VALUE: response.model_dump_json(),
