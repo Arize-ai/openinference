@@ -152,7 +152,6 @@ class _MessagesStream(ObjectProxy):  # type: ignore
     def __iter__(self) -> Iterator[RawMessageStreamEvent]:
         try:
             for item in self.__wrapped__:
-                #TODO(harrison): figure out where there may be multiple messages. tool use?
                 self._response_accumulator.process_chunk(item)
                 yield item
         except Exception as exception:
