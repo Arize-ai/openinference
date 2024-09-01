@@ -16,6 +16,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
+from openinference.semconv.trace import OpenInferenceMimeTypeValues
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
@@ -66,9 +67,9 @@ class _Stream(ObjectProxy):
             status: Optional[trace_api.Status] = None,
     ) -> None:
         _finish_tracing(
-            status=status,
             with_span=self._with_span,
-            has_attributes=self,
+            has_attributes=self._response_accumulator,
+            status=status,
         )
 class _ResponseAccumulator:
     __slots__ = (

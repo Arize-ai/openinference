@@ -45,6 +45,7 @@ def _finish_tracing(
             extra_attributes=extra_attributes,
         )
     except Exception:
+        raise
         logger.exception("Failed to finish tracing")
 
 

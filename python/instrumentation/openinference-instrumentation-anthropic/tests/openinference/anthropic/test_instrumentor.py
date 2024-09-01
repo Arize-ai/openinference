@@ -142,10 +142,11 @@ def test_anthropic_instrumentation_completions_streaming(
     for event in stream:
         print(event.completion)
 
-    #spans = in_memory_span_exporter.get_finished_spans()
+    spans = in_memory_span_exporter.get_finished_spans()
 
-    #assert spans[0].name == "Completions"
-    #attributes = dict(spans[0].attributes or {})
+    assert spans[0].name == "Completions"
+    attributes = dict(spans[0].attributes or {})
+    print(attributes)
 
     #assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     #assert isinstance(attributes.pop(INPUT_VALUE), str)

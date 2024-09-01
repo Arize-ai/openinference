@@ -1,8 +1,11 @@
 from abc import ABC
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
+from contextlib import contextmanager
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
+from opentelemetry.util.types import AttributeValue
 from opentelemetry import trace as trace_api
+from opentelemetry.trace import INVALID_SPAN
 
 from anthropic.types import TextBlock, ToolUseBlock
 from openinference.instrumentation.anthropic._stream import _Stream
@@ -16,6 +19,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+from openinference.instrumentation.anthropic._with_span import _WithSpan
 
 
 class _WithTracer(ABC):
@@ -26,6 +30,28 @@ class _WithTracer(ABC):
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
+
+    @contextmanager
+    def _start_as_current_span(
+            self,
+            span_name: str,
+    ) -> Iterator[_WithSpan]:
+        # Because OTEL has a default limit of 128 attributes, we split our attributes into
+        # two tiers, where the addition of "extra_attributes" is deferred until the end
+        # and only after the "attributes" are added.
+        try:
+            span = self._tracer.start_span(name=span_name, record_exception=False, set_status_on_exception=False)
+        except Exception:
+            span = INVALID_SPAN
+        with trace_api.use_span(
+                span,
+                end_on_exit=False,
+                record_exception=False,
+                set_status_on_exception=False,
+        ) as span:
+            yield _WithSpan(
+                span=span,
+            )
 
 
 class _CompletionsWrapper(_WithTracer):
@@ -52,10 +78,8 @@ class _CompletionsWrapper(_WithTracer):
         llm_invocation_parameters = _get_invocation_parameters(arguments)
 
         span_name = "Completions"
-        with self._tracer.start_as_current_span(
+        with self._start_as_current_span(
             span_name,
-            record_exception=False,
-            set_status_on_exception=False,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -76,7 +100,6 @@ class _CompletionsWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            # TODO(harrison) This is in the else statement when not streaming
             streaming = kwargs.get("stream", False)
             if streaming:
                 return _Stream(response, span)

@@ -1,8 +1,12 @@
 import logging
-from typing import Optional
+from typing import Dict, Optional
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import (
+    AttributeValue,
+    Attributes,
+)
+
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -11,20 +15,14 @@ logger.addHandler(logging.NullHandler())
 class _WithSpan:
     __slots__ = (
         "_span",
-        "_context_attributes",
-        "_extra_attributes",
         "_is_finished",
     )
 
     def __init__(
         self,
         span: trace_api.Span,
-        context_attributes: Attributes = None,
-        extra_attributes: Attributes = None,
     ) -> None:
         self._span = span
-        self._context_attributes = context_attributes
-        self._extra_attributes = extra_attributes
         try:
             self._is_finished = not self._span.is_recording()
         except Exception:
@@ -35,6 +33,11 @@ class _WithSpan:
     def is_finished(self) -> bool:
         return self._is_finished
 
+    def set_attributes(
+            self, attributes: Dict[str, AttributeValue]
+    ) -> None:
+        self._span.set_attributes(attributes)
+
     def record_exception(self, exception: Exception) -> None:
         if self._is_finished:
             return
@@ -42,6 +45,14 @@ class _WithSpan:
             self._span.record_exception(exception)
         except Exception:
             logger.exception("Failed to record exception on span")
+
+    def set_status(self, status: trace_api.Status) -> None:
+        if self._is_finished:
+            return
+        try:
+            self._span.set_status(status=status)
+        except Exception:
+            logger.exception("Failed to set status on span")
 
     def add_event(self, name: str) -> None:
         if self._is_finished:
@@ -61,8 +72,6 @@ class _WithSpan:
             return
         for mapping in (
             attributes,
-            self._context_attributes,
-            self._extra_attributes,
             extra_attributes,
         ):
             if not mapping:
