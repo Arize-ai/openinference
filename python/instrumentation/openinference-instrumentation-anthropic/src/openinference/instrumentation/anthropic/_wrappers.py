@@ -103,13 +103,15 @@ class _CompletionsWrapper(_WithTracer):
             streaming = kwargs.get("stream", False)
             if streaming:
                 return _Stream(response, span)
-            span.set_attributes(
-                {
-                    OUTPUT_VALUE: response.model_dump_json(),
-                    OUTPUT_MIME_TYPE: JSON,
-                }
-            )
-        return response
+            else:
+                span.set_attributes(
+                    {
+                        OUTPUT_VALUE: response.model_dump_json(),
+                        OUTPUT_MIME_TYPE: JSON,
+                    }
+                )
+                span.finish_tracing()
+                return response
 
 
 class _AsyncCompletionsWrapper(_WithTracer):
