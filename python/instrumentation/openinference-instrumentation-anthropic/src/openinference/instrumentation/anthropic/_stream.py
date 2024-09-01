@@ -14,6 +14,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
+from anthropic import Stream
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
     _as_output_attributes,
@@ -27,7 +28,7 @@ from openinference.semconv.trace import (
 )
 
 
-class _Stream(ObjectProxy):
+class _Stream(ObjectProxy):  # type: ignore
     __slots__ = (
         "_response_accumulator",
         "_with_span",
@@ -36,7 +37,7 @@ class _Stream(ObjectProxy):
 
     def __init__(
         self,
-        stream,
+        stream: Stream,
         with_span: _WithSpan,
     ) -> None:
         super().__init__(stream)
@@ -98,25 +99,6 @@ class _ResponseAccumulator:
         if self._is_null:
             return None
         return dict(self._values)
-
-    def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if not (result := self._result()):
-            return
-        json_string = safe_json_dumps(result)
-        yield from _as_output_attributes(
-            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
-        )
-
-    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        # TODO(harrison): decide whether implementing this is necessary
-        # if not (result := self._result()):
-        #    return
-        # if self._response_attributes_extractor:
-        #    yield from self._response_attributes_extractor.get_attributes_from_response(
-        #        self._chat_completion_type.construct(**result),
-        #        self._request_parameters,
-        #    )
-        pass
 
 
 class _ResponseExtractor:
