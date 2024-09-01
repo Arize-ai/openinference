@@ -82,6 +82,8 @@ class _ResponseAccumulator:
         self._is_null = True
         self._values = _ValuesAccumulator(
             completion=_StringAccumulator(),
+            stop=_SimpleStringReplace(),
+            stop_reason=_SimpleStringReplace(),
         )
 
     def process_chunk(self, chunk) -> None:
@@ -126,9 +128,9 @@ class _ValuesAccumulator:
             if isinstance(value, _ValuesAccumulator):
                 if dict_value := dict(value):
                     yield key, dict_value
-            elif isinstance(value, _IndexedAccumulator):
-                if list_value := list(value):
-                    yield key, list_value
+            elif isinstance(value, _SimpleStringReplace):
+                if str_value := str(value):
+                    yield key, str_value
             elif isinstance(value, _StringAccumulator):
                 if str_value := str(value):
                     yield key, str_value
@@ -148,13 +150,8 @@ class _ValuesAccumulator:
             elif isinstance(self_value, _StringAccumulator):
                 if isinstance(value, str):
                     self_value += value
-            elif isinstance(self_value, _IndexedAccumulator):
-                if isinstance(value, Iterable):
-                    for index, v in enumerate(value):
-                        if isinstance(v, Dict) and "index" not in v:
-                            v["index"] = index
-                        self_value += v
-                else:
+            elif isinstance(self_value, _SimpleStringReplace):
+                if isinstance(value, str):
                     self_value += value
             elif isinstance(self_value, List) and isinstance(value, Iterable):
                 self_value.extend(value)
@@ -183,4 +180,17 @@ class _StringAccumulator:
         if not value:
             return self
         self._fragments.append(value)
+        return self
+
+
+class _SimpleStringReplace:
+    __slots__ = ("_str_val",)
+
+    def __str__(self) -> str:
+        return self._str_val
+
+    def __iadd__(self, value: Optional[str]) -> "_SimpleStringReplace":
+        if not value:
+            return self
+        self._str_val = value
         return self
