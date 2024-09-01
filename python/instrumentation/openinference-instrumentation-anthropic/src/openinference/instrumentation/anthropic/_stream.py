@@ -24,6 +24,7 @@ from anthropic.types import (
 )
 from anthropic.types.raw_content_block_delta_event import RawContentBlockDeltaEvent
 from anthropic.types.raw_message_start_event import RawMessageStartEvent
+from anthropic.types.raw_message_delta_event import RawMessageDeltaEvent
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
     _as_output_attributes,
@@ -196,6 +197,8 @@ class _MessageResponseAccumulator:
                     delta=_ValuesAccumulator(
                         text=_StringAccumulator(),
                     ),
+                    stop_reason=_SimpleStringReplace(),
+                    output_tokens=_SimpleStringReplace(),
                 ),
             ),
         )
@@ -218,6 +221,15 @@ class _MessageResponseAccumulator:
                     "delta": {
                         "text": chunk.delta.text,
                     }
+                }
+            }
+            self._values += value
+        elif isinstance(chunk, RawMessageDeltaEvent):
+            value = {
+                "messages": {
+                    "index": str(self._current_message_idx),
+                    "stop_reason": chunk.delta.stop_reason,
+                    "output_tokens": chunk.usage.output_tokens,
                 }
             }
             self._values += value
@@ -250,12 +262,16 @@ class _MessageResponseExtractor:
             return
         messages = result.get("messages", [])
         idx = 0
+        total_completion_token_count = 0
         for message in messages:
             if (content := message.get("delta")) and (text := content.get("text")) is not None:
                 yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}", text
-            if (role := message.get("role")):
+            if role := message.get("role"):
                 yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}", role
+            if output_tokens := message.get("output_tokens"):
+                total_completion_token_count += int(output_tokens)
             idx += 1
+        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, total_completion_token_count
 class _ValuesAccumulator:
     __slots__ = ("_values",)
 
@@ -344,6 +360,9 @@ class _IndexedAccumulator:
 
 class _SimpleStringReplace:
     __slots__ = ("_str_val",)
+
+    def __init__(self):
+        self._str_val = ""
 
     def __str__(self) -> str:
         return self._str_val
