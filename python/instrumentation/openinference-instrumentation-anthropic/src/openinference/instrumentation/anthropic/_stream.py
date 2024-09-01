@@ -1,10 +1,7 @@
 from wrapt import ObjectProxy
-from collections import defaultdict
 from copy import deepcopy
 from typing import (
     Any,
-    Callable,
-    DefaultDict,
     Dict,
     Iterable,
     Iterator,
@@ -89,7 +86,6 @@ class _ResponseAccumulator:
 
     def process_chunk(self, chunk) -> None:
         self._is_null = False
-        print(chunk)
         values = chunk.model_dump(exclude_unset=True, warnings=False)
         self._values += values
 
@@ -107,6 +103,7 @@ class _ResponseAccumulator:
         )
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+        # TODO(harrison): decide whether implementing this is necessary
         #if not (result := self._result()):
         #    return
         #if self._response_attributes_extractor:
