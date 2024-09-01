@@ -24,9 +24,9 @@ class _HasAttributes(Protocol):
 
 
 def _finish_tracing(
-        with_span: _WithSpan,
-        has_attributes: _HasAttributes,
-        status: Optional[trace_api.Status] = None,
+    with_span: _WithSpan,
+    has_attributes: _HasAttributes,
+    status: Optional[trace_api.Status] = None,
 ) -> None:
     try:
         attributes: Attributes = dict(has_attributes.get_attributes())
@@ -58,7 +58,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
 
 
 def _as_input_attributes(
-        value_and_type: Optional[_ValueAndType],
+    value_and_type: Optional[_ValueAndType],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not value_and_type:
         return
@@ -69,7 +69,7 @@ def _as_input_attributes(
 
 
 def _as_output_attributes(
-        value_and_type: Optional[_ValueAndType],
+    value_and_type: Optional[_ValueAndType],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not value_and_type:
         return

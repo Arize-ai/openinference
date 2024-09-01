@@ -33,21 +33,23 @@ class _WithTracer(ABC):
 
     @contextmanager
     def _start_as_current_span(
-            self,
-            span_name: str,
+        self,
+        span_name: str,
     ) -> Iterator[_WithSpan]:
         # Because OTEL has a default limit of 128 attributes, we split our attributes into
         # two tiers, where the addition of "extra_attributes" is deferred until the end
         # and only after the "attributes" are added.
         try:
-            span = self._tracer.start_span(name=span_name, record_exception=False, set_status_on_exception=False)
+            span = self._tracer.start_span(
+                name=span_name, record_exception=False, set_status_on_exception=False
+            )
         except Exception:
             span = INVALID_SPAN
         with trace_api.use_span(
-                span,
-                end_on_exit=False,
-                record_exception=False,
-                set_status_on_exception=False,
+            span,
+            end_on_exit=False,
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
             yield _WithSpan(
                 span=span,
@@ -59,9 +61,8 @@ class _CompletionsWrapper(_WithTracer):
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
     """
-    __slots__ = (
-        "_response_accumulator"
-    )
+
+    __slots__ = "_response_accumulator"
 
     def __call__(
         self,

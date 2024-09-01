@@ -125,7 +125,6 @@ def test_anthropic_instrumentation_completions_streaming(
 ) -> None:
     client = Anthropic(api_key="fake")
 
-
     prompt = (
         f"{anthropic.HUMAN_PROMPT}"
         f" why is the sky blue? respond in five words or less."
@@ -160,6 +159,7 @@ def test_anthropic_instrumentation_completions_streaming(
     invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
     assert json.loads(inv_params) == invocation_params
     assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,

@@ -35,9 +35,9 @@ class _Stream(ObjectProxy):
     )
 
     def __init__(
-            self,
-            stream,
-            with_span: _WithSpan,
+        self,
+        stream,
+        with_span: _WithSpan,
     ) -> None:
         super().__init__(stream)
         self._response_accumulator = _ResponseAccumulator()
@@ -63,14 +63,15 @@ class _Stream(ObjectProxy):
         self._finish_tracing(status=status)
 
     def _finish_tracing(
-            self,
-            status: Optional[trace_api.Status] = None,
+        self,
+        status: Optional[trace_api.Status] = None,
     ) -> None:
         _finish_tracing(
             with_span=self._with_span,
             has_attributes=_ResponseExtractor(response_accumulator=self._response_accumulator),
             status=status,
         )
+
 
 class _ResponseAccumulator:
     __slots__ = (
@@ -79,7 +80,7 @@ class _ResponseAccumulator:
     )
 
     def __init__(
-            self,
+        self,
     ) -> None:
         self._is_null = True
         self._values = _ValuesAccumulator(
@@ -108,23 +109,22 @@ class _ResponseAccumulator:
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         # TODO(harrison): decide whether implementing this is necessary
-        #if not (result := self._result()):
+        # if not (result := self._result()):
         #    return
-        #if self._response_attributes_extractor:
+        # if self._response_attributes_extractor:
         #    yield from self._response_attributes_extractor.get_attributes_from_response(
         #        self._chat_completion_type.construct(**result),
         #        self._request_parameters,
         #    )
         pass
 
+
 class _ResponseExtractor:
-    __slots__ = (
-        "_response_accumulator",
-    )
+    __slots__ = ("_response_accumulator",)
 
     def __init__(
-            self,
-            response_accumulator: _ResponseAccumulator,
+        self,
+        response_accumulator: _ResponseAccumulator,
     ) -> None:
         self._response_accumulator = response_accumulator
 
@@ -141,6 +141,7 @@ class _ResponseExtractor:
             return
         if completion := result.get("completion", ""):
             yield SpanAttributes.LLM_OUTPUT_MESSAGES, completion
+
 
 class _ValuesAccumulator:
     __slots__ = ("_values",)
