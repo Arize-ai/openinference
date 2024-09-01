@@ -15,6 +15,7 @@ from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from anthropic import Stream
+from anthropic.types import Completion
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
     _as_output_attributes,
@@ -37,7 +38,7 @@ class _Stream(ObjectProxy):  # type: ignore
 
     def __init__(
         self,
-        stream: Stream,
+        stream: Stream[Completion],
         with_span: _WithSpan,
     ) -> None:
         super().__init__(stream)
