@@ -3,10 +3,9 @@ from typing import Dict, Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import (
-    AttributeValue,
     Attributes,
+    AttributeValue,
 )
-
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

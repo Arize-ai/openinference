@@ -1,4 +1,3 @@
-from wrapt import ObjectProxy
 from copy import deepcopy
 from typing import (
     Any,
@@ -13,10 +12,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from openinference.semconv.trace import (
-    OpenInferenceMimeTypeValues,
-    SpanAttributes,
-)
+from wrapt import ObjectProxy
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
@@ -25,6 +21,10 @@ from openinference.instrumentation.anthropic._utils import (
     _ValueAndType,
 )
 from openinference.instrumentation.anthropic._with_span import _WithSpan
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+)
 
 
 class _Stream(ObjectProxy):

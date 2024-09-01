@@ -1,15 +1,15 @@
 from abc import ABC
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
-from opentelemetry.util.types import AttributeValue
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 
 from anthropic.types import TextBlock, ToolUseBlock
-from openinference.instrumentation.anthropic._stream import _Stream
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.anthropic._stream import _Stream
+from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -19,7 +19,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from openinference.instrumentation.anthropic._with_span import _WithSpan
 
 
 class _WithTracer(ABC):
