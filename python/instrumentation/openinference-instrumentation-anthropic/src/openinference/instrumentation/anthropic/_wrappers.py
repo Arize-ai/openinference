@@ -77,17 +77,17 @@ class _CompletionsWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
             # TODO(harrison) This is in the else statement when not streaming
-        streaming = kwargs.get("stream", False)
-        if streaming:
-            return _Stream(response)
-        else:
-            span.set_attributes(
-                {
-                    OUTPUT_VALUE: response.model_dump_json(),
-                    OUTPUT_MIME_TYPE: JSON,
-                }
-            )
-            return response
+            streaming = kwargs.get("stream", False)
+            if streaming:
+                return _Stream(response, span)
+            else:
+                span.set_attributes(
+                    {
+                        OUTPUT_VALUE: response.model_dump_json(),
+                        OUTPUT_MIME_TYPE: JSON,
+                    }
+                )
+                return response
 
 
 class _AsyncCompletionsWrapper(_WithTracer):

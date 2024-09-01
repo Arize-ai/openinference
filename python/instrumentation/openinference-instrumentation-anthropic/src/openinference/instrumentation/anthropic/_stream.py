@@ -40,6 +40,7 @@ class _Stream(ObjectProxy):
     ) -> None:
         super().__init__(stream)
         self._response_accumulator = _ResponseAccumulator()
+        self._with_span = with_span
 
     def __iter__(self):
         try:
@@ -66,7 +67,7 @@ class _Stream(ObjectProxy):
     ) -> None:
         _finish_tracing(
             status=status,
-            with_span=self._self_with_span,
+            with_span=self._with_span,
             has_attributes=self,
         )
 class _ResponseAccumulator:
@@ -88,9 +89,6 @@ class _ResponseAccumulator:
         print(chunk)
         values = chunk.model_dump(exclude_unset=True, warnings=False)
         self._values += values
-        # For stop and stop_reason we always want the last seen value.
-        self._values["stop"] = values["stop"]
-        self._values["stop_reason"] = values["stop_reason"]
 
     def _result(self) -> Optional[Dict[str, Any]]:
         if self._is_null:
