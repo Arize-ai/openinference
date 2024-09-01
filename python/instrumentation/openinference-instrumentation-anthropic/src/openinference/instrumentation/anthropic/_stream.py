@@ -13,7 +13,10 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from openinference.semconv.trace import OpenInferenceMimeTypeValues
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+)
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
@@ -65,9 +68,10 @@ class _Stream(ObjectProxy):
     ) -> None:
         _finish_tracing(
             with_span=self._with_span,
-            has_attributes=self._response_accumulator,
+            has_attributes=_ResponseExtractor(response_accumulator=self._response_accumulator),
             status=status,
         )
+
 class _ResponseAccumulator:
     __slots__ = (
         "_is_null",
@@ -112,6 +116,31 @@ class _ResponseAccumulator:
         #        self._request_parameters,
         #    )
         pass
+
+class _ResponseExtractor:
+    __slots__ = (
+        "_response_accumulator",
+    )
+
+    def __init__(
+            self,
+            response_accumulator: _ResponseAccumulator,
+    ) -> None:
+        self._response_accumulator = response_accumulator
+
+    def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+        if not (result := self._response_accumulator._result()):
+            return
+        json_string = safe_json_dumps(result)
+        yield from _as_output_attributes(
+            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
+        )
+
+    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+        if not (result := self._response_accumulator._result()):
+            return
+        if completion := result.get("completion", ""):
+            yield SpanAttributes.LLM_OUTPUT_MESSAGES, completion
 
 class _ValuesAccumulator:
     __slots__ = ("_values",)

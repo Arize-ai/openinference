@@ -125,7 +125,6 @@ def test_anthropic_instrumentation_completions_streaming(
 ) -> None:
     client = Anthropic(api_key="fake")
 
-    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000}
 
     prompt = (
         f"{anthropic.HUMAN_PROMPT}"
@@ -148,17 +147,19 @@ def test_anthropic_instrumentation_completions_streaming(
     attributes = dict(spans[0].attributes or {})
     print(attributes)
 
-    #assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
-    #assert isinstance(attributes.pop(INPUT_VALUE), str)
-    #assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    #assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    #assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    #assert attributes.pop(LLM_PROMPTS) == (prompt,)
-    #assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
-    #assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    #assert json.loads(inv_params) == invocation_params
-    #assert not attributes
+    assert attributes.pop(LLM_PROMPTS) == (prompt,)
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+
+    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
+    assert json.loads(inv_params) == invocation_params
+    assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
