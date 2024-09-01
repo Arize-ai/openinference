@@ -299,7 +299,7 @@ def test_anthropic_instrumentation_messages_streaming(
     assert isinstance(
         msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
     )
-    assert "paris" in msg_content.lower()
+    assert "Light scatters blue." in msg_content
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
@@ -309,7 +309,7 @@ def test_anthropic_instrumentation_messages_streaming(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-20240229"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes

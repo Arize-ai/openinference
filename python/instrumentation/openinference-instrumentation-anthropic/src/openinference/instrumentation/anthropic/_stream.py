@@ -1,6 +1,9 @@
+from collections import defaultdict
 from copy import deepcopy
 from typing import (
     Any,
+    Callable,
+    DefaultDict,
     Dict,
     Iterable,
     Iterator,
@@ -20,6 +23,7 @@ from anthropic.types import (
     RawMessageStreamEvent,
 )
 from anthropic.types.raw_content_block_delta_event import RawContentBlockDeltaEvent
+from anthropic.types.raw_message_start_event import RawMessageStartEvent
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
     _as_output_attributes,
@@ -28,6 +32,7 @@ from openinference.instrumentation.anthropic._utils import (
 )
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
+    MessageAttributes,
     OpenInferenceMimeTypeValues,
     SpanAttributes,
 )
@@ -147,8 +152,8 @@ class _MessagesStream(ObjectProxy):  # type: ignore
     def __iter__(self) -> Iterator[RawMessageStreamEvent]:
         try:
             for item in self.__wrapped__:
-                if isinstance(item, RawContentBlockDeltaEvent):
-                    self._response_accumulator.process_chunk(item)
+                #TODO(harrison): figure out where there may be multiple messages. tool use?
+                self._response_accumulator.process_chunk(item)
                 yield item
         except Exception as exception:
             status = trace_api.Status(
@@ -179,20 +184,46 @@ class _MessageResponseAccumulator:
     __slots__ = (
         "_is_null",
         "_values",
+        "_current_message_idx"
     )
 
     def __init__(self) -> None:
         self._is_null = True
+        self._current_message_idx = -1
         self._values = _ValuesAccumulator(
-            delta=_ValuesAccumulator(
-                text=_StringAccumulator(),
+            messages=_IndexedAccumulator(
+                lambda: _ValuesAccumulator(
+                    role=_SimpleStringReplace(),
+                    delta=_ValuesAccumulator(
+                        text=_StringAccumulator(),
+                    ),
+                ),
             ),
         )
 
     def process_chunk(self, chunk: RawContentBlockDeltaEvent) -> None:
+        self._current_message_idx += 1
         self._is_null = False
-        values = chunk.model_dump(exclude_unset=True, warnings=False)
-        self._values += values
+        if isinstance(chunk, RawMessageStartEvent):
+            value = {
+                "messages": {
+                    str(self._current_message_idx): {
+                        "role": chunk.message.role
+                    }
+                }
+            }
+            self._values += value
+        elif isinstance(chunk, RawContentBlockDeltaEvent):
+            value = {
+                "messages": {
+                    str(self._current_message_idx): {
+                        "delta": {
+                            "text": chunk.delta.text
+                        }
+                    }
+                }
+            }
+            self._values += value
 
     def _result(self) -> Optional[Dict[str, Any]]:
         if self._is_null:
@@ -220,8 +251,9 @@ class _MessageResponseExtractor:
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if not (result := self._response_accumulator._result()):
             return
-        if completion := result.get("completion", ""):
-            yield SpanAttributes.LLM_OUTPUT_MESSAGES, completion
+        delta = result.get("delta", {})
+        if not (text := delta.get("text", "")) is None:
+            yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{0}.{MessageAttributes.MESSAGE_CONTENT}", text
 
 class _ValuesAccumulator:
     __slots__ = ("_values",)
@@ -261,6 +293,9 @@ class _ValuesAccumulator:
             elif isinstance(self_value, _SimpleStringReplace):
                 if isinstance(value, str):
                     self_value += value
+            elif isinstance(self_value, _IndexedAccumulator):
+                #TODO(harrison): some checks?
+                self_value += value
             elif isinstance(self_value, List) and isinstance(value, Iterable):
                 self_value.extend(value)
             else:
@@ -290,6 +325,22 @@ class _StringAccumulator:
         self._fragments.append(value)
         return self
 
+
+class _IndexedAccumulator:
+    __slots__ = ("_indexed",)
+
+    def __init__(self, factory: Callable[[], _ValuesAccumulator]) -> None:
+        self._indexed: DefaultDict[int, _ValuesAccumulator] = defaultdict(factory)
+
+    def __iter__(self) -> Iterator[Dict[str, Any]]:
+        for _, values in sorted(self._indexed.items()):
+            yield dict(values)
+
+    def __iadd__(self, values: Optional[Mapping[str, Any]]) -> "_IndexedAccumulator":
+        if not values or not hasattr(values, "get") or (index := values.get("index")) is None:
+            return self
+        self._indexed[index] += values
+        return self
 
 class _SimpleStringReplace:
     __slots__ = ("_str_val",)
