@@ -271,7 +271,7 @@ def test_anthropic_instrumentation_messages_streaming(
     client = Anthropic(api_key="fake")
     input_message = "Why is the sky blue? Answer in 5 words or less"
 
-    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-20240229"}
+    invocation_params = {"max_tokens": 1024, "model": "claude-2.1", "stream": True}
 
     stream = client.messages.create(
         max_tokens=1024,
@@ -301,8 +301,9 @@ def test_anthropic_instrumentation_messages_streaming(
     )
     assert "Light scatters blue." in msg_content
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
-    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 21
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 31
 
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON

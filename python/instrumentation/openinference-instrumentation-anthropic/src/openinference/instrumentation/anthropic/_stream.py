@@ -198,6 +198,7 @@ class _MessageResponseAccumulator:
                         text=_StringAccumulator(),
                     ),
                     stop_reason=_SimpleStringReplace(),
+                    input_tokens=_SimpleStringReplace(),
                     output_tokens=_SimpleStringReplace(),
                 ),
             ),
@@ -211,6 +212,7 @@ class _MessageResponseAccumulator:
                 "messages": {
                     "index": str(self._current_message_idx),
                     "role": chunk.message.role,
+                    "input_tokens": str(chunk.message.usage.input_tokens),
                 }
             }
             self._values += value
@@ -229,7 +231,7 @@ class _MessageResponseAccumulator:
                 "messages": {
                     "index": str(self._current_message_idx),
                     "stop_reason": chunk.delta.stop_reason,
-                    "output_tokens": chunk.usage.output_tokens,
+                    "output_tokens": str(chunk.usage.output_tokens),
                 }
             }
             self._values += value
@@ -263,6 +265,7 @@ class _MessageResponseExtractor:
         messages = result.get("messages", [])
         idx = 0
         total_completion_token_count = 0
+        total_prompt_token_count = 0
         for message in messages:
             if (content := message.get("delta")) and (text := content.get("text")) is not None:
                 yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}", text
@@ -270,8 +273,12 @@ class _MessageResponseExtractor:
                 yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}", role
             if output_tokens := message.get("output_tokens"):
                 total_completion_token_count += int(output_tokens)
+            if input_tokens := message.get("input_tokens"):
+                total_prompt_token_count += int(input_tokens)
             idx += 1
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, total_completion_token_count
+        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, total_prompt_token_count
+        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_completion_token_count + total_prompt_token_count
 class _ValuesAccumulator:
     __slots__ = ("_values",)
 
