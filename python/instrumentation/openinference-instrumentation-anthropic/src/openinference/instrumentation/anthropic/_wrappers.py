@@ -33,6 +33,9 @@ class _CompletionsWrapper(_WithTracer):
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
     """
+    __slots__ = (
+        "_response_accumulator"
+    )
 
     def __call__(
         self,
@@ -74,16 +77,17 @@ class _CompletionsWrapper(_WithTracer):
                 raise
             span.set_status(trace_api.StatusCode.OK)
             # TODO(harrison) This is in the else statement when not streaming
-            #span.set_attributes(
-            #    {
-            #        OUTPUT_VALUE: response.model_dump_json(),
-            #        OUTPUT_MIME_TYPE: JSON,
-            #    }
-            #)
-
-        # TODO(harrison): this is going to cause bugs
-        stream_response = _Stream(response)
-        return stream_response
+        streaming = kwargs.get("stream", False)
+        if streaming:
+            return _Stream(response)
+        else:
+            span.set_attributes(
+                {
+                    OUTPUT_VALUE: response.model_dump_json(),
+                    OUTPUT_MIME_TYPE: JSON,
+                }
+            )
+            return response
 
 
 class _AsyncCompletionsWrapper(_WithTracer):
