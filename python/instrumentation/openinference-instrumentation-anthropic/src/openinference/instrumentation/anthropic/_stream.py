@@ -202,24 +202,22 @@ class _MessageResponseAccumulator:
         )
 
     def process_chunk(self, chunk: RawContentBlockDeltaEvent) -> None:
-        self._current_message_idx += 1
         self._is_null = False
         if isinstance(chunk, RawMessageStartEvent):
+            self._current_message_idx += 1
             value = {
                 "messages": {
-                    str(self._current_message_idx): {
-                        "role": chunk.message.role
-                    }
+                    "index": str(self._current_message_idx),
+                    "role": chunk.message.role,
                 }
             }
             self._values += value
         elif isinstance(chunk, RawContentBlockDeltaEvent):
             value = {
                 "messages": {
-                    str(self._current_message_idx): {
-                        "delta": {
-                            "text": chunk.delta.text
-                        }
+                    "index": str(self._current_message_idx),
+                    "delta": {
+                        "text": chunk.delta.text,
                     }
                 }
             }
@@ -251,10 +249,14 @@ class _MessageResponseExtractor:
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if not (result := self._response_accumulator._result()):
             return
-        delta = result.get("delta", {})
-        if not (text := delta.get("text", "")) is None:
-            yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{0}.{MessageAttributes.MESSAGE_CONTENT}", text
-
+        messages = result.get("messages", [])
+        idx = 0
+        for message in messages:
+            if (content := message.get("delta")) and (text := content.get("text")) is not None:
+                yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}", text
+            if (role := message.get("role")):
+                yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}", role
+            idx += 1
 class _ValuesAccumulator:
     __slots__ = ("_values",)
 
@@ -294,7 +296,6 @@ class _ValuesAccumulator:
                 if isinstance(value, str):
                     self_value += value
             elif isinstance(self_value, _IndexedAccumulator):
-                #TODO(harrison): some checks?
                 self_value += value
             elif isinstance(self_value, List) and isinstance(value, Iterable):
                 self_value.extend(value)
