@@ -307,6 +307,8 @@ def test_anthropic_instrumentation_messages_streaming(
 
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    #TODO(harrison): the output here doesn't look properly serialized but looks like openai, mistral
+    # accumlators do the same thing. need to look into why this might be wrong
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 

@@ -279,7 +279,7 @@ class _MessageResponseExtractor:
         self._response_accumulator = response_accumulator
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if not (result := self._response_accumulator._result()):
+        if not (result := self._response_accumulator._result()['messages']):
             return
         json_string = safe_json_dumps(result)
         yield from _as_output_attributes(
