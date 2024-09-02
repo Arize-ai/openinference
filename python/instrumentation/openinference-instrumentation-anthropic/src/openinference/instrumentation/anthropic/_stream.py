@@ -203,6 +203,8 @@ class _MessageResponseAccumulator:
                         lambda: _ValuesAccumulator(
                             type=_SimpleStringReplace(),
                             text=_StringAccumulator(),
+                            tool_name=_SimpleStringReplace(),
+                            tool_input=_StringAccumulator(),
                         ),
                     ),
                     stop_reason=_SimpleStringReplace(),
@@ -239,9 +241,17 @@ class _MessageResponseAccumulator:
                     }
                 }
             elif isinstance(self._current_content_block_type, ToolUseBlock):
-                # TODO(harrison): fix this!!!!!!!
-                print("HARRISON FIX THIS {}".format(chunk))
-                value = {}
+                value = {
+                    "messages": {
+                        "index": str(self._current_message_idx),
+                        "content": {
+                            "index": chunk.index,
+                            "type": self._current_content_block_type.type,
+                            "tool_name": self._current_content_block_type.name,
+                            "tool_input": chunk.delta.partial_json,
+                        }
+                    }
+                }
             self._values += value
         elif isinstance(chunk, RawMessageDeltaEvent):
             value = {
@@ -292,15 +302,18 @@ class _MessageResponseExtractor:
                 total_completion_token_count += int(output_tokens)
             if input_tokens := message.get("input_tokens"):
                 total_prompt_token_count += int(input_tokens)
+
+            # TODO(harrison): figure out if we should always assume the first message will always be a message output
+            # generally this block feels really brittle to imitate the current non streaming implementation.
+            tool_idx = 0
             for content in message.get("content", []):
-                # TODO(harrison): figure out if we should always assume the first message will always be a message output
                 # this is the current assumption of the non streaming implementation.
-                tool_idx = 0
                 if (content_type := content.get("type")) == "text":
                     yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}", content.get("text", "")
                 elif content_type == "tool_use":
-                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", text
-                tool_idx += 1
+                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", content.get("tool_name", "")
+                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", content.get("tool_input", "{}")
+                    tool_idx += 1
             idx += 1
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, total_completion_token_count
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, total_prompt_token_count

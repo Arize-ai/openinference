@@ -589,29 +589,26 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert (
-            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
-            == "get_weather"
-    )
-    assert isinstance(
-        attributes.pop(
-            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
-        ),
-        str,
-    )
-    assert (
             attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
             == "get_time"
     )
-    assert isinstance(
-        attributes.pop(
-            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
-        ),
-        str,
+    get_time_input_str = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     )
-    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
-    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    json.loads(get_time_input_str) == {"timezone": "America/New_York"}
+    assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+            == "get_weather"
+    )
+    get_weather_input_str = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert json.loads(get_weather_input_str) == {"location": "New York, NY", "unit": "celsius"}
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 518
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 149
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 667
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert isinstance(attributes.pop(OUTPUT_MIME_TYPE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert not attributes
 
