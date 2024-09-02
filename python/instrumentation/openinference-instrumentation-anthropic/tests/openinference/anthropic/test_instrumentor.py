@@ -570,6 +570,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
             },
         ],
         messages=[{"role": "user", "content": input_message}],
+        stream=True,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
