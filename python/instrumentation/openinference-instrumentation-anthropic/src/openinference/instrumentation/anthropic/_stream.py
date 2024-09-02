@@ -146,9 +146,9 @@ class _MessagesStream(ObjectProxy):  # type: ignore
     )
 
     def __init__(
-            self,
-            stream: Stream[RawMessageStreamEvent],
-            with_span: _WithSpan,
+        self,
+        stream: Stream[RawMessageStreamEvent],
+        with_span: _WithSpan,
     ) -> None:
         super().__init__(stream)
         self._response_accumulator = _MessageResponseAccumulator()
@@ -174,12 +174,14 @@ class _MessagesStream(ObjectProxy):  # type: ignore
         self._finish_tracing(status=status)
 
     def _finish_tracing(
-            self,
-            status: Optional[trace_api.Status] = None,
+        self,
+        status: Optional[trace_api.Status] = None,
     ) -> None:
         _finish_tracing(
             with_span=self._with_span,
-            has_attributes=_MessageResponseExtractor(response_accumulator=self._response_accumulator),
+            has_attributes=_MessageResponseExtractor(
+                response_accumulator=self._response_accumulator
+            ),
             status=status,
         )
 
@@ -237,7 +239,7 @@ class _MessageResponseAccumulator:
                             "index": chunk.index,
                             "type": self._current_content_block_type.type,
                             "text": chunk.delta.text,
-                        }
+                        },
                     }
                 }
             elif isinstance(self._current_content_block_type, ToolUseBlock):
@@ -249,7 +251,7 @@ class _MessageResponseAccumulator:
                             "type": self._current_content_block_type.type,
                             "tool_name": self._current_content_block_type.name,
                             "tool_input": chunk.delta.partial_json,
-                        }
+                        },
                     }
                 }
             self._values += value
@@ -273,13 +275,13 @@ class _MessageResponseExtractor:
     __slots__ = ("_response_accumulator",)
 
     def __init__(
-            self,
-            response_accumulator: _MessageResponseAccumulator,
+        self,
+        response_accumulator: _MessageResponseAccumulator,
     ) -> None:
         self._response_accumulator = response_accumulator
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if not (result := self._response_accumulator._result()['messages']):
+        if not (result := self._response_accumulator._result()["messages"]):
             return
         json_string = safe_json_dumps(result)
         yield from _as_output_attributes(
@@ -297,7 +299,10 @@ class _MessageResponseExtractor:
         # has this assumption
         for message in messages:
             if role := message.get("role"):
-                yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}", role
+                yield (
+                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}",
+                    role,
+                )
             if output_tokens := message.get("output_tokens"):
                 total_completion_token_count += int(output_tokens)
             if input_tokens := message.get("input_tokens"):
@@ -309,15 +314,29 @@ class _MessageResponseExtractor:
             for content in message.get("content", []):
                 # this is the current assumption of the non streaming implementation.
                 if (content_type := content.get("type")) == "text":
-                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}", content.get("text", "")
+                    yield (
+                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}",
+                        content.get("text", ""),
+                    )
                 elif content_type == "tool_use":
-                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", content.get("tool_name", "")
-                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", content.get("tool_input", "{}")
+                    yield (
+                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                        content.get("tool_name", ""),
+                    )
+                    yield (
+                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        content.get("tool_input", "{}"),
+                    )
                     tool_idx += 1
             idx += 1
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, total_completion_token_count
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, total_prompt_token_count
-        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_completion_token_count + total_prompt_token_count
+        yield (
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL,
+            total_completion_token_count + total_prompt_token_count,
+        )
+
+
 class _ValuesAccumulator:
     __slots__ = ("_values",)
 
@@ -403,6 +422,7 @@ class _IndexedAccumulator:
             return self
         self._indexed[index] += values
         return self
+
 
 class _SimpleStringReplace:
     __slots__ = ("_str_val",)

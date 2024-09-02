@@ -264,9 +264,9 @@ def test_anthropic_instrumentation_messages(
     before_record_response=remove_all_vcr_response_headers,
 )
 def test_anthropic_instrumentation_messages_streaming(
-        tracer_provider: TracerProvider,
-        in_memory_span_exporter: InMemorySpanExporter,
-        setup_anthropic_instrumentation: Any,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
 ) -> None:
     client = Anthropic(api_key="fake")
     input_message = "Why is the sky blue? Answer in 5 words or less"
@@ -282,7 +282,7 @@ def test_anthropic_instrumentation_messages_streaming(
             }
         ],
         model="claude-2.1",
-        stream=True
+        stream=True,
     )
 
     for event in stream:
@@ -307,7 +307,7 @@ def test_anthropic_instrumentation_messages_streaming(
 
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    #TODO(harrison): the output here doesn't look properly serialized but looks like openai, mistral
+    # TODO(harrison): the output here doesn't look properly serialized but looks like openai, mistral
     # accumlators do the same thing. need to look into why this might be wrong
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
@@ -316,6 +316,7 @@ def test_anthropic_instrumentation_messages_streaming(
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -521,9 +522,9 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     before_record_response=remove_all_vcr_response_headers,
 )
 def test_anthropic_instrumentation_multiple_tool_calling_streaming(
-        tracer_provider: TracerProvider,
-        in_memory_span_exporter: InMemorySpanExporter,
-        setup_anthropic_instrumentation: Any,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
 ) -> None:
     client = anthropic.Anthropic(api_key="fake")
 
@@ -550,7 +551,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
                             "type": "string",
                             "enum": ["celsius", "fahrenheit"],
                             "description": "The unit of temperature,"
-                                           " either 'celsius' or 'fahrenheit'",
+                            " either 'celsius' or 'fahrenheit'",
                         },
                     },
                     "required": ["location"],
@@ -591,16 +592,16 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert (
-            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
-            == "get_time"
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_time"
     )
     get_time_input_str = attributes.pop(
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     )
     json.loads(get_time_input_str) == {"timezone": "America/New_York"}
     assert (
-            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
-            == "get_weather"
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
     )
     get_weather_input_str = attributes.pop(
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
@@ -609,7 +610,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 518
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 149
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 667
-    #TODO(harrison): the output here doesn't look properly serialized but looks like openai, mistral
+    # TODO(harrison): the output here doesn't look properly serialized but looks like openai, mistral
     # accumlators do the same thing. need to look into why this might be wrong
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
