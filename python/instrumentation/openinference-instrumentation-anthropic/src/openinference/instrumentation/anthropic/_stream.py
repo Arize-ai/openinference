@@ -240,10 +240,11 @@ class _MessageResponseAccumulator:
                         "content": {
                             "index": chunk.index,
                             "type": self._current_content_block_type.type,
-                            "text": chunk.delta.text,
+                            "text": chunk.delta.text,  # type: ignore
                         },
                     }
                 }
+                self._values += value
             elif isinstance(self._current_content_block_type, ToolUseBlock):
                 value = {
                     "messages": {
@@ -252,11 +253,11 @@ class _MessageResponseAccumulator:
                             "index": chunk.index,
                             "type": self._current_content_block_type.type,
                             "tool_name": self._current_content_block_type.name,
-                            "tool_input": chunk.delta.partial_json,
+                            "tool_input": chunk.delta.partial_json,  # type: ignore
                         },
                     }
                 }
-            self._values += value
+                self._values += value
         elif isinstance(chunk, RawMessageDeltaEvent):
             value = {
                 "messages": {
