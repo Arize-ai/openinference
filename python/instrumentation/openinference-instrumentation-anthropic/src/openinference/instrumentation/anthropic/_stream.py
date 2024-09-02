@@ -11,6 +11,7 @@ from typing import (
     Mapping,
     Optional,
     Tuple,
+    Union,
 )
 
 from opentelemetry import trace as trace_api
@@ -197,6 +198,7 @@ class _MessageResponseAccumulator:
     def __init__(self) -> None:
         self._is_null = True
         self._current_message_idx = -1
+        self._current_content_block_type: Union[TextBlock, ToolUseBlock, None] = None
         self._values = _ValuesAccumulator(
             messages=_IndexedAccumulator(
                 lambda: _ValuesAccumulator(
@@ -428,8 +430,8 @@ class _IndexedAccumulator:
 class _SimpleStringReplace:
     __slots__ = ("_str_val",)
 
-    def __init__(self):
-        self._str_val = ""
+    def __init__(self) -> None:
+        self._str_val: str = ""
 
     def __str__(self) -> str:
         return self._str_val
