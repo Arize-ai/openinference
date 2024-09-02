@@ -22,12 +22,12 @@ from anthropic.types import (
     Completion,
     RawMessageStreamEvent,
 )
-from anthropic.types.text_block import TextBlock
-from anthropic.types.tool_use_block import ToolUseBlock
 from anthropic.types.raw_content_block_delta_event import RawContentBlockDeltaEvent
 from anthropic.types.raw_content_block_start_event import RawContentBlockStartEvent
-from anthropic.types.raw_message_start_event import RawMessageStartEvent
 from anthropic.types.raw_message_delta_event import RawMessageDeltaEvent
+from anthropic.types.raw_message_start_event import RawMessageStartEvent
+from anthropic.types.text_block import TextBlock
+from anthropic.types.tool_use_block import ToolUseBlock
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
     _as_output_attributes,
