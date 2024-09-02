@@ -307,8 +307,9 @@ def test_anthropic_instrumentation_messages_streaming(
 
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    # TODO(harrison): the output here doesn't look properly serialized but looks like openai, mistral
-    # accumlators do the same thing. need to look into why this might be wrong
+    # TODO(harrison): the output here doesn't look properly
+    # serialized but looks like openai, mistral accumulators do
+    # the same thing. need to look into why this might be wrong
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
@@ -610,8 +611,9 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 518
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 149
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 667
-    # TODO(harrison): the output here doesn't look properly serialized but looks like openai, mistral
-    # accumlators do the same thing. need to look into why this might be wrong
+    # TODO(harrison): the output here doesn't look properly
+    # serialized but looks like openai, mistral accumulators do
+    # the same thing. need to look into why this might be wrong
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"

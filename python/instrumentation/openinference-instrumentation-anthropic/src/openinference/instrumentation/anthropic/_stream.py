@@ -295,8 +295,8 @@ class _MessageResponseExtractor:
         idx = 0
         total_completion_token_count = 0
         total_prompt_token_count = 0
-        # TODO(harrison): figure out if we should always assume messages is 1. The current non streaming implementation
-        # has this assumption
+        # TODO(harrison): figure out if we should always assume messages is 1.
+        # The current non streaming implementation assumes the same
         for message in messages:
             if role := message.get("role"):
                 yield (
@@ -308,8 +308,9 @@ class _MessageResponseExtractor:
             if input_tokens := message.get("input_tokens"):
                 total_prompt_token_count += int(input_tokens)
 
-            # TODO(harrison): figure out if we should always assume the first message will always be a message output
-            # generally this block feels really brittle to imitate the current non streaming implementation.
+            # TODO(harrison): figure out if we should always assume the first message
+            #  will always be a message output generally this block feels really
+            #  brittle to imitate the current non streaming implementation.
             tool_idx = 0
             for content in message.get("content", []):
                 # this is the current assumption of the non streaming implementation.
