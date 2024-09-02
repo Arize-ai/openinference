@@ -22,7 +22,10 @@ from anthropic.types import (
     Completion,
     RawMessageStreamEvent,
 )
+from anthropic.types.text_block import TextBlock
+from anthropic.types.tool_use_block import ToolUseBlock
 from anthropic.types.raw_content_block_delta_event import RawContentBlockDeltaEvent
+from anthropic.types.raw_content_block_start_event import RawContentBlockStartEvent
 from anthropic.types.raw_message_start_event import RawMessageStartEvent
 from anthropic.types.raw_message_delta_event import RawMessageDeltaEvent
 from openinference.instrumentation import safe_json_dumps
@@ -36,6 +39,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 
@@ -184,7 +188,8 @@ class _MessageResponseAccumulator:
     __slots__ = (
         "_is_null",
         "_values",
-        "_current_message_idx"
+        "_current_message_idx",
+        "_current_content_block_type",
     )
 
     def __init__(self) -> None:
@@ -194,8 +199,11 @@ class _MessageResponseAccumulator:
             messages=_IndexedAccumulator(
                 lambda: _ValuesAccumulator(
                     role=_SimpleStringReplace(),
-                    delta=_ValuesAccumulator(
-                        text=_StringAccumulator(),
+                    content=_IndexedAccumulator(
+                        lambda: _ValuesAccumulator(
+                            type=_SimpleStringReplace(),
+                            text=_StringAccumulator(),
+                        ),
                     ),
                     stop_reason=_SimpleStringReplace(),
                     input_tokens=_SimpleStringReplace(),
@@ -216,15 +224,24 @@ class _MessageResponseAccumulator:
                 }
             }
             self._values += value
+        elif isinstance(chunk, RawContentBlockStartEvent):
+            self._current_content_block_type = chunk.content_block
         elif isinstance(chunk, RawContentBlockDeltaEvent):
-            value = {
-                "messages": {
-                    "index": str(self._current_message_idx),
-                    "delta": {
-                        "text": chunk.delta.text,
+            if isinstance(self._current_content_block_type, TextBlock):
+                value = {
+                    "messages": {
+                        "index": str(self._current_message_idx),
+                        "content": {
+                            "index": chunk.index,
+                            "type": self._current_content_block_type.type,
+                            "text": chunk.delta.text,
+                        }
                     }
                 }
-            }
+            elif isinstance(self._current_content_block_type, ToolUseBlock):
+                # TODO(harrison): fix this!!!!!!!
+                print("HARRISON FIX THIS {}".format(chunk))
+                value = {}
             self._values += value
         elif isinstance(chunk, RawMessageDeltaEvent):
             value = {
@@ -266,15 +283,24 @@ class _MessageResponseExtractor:
         idx = 0
         total_completion_token_count = 0
         total_prompt_token_count = 0
+        # TODO(harrison): figure out if we should always assume messages is 1. The current non streaming implementation
+        # has this assumption
         for message in messages:
-            if (content := message.get("delta")) and (text := content.get("text")) is not None:
-                yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}", text
             if role := message.get("role"):
                 yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}", role
             if output_tokens := message.get("output_tokens"):
                 total_completion_token_count += int(output_tokens)
             if input_tokens := message.get("input_tokens"):
                 total_prompt_token_count += int(input_tokens)
+            for content in message.get("content", []):
+                # TODO(harrison): figure out if we should always assume the first message will always be a message output
+                # this is the current assumption of the non streaming implementation.
+                tool_idx = 0
+                if (content_type := content.get("type")) == "text":
+                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}", content.get("text", "")
+                elif content_type == "tool_use":
+                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", text
+                tool_idx += 1
             idx += 1
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, total_completion_token_count
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, total_prompt_token_count

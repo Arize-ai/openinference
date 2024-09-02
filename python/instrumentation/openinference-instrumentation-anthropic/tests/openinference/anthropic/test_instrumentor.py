@@ -530,7 +530,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
         " Also what time is it there? Use necessary tools simultaneously."
     )
 
-    client.messages.create(
+    stream = client.messages.create(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1024,
         tools=[
@@ -572,6 +572,8 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
         messages=[{"role": "user", "content": input_message}],
         stream=True,
     )
+    for event in stream:
+        print(event)
 
     spans = in_memory_span_exporter.get_finished_spans()
 
