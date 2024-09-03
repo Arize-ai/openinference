@@ -4,7 +4,6 @@ from typing import Any, Callable, Dict, Iterator, List, Mapping, Tuple
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 
-from anthropic.types import TextBlock, ToolUseBlock
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -261,6 +260,7 @@ def _get_input_messages(messages: List[Dict[str, str]]) -> Any:
     """
     Extracts the messages from the chat response
     """
+    from anthropic.types import TextBlock, ToolUseBlock
     for i in range(len(messages)):
         tool_index = 0
         if content := messages[i].get("content"):
@@ -319,6 +319,7 @@ def _get_output_messages(response: Any) -> Any:
     """
     Extracts the tool call information from the response
     """
+    from anthropic.types import TextBlock, ToolUseBlock
     tool_index = 0
     for block in response.content:
         yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_ROLE}", response.role
