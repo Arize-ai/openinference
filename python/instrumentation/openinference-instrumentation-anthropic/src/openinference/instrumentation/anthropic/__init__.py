@@ -39,6 +39,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _instrument(self, **kwargs: Any) -> None:
         from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
@@ -81,6 +82,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _uninstrument(self, **kwargs: Any) -> None:
         from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
+
         if self._original_completions_create is not None:
             Completions.create = self._original_completions_create  # type: ignore[method-assign]
         if self._original_async_completions_create is not None:
