@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.15...python-openinference-instrumentation-v0.1.16) (2024-09-04)
+
+
+### Bug Fixes
+
+* remove setting the global logger level ([#1001](https://github.com/Arize-ai/openinference/issues/1001)) ([5c0f83c](https://github.com/Arize-ai/openinference/commit/5c0f83c355304da289ae1c849b9d315990281184))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.14...python-openinference-instrumentation-v0.1.15) (2024-08-16)
 
 
