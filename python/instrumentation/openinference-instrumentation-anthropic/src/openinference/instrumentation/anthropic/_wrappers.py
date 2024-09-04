@@ -341,7 +341,7 @@ def _get_output_messages(response: Any) -> Any:
 
 def _validate_invocation_parameter(parameter: Any) -> bool:
     """
-    Validates the invocation parameters
+    Validates the invocation parameters.
     """
     valid_params = (
         "max_tokens",
