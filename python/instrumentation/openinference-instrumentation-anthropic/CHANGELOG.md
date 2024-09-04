@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.2...python-openinference-instrumentation-anthropic-v0.1.3) (2024-09-04)
+
+
+### Bug Fixes
+
+* **anthropic:** dynamically import anthropic ([#998](https://github.com/Arize-ai/openinference/issues/998)) ([b627f79](https://github.com/Arize-ai/openinference/commit/b627f796afd2d1499c3bcccfbc17567aa7298df8))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.1...python-openinference-instrumentation-anthropic-v0.1.2) (2024-08-28)
 
 
