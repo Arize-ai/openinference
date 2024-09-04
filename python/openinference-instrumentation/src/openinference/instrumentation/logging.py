@@ -8,7 +8,6 @@ class CustomFormatter(logging.Formatter):
         return f"{level}: {record.getMessage()}"
 
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     console_handler = logging.StreamHandler()
