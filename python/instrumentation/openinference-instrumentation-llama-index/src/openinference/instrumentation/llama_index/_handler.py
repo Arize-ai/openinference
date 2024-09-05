@@ -32,6 +32,7 @@ from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
 from opentelemetry.util.types import AttributeValue
+from pydantic import BaseModel as PydanticBaseModel
 from pydantic import PrivateAttr
 from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
@@ -244,6 +245,7 @@ class _Span(BaseSpan):
         if isinstance(result, (str, SupportsFloat, bool)):
             self[OUTPUT_VALUE] = str(result)
         elif isinstance(result, BaseModel):
+            _ensure_result_model_is_serializable(result)
             try:
                 self[OUTPUT_VALUE] = result.model_dump_json(exclude_unset=True)
                 self[OUTPUT_MIME_TYPE] = JSON
@@ -954,6 +956,23 @@ def _asdict(obj: Any) -> Any:
             return copy.deepcopy(obj)
         except BaseException:
             return repr(obj)
+
+
+def _ensure_result_model_is_serializable(result: BaseModel) -> None:
+    """
+    Some LlamaIndex result types have a `raw` attribute containing the original
+    result object, e.g., from the OpenAI Python SDK. OpenAI's Pydantic models
+    are configured to defer instantiating model serializers, which can cause
+    serialization of the LlamaIndex result object to fail. This method forces
+    the OpenAI model to instantiate its serializer to avoid this issue.
+
+    For reference, see:
+    - https://github.com/Arize-ai/phoenix/issues/4423
+    - https://github.com/openai/openai-python/issues/1306
+    - https://github.com/pydantic/pydantic/issues/7713
+    """
+    if isinstance(raw := getattr(result, "raw", None), PydanticBaseModel):
+        raw.model_rebuild()
 
 
 T = TypeVar("T", bound=type)
