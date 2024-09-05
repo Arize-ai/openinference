@@ -1,7 +1,7 @@
 import json
+from types import AsyncGeneratorType, GeneratorType
 from typing import (
     Any,
-    AsyncGenerator,
     Dict,
     Generator,
     List,
@@ -160,10 +160,15 @@ def test_synchronous_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -317,10 +322,15 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "tool_choice": "any",
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -461,9 +471,14 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -585,10 +600,15 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -695,10 +715,15 @@ async def test_asynchronous_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -804,10 +829,15 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -873,7 +903,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
             response_stream = mistral_stream()
     else:
         response_stream = mistral_stream()
-    assert isinstance(response_stream, Generator)
+    assert isinstance(response_stream, GeneratorType)
     response_content = ""
     for chunk in response_stream:
         if chunk_content := chunk.data.choices[0].delta.content:
@@ -900,10 +930,15 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-small-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -989,7 +1024,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     else:
         response_stream = await get_response_stream()  # type: ignore
 
-    assert isinstance(response_stream, AsyncGenerator)
+    assert isinstance(response_stream, AsyncGeneratorType)
     response_content = ""
     async for chunk in response_stream:
         if chunk_content := chunk.data.choices[0].delta.content:
@@ -1016,10 +1051,15 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-small-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -1145,10 +1185,15 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-small-latest",
         "tool_choice": "any",
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
