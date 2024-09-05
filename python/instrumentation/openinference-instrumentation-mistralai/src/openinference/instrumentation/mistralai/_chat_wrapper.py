@@ -17,6 +17,12 @@ from typing import (
     Tuple,
 )
 
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.mistralai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -38,11 +44,6 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
     from mistralai import Mistral

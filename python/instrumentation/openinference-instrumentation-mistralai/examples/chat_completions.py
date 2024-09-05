@@ -1,9 +1,10 @@
 from mistralai import Mistral
-from openinference.instrumentation import using_attributes
-from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation import using_attributes
+from openinference.instrumentation.mistralai import MistralAIInstrumentor
 
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
