@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.0...python-openinference-instrumentation-llama-index-v3.0.1) (2024-09-05)
+
+
+### Bug Fixes
+
+* **llama-index:** ensure llamaindex response models are serializable ([#997](https://github.com/Arize-ai/openinference/issues/997)) ([c1cb203](https://github.com/Arize-ai/openinference/commit/c1cb203f1230d9aa3557736deb7b7f6fe310acca))
+
 ## [3.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.4...python-openinference-instrumentation-llama-index-v3.0.0) (2024-08-27)
 
 
