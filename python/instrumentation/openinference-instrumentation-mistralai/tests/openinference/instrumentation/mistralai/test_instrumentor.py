@@ -1,6 +1,7 @@
 import json
 from typing import (
     Any,
+    AsyncGenerator,
     Dict,
     Generator,
     List,
@@ -18,13 +19,6 @@ from mistralai.models import (
     ChatCompletionResponse,
     CompletionEvent,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
-
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
@@ -35,6 +29,12 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
 
 
 def remove_all_vcr_request_headers(request: Any) -> Any:
@@ -872,6 +872,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
             response_stream = mistral_stream()
     else:
         response_stream = mistral_stream()
+    assert isinstance(response_stream, Generator)
     response_content = ""
     for chunk in response_stream:
         if chunk_content := chunk.data.choices[0].delta.content:
@@ -987,6 +988,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     else:
         response_stream = await get_response_stream()  # type: ignore
 
+    assert isinstance(response_stream, AsyncGenerator)
     response_content = ""
     async for chunk in response_stream:
         if chunk_content := chunk.data.choices[0].delta.content:

@@ -17,12 +17,6 @@ from typing import (
     Tuple,
 )
 
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
-
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.mistralai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -44,6 +38,11 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
     from mistralai import Mistral
@@ -142,7 +141,9 @@ class _WithMistralAI(ABC):
 
         Based off of https://github.com/mistralai/client-python/blob/80c7951bad83338641d5e89684f841ce1cac938f/src/mistralai/client_base.py#L76
         """
-        bound_arguments = signature.bind(*args, **kwargs).arguments
+        bound_signature = signature.bind(*args, **kwargs)
+        bound_signature.apply_defaults()
+        bound_arguments = bound_signature.arguments
         request_data: Dict[str, Any] = {}
         for key, value in bound_arguments.items():
             try:
