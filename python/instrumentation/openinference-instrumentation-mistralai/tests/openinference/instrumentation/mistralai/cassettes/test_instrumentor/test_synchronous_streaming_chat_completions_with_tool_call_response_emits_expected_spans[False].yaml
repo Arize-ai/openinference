@@ -1,0 +1,68 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"What''s the weather like in San Francisco?","role":"user"}],"model":"mistral-small-latest","safe_prompt":false,"stream":true,"temperature":0.7,"tool_choice":"any","tools":[{"function":{"description":"finds
+      the weather for a given city","name":"get_weather","parameters":{"properties":{"city":{"description":"The
+      city to find the weather for, e.g. ''London''","type":"string"}},"required":["city"],"type":"object"}},"type":"function"}],"top_p":1.0}'
+    headers: {}
+    method: POST
+    uri: https://api.mistral.ai/v1/chat/completions#stream
+  response:
+    body:
+      string: 'data: {"id":"8d641f96950f401892c98eff1e4335cd","object":"chat.completion.chunk","created":1724786761,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}
+
+
+        data: {"id":"8d641f96950f401892c98eff1e4335cd","object":"chat.completion.chunk","created":1724786761,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"id":"EscTeQY62","function":{"name":"get_weather","arguments":"{\"city\":
+        \"San Francisco\"}"}}]},"finish_reason":"tool_calls","logprobs":null}],"usage":{"prompt_tokens":96,"total_tokens":119,"completion_tokens":23}}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8b9e7367cad84229-EWR
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Date:
+      - Tue, 27 Aug 2024 19:26:01 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      ratelimitbysize-limit:
+      - '500000'
+      ratelimitbysize-query-cost:
+      - '32010'
+      ratelimitbysize-remaining:
+      - '342032'
+      ratelimitbysize-reset:
+      - '60'
+      x-envoy-upstream-service-time:
+      - '116'
+      x-kong-proxy-latency:
+      - '2'
+      x-kong-request-id:
+      - 7cd5ca62d2c88b0c49547040e9553847
+      x-kong-upstream-latency:
+      - '117'
+      x-ratelimitbysize-limit-minute:
+      - '500000'
+      x-ratelimitbysize-limit-month:
+      - '1000000000'
+      x-ratelimitbysize-remaining-minute:
+      - '342032'
+      x-ratelimitbysize-remaining-month:
+      - '997342940'
+    status:
+      code: 200
+      message: OK
+version: 1

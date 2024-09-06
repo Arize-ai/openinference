@@ -1,29 +1,23 @@
 import json
+from types import AsyncGeneratorType, GeneratorType
 from typing import (
     Any,
-    AsyncIterator,
     Dict,
     Generator,
-    Iterable,
-    Iterator,
     List,
     Mapping,
+    Optional,
     cast,
 )
 
 import pytest
 import respx
-from httpx import AsyncByteStream, Response
-from mistralai.async_client import MistralAsyncClient
-from mistralai.client import MistralClient
-from mistralai.exceptions import MistralAPIException
-from mistralai.models.chat_completion import (
+from httpx import Response
+from mistralai import Mistral
+from mistralai.models import (
+    ChatCompletionChoice,
     ChatCompletionResponse,
-    ChatCompletionStreamResponse,
-    ChatMessage,
-    FunctionCall,
-    ToolCall,
-    ToolChoice,
+    CompletionEvent,
 )
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
@@ -44,6 +38,38 @@ from openinference.semconv.trace import (
 )
 
 
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
+
+
 # Ensure we're using the common OITracer from common opeinference-instrumentation pkg
 def test_oitracer() -> None:
     assert isinstance(MistralAIInstrumentor()._tracer, OITracer)
@@ -52,7 +78,7 @@ def test_oitracer() -> None:
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_chat_completions_emits_expected_span(
     use_context_attributes: bool,
-    mistral_sync_client: MistralClient,
+    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
     session_id: str,
@@ -89,14 +115,14 @@ def test_synchronous_chat_completions_emits_expected_span(
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        return mistral_sync_client.chat(
+        return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
-            ],
+                {
+                    "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    "role": "user",
+                }
+            ],  # type: ignore
             temperature=0.1,
         )
 
@@ -113,8 +139,8 @@ def test_synchronous_chat_completions_emits_expected_span(
             response = mistral_chat()
     else:
         response = mistral_chat()
-    choices = response.choices
-    assert len(choices) == 1
+    choices: Optional[List[ChatCompletionChoice]] = response.choices
+    assert choices is not None and len(choices) == 1
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "France" in response_content
@@ -134,10 +160,15 @@ def test_synchronous_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -179,7 +210,7 @@ def test_synchronous_chat_completions_emits_expected_span(
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spans(
     use_context_attributes: bool,
-    mistral_sync_client: MistralClient,
+    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
     session_id: str,
@@ -241,16 +272,16 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
             },
         }
 
-        return mistral_sync_client.chat(
+        return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
-            tool_choice=ToolChoice.any,
-            tools=[tool],
+            tool_choice="any",
+            tools=[tool],  # type: ignore
             messages=[
-                ChatMessage(
-                    content="What's the weather like in San Francisco?",
-                    role="user",
-                )
-            ],
+                {
+                    "content": "What's the weather like in San Francisco?",
+                    "role": "user",
+                }
+            ],  # type: ignore
         )
 
     if use_context_attributes:
@@ -266,8 +297,8 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
             response = mistral_chat()
     else:
         response = mistral_chat()
-    choices = response.choices
-    assert len(choices) == 1
+    choices: Optional[List[ChatCompletionChoice]] = response.choices
+    assert choices is not None and len(choices) == 1
     assert choices[0].message.content == ""
 
     assert (tool_calls := choices[0].message.tool_calls)
@@ -291,10 +322,15 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "tool_choice": "any",
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -342,7 +378,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_chat_completions_with_tool_call_message_emits_expected_spans(
     use_context_attributes: bool,
-    mistral_sync_client: MistralClient,
+    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
     session_id: str,
@@ -379,28 +415,27 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        return mistral_sync_client.chat(
+        return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             messages=[
-                ChatMessage(
-                    content="What's the weather like in San Francisco?",
-                    role="user",
-                ),
-                ChatMessage(
-                    content="",
-                    role="assistant",
-                    tool_calls=[
-                        ToolCall(
-                            function=FunctionCall(
-                                name="get_weather", arguments='{"city": "San Francisco"}'
-                            )
-                        )
+                {
+                    "content": "What's the weather like in San Francisco?",
+                    "role": "user",
+                },
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": '{"city": "San Francisco"}',
+                            }
+                        }
                     ],
-                ),
-                ChatMessage(
-                    role="tool", name="get_weather", content='{"weather_category": "sunny"}'
-                ),
-            ],
+                },
+                {"role": "tool", "name": "get_weather", "content": '{"weather_category": "sunny"}'},
+            ],  # type: ignore
         )
 
     if use_context_attributes:
@@ -416,8 +451,8 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
             response = mistral_chat()
     else:
         response = mistral_chat()
-    choices = response.choices
-    assert len(choices) == 1
+    choices: Optional[List[ChatCompletionChoice]] = response.choices
+    assert choices is not None and len(choices) == 1
     assert choices[0].message.content == "The weather in San Francisco is currently sunny."
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -436,9 +471,14 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -497,7 +537,7 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
     use_context_attributes: bool,
-    mistral_sync_client: MistralClient,
+    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
     session_id: str,
@@ -516,18 +556,18 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        return mistral_sync_client.chat(
+        return mistral_sync_client.chat.complete(  # type: ignore
             model="mistral-large-latest",
             messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
+                {
+                    "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    "role": "user",
+                }  # type: ignore
             ],
             temperature=0.1,
         )
 
-    with pytest.raises(MistralAPIException):
+    with pytest.raises(Exception):
         if use_context_attributes:
             with using_attributes(
                 session_id=session_id,
@@ -560,10 +600,15 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -588,7 +633,7 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_chat_completions_emits_expected_span(
     use_context_attributes: bool,
-    mistral_async_client: MistralAsyncClient,
+    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
     session_id: str,
@@ -625,14 +670,14 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     )
 
     async def mistral_chat() -> ChatCompletionResponse:
-        return await mistral_async_client.chat(
+        return await mistral_sync_client.chat.complete_async(
             model="mistral-large-latest",
             messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
-            ],
+                {
+                    "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    "role": "user",
+                }
+            ],  # type: ignore
             temperature=0.1,
         )
 
@@ -649,8 +694,8 @@ async def test_asynchronous_chat_completions_emits_expected_span(
             response = await mistral_chat()
     else:
         response = await mistral_chat()
-    choices = response.choices
-    assert len(choices) == 1
+    choices: Optional[List[ChatCompletionChoice]] = response.choices
+    assert choices is not None and len(choices) == 1
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "France" in response_content
@@ -670,10 +715,15 @@ async def test_asynchronous_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -716,7 +766,7 @@ async def test_asynchronous_chat_completions_emits_expected_span(
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_error(
     use_context_attributes: bool,
-    mistral_async_client: MistralAsyncClient,
+    mistral_sync_client: Mistral,
     in_memory_span_exporter: InMemorySpanExporter,
     respx_mock: Any,
     session_id: str,
@@ -735,18 +785,18 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
     )
 
     async def mistral_chat() -> ChatCompletionResponse:
-        return await mistral_async_client.chat(
+        return await mistral_sync_client.chat.complete_async(
             model="mistral-large-latest",
             messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
-            ],
+                {
+                    "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
+                    "role": "user",
+                }
+            ],  # type: ignore
             temperature=0.1,
         )
 
-    with pytest.raises(MistralAPIException):
+    with pytest.raises(Exception):
         if use_context_attributes:
             with using_attributes(
                 session_id=session_id,
@@ -779,10 +829,15 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
+    explicit_invocation_parameters = {
         "model": "mistral-large-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -803,13 +858,14 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+)
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_streaming_chat_completions_emits_expected_span(
     use_context_attributes: bool,
-    mistral_sync_client: MistralClient,
     in_memory_span_exporter: InMemorySpanExporter,
-    chat_stream: AsyncByteStream,
-    respx_mock: Any,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -818,21 +874,18 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
-        return_value=Response(
-            200,
-            stream=chat_stream,
-        )
-    )
-
-    def mistral_stream() -> Iterable[ChatCompletionStreamResponse]:
-        return mistral_sync_client.chat_stream(
-            model="mistral-large-latest",
-            messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
+    def mistral_stream() -> Generator[CompletionEvent, None, None]:
+        mistral_client = Mistral(api_key="redacted")
+        return mistral_client.chat.stream(  # type: ignore
+            model="mistral-small-latest",
+            messages=[  # type: ignore
+                {
+                    "content": (
+                        "Who won the World Cup in 2018? Answer in three word, "
+                        "three words no punctuation."
+                    ),
+                    "role": "user",
+                }
             ],
             temperature=0.1,
         )
@@ -850,14 +903,14 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
             response_stream = mistral_stream()
     else:
         response_stream = mistral_stream()
+    assert isinstance(response_stream, GeneratorType)
     response_content = ""
     for chunk in response_stream:
-        if chunk_content := chunk.choices[0].delta.content:
+        if chunk_content := chunk.data.choices[0].delta.content:
             response_content += chunk_content
 
     assert (
-        response_content
-        == "The 2018 FIFA World Cup was won by the French national team. They defeated Croatia 4-2 in the final, which took place on July 15, 2018, in Moscow, Russia. This was France's second World Cup title; they had previously won the tournament in 1998 when they hosted the event. Did you know that the World Cup is the most prestigious tournament in international football and is often considered as the height of a footballer's career?"  # noqa: E501
+        response_content == "France won World Cup"  # noqa: E501
     )  # noqa: E501
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -877,15 +930,20 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
-        "model": "mistral-large-latest",
+    explicit_invocation_parameters = {
+        "model": "mistral-small-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
-        == "Who won the World Cup in 2018? Answer in one word, no punctuation."
+        == "Who won the World Cup in 2018? Answer in three word, three words no punctuation."
     )
 
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
@@ -901,10 +959,10 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 109
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 124
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 26
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 4
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 30
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -919,14 +977,15 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     use_context_attributes: bool,
-    mistral_async_client: MistralAsyncClient,
     in_memory_span_exporter: InMemorySpanExporter,
-    chat_stream: AsyncByteStream,
-    respx_mock: Any,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -935,22 +994,19 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
-        return_value=Response(
-            200,
-            stream=chat_stream,
-        )
-    )
+    mistral_client = Mistral(api_key="redacted")
 
-    async def mistral_stream() -> AsyncIterator[ChatCompletionStreamResponse]:
-        return mistral_async_client.chat_stream(
-            model="mistral-large-latest",
+    async def get_response_stream():  # type: ignore
+        return await mistral_client.chat.stream_async(
+            model="mistral-small-latest",
             messages=[
-                ChatMessage(
-                    content="Who won the World Cup in 2018? Answer in one word, no punctuation.",
-                    role="user",
-                )
-            ],
+                {
+                    "content": (
+                        "Who won the World Cup in 2018? Answer in three words, no punctuation."
+                    ),
+                    "role": "user",
+                }
+            ],  # type: ignore
             temperature=0.1,
         )
 
@@ -964,17 +1020,18 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         ):
-            response_stream = await mistral_stream()
+            response_stream = await get_response_stream()  # type: ignore
     else:
-        response_stream = await mistral_stream()
+        response_stream = await get_response_stream()  # type: ignore
+
+    assert isinstance(response_stream, AsyncGeneratorType)
     response_content = ""
     async for chunk in response_stream:
-        if chunk_content := chunk.choices[0].delta.content:
+        if chunk_content := chunk.data.choices[0].delta.content:
             response_content += chunk_content
 
     assert (
-        response_content
-        == "The 2018 FIFA World Cup was won by the French national team. They defeated Croatia 4-2 in the final, which took place on July 15, 2018, in Moscow, Russia. This was France's second World Cup title; they had previously won the tournament in 1998 when they hosted the event. Did you know that the World Cup is the most prestigious tournament in international football and is often considered as the height of a footballer's career?"  # noqa: E501
+        response_content == "France won"  # noqa: E501
     )  # noqa: E501
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -994,15 +1051,20 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
-        "model": "mistral-large-latest",
+    explicit_invocation_parameters = {
+        "model": "mistral-small-latest",
         "temperature": 0.1,
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
-        == "Who won the World Cup in 2018? Answer in one word, no punctuation."
+        == "Who won the World Cup in 2018? Answer in three words, no punctuation."
     )
 
     output_message_role = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}")
@@ -1018,10 +1080,10 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 109
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 124
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 24
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 2
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 26
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1036,13 +1098,14 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+)
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_expected_spans(
     use_context_attributes: bool,
-    mistral_sync_client: MistralClient,
     in_memory_span_exporter: InMemorySpanExporter,
-    chat_stream_with_tool_call: AsyncByteStream,
-    respx_mock: Any,
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -1051,12 +1114,6 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
-        return_value=Response(
-            200,
-            stream=chat_stream_with_tool_call,
-        )
-    )
     tool = {
         "type": "function",
         "function": {
@@ -1074,17 +1131,18 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
             },
         },
     }
+    mistral = Mistral(api_key="redacted")
 
-    def mistral_chat() -> Iterable[ChatCompletionStreamResponse]:
-        return mistral_sync_client.chat_stream(
-            model="mistral-large-latest",
-            tool_choice=ToolChoice.any,
-            tools=[tool],
-            messages=[
-                ChatMessage(
-                    content="What's the weather like in San Francisco?",
-                    role="user",
-                )
+    def mistral_chat() -> Generator[CompletionEvent, None, None]:
+        return mistral.chat.stream(
+            model="mistral-small-latest",
+            tool_choice="any",
+            tools=[tool],  # type: ignore
+            messages=[  # type: ignore
+                {
+                    "content": "What's the weather like in San Francisco?",
+                    "role": "user",
+                }
             ],
         )
 
@@ -1103,7 +1161,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
         response_stream = mistral_chat()
 
     for chunk in response_stream:
-        delta = chunk.choices[0].delta
+        delta = chunk.data.choices[0].delta
         assert not delta.content
         if tool_calls := delta.tool_calls:
             tool_call = tool_calls[0]
@@ -1127,10 +1185,15 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
         == OpenInferenceMimeTypeValues.JSON
     )
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
-        "model": "mistral-large-latest",
+    explicit_invocation_parameters = {
+        "model": "mistral-small-latest",
         "tool_choice": "any",
     }
+    invocation_parameters = json.loads(invocation_parameters_str)
+    assert all(
+        invocation_parameters[key] == explicit_invocation_parameters[key]
+        for key in explicit_invocation_parameters
+    )
 
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
@@ -1160,7 +1223,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 96
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1256,13 +1319,8 @@ def prompt_template_variables() -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="module")
-def mistral_sync_client() -> MistralClient:
-    return MistralClient(api_key="123")
-
-
-@pytest.fixture(scope="module")
-def mistral_async_client() -> MistralAsyncClient:
-    return MistralAsyncClient(api_key="123")
+def mistral_sync_client() -> Mistral:
+    return Mistral(api_key="123")
 
 
 @pytest.fixture(scope="module")
@@ -1288,156 +1346,6 @@ def instrument(
     yield
     MistralAIInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
-
-
-@pytest.fixture
-def server_sent_events() -> List[bytes]:
-    return [
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"The"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"2"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"0"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"8"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" FIFA"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" World"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" Cup"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" was"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" won"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" by"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" the"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" French"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" national"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" team"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"."},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" They"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" defeated"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" Cro"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"at"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"ia"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"4"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"-"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"2"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" in"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" the"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" final"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":","},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" which"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" took"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" place"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" on"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" July"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"5"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":","},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"2"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"0"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"8"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":","},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" in"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" Moscow"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":","},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" Russia"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"."},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" This"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" was"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" France"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"'"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"s"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" second"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" World"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" Cup"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" title"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":";"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" they"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" had"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" previously"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" won"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" the"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" tournament"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" in"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"9"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"9"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"8"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" when"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" they"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" hosted"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" the"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" event"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"."},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" Did"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" you"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" know"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" that"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" the"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" World"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" Cup"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" is"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" the"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" most"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" prest"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"igious"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" tournament"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" in"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" international"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" football"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" and"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" is"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" often"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" considered"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" as"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" the"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" height"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" of"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" a"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" football"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"er"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"'"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"s"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":" career"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":"?"},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"ca75aff0161b45248d217b410da72ff3","object":"chat.completion.chunk","created":1711130222,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop","logprobs":null}],"usage":{"prompt_tokens":15,"total_tokens":124,"completion_tokens":109}}\n\n""",  # noqa: E501
-        b"""data: [DONE]\n""",
-    ]
-
-
-@pytest.fixture
-def server_sent_events_with_tool_call() -> List[bytes]:
-    return [
-        b"""data: {"id":"2b081bc20de346a987269f670396c651","object":"chat.completion.chunk","created":1711157727,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}\n\n""",  # noqa: E501
-        b"""data: {"id":"7a5fe619e34d4d0fb02dedcbdd17b8b4","object":"chat.completion.chunk","created":1711159624,"model":"mistral-large-latest","choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"name":"get_weather","arguments":"{\\"city\\": \\"San Francisco\\"}"}}]},"finish_reason":"tool_calls","logprobs":null}],"usage":{"prompt_tokens":96,"total_tokens":119,"completion_tokens":23}}\n\n""",  # noqa: E501
-        b"""data: [DONE]\n""",
-    ]
-
-
-class MockAsyncByteStream(AsyncByteStream):
-    def __init__(self, byte_stream: Iterable[bytes]):
-        self._byte_stream = byte_stream
-
-    def __iter__(self) -> Iterator[bytes]:
-        for byte_string in self._byte_stream:
-            yield byte_string
-
-    async def __aiter__(self) -> AsyncIterator[bytes]:
-        for byte_string in self._byte_stream:
-            yield byte_string
-
-
-@pytest.fixture
-def chat_stream(server_sent_events: List[bytes]) -> AsyncByteStream:
-    return MockAsyncByteStream(server_sent_events)
-
-
-@pytest.fixture
-def chat_stream_with_tool_call(server_sent_events_with_tool_call: List[bytes]) -> AsyncByteStream:
-    return MockAsyncByteStream(server_sent_events_with_tool_call)
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
