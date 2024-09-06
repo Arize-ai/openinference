@@ -162,7 +162,9 @@ def payload_to_semantic_attributes(
         tool_metadata = cast(ToolMetadata, payload.get(EventPayload.TOOL))
         attributes[TOOL_NAME] = tool_metadata.name
         attributes[TOOL_DESCRIPTION] = tool_metadata.description
-        if tool_parameters := tool_metadata.to_openai_tool(skip_length_check=True)["function"]["parameters"]:
+        if tool_parameters := tool_metadata.to_openai_tool(skip_length_check=True)["function"][
+            "parameters"
+        ]:
             attributes[TOOL_PARAMETERS] = safe_json_dumps(tool_parameters)
     if EventPayload.SERIALIZED in payload:
         serialized = payload[EventPayload.SERIALIZED]
