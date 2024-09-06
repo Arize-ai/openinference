@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.1...python-openinference-instrumentation-llama-index-v3.0.2) (2024-09-06)
+
+
+### Bug Fixes
+
+* Don't check length when converting ToolMetadata to OpenAI format ([#1004](https://github.com/Arize-ai/openinference/issues/1004)) ([47e9c77](https://github.com/Arize-ai/openinference/commit/47e9c779c9ccc464faa30c2ad3637028cfe6cc80))
+
 ## [3.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.0...python-openinference-instrumentation-llama-index-v3.0.1) (2024-09-05)
 
 
