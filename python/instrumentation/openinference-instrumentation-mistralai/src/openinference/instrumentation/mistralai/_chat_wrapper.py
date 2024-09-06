@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import warnings
@@ -29,8 +30,9 @@ from openinference.instrumentation.mistralai._request_attributes_extractor impor
 from openinference.instrumentation.mistralai._response_accumulator import _ChatCompletionAccumulator
 from openinference.instrumentation.mistralai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
+    _StreamResponseAttributesExtractor,
 )
-from openinference.instrumentation.mistralai._stream import _Stream
+from openinference.instrumentation.mistralai._stream import _AsyncStream, _Stream
 from openinference.instrumentation.mistralai._utils import (
     _as_input_attributes,
     _finish_tracing,
@@ -44,7 +46,7 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    from mistralai.client_base import ClientBase
+    from mistralai import Mistral
 
 __all__ = ("_SyncChatWrapper",)
 
@@ -131,7 +133,7 @@ class _WithMistralAI(ABC):
     def _parse_args(
         self,
         signature: Signature,
-        mistral_client: "ClientBase",
+        mistral_client: "Mistral",
         *args: Tuple[Any],
         **kwargs: Mapping[str, Any],
     ) -> Dict[str, Any]:
@@ -140,19 +142,13 @@ class _WithMistralAI(ABC):
 
         Based off of https://github.com/mistralai/client-python/blob/80c7951bad83338641d5e89684f841ce1cac938f/src/mistralai/client_base.py#L76
         """
-        bound_arguments = signature.bind(*args, **kwargs).arguments
+        bound_signature = signature.bind(*args, **kwargs)
+        bound_signature.apply_defaults()
+        bound_arguments = bound_signature.arguments
         request_data: Dict[str, Any] = {}
         for key, value in bound_arguments.items():
             try:
-                if key == "messages":
-                    request_data[key] = mistral_client._parse_messages(value)
-                elif key == "tools":
-                    request_data[key] = mistral_client._parse_tools(value)
-                elif key == "tool_choice":
-                    request_data[key] = mistral_client._parse_tool_choice(value)
-                elif key == "response_format" and value is not None:
-                    request_data[key] = mistral_client._parse_response_format(value)
-                elif value is not None:
+                if value is not None:
                     try:
                         # ensure the value is JSON-serializable
                         safe_json_dumps(value)
@@ -173,22 +169,31 @@ class _WithMistralAI(ABC):
         Monkey-patch the response object to trace the stream, or finish tracing if the response is
         not a stream.
         """
-        from mistralai.models.chat_completion import (
-            ChatCompletionResponse,
-            ChatCompletionStreamResponse,
-        )
+        from mistralai.models.chatcompletionresponse import ChatCompletionResponse
+        from mistralai.models.completionevent import CompletionEvent
 
         if not isinstance(response, ChatCompletionResponse):  # assume it's a stream
             response_accumulator = _ChatCompletionAccumulator(
                 request_parameters=request_parameters,
-                chat_completion_type=ChatCompletionStreamResponse,
-                response_attributes_extractor=self._response_attributes_extractor,
+                chat_completion_type=CompletionEvent,
+                response_attributes_extractor=_StreamResponseAttributesExtractor(),
             )
-            return _Stream(
-                stream=response,
-                with_span=with_span,
-                response_accumulator=response_accumulator,
-            )
+            # we need to run this check first because in python 3.9 iterators are
+            # considered coroutines
+            if isinstance(response, Iterable):
+                return _Stream(
+                    stream=response,  # type: ignore
+                    with_span=with_span,
+                    response_accumulator=response_accumulator,
+                )
+            elif asyncio.iscoroutine(response):
+                return _AsyncStream(
+                    stream=response,
+                    with_span=with_span,
+                    response_accumulator=response_accumulator,
+                ).stream_async_with_accumulator()
+            else:
+                raise TypeError("Response must be either a coroutine or an iterable")
         _finish_tracing(
             status=trace_api.Status(status_code=trace_api.StatusCode.OK),
             with_span=with_span,
@@ -205,7 +210,7 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: "ClientBase",
+        instance: "Mistral",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
@@ -251,7 +256,7 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
     async def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: "ClientBase",
+        instance: "Mistral",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
@@ -297,7 +302,7 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
     def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: "ClientBase",
+        instance: "Mistral",
         args: Tuple[Any],
         kwargs: Mapping[str, Any],
     ) -> Any:

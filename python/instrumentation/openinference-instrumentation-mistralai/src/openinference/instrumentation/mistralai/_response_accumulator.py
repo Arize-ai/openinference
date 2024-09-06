@@ -26,7 +26,7 @@ from openinference.instrumentation.mistralai._utils import (
 from openinference.semconv.trace import OpenInferenceMimeTypeValues
 
 if TYPE_CHECKING:
-    from mistralai.models.chat_completion import ChatCompletionStreamResponse
+    from mistralai.models import CompletionEvent
 
 __all__ = ("_ChatCompletionAccumulator",)
 
@@ -52,7 +52,7 @@ class _ChatCompletionAccumulator:
     def __init__(
         self,
         request_parameters: Mapping[str, Any],
-        chat_completion_type: Type["ChatCompletionStreamResponse"],
+        chat_completion_type: Type["CompletionEvent"],
         response_attributes_extractor: Optional[_CanGetAttributesFromResponse] = None,
     ) -> None:
         self._chat_completion_type = chat_completion_type
@@ -61,25 +61,28 @@ class _ChatCompletionAccumulator:
         self._is_null = True
         self._cached_result: Optional[Dict[str, Any]] = None
         self._values = _ValuesAccumulator(
-            choices=_IndexedAccumulator(
-                lambda: _ValuesAccumulator(
-                    message=_ValuesAccumulator(
-                        content=_StringAccumulator(),
-                        tool_calls=_IndexedAccumulator(
-                            lambda: _ValuesAccumulator(
-                                function=_ValuesAccumulator(arguments=_StringAccumulator()),
-                            )
+            data=_ValuesAccumulator(
+                choices=_IndexedAccumulator(
+                    lambda: _ValuesAccumulator(
+                        message=_ValuesAccumulator(
+                            content=_StringAccumulator(),
+                            tool_calls=_IndexedAccumulator(
+                                lambda: _ValuesAccumulator(
+                                    function=_ValuesAccumulator(arguments=_StringAccumulator()),
+                                )
+                            ),
                         ),
                     ),
                 ),
             ),
         )
 
-    def process_chunk(self, chunk: "ChatCompletionStreamResponse") -> None:
+    def process_chunk(self, chunk: "CompletionEvent") -> None:
         self._is_null = False
         self._cached_result = None
         values = chunk.model_dump(exclude_unset=True, warnings=False)
-        for choice in values.get("choices", ()):
+        data = values.get("data", ())
+        for choice in data.get("choices", ()):
             if delta := choice.pop("delta", None):
                 choice["message"] = delta
         self._values += values

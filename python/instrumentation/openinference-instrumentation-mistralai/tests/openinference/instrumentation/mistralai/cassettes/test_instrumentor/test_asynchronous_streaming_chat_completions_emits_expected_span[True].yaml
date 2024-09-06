@@ -1,0 +1,73 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"Who won the World Cup in 2018? Answer in three
+      words, no punctuation.","role":"user"}],"model":"mistral-small-latest","safe_prompt":false,"stream":true,"temperature":0.1,"tool_choice":"auto","top_p":1.0}'
+    headers: {}
+    method: POST
+    uri: https://api.mistral.ai/v1/chat/completions#stream
+  response:
+    body:
+      string: 'data: {"id":"57eb0fcf6e23481bb15ee54e5f0ef47a","object":"chat.completion.chunk","created":1724786737,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"logprobs":null}]}
+
+
+        data: {"id":"57eb0fcf6e23481bb15ee54e5f0ef47a","object":"chat.completion.chunk","created":1724786737,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"France"},"finish_reason":null,"logprobs":null}]}
+
+
+        data: {"id":"57eb0fcf6e23481bb15ee54e5f0ef47a","object":"chat.completion.chunk","created":1724786737,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":"
+        won"},"finish_reason":null,"logprobs":null}]}
+
+
+        data: {"id":"57eb0fcf6e23481bb15ee54e5f0ef47a","object":"chat.completion.chunk","created":1724786737,"model":"mistral-small-latest","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop","logprobs":null}],"usage":{"prompt_tokens":24,"total_tokens":26,"completion_tokens":2}}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8b9e72d7bb46c475-EWR
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Date:
+      - Tue, 27 Aug 2024 19:25:38 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      ratelimitbysize-limit:
+      - '500000'
+      ratelimitbysize-query-cost:
+      - '32018'
+      ratelimitbysize-remaining:
+      - '348385'
+      ratelimitbysize-reset:
+      - '23'
+      x-envoy-upstream-service-time:
+      - '56'
+      x-kong-proxy-latency:
+      - '0'
+      x-kong-request-id:
+      - 74cd4b3af427177b0d745c1a6911c330
+      x-kong-upstream-latency:
+      - '57'
+      x-ratelimitbysize-limit-minute:
+      - '500000'
+      x-ratelimitbysize-limit-month:
+      - '1000000000'
+      x-ratelimitbysize-remaining-minute:
+      - '348385'
+      x-ratelimitbysize-remaining-month:
+      - '997374950'
+    status:
+      code: 200
+      message: OK
+version: 1

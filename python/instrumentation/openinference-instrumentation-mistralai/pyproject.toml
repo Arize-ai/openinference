@@ -34,14 +34,15 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "mistralai",
+  "mistralai >= 1.0.2",
 ]
 test = [
-  "mistralai<0.2",
+  "mistralai == 1.0.2",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "respx",
   "pytest-asyncio",
+  "pytest.recording",
 ]
 
 [project.urls]
