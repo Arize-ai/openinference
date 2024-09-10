@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.16...python-openinference-instrumentation-v0.1.17) (2024-09-10)
+
+
+### Features
+
+* id generator with separate source of randomness ([#1010](https://github.com/Arize-ai/openinference/issues/1010)) ([ac8cce1](https://github.com/Arize-ai/openinference/commit/ac8cce112341bb31a575cb1e61a55acb196fc600))
+
 ## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.15...python-openinference-instrumentation-v0.1.16) (2024-09-04)
 
 
