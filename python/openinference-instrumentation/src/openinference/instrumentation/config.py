@@ -1,6 +1,7 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
+from secrets import randbits
 from typing import (
     Any,
     Callable,
@@ -21,7 +22,16 @@ from opentelemetry.context import (
     detach,
     set_value,
 )
-from opentelemetry.trace import Link, Span, SpanKind, Tracer, use_span
+from opentelemetry.sdk.trace import IdGenerator
+from opentelemetry.trace import (
+    INVALID_SPAN_ID,
+    INVALID_TRACE_ID,
+    Link,
+    Span,
+    SpanKind,
+    Tracer,
+    use_span,
+)
 from opentelemetry.util.types import Attributes, AttributeValue
 
 from openinference.semconv.trace import (
@@ -343,10 +353,32 @@ class _WrappedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         span.end(end_time)
 
 
+class _IdGenerator(IdGenerator):
+    """
+    An IdGenerator that uses a different source of randomness to
+    avoid being affected by seeds set by user application.
+    """
+
+    def generate_span_id(self) -> int:
+        while (span_id := randbits(64)) == INVALID_SPAN_ID:
+            continue
+        return span_id
+
+    def generate_trace_id(self) -> int:
+        while (trace_id := randbits(128)) == INVALID_TRACE_ID:
+            continue
+        return trace_id
+
+
 class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(self, wrapped: Tracer, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
+        self._self_id_generator = _IdGenerator()
+
+    @property
+    def id_generator(self) -> IdGenerator:
+        return self._self_id_generator
 
     @contextmanager
     def start_as_current_span(
@@ -391,7 +423,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         set_status_on_exception: bool = True,
     ) -> Span:
         tracer = cast(Tracer, self.__wrapped__)
-        span = tracer.start_span(
+        span = tracer.__class__.start_span(
+            self,
             name=name,
             context=context,
             kind=kind,
