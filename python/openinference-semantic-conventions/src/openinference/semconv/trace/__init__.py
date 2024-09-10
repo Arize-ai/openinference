@@ -200,6 +200,10 @@ class DocumentAttributes:
     """
     The id of the document.
     """
+    DOCUMENT_REF_DOC_ID = "document.ref_doc_id"
+    """
+    The ref id of the document.
+    """
     DOCUMENT_SCORE = "document.score"
     """
     The score of the document

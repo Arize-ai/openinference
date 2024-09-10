@@ -101,6 +101,7 @@ def payload_to_semantic_attributes(
         attributes[RETRIEVAL_DOCUMENTS] = [
             {
                 DOCUMENT_ID: node_with_score.node.node_id,
+                DOCUMENT_REF_DOC_ID: node_with_score.node.ref_doc_id,
                 DOCUMENT_SCORE: node_with_score.score,
                 DOCUMENT_CONTENT: node_with_score.node.text,
                 **(
@@ -704,6 +705,7 @@ _SPAN_KINDS = MappingProxyType(
 
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
+DOCUMENT_REF_DOC_ID = DocumentAttributes.DOCUMENT_REF_DOC_ID
 DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
 DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
