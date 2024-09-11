@@ -26,12 +26,12 @@ classifiers = [
 ]
 dependencies = [
   "opentelemetry-api",
+  "opentelemetry-sdk",
   "openinference-semantic-conventions>=0.1.6",
 ]
 
 [project.optional-dependencies]
 test = [
-  "opentelemetry-sdk",
 ]
 
 [project.urls]
