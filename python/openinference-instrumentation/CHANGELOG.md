@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.17...python-openinference-instrumentation-v0.1.18) (2024-09-11)
+
+
+### Bug Fixes
+
+* add missing dependency opentelemetry-sdk ([#1026](https://github.com/Arize-ai/openinference/issues/1026)) ([11e6cb9](https://github.com/Arize-ai/openinference/commit/11e6cb98cf2efe73fd3b3972869d8527db67cc72))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.16...python-openinference-instrumentation-v0.1.17) (2024-09-10)
 
 
