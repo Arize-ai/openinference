@@ -4,9 +4,9 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsup ./index.ts --format cjs --dts",
-    "start": "node ./dist/index.cjs",
-    "dev": "concurrently \"tsup ./index.ts --format cjs --dts --watch\" \"nodemon --inspect -q ./dist/index.cjs\"",
+    "build":"tsup ./index.ts ./instrumentation.ts --format cjs --dts",
+    "start": "node --import ./dist/instrumentation.cjs ./dist/index.cjs",
+    "dev": "concurrently \"tsup ./index.ts ./instrumentation.ts --format cjs --dts --watch\" \"nodemon --inspect --import ./dist/instrumentation.cjs -q ./dist/index.cjs\"",
     "type:check": "tsc --noEmit"
   },
   "dependencies": {
