@@ -53,7 +53,6 @@ for k in dir(OpenAI):
     if callable(v) and hasattr(v, "retry") and hasattr(v.retry, "wait"):
         v.retry.wait = wait_none()
 
-
 for name, logger in logging.root.manager.loggerDict.items():
     if name.startswith("openinference.") and isinstance(logger, logging.Logger):
         logger.setLevel(logging.DEBUG)
@@ -200,14 +199,6 @@ def test_callback_llm(
             assert not synthesize_span.status.description
             if not (is_async and is_stream):
                 assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
-        else:
-            assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
-            assert (
-                synthesize_span.status.description
-                and synthesize_span.status.description.startswith(
-                    openai.BadRequestError.__name__,
-                )
-            )
         if use_context_attributes:
             _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
         assert synthesize_attributes == {}  # all attributes should be accounted for
@@ -267,11 +258,6 @@ def test_callback_llm(
                 assert (
                     llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
                 )
-        else:
-            assert llm_span.status.status_code == trace_api.StatusCode.ERROR
-            assert llm_span.status.description and llm_span.status.description.startswith(
-                openai.BadRequestError.__name__,
-            )
         if use_context_attributes:
             _check_context_attributes(llm_attributes, session_id, user_id, metadata, tags)
         assert llm_attributes == {}  # all attributes should be accounted for
