@@ -25,7 +25,7 @@ jobs:
       - run: pip install tox-uv==1.11.2
       - run: >-
           tox run-parallel --parallel-no-spinner
-          -e $(tox -l | egrep -e '-latest$' | paste -sd, -)
+          -e $(tox -l | egrep -v 'instructor' | egrep -e '-latest$' | paste -sd, -)
           --result-json=${{ runner.temp }}/.tox-result.json
       - run: >-
           echo "testenvs=$(cat ${{ runner.temp }}/.tox-result.json
