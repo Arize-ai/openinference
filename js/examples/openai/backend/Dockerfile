@@ -23,4 +23,4 @@ COPY --from=builder /app/dist ./dist
 COPY package*.json ./
 RUN npm i --production
 EXPOSE 8000
-CMD ["node", "--import", "./dist/instrumentation.cjs", "./dist/index.cjs"]
+CMD ["node", "--import", "./dist/instrumentation2.cjs", "./dist/index.cjs"]
