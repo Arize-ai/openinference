@@ -45,6 +45,10 @@ test = [
   "opentelemetry-sdk",
   "respx",
   "pytest-recording",
+  "langsmith",
+  "portpicker",
+  "starlette",
+  "uvicorn",
 ]
 type-check = [
   "langchain_core == 0.1.5",
@@ -73,7 +77,6 @@ testpaths = [
 
 [tool.mypy]
 strict = true
-explicit_package_bases = true
 exclude = [
   "examples",
   "dist",
