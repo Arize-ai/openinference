@@ -57,8 +57,8 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         try:
             import mistralai
-            from mistralai.chat import Chat
             from mistralai.agents import Agents
+            from mistralai.chat import Chat
         except ImportError as err:
             raise Exception(
                 "Could not import mistralai. Please install with `pip install mistralai`."
@@ -121,8 +121,8 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        from mistralai.chat import Chat
         from mistralai.agent import Agent
+        from mistralai.chat import Chat
 
         Chat.complete = self._original_sync_chat_method  # type: ignore
         Chat.stream = self._original_sync_stream_chat_method  # type: ignore
