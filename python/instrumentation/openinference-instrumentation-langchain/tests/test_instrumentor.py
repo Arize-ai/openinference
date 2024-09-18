@@ -277,7 +277,7 @@ def test_callback_llm(
         }
 
         if not SUPPORTS_TEMPLATES:
-            # TODO(1046): templates are no longer in the langsmith run payload 
+            # TODO(1046): templates are no longer in the langsmith run payload
             ...
         else:
             assert (
