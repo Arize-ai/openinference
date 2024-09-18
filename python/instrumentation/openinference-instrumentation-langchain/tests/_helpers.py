@@ -22,7 +22,8 @@ class _Receiver(Server):
     def _new_file(self) -> Path:
         filename = f"{OUTPUT_FILE_NAME}"
         filename_pattern = re.escape(OUTPUT_FILE_NAME) + r"(\s+\((?P<file_no>\d+)\))?\.txt$"
-        output_directory = Path().home()
+        output_directory = Path().home() / "langsmith_data"
+        output_directory.mkdir(exist_ok=True)
         max_file_no = max(
             (
                 int(m.groupdict(default="0")["file_no"])
