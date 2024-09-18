@@ -13,7 +13,7 @@ MistralAIInstrumentor().instrument()
 
 if __name__ == "__main__":
     client = Mistral(api_key="redacted")
-    response = client.chat.complete(
+    response = client.agents.complete(
         agent_id="ag:ad73bfd7:20240912:python-codegen-agent:0375a7cf",
         messages=[
             {

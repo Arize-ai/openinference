@@ -58,7 +58,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         try:
             import mistralai
             from mistralai.chat import Chat
-            from mistralai.agent import Agent
+            from mistralai.agents import Agents
         except ImportError as err:
             raise Exception(
                 "Could not import mistralai. Please install with `pip install mistralai`."
@@ -68,10 +68,10 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_sync_stream_chat_method = Chat.stream
         self._original_async_chat_method = Chat.complete_async
         self._original_async_stream_chat_method = Chat.stream_async
-        self._original_sync_agent_method = Agent.complete
-        self._original_sync_stream_agent_method = Agent.stream
-        self._original_async_agent_method = Agent.complete_async
-        self._original_async_stream_agent_method = Agent.stream_async
+        self._original_sync_agent_method = Agents.complete
+        self._original_sync_stream_agent_method = Agents.stream
+        self._original_async_agent_method = Agents.complete_async
+        self._original_async_stream_agent_method = Agents.stream_async
         wrap_function_wrapper(
             module="mistralai.chat",
             name="Chat.complete",
@@ -98,25 +98,25 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         wrap_function_wrapper(
             module="mistralai.agents",
-            name="Agent.complete",
+            name="Agents.complete",
             wrapper=_SyncChatWrapper(self._tracer, mistralai),
         )
 
         wrap_function_wrapper(
             module="mistralai.agents",
-            name="Agent.stream",
+            name="Agents.stream",
             wrapper=_SyncChatWrapper(self._tracer, mistralai),
         )
 
         wrap_function_wrapper(
             module="mistralai.agents",
-            name="Agent.complete_async",
+            name="Agents.complete_async",
             wrapper=_AsyncChatWrapper(self._tracer, mistralai),
         )
 
         wrap_function_wrapper(
-            module="mistralai.agent",
-            name="Agent.stream_async",
+            module="mistralai.agents",
+            name="Agents.stream_async",
             wrapper=_AsyncStreamChatWrapper(self._tracer, mistralai),
         )
 
