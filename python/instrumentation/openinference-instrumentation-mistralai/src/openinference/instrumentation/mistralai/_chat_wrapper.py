@@ -218,7 +218,7 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
             return wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
-            span_name = "MistralClient.chat"
+            span_name = "MistralClient.agents"
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
@@ -264,7 +264,7 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
             return await wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
-            span_name = "MistralAsyncClient.chat"
+            span_name = "MistralAsyncClient.agents"
         except Exception:
             logger.exception("Failed to parse request args")
             return await wrapped(*args, **kwargs)
@@ -310,7 +310,7 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
             return wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
-            span_name = "MistralAsyncClient.chat"
+            span_name = "MistralAsyncClient.agents"
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
