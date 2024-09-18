@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 import litellm
 import pytest
-from litellm.llms.openai import OpenAIChatCompletion
-from litellm.types.utils import EmbeddingResponse, ImageResponse
+from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
+from litellm.types.utils import EmbeddingResponse, ImageResponse, Usage
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -405,8 +405,8 @@ def test_embedding(
         model="text-embedding-ada-002",
         data=[{"embedding": [0.1, 0.2, 0.3], "index": 0, "object": "embedding"}],
         object="list",
-        usage={"completion_tokens": 1, "prompt_tokens": 6, "total_tokens": 6},
-    )  # type:ignore
+        usage=Usage(prompt_tokens=6, completion_tokens=1, total_tokens=6),
+    )
 
     with patch.object(OpenAIChatCompletion, "embedding", return_value=mock_response_embedding):
         if use_context_attributes:
@@ -472,8 +472,8 @@ async def test_aembedding(
         model="text-embedding-ada-002",
         data=[{"embedding": [0.1, 0.2, 0.3], "index": 0, "object": "embedding"}],
         object="list",
-        usage={"completion_tokens": 1, "prompt_tokens": 6, "total_tokens": 6},
-    )  # type:ignore
+        usage=Usage(prompt_tokens=6, completion_tokens=1, total_tokens=6),
+    )
 
     with patch.object(OpenAIChatCompletion, "aembedding", return_value=mock_response_embedding):
         if use_context_attributes:
