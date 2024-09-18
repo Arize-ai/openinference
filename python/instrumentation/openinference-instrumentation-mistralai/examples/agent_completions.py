@@ -14,11 +14,11 @@ MistralAIInstrumentor().instrument()
 if __name__ == "__main__":
     client = Mistral(api_key="redacted")
     response = client.agents.complete(
-        agent_id="ag:ad73bfd7:20240912:python-codegen-agent:0375a7cf",
+        agent_id="your-agent-id",
         messages=[
             {
                 "role": "user",
-                "content":  "is it too much"
+                "content":  "plan a vacation for me in Tbilisi"
             },
         ],
     )
