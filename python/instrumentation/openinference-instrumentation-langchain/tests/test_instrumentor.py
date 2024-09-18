@@ -256,7 +256,11 @@ def test_callback_llm(
             )
         assert sd_attributes == {}
 
-        assert (retriever_span := spans_by_name.pop("Retriever")) is not None
+        assert (
+            retriever_span := spans_by_name.pop(
+                "Retriever" if LANGCHAIN_VERSION <= (0, 3, 0) else "KNNRetriever"
+            )
+        ) is not None
         assert retriever_span.parent is not None
         assert retriever_span.parent.span_id == rqa_span.context.span_id
         assert retriever_span.context.trace_id == rqa_span.context.trace_id
@@ -288,7 +292,11 @@ def test_callback_llm(
             assert json.loads(_metadata) == {"ls_retriever_name": "knn"}
         assert retriever_attributes == {}
 
-        assert (llm_span := spans_by_name.pop("LLMChain", None)) is not None
+        assert (
+            llm_span := spans_by_name.pop(
+                "LLMChain" if LANGCHAIN_VERSION <= (0, 3, 0) else "ChatOpenAI", None
+            )
+        ) is not None
         assert llm_span.parent is not None
         assert llm_span.parent.span_id == sd_span.context.span_id
         assert llm_span.context.trace_id == sd_span.context.trace_id
