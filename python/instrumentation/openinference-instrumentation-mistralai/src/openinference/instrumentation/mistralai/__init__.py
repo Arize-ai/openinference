@@ -121,14 +121,14 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        from mistralai.agent import Agent
+        from mistralai.agents import Agents
         from mistralai.chat import Chat
 
         Chat.complete = self._original_sync_chat_method  # type: ignore
         Chat.stream = self._original_sync_stream_chat_method  # type: ignore
         Chat.complete_async = self._original_async_chat_method  # type: ignore
         Chat.stream_async = self._original_async_stream_chat_method  # type: ignore
-        Agent.complete = self._original_sync_agent_method  # type: ignore
-        Agent.stream = self._original_sync_stream_agent_method  # type: ignore
-        Agent.complete_async = self._original_async_agent_method  # type: ignore
-        Agent.stream_async = self._original_async_stream_agent_method  # type: ignore
+        Agents.complete = self._original_sync_agent_method  # type: ignore
+        Agents.stream = self._original_sync_stream_agent_method  # type: ignore
+        Agents.complete_async = self._original_async_agent_method  # type: ignore
+        Agents.stream_async = self._original_async_stream_agent_method  # type: ignore
