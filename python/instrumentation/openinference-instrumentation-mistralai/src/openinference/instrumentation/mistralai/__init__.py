@@ -97,19 +97,19 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         wrap_function_wrapper(
-            module="mistralai.agent",
+            module="mistralai.agents",
             name="Agent.complete",
             wrapper=_SyncChatWrapper(self._tracer, mistralai),
         )
 
         wrap_function_wrapper(
-            module="mistralai.agent",
+            module="mistralai.agents",
             name="Agent.stream",
             wrapper=_SyncChatWrapper(self._tracer, mistralai),
         )
 
         wrap_function_wrapper(
-            module="mistralai.agent",
+            module="mistralai.agents",
             name="Agent.complete_async",
             wrapper=_AsyncChatWrapper(self._tracer, mistralai),
         )
