@@ -113,7 +113,7 @@ def test_callback_llm(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    n = 1  # number of concurrent queries
+    n = 10  # number of concurrent queries
     questions = {randstr() for _ in range(n)}
     langchain_template = "{context}{question}"
     langchain_prompt = PromptTemplate(
