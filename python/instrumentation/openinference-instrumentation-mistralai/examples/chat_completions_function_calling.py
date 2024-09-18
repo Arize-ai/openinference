@@ -1,6 +1,5 @@
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage, FunctionCall, ToolCall, ToolChoice
-from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor

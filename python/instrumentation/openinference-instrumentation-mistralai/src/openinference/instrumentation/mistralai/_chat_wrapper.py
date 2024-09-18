@@ -207,9 +207,14 @@ class _WithMistralAI(ABC):
 
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
-    def __init__(self, tracer, mistral_client, span_name="MistralClient.chat"):
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        mistralai: ModuleType,
+        span_name: str = "MistralClient.chat",
+    ):
         self._tracer = tracer
-        self._mistral_client = mistral_client
+        self._mistral_client = mistralai
         self._span_name = span_name
 
     def __call__(
@@ -257,7 +262,12 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
 
 
 class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
-    def __init__(self, tracer, mistral_client, span_name="MistralAsyncClient.agents"):
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        mistral_client: ModuleType,
+        span_name: str = "MistralAsyncClient.chat",
+    ):
         self._tracer = tracer
         self._mistral_client = mistral_client
         self._span_name = span_name
@@ -307,7 +317,7 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
 
 
 class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
-    def __init__(self, tracer, mistral_client, span_name="MistralAsyncClient.agents"):
+    def __init__(self, tracer, mistral_client, span_name="MistralAsyncClient.chat"):
         self._tracer = tracer
         self._mistral_client = mistral_client
         self._span_name = span_name
