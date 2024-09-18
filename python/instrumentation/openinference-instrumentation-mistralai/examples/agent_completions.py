@@ -12,7 +12,7 @@ trace_api.set_tracer_provider(tracer_provider)
 MistralAIInstrumentor().instrument()
 
 if __name__ == "__main__":
-    client = Mistral(api_key="TMAFHtGC4zKCrQwuru2FQU62gYpO8MsJ")
+    client = Mistral(api_key="redacted")
     response = client.chat.complete(
         agent_id="ag:ad73bfd7:20240912:python-codegen-agent:0375a7cf",
         messages=[
