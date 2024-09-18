@@ -16,10 +16,7 @@ if __name__ == "__main__":
     response = client.agents.complete(
         agent_id="your-agent-id",
         messages=[
-            {
-                "role": "user",
-                "content":  "plan a vacation for me in Tbilisi"
-            },
+            {"role": "user", "content": "plan a vacation for me in Tbilisi"},
         ],
     )
     print(response)
