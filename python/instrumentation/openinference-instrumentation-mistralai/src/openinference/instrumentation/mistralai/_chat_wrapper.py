@@ -317,7 +317,12 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
 
 
 class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
-    def __init__(self, tracer, mistral_client, span_name="MistralAsyncClient.chat"):
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        mistral_client: ModuleType,
+        span_name: str = "MistralAsyncClient.chat",
+    ):
         self._tracer = tracer
         self._mistral_client = mistral_client
         self._span_name = span_name
