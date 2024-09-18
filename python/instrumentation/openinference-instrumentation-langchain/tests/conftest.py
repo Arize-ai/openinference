@@ -9,6 +9,25 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from openinference.instrumentation.langchain import LangChainInstrumentor
 
+# Enable these fixtures to log langsmith data to ~/langsmith_data
+
+# @pytest.fixture(scope="session")
+# def _port() -> int:
+#     return int(pick_unused_port())
+
+
+# @pytest.fixture(autouse=True, scope="session")
+# def _ls(_port: int) -> Iterator[None]:
+#     values = (
+#         ("LANGCHAIN_TRACING_V2", "true"),
+#         ("LANGCHAIN_ENDPOINT", f"http://127.0.0.1:{_port}"),
+#     )
+#     with ExitStack() as stack:
+#         stack.enter_context(mock.patch.dict(os.environ, values))
+#         stack.enter_context(_Receiver(_port).run_in_thread())
+#         yield
+#         wait_for_all_tracers()
+
 
 @pytest.fixture
 def in_memory_span_exporter() -> InMemorySpanExporter:
