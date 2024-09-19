@@ -41,6 +41,7 @@ instruments = [
 test = [
     "anthropic >= 0.25.0",
     "opentelemetry-sdk",
+    "pytest-asyncio",
     "pytest.recording"
 ]
 
