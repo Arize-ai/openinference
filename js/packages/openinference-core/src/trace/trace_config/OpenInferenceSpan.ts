@@ -6,6 +6,7 @@ import {
   Attributes,
   Exception,
   AttributeValue,
+  Link,
 } from "@opentelemetry/api";
 import { TraceConfig } from "./types";
 import { mask } from "./maskingRules";
@@ -75,5 +76,15 @@ export class OpenInferenceSpan implements Span {
 
   spanContext(): SpanContext {
     return this.span.spanContext();
+  }
+
+  addLink(link: Link): this {
+    this.span.addLink(link);
+    return this;
+  }
+
+  addLinks(links: Link[]): this {
+    this.span.addLinks(links);
+    return this;
   }
 }

@@ -1,4 +1,4 @@
-import { ConfigKey, TraceConfigMetadata } from "./types";
+import { ConfigKey, TraceConfig, TraceConfigMetadata } from "./types";
 
 /** Hides input value & messages */
 export const OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS";
@@ -44,48 +44,60 @@ export const traceConfigMetadata: Readonly<
   Record<ConfigKey, TraceConfigMetadata>
 > = {
   hideInputs: {
-    default: false,
-    envKey: "OPENINFERENCE_HIDE_INPUTS",
+    default: DEFAULT_HIDE_INPUTS,
+    envKey: OPENINFERENCE_HIDE_INPUTS,
     type: "boolean",
   },
   hideOutputs: {
-    default: false,
-    envKey: "OPENINFERENCE_HIDE_OUTPUTS",
+    default: DEFAULT_HIDE_OUTPUTS,
+    envKey: OPENINFERENCE_HIDE_OUTPUTS,
     type: "boolean",
   },
   hideInputMessages: {
-    default: false,
-    envKey: "OPENINFERENCE_HIDE_INPUT_MESSAGES",
+    default: DEFAULT_HIDE_INPUT_MESSAGES,
+    envKey: OPENINFERENCE_HIDE_INPUT_MESSAGES,
     type: "boolean",
   },
   hideOutputMessages: {
-    default: false,
-    envKey: "OPENINFERENCE_HIDE_OUTPUT_MESSAGES",
+    default: DEFAULT_HIDE_OUTPUT_MESSAGES,
+    envKey: OPENINFERENCE_HIDE_OUTPUT_MESSAGES,
     type: "boolean",
   },
   hideInputImages: {
-    default: false,
-    envKey: "OPENINFERENCE_HIDE_INPUT_IMAGES",
+    default: DEFAULT_HIDE_INPUT_IMAGES,
+    envKey: OPENINFERENCE_HIDE_INPUT_IMAGES,
     type: "boolean",
   },
   hideInputText: {
-    default: false,
-    envKey: "OPENINFERENCE_HIDE_INPUT_TEXT",
+    default: DEFAULT_HIDE_INPUT_TEXT,
+    envKey: OPENINFERENCE_HIDE_INPUT_TEXT,
     type: "boolean",
   },
   hideOutputText: {
-    default: false,
-    envKey: "OPENINFERENCE_HIDE_OUTPUT_TEXT",
+    default: DEFAULT_HIDE_OUTPUT_TEXT,
+    envKey: OPENINFERENCE_HIDE_OUTPUT_TEXT,
     type: "boolean",
   },
   hideEmbeddingVectors: {
-    default: false,
-    envKey: "OPENINFERENCE_HIDE_EMBEDDING_VECTORS",
+    default: DEFAULT_HIDE_EMBEDDING_VECTORS,
+    envKey: OPENINFERENCE_HIDE_EMBEDDING_VECTORS,
     type: "boolean",
   },
   base64ImageMaxLength: {
-    default: 1024,
-    envKey: "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH",
+    default: DEFAULT_BASE64_IMAGE_MAX_LENGTH,
+    envKey: OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
     type: "number",
   },
+};
+
+export const DefaultTraceConfig: TraceConfig = {
+  hideInputs: DEFAULT_HIDE_INPUTS,
+  hideOutputs: DEFAULT_HIDE_OUTPUTS,
+  hideInputMessages: DEFAULT_HIDE_INPUT_MESSAGES,
+  hideOutputMessages: DEFAULT_HIDE_OUTPUT_MESSAGES,
+  hideInputImages: DEFAULT_HIDE_INPUT_IMAGES,
+  hideInputText: DEFAULT_HIDE_INPUT_TEXT,
+  hideOutputText: DEFAULT_HIDE_OUTPUT_TEXT,
+  hideEmbeddingVectors: DEFAULT_HIDE_EMBEDDING_VECTORS,
+  base64ImageMaxLength: DEFAULT_BASE64_IMAGE_MAX_LENGTH,
 };

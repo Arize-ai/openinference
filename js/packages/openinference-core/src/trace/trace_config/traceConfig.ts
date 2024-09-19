@@ -1,4 +1,4 @@
-import { traceConfigMetadata } from "./constants";
+import { DefaultTraceConfig, traceConfigMetadata } from "./constants";
 import { ConfigKey, TraceConfig, TraceConfigOptions } from "./types";
 import { assertUnreachable, withSafety } from "../../utils";
 
@@ -48,7 +48,10 @@ function parseOption({
  * @param options - The user provided TraceConfigOptions.
  * @returns A full TraceConfig object with all options set to their final values.
  */
-export function generateTraceConfig(options: TraceConfigOptions): TraceConfig {
+export function generateTraceConfig(options?: TraceConfigOptions): TraceConfig {
+  if (options == null) {
+    return DefaultTraceConfig;
+  }
   return Object.entries(traceConfigMetadata).reduce(
     (config, [key, optionMetadata]) => {
       const configKey = key as ConfigKey;

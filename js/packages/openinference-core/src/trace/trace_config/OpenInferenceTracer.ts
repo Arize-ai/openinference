@@ -1,6 +1,17 @@
-import { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
-import { OpenInferenceActiveSpanCallback, TraceConfig } from "./types";
+import {
+  context,
+  Context,
+  Span,
+  SpanOptions,
+  Tracer,
+} from "@opentelemetry/api";
+import {
+  OpenInferenceActiveSpanCallback,
+  TraceConfig,
+  TraceConfigOptions,
+} from "./types";
 import { OpenInferenceSpan } from "./OpenInferenceSpan";
+import { generateTraceConfig } from "./traceConfig";
 
 /**
  * Formats the params for the startActiveSpan method
@@ -30,15 +41,24 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
     fn = arg4 as F;
   }
 
+  opts = opts ?? {};
+  ctx = ctx ?? context.active();
+
   return { opts, ctx, fn };
 }
 
 export class OpenInferenceTracer implements Tracer {
   private readonly tracer: Tracer;
   private readonly config: TraceConfig;
-  constructor(tracer: Tracer, config: TraceConfig) {
+  constructor({
+    tracer,
+    configOptions,
+  }: {
+    tracer: Tracer;
+    configOptions?: TraceConfigOptions;
+  }) {
     this.tracer = tracer;
-    this.config = config;
+    this.config = generateTraceConfig(configOptions);
   }
   startActiveSpan<F extends (span: OpenInferenceSpan) => unknown>(
     name: string,
@@ -61,9 +81,24 @@ export class OpenInferenceTracer implements Tracer {
     arg3?: F | Context,
     arg4?: F,
   ): ReturnType<F> | undefined {
-    const { opts, ctx, fn } = formatStartActiveSpanParams(arg2, arg3, arg4);
-    return this.tracer.startActiveSpan(name, opts, ctx, (span: Span) =>
-      fn(new OpenInferenceSpan({ span, config: this.config })),
+    const formattedArgs = formatStartActiveSpanParams(arg2, arg3, arg4);
+    if (formattedArgs == null) {
+      return;
+    }
+    const { opts, ctx, fn } = formattedArgs;
+    const { attributes } = opts ?? {};
+    return this.tracer.startActiveSpan(
+      name,
+      { ...opts, attributes: undefined },
+      ctx,
+      (span: Span) => {
+        const openInferenceSpan = new OpenInferenceSpan({
+          span,
+          config: this.config,
+        });
+        openInferenceSpan.setAttributes(attributes ?? {});
+        return fn(openInferenceSpan);
+      },
     );
   }
 
@@ -72,9 +107,16 @@ export class OpenInferenceTracer implements Tracer {
     options?: SpanOptions,
     context?: Context,
   ): OpenInferenceSpan {
-    return new OpenInferenceSpan({
-      span: this.tracer.startSpan(name, options, context),
+    const attributes = options?.attributes;
+    const span = new OpenInferenceSpan({
+      span: this.tracer.startSpan(
+        name,
+        { ...options, attributes: undefined },
+        context,
+      ),
       config: this.config,
     });
+    span.setAttributes(attributes ?? {});
+    return span;
   }
 }

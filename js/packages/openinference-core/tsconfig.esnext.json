@@ -3,7 +3,11 @@
   "compilerOptions": {
     "outDir": "dist/esnext",
     "rootDir": "src",
-    "tsBuildInfoFile": "dist/esnext/tsconfig.esnext.tsbuildinfo"
+    "tsBuildInfoFile": "dist/esnext/tsconfig.esnext.tsbuildinfo",
+    "baseUrl": "./src",
+    "paths": {
+      "@core/*": ["*"]
+    }
   },
   "include": ["src/**/*.ts"],
   "references": []
