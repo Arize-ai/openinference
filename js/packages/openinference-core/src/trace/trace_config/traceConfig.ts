@@ -10,7 +10,7 @@ type TraceConfigOptionMetadata = (typeof traceConfigMetadata)[ConfigKey];
  * Parses an option based on its type
  * The order of precedence is: optionValue > envValue > defaultValue
  * @param key - The key of the option.
- * @param optionValue - The value passed in the options object.
+ * @param optionMetadata - The {@link TraceConfigOptionMetadata} for the option which includes its type, default value, and environment variable key.
  *
  */
 function parseOption({
