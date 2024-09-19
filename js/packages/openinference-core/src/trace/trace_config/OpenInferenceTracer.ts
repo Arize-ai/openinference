@@ -30,7 +30,7 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
     fn = arg4 as F;
   }
 
-  return { opts, ctx, fn, name };
+  return { opts, ctx, fn };
 }
 
 export class OpenInferenceTracer implements Tracer {
