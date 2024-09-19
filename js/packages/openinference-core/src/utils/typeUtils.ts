@@ -48,3 +48,25 @@ export function isAttributes(value: unknown): value is Attributes {
     )
   );
 }
+
+/**
+ * A type check function to ensure that a switch or set of conditionals is exhaustive.
+ * Typscript will throw an error if the switch or conditionals are not exhaustive.
+ * @example
+ *  ```typescript
+ * type MyType = "a" | "b";
+ * function myFunction(value: MyType) {
+ *   switch (value) {
+ *     case "a":
+ *      return "A";
+ *    case "b":
+ *      return "B";
+ *    default:
+ *      assertUnreachable(value);
+ *   }
+ * }
+ * ```
+ */
+export function assertUnreachable(value: never): never {
+  throw new Error(`Unreachable code reached with value: ${value}`);
+}
