@@ -168,9 +168,9 @@ def test_anthropic_instrumentation_completions_streaming(
     before_record_response=remove_all_vcr_response_headers,
 )
 async def test_anthropic_instrumentation_async_completions_streaming(
-        tracer_provider: TracerProvider,
-        in_memory_span_exporter: InMemorySpanExporter,
-        setup_anthropic_instrumentation: Any,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
 ) -> None:
     client = AsyncAnthropic(api_key="fake")
 
@@ -375,9 +375,9 @@ def test_anthropic_instrumentation_messages_streaming(
     before_record_response=remove_all_vcr_response_headers,
 )
 async def test_anthropic_instrumentation_async_messages_streaming(
-        tracer_provider: TracerProvider,
-        in_memory_span_exporter: InMemorySpanExporter,
-        setup_anthropic_instrumentation: Any,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
 ) -> None:
     client = AsyncAnthropic(api_key="fake")
     input_message = "Why is the sky blue? Answer in 5 words or less"
@@ -428,6 +428,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,

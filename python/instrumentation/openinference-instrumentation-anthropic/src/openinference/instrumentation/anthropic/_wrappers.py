@@ -140,7 +140,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
 
         span_name = "AsyncCompletions"
         with self._start_as_current_span(
-                span_name,
+            span_name,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -258,7 +258,7 @@ class _AsyncMessagesWrapper(_WithTracer):
 
         span_name = "AsyncMessages"
         with self._start_as_current_span(
-                span_name,
+            span_name,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
