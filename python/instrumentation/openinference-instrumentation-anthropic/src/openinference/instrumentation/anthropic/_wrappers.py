@@ -139,10 +139,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
         invocation_parameters = _get_invocation_parameters(arguments)
 
         span_name = "AsyncCompletions"
-        with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
+        with self._start_as_current_span(
+                span_name,
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
 
@@ -163,13 +161,19 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(
-                {
-                    OUTPUT_VALUE: response.to_json(indent=None),
-                    OUTPUT_MIME_TYPE: JSON,
-                }
-            )
-            return response
+            streaming = kwargs.get("stream", False)
+            if streaming:
+                return _Stream(response, span)
+            else:
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(
+                    {
+                        OUTPUT_VALUE: response.to_json(indent=None),
+                        OUTPUT_MIME_TYPE: JSON,
+                    }
+                )
+                span.finish_tracing()
+                return response
 
 
 class _MessagesWrapper(_WithTracer):

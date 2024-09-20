@@ -79,6 +79,25 @@ class _Stream(ObjectProxy):  # type: ignore
         )
         self._finish_tracing(status=status)
 
+    async def __aiter__(self) -> Iterator[Completion]:
+        try:
+            async for item in self.__wrapped__:
+                self._response_accumulator.process_chunk(item)
+                yield item
+        except Exception as exception:
+            status = trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+            self._with_span.record_exception(exception)
+            self._finish_tracing(status=status)
+            raise
+        # completed without exception
+        status = trace_api.Status(
+            status_code=trace_api.StatusCode.OK,
+        )
+        self._finish_tracing(status=status)
+
     def _finish_tracing(
         self,
         status: Optional[trace_api.Status] = None,
