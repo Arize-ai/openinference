@@ -80,7 +80,7 @@ class _Stream(ObjectProxy):  # type: ignore
         )
         self._finish_tracing(status=status)
 
-    async def __aiter__(self) -> Iterator[Completion]:
+    async def __aiter__(self) -> AsyncIterator[Completion]:
         try:
             async for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
