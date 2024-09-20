@@ -191,7 +191,7 @@ async def test_anthropic_instrumentation_async_completions_streaming(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "Completions"
+    assert spans[0].name == "AsyncCompletions"
     attributes = dict(spans[0].attributes or {})
     print(attributes)
 
@@ -401,7 +401,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "Messages"
+    assert spans[0].name == "AsyncMessages"
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"

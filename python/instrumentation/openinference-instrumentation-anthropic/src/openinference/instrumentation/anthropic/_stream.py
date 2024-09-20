@@ -2,6 +2,7 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import (
     Any,
+    AsyncIterator,
     Callable,
     DefaultDict,
     Dict,
@@ -177,6 +178,25 @@ class _MessagesStream(ObjectProxy):  # type: ignore
     def __iter__(self) -> Iterator[RawMessageStreamEvent]:
         try:
             for item in self.__wrapped__:
+                self._response_accumulator.process_chunk(item)
+                yield item
+        except Exception as exception:
+            status = trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+            self._with_span.record_exception(exception)
+            self._finish_tracing(status=status)
+            raise
+        # completed without exception
+        status = trace_api.Status(
+            status_code=trace_api.StatusCode.OK,
+        )
+        self._finish_tracing(status=status)
+
+    async def __aiter__(self) -> AsyncIterator[RawMessageStreamEvent]:
+        try:
+            async for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
                 yield item
         except Exception as exception:
