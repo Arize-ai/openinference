@@ -59,14 +59,6 @@ class _WithSpan:
         except Exception:
             logger.exception("Failed to set attributes on span")
 
-    def set_status(self, status: trace_api.Status) -> None:
-        if self._is_finished:
-            return
-        try:
-            self._span.set_status(status)
-        except Exception:
-            logger.exception("Failed to set status on span")
-
     def finish_tracing(
             self,
             status: Optional[trace_api.Status] = None,

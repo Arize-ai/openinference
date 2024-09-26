@@ -116,9 +116,6 @@ class _CompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        llm_invocation_params = kwargs
-        llm_messages = dict(kwargs).pop("messages", None)
-
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
         for arg in args:
@@ -136,8 +133,12 @@ class _CompletionsWrapper(_WithTracer):
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
                 raise
             span.set_attributes(
                 dict(
@@ -152,8 +153,7 @@ class _CompletionsWrapper(_WithTracer):
                     )
                 )
             )
-            span.set_status(trace_api.StatusCode.OK)
-
+            span.finish_tracing(trace_api.StatusCode.OK)
         return response
 
 
