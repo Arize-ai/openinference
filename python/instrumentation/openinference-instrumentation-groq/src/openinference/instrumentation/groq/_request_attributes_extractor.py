@@ -55,24 +55,8 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not isinstance(request_parameters, Mapping):
             return
-        yield from self._get_attributes_from_request_parameters(request_parameters)
 
-    def _get_attributes_from_request_parameters(
-        self,
-        params: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        if not isinstance(params, Mapping):
-            return
-        invocation_params = dict(params)
-        yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
-
-    def _get_attributes_from_chat_completion(
-            self,
-            params: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        if not isinstance(params, Mapping):
-            return
-        invocation_params = dict(params)
+        invocation_params = dict(request_parameters)
         invocation_params.pop("messages", None)
         invocation_params.pop("functions", None)
         if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
@@ -80,8 +64,8 @@ class _RequestAttributesExtractor:
                 yield f"llm.tools.{i}.tool.json_schema", safe_json_dumps(tool)
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
-        if (input_messages := params.get("messages")) and isinstance(input_messages, Iterable):
-            for index, input_message in list(enumerate(input_messages)):
+        if (input_messages := request_parameters.get("messages")) and isinstance(input_messages, Iterable):
+            for index, input_message in enumerate(input_messages):
                 for key, value in self._get_attributes_from_message_param(input_message):
                     yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
 
