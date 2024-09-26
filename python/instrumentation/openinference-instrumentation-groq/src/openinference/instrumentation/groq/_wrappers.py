@@ -1,10 +1,12 @@
 from abc import ABC
+from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Callable, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Iterable, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
+from opentelemetry.trace import INVALID_SPAN
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
@@ -13,6 +15,7 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+from openinference.instrumentation.groq._with_span import _WithSpan
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -41,6 +44,33 @@ class _WithTracer(ABC):
         super().__init__(*args, **kwargs)
         self._tracer = tracer
 
+    @contextmanager
+    def _start_as_current_span(
+            self,
+            span_name: str,
+            attributes: Iterable[Tuple[str, AttributeValue]],
+            context_attributes: Iterable[Tuple[str, AttributeValue]],
+            extra_attributes: Iterable[Tuple[str, AttributeValue]],
+    ) -> Iterator[_WithSpan]:
+        # Because OTEL has a default limit of 128 attributes, we split our
+        # attributes into two tiers, where "extra_attributes" are added first to
+        # ensure that the most important "attributes" are added last and are not
+        # dropped.
+        try:
+            span = self._tracer.start_span(name=span_name, attributes=dict(extra_attributes))
+        except Exception:
+            span = INVALID_SPAN
+        with trace_api.use_span(
+                span,
+                end_on_exit=False,
+                record_exception=False,
+                set_status_on_exception=False,
+        ) as span:
+            yield _WithSpan(
+                span=span,
+                context_attributes=dict(context_attributes),
+                extra_attributes=dict(attributes),
+            )
 
 class _CompletionsWrapper(_WithTracer):
     """
@@ -89,6 +119,19 @@ class _CompletionsWrapper(_WithTracer):
                             SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                         }
                     )
+                )
+            )
+            cr = dict(
+                _flatten(
+                    {
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
+                        SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
+                        SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
+                            llm_invocation_params
+                        ),
+                        SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
+                        SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                    }
                 )
             )
             try:

@@ -4,12 +4,12 @@ from typing import (
     Dict,
     Generator,
     List,
+    Mapping,
     Optional,
     Type,
     Union,
     cast,
 )
-
 import pytest
 from groq import AsyncGroq, Groq
 from groq._base_client import _StreamT
@@ -25,6 +25,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
@@ -225,6 +226,9 @@ def test_groq_instrumentation(
         _check_context_attributes(
             att,
         )
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    print(attributes)
 
 
 def test_groq_async_instrumentation(
