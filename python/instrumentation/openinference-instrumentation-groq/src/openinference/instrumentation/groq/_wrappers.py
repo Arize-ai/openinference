@@ -1,8 +1,10 @@
 from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Callable, Iterable, Iterator, List, Mapping, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
+from inspect import Signature, signature
 
+import json
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -16,6 +18,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 from openinference.instrumentation.groq._with_span import _WithSpan
+from openinference.instrumentation.groq._request_attributes_extractor import _RequestAttributesExtractor
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -72,11 +75,36 @@ class _WithTracer(ABC):
                 extra_attributes=dict(attributes),
             )
 
+def _parse_args(
+        signature: Signature,
+        *args: Tuple[Any],
+        **kwargs: Mapping[str, Any],
+) -> Dict[str, Any]:
+    bound_signature = signature.bind(*args, **kwargs)
+    bound_signature.apply_defaults()
+    bound_arguments = bound_signature.arguments
+    request_data: Dict[str, Any] = {}
+    for key, value in bound_arguments.items():
+        try:
+            if value is not None:
+                try:
+                    # ensure the value is JSON-serializable
+                    safe_json_dumps(value)
+                    request_data[key] = value
+                except json.JSONDecodeError:
+                    request_data[key] = str(value)
+        except Exception:
+            request_data[key] = str(value)
+    return request_data
+
 class _CompletionsWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
     """
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._request_extractor = _RequestAttributesExtractor()
 
     def __call__(
         self,
@@ -97,43 +125,14 @@ class _CompletionsWrapper(_WithTracer):
             if arg and isinstance(arg, dict):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
-
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "Completions"
-        with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
+        with self._start_as_current_span(
+                span_name=span_name,
+                attributes=self._request_extractor.get_attributes_from_request(request_parameters),
+                context_attributes=get_attributes_from_context(),
+                extra_attributes=[],
         ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
-
-            span.set_attributes(
-                dict(
-                    _flatten(
-                        {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                            SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
-                            SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
-                                llm_invocation_params
-                            ),
-                            SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                        }
-                    )
-                )
-            )
-            cr = dict(
-                _flatten(
-                    {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                        SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
-                        SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
-                            llm_invocation_params
-                        ),
-                        SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
-                        SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                    }
-                )
-            )
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -153,7 +152,6 @@ class _CompletionsWrapper(_WithTracer):
                     )
                 )
             )
-
             span.set_status(trace_api.StatusCode.OK)
 
         return response
