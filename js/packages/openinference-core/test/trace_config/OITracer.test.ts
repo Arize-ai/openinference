@@ -1,4 +1,4 @@
-import { OpenInferenceTracer, REDACTED_VALUE } from "@core/trace";
+import { OITracer, REDACTED_VALUE } from "@core/trace";
 import { OpenInferenceSpan } from "@core/trace/trace_config/OpenInferenceSpan";
 import {
   context,
@@ -10,7 +10,7 @@ import {
   Tracer,
 } from "@opentelemetry/api";
 
-describe("OpenInferenceTracer", () => {
+describe("OITracer", () => {
   let mockTracer: jest.Mocked<Tracer>;
   let mockSpan: jest.Mocked<Span>;
 
@@ -30,7 +30,7 @@ describe("OpenInferenceTracer", () => {
 
   describe("startSpan", () => {
     it("should create an OpenInferenceSpan with start span and set attributes according to the trace config", () => {
-      const openInferenceTracer = new OpenInferenceTracer({
+      const OITracer = new OITracer({
         tracer: mockTracer,
         traceConfig: {
           hideInputs: true,
@@ -41,7 +41,7 @@ describe("OpenInferenceTracer", () => {
         attributes: { key1: "value1", "input.value": "sensitiveValue" },
       };
 
-      const span = openInferenceTracer.startSpan(name, options);
+      const span = OITracer.startSpan(name, options);
 
       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
         name,
@@ -59,7 +59,7 @@ describe("OpenInferenceTracer", () => {
 
   describe("startActiveSpan", () => {
     it("should create an OpenInferenceSpan with startActiveSpan and set attributes according to the trace config", () => {
-      const openInferenceTracer = new OpenInferenceTracer({
+      const OITracer = new OITracer({
         tracer: mockTracer,
         traceConfig: {
           hideInputs: true,
@@ -70,13 +70,9 @@ describe("OpenInferenceTracer", () => {
         attributes: { key1: "value1", "input.value": "sensitiveValue" },
       };
 
-      const span = openInferenceTracer.startActiveSpan(
-        name,
-        options,
-        (span) => {
-          return span;
-        },
-      );
+      const span = OITracer.startActiveSpan(name, options, (span) => {
+        return span;
+      });
 
       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
         name,
@@ -95,7 +91,7 @@ describe("OpenInferenceTracer", () => {
     });
   });
   it("should handle overloads correctly", () => {
-    const openInferenceTracer = new OpenInferenceTracer({
+    const OITracer = new OITracer({
       tracer: mockTracer,
       traceConfig: {
         hideInputs: true,
@@ -104,7 +100,7 @@ describe("OpenInferenceTracer", () => {
     const name = "test-span";
     const mockFn = jest.fn();
 
-    openInferenceTracer.startActiveSpan(name, mockFn);
+    OITracer.startActiveSpan(name, mockFn);
     expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
       name,
       { attributes: undefined },
@@ -116,7 +112,7 @@ describe("OpenInferenceTracer", () => {
       kind: SpanKind.INTERNAL,
       attributes: { key: "value" },
     };
-    openInferenceTracer.startActiveSpan(name, options, mockFn);
+    OITracer.startActiveSpan(name, options, mockFn);
     expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
       name,
       { kind: SpanKind.INTERNAL, attributes: undefined },
@@ -126,7 +122,7 @@ describe("OpenInferenceTracer", () => {
 
     const newContext = context.active().setValue(Symbol("test"), "test");
 
-    openInferenceTracer.startActiveSpan(name, options, newContext, mockFn);
+    OITracer.startActiveSpan(name, options, newContext, mockFn);
     expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
       name,
       { kind: SpanKind.INTERNAL, attributes: undefined },
@@ -145,7 +141,7 @@ describe("OpenInferenceTracer", () => {
 //       const mockContext = {} as Context;
 //       const mockFn = jest.fn();
 
-//       openInferenceTracer.startActiveSpan(name, options, mockContext, mockFn);
+//       OITracer.startActiveSpan(name, options, mockContext, mockFn);
 
 //       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
 //         name,
@@ -164,7 +160,7 @@ describe("OpenInferenceTracer", () => {
 //       const name = "test-overload";
 //       const mockFn = jest.fn();
 
-//       openInferenceTracer.startActiveSpan(name, mockFn);
+//       OITracer.startActiveSpan(name, mockFn);
 //       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
 //         name,
 //         {},
@@ -173,7 +169,7 @@ describe("OpenInferenceTracer", () => {
 //       );
 
 //       const options: SpanOptions = { attributes: { key: "value" } };
-//       openInferenceTracer.startActiveSpan(name, options, mockFn);
+//       OITracer.startActiveSpan(name, options, mockFn);
 //       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
 //         name,
 //         { ...options, attributes: undefined },

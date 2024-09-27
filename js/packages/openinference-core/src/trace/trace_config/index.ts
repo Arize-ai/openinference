@@ -20,4 +20,4 @@ export {
   OPENINFERENCE_HIDE_OUTPUT_TEXT,
   REDACTED_VALUE,
 } from "./constants";
-export { OpenInferenceTracer } from "./OpenInferenceTracer";
+export { OITracer } from "./OITracer";

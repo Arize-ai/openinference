@@ -45,7 +45,7 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
   return { opts, ctx, fn };
 }
 
-export class OpenInferenceTracer implements Tracer {
+export class OITracer implements Tracer {
   private readonly tracer: Tracer;
   private readonly config: TraceConfig;
   constructor({
