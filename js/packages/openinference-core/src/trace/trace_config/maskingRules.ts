@@ -6,7 +6,7 @@ import { MaskingRule, MaskingRuleArgs } from "./types";
 /**
  * Masks (redacts) input text in LLM input messages.
  * Will mask information stored under the key `llm.input_messages.[i].message.content`.
- * * @example
+ * @example
  * ```typescript
  *  maskOutputTextRule.condition({
  *      config: {hideInputText: true},
@@ -142,6 +142,8 @@ const maskEmbeddingVectorsRule: MaskingRule = {
 
 /**
  * A list of {@link MaskingRule}s that are applied to span attributes to either redact or remove sensitive information.
+ * The order of these rules is important as it can ensure appropriate masking of information
+ * Rules should go from more specific to more general so that things like `llm.input_messages.[i].message.content` are masked with {@link REDACTED_VALUE} before the more generic masking of `llm.input_messages` might happen with `undefined` might happen.
  */
 const maskingRules: MaskingRule[] = [
   {
@@ -192,7 +194,7 @@ export function mask({
 }: MaskingRuleArgs): AttributeValue | undefined {
   for (const rule of maskingRules) {
     if (rule.condition({ config, key, value })) {
-      return rule.action(value);
+      return rule.action();
     }
   }
   return value;

@@ -15,7 +15,7 @@ export type TraceConfigOptions = {
 
 export type TraceConfig = Readonly<Required<TraceConfigOptions>>;
 
-export type ConfigKey = keyof TraceConfig;
+export type TraceConfigKey = keyof TraceConfig;
 
 export type TraceConfigMetadata =
   | {
@@ -37,7 +37,7 @@ export type MaskingRuleArgs = {
 
 export type MaskingRule = {
   condition: (args: MaskingRuleArgs) => boolean;
-  action: (value?: AttributeValue) => AttributeValue | undefined;
+  action: () => AttributeValue | undefined;
 };
 
 export type OpenInferenceActiveSpanCallback = (span: OpenInferenceSpan) => void;

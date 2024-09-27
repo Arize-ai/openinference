@@ -1,10 +1,10 @@
 import { DefaultTraceConfig, traceConfigMetadata } from "./constants";
-import { ConfigKey, TraceConfig, TraceConfigOptions } from "./types";
+import { TraceConfigKey, TraceConfig, TraceConfigOptions } from "./types";
 import { assertUnreachable, withSafety } from "../../utils";
 
 const safelyParseInt = withSafety({ fn: parseInt });
 
-type TraceConfigOptionMetadata = (typeof traceConfigMetadata)[ConfigKey];
+type TraceConfigOptionMetadata = (typeof traceConfigMetadata)[TraceConfigKey];
 
 /**
  * Parses an option based on its type
@@ -54,11 +54,11 @@ export function generateTraceConfig(options?: TraceConfigOptions): TraceConfig {
   }
   return Object.entries(traceConfigMetadata).reduce(
     (config, [key, optionMetadata]) => {
-      const configKey = key as ConfigKey;
+      const TraceConfigKey = key as TraceConfigKey;
       return {
         ...config,
-        [configKey]: parseOption({
-          optionValue: options[configKey],
+        [TraceConfigKey]: parseOption({
+          optionValue: options[TraceConfigKey],
           optionMetadata,
         }),
       };

@@ -28,16 +28,14 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
   let ctx: Context | undefined;
   let fn: F;
 
-  if (arguments.length < 2) {
-    return;
-  } else if (arguments.length === 2) {
-    fn = arg2 as F;
-  } else if (arguments.length === 3) {
-    opts = arg2 as SpanOptions | undefined;
-    fn = arg3 as F;
+  if (typeof arg2 === "function") {
+    fn = arg2;
+  } else if (typeof arg3 === "function") {
+    opts = arg2;
+    fn = arg3;
   } else {
-    opts = arg2 as SpanOptions | undefined;
-    ctx = arg3 as Context | undefined;
+    opts = arg2;
+    ctx = arg3;
     fn = arg4 as F;
   }
 
@@ -52,13 +50,13 @@ export class OpenInferenceTracer implements Tracer {
   private readonly config: TraceConfig;
   constructor({
     tracer,
-    configOptions,
+    traceConfig,
   }: {
     tracer: Tracer;
-    configOptions?: TraceConfigOptions;
+    traceConfig?: TraceConfigOptions;
   }) {
     this.tracer = tracer;
-    this.config = generateTraceConfig(configOptions);
+    this.config = generateTraceConfig(traceConfig);
   }
   startActiveSpan<F extends (span: OpenInferenceSpan) => unknown>(
     name: string,

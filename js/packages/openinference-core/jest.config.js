@@ -3,4 +3,7 @@ module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
   prettierPath: null,
+  moduleNameMapper: {
+    "^@core/(.*)$": "<rootDir>/src/$1",
+  },
 };
