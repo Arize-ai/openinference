@@ -1,5 +1,5 @@
 import { OITracer, REDACTED_VALUE } from "@core/trace";
-import { OpenInferenceSpan } from "@core/trace/trace_config/OpenInferenceSpan";
+import { OISpan } from "@core/trace/trace_config/OISpan";
 import {
   context,
   Span,
@@ -27,7 +27,7 @@ describe("OITracer", () => {
   });
 
   describe("startSpan", () => {
-    it("should create an OpenInferenceSpan with start span and set attributes according to the trace config", () => {
+    it("should create an OISpan with start span and set attributes according to the trace config", () => {
       const oiTracer = new OITracer({
         tracer: mockTracer,
         traceConfig: {
@@ -51,12 +51,12 @@ describe("OITracer", () => {
         "input.value": REDACTED_VALUE,
       });
 
-      expect(span).toBeInstanceOf(OpenInferenceSpan);
+      expect(span).toBeInstanceOf(OISpan);
     });
   });
 
   describe("startActiveSpan", () => {
-    it("should create an OpenInferenceSpan with startActiveSpan and set attributes according to the trace config", () => {
+    it("should create an OISpan with startActiveSpan and set attributes according to the trace config", () => {
       const oiTracer = new OITracer({
         tracer: mockTracer,
         traceConfig: {
@@ -85,7 +85,7 @@ describe("OITracer", () => {
         "input.value": REDACTED_VALUE,
       });
 
-      expect(span).toBeInstanceOf(OpenInferenceSpan);
+      expect(span).toBeInstanceOf(OISpan);
     });
   });
   it("should handle overloads correctly", () => {

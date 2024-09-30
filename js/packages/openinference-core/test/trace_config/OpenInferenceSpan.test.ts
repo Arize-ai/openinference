@@ -2,11 +2,11 @@ import {
   DefaultTraceConfig,
   REDACTED_VALUE,
 } from "@core/trace/trace_config/constants";
-import { OpenInferenceSpan } from "@core/trace/trace_config/OpenInferenceSpan";
+import { OISpan } from "@core/trace/trace_config/OISpan";
 import { Span } from "@opentelemetry/api";
 
-describe("OpenInferenceSpan", () => {
-  describe("OpenInferenceSpan", () => {
+describe("OISpan", () => {
+  describe("OISpan", () => {
     let mockSpan: jest.Mocked<Span>;
 
     beforeEach(() => {
@@ -25,7 +25,7 @@ describe("OpenInferenceSpan", () => {
       };
     });
     it("should delegate all methods to the span", () => {
-      const openInferenceSpan = new OpenInferenceSpan({
+      const openInferenceSpan = new OISpan({
         span: mockSpan,
         config: DefaultTraceConfig,
       });
@@ -70,7 +70,7 @@ describe("OpenInferenceSpan", () => {
 
     describe("setAttribute", () => {
       it("should mask sensitive attributes", () => {
-        const openInferenceSpan = new OpenInferenceSpan({
+        const openInferenceSpan = new OISpan({
           span: mockSpan,
           config: { ...DefaultTraceConfig, hideInputs: true },
         });
@@ -82,7 +82,7 @@ describe("OpenInferenceSpan", () => {
       });
 
       it("should not mask non-sensitive attributes", () => {
-        const openInferenceSpan = new OpenInferenceSpan({
+        const openInferenceSpan = new OISpan({
           span: mockSpan,
           config: { ...DefaultTraceConfig, hideInputs: true },
         });
@@ -96,7 +96,7 @@ describe("OpenInferenceSpan", () => {
 
     describe("setAttributes", () => {
       it("should mask sensitive attributes in bulk", () => {
-        const openInferenceSpan = new OpenInferenceSpan({
+        const openInferenceSpan = new OISpan({
           span: mockSpan,
           config: { ...DefaultTraceConfig, hideInputs: true },
         });

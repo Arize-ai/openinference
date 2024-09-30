@@ -14,7 +14,7 @@ import { mask } from "./maskingRules";
 /**
  * A wrapper around the OpenTelemetry {@link Span} interface that masks sensitive information based on the passed in {@link TraceConfig}.
  */
-export class OpenInferenceSpan implements Span {
+export class OISpan implements Span {
   private readonly span: Span;
   private readonly config: TraceConfig;
 

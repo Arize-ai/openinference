@@ -10,7 +10,7 @@ import {
   TraceConfig,
   TraceConfigOptions,
 } from "./types";
-import { OpenInferenceSpan } from "./OpenInferenceSpan";
+import { OISpan } from "./OISpan";
 import { generateTraceConfig } from "./traceConfig";
 
 /**
@@ -58,22 +58,22 @@ export class OITracer implements Tracer {
     this.tracer = tracer;
     this.config = generateTraceConfig(traceConfig);
   }
-  startActiveSpan<F extends (span: OpenInferenceSpan) => unknown>(
+  startActiveSpan<F extends (span: OISpan) => unknown>(
     name: string,
     fn: F,
   ): ReturnType<F>;
-  startActiveSpan<F extends (span: OpenInferenceSpan) => unknown>(
+  startActiveSpan<F extends (span: OISpan) => unknown>(
     name: string,
     options: SpanOptions,
     fn: F,
   ): ReturnType<F>;
-  startActiveSpan<F extends (span: OpenInferenceSpan) => unknown>(
+  startActiveSpan<F extends (span: OISpan) => unknown>(
     name: string,
     options: SpanOptions,
     context: Context,
     fn: F,
   ): ReturnType<F>;
-  startActiveSpan<F extends (span: OpenInferenceSpan) => ReturnType<F>>(
+  startActiveSpan<F extends (span: OISpan) => ReturnType<F>>(
     name: string,
     arg2?: F | SpanOptions,
     arg3?: F | Context,
@@ -90,7 +90,7 @@ export class OITracer implements Tracer {
       { ...opts, attributes: undefined },
       ctx,
       (span: Span) => {
-        const openInferenceSpan = new OpenInferenceSpan({
+        const openInferenceSpan = new OISpan({
           span,
           config: this.config,
         });
@@ -100,13 +100,9 @@ export class OITracer implements Tracer {
     );
   }
 
-  startSpan(
-    name: string,
-    options?: SpanOptions,
-    context?: Context,
-  ): OpenInferenceSpan {
+  startSpan(name: string, options?: SpanOptions, context?: Context): OISpan {
     const attributes = options?.attributes;
-    const span = new OpenInferenceSpan({
+    const span = new OISpan({
       span: this.tracer.startSpan(
         name,
         { ...options, attributes: undefined },

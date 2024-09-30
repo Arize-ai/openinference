@@ -1,5 +1,5 @@
 import { AttributeValue } from "@opentelemetry/api";
-import { OpenInferenceSpan } from "./OpenInferenceSpan";
+import { OISpan } from "./OISpan";
 
 export type TraceConfigOptions = {
   hideInputs?: boolean;
@@ -40,4 +40,4 @@ export type MaskingRule = {
   action: () => AttributeValue | undefined;
 };
 
-export type OpenInferenceActiveSpanCallback = (span: OpenInferenceSpan) => void;
+export type OpenInferenceActiveSpanCallback = (span: OISpan) => void;
