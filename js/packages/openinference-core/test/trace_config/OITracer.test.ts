@@ -2,8 +2,6 @@ import { OITracer, REDACTED_VALUE } from "@core/trace";
 import { OpenInferenceSpan } from "@core/trace/trace_config/OpenInferenceSpan";
 import {
   context,
-  Context,
-  ContextAPI,
   Span,
   SpanKind,
   SpanOptions,
@@ -30,7 +28,7 @@ describe("OITracer", () => {
 
   describe("startSpan", () => {
     it("should create an OpenInferenceSpan with start span and set attributes according to the trace config", () => {
-      const OITracer = new OITracer({
+      const oiTracer = new OITracer({
         tracer: mockTracer,
         traceConfig: {
           hideInputs: true,
@@ -41,9 +39,9 @@ describe("OITracer", () => {
         attributes: { key1: "value1", "input.value": "sensitiveValue" },
       };
 
-      const span = OITracer.startSpan(name, options);
+      const span = oiTracer.startSpan(name, options);
 
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
         name,
         { attributes: undefined },
         undefined,
@@ -59,7 +57,7 @@ describe("OITracer", () => {
 
   describe("startActiveSpan", () => {
     it("should create an OpenInferenceSpan with startActiveSpan and set attributes according to the trace config", () => {
-      const OITracer = new OITracer({
+      const oiTracer = new OITracer({
         tracer: mockTracer,
         traceConfig: {
           hideInputs: true,
@@ -70,7 +68,7 @@ describe("OITracer", () => {
         attributes: { key1: "value1", "input.value": "sensitiveValue" },
       };
 
-      const span = OITracer.startActiveSpan(name, options, (span) => {
+      const span = oiTracer.startActiveSpan(name, options, (span) => {
         return span;
       });
 
@@ -91,7 +89,7 @@ describe("OITracer", () => {
     });
   });
   it("should handle overloads correctly", () => {
-    const OITracer = new OITracer({
+    const oiTracer = new OITracer({
       tracer: mockTracer,
       traceConfig: {
         hideInputs: true,
@@ -100,7 +98,7 @@ describe("OITracer", () => {
     const name = "test-span";
     const mockFn = jest.fn();
 
-    OITracer.startActiveSpan(name, mockFn);
+    oiTracer.startActiveSpan(name, mockFn);
     expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
       name,
       { attributes: undefined },
@@ -112,7 +110,7 @@ describe("OITracer", () => {
       kind: SpanKind.INTERNAL,
       attributes: { key: "value" },
     };
-    OITracer.startActiveSpan(name, options, mockFn);
+    oiTracer.startActiveSpan(name, options, mockFn);
     expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
       name,
       { kind: SpanKind.INTERNAL, attributes: undefined },
@@ -122,7 +120,7 @@ describe("OITracer", () => {
 
     const newContext = context.active().setValue(Symbol("test"), "test");
 
-    OITracer.startActiveSpan(name, options, newContext, mockFn);
+    oiTracer.startActiveSpan(name, options, newContext, mockFn);
     expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
       name,
       { kind: SpanKind.INTERNAL, attributes: undefined },
@@ -131,50 +129,3 @@ describe("OITracer", () => {
     );
   });
 });
-
-//   describe("startActiveSpan", () => {
-//     it("should create an OpenInferenceSpan and set attributes", () => {
-//       const name = "test-active-span";
-//       const options: SpanOptions = {
-//         attributes: { key1: "value1", sensitiveKey: "sensitiveValue" },
-//       };
-//       const mockContext = {} as Context;
-//       const mockFn = jest.fn();
-
-//       OITracer.startActiveSpan(name, options, mockContext, mockFn);
-
-//       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
-//         name,
-//         { ...options, attributes: undefined },
-//         mockContext,
-//         expect.any(Function),
-//       );
-//       expect(OpenInferenceSpan).toHaveBeenCalledWith({
-//         span: mockSpan,
-//         config: expect.any(Object),
-//       });
-//       expect(mockFn).toHaveBeenCalled();
-//     });
-
-//     it("should handle overloads correctly", () => {
-//       const name = "test-overload";
-//       const mockFn = jest.fn();
-
-//       OITracer.startActiveSpan(name, mockFn);
-//       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
-//         name,
-//         {},
-//         expect.any(Object),
-//         expect.any(Function),
-//       );
-
-//       const options: SpanOptions = { attributes: { key: "value" } };
-//       OITracer.startActiveSpan(name, options, mockFn);
-//       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
-//         name,
-//         { ...options, attributes: undefined },
-//         expect.any(Object),
-//         expect.any(Function),
-//       );
-//     });
-//   });
