@@ -38,11 +38,7 @@ import {
 import { assertUnreachable, isString } from "./typeUtils";
 import { isTracingSuppressed } from "@opentelemetry/core";
 
-import {
-  OpenInferenceTracer,
-  safelyJSONStringify,
-  TraceConfigOptions,
-} from "@arizeai/openinference-core";
+import { safelyJSONStringify } from "@arizeai/openinference-core";
 
 const MODULE_NAME = "openai";
 
@@ -77,21 +73,12 @@ function getExecContext(span: Span) {
   return execContext;
 }
 export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
-  private openInferenceTracer: OpenInferenceTracer;
-  constructor(config?: {
-    instrumentationConfig?: InstrumentationConfig;
-    traceConfig: TraceConfigOptions;
-  }) {
-    const { instrumentationConfig, traceConfig } = config ?? {};
+  constructor(config?: InstrumentationConfig) {
     super(
       "@arizeai/openinference-instrumentation-openai",
       VERSION,
-      Object.assign({}, instrumentationConfig),
+      Object.assign({}, config),
     );
-    this.openInferenceTracer = new OpenInferenceTracer({
-      tracer: this.tracer,
-      configOptions: traceConfig,
-    });
   }
 
   protected init(): InstrumentationModuleDefinition<typeof openai> {
@@ -142,7 +129,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         ) {
           const body = args[0];
           const { messages: _messages, ...invocationParameters } = body;
-          const span = instrumentation.openInferenceTracer.startSpan(
+          const span = instrumentation.tracer.startSpan(
             `OpenAI Chat Completions`,
             {
               kind: SpanKind.INTERNAL,
@@ -225,20 +212,17 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         ) {
           const body = args[0];
           const { prompt: _prompt, ...invocationParameters } = body;
-          const span = instrumentation.openInferenceTracer.startSpan(
-            `OpenAI Completions`,
-            {
-              kind: SpanKind.INTERNAL,
-              attributes: {
-                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                  OpenInferenceSpanKind.LLM,
-                [SemanticConventions.LLM_MODEL_NAME]: body.model,
-                [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
-                  JSON.stringify(invocationParameters),
-                ...getCompletionInputValueAndMimeType(body),
-              },
+          const span = instrumentation.tracer.startSpan(`OpenAI Completions`, {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.LLM,
+              [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+                JSON.stringify(invocationParameters),
+              ...getCompletionInputValueAndMimeType(body),
             },
-          );
+          });
           const execContext = getExecContext(span);
 
           const execPromise = safeExecuteInTheMiddle<
@@ -297,24 +281,21 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           const body = args[0];
           const { input } = body;
           const isStringInput = typeof input === "string";
-          const span = instrumentation.openInferenceTracer.startSpan(
-            `OpenAI Embeddings`,
-            {
-              kind: SpanKind.INTERNAL,
-              attributes: {
-                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                  OpenInferenceSpanKind.EMBEDDING,
-                [SemanticConventions.EMBEDDING_MODEL_NAME]: body.model,
-                [SemanticConventions.INPUT_VALUE]: isStringInput
-                  ? input
-                  : JSON.stringify(input),
-                [SemanticConventions.INPUT_MIME_TYPE]: isStringInput
-                  ? MimeType.TEXT
-                  : MimeType.JSON,
-                ...getEmbeddingTextAttributes(body),
-              },
+          const span = instrumentation.tracer.startSpan(`OpenAI Embeddings`, {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.EMBEDDING,
+              [SemanticConventions.EMBEDDING_MODEL_NAME]: body.model,
+              [SemanticConventions.INPUT_VALUE]: isStringInput
+                ? input
+                : JSON.stringify(input),
+              [SemanticConventions.INPUT_MIME_TYPE]: isStringInput
+                ? MimeType.TEXT
+                : MimeType.JSON,
+              ...getEmbeddingTextAttributes(body),
             },
-          );
+          });
           const execContext = getExecContext(span);
           const execPromise = safeExecuteInTheMiddle<
             ReturnType<EmbeddingsCreateType>

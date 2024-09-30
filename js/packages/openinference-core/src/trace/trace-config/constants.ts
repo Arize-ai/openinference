@@ -1,4 +1,4 @@
-import { TraceConfigKey, TraceConfig, TraceConfigMetadata } from "./types";
+import { TraceConfigKey, TraceConfig, TraceConfigFlag } from "./types";
 
 /** Hides input value & messages */
 export const OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS";
@@ -40,8 +40,12 @@ export const DEFAULT_BASE64_IMAGE_MAX_LENGTH = 32000;
 /** When a value is hidden, it will be replaced by this redacted value */
 export const REDACTED_VALUE = "__REDACTED__";
 
+/**
+ * The default, environment, and type information for each value on the TraceConfig
+ * Used to generate a full TraceConfig object with the correct types and default values
+ */
 export const traceConfigMetadata: Readonly<
-  Record<TraceConfigKey, TraceConfigMetadata>
+  Record<TraceConfigKey, TraceConfigFlag>
 > = {
   hideInputs: {
     default: DEFAULT_HIDE_INPUTS,

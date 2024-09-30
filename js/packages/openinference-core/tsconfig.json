@@ -4,10 +4,7 @@
     "outDir": "dist",
     "rootDir": ".",
     "types": ["node", "jest"],
-    "baseUrl": "./src",
-    "paths": {
-      "@core/*": ["*"]
-    }
+    "baseUrl": "./src"
   },
   "files": [],
   "include": ["src/**/*.ts", "test/**/*.ts"],

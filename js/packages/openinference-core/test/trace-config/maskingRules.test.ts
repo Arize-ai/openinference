@@ -1,10 +1,13 @@
 import {
   DefaultTraceConfig,
   REDACTED_VALUE,
-} from "@core/trace/trace_config/constants";
-import { mask } from "@core/trace/trace_config/maskingRules";
-import { TraceConfig, TraceConfigKey } from "@core/trace/trace_config/types";
-import { assertUnreachable } from "@core/utils";
+} from "../../src/trace/trace-config/constants";
+import { mask } from "../../src/trace/trace-config/maskingRules";
+import {
+  TraceConfig,
+  TraceConfigKey,
+} from "../../src/trace/trace-config/types";
+import { assertUnreachable } from "../../src/utils";
 import { AttributeValue } from "@opentelemetry/api";
 
 type Name = string;

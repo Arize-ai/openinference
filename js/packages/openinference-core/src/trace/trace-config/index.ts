@@ -21,3 +21,4 @@ export {
   REDACTED_VALUE,
 } from "./constants";
 export { OITracer } from "./OITracer";
+export { type OISpan } from "./OISpan";

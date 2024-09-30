@@ -1,5 +1,5 @@
-import { OITracer, REDACTED_VALUE } from "@core/trace";
-import { OISpan } from "@core/trace/trace_config/OISpan";
+import { OITracer, REDACTED_VALUE } from "../../src";
+import { OISpan } from "../../src/trace/trace-config/OISpan";
 import {
   context,
   Span,

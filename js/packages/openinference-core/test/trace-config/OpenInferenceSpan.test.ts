@@ -1,8 +1,8 @@
 import {
   DefaultTraceConfig,
   REDACTED_VALUE,
-} from "@core/trace/trace_config/constants";
-import { OISpan } from "@core/trace/trace_config/OISpan";
+} from "../../src/trace/trace-config/constants";
+import { OISpan } from "../../src/trace/trace-config/OISpan";
 import { Span } from "@opentelemetry/api";
 
 describe("OISpan", () => {

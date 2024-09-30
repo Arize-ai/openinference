@@ -8,7 +8,7 @@ import { MaskingRule, MaskingRuleArgs } from "./types";
  * Will mask information stored under the key `llm.input_messages.[i].message.content`.
  * @example
  * ```typescript
- *  maskOutputTextRule.condition({
+ *  maskInputTextRule.condition({
  *      config: {hideInputText: true},
  *      key: "llm.input_messages.[i].message.content"
  *  }) // returns true so the rule applies and the value will be redacted
@@ -187,6 +187,13 @@ const maskingRules: MaskingRule[] = [
   maskEmbeddingVectorsRule,
 ];
 
+/**
+ * A function that masks (redacts or removes) sensitive information from span attributes based on the trace config.
+ * @param config The {@link TraceConfig} to use to determine if the value should be masked
+ * @param key The key of the attribute to mask
+ * @param value The value of the attribute to mask
+ * @returns The redacted value or undefined if the value should be masked, otherwise the original value
+ */
 export function mask({
   config,
   key,

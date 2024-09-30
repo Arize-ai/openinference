@@ -4,10 +4,7 @@
     "outDir": "dist/esm",
     "rootDir": "src",
     "tsBuildInfoFile": "dist/esm/tsconfig.esm.tsbuildinfo",
-    "baseUrl": "./src",
-    "paths": {
-      "@core/*": ["*"]
-    }
+    "baseUrl": "./src"
   },
   "include": ["src/**/*.ts"],
   "references": []

@@ -1,8 +1,8 @@
 import {
   DefaultTraceConfig,
   OPENINFERENCE_HIDE_INPUT_TEXT,
-} from "@core/trace/trace_config/constants";
-import { generateTraceConfig } from "@core/trace/trace_config/traceConfig";
+} from "../../src/trace/trace-config/constants";
+import { generateTraceConfig } from "../../src/trace/trace-config/traceConfig";
 
 describe("generateTraceConfig", () => {
   it("should return the default trace config when no options are provided", () => {

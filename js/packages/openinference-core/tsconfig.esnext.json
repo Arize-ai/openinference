@@ -4,10 +4,7 @@
     "outDir": "dist/esnext",
     "rootDir": "src",
     "tsBuildInfoFile": "dist/esnext/tsconfig.esnext.tsbuildinfo",
-    "baseUrl": "./src",
-    "paths": {
-      "@core/*": ["*"]
-    }
+    "baseUrl": "./src"
   },
   "include": ["src/**/*.ts"],
   "references": []

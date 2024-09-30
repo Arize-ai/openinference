@@ -9,11 +9,7 @@ import { context } from "@opentelemetry/api";
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.register();
 
-const instrumentation = new OpenAIInstrumentation({
-  traceConfig: {
-    hideInputs: true,
-  },
-});
+const instrumentation = new OpenAIInstrumentation();
 instrumentation.disable();
 
 import * as OpenAI from "openai";
