@@ -1,5 +1,5 @@
 import {
-  context,
+  context as apiContext,
   Context,
   Span,
   SpanOptions,
@@ -12,6 +12,7 @@ import {
 } from "./types";
 import { OISpan } from "./OISpan";
 import { generateTraceConfig } from "./traceConfig";
+import { getAttributesFromContext } from "../contextAttributes";
 
 /**
  * Formats the params for the startActiveSpan method
@@ -40,7 +41,7 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
   }
 
   opts = opts ?? {};
-  ctx = ctx ?? context.active();
+  ctx = ctx ?? apiContext.active();
 
   return { opts, ctx, fn };
 }
@@ -93,6 +94,8 @@ export class OITracer implements Tracer {
     }
     const { opts, ctx, fn } = formattedArgs;
     const { attributes } = opts ?? {};
+    const contextAttributes = getAttributesFromContext(ctx);
+    const mergedAttributes = { ...contextAttributes, ...attributes };
     return this.tracer.startActiveSpan(
       name,
       { ...opts, attributes: undefined },
@@ -102,7 +105,7 @@ export class OITracer implements Tracer {
           span,
           config: this.config,
         });
-        openInferenceSpan.setAttributes(attributes ?? {});
+        openInferenceSpan.setAttributes(mergedAttributes);
         return fn(openInferenceSpan);
       },
     );
@@ -110,15 +113,18 @@ export class OITracer implements Tracer {
 
   startSpan(name: string, options?: SpanOptions, context?: Context): OISpan {
     const attributes = options?.attributes;
+    const ctx = context ?? apiContext.active();
+    const contextAttributes = getAttributesFromContext(ctx);
+    const mergedAttributes = { ...contextAttributes, ...attributes };
     const span = new OISpan({
       span: this.tracer.startSpan(
         name,
         { ...options, attributes: undefined },
-        context,
+        ctx,
       ),
       config: this.config,
     });
-    span.setAttributes(attributes ?? {});
+    span.setAttributes(mergedAttributes);
     return span;
   }
 }
