@@ -118,6 +118,103 @@ def setup_anthropic_instrumentation(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
+def test_anthropic_instrumentation_completions_streaming(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = Anthropic(api_key="fake")
+
+    prompt = (
+        f"{anthropic.HUMAN_PROMPT}"
+        f" why is the sky blue? respond in five words or less."
+        f" {anthropic.AI_PROMPT}"
+    )
+
+    stream = client.completions.create(
+        model="claude-2.1",
+        prompt=prompt,
+        max_tokens_to_sample=1000,
+        stream=True,
+    )
+    for event in stream:
+        print(event.completion)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "Completions"
+    attributes = dict(spans[0].attributes or {})
+    print(attributes)
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_PROMPTS) == (prompt,)
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+
+    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
+    assert json.loads(inv_params) == invocation_params
+    assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+async def test_anthropic_instrumentation_async_completions_streaming(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = AsyncAnthropic(api_key="fake")
+
+    prompt = (
+        f"{anthropic.HUMAN_PROMPT}"
+        f" why is the sky blue? respond in five words or less."
+        f" {anthropic.AI_PROMPT}"
+    )
+
+    stream = await client.completions.create(
+        model="claude-2.1",
+        prompt=prompt,
+        max_tokens_to_sample=1000,
+        stream=True,
+    )
+    async for event in stream:
+        print(event.completion)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "AsyncCompletions"
+    attributes = dict(spans[0].attributes or {})
+    print(attributes)
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_PROMPTS) == (prompt,)
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+
+    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
+    assert json.loads(inv_params) == invocation_params
+    assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_anthropic_instrumentation_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -205,6 +302,129 @@ def test_anthropic_instrumentation_messages(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-20240229"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
+    assert not attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_messages_streaming(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = Anthropic(api_key="fake")
+    input_message = "Why is the sky blue? Answer in 5 words or less"
+
+    invocation_params = {"max_tokens": 1024, "model": "claude-2.1", "stream": True}
+
+    stream = client.messages.create(
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": input_message,
+            }
+        ],
+        model="claude-2.1",
+        stream=True,
+    )
+
+    for event in stream:
+        print(event)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "Messages"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert isinstance(
+        msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+    )
+    assert "Light scatters blue." in msg_content
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 21
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 31
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    # TODO(harrison): the output here doesn't look properly
+    # serialized but looks like openai, mistral accumulators do
+    # the same thing. need to look into why this might be wrong
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
+    assert not attributes
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+async def test_anthropic_instrumentation_async_messages_streaming(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = AsyncAnthropic(api_key="fake")
+    input_message = "Why is the sky blue? Answer in 5 words or less"
+
+    invocation_params = {"max_tokens": 1024, "model": "claude-2.1", "stream": True}
+
+    stream = await client.messages.create(
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": input_message,
+            }
+        ],
+        model="claude-2.1",
+        stream=True,
+    )
+
+    async for event in stream:
+        print(event)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "AsyncMessages"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert isinstance(
+        msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+    )
+    assert "Light scatters blue." in msg_content
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 21
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 31
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    # TODO(harrison): the output here doesn't look properly
+    # serialized but looks like openai, mistral accumulators do
+    # the same thing. need to look into why this might be wrong
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
@@ -404,6 +624,109 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert isinstance(attributes.pop(OUTPUT_MIME_TYPE), str)
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert not attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_multiple_tool_calling_streaming(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = anthropic.Anthropic(api_key="fake")
+
+    input_message = (
+        "What is the weather like right now in New York?"
+        " Also what time is it there? Use necessary tools simultaneously."
+    )
+
+    stream = client.messages.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens=1024,
+        tools=[
+            {
+                "name": "get_weather",
+                "description": "Get the current weather in a given location",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "The unit of temperature,"
+                            " either 'celsius' or 'fahrenheit'",
+                        },
+                    },
+                    "required": ["location"],
+                },
+            },
+            {
+                "name": "get_time",
+                "description": "Get the current time in a given time zone",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "timezone": {
+                            "type": "string",
+                            "description": "The IANA time zone name, e.g. America/Los_Angeles",
+                        }
+                    },
+                    "required": ["timezone"],
+                },
+            },
+        ],
+        messages=[{"role": "user", "content": input_message}],
+        stream=True,
+    )
+    for event in stream:
+        print(event)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "Messages"
+    attributes = dict(spans[0].attributes or {})
+
+    assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_time"
+    )
+    get_time_input_str = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    json.loads(get_time_input_str) == {"timezone": "America/New_York"}  # type: ignore
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    get_weather_input_str = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert json.loads(get_weather_input_str) == {"location": "New York, NY", "unit": "celsius"}  # type: ignore
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 518
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 149
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 667
+    # TODO(harrison): the output here doesn't look properly
+    # serialized but looks like openai, mistral accumulators do
+    # the same thing. need to look into why this might be wrong
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert not attributes
 
