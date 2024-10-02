@@ -14,7 +14,7 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import (
-    ImageAttributes,
+    MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
 )
@@ -55,43 +55,19 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not isinstance(request_parameters, Mapping):
             return
-
         invocation_params = dict(request_parameters)
         invocation_params.pop("messages", None)
         invocation_params.pop("functions", None)
-        if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
-            for i, tool in enumerate(tools):
-                yield f"llm.tools.{i}.tool.json_schema", safe_json_dumps(tool)
+        invocation_params.pop("tools", None)
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
-
         if (input_messages := request_parameters.get("messages")) and isinstance(input_messages, Iterable):
-            for index, input_message in enumerate(input_messages):
-                for key, value in self._get_attributes_from_message_param(input_message):
-                    yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
-
-    def _get_attributes_from_message_content(
-        self,
-        content: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        content = dict(content)
-        type_ = content.pop("type")
-        if type_ == "text":
-            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-            if text := content.pop("text"):
-                yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
-        elif type_ == "image_url":
-            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
-            if image := content.pop("image_url"):
-                for key, value in self._get_attributes_from_image(image):
-                    yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
-
-    def _get_attributes_from_image(
-        self,
-        image: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        image = dict(image)
-        if url := image.pop("url"):
-            yield f"{ImageAttributes.IMAGE_URL}", url
+            # Use reversed() to get the last message first. This is because OTEL has a default limit of
+            # 128 attributes per span, and flattening increases the number of attributes very quickly.
+            for index, input_message in reversed(list(enumerate(input_messages))):
+                if role := input_message.get("role"):
+                    yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_ROLE}", role
+                if content := input_message.get("content"):
+                    yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_CONTENT}", content
 
 
 T = TypeVar("T", bound=type)

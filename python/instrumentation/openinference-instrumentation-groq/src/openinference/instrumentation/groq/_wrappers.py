@@ -128,7 +128,7 @@ class _CompletionsWrapper(_WithTracer):
                 span_name=span_name,
                 attributes=self._request_extractor.get_attributes_from_request(request_parameters),
                 context_attributes=get_attributes_from_context(),
-                extra_attributes=[],
+                extra_attributes=self._request_extractor.get_extra_attributes_from_request(request_parameters),
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)

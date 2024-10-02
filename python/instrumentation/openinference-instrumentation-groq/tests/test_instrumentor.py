@@ -29,7 +29,12 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 mock_completion = ChatCompletion(
     id="chat_comp_0",
@@ -228,6 +233,7 @@ def test_groq_instrumentation(
         )
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes[SpanAttributes.LLM_INPUT_MESSAGES] == "Explain the importance of low latency LLMs"
     print(attributes)
 
 
