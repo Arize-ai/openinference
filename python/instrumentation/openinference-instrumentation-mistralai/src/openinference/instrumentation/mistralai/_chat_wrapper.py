@@ -207,6 +207,10 @@ class _WithMistralAI(ABC):
 
 
 class _SyncChatWrapper(_WithTracer, _WithMistralAI):
+    def __init__(self, span_name: str, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self._span_name = span_name
+
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -218,12 +222,11 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
             return wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
-            span_name = "MistralClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
         with self._start_as_current_span(
-            span_name=span_name,
+            span_name=self._span_name,
             attributes=self._get_attributes_from_request(request_parameters),
             context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(request_parameters),
@@ -253,6 +256,10 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
 
 
 class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
+    def __init__(self, span_name: str, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self._span_name = span_name
+
     async def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -264,12 +271,11 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
             return await wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
-            span_name = "MistralAsyncClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
             return await wrapped(*args, **kwargs)
         with self._start_as_current_span(
-            span_name=span_name,
+            span_name=self._span_name,
             attributes=self._get_attributes_from_request(request_parameters),
             context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(request_parameters),
@@ -299,6 +305,10 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
 
 
 class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
+    def __init__(self, span_name: str, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self._span_name = span_name
+
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -310,12 +320,11 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
             return wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
-            span_name = "MistralAsyncClient.chat"
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
         with self._start_as_current_span(
-            span_name=span_name,
+            span_name=self._span_name,
             attributes=self._get_attributes_from_request(request_parameters),
             context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(request_parameters),

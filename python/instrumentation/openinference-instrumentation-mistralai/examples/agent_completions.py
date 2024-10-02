@@ -9,21 +9,12 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
 MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
-
 if __name__ == "__main__":
-    from mistralai import Mistral
-
     client = Mistral(api_key="redacted")
-
-    response_stream = client.chat.stream(
-        model="mistral-small-latest",
+    response = client.agents.complete(
+        agent_id="your-agent-id",
         messages=[
-            {
-                "content": "Who is the best French painter? Answer in one short sentence.",
-                "role": "user",
-            },
+            {"role": "user", "content": "plan a vacation for me in Tbilisi"},
         ],
     )
-
-    for chunk in response_stream:
-        print(chunk)
+    print(response)
