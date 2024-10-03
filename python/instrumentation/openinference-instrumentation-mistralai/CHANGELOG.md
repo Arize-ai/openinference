@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.0.0...python-openinference-instrumentation-mistralai-v1.1.0) (2024-10-02)
+
+
+### Features
+
+* **mistral:** add agent support ([#1043](https://github.com/Arize-ai/openinference/issues/1043)) ([d1d6b2f](https://github.com/Arize-ai/openinference/commit/d1d6b2fea6af8352cd5b4b907c0c8622302bd450))
+
+
+### Bug Fixes
+
+* increase version lower bound for openinference-instrumentation ([#1012](https://github.com/Arize-ai/openinference/issues/1012)) ([3236d27](https://github.com/Arize-ai/openinference/commit/3236d2733a46b84d693ddb7092209800cde8cc34))
+
 ## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v0.0.10...python-openinference-instrumentation-mistralai-v1.0.0) (2024-09-06)
 
 
