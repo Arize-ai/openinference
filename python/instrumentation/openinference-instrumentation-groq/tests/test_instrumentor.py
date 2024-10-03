@@ -241,12 +241,12 @@ def test_groq_instrumentation(
         == "Explain the importance of low latency LLMs"
     )
     assert (
-            attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
-            == "assistant"
+        attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "assistant"
     )
     assert (
-            attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
-            == "idk, sorry!"
+        attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "idk, sorry!"
     )
 
 
@@ -300,20 +300,20 @@ def test_groq_async_instrumentation(
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert (
-            attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
-            == "user"
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "user"
     )
     assert (
-            attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
-            == "Explain the importance of low latency LLMs"
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "Explain the importance of low latency LLMs"
     )
     assert (
-            attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
-            == "assistant"
+        attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "assistant"
     )
     assert (
-            attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
-            == "idk, sorry!"
+        attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "idk, sorry!"
     )
 
 
