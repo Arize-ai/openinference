@@ -160,7 +160,7 @@ class _CompletionsWrapper(_WithTracer):
                     )
                 )
             )
-            span.finish_tracing(trace_api.StatusCode.OK)
+            span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return response
 
 
