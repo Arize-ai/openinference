@@ -233,7 +233,8 @@ def test_groq_instrumentation(
         )
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes[SpanAttributes.LLM_INPUT_MESSAGES] == "Explain the importance of low latency LLMs"
+    assert attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "user"
+    assert attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"] == "Explain the importance of low latency LLMs"
     print(attributes)
 
 
