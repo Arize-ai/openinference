@@ -56,8 +56,9 @@ class _RequestAttributesExtractor:
         if (input_messages := request_parameters.get("messages")) and isinstance(
             input_messages, Iterable
         ):
-            # Use reversed() to get the last message first. This is because OTEL has a default limit of
-            # 128 attributes per span, and flattening increases the number of attributes very quickly.
+            # Use reversed() to get the last message first. This is because OTEL has a default
+            # limit of 128 attributes per span, and flattening increases the number of
+            # attributes very quickly.
             for index, input_message in reversed(list(enumerate(input_messages))):
                 if role := input_message.get("role"):
                     yield (
