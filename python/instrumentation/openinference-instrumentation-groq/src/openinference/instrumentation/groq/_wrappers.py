@@ -152,8 +152,12 @@ class _CompletionsWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.choices[0].message.content,
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "assistant",
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": (
+                                response.choices[0].message.content
+                            ),
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": (
+                                "assistant"
+                            ),
                             SpanAttributes.OUTPUT_VALUE: response.to_json(),
                             SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                             LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
@@ -235,8 +239,12 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.choices[0].message.content,
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "assistant",
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": (
+                                response.choices[0].message.content
+                            ),
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": (
+                                "assistant"
+                            ),
                             SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
                             SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
                             LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
