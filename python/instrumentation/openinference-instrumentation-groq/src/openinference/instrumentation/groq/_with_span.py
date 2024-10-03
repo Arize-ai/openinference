@@ -17,10 +17,10 @@ class _WithSpan:
     )
 
     def __init__(
-            self,
-            span: trace_api.Span,
-            context_attributes: Attributes = None,
-            extra_attributes: Attributes = None,
+        self,
+        span: trace_api.Span,
+        context_attributes: Attributes = None,
+        extra_attributes: Attributes = None,
     ) -> None:
         self._span = span
         self._context_attributes = context_attributes
@@ -60,18 +60,18 @@ class _WithSpan:
             logger.exception("Failed to set attributes on span")
 
     def finish_tracing(
-            self,
-            status: Optional[trace_api.Status] = None,
-            attributes: Attributes = None,
-            extra_attributes: Attributes = None,
+        self,
+        status: Optional[trace_api.Status] = None,
+        attributes: Attributes = None,
+        extra_attributes: Attributes = None,
     ) -> None:
         if self._is_finished:
             return
         for mapping in (
-                attributes,
-                self._context_attributes,
-                self._extra_attributes,
-                extra_attributes,
+            attributes,
+            self._context_attributes,
+            self._extra_attributes,
+            extra_attributes,
         ):
             if not mapping:
                 continue

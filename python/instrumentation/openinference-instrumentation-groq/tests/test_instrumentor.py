@@ -10,6 +10,7 @@ from typing import (
     Union,
     cast,
 )
+
 import pytest
 from groq import AsyncGroq, Groq
 from groq._base_client import _StreamT
@@ -31,8 +32,6 @@ from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 
@@ -233,8 +232,14 @@ def test_groq_instrumentation(
         )
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "user"
-    assert attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"] == "Explain the importance of low latency LLMs"
+    assert (
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "user"
+    )
+    assert (
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "Explain the importance of low latency LLMs"
+    )
     print(attributes)
 
 

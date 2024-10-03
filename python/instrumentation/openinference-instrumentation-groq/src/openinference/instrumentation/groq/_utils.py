@@ -23,6 +23,7 @@ class _ValueAndType(NamedTuple):
     value: str
     type: OpenInferenceMimeTypeValues
 
+
 def _io_value_and_type(obj: Any) -> _ValueAndType:
     if hasattr(obj, "model_dump_json") and callable(obj.model_dump_json):
         try:
@@ -46,7 +47,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
 
 
 def _as_input_attributes(
-        value_and_type: Optional[_ValueAndType],
+    value_and_type: Optional[_ValueAndType],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not value_and_type:
         return

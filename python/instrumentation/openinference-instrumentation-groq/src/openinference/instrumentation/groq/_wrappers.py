@@ -1,24 +1,26 @@
+import json
 from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
 from inspect import Signature, signature
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
 
-import json
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.groq._request_attributes_extractor import (
+    _RequestAttributesExtractor,
+)
+from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from openinference.instrumentation.groq._with_span import _WithSpan
-from openinference.instrumentation.groq._request_attributes_extractor import _RequestAttributesExtractor
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -49,11 +51,11 @@ class _WithTracer(ABC):
 
     @contextmanager
     def _start_as_current_span(
-            self,
-            span_name: str,
-            attributes: Iterable[Tuple[str, AttributeValue]],
-            context_attributes: Iterable[Tuple[str, AttributeValue]],
-            extra_attributes: Iterable[Tuple[str, AttributeValue]],
+        self,
+        span_name: str,
+        attributes: Iterable[Tuple[str, AttributeValue]],
+        context_attributes: Iterable[Tuple[str, AttributeValue]],
+        extra_attributes: Iterable[Tuple[str, AttributeValue]],
     ) -> Iterator[_WithSpan]:
         # Because OTEL has a default limit of 128 attributes, we split our
         # attributes into two tiers, where "extra_attributes" are added first to
@@ -64,10 +66,10 @@ class _WithTracer(ABC):
         except Exception:
             span = INVALID_SPAN
         with trace_api.use_span(
-                span,
-                end_on_exit=False,
-                record_exception=False,
-                set_status_on_exception=False,
+            span,
+            end_on_exit=False,
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
             yield _WithSpan(
                 span=span,
@@ -75,10 +77,11 @@ class _WithTracer(ABC):
                 extra_attributes=dict(attributes),
             )
 
+
 def _parse_args(
-        signature: Signature,
-        *args: Tuple[Any],
-        **kwargs: Mapping[str, Any],
+    signature: Signature,
+    *args: Tuple[Any],
+    **kwargs: Mapping[str, Any],
 ) -> Dict[str, Any]:
     bound_signature = signature.bind(*args, **kwargs)
     bound_signature.apply_defaults()
@@ -97,11 +100,13 @@ def _parse_args(
             request_data[key] = str(value)
     return request_data
 
+
 class _CompletionsWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
     """
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._request_extractor = _RequestAttributesExtractor()
@@ -125,10 +130,12 @@ class _CompletionsWrapper(_WithTracer):
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "Completions"
         with self._start_as_current_span(
-                span_name=span_name,
-                attributes=self._request_extractor.get_attributes_from_request(request_parameters),
-                context_attributes=get_attributes_from_context(),
-                extra_attributes=self._request_extractor.get_extra_attributes_from_request(request_parameters),
+            span_name=span_name,
+            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
+            context_attributes=get_attributes_from_context(),
+            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
+                request_parameters
+            ),
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
