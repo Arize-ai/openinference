@@ -147,18 +147,14 @@ class _CompletionsWrapper(_WithTracer):
                     description=f"{type(exception).__name__}: {exception}",
                 )
                 span.finish_tracing(status=status)
-                raise
+            content = response.choices[0].message.content
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": (
-                                response.choices[0].message.content
-                            ),
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": (
-                                "assistant"
-                            ),
-                            SpanAttributes.OUTPUT_VALUE: response.to_json(),
+                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": content,
+                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
+                            SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
                             SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                             LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
                             SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
@@ -235,18 +231,15 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 )
                 span.finish_tracing(status=status)
                 raise
+            content = response.choices[0].message.content
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": (
-                                response.choices[0].message.content
-                            ),
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": (
-                                "assistant"
-                            ),
+                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": content,
+                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
                             SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
-                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
+                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
                             LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
                             SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
                             SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
@@ -262,6 +255,9 @@ CHAIN = OpenInferenceSpanKindValues.CHAIN
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
 LLM = OpenInferenceSpanKindValues.LLM
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
