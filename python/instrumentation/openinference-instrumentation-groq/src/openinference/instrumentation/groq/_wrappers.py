@@ -173,6 +173,10 @@ class _AsyncCompletionsWrapper(_WithTracer):
     Captures all calls to the pipeline
     """
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._request_extractor = _RequestAttributesExtractor()
+
     async def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -183,24 +187,25 @@ class _AsyncCompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        llm_invocation_params = kwargs
-        llm_messages = dict(kwargs).pop("messages", None)
-
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
         for arg in args:
             if arg and isinstance(arg, dict):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        llm_invocation_params = kwargs
+        llm_messages = dict(kwargs).pop("messages", None)
 
         span_name = "AsyncCompletions"
-        with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
+            context_attributes=get_attributes_from_context(),
+            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
+                request_parameters
+            ),
         ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
-
             span.set_attributes(
                 dict(
                     _flatten(
@@ -219,13 +224,19 @@ class _AsyncCompletionsWrapper(_WithTracer):
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
                 raise
             span.set_attributes(
                 dict(
                     _flatten(
                         {
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.choices[0].message.content,
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "assistant",
                             SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
                             SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT,
                             LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
@@ -235,9 +246,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
                     )
                 )
             )
-
-            span.set_status(trace_api.StatusCode.OK)
-
+            span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return response
 
 
