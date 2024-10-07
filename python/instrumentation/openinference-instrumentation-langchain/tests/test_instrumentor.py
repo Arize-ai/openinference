@@ -126,7 +126,7 @@ async def test_get_current_chain_root_span_during_execution(
 
     concurrent_chains = 5
 
-    root_spans_after_execution: List[Span] = []
+    root_spans_after_execution: List[Span | None] = []
 
     def run_chain_sync() -> None:
         chain = TestChain()
@@ -182,7 +182,7 @@ async def test_get_current_chain_root_span_during_execution_async(
 
     concurrent_chains = 5
 
-    root_spans_after_execution: List[Span] = []
+    root_spans_after_execution: List[Span | None] = []
 
     async def run_chain_async() -> None:
         chain = TestChain()
