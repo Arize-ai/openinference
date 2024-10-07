@@ -3,7 +3,7 @@ import logging
 import math
 import time
 import traceback
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from copy import deepcopy
 from datetime import datetime, timezone
 from enum import Enum
@@ -117,6 +117,7 @@ class OpenInferenceTracer(BaseTracer):
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
         self._spans_by_run: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
+        self._context_tokens_by_run: Dict[UUID, Token] = _DictWithLock[UUID, Token]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[trace_api.Span]:
@@ -145,7 +146,6 @@ class OpenInferenceTracer(BaseTracer):
 
         if run.run_type.lower() == "chain":
             token = current_chain_root_span.set(span)
-            span._chain_root_token = token
 
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
@@ -156,6 +156,7 @@ class OpenInferenceTracer(BaseTracer):
         # token = context_api.attach(context)
         with self._lock:
             self._spans_by_run[run.id] = span
+            self._context_tokens_by_run[run.id] = token
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
@@ -172,8 +173,8 @@ class OpenInferenceTracer(BaseTracer):
             # called in a background thread.
             end_time_utc_nano = _as_utc_nano(run.end_time) if run.end_time else None
             span.end(end_time=end_time_utc_nano)
-            if hasattr(span, "_chain_root_token"):
-                current_chain_root_span.reset(span._chain_root_token)
+            if token := self._context_tokens_by_run.pop(run.id):
+                current_chain_root_span.reset(token)
 
     def _persist_run(self, run: Run) -> None:
         pass
