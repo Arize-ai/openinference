@@ -3,6 +3,7 @@ import logging
 import math
 import time
 import traceback
+from contextvars import ContextVar
 from copy import deepcopy
 from datetime import datetime, timezone
 from enum import Enum
@@ -54,6 +55,7 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+current_chain_root_span_stack = ContextVar("current_chain_root_span", default=[])
 
 _AUDIT_TIMING = False
 
@@ -140,6 +142,13 @@ class OpenInferenceTracer(BaseTracer):
             context=parent_context,
             start_time=start_time_utc_nano,
         )
+
+        if run.run_type.lower() == "chain":
+            stack = current_chain_root_span_stack.get()
+            new_stack = stack + [span]
+            token = current_chain_root_span_stack.set(new_stack)
+            span._chain_root_token = token
+
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
         # that the context will be detached. An error could happen between callbacks leaving
@@ -165,6 +174,8 @@ class OpenInferenceTracer(BaseTracer):
             # called in a background thread.
             end_time_utc_nano = _as_utc_nano(run.end_time) if run.end_time else None
             span.end(end_time=end_time_utc_nano)
+            if hasattr(span, "_chain_root_token"):
+                current_chain_root_span_stack.reset(span._chain_root_token)
 
     def _persist_run(self, run: Run) -> None:
         pass

@@ -104,3 +104,12 @@ def get_current_span() -> Optional[Span]:
     if not run_id:
         return None
     return LangChainInstrumentor().get_span(run_id)
+
+
+def get_current_chain_root_span() -> Optional[Span]:
+    from openinference.instrumentation.langchain._tracer import current_chain_root_span_stack
+
+    stack = current_chain_root_span_stack.get()
+    if stack:
+        return stack[-1]
+    return None
