@@ -143,7 +143,7 @@ class OpenInferenceTracer(BaseTracer):
             start_time=start_time_utc_nano,
         )
 
-        if run.run_type.lower() == 'chain':
+        if run.run_type.lower() == "chain":
             token = current_chain_root_span.set(span)
             span._chain_root_token = token
 
