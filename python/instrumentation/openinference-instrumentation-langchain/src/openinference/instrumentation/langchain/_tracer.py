@@ -119,7 +119,9 @@ class OpenInferenceTracer(BaseTracer):
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
         self._spans_by_run: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
-        self._context_tokens_by_run: Dict[UUID, Token] = _DictWithLock[UUID, Token]()
+        self._context_tokens_by_run: Dict[UUID, Token[Optional[trace_api.Span]]] = _DictWithLock[
+            UUID, Token[Optional[trace_api.Span]]
+        ]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[trace_api.Span]:
