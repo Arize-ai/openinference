@@ -55,7 +55,7 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-current_chain_root_span_stack = ContextVar("current_chain_root_span", default=[])
+current_chain_root_span = ContextVar('current_chain_root_span', default=None)
 
 _AUDIT_TIMING = False
 
@@ -143,10 +143,8 @@ class OpenInferenceTracer(BaseTracer):
             start_time=start_time_utc_nano,
         )
 
-        if run.run_type.lower() == "chain":
-            stack = current_chain_root_span_stack.get()
-            new_stack = stack + [span]
-            token = current_chain_root_span_stack.set(new_stack)
+        if run.run_type.lower() == 'chain':
+            token = current_chain_root_span.set(span)
             span._chain_root_token = token
 
         # The following line of code is commented out to serve as a reminder that in a system
@@ -175,7 +173,7 @@ class OpenInferenceTracer(BaseTracer):
             end_time_utc_nano = _as_utc_nano(run.end_time) if run.end_time else None
             span.end(end_time=end_time_utc_nano)
             if hasattr(span, "_chain_root_token"):
-                current_chain_root_span_stack.reset(span._chain_root_token)
+                current_chain_root_span.reset(span._chain_root_token)
 
     def _persist_run(self, run: Run) -> None:
         pass

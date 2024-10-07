@@ -107,9 +107,6 @@ def get_current_span() -> Optional[Span]:
 
 
 def get_current_chain_root_span() -> Optional[Span]:
-    from openinference.instrumentation.langchain._tracer import current_chain_root_span_stack
+    from openinference.instrumentation.langchain._tracer import current_chain_root_span
 
-    stack = current_chain_root_span_stack.get()
-    if stack:
-        return stack[-1]
-    return None
+    return current_chain_root_span.get()
