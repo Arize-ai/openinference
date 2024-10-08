@@ -92,38 +92,35 @@ async def test_get_current_span(
     }
 
 
-async def test_get_current_chain_root_span_with_runnable_lambda(
+async def test_get_current_chain_root_span(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     """Test retrieving the current chain root span during RunnableLambda execution."""
     n = 10  # Number of concurrent runs
     loop = asyncio.get_running_loop()
 
-    # Collect root spans during execution
     root_spans_during_execution = []
 
-    def f(_: Any) -> str:
-        # Retrieve the current chain root span during execution
+    def f(x: int) -> str:
         root_span = get_current_chain_root_span()
         assert root_span is not None, "Root span should not be None during execution (sync)"
         root_spans_during_execution.append(root_span)
-        return "Result"
+        return x + 1
 
     with ThreadPoolExecutor() as executor:
-        tasks = [loop.run_in_executor(executor, RunnableLambda(f).invoke, None) for _ in range(n)]
+        tasks = [loop.run_in_executor(executor, RunnableLambda(f).invoke(1), None) for _ in range(n)]
         await asyncio.gather(*tasks)
 
     root_span_after_execution = get_current_chain_root_span()
     assert root_span_after_execution is None, "Root span should be None after execution"
 
-    assert len(root_spans_during_execution) == n, "Did not capture all root spans during execution"
-    breakpoint()
+    assert len(root_spans_during_execution) == 2 * n, "Did not capture all root spans during execution"
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == n, f"Expected {n} spans, but found {len(spans)}"
 
 
-async def test_get_current_chain_root_span_with_runnable_lambda_async(
+async def test_get_current_chain_root_span_async(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     """Test retrieving the current chain root span during RunnableLambda execution."""
@@ -131,27 +128,25 @@ async def test_get_current_chain_root_span_with_runnable_lambda_async(
         pytest.xfail("Async test may fail on Python versions below 3.11")
     n = 10  # Number of concurrent runs
 
-    # Collect root spans during execution
     root_spans_during_execution = []
 
-    async def f(_: Any) -> str:
-        # Retrieve the current chain root span during execution
+    async def f(x: int) -> str:
         root_span = get_current_chain_root_span()
         assert root_span is not None, "Root span should not be None during execution (async)"
-        print(root_span)
         root_spans_during_execution.append(root_span)
-        await asyncio.sleep(0.01)  # Simulate some async work
-        return "Result"
+        return x + 1
 
-    await asyncio.gather(*(RunnableLambda(f).ainvoke(None) for _ in range(n)))  # type: ignore[arg-type]
+    sequence = RunnableLambda(f) | RunnableLambda(f)
+    for _ in range(n):
+        await sequence.ainvoke(1)
 
     root_span_after_execution = get_current_chain_root_span()
     assert root_span_after_execution is None, "Root span should be None after execution"
 
-    assert len(root_spans_during_execution) == n, "Did not capture all root spans during execution"
+    assert len(root_spans_during_execution) == 2 * n, "Did not capture all root spans during execution"
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == n, f"Expected {n} spans, but found {len(spans)}"
+    assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
 
 
 @pytest.mark.parametrize("is_async", [False, True])

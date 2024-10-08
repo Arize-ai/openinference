@@ -108,6 +108,9 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
             super().__delitem__(key)
 
 
+_spans_by_span_id: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
+
+
 class OpenInferenceTracer(BaseTracer):
     __slots__ = ("_tracer", "_spans_by_run")
 
@@ -119,9 +122,9 @@ class OpenInferenceTracer(BaseTracer):
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
         self._spans_by_run: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
-        self._context_tokens_by_run: Dict[UUID, Token[Optional[trace_api.Span]]] = _DictWithLock[
-            UUID, Token[Optional[trace_api.Span]]
-        ]()
+        # self._context_tokens_by_run: Dict[UUID, Token[Optional[trace_api.Span]]] = _DictWithLock[
+        #     UUID, Token[Optional[trace_api.Span]]
+        # ]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[trace_api.Span]:
@@ -148,8 +151,8 @@ class OpenInferenceTracer(BaseTracer):
             start_time=start_time_utc_nano,
         )
 
-        if run.run_type.lower() == "chain":
-            token = current_chain_root_span.set(span)
+        if run.run_type.lower() == "chain" and span:
+            span.set_attribute("is_chain_span", True)
 
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
@@ -160,7 +163,7 @@ class OpenInferenceTracer(BaseTracer):
         # token = context_api.attach(context)
         with self._lock:
             self._spans_by_run[run.id] = span
-            self._context_tokens_by_run[run.id] = token
+            _spans_by_span_id[span.get_span_context().span_id] = span
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
@@ -169,6 +172,7 @@ class OpenInferenceTracer(BaseTracer):
             return
         span = self._spans_by_run.pop(run.id, None)
         if span:
+            _spans_by_span_id.pop(span.get_span_context().span_id, None)
             try:
                 _update_span(span, run)
             except Exception:
@@ -177,8 +181,6 @@ class OpenInferenceTracer(BaseTracer):
             # called in a background thread.
             end_time_utc_nano = _as_utc_nano(run.end_time) if run.end_time else None
             span.end(end_time=end_time_utc_nano)
-            if token := self._context_tokens_by_run.pop(run.id):
-                current_chain_root_span.reset(token)
 
     def _persist_run(self, run: Run) -> None:
         pass
