@@ -3,7 +3,6 @@ import logging
 import math
 import time
 import traceback
-from contextvars import ContextVar, Token
 from copy import deepcopy
 from datetime import datetime, timezone
 from enum import Enum
@@ -55,9 +54,6 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-current_chain_root_span: ContextVar[Optional[trace_api.Span]] = ContextVar(
-    "current_chain_root_span", default=None
-)
 
 _AUDIT_TIMING = False
 

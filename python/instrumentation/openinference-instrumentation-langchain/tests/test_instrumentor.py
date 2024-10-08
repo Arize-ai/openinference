@@ -108,13 +108,17 @@ async def test_get_current_chain_root_span(
         return x + 1
 
     with ThreadPoolExecutor() as executor:
-        tasks = [loop.run_in_executor(executor, RunnableLambda(f).invoke(1), None) for _ in range(n)]
+        tasks = [
+            loop.run_in_executor(executor, RunnableLambda(f).invoke(1), None) for _ in range(n)
+        ]
         await asyncio.gather(*tasks)
 
     root_span_after_execution = get_current_chain_root_span()
     assert root_span_after_execution is None, "Root span should be None after execution"
 
-    assert len(root_spans_during_execution) == 2 * n, "Did not capture all root spans during execution"
+    assert (
+        len(root_spans_during_execution) == 2 * n
+    ), "Did not capture all root spans during execution"
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == n, f"Expected {n} spans, but found {len(spans)}"
@@ -143,7 +147,9 @@ async def test_get_current_chain_root_span_async(
     root_span_after_execution = get_current_chain_root_span()
     assert root_span_after_execution is None, "Root span should be None after execution"
 
-    assert len(root_spans_during_execution) == 2 * n, "Did not capture all root spans during execution"
+    assert (
+        len(root_spans_during_execution) == 2 * n
+    ), "Did not capture all root spans during execution"
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
