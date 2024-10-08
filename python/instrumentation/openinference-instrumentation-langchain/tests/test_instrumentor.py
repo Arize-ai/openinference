@@ -26,7 +26,6 @@ import openai
 import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
 from langchain.chains import LLMChain, RetrievalQA
-from langchain.chains.base import Chain
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
 from langchain_core.prompts import PromptTemplate
@@ -93,110 +92,66 @@ async def test_get_current_span(
     }
 
 
-async def test_get_current_chain_root_span_during_execution(
+async def test_get_current_chain_root_span_with_runnable_lambda(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    """Test retrieving the current chain root span during chain execution."""
+    """Test retrieving the current chain root span during RunnableLambda execution."""
+    n = 10  # Number of concurrent runs
+    loop = asyncio.get_running_loop()
 
-    class TestChain(Chain):
-        """A custom chain that calls get_current_chain_root_span during execution."""
+    # Collect root spans during execution
+    root_spans_during_execution = []
 
-        async def _acall(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-            root_span = get_current_chain_root_span()  # Get chain span during execution
-            assert (
-                root_span is not None
-            ), "Root span should not be None during chain execution (async)"
-            await asyncio.sleep(0.1)
-            return {"output": "test output"}
-
-        def _call(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-            root_span = get_current_chain_root_span()  # Get chain span during execution
-            assert (
-                root_span is not None
-            ), "Root span should not be None during chain execution (sync)"
-            return {"output": "test output"}
-
-        @property
-        def input_keys(self) -> List[str]:
-            return []
-
-        @property
-        def output_keys(self) -> List[str]:
-            return ["output"]
-
-    concurrent_chains = 5
-
-    root_spans_after_execution: List[Span | None] = []
-
-    def run_chain_sync() -> None:
-        chain = TestChain()
-        chain.call({})
-        # After execution, the root span should be None
+    def f(_: Any) -> str:
+        # Retrieve the current chain root span during execution
         root_span = get_current_chain_root_span()
-        assert root_span is None, "Root span should be None after sync chain execution"
-        root_spans_after_execution.append(root_span)
+        assert root_span is not None, "Root span should not be None during execution (sync)"
+        root_spans_during_execution.append(root_span)
+        return "Result"
 
-    loop = asyncio.get_event_loop()
     with ThreadPoolExecutor() as executor:
-        tasks = [loop.run_in_executor(executor, run_chain_sync) for _ in range(concurrent_chains)]
+        tasks = [loop.run_in_executor(executor, RunnableLambda(f).invoke, None) for _ in range(n)]
         await asyncio.gather(*tasks)
 
-    assert all(
-        span is None for span in root_spans_after_execution
-    ), "All root spans should be None after execution"
+    root_span_after_execution = get_current_chain_root_span()
+    assert root_span_after_execution is None, "Root span should be None after execution"
+
+    assert len(root_spans_during_execution) == n, "Did not capture all root spans during execution"
+    breakpoint()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == n, f"Expected {n} spans, but found {len(spans)}"
 
 
-async def test_get_current_chain_root_span_during_execution_async(
+async def test_get_current_chain_root_span_with_runnable_lambda_async(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    """Test retrieving the current chain root span during chain execution."""
-
+    """Test retrieving the current chain root span during RunnableLambda execution."""
     if sys.version_info < (3, 11):
         pytest.xfail("Async test may fail on Python versions below 3.11")
+    n = 10  # Number of concurrent runs
 
-    class TestChain(Chain):
-        """A custom chain that calls get_current_chain_root_span during execution."""
+    # Collect root spans during execution
+    root_spans_during_execution = []
 
-        async def _acall(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-            root_span = get_current_chain_root_span()  # Get chain span during execution
-            assert (
-                root_span is not None
-            ), "Root span should not be None during chain execution (async)"
-            await asyncio.sleep(0.1)
-            return {"output": "test output"}
-
-        def _call(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-            root_span = get_current_chain_root_span()  # Get chain span during execution
-            assert (
-                root_span is not None
-            ), "Root span should not be None during chain execution (sync)"
-            return {"output": "test output"}
-
-        @property
-        def input_keys(self) -> List[str]:
-            return []
-
-        @property
-        def output_keys(self) -> List[str]:
-            return ["output"]
-
-    concurrent_chains = 5
-
-    root_spans_after_execution: List[Span | None] = []
-
-    async def run_chain_async() -> None:
-        chain = TestChain()
-        await chain.acall({})
-        # After execution, the root span should be None
+    async def f(_: Any) -> str:
+        # Retrieve the current chain root span during execution
         root_span = get_current_chain_root_span()
-        assert root_span is None, "Root span should be None after async chain execution"
-        root_spans_after_execution.append(root_span)
+        assert root_span is not None, "Root span should not be None during execution (async)"
+        print(root_span)
+        root_spans_during_execution.append(root_span)
+        await asyncio.sleep(0.01)  # Simulate some async work
+        return "Result"
 
-    await asyncio.gather(*(run_chain_async() for _ in range(concurrent_chains)))
+    await asyncio.gather(*(RunnableLambda(f).ainvoke(None) for _ in range(n)))  # type: ignore[arg-type]
 
-    assert all(
-        span is None for span in root_spans_after_execution
-    ), "All root spans should be None after execution"
+    root_span_after_execution = get_current_chain_root_span()
+    assert root_span_after_execution is None, "Root span should be None after execution"
+
+    assert len(root_spans_during_execution) == n, "Did not capture all root spans during execution"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == n, f"Expected {n} spans, but found {len(spans)}"
 
 
 @pytest.mark.parametrize("is_async", [False, True])
