@@ -72,56 +72,6 @@ def documents() -> List[Dict[str, Any]]:
 
 
 @pytest.fixture()
-def session_id() -> str:
-    return "my-test-session-id"
-
-
-@pytest.fixture()
-def user_id() -> str:
-    return "my-test-user-id"
-
-
-@pytest.fixture()
-def metadata() -> Dict[str, Any]:
-    return {
-        "test-int": 1,
-        "test-str": "string",
-        "test-list": [1, 2, 3],
-        "test-dict": {
-            "key-1": "val-1",
-            "key-2": "val-2",
-        },
-    }
-
-
-@pytest.fixture()
-def tags() -> List[str]:
-    return ["tag-1", "tag-2"]
-
-
-@pytest.fixture
-def prompt_template() -> str:
-    return (
-        "This is a test prompt template with int {var_int}, "
-        "string {var_string}, and list {var_list}"
-    )
-
-
-@pytest.fixture
-def prompt_template_version() -> str:
-    return "v1.0"
-
-
-@pytest.fixture
-def prompt_template_variables() -> Dict[str, Any]:
-    return {
-        "var_int": 1,
-        "var_str": "2",
-        "var_list": [1, 2, 3],
-    }
-
-
-@pytest.fixture()
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
@@ -272,19 +222,10 @@ class TestLM:
 
 
 @responses.activate
-@pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_rag_module(
-    use_context_attributes: bool,
     in_memory_span_exporter: InMemorySpanExporter,
+    documents,
     respx_mock: Any,
-    documents: List[Dict[str, Any]],
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
 ) -> None:
     class BasicQA(dspy.Signature):  # type: ignore
         """Answer questions with short factoid answers."""
@@ -351,20 +292,7 @@ def test_rag_module(
 
     rag = RAG()
     question = "What's the capital of the United States?"
-    if use_context_attributes:
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
-        ):
-            prediction = rag(question=question)
-    else:
-        prediction = rag(question=question)
-
+    prediction = rag(question=question)
     assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 5
@@ -387,17 +315,6 @@ def test_rag_module(
         assert attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", None) == doc["text"]
         assert attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_ID}", None) == doc["pid"]
         assert attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_SCORE}", None) == doc["score"]
-    if use_context_attributes:
-        _check_context_attributes(
-            attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
-        )
     assert attributes == {}
 
     span = next(it)
@@ -414,95 +331,6 @@ def test_rag_module(
     )
     for i, doc in enumerate(documents):
         assert attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", None) == doc["text"]
-    if use_context_attributes:
-        _check_context_attributes(
-            attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
-        )
-    assert attributes == {}
-
-    span = next(it)
-    assert span.name == "GPT3.request"
-    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
-    assert attributes.pop(LLM_MODEL_NAME) == "gpt-3.5-turbo-instruct"
-    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
-        "temperature": 0.0,
-        "max_tokens": 150,
-        "top_p": 1,
-        "frequency_penalty": 0,
-        "presence_penalty": 0,
-        "n": 1,
-        "model": "gpt-3.5-turbo-instruct",
-    }
-    input_value = attributes.pop(INPUT_VALUE)
-    assert question in input_value  # type:ignore
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.TEXT
-    )
-    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    if use_context_attributes:
-        _check_context_attributes(
-            attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
-        )
-    assert attributes == {}
-
-    span = next(it)
-    assert span.name == "GPT3.request"
-    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
-    assert attributes.pop(LLM_MODEL_NAME) == "gpt-3.5-turbo-instruct"
-    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
-        "temperature": 0.0,
-        "max_tokens": 75,
-        "top_p": 1,
-        "frequency_penalty": 0,
-        "presence_penalty": 0,
-        "n": 1,
-        "model": "gpt-3.5-turbo-instruct",
-    }
-    input_value = attributes.pop(INPUT_VALUE)
-    assert question in input_value  # type:ignore
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.TEXT
-    )
-    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    if use_context_attributes:
-        _check_context_attributes(
-            attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
-        )
     assert attributes == {}
 
     span = next(it)
@@ -532,17 +360,6 @@ def test_rag_module(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    if use_context_attributes:
-        _check_context_attributes(
-            attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
-        )
     assert attributes == {}
 
     span = next(it)
@@ -565,17 +382,6 @@ def test_rag_module(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    if use_context_attributes:
-        _check_context_attributes(
-            attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
-        )
     assert attributes == {}
 
 
@@ -652,32 +458,53 @@ def test_compilation(
         assert not span.events, f"spans should not contain exception events {str(span.events)}"
 
 
-def _check_context_attributes(
-    attributes: Dict[str, Any],
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
-) -> None:
-    assert attributes.pop(SESSION_ID, None) == session_id
-    assert attributes.pop(USER_ID, None) == user_id
-    attr_metadata = attributes.pop(METADATA, None)
-    assert attr_metadata is not None
-    assert isinstance(attr_metadata, str)  # must be json string
-    metadata_dict = json.loads(attr_metadata)
-    assert metadata_dict == metadata
-    attr_tags = attributes.pop(TAG_TAGS, None)
-    assert attr_tags is not None
-    assert len(attr_tags) == len(tags)
-    assert list(attr_tags) == tags
-    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
-    assert (
-        attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) == prompt_template_version
+def test_context_attributes_are_instrumented(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    lm = dspy.LM("openai/gpt-4", cache=False)
+    prompt = "Who won the World Cup in 2018?"
+    session_id = "my-test-session-id"
+    user_id = "my-test-user-id"
+    metadata = {
+        "test-int": 1,
+        "test-str": "string",
+        "test-list": [1, 2, 3],
+        "test-dict": {
+            "key-1": "val-1",
+            "key-2": "val-2",
+        },
+    }
+    tags = ["tag-1", "tag-2"]
+    prompt_template = (
+        "This is a test prompt template with int {var_int}, "
+        "string {var_string}, and list {var_list}"
     )
-    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
+    prompt_template_version = "v1.0"
+    prompt_template_variables = {
+        "var_int": 1,
+        "var_str": "2",
+        "var_list": [1, 2, 3],
+    }
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    ):
+        lm(prompt)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes)
+    assert attributes.get(SESSION_ID) == session_id
+    assert attributes.get(USER_ID) == user_id
+    assert isinstance(metadata_str := attributes.get(METADATA), str)
+    assert json.loads(metadata_str) == metadata
+    assert list(attributes.get(TAG_TAGS, [])) == tags
+    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
         prompt_template_variables
     )
 
