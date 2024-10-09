@@ -140,7 +140,7 @@ async def test_get_current_chain_root_span_async(
         root_spans_during_execution.append(root_span)
         return x + 1
 
-    sequence = RunnableLambda(f) | RunnableLambda(f)  # type: ignore
+    sequence = RunnableLambda(f) | RunnableLambda(f)
     for _ in range(n):
         await sequence.ainvoke(1)
 
