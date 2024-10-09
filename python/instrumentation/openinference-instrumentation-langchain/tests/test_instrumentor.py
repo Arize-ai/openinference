@@ -141,7 +141,7 @@ async def test_get_current_chain_root_span_async(
         return x + 1
 
     for _ in range(n):
-        await RunnableLambda(f).ainvoke(1)  # type: ignore[arg-type]
+        await RunnableLambda[int, int](f).ainvoke(1)
 
     root_span_after_execution = get_current_chain_root_span()
     assert root_span_after_execution is None, "Root span should be None after execution"
