@@ -9,9 +9,7 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 
 from openinference.instrumentation.dspy import DSPyInstrumentor
 
-# Logs to the Phoenix Collector if running locally
-if os.environ.get("PHOENIX_COLLECTOR_ENDPOINT"):
-    endpoint = os.environ["PHOENIX_COLLECTOR_ENDPOINT"] + "/v1/traces"
+endpoint = "http://localhost:6006/v1/traces"
 
 resource = Resource(attributes={})
 tracer_provider = trace_sdk.TracerProvider(resource=resource)
