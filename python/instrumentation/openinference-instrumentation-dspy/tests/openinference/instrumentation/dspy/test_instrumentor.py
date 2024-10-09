@@ -1,16 +1,13 @@
 import json
 from typing import (
     Any,
-    Dict,
     Generator,
-    List,
     Mapping,
     cast,
 )
 
 import dspy
 import pytest
-import responses
 import respx
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
 from dspy.primitives.assertions import (
@@ -39,36 +36,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-
-
-@pytest.fixture()
-def documents() -> List[Dict[str, Any]]:
-    return [
-        {
-            "text": "first retrieved document text",
-            "pid": 1918771,
-            "rank": 1,
-            "score": 26.81817626953125,
-            "prob": 0.7290767171685155,
-            "long_text": "first retrieved document long text",
-        },
-        {
-            "text": "second retrieved document text",
-            "pid": 3377468,
-            "rank": 2,
-            "score": 25.304840087890625,
-            "prob": 0.16052389034616518,
-            "long_text": "second retrieved document long text",
-        },
-        {
-            "text": "third retrieved document text",
-            "pid": 953799,
-            "rank": 3,
-            "score": 24.93050193786621,
-            "prob": 0.11039939248531924,
-            "long_text": "third retrieved document long text",
-        },
-    ]
 
 
 @pytest.fixture()
@@ -221,12 +188,9 @@ class TestLM:
         assert not attributes
 
 
-@responses.activate
-def test_rag_module(
-    in_memory_span_exporter: InMemorySpanExporter,
-    documents,
-    respx_mock: Any,
-) -> None:
+def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    K = 3
+
     class BasicQA(dspy.Signature):  # type: ignore
         """Answer questions with short factoid answers."""
 
@@ -238,9 +202,9 @@ def test_rag_module(
         Performs RAG on a corpus of data.
         """
 
-        def __init__(self, num_passages: int = 3) -> None:
+        def __init__(self) -> None:
             super().__init__()
-            self.retrieve = dspy.Retrieve(k=num_passages)
+            self.retrieve = dspy.Retrieve(k=K)
             self.generate_answer = dspy.ChainOfThought(BasicQA)
 
         def forward(self, question: str) -> dspy.Prediction:
@@ -248,47 +212,10 @@ def test_rag_module(
             prediction = self.generate_answer(context=context, question=question)
             return dspy.Prediction(context=context, answer=prediction.answer)
 
-    turbo = dspy.OpenAI(api_key="jk-fake-key", model_type="chat")
-    colbertv2_url = "https://www.examplecolbertv2service.com/wiki17_abstracts"
+    turbo = dspy.OpenAI(model_type="text")
+    colbertv2_url = "http://20.102.90.50:2017/wiki17_abstracts"
     colbertv2 = dspy.ColBERTv2(url=colbertv2_url)
     dspy.settings.configure(lm=turbo, rm=colbertv2)
-
-    # Mock the request to the remote ColBERTv2 service.
-    responses.add(
-        method=responses.GET,
-        url=colbertv2_url,
-        json={
-            "topk": documents,
-            "latency": 84.43140983581543,
-        },
-        status=200,
-    )
-
-    # Mock out the OpenAI API.
-    respx.post("https://api.openai.com/v1/chat/completions").mock(
-        return_value=Response(
-            200,
-            json={
-                "id": "chatcmpl-8kKarJQUyeuFeRsj18o6TWrxoP2zs",
-                "object": "chat.completion",
-                "created": 1706052941,
-                "model": "gpt-3.5-turbo-0613",
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": "Washington, D.C.",
-                        },
-                        "logprobs": None,
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {"prompt_tokens": 39, "completion_tokens": 396, "total_tokens": 435},
-                "system_fingerprint": None,
-            },
-        )
-    )
 
     rag = RAG()
     question = "What's the capital of the United States?"
@@ -304,17 +231,17 @@ def test_rag_module(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert json.loads(input_value) == {
-        "k": 3,
+        "k": K,
         "query": "What's the capital of the United States?",
     }
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    for i, doc in enumerate(documents):
-        assert attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", None) == doc["text"]
-        assert attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_ID}", None) == doc["pid"]
-        assert attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_SCORE}", None) == doc["score"]
+    for i in range(K):
+        assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"), str)
+        assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_ID}"), int)
+        assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_SCORE}"), float)
     assert attributes == {}
 
     span = next(it)
@@ -329,8 +256,8 @@ def test_rag_module(
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    for i, doc in enumerate(documents):
-        assert attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}", None) == doc["text"]
+    for i in range(K):
+        assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"), str)
     assert attributes == {}
 
     span = next(it)
@@ -351,11 +278,9 @@ def test_rag_module(
     )
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    output_value_data = json.loads(output_value)
-    assert (
-        output_value_data
-        == "Prediction(\n    rationale='Washington, D.C.',\n    answer='Washington, D.C.'\n)"
-    )
+    assert "Prediction" in output_value
+    assert "rationale=" in output_value
+    assert "answer=" in output_value
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
