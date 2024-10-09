@@ -111,7 +111,9 @@ class TestLM:
         assert not attributes
 
     def test_openai_completions(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
-        lm = dspy.LM("text-completion-openai/gpt-3.5-turbo-instruct", cache=False)
+        lm = dspy.LM(
+            "text-completion-openai/gpt-3.5-turbo-instruct", model_type="text", cache=False
+        )
         prompt = "Who won the World Cup in 2018?"
         responses = lm(prompt)
         assert len(responses) == 1
@@ -210,17 +212,18 @@ def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
             prediction = self.generate_answer(context=context, question=question)
             return dspy.Prediction(context=context, answer=prediction.answer)
 
-    turbo = dspy.OpenAI(model_type="text")
-    colbertv2_url = "http://20.102.90.50:2017/wiki17_abstracts"
-    colbertv2 = dspy.ColBERTv2(url=colbertv2_url)
-    dspy.settings.configure(lm=turbo, rm=colbertv2)
+    dspy.settings.configure(
+        # lm=dspy.LM("text-completion-openai/gpt-3.5-turbo-instruct", model_type="text"),
+        lm=dspy.LM("openai/gpt-4"),
+        rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
+    )
 
     rag = RAG()
     question = "What's the capital of the United States?"
     prediction = rag(question=question)
     assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 5
+    assert len(spans) == 6
     it = iter(spans)
 
     span = next(it)
@@ -259,6 +262,21 @@ def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
     assert attributes == {}
 
     span = next(it)
+    assert span.name == "LM.__call__"
+    attributes = dict(span.attributes)
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+    assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(INPUT_VALUE)  # fixme
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert attributes.pop(OUTPUT_VALUE)  # fixme
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    # assert json.loads(inv_params) == {
+    #     "temperature": 0.0,
+    #     "max_tokens": 1000,
+    # }
+    assert not attributes
+
+    span = next(it)
     assert span.name == "Predict(StringSignature).forward"
 
     span = next(it)
@@ -277,7 +295,7 @@ def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
     assert "Prediction" in output_value
-    assert "rationale=" in output_value
+    assert "reasoning=" in output_value
     assert "answer=" in output_value
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
