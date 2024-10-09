@@ -8,14 +8,12 @@ from typing import (
 
 import dspy
 import pytest
-import respx
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
 from dspy.primitives.assertions import (
     assert_transform_module,
     backtrack_handler,
 )
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
-from httpx import Response
 from litellm import AuthenticationError
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
@@ -312,7 +310,6 @@ def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
 
 def test_compilation(
     in_memory_span_exporter: InMemorySpanExporter,
-    respx_mock: Any,
 ) -> None:
     class AssertModule(dspy.Module):  # type: ignore
         def __init__(self) -> None:
@@ -333,34 +330,7 @@ def test_compilation(
     def exact_match(example: dspy.Example, pred: dspy.Example, trace: Any = None) -> bool:
         return bool(example.answer.lower() == pred.answer.lower())
 
-    respx.post("https://api.openai.com/v1/chat/completions").mock(
-        return_value=Response(
-            200,
-            json={
-                "id": "chatcmpl-92UvclZCQxpucXceE70xwd5i6pX7E",
-                "choices": [
-                    {
-                        "finish_reason": "stop",
-                        "index": 0,
-                        "logprobs": None,
-                        "message": {
-                            "content": "2",
-                            "role": "assistant",
-                            "function_call": None,
-                            "tool_calls": None,
-                        },
-                    }
-                ],
-                "created": 1710382572,
-                "model": "gpt-4-0613",
-                "object": "chat.completion",
-                "system_fingerprint": None,
-                "usage": {"completion_tokens": 1, "prompt_tokens": 64, "total_tokens": 65},
-            },
-        )
-    )
-
-    with dspy.context(lm=dspy.OpenAI(model="gpt-4", api_key="sk-fake-key")):
+    with dspy.context(lm=dspy.OpenAI(model="gpt-4")):
         teleprompter = BootstrapFewShotWithRandomSearch(
             metric=exact_match,
             max_bootstrapped_demos=1,
