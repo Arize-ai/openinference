@@ -1,15 +1,12 @@
 import json
-from importlib.metadata import version
 from typing import (
     Any,
     Dict,
     Generator,
     List,
     Mapping,
-    Tuple,
     cast,
 )
-from unittest.mock import Mock, patch
 
 import dspy
 import pytest
@@ -21,15 +18,15 @@ from dspy.primitives.assertions import (
     backtrack_handler,
 )
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
-from google.generativeai import GenerativeModel  # type: ignore
-from google.generativeai.types import GenerateContentResponse  # type: ignore
 from httpx import Response
+from litellm import AuthenticationError
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
+from pytest import MonkeyPatch
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.dspy import DSPyInstrumentor
@@ -42,8 +39,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-
-VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy-ai").split(".")[:3])))
 
 
 @pytest.fixture()
@@ -151,6 +146,13 @@ def instrument(
     in_memory_span_exporter.clear()
 
 
+@pytest.fixture
+def openai_api_key(monkeypatch: MonkeyPatch) -> str:
+    api_key = "sk-fake-key"
+    monkeypatch.setenv("OPENAI_API_KEY", api_key)
+    return api_key
+
+
 @pytest.fixture(autouse=True)
 def clear_cache() -> None:
     """
@@ -165,226 +167,108 @@ def clear_cache() -> None:
         pass
 
 
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
 def test_oitracer() -> None:
     assert isinstance(DSPyInstrumentor()._tracer, OITracer)
 
 
-@pytest.mark.parametrize("use_context_attributes", [False, True])
-def test_openai_lm(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    respx_mock: Any,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
-) -> None:
-    class BasicQA(dspy.Signature):  # type: ignore
-        """Answer questions with short factoid answers."""
+class TestLM:
+    def test_openai_chat_completions(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        lm = dspy.LM("openai/gpt-4", cache=False)
+        prompt = "Who won the World Cup in 2018?"
+        responses = lm(prompt)
+        assert len(responses) == 1
+        assert "france" in responses[0].lower()
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes)
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == prompt
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert attributes.pop(OUTPUT_VALUE)
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == {
+            "temperature": 0.0,
+            "max_tokens": 1000,
+        }
+        assert not attributes
 
-        question = dspy.InputField()
-        answer = dspy.OutputField(desc="often between 1 and 5 words")
+    def test_openai_completions(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        lm = dspy.LM("text-completion-openai/gpt-3.5-turbo-instruct", cache=False)
+        prompt = "Who won the World Cup in 2018?"
+        responses = lm(prompt)
+        assert len(responses) == 1
+        assert "france" in responses[0].lower()
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes)
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == prompt
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert attributes.pop(OUTPUT_VALUE)
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == {
+            "temperature": 0.0,
+            "max_tokens": 1000,
+        }
+        assert not attributes
 
-    turbo = dspy.OpenAI(api_key="jk-fake-key", model_type="chat")
-    dspy.settings.configure(lm=turbo)
+    def test_gemini(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        lm = dspy.LM("gemini/gemini-1.5-pro", cache=False)
+        prompt = "Who won the World Cup in 2018?"
+        responses = lm(prompt)
+        assert len(responses) == 1
+        assert "france" in responses[0].lower()
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes)
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == prompt
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert attributes.pop(OUTPUT_VALUE)
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == {
+            "temperature": 0.0,
+            "max_tokens": 1000,
+        }
+        assert not attributes
 
-    # Mock out the OpenAI API.
-    respx.post("https://api.openai.com/v1/chat/completions").mock(
-        return_value=Response(
-            200,
-            json={
-                "id": "chatcmpl-8kKarJQUyeuFeRsj18o6TWrxoP2zs",
-                "object": "chat.completion",
-                "created": 1706052941,
-                "model": "gpt-3.5-turbo-0613",
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": "Washington DC",
-                        },
-                        "logprobs": None,
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {"prompt_tokens": 39, "completion_tokens": 396, "total_tokens": 435},
-                "system_fingerprint": None,
-            },
-        )
-    )
-
-    # Define the predictor.
-    generate_answer = dspy.Predict(BasicQA)
-
-    # Call the predictor on a particular input.
-    question = "What's the capital of the United States?"  # noqa: E501
-    if use_context_attributes:
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
-        ):
-            pred = generate_answer(question=question)
-    else:
-        pred = generate_answer(question=question)
-
-    assert pred.answer == "Washington DC"
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # 1 for the wrapping Signature, 1 for the OpenAI call
-    lm_span, chain_span = spans
-    # Verify lm_span
-    assert lm_span.name == "GPT3.request"
-    lm_attributes = dict(cast(Mapping[str, AttributeValue], lm_span.attributes))
-    assert lm_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
-    assert lm_attributes.pop(LLM_MODEL_NAME) == "gpt-3.5-turbo-instruct"
-    input_value = lm_attributes.pop(INPUT_VALUE)
-    assert question in input_value  # type:ignore
-    assert (
-        OpenInferenceMimeTypeValues(lm_attributes.pop(INPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.TEXT
-    )
-    assert isinstance(
-        invocation_parameters_str := lm_attributes.pop(LLM_INVOCATION_PARAMETERS), str
-    )
-    assert json.loads(invocation_parameters_str) == {
-        "temperature": 0.0,
-        "max_tokens": 150,
-        "top_p": 1,
-        "frequency_penalty": 0,
-        "presence_penalty": 0,
-        "n": 1,
-        "model": "gpt-3.5-turbo-instruct",
-    }
-    assert isinstance(lm_attributes.pop(OUTPUT_VALUE), str)
-    assert (
-        OpenInferenceMimeTypeValues(lm_attributes.pop(OUTPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    if use_context_attributes:
-        _check_context_attributes(
-            lm_attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
-        )
-    assert lm_attributes == {}
-    # Verify chain_span
-    assert chain_span.name == "Predict(BasicQA).forward"
-    chain_attributes = dict(cast(Mapping[str, AttributeValue], chain_span.attributes))
-    assert chain_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
-    input_value = chain_attributes.pop(INPUT_VALUE)
-    assert question in input_value  # type:ignore
-    assert (
-        OpenInferenceMimeTypeValues(chain_attributes.pop(INPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    assert isinstance(chain_attributes.pop(OUTPUT_VALUE), str)
-    assert (
-        OpenInferenceMimeTypeValues(chain_attributes.pop(OUTPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    if use_context_attributes:
-        _check_context_attributes(
-            chain_attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
-        )
-    assert chain_attributes == {}
-
-
-@pytest.mark.parametrize("use_context_attributes", [False, True])
-def test_google_lm(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
-) -> None:
-    model = dspy.Google(api_key="jk-fake-key")
-    mock_response_object = Mock(spec=GenerateContentResponse)
-    mock_response_object.parts = [Mock(text="Washington, D.C.")]
-    mock_response_object.text = "Washington, D.C."
-    question = "What is the capital of the United States?"
-    if use_context_attributes:
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
-        ):
-            with patch.object(
-                GenerativeModel, "generate_content", return_value=mock_response_object
-            ):
-                response = model(question)
-    else:
-        with patch.object(GenerativeModel, "generate_content", return_value=mock_response_object):
-            response = model(question)
-    assert response == ["Washington, D.C."]
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span = spans[0]
-    assert span.name == "Google.request"
-    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
-    input_value = attributes.pop(INPUT_VALUE)
-    assert question in input_value  # type:ignore
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.TEXT
-    )
-    output_value = attributes.pop(OUTPUT_VALUE)
-    assert isinstance(output_value, str)
-    assert json.loads(output_value) == {"text": "Washington, D.C."}
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(invocation_parameters_str) == {
-        "n": 1,
-        "candidate_count": 1,
-        "temperature": 0.0,
-        "max_output_tokens": 2048,
-        "top_p": 1,
-        "top_k": 1,
-    }
-    if use_context_attributes:
-        _check_context_attributes(
-            attributes,
-            session_id,
-            user_id,
-            metadata,
-            tags,
-            prompt_template,
-            prompt_template_version,
-            prompt_template_variables,
-        )
-    assert attributes == {}
+    def test_exception_event_recorded_on_lm_error(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        openai_api_key: str,
+    ) -> None:
+        lm = dspy.LM("openai/gpt-4", cache=False)
+        prompt = "Who won the World Cup in 2018?"
+        with pytest.raises(AuthenticationError):
+            lm(prompt)
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert not span.status.is_ok
+        assert len(span.events) == 1
+        event = span.events[0]
+        assert event.name == "exception"
+        assert event.attributes["exception.type"] == "litellm.exceptions.AuthenticationError"
+        assert "401" in event.attributes["exception.message"]
+        attributes = dict(span.attributes)
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == prompt
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == {
+            "temperature": 0.0,
+            "max_tokens": 1000,
+        }
+        assert not attributes
 
 
 @responses.activate
@@ -483,10 +367,7 @@ def test_rag_module(
 
     assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
-    if VERSION < (2, 4, 12):
-        assert len(spans) == 6
-    else:
-        assert len(spans) == 7
+    assert len(spans) == 5
     it = iter(spans)
 
     span = next(it)
@@ -549,7 +430,7 @@ def test_rag_module(
     span = next(it)
     assert span.name == "GPT3.request"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(LLM_MODEL_NAME) == "gpt-3.5-turbo-instruct"
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
@@ -588,7 +469,7 @@ def test_rag_module(
     span = next(it)
     assert span.name == "GPT3.request"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(LLM_MODEL_NAME) == "gpt-3.5-turbo-instruct"
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
@@ -624,15 +505,11 @@ def test_rag_module(
         )
     assert attributes == {}
 
-    if VERSION >= (2, 4, 12):
-        span = next(it)
-        assert span.name == "Predict(StringSignature).forward"
+    span = next(it)
+    assert span.name == "Predict(StringSignature).forward"
 
     span = next(it)
-    if VERSION < (2, 4, 12):
-        assert span.name == "ChainOfThought(BasicQA).forward"
-    else:
-        assert span.name == "ChainOfThought.forward"
+    assert span.name == "ChainOfThought.forward"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     input_value = attributes.pop(INPUT_VALUE)
@@ -647,14 +524,10 @@ def test_rag_module(
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
     output_value_data = json.loads(output_value)
-    if VERSION < (2, 4, 12):
-        assert set(output_value_data.keys()) == {"answer"}
-        assert output_value_data["answer"] == "Washington, D.C."
-    else:
-        assert (
-            output_value_data
-            == "Prediction(\n    rationale='Washington, D.C.',\n    answer='Washington, D.C.'\n)"
-        )
+    assert (
+        output_value_data
+        == "Prediction(\n    rationale='Washington, D.C.',\n    answer='Washington, D.C.'\n)"
+    )
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -809,6 +682,9 @@ def _check_context_attributes(
     )
 
 
+LLM = OpenInferenceSpanKindValues.LLM.value
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
+JSON = OpenInferenceMimeTypeValues.JSON.value
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
