@@ -107,11 +107,11 @@ def get_current_span() -> Optional[Span]:
 
 
 def get_current_chain_root_span() -> Optional[Span]:
-    from openinference.instrumentation.langchain._tracer import _spans_by_span_id
+    from openinference.instrumentation.langchain._tracer import IS_CHAIN_SPAN, _spans_by_span_id
 
     span = get_current_span()
     while span and span.get_span_context().is_valid:
-        if span.attributes.get("is_chain_span"):
+        if span.attributes.get(IS_CHAIN_SPAN):
             return span
         # Get parent span ID
         parent_span_context = span.parent

@@ -56,6 +56,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 _AUDIT_TIMING = False
+IS_CHAIN_SPAN = "is_chain_span"
 
 
 @wrapt.decorator  # type: ignore
@@ -118,9 +119,6 @@ class OpenInferenceTracer(BaseTracer):
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
         self._spans_by_run: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
-        # self._context_tokens_by_run: Dict[UUID, Token[Optional[trace_api.Span]]] = _DictWithLock[
-        #     UUID, Token[Optional[trace_api.Span]]
-        # ]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[trace_api.Span]:
@@ -148,7 +146,7 @@ class OpenInferenceTracer(BaseTracer):
         )
 
         if run.run_type.lower() == "chain" and span:
-            span.set_attribute("is_chain_span", True)
+            span.set_attribute(IS_CHAIN_SPAN, True)
 
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
