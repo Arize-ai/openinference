@@ -90,7 +90,7 @@ async def test_get_current_span(
         )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == n
-    assert {id(span.get_span_context()) for span in results if isinstance(span, Span)} == {
+    assert {id(span.get_span_context()) for span in results if isinstance(span, Span)} == {  # type: ignore[no-untyped-call]
         id(span.get_span_context())  # type: ignore[no-untyped-call]
         for span in spans
     }
@@ -134,13 +134,13 @@ async def test_get_current_chain_root_span_async(
 
     root_spans_during_execution = []
 
-    async def f(x: int) -> str:
+    async def f(x: int) -> int:
         root_span = get_current_chain_root_span()
         assert root_span is not None, "Root span should not be None during execution (async)"
         root_spans_during_execution.append(root_span)
         return x + 1
 
-    sequence = RunnableLambda(f) | RunnableLambda(f)
+    sequence = RunnableLambda(f) | RunnableLambda(f)  # type: ignore
     for _ in range(n):
         await sequence.ainvoke(1)
 

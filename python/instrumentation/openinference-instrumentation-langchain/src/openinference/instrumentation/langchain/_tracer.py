@@ -34,6 +34,7 @@ from langchain_core.tracers.schemas import Run
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.sdk.trace import Span
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
@@ -105,7 +106,7 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
             super().__delitem__(key)
 
 
-_spans_by_span_id: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
+_spans_by_span_id: Dict[int, Span] = _DictWithLock[int, Span]()
 
 
 class OpenInferenceTracer(BaseTracer):
@@ -118,10 +119,10 @@ class OpenInferenceTracer(BaseTracer):
             assert self.run_map
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
-        self._spans_by_run: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
+        self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
-    def get_span(self, run_id: UUID) -> Optional[trace_api.Span]:
+    def get_span(self, run_id: UUID) -> Optional[Span]:
         return self._spans_by_run.get(run_id)
 
     @audit_timing  # type: ignore
@@ -156,8 +157,9 @@ class OpenInferenceTracer(BaseTracer):
         # leaving all future spans as orphans. That is a very bad scenario.
         # token = context_api.attach(context)
         with self._lock:
+            span = cast(Span, span)
             self._spans_by_run[run.id] = span
-            _spans_by_span_id[span.get_span_context().span_id] = span
+            _spans_by_span_id[span.get_span_context().span_id] = span  # type: ignore[no-untyped-call]
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
@@ -166,7 +168,7 @@ class OpenInferenceTracer(BaseTracer):
             return
         span = self._spans_by_run.pop(run.id, None)
         if span:
-            _spans_by_span_id.pop(span.get_span_context().span_id, None)
+            _spans_by_span_id.pop(span.get_span_context().span_id, None)  # type: ignore[no-untyped-call]
             try:
                 _update_span(span, run)
             except Exception:
@@ -217,7 +219,7 @@ class OpenInferenceTracer(BaseTracer):
 
 
 @audit_timing  # type: ignore
-def _record_exception(span: trace_api.Span, error: BaseException) -> None:
+def _record_exception(span: Span, error: BaseException) -> None:
     if isinstance(error, Exception):
         span.record_exception(error)
         return
@@ -239,7 +241,7 @@ def _record_exception(span: trace_api.Span, error: BaseException) -> None:
 
 
 @audit_timing  # type: ignore
-def _update_span(span: trace_api.Span, run: Run) -> None:
+def _update_span(span: Span, run: Run) -> None:
     if run.error is None:
         span.set_status(trace_api.StatusCode.OK)
     else:
