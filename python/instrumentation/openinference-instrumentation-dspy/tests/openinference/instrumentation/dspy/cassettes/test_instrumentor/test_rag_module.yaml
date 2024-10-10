@@ -31,7 +31,40 @@ interactions:
         \"the District\", or simply \"D.C.\", is the capital of the United States.","pid":953799,"rank":3,"score":24.93050193786621,"prob":0.11039939248531924,"long_text":"Washington,
         D.C. | Washington, D.C., formally the District of Columbia and commonly referred
         to as \"Washington\", \"the District\", or simply \"D.C.\", is the capital
-        of the United States."}],"latency":99.23911094665527}'
+        of the United States."}],"latency":100.3718376159668}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `reasoning` (str)\n2. `answer`
+      (str): often between 1 and 5 words\n\nAll interactions will be structured in
+      the following way, with the appropriate values filled in.\n\n[[ ## question
+      ## ]]\n{question}\n\n[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Answer
+      questions with short factoid answers."}, {"role": "user", "content": "[[ ##
+      question ## ]]\nWhat''s the capital of the United States?\n\nRespond with the
+      corresponding output fields, starting with the field `reasoning`, then `answer`,
+      and then ending with the marker for `completed`."}], "model": "gpt-4", "max_tokens":
+      1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGqyvJHZBI7zye3WsMIigDfwvgYhn\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728580273,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## reasoning ## ]]\\nThe capital
+        of a country is a well-established fact. The capital of the United States
+        is a widely known piece of information.\\n\\n[[ ## answer ## ]]\\nWashington,
+        D.C.\\n\\n[[ ## completed ## ]]\",\n        \"refusal\": null\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 167,\n    \"completion_tokens\": 45,\n
+        \   \"total_tokens\": 212,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0\n    },\n    \"completion_tokens_details\": {\n      \"reasoning_tokens\":
+        0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
     headers: {}
     status:
       code: 200
