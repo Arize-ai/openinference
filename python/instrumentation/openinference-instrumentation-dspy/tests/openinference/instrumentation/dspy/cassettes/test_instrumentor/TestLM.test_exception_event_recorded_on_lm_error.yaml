@@ -1,0 +1,18 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Who won the World Cup in 2018?"}],
+      "model": "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        sk-fake-key. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+    headers: {}
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

@@ -10,6 +10,7 @@ from typing import (
     Callable,
     Collection,
     Dict,
+    Iterable,
     Iterator,
     List,
     Mapping,
@@ -20,8 +21,8 @@ from typing import (
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import StatusCode
 from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeGuard
 from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
 
 from openinference.instrumentation import (
@@ -34,26 +35,19 @@ from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
 from openinference.semconv.trace import (
     DocumentAttributes,
+    MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 
+if TYPE_CHECKING:
+    from dspy import LM
+
 logger = getLogger(__name__)
 
-try:
-    from google.generativeai.types import GenerateContentResponse  # type: ignore
-except ImportError:
-    GenerateContentResponse = None
-
-if TYPE_CHECKING:
-    from google.generativeai.types import (
-        GenerateContentResponse as GenerateContentResponseType,
-    )
 
 _DSPY_MODULE = "dspy"
-
-# DSPy used to be called DSP - some of the modules still fall under the old namespace
 _DSP_MODULE = "dsp"
 
 
@@ -77,35 +71,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
-        # Instrument LM (language model) calls
-        from dsp.modules.lm import LM
-
         from dspy import Predict
 
-        language_model_classes = LM.__subclasses__()
-        for lm in language_model_classes:
-            # Determine the top-level module of the class
-            top_level_module = lm.__module__.split(".")[0]
-
-            # Set the module based on the top-level module name
-            # E.g. this means it's a built-in DSP model
-            if top_level_module in {_DSP_MODULE, _DSPY_MODULE}:
-                # wrap the DSP module
-                module = _DSP_MODULE
-            else:
-                # this is a custom LM. Patch the custom module
-                module = lm.__module__
-
-            try:
-                wrap_object(
-                    module=module,
-                    name=f"{lm.__name__}.basic_request",
-                    factory=CopyableFunctionWrapper,
-                    args=(_LMBasicRequestWrapper(self._tracer),),
-                )
-            except Exception as e:
-                # log and don't raise an exception if the wrapping fails
-                logger.warn(f"Error wrapping {lm.__name__}.basic_request: {e}")
+        wrap_object(
+            module="dspy",
+            name="LM.__call__",
+            factory=CopyableFunctionWrapper,
+            args=(_LMCallWrapper(self._tracer),),
+        )
 
         # Predict is a concrete (non-abstract) class that may be invoked
         # directly, but DSPy also has subclasses of Predict that override the
@@ -222,58 +195,49 @@ class _WithTracer(ABC):
         self._tracer = tracer
 
 
-class _LMBasicRequestWrapper(_WithTracer):
+class _LMCallWrapper(_WithTracer):
     """
-    Wrapper for DSP LM.basic_request
-    Captures all calls to language models (lm)
+    Wrapper for __call__ method on dspy.LM
     """
 
     def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: "LM",
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        prompt = args[0]
-        invocation_parameters = {**instance.kwargs, **kwargs}
-        span_name = instance.__class__.__name__ + ".request"
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = instance.__class__.__name__ + ".__call__"
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
-                        OPENINFERENCE_SPAN_KIND: LLM.value,
-                        LLM_MODEL_NAME: instance.kwargs.get("model"),
-                        LLM_INVOCATION_PARAMETERS: safe_json_dumps(invocation_parameters),
-                        INPUT_VALUE: str(prompt),
-                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
+                        OPENINFERENCE_SPAN_KIND: LLM,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(_llm_model_name(instance)),
+                        **dict(_llm_invocation_parameters(instance, arguments)),
+                        **dict(_llm_input_messages(arguments)),
+                        **dict(get_attributes_from_context()),
                     }
                 )
             ),
         ) as span:
-            span.set_attributes(dict(get_attributes_from_context()))
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            # TODO: parse usage. Need to decide if this
-            # instrumentation should be used in conjunction with model instrumentation
+            response = wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: _jsonify_output(response),
-                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                            **dict(_output_value_and_mime_type(response)),
+                            **dict(_llm_output_messages(response)),
                         }
                     )
                 )
             )
-            span.set_status(trace_api.StatusCode.OK)
         return response
 
 
@@ -329,7 +293,7 @@ class _PredictForwardWrapper(_WithTracer):
                             *args,
                             **kwargs,
                         ),
-                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                        INPUT_MIME_TYPE: JSON,
                     }
                 )
             ),
@@ -338,7 +302,7 @@ class _PredictForwardWrapper(_WithTracer):
             try:
                 prediction = wrapped(*args, **kwargs)
             except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.set_status(trace_api.Status(StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_attributes(
@@ -348,12 +312,12 @@ class _PredictForwardWrapper(_WithTracer):
                             OUTPUT_VALUE: safe_json_dumps(
                                 self._prediction_to_output_dict(prediction, signature)
                             ),
-                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                            OUTPUT_MIME_TYPE: JSON,
                         }
                     )
                 )
             )
-            span.set_status(trace_api.StatusCode.OK)
+            span.set_status(StatusCode.OK)
         return prediction
 
     def _prediction_to_output_dict(self, prediction: Any, signature: Any) -> Dict[str, Any]:
@@ -399,7 +363,7 @@ class _ModuleForwardWrapper(_WithTracer):
                             if (forward_method := getattr(instance.__class__, "forward", None))
                             else {}
                         ),
-                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                        INPUT_MIME_TYPE: JSON,
                     }
                 )
             ),
@@ -408,7 +372,7 @@ class _ModuleForwardWrapper(_WithTracer):
             try:
                 prediction = wrapped(*args, **kwargs)
             except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.set_status(trace_api.Status(StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_attributes(
@@ -416,12 +380,12 @@ class _ModuleForwardWrapper(_WithTracer):
                     _flatten(
                         {
                             OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
-                            OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                            OUTPUT_MIME_TYPE: JSON,
                         }
                     )
                 )
             )
-            span.set_status(trace_api.StatusCode.OK)
+            span.set_status(StatusCode.OK)
         return prediction
 
 
@@ -451,7 +415,7 @@ class _RetrieverForwardWrapper(_WithTracer):
                     {
                         OPENINFERENCE_SPAN_KIND: RETRIEVER.value,
                         INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
-                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                        INPUT_MIME_TYPE: JSON,
                     }
                 )
             ),
@@ -460,7 +424,7 @@ class _RetrieverForwardWrapper(_WithTracer):
             try:
                 prediction = wrapped(*args, **kwargs)
             except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.set_status(trace_api.Status(StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_attributes(
@@ -477,7 +441,7 @@ class _RetrieverForwardWrapper(_WithTracer):
                     )
                 )
             )
-            span.set_status(trace_api.StatusCode.OK)
+            span.set_status(StatusCode.OK)
         return prediction
 
 
@@ -504,7 +468,7 @@ class _RetrieverModelCallWrapper(_WithTracer):
                     {
                         OPENINFERENCE_SPAN_KIND: RETRIEVER.value,
                         INPUT_VALUE: (_get_input_value(wrapped, *args, **kwargs)),
-                        INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+                        INPUT_MIME_TYPE: JSON,
                     }
                 )
             ),
@@ -513,7 +477,7 @@ class _RetrieverModelCallWrapper(_WithTracer):
             try:
                 retrieved_documents = wrapped(*args, **kwargs)
             except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.set_status(trace_api.Status(StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_attributes(
@@ -532,7 +496,7 @@ class _RetrieverModelCallWrapper(_WithTracer):
                     )
                 )
             )
-            span.set_status(trace_api.StatusCode.OK)
+            span.set_status(StatusCode.OK)
         return retrieved_documents
 
 
@@ -656,42 +620,70 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
             yield key, value
 
 
-def _jsonify_output(response: Any) -> str:
-    """
-    Converts output to JSON string.
-    """
-    if _is_google_response(response):
-        return safe_json_dumps(_parse_google_response(response))
-    return safe_json_dumps(response, cls=SafeJSONEncoder)
+def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    yield INPUT_MIME_TYPE, JSON
+    yield INPUT_VALUE, safe_json_dumps(arguments)
 
 
-def _is_google_response(response: Any) -> TypeGuard["GenerateContentResponseType"]:
-    """
-    Checks whether a candidate response is an instance of
-    GenerateContentResponse returned by the Google generative AI SDK.
-    """
-
-    return GenerateContentResponse is not None and isinstance(response, GenerateContentResponse)
+def _output_value_and_mime_type(response: Any) -> Iterator[Tuple[str, Any]]:
+    yield OUTPUT_VALUE, safe_json_dumps(response)
+    yield OUTPUT_MIME_TYPE, JSON
 
 
-def _parse_google_response(response: "GenerateContentResponseType") -> Dict[str, Any]:
-    """
-    Parses a response from the Google generative AI SDK into a dictionary.
-    """
-
-    return {
-        "text": response.text,
-    }
+def _llm_model_name(lm: "LM") -> Iterator[Tuple[str, Any]]:
+    if (model_name := getattr(lm, "model_name", None)) is not None:
+        yield LLM_MODEL_NAME, model_name
 
 
+def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    if isinstance(prompt := arguments.get("prompt"), str):
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
+    elif isinstance(messages := arguments.get("messages"), list):
+        for i, message in enumerate(messages):
+            if not isinstance(message, dict):
+                continue
+            if (role := message.get("role", None)) is not None:
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
+            if (content := message.get("content", None)) is not None:
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+
+
+def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
+    if isinstance(response, Iterable):
+        for i, message in enumerate(response):
+            if isinstance(message, str):
+                yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "assistant"
+                yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", message
+
+
+def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
+    kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
+    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(lm_kwargs | kwargs)
+
+
+def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
+    method_signature = signature(method)
+    bound_args = method_signature.bind(*args, **kwargs)
+    bound_args.apply_defaults()
+    return bound_args.arguments
+
+
+JSON = OpenInferenceMimeTypeValues.JSON.value
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
+LLM = OpenInferenceSpanKindValues.LLM
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 CHAIN = OpenInferenceSpanKindValues.CHAIN
-LLM = OpenInferenceSpanKindValues.LLM
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
