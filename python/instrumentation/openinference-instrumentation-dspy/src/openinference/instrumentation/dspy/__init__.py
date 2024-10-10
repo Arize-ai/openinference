@@ -220,24 +220,19 @@ class _LMCallWrapper(_WithTracer):
                         **dict(_input_value_and_mime_type(arguments)),
                         **dict(_llm_model_name(instance)),
                         **dict(_llm_invocation_parameters(instance, arguments)),
+                        **dict(_llm_input_messages(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
             ),
         ) as span:
-            span.set_attributes(
-                {
-                    **dict(_llm_input_messages(arguments)),
-                }
-            )
             response = wrapped(*args, **kwargs)
             span.set_status(StatusCode.OK)
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: safe_json_dumps(response),
-                            OUTPUT_MIME_TYPE: JSON,
+                            **dict(_output_value_and_mime_type(response)),
                             **dict(_llm_output_messages(response)),
                         }
                     )
@@ -628,6 +623,11 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> None:
     yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(arguments)
+
+
+def _output_value_and_mime_type(response: Any) -> Iterator[Tuple[str, Any]]:
+    yield OUTPUT_VALUE, safe_json_dumps(response)
+    yield OUTPUT_MIME_TYPE, JSON
 
 
 def _llm_model_name(lm: "LM") -> Iterator[Tuple[str, Any]]:
