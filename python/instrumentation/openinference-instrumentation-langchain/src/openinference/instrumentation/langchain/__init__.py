@@ -4,7 +4,8 @@ from uuid import UUID
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.sdk.trace import Span
+
+from opentelemetry.trace import Span
 from wrapt import wrap_function_wrapper  # type: ignore
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -66,14 +67,16 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
 
     def get_root_chain_span(self, run_id: UUID) -> Optional[Span]:
         span = self.get_span(run_id)
-        span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
-        while span and span.get_span_context().is_valid:  # type: ignore[no-untyped-call]
-            if span_id in self._tracer._root_span_ids:
+        while span and span.get_span_context().is_valid:
+            span_id = span.get_span_context().span_id
+            tracer = self._tracer
+            assert tracer
+            if span_id in tracer._root_span_ids:
                 return span
-            parent_span = span.parent
-            if not parent_span or not parent_span.span_id:
+
+            span = tracer._parent_span_by_span_id.get(span_id)  # get parent span
+            if not span:
                 break
-            span = self._tracer._spans_by_span_id.get(parent_span.span_id)
         return None
 
 

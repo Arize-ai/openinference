@@ -90,7 +90,7 @@ async def test_get_current_span(
         )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == n
-    assert {id(span.get_span_context()) for span in results if isinstance(span, Span)} == {  # type: ignore[no-untyped-call]
+    assert {id(span.get_span_context()) for span in results if isinstance(span, Span)} == {
         id(span.get_span_context())  # type: ignore[no-untyped-call]
         for span in spans
     }

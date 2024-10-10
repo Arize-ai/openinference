@@ -35,8 +35,9 @@ from langchain_core.tracers.schemas import Run
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.sdk.trace import Span
+
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
@@ -119,6 +120,9 @@ class OpenInferenceTracer(BaseTracer):
         self._tracer = tracer
         self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
         self._spans_by_span_id: Dict[int, Span] = _DictWithLock[int, Span]()
+        self._parent_span_by_span_id: Dict[int, Optional[Span]] = _DictWithLock[
+            int, Optional[Span]
+        ]()
         self._root_span_ids: Set[int] = set()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
@@ -146,9 +150,6 @@ class OpenInferenceTracer(BaseTracer):
             start_time=start_time_utc_nano,
         )
 
-        if run.run_type.lower() == "chain":
-            span.set_attribute(IS_CHAIN_SPAN, True)
-
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
         # that the context will be detached. An error could happen between callbacks leaving
@@ -157,10 +158,12 @@ class OpenInferenceTracer(BaseTracer):
         # leaving all future spans as orphans. That is a very bad scenario.
         # token = context_api.attach(context)
         with self._lock:
-            span = cast(Span, span)
-            span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
+            span_id = span.get_span_context().span_id
             self._spans_by_run[run.id] = span
             self._spans_by_span_id[span_id] = span
+            self._parent_span_by_span_id[span_id] = (
+                self._spans_by_run.get(parent_run_id) if parent_run_id else None
+            )
             if run.run_type.lower() == "chain":
                 self._root_span_ids.add(span_id)
 
@@ -171,9 +174,10 @@ class OpenInferenceTracer(BaseTracer):
             return
         span = self._spans_by_run.pop(run.id, None)
         if span:
-            span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
+            span_id = span.get_span_context().span_id
             self._spans_by_span_id.pop(span_id, None)
             self._root_span_ids.discard(span_id)
+            self._parent_span_by_span_id.pop(span_id, None)
             try:
                 _update_span(span, run)
             except Exception:
