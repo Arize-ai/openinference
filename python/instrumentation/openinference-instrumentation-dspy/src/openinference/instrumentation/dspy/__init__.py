@@ -127,6 +127,13 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             args=(_RetrieverModelCallWrapper(self._tracer),),
         )
 
+        wrap_object(
+            module=_DSPY_MODULE,
+            name="Adapter.__call__",
+            factory=CopyableFunctionWrapper,
+            args=(_AdapterCallWrapper(self._tracer),),
+        )
+
     def _uninstrument(self, **kwargs: Any) -> None:
         from dsp.modules.lm import LM
 
@@ -287,7 +294,7 @@ class _PredictForwardWrapper(_WithTracer):
             attributes=dict(
                 _flatten(
                     {
-                        OPENINFERENCE_SPAN_KIND: CHAIN.value,
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
                         INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -354,7 +361,7 @@ class _ModuleForwardWrapper(_WithTracer):
             attributes=dict(
                 _flatten(
                     {
-                        OPENINFERENCE_SPAN_KIND: CHAIN.value,
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
                         # At this time, dspy.Module does not have an abstract forward
                         # method, but assumes that user-defined subclasses implement the
                         # forward method.
@@ -498,6 +505,44 @@ class _RetrieverModelCallWrapper(_WithTracer):
             )
             span.set_status(StatusCode.OK)
         return retrieved_documents
+
+
+class _AdapterCallWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = instance.__class__.__name__ + ".__call__"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            response = wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            **dict(_output_value_and_mime_type(response)),
+                        }
+                    )
+                )
+            )
+        return response
 
 
 class DSPyJSONEncoder(json.JSONEncoder):
@@ -675,7 +720,7 @@ TEXT = OpenInferenceMimeTypeValues.TEXT.value
 LLM = OpenInferenceSpanKindValues.LLM
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
-CHAIN = OpenInferenceSpanKindValues.CHAIN
+CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE

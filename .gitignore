@@ -29,3 +29,6 @@ assertion.log
 
 # Environment variable files
 .envs
+
+# Git branches
+.git-branches.toml
