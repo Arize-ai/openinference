@@ -1,0 +1,314 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 2 + 2?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}], "model": "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4FvNvrRBQzVBorn5UgF5tlSktb\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530631,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n4\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        138,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 150,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 1 + 1?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}], "model": "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4GFW9BiIqg6mtS6feSp5TkFrgg\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530632,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n2\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        138,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 150,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 1 + 1?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}, {"role": "assistant", "content": "[[ ## answer ## ]]\n2\n\n[[
+      ## completed ## ]]"}, {"role": "user", "content": "[[ ## question ## ]]\nWhat
+      is 2 + 2?\n\nRespond with the corresponding output fields, starting with the
+      field `answer`, and then ending with the marker for `completed`."}], "model":
+      "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4HZjhOLK5WzhxEnQfLlVOI0PgQ\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530633,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n4\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        195,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 207,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 1 + 1?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}, {"role": "assistant", "content": "[[ ## answer ## ]]\n2\n\n[[
+      ## completed ## ]]"}, {"role": "user", "content": "[[ ## question ## ]]\nWhat
+      is 1 + 1?\n\nRespond with the corresponding output fields, starting with the
+      field `answer`, and then ending with the marker for `completed`."}], "model":
+      "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4IwfHRmB89JJ3QVi9ThJKYlWar\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530634,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n2\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        195,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 207,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 1 + 1?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}, {"role": "assistant", "content": "[[ ## answer ## ]]\n2\n\n[[
+      ## completed ## ]]"}, {"role": "user", "content": "[[ ## question ## ]]\nWhat
+      is 2 + 2?\n\nRespond with the corresponding output fields, starting with the
+      field `answer`, and then ending with the marker for `completed`."}], "model":
+      "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4JzRsY5sjB8q7d8JjI3roi3wHi\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530635,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n4\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        195,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 207,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 2 + 2?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}, {"role": "assistant", "content": "[[ ## answer ## ]]\n4\n\n[[
+      ## completed ## ]]"}, {"role": "user", "content": "[[ ## question ## ]]\nWhat
+      is 2 + 2?\n\nRespond with the corresponding output fields, starting with the
+      field `answer`, and then ending with the marker for `completed`."}], "model":
+      "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4LRN0sQFB9hZJ9vW50MnzwkeNI\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530637,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n4\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        195,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 207,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 2 + 2?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}, {"role": "assistant", "content": "[[ ## answer ## ]]\n4\n\n[[
+      ## completed ## ]]"}, {"role": "user", "content": "[[ ## question ## ]]\nWhat
+      is 1 + 1?\n\nRespond with the corresponding output fields, starting with the
+      field `answer`, and then ending with the marker for `completed`."}], "model":
+      "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4LiV8OC17nJ3KMID8MbubGCrBk\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530637,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n2\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        195,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 207,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 1 + 1?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}, {"role": "assistant", "content": "[[ ## answer ## ]]\n2\n\n[[
+      ## completed ## ]]"}, {"role": "user", "content": "[[ ## question ## ]]\nWhat
+      is 2 + 2?\n\nRespond with the corresponding output fields, starting with the
+      field `answer`, and then ending with the marker for `completed`."}], "model":
+      "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4MGsEankxtOeQPqEldPSc7OUzp\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530638,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n4\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        195,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 207,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 2 + 2?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}, {"role": "assistant", "content": "[[ ## answer ## ]]\n4\n\n[[
+      ## completed ## ]]"}, {"role": "user", "content": "[[ ## question ## ]]\nWhat
+      is 2 + 2?\n\nRespond with the corresponding output fields, starting with the
+      field `answer`, and then ending with the marker for `completed`."}], "model":
+      "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4OfoqzfyvckP4zUATJY7VbX1AS\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530640,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n4\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        195,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 207,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `answer` (str)\n\nAll interactions
+      will be structured in the following way, with the appropriate values filled
+      in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Given
+      the fields `question`, produce the fields `answer`."}, {"role": "user", "content":
+      "[[ ## question ## ]]\nWhat is 2 + 2?\n\nRespond with the corresponding output
+      fields, starting with the field `answer`, and then ending with the marker for
+      `completed`."}, {"role": "assistant", "content": "[[ ## answer ## ]]\n4\n\n[[
+      ## completed ## ]]"}, {"role": "user", "content": "[[ ## question ## ]]\nWhat
+      is 1 + 1?\n\nRespond with the corresponding output fields, starting with the
+      field `answer`, and then ending with the marker for `completed`."}], "model":
+      "gpt-4", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGe4O2IRiClDFFzDxfmMLV2g5xOMc\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728530640,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## answer ## ]]\\n2\\n\\n[[ ## completed
+        ## ]]\",\n        \"refusal\": null\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        195,\n    \"completion_tokens\": 12,\n    \"total_tokens\": 207,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

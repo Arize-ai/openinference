@@ -1,5 +1,3 @@
-import os
-
 import dspy
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -9,9 +7,7 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 
 from openinference.instrumentation.dspy import DSPyInstrumentor
 
-# Logs to the Phoenix Collector if running locally
-if os.environ.get("PHOENIX_COLLECTOR_ENDPOINT"):
-    endpoint = os.environ["PHOENIX_COLLECTOR_ENDPOINT"] + "/v1/traces"
+endpoint = "http://localhost:6006/v1/traces"
 
 resource = Resource(attributes={})
 tracer_provider = trace_sdk.TracerProvider(resource=resource)
@@ -32,7 +28,7 @@ class BasicQA(dspy.Signature):
 
 
 if __name__ == "__main__":
-    turbo = dspy.OpenAI(model="gpt-3.5-turbo")
+    turbo = dspy.LM(model="openai/gpt-4")
 
     dspy.settings.configure(lm=turbo)
 
