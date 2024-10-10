@@ -417,8 +417,7 @@ def test_rag_module(
             return dspy.Prediction(context=context, answer=prediction.answer)
 
     dspy.settings.configure(
-        # lm=dspy.LM("text-completion-openai/gpt-3.5-turbo-instruct", model_type="text"),
-        lm=dspy.LM("openai/gpt-4"),
+        lm=dspy.LM("openai/gpt-4", cache=False),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
     )
 
