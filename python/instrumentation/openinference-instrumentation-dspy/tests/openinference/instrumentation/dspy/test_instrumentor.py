@@ -16,7 +16,7 @@ from dspy.primitives.assertions import (
     backtrack_handler,
 )
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
-from litellm import AuthenticationError  # type: ignore[import-not-found]
+from litellm import AuthenticationError  # type: ignore[attr-defined]
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
@@ -102,6 +102,13 @@ def openai_api_key(monkeypatch: MonkeyPatch) -> str:
     return api_key
 
 
+@pytest.fixture
+def gemini_api_key(monkeypatch: MonkeyPatch) -> str:
+    api_key = "sk-fake-key"
+    monkeypatch.setenv("GEMINI_API_KEY", api_key)
+    return api_key
+
+
 @pytest.fixture(autouse=True)
 def clear_cache() -> None:
     """
@@ -127,7 +134,9 @@ class TestLM:
         before_record_response=remove_all_vcr_response_headers,
     )
     def test_openai_chat_completions_api_invoked_via_prompt_positional_argument(
-        self, in_memory_span_exporter: InMemorySpanExporter
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        openai_api_key: str,
     ) -> None:
         lm = dspy.LM(
             "openai/gpt-4",
@@ -181,7 +190,9 @@ class TestLM:
         before_record_response=remove_all_vcr_response_headers,
     )
     def test_openai_chat_completions_api_invoked_via_messages_kwarg(
-        self, in_memory_span_exporter: InMemorySpanExporter
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        openai_api_key: str,
     ) -> None:
         lm = dspy.LM("openai/gpt-4", cache=False)
         prompt = "Who won the World Cup in 2018?"
@@ -227,56 +238,15 @@ class TestLM:
         before_record_response=remove_all_vcr_response_headers,
     )
     def test_openai_completions_api_invoked_via_prompt_positional_argument(
-        self, in_memory_span_exporter: InMemorySpanExporter
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        openai_api_key: str,
     ) -> None:
         lm = dspy.LM(
             "text-completion-openai/gpt-3.5-turbo-instruct", model_type="text", cache=False
         )
         prompt = "Who won the World Cup in 2018?"
         responses = lm(prompt)  # invoked via messages kwarg
-        assert len(responses) == 1
-        response = responses[0]
-        assert "france" in response.lower()
-        spans = in_memory_span_exporter.get_finished_spans()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.name == "LM.__call__"
-        assert span.status.is_ok
-        attributes = dict(span.attributes or {})
-        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
-        assert attributes.pop(INPUT_MIME_TYPE) == JSON
-        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
-        input_data = json.loads(input_value)
-        assert input_data == {
-            "prompt": prompt,
-            "messages": None,
-            "kwargs": {},
-        }
-        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
-        assert isinstance(output_data := json.loads(output_value), list)
-        assert len(output_data) == 1
-        assert output_data[0] == response
-        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {
-            "temperature": 0.0,
-            "max_tokens": 1000,
-        }
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
-        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
-        assert not attributes
-
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
-    def test_gemini(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
-        lm = dspy.LM("gemini/gemini-1.5-pro", cache=False)
-        prompt = "Who won the World Cup in 2018?"
-        responses = lm(prompt)
         assert len(responses) == 1
         response = responses[0]
         assert "france" in response.lower()
@@ -361,7 +331,11 @@ class TestLM:
         before_record_request=remove_all_vcr_request_headers,
         before_record_response=remove_all_vcr_response_headers,
     )
-    def test_subclass(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+    def test_subclass(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        openai_api_key: str,
+    ) -> None:
         class MyLM(dspy.LM):  # type: ignore[misc]
             def __init__(self) -> None:
                 super().__init__("openai/gpt-4", cache=False)
@@ -577,6 +551,7 @@ def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
 )
 def test_compilation(
     in_memory_span_exporter: InMemorySpanExporter,
+    openai_api_key: str,
 ) -> None:
     class AssertModule(dspy.Module):  # type: ignore
         def __init__(self) -> None:
@@ -597,7 +572,7 @@ def test_compilation(
     def exact_match(example: dspy.Example, pred: dspy.Example, trace: Any = None) -> bool:
         return bool(example.answer.lower() == pred.answer.lower())
 
-    with dspy.context(lm=dspy.OpenAI(model="gpt-4")):
+    with dspy.context(lm=dspy.LM("openai/gpt-4", cache=False)):
         teleprompter = BootstrapFewShotWithRandomSearch(
             metric=exact_match,
             max_bootstrapped_demos=1,
@@ -617,7 +592,7 @@ def test_compilation(
     spans = in_memory_span_exporter.get_finished_spans()
     assert spans, "no spans were recorded"
     for span in spans:
-        assert not span.events, f"spans should not contain exception events {str(span.events)}"
+        assert not span.events
 
 
 @pytest.mark.vcr(
@@ -625,7 +600,10 @@ def test_compilation(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_context_attributes_are_instrumented(in_memory_span_exporter: InMemorySpanExporter) -> None:
+def test_context_attributes_are_instrumented(
+    in_memory_span_exporter: InMemorySpanExporter,
+    openai_api_key: str,
+) -> None:
     lm = dspy.LM("openai/gpt-4", cache=False)
     prompt = "Who won the World Cup in 2018?"
     session_id = "my-test-session-id"

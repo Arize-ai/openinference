@@ -38,10 +38,11 @@ instruments = [
   "dspy-ai >= 2.5.0",
 ]
 test = [
-  "dspy-ai==2.3.4",
+  "dspy-ai==2.5.0",
   "google-generativeai",
   "opentelemetry-sdk",
   "pytest-recording",
+  "litellm",
 ]
 
 [project.urls]
