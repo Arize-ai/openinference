@@ -1,0 +1,39 @@
+interactions:
+- request:
+    body: null
+    headers: {}
+    method: GET
+    uri: http://20.102.90.50:2017/wiki17_abstracts?query=What%27s+the+capital+of+the+United+States%3F&k=3
+  response:
+    body:
+      string: '{"topk":[{"text":"United States capital (disambiguation) | The capital
+        of the United States is Washington, D.C.","pid":1918771,"rank":1,"score":26.81817626953125,"prob":0.7290767171685155,"long_text":"United
+        States capital (disambiguation) | The capital of the United States is Washington,
+        D.C."},{"text":"List of capitals in the United States | Washington, D.C. is
+        the current federal capital city of the United States, as it has been since
+        1800. Each U.S. state has its own capital city, as do many of its Insular
+        areas. Historically, most states have not changed their capital city since
+        becoming a state, but the capital cities of their respective preceding colonies,
+        territories, kingdoms, and republics typically changed multiple times. There
+        have also been other governments within the current borders of the United
+        States with their own capitals, such as the Republic of Texas, Native American
+        nations, and other unrecognized governments.Siva","pid":3377468,"rank":2,"score":25.304840087890625,"prob":0.16052389034616518,"long_text":"List
+        of capitals in the United States | Washington, D.C. is the current federal
+        capital city of the United States, as it has been since 1800. Each U.S. state
+        has its own capital city, as do many of its Insular areas. Historically, most
+        states have not changed their capital city since becoming a state, but the
+        capital cities of their respective preceding colonies, territories, kingdoms,
+        and republics typically changed multiple times. There have also been other
+        governments within the current borders of the United States with their own
+        capitals, such as the Republic of Texas, Native American nations, and other
+        unrecognized governments.Siva"},{"text":"Washington, D.C. | Washington, D.C.,
+        formally the District of Columbia and commonly referred to as \"Washington\",
+        \"the District\", or simply \"D.C.\", is the capital of the United States.","pid":953799,"rank":3,"score":24.93050193786621,"prob":0.11039939248531924,"long_text":"Washington,
+        D.C. | Washington, D.C., formally the District of Columbia and commonly referred
+        to as \"Washington\", \"the District\", or simply \"D.C.\", is the capital
+        of the United States."}],"latency":100.3718376159668}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

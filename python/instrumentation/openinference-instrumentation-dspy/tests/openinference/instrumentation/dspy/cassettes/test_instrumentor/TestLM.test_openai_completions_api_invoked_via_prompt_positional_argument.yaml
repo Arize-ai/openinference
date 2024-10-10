@@ -1,0 +1,20 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": "Who won the World Cup in
+      2018?\n\nBEGIN RESPONSE:", "max_tokens": 1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-AGdFjdKe5D9GGsJJVHxv03N80fFqs\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1728527499,\n  \"model\": \"gpt-3.5-turbo-instruct\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\\nFrance won the 2018 FIFA
+        World Cup.\",\n      \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 13,\n    \"completion_tokens\":
+        11,\n    \"total_tokens\": 24\n  }\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

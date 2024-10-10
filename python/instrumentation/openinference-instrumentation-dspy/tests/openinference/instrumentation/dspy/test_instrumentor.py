@@ -1,6 +1,7 @@
 import json
 from typing import (
     Any,
+    Dict,
     Generator,
     Mapping,
     cast,
@@ -34,6 +35,38 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+
+
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
 
 
 @pytest.fixture()
@@ -87,6 +120,11 @@ def test_oitracer() -> None:
 
 
 class TestLM:
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     def test_openai_chat_completions_api_invoked_via_prompt_positional_argument(
         self, in_memory_span_exporter: InMemorySpanExporter
     ) -> None:
@@ -135,6 +173,11 @@ class TestLM:
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     def test_openai_chat_completions_api_invoked_via_messages_kwarg(
         self, in_memory_span_exporter: InMemorySpanExporter
     ) -> None:
@@ -175,6 +218,11 @@ class TestLM:
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     def test_openai_completions_api_invoked_via_prompt_positional_argument(
         self, in_memory_span_exporter: InMemorySpanExporter
     ) -> None:
@@ -216,6 +264,11 @@ class TestLM:
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     def test_gemini(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
         lm = dspy.LM("gemini/gemini-1.5-pro", cache=False)
         prompt = "Who won the World Cup in 2018?"
@@ -253,6 +306,11 @@ class TestLM:
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     def test_exception_event_recorded_on_lm_error(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -291,6 +349,11 @@ class TestLM:
         assert not attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
     K = 3
 
@@ -440,6 +503,11 @@ def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
     assert attributes == {}
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_compilation(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -485,6 +553,11 @@ def test_compilation(
         assert not span.events, f"spans should not contain exception events {str(span.events)}"
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_context_attributes_are_instrumented(in_memory_span_exporter: InMemorySpanExporter) -> None:
     lm = dspy.LM("openai/gpt-4", cache=False)
     prompt = "Who won the World Cup in 2018?"

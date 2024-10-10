@@ -41,6 +41,7 @@ test = [
   "dspy-ai==2.3.4",
   "google-generativeai",
   "opentelemetry-sdk",
+  "pytest-recording",
 ]
 
 [project.urls]
