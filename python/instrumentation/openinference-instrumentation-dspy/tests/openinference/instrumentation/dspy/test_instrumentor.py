@@ -621,8 +621,6 @@ def test_context_attributes_are_instrumented(
     in_memory_span_exporter: InMemorySpanExporter,
     openai_api_key: str,
 ) -> None:
-    lm = dspy.LM("openai/gpt-4", cache=False)
-    prompt = "Who won the World Cup in 2018?"
     session_id = "my-test-session-id"
     user_id = "my-test-user-id"
     metadata = {
@@ -645,6 +643,36 @@ def test_context_attributes_are_instrumented(
         "var_str": "2",
         "var_list": [1, 2, 3],
     }
+
+    K = 3
+
+    class BasicQA(dspy.Signature):  # type: ignore
+        """Answer questions with short factoid answers."""
+
+        question = dspy.InputField()
+        answer = dspy.OutputField(desc="often between 1 and 5 words")
+
+    class RAG(dspy.Module):  # type: ignore
+        """
+        Performs RAG on a corpus of data.
+        """
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.retrieve = dspy.Retrieve(k=K)
+            self.generate_answer = dspy.ChainOfThought(BasicQA)
+
+        def forward(self, question: str) -> dspy.Prediction:
+            context = self.retrieve(question).passages
+            prediction = self.generate_answer(context=context, question=question)
+            return dspy.Prediction(context=context, answer=prediction.answer)
+
+    dspy.settings.configure(
+        lm=dspy.LM("openai/gpt-4", cache=False),
+        rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
+    )
+    rag = RAG()
+    question = "What's the capital of the United States?"
     with using_attributes(
         session_id=session_id,
         user_id=user_id,
@@ -654,21 +682,23 @@ def test_context_attributes_are_instrumented(
         prompt_template_version=prompt_template_version,
         prompt_template_variables=prompt_template_variables,
     ):
-        lm(prompt)
+        prediction = rag(question=question)
+
+    assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span = spans[0]
-    attributes = dict(span.attributes or {})
-    assert attributes.get(SESSION_ID) == session_id
-    assert attributes.get(USER_ID) == user_id
-    assert isinstance(metadata_str := attributes.get(METADATA), str)
-    assert json.loads(metadata_str) == metadata
-    assert attributes.get(TAG_TAGS) == tuple(tags)
-    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
-    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
-    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
-        prompt_template_variables
-    )
+    assert len(spans) == 7
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.get(SESSION_ID) == session_id
+        assert attributes.get(USER_ID) == user_id
+        assert isinstance(metadata_str := attributes.get(METADATA), str)
+        assert json.loads(metadata_str) == metadata
+        assert attributes.get(TAG_TAGS) == tuple(tags)
+        assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+        assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+        assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+            prompt_template_variables
+        )
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
