@@ -197,7 +197,7 @@ class _WithTracer(ABC):
 
 class _LMCallWrapper(_WithTracer):
     """
-    Wrapper for __call__ method on dspy.client.LM.
+    Wrapper for __call__ method on dspy.LM
     """
 
     def __call__(
