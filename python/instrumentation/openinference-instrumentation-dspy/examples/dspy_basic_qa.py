@@ -1,4 +1,3 @@
-import os
 
 import dspy
 from opentelemetry import trace as trace_api
