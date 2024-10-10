@@ -43,7 +43,6 @@ from openinference.instrumentation.langchain import (
     get_current_root_chain_span,
     get_current_span,
 )
-from openinference.instrumentation.langchain._tracer import IS_CHAIN_SPAN
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -271,8 +270,6 @@ def test_callback_llm(
 
         # Ignore metadata since LC adds a bunch of unstable metadata
         rqa_attributes.pop(METADATA, None)
-        # Ignore IS_CHAIN_SPAN attribute since it's set internally by the instrumentation
-        rqa_attributes.pop(IS_CHAIN_SPAN, None)
         assert rqa_attributes == {}
 
         assert (sd_span := spans_by_name.pop("StuffDocumentsChain")) is not None
@@ -297,8 +294,6 @@ def test_callback_llm(
 
         # Ignore metadata since LC adds a bunch of unstable metadata
         sd_attributes.pop(METADATA, None)
-        # Ignore IS_CHAIN_SPAN attribute since it's set internally by the instrumentation
-        sd_attributes.pop(IS_CHAIN_SPAN, None)
         assert sd_attributes == {}
 
         if LANGCHAIN_VERSION >= (0, 3, 0):
@@ -325,8 +320,6 @@ def test_callback_llm(
 
         # Ignore metadata since LC adds a bunch of unstable metadata
         retriever_attributes.pop(METADATA, None)
-        # Ignore IS_CHAIN_SPAN attribute since it's set internally by the instrumentation
-        retriever_attributes.pop(IS_CHAIN_SPAN, None)
         assert retriever_attributes == {}
 
         assert (llm_span := spans_by_name.pop("LLMChain", None)) is not None
@@ -369,8 +362,6 @@ def test_callback_llm(
 
         # Ignore metadata since LC adds a bunch of unstable metadata
         llm_attributes.pop(METADATA, None)
-        # Ignore IS_CHAIN_SPAN attribute since it's set internally by the instrumentation
-        llm_attributes.pop(IS_CHAIN_SPAN, None)
         assert llm_attributes == {}
 
         assert (oai_span := spans_by_name.pop("ChatOpenAI", None)) is not None
@@ -432,8 +423,6 @@ def test_callback_llm(
                 }
         # Ignore metadata since LC adds a bunch of unstable metadata
         oai_attributes.pop(METADATA, None)
-        # Ignore IS_CHAIN_SPAN attribute since it's set internally by the instrumentation
-        oai_attributes.pop(IS_CHAIN_SPAN, None)
         assert oai_attributes == {}
 
         assert spans_by_name == {}
@@ -567,8 +556,6 @@ def test_chain_metadata(
 
     # Ignore metadata since LC adds a bunch of unstable metadata
     llm_attributes.pop(METADATA, None)
-    # Ignore IS_CHAIN_SPAN attribute since it's set internally by the instrumentation
-    llm_attributes.pop(IS_CHAIN_SPAN, None)
     assert llm_attributes == {}
 
 
@@ -691,8 +678,6 @@ def test_read_session_from_metadata(
     )
     assert llm_attributes.pop(INPUT_VALUE, None) == langchain_prompt_variables["adjective"]
     assert llm_attributes.pop(OUTPUT_VALUE, None) == output_val
-    # Ignore IS_CHAIN_SPAN attribute since it's set internally by the instrumentation
-    llm_attributes.pop(IS_CHAIN_SPAN, None)
     assert llm_attributes == {}
 
 
