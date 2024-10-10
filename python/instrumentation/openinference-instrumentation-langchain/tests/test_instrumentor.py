@@ -29,7 +29,7 @@ from langchain.chains import LLMChain, RetrievalQA
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnableLambda
+from langchain_core.runnables import RunnableLambda, RunnableSerializable
 from langchain_openai import ChatOpenAI
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
@@ -140,16 +140,26 @@ async def test_get_current_chain_root_span_async(
         root_spans_during_execution.append(root_span)
         return x + 1
 
+    sequence: RunnableSerializable[int, int] = RunnableLambda[int, int](f) | RunnableLambda[
+        int, int
+    ](f)
+
     for _ in range(n):
-        await RunnableLambda[int, int](f).ainvoke(1)
+        await sequence.ainvoke(1)
 
     root_span_after_execution = get_current_chain_root_span()
     assert root_span_after_execution is None, "Root span should be None after execution"
 
-    assert len(root_spans_during_execution) == n, "Did not capture all root spans during execution"
+    assert (
+        len(root_spans_during_execution) == 2 * n
+    ), "Did not capture all root spans during execution"
+
+    assert (
+        len(set(id(span) for span in root_spans_during_execution)) == 2 * n
+    ), "No root spans are duplicated"
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == n, f"Expected {n} spans, but found {len(spans)}"
+    assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
 
 
 @pytest.mark.parametrize("is_async", [False, True])
