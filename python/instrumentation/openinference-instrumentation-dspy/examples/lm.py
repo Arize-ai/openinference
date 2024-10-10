@@ -15,5 +15,5 @@ DSPyInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 lm = LM("openai/gpt-4")
-output = lm("hello, how are you?")
+output = lm("hello!")
 print(f"{output=}")

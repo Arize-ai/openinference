@@ -87,52 +87,133 @@ def test_oitracer() -> None:
 
 
 class TestLM:
-    def test_openai_chat_completions(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
-        lm = dspy.LM("openai/gpt-4", cache=False)
+    def test_openai_chat_completions_api_invoked_via_prompt_positional_argument(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        lm = dspy.LM(
+            "openai/gpt-4",
+            cache=False,
+            temperature=0.1,  # non-default
+            top_p=0.1,
+        )
         prompt = "Who won the World Cup in 2018?"
-        responses = lm(prompt)
+        responses = lm(
+            prompt,
+            temperature=0.2,  # overrides temperature setting in init
+        )  # invoked via positional prompt argument
         assert len(responses) == 1
-        assert "france" in responses[0].lower()
+        response = responses[0]
+        assert "france" in response.lower()
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
         attributes = dict(span.attributes)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
-        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
-        assert attributes.pop(INPUT_VALUE) == prompt
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        input_data = json.loads(input_value)
+        assert input_data == {
+            "prompt": prompt,
+            "messages": None,
+            "kwargs": {"temperature": 0.2},
+        }
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-        assert attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(output_data := json.loads(output_value), list)
+        assert len(output_data) == 1
+        assert output_data[0] == response
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == {
+            "max_tokens": 1000,  # default setting in LM
+            "temperature": 0.2,  # from __call__
+            "top_p": 0.1,  # from __init__
+        }
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
+        assert not attributes
+
+    def test_openai_chat_completions_api_invoked_via_messages_kwarg(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        lm = dspy.LM("openai/gpt-4", cache=False)
+        prompt = "Who won the World Cup in 2018?"
+        messages = [{"role": "user", "content": prompt}]
+        responses = lm(messages=messages)  # invoked via messages kwarg
+        assert len(responses) == 1
+        response = responses[0]
+        assert "france" in response.lower()
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes)
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        input_data = json.loads(input_value)
+        assert input_data == {
+            "prompt": None,
+            "messages": messages,
+            "kwargs": {},
+        }
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(output_data := json.loads(output_value), list)
+        assert len(output_data) == 1
+        assert output_data[0] == response
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {
             "temperature": 0.0,
             "max_tokens": 1000,
         }
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
         assert not attributes
 
-    def test_openai_completions(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+    def test_openai_completions_api_invoked_via_prompt_positional_argument(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
         lm = dspy.LM(
             "text-completion-openai/gpt-3.5-turbo-instruct", model_type="text", cache=False
         )
         prompt = "Who won the World Cup in 2018?"
-        responses = lm(prompt)
+        responses = lm(prompt)  # invoked via messages kwarg
         assert len(responses) == 1
-        assert "france" in responses[0].lower()
+        response = responses[0]
+        assert "france" in response.lower()
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
         attributes = dict(span.attributes)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
-        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
-        assert attributes.pop(INPUT_VALUE) == prompt
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        input_data = json.loads(input_value)
+        assert input_data == {
+            "prompt": prompt,
+            "messages": None,
+            "kwargs": {},
+        }
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-        assert attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(output_data := json.loads(output_value), list)
+        assert len(output_data) == 1
+        assert output_data[0] == response
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {
             "temperature": 0.0,
             "max_tokens": 1000,
         }
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
         assert not attributes
 
     def test_gemini(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
@@ -140,22 +221,36 @@ class TestLM:
         prompt = "Who won the World Cup in 2018?"
         responses = lm(prompt)
         assert len(responses) == 1
-        assert "france" in responses[0].lower()
+        response = responses[0]
+        assert "france" in response.lower()
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
         attributes = dict(span.attributes)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
-        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
-        assert attributes.pop(INPUT_VALUE) == prompt
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        input_data = json.loads(input_value)
+        assert input_data == {
+            "prompt": prompt,
+            "messages": None,
+            "kwargs": {},
+        }
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-        assert attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(output_data := json.loads(output_value), list)
+        assert len(output_data) == 1
+        assert output_data[0] == response
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {
             "temperature": 0.0,
             "max_tokens": 1000,
         }
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
         assert not attributes
 
     def test_exception_event_recorded_on_lm_error(
@@ -178,8 +273,16 @@ class TestLM:
         assert "401" in event.attributes["exception.message"]
         attributes = dict(span.attributes)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
-        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
-        assert attributes.pop(INPUT_VALUE) == prompt
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        input_data = json.loads(input_value)
+        assert input_data == {
+            "prompt": prompt,
+            "messages": None,
+            "kwargs": {},
+        }
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {
             "temperature": 0.0,
@@ -265,15 +368,26 @@ def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
     assert span.name == "LM.__call__"
     attributes = dict(span.attributes)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
-    assert attributes.pop(INPUT_MIME_TYPE) == TEXT
-    assert attributes.pop(INPUT_VALUE)  # fixme
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    input_data = json.loads(input_value)
+    assert set(input_data.keys()) == {"prompt", "messages", "kwargs"}
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-    assert attributes.pop(OUTPUT_VALUE)  # fixme
+    assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+    assert isinstance(output_data := json.loads(output_value), list)
+    assert len(output_data) == 1
+    assert isinstance(output_data[0], str)
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    # assert json.loads(inv_params) == {
-    #     "temperature": 0.0,
-    #     "max_tokens": 1000,
-    # }
+    assert json.loads(inv_params) == {
+        "temperature": 0.0,
+        "max_tokens": 1000,
+    }
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert isinstance(attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+    assert question in attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}")
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert "Washington, D.C." in attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
     assert not attributes
 
     span = next(it)
