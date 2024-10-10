@@ -306,12 +306,7 @@ class _PredictForwardWrapper(_WithTracer):
             ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            try:
-                prediction = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
+            prediction = wrapped(*args, **kwargs)
             span.set_attributes(
                 dict(
                     _flatten(
@@ -376,12 +371,7 @@ class _ModuleForwardWrapper(_WithTracer):
             ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            try:
-                prediction = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
+            prediction = wrapped(*args, **kwargs)
             span.set_attributes(
                 dict(
                     _flatten(
@@ -428,12 +418,7 @@ class _RetrieverForwardWrapper(_WithTracer):
             ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            try:
-                prediction = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
+            prediction = wrapped(*args, **kwargs)
             span.set_attributes(
                 dict(
                     _flatten(
@@ -481,12 +466,7 @@ class _RetrieverModelCallWrapper(_WithTracer):
             ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
-            try:
-                retrieved_documents = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
+            retrieved_documents = wrapped(*args, **kwargs)
             span.set_attributes(
                 dict(
                     _flatten(
