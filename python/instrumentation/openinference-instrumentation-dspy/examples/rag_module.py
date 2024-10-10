@@ -18,11 +18,9 @@ tracer_provider = trace_sdk.TracerProvider(resource=resource)
 span_console_exporter = ConsoleSpanExporter()
 tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_console_exporter))
 
-# Logs to the Phoenix Collector if running locally
-if phoenix_collector_endpoint := os.environ.get("PHOENIX_COLLECTOR_ENDPOINT"):
-    endpoint = phoenix_collector_endpoint + "/v1/traces"
-    span_otlp_exporter = OTLPSpanExporter(endpoint=endpoint)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_otlp_exporter))
+endpoint = "http://localhost:6006/v1/traces"
+span_otlp_exporter = OTLPSpanExporter(endpoint=endpoint)
+tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=span_otlp_exporter))
 
 
 trace_api.set_tracer_provider(tracer_provider=tracer_provider)
@@ -46,7 +44,7 @@ class RAG(dspy.Module):
 
 
 if __name__ == "__main__":
-    turbo = dspy.OpenAI(model="gpt-3.5-turbo")
+    turbo = dspy.LM("openai/gpt-4", cache=False)
     colbertv2_wiki17_abstracts = dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts")
     dspy.settings.configure(
         lm=turbo,
