@@ -64,6 +64,20 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
     def get_span(self, run_id: UUID) -> Optional[Span]:
         return self._tracer.get_span(run_id) if self._tracer else None
 
+    def get_root_chain_span(self, run_id: UUID) -> Optional[Span]:
+        span = self.get_span(run_id)
+        while span and span.get_span_context().is_valid:
+            span_id = span.get_span_context().span_id
+            tracer = self._tracer
+            assert tracer
+            if span_id in tracer._root_span_ids:
+                return span
+
+            span = tracer._parent_span_by_span_id.get(span_id)  # get parent span
+            if not span:
+                break
+        return None
+
 
 class _BaseCallbackManagerInit:
     __slots__ = ("_tracer",)
@@ -104,3 +118,20 @@ def get_current_span() -> Optional[Span]:
     if not run_id:
         return None
     return LangChainInstrumentor().get_span(run_id)
+
+
+def get_current_root_chain_span() -> Optional[Span]:
+    import langchain_core
+
+    run_id: Optional[UUID] = None
+    config = langchain_core.runnables.config.var_child_runnable_config.get()
+    if not isinstance(config, dict):
+        return None
+    for v in config.values():
+        if not isinstance(v, langchain_core.callbacks.BaseCallbackManager):
+            continue
+        if run_id := v.parent_run_id:
+            break
+    if not run_id:
+        return None
+    return LangChainInstrumentor().get_root_chain_span(run_id)

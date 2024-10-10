@@ -29,7 +29,7 @@ from langchain.chains import LLMChain, RetrievalQA
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnableLambda
+from langchain_core.runnables import RunnableLambda, RunnableSerializable
 from langchain_openai import ChatOpenAI
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
@@ -39,7 +39,10 @@ from opentelemetry.trace import Span
 from respx import MockRouter
 
 from openinference.instrumentation import using_attributes
-from openinference.instrumentation.langchain import get_current_span
+from openinference.instrumentation.langchain import (
+    get_current_root_chain_span,
+    get_current_span,
+)
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -90,6 +93,72 @@ async def test_get_current_span(
         id(span.get_span_context())  # type: ignore[no-untyped-call]
         for span in spans
     }
+
+
+async def test_get_current_chain_root_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Test retrieving the current chain root span during RunnableLambda execution."""
+    n = 10  # Number of concurrent runs
+    loop = asyncio.get_running_loop()
+
+    root_spans_during_execution = []
+
+    def f(x: int) -> int:
+        root_span = get_current_root_chain_span()
+        assert root_span is not None, "Root span should not be None during execution (sync)"
+        root_spans_during_execution.append(root_span)
+        return x + 1
+
+    with ThreadPoolExecutor() as executor:
+        tasks = [loop.run_in_executor(executor, RunnableLambda(f).invoke, 1) for _ in range(n)]
+        await asyncio.gather(*tasks)
+
+    root_span_after_execution = get_current_root_chain_span()
+    assert root_span_after_execution is None, "Root span should be None after execution"
+
+    assert len(root_spans_during_execution) == n, "Did not capture all root spans during execution"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == n, f"Expected {n} spans, but found {len(spans)}"
+
+
+async def test_get_current_chain_root_span_async(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Test retrieving the current chain root span during RunnableLambda execution."""
+    if sys.version_info < (3, 11):
+        pytest.xfail("Async test may fail on Python versions below 3.11")
+    n = 10  # Number of concurrent runs
+
+    root_spans_during_execution = []
+
+    async def f(x: int) -> int:
+        root_span = get_current_root_chain_span()
+        assert root_span is not None, "Root span should not be None during execution (async)"
+        root_spans_during_execution.append(root_span)
+        return x + 1
+
+    sequence: RunnableSerializable[int, int] = RunnableLambda[int, int](f) | RunnableLambda[
+        int, int
+    ](f)
+
+    for _ in range(n):
+        await sequence.ainvoke(1)
+
+    root_span_after_execution = get_current_root_chain_span()
+    assert root_span_after_execution is None, "Root span should be None after execution"
+
+    assert (
+        len(root_spans_during_execution) == 2 * n
+    ), "Did not capture all root spans during execution"
+
+    assert (
+        len(set(id(span) for span in root_spans_during_execution)) == 2 * n
+    ), "No root spans are duplicated"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
 
 
 @pytest.mark.parametrize("is_async", [False, True])
