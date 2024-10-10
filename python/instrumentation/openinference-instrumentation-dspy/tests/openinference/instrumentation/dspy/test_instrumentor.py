@@ -389,7 +389,10 @@ class TestLM:
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
+def test_rag_module(
+    in_memory_span_exporter: InMemorySpanExporter,
+    openai_api_key: str,
+) -> None:
     K = 3
 
     class BasicQA(dspy.Signature):  # type: ignore
