@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.28...python-openinference-instrumentation-langchain-v0.1.29) (2024-10-10)
+
+
+### Features
+
+* support langchain 0.3 ([#1045](https://github.com/Arize-ai/openinference/issues/1045)) ([ff43e9d](https://github.com/Arize-ai/openinference/commit/ff43e9ddc0a5f683f80d09139247ad194d6c29af))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.27...python-openinference-instrumentation-langchain-v0.1.28) (2024-09-10)
 
 
