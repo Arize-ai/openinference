@@ -4,7 +4,6 @@ from typing import (
     Dict,
     Generator,
     List,
-    Mapping,
     cast,
 )
 
@@ -22,7 +21,6 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
 from pytest import MonkeyPatch
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -426,11 +424,11 @@ def test_rag_module(
     prediction = rag(question=question)
     assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 6
+    assert len(spans) == 7
     it = iter(spans)
 
     span = next(it)
-    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    attributes = dict(span.attributes or {})
     assert span.name == "ColBERTv2.__call__"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -446,11 +444,11 @@ def test_rag_module(
         assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"), str)
         assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_ID}"), int)
         assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_SCORE}"), float)
-    assert attributes == {}
+    assert not attributes
 
     span = next(it)
     assert span.name == "Retrieve.forward"
-    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert json.loads(input_value) == {
@@ -462,7 +460,7 @@ def test_rag_module(
     )
     for i in range(K):
         assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"), str)
-    assert attributes == {}
+    assert not attributes
 
     span = next(it)
     assert span.name == "LM.__call__"
@@ -497,12 +495,29 @@ def test_rag_module(
     assert not attributes
 
     span = next(it)
+    assert span.name == "ChatAdapter.__call__"
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert not attributes
+
+    span = next(it)
     assert span.name == "Predict(StringSignature).forward"
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert not attributes
 
     span = next(it)
     assert span.name == "ChainOfThought.forward"
-    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
     input_value_data = json.loads(input_value)
@@ -521,12 +536,12 @@ def test_rag_module(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    assert attributes == {}
+    assert not attributes
 
     span = next(it)
     assert span.name == "RAG.forward"
-    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
     assert json.loads(input_value) == {
@@ -543,7 +558,7 @@ def test_rag_module(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    assert attributes == {}
+    assert not attributes
 
 
 @pytest.mark.vcr(
@@ -656,6 +671,7 @@ def test_context_attributes_are_instrumented(
     )
 
 
+CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
