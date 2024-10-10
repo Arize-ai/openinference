@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.12...python-openinference-instrumentation-dspy-v0.1.13) (2024-10-10)
+
+
+### Features
+
+* **dspy:** add instrumentation for dspy adapters ([#1057](https://github.com/Arize-ai/openinference/issues/1057)) ([66799cc](https://github.com/Arize-ai/openinference/commit/66799ccf88798bf628c316276886e70ef925b9cd))
+
+
+### Bug Fixes
+
+* **dspy:** prevent the creation of duplicate span exception events ([#1058](https://github.com/Arize-ai/openinference/issues/1058)) ([54af1c3](https://github.com/Arize-ai/openinference/commit/54af1c393a03831fc908b51ca7d57ab269b13552))
+* **dspy:** support dspy 2.5 and above ([#1055](https://github.com/Arize-ai/openinference/issues/1055)) ([467c8dc](https://github.com/Arize-ai/openinference/commit/467c8dcf3c58f4f443332b2062cabfe7b10de16e))
+* increase version lower bound for openinference-instrumentation ([#1012](https://github.com/Arize-ai/openinference/issues/1012)) ([3236d27](https://github.com/Arize-ai/openinference/commit/3236d2733a46b84d693ddb7092209800cde8cc34))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.11...python-openinference-instrumentation-dspy-v0.1.12) (2024-08-20)
 
 
