@@ -31,7 +31,7 @@ interactions:
         \"the District\", or simply \"D.C.\", is the capital of the United States.","pid":953799,"rank":3,"score":24.93050193786621,"prob":0.11039939248531924,"long_text":"Washington,
         D.C. | Washington, D.C., formally the District of Columbia and commonly referred
         to as \"Washington\", \"the District\", or simply \"D.C.\", is the capital
-        of the United States."}],"latency":100.3718376159668}'
+        of the United States."}],"latency":99.23911094665527}'
     headers: {}
     status:
       code: 200
