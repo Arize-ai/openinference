@@ -3,6 +3,7 @@ from typing import (
     Any,
     Dict,
     Generator,
+    List,
     Mapping,
     cast,
 )
@@ -15,7 +16,7 @@ from dspy.primitives.assertions import (
     backtrack_handler,
 )
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
-from litellm import AuthenticationError
+from litellm import AuthenticationError  # type: ignore[import-not-found]
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
@@ -147,7 +148,7 @@ class TestLM:
         span = spans[0]
         assert span.name == "LM.__call__"
         assert span.status.is_ok
-        attributes = dict(span.attributes)
+        attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -194,7 +195,7 @@ class TestLM:
         span = spans[0]
         assert span.name == "LM.__call__"
         assert span.status.is_ok
-        attributes = dict(span.attributes)
+        attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -241,7 +242,7 @@ class TestLM:
         span = spans[0]
         assert span.name == "LM.__call__"
         assert span.status.is_ok
-        attributes = dict(span.attributes)
+        attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -284,7 +285,7 @@ class TestLM:
         span = spans[0]
         assert span.name == "LM.__call__"
         assert span.status.is_ok
-        attributes = dict(span.attributes)
+        attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -332,9 +333,11 @@ class TestLM:
         assert len(span.events) == 1
         event = span.events[0]
         assert event.name == "exception"
-        assert event.attributes["exception.type"] == "litellm.exceptions.AuthenticationError"
-        assert "401" in event.attributes["exception.message"]
-        attributes = dict(span.attributes)
+        assert (event_attributes := event.attributes) is not None
+        assert event_attributes["exception.type"] == "litellm.exceptions.AuthenticationError"
+        assert isinstance(exception_message := event_attributes["exception.message"], str)
+        assert "401" in exception_message
+        attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -359,15 +362,15 @@ class TestLM:
         before_record_response=remove_all_vcr_response_headers,
     )
     def test_subclass(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
-        class MyLM(dspy.LM):
+        class MyLM(dspy.LM):  # type: ignore[misc]
             def __init__(self) -> None:
                 super().__init__("openai/gpt-4", cache=False)
 
             def __call__(
                 self,
                 question: str,
-            ) -> str:  # signature is different from superclass
-                return super().__call__(question)
+            ) -> List[str]:  # signature is different from superclass
+                return cast(List[str], super().__call__(question))
 
         lm = MyLM()
         prompt = "Who won the World Cup in 2018?"
@@ -380,7 +383,7 @@ class TestLM:
         span = spans[0]
         assert span.name == "MyLM.__call__"
         assert span.status.is_ok
-        attributes = dict(span.attributes)
+        attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -487,7 +490,7 @@ def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
 
     span = next(it)
     assert span.name == "LM.__call__"
-    attributes = dict(span.attributes)
+    attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -506,9 +509,15 @@ def test_rag_module(in_memory_span_exporter: InMemorySpanExporter) -> None:
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert isinstance(attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
-    assert question in attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}")
+    assert isinstance(
+        message_content_1 := attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}"), str
+    )
+    assert question in message_content_1
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert "Washington, D.C." in attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+    assert isinstance(
+        message_content_0 := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+    )
+    assert "Washington, D.C." in message_content_0
     assert not attributes
 
     span = next(it)
@@ -654,12 +663,12 @@ def test_context_attributes_are_instrumented(in_memory_span_exporter: InMemorySp
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    attributes = dict(span.attributes)
+    attributes = dict(span.attributes or {})
     assert attributes.get(SESSION_ID) == session_id
     assert attributes.get(USER_ID) == user_id
     assert isinstance(metadata_str := attributes.get(METADATA), str)
     assert json.loads(metadata_str) == metadata
-    assert list(attributes.get(TAG_TAGS, [])) == tags
+    assert attributes.get(TAG_TAGS) == tuple(tags)
     assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
     assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
     assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(

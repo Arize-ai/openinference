@@ -620,7 +620,7 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
             yield key, value
 
 
-def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> None:
+def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(arguments)
 
@@ -663,7 +663,7 @@ def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterat
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(lm_kwargs | kwargs)
 
 
-def _bind_arguments(method: Callable[[...], Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
+def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
     method_signature = signature(method)
     bound_args = method_signature.bind(*args, **kwargs)
     bound_args.apply_defaults()
