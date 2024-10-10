@@ -64,6 +64,18 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
     def get_span(self, run_id: UUID) -> Optional[Span]:
         return self._tracer.get_span(run_id) if self._tracer else None
 
+    def get_root_chain_span(self, run_id: UUID) -> Optional[Span]:
+        span = self.get_span(run_id)
+        span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
+        while span and span.get_span_context().is_valid:  # type: ignore[no-untyped-call]
+            if span_id in self._tracer._root_span_ids:
+                return span
+            parent_span = span.parent
+            if not parent_span or not parent_span.span_id:
+                break
+            span = self._tracer._spans_by_span_id.get(parent_span.span_id)
+        return None
+
 
 class _BaseCallbackManagerInit:
     __slots__ = ("_tracer",)
@@ -106,16 +118,18 @@ def get_current_span() -> Optional[Span]:
     return LangChainInstrumentor().get_span(run_id)
 
 
-def get_current_chain_root_span() -> Optional[Span]:
-    from openinference.instrumentation.langchain._tracer import IS_CHAIN_SPAN, _spans_by_span_id
+def get_current_root_chain_span() -> Optional[Span]:
+    import langchain_core
 
-    span = get_current_span()
-    while span and span.get_span_context().is_valid:  # type: ignore[no-untyped-call]
-        if span.attributes and span.attributes.get(IS_CHAIN_SPAN):
-            return span
-        # Get parent span ID
-        parent_span = span.parent
-        if not parent_span or not parent_span.span_id:
+    run_id: Optional[UUID] = None
+    config = langchain_core.runnables.config.var_child_runnable_config.get()
+    if not isinstance(config, dict):
+        return None
+    for v in config.values():
+        if not isinstance(v, langchain_core.callbacks.BaseCallbackManager):
+            continue
+        if run_id := v.parent_run_id:
             break
-        span = _spans_by_span_id.get(parent_span.span_id)
-    return None
+    if not run_id:
+        return None
+    return LangChainInstrumentor().get_root_chain_span(run_id)

@@ -21,6 +21,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     TypeVar,
     cast,
@@ -106,9 +107,6 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
             super().__delitem__(key)
 
 
-_spans_by_span_id: Dict[int, Span] = _DictWithLock[int, Span]()
-
-
 class OpenInferenceTracer(BaseTracer):
     __slots__ = ("_tracer", "_spans_by_run")
 
@@ -120,6 +118,8 @@ class OpenInferenceTracer(BaseTracer):
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
         self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
+        self._spans_by_span_id: Dict[int, Span] = _DictWithLock[int, Span]()
+        self._root_span_ids: Set[int] = set()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[Span]:
@@ -146,7 +146,7 @@ class OpenInferenceTracer(BaseTracer):
             start_time=start_time_utc_nano,
         )
 
-        if run.run_type.lower() == "chain" and span:
+        if run.run_type.lower() == "chain":
             span.set_attribute(IS_CHAIN_SPAN, True)
 
         # The following line of code is commented out to serve as a reminder that in a system
@@ -158,8 +158,11 @@ class OpenInferenceTracer(BaseTracer):
         # token = context_api.attach(context)
         with self._lock:
             span = cast(Span, span)
+            span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
             self._spans_by_run[run.id] = span
-            _spans_by_span_id[span.get_span_context().span_id] = span  # type: ignore[no-untyped-call]
+            self._spans_by_span_id[span_id] = span
+            if run.run_type.lower() == "chain":
+                self._root_span_ids.add(span_id)
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
@@ -168,7 +171,9 @@ class OpenInferenceTracer(BaseTracer):
             return
         span = self._spans_by_run.pop(run.id, None)
         if span:
-            _spans_by_span_id.pop(span.get_span_context().span_id, None)  # type: ignore[no-untyped-call]
+            span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
+            self._spans_by_span_id.pop(span_id, None)
+            self._root_span_ids.discard(span_id)
             try:
                 _update_span(span, run)
             except Exception:
