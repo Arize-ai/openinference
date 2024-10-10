@@ -28,7 +28,7 @@ class BasicQA(dspy.Signature):
 
 
 if __name__ == "__main__":
-    turbo = dspy.OpenAI(model="gpt-3.5-turbo")
+    turbo = dspy.LM(model="openai/gpt-4")
 
     dspy.settings.configure(lm=turbo)
 
