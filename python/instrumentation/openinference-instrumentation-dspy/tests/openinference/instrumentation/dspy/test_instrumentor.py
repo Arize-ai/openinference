@@ -145,6 +145,7 @@ class TestLM:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert span.name == "LM.__call__"
         assert span.status.is_ok
         attributes = dict(span.attributes)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -191,6 +192,7 @@ class TestLM:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert span.name == "LM.__call__"
         assert span.status.is_ok
         attributes = dict(span.attributes)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -237,6 +239,7 @@ class TestLM:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert span.name == "LM.__call__"
         assert span.status.is_ok
         attributes = dict(span.attributes)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -279,6 +282,7 @@ class TestLM:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert span.name == "LM.__call__"
         assert span.status.is_ok
         attributes = dict(span.attributes)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -323,6 +327,7 @@ class TestLM:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert span.name == "LM.__call__"
         assert not span.status.is_ok
         assert len(span.events) == 1
         event = span.events[0]
@@ -346,6 +351,59 @@ class TestLM:
             "temperature": 0.0,
             "max_tokens": 1000,
         }
+        assert not attributes
+
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    def test_subclass(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        class MyLM(dspy.LM):
+            def __init__(self) -> None:
+                super().__init__("openai/gpt-4", cache=False)
+
+            def __call__(
+                self,
+                question: str,
+            ) -> str:  # signature is different from superclass
+                return super().__call__(question)
+
+        lm = MyLM()
+        prompt = "Who won the World Cup in 2018?"
+        responses = lm(prompt)
+        assert len(responses) == 1
+        response = responses[0]
+        assert "france" in response.lower()
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "MyLM.__call__"
+        assert span.status.is_ok
+        attributes = dict(span.attributes)
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        input_data = json.loads(input_value)
+        assert input_data == {
+            "prompt": prompt,
+            "messages": None,
+            "kwargs": {},
+        }
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(output_data := json.loads(output_value), list)
+        assert len(output_data) == 1
+        assert output_data[0] == response
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == {
+            "temperature": 0.0,
+            "max_tokens": 1000,
+        }
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
         assert not attributes
 
 
