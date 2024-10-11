@@ -4,6 +4,7 @@ from typing import (
     Dict,
     Generator,
     List,
+    Mapping,
     Optional,
     Type,
     Union,
@@ -25,10 +26,14 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    SpanAttributes,
+)
 
 mock_completion = ChatCompletion(
     id="chat_comp_0",
@@ -226,6 +231,24 @@ def test_groq_instrumentation(
             att,
         )
 
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert (
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "user"
+    )
+    assert (
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "Explain the importance of low latency LLMs"
+    )
+    assert (
+        attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "assistant"
+    )
+    assert (
+        attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "idk, sorry!"
+    )
+
 
 def test_groq_async_instrumentation(
     tracer_provider: TracerProvider,
@@ -274,6 +297,24 @@ def test_groq_async_instrumentation(
         _check_context_attributes(
             att,
         )
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert (
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "user"
+    )
+    assert (
+        attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "Explain the importance of low latency LLMs"
+    )
+    assert (
+        attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "assistant"
+    )
+    assert (
+        attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "idk, sorry!"
+    )
 
 
 def test_groq_uninstrumentation(
