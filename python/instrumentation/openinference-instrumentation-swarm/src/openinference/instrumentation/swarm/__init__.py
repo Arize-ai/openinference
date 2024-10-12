@@ -9,16 +9,12 @@ from typing import (
     Iterator,
     List,
     Mapping,
-    Optional,
-    Sequence,
     Tuple,
-    Type,
 )
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.trace import StatusCode
 from opentelemetry.util.types import AttributeValue
 from wrapt import FunctionWrapper, wrap_object
 
@@ -78,7 +74,7 @@ class SwarmInstrumentor(BaseInstrumentor):  # type: ignore
                 module="swarm.repl.repl",
                 name=function_name,
                 factory=FunctionWrapper,
-                args=(_Wrapper(self._tracer, ignore_errors=(KeyboardInterrupt,)),),
+                args=(_Wrapper(self._tracer),),
             )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -99,14 +95,12 @@ class _Wrapper:
     def __init__(
         self,
         tracer: trace_api.Tracer,
-        ignore_errors: Optional[Sequence[Type[Exception]]] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
         self._is_method = False
-        self._ignore_errors = ignore_errors or tuple([])
 
     def __call__(
         self,
@@ -135,10 +129,7 @@ class _Wrapper:
                 )
             ),
         ) as span:
-            try:
-                response = wrapped(*args, **kwargs)
-            except self._ignore_errors:
-                return
+            response = wrapped(*args, **kwargs)
             span.set_attributes(
                 dict(
                     _flatten(

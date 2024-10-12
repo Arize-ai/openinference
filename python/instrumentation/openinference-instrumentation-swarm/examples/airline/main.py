@@ -1,15 +1,13 @@
-from configs.agents import *
-from swarm.repl import run_demo_loop
-
+from configs.agents import triage_agent
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.resources import Resource
-from swarm import Agent, Swarm
-from openinference.semconv.resource import ResourceAttributes
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from swarm.repl import run_demo_loop
 
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.instrumentation.swarm import SwarmInstrumentor
+from openinference.semconv.resource import ResourceAttributes
 
 project_name = "swarm"
 
