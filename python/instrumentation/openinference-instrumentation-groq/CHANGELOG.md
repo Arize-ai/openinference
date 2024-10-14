@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.2...python-openinference-instrumentation-groq-v0.1.3) (2024-10-11)
+
+
+### Bug Fixes
+
+* groq input messages ([#1053](https://github.com/Arize-ai/openinference/issues/1053)) ([ec7cb4d](https://github.com/Arize-ai/openinference/commit/ec7cb4d01853970a3f604b45b827f37220d70d2e))
+* increase version lower bound for openinference-instrumentation ([#1012](https://github.com/Arize-ai/openinference/issues/1012)) ([3236d27](https://github.com/Arize-ai/openinference/commit/3236d2733a46b84d693ddb7092209800cde8cc34))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.1...python-openinference-instrumentation-groq-v0.1.2) (2024-08-07)
 
 
