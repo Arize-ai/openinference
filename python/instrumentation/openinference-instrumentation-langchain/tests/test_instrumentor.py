@@ -136,6 +136,7 @@ async def test_get_current_chain_root_span_async(
     async def f(x: int) -> int:
         root_span = get_current_root_chain_span()
         assert root_span is not None, "Root span should not be None during execution (async)"
+        await asyncio.sleep(0.01)
         root_spans_during_execution.append(root_span)
         return x + 1
 
@@ -143,8 +144,7 @@ async def test_get_current_chain_root_span_async(
         int, int
     ](f)
 
-    for _ in range(n):
-        await sequence.ainvoke(1)
+    await asyncio.gather(*(sequence.ainvoke(1) for _ in range(n)))
 
     root_span_after_execution = get_current_root_chain_span()
     assert root_span_after_execution is None, "Root span should be None after execution"
