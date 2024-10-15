@@ -74,8 +74,6 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
                 return span
 
             span = tracer._parent_span_by_span_id.get(span_id)  # get parent span
-            if not span:
-                break
         return None
 
 
