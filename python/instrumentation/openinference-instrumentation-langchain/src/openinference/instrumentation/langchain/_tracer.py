@@ -58,7 +58,6 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 _AUDIT_TIMING = False
-IS_CHAIN_SPAN = "is_chain_span"
 
 
 @wrapt.decorator  # type: ignore
