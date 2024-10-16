@@ -162,8 +162,7 @@ class OpenInferenceTracer(BaseTracer):
             self._parent_span_by_span_id[span_id] = (
                 self._spans_by_run.get(parent_run_id) if parent_run_id else None
             )
-            if run.run_type.lower() == "chain":
-                self._root_span_ids.add(span_id)
+            self._root_span_ids.add(span_id)
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
