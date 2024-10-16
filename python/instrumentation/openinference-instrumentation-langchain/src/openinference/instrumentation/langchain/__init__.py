@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Collection, Optional
+from typing import TYPE_CHECKING, Any, Callable, Collection, List, Optional
 from uuid import UUID
 
 from opentelemetry import trace as trace_api
@@ -64,17 +64,18 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
     def get_span(self, run_id: UUID) -> Optional[Span]:
         return self._tracer.get_span(run_id) if self._tracer else None
 
-    def get_root_chain_span(self, run_id: UUID) -> Optional[Span]:
+    def get_root_chain_spans(self, run_id: UUID) -> Optional[List[Span]]:
         span = self.get_span(run_id)
+        root_chain_spans = []
         while span and span.get_span_context().is_valid:
             span_id = span.get_span_context().span_id
             tracer = self._tracer
             assert tracer
             if span_id in tracer._root_span_ids:
-                return span
+                root_chain_spans.append(span)
 
             span = tracer._parent_span_by_span_id.get(span_id)  # get parent span
-        return None
+        return root_chain_spans if root_chain_spans else None
 
 
 class _BaseCallbackManagerInit:
@@ -118,7 +119,7 @@ def get_current_span() -> Optional[Span]:
     return LangChainInstrumentor().get_span(run_id)
 
 
-def get_current_root_chain_span() -> Optional[Span]:
+def get_current_root_chain_spans() -> Optional[List[Span]]:
     import langchain_core
 
     run_id: Optional[UUID] = None
@@ -132,4 +133,4 @@ def get_current_root_chain_span() -> Optional[Span]:
             break
     if not run_id:
         return None
-    return LangChainInstrumentor().get_root_chain_span(run_id)
+    return LangChainInstrumentor().get_root_chain_spans(run_id)
