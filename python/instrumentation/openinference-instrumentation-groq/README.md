@@ -2,7 +2,7 @@
 
 Python autoinstrumentation library for the [Groq](https://wow.groq.com/why-groq/) package
 
-This package implements OpenInference tracing for both the Groq and AsyncGroq clients.
+This package implements OpenInference tracing for both Groq and AsyncGroq clients.
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
 
