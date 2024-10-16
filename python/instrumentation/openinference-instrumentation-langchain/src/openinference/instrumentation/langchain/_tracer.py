@@ -376,6 +376,8 @@ def _input_messages(
         parsed_messages.append(dict(_parse_message_data(first_messages.to_json())))
     elif hasattr(first_messages, "get"):
         parsed_messages.append(dict(_parse_message_data(first_messages)))
+    elif isinstance(first_messages, tuple) and len(first_messages) == 2:
+        parsed_messages.append( { MESSAGE_ROLE: first_messages[0], MESSAGE_CONTENT: first_messages[1] } )
     else:
         raise ValueError(f"failed to parse messages of type {type(first_messages)}")
     if parsed_messages:
@@ -446,10 +448,13 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
             if isinstance(content, str):
                 yield MESSAGE_CONTENT, content
             elif isinstance(content, list):
-                for i, obj in enumerate(content):
-                    assert hasattr(obj, "get"), f"expected Mapping, found {type(obj)}"
+                if isinstance(obj, str):
+                    yield f"{MESSAGE_CONTENTS}.0", obj
+                elif hasattr(obj, "get"):
                     for k, v in _get_attributes_from_message_content(obj):
                         yield f"{MESSAGE_CONTENTS}.{i}.{k}", v
+                else:
+                    raise ValueError(f"unexpected content type: {type(obj)}")
         if additional_kwargs := kwargs.get("additional_kwargs"):
             assert hasattr(
                 additional_kwargs, "get"
