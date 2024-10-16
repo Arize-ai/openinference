@@ -21,7 +21,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Set,
     Tuple,
     TypeVar,
     cast,
@@ -117,11 +116,6 @@ class OpenInferenceTracer(BaseTracer):
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
         self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
-        self._spans_by_span_id: Dict[int, Span] = _DictWithLock[int, Span]()
-        self._parent_span_by_span_id: Dict[int, Optional[Span]] = _DictWithLock[
-            int, Optional[Span]
-        ]()
-        self._root_span_ids: Set[int] = set()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[Span]:
@@ -156,13 +150,7 @@ class OpenInferenceTracer(BaseTracer):
         # leaving all future spans as orphans. That is a very bad scenario.
         # token = context_api.attach(context)
         with self._lock:
-            span_id = span.get_span_context().span_id
             self._spans_by_run[run.id] = span
-            self._spans_by_span_id[span_id] = span
-            self._parent_span_by_span_id[span_id] = (
-                self._spans_by_run.get(parent_run_id) if parent_run_id else None
-            )
-            self._root_span_ids.add(span_id)
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
@@ -171,10 +159,6 @@ class OpenInferenceTracer(BaseTracer):
             return
         span = self._spans_by_run.pop(run.id, None)
         if span:
-            span_id = span.get_span_context().span_id
-            self._spans_by_span_id.pop(span_id, None)
-            self._root_span_ids.discard(span_id)
-            self._parent_span_by_span_id.pop(span_id, None)
             try:
                 _update_span(span, run)
             except Exception:

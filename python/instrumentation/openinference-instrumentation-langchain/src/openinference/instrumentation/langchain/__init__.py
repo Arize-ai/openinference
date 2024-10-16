@@ -73,7 +73,7 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         if not run:
             return None
 
-        run_id = run.parent_run_id
+        run_id = run.parent_run_id  # start with the first ancestor
 
         while run_id:
             span = self.get_span(run_id)
