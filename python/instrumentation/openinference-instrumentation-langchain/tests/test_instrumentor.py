@@ -40,7 +40,7 @@ from respx import MockRouter
 
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.langchain import (
-    get_current_root_chain_spans,
+    get_ancestor_spans,
     get_current_span,
 )
 from openinference.semconv.trace import (
@@ -95,7 +95,7 @@ async def test_get_current_span(
     }
 
 
-async def test_get_current_chain_root_span(
+async def test_get_ancestor_spans(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     """Test retrieving the current chain root span during RunnableLambda execution."""
@@ -105,26 +105,41 @@ async def test_get_current_chain_root_span(
     root_spans_during_execution = []
 
     def f(x: int) -> int:
-        root_spans = get_current_root_chain_spans()
-        assert root_spans is not None, "Root span should not be None during execution (sync)"
-        assert len(root_spans) == 1, "Root span should be a single span"
+        current_span = get_current_span()
+        root_spans = get_ancestor_spans()
+        assert root_spans is not None, "Ancestor should not be None during execution (async)"
+        assert len(root_spans) == 1, "Only get ancestor spans"
+        assert current_span is not root_spans[0], "Ancestor is distinct from the current span"
         root_spans_during_execution.append(root_spans[0])
+        assert (
+            root_spans[0].name == "RunnableSequence"
+        ), "RunnableSequence should be the outermost ancestor"
         return x + 1
 
+    sequence: RunnableSerializable[int, int] = RunnableLambda[int, int](f) | RunnableLambda[
+        int, int
+    ](f)
+
     with ThreadPoolExecutor() as executor:
-        tasks = [loop.run_in_executor(executor, RunnableLambda(f).invoke, 1) for _ in range(n)]
+        tasks = [loop.run_in_executor(executor, sequence.invoke, 1) for _ in range(n)]
         await asyncio.gather(*tasks)
 
-    root_span_after_execution = get_current_root_chain_spans()
-    assert root_span_after_execution is None, "Root span should be None after execution"
+    root_span_after_execution = get_ancestor_spans()
+    assert root_span_after_execution is None, "Ancestor should be None after execution"
 
-    assert len(root_spans_during_execution) == n, "Did not capture all root spans during execution"
+    assert (
+        len(root_spans_during_execution) == 2 * n
+    ), "Did not capture all ancestors during execution"
+
+    assert (
+        len(set(id(span) for span in root_spans_during_execution)) == n
+    ), "Both Lambdas share the same ancestor"
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == n, f"Expected {n} spans, but found {len(spans)}"
+    assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
 
 
-async def test_get_current_chain_root_span_async(
+async def test_get_ancestor_spans_async(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     """Test retrieving the current chain root span during RunnableLambda execution."""
@@ -136,14 +151,14 @@ async def test_get_current_chain_root_span_async(
 
     async def f(x: int) -> int:
         current_span = get_current_span()
-        root_spans = get_current_root_chain_spans()
-        assert root_spans is not None, "Root span should not be None during execution (async)"
-        assert len(root_spans) == 2, "Both RunnableLambdas and RunnableSequences are root chains"
-        assert current_span == root_spans[0], "RunnableLambdas are their own root chains"
+        root_spans = get_ancestor_spans()
+        assert root_spans is not None, "Ancestor should not be None during execution (async)"
+        assert len(root_spans) == 1, "Only get ancestor spans"
+        assert current_span is not root_spans[0], "Ancestor is distinct from the current span"
         root_spans_during_execution.append(root_spans[0])
         assert (
-            root_spans[1].name == "RunnableSequence"
-        ), "RunnableSequence should be the outermost root chain"
+            root_spans[0].name == "RunnableSequence"
+        ), "RunnableSequence should be the outermost ancestor"
         await asyncio.sleep(0.01)
         return x + 1
 
@@ -153,16 +168,16 @@ async def test_get_current_chain_root_span_async(
 
     await asyncio.gather(*(sequence.ainvoke(1) for _ in range(n)))
 
-    root_span_after_execution = get_current_root_chain_spans()
-    assert root_span_after_execution is None, "Root span should be None after execution"
+    root_span_after_execution = get_ancestor_spans()
+    assert root_span_after_execution is None, "Ancestor should be None after execution"
 
     assert (
         len(root_spans_during_execution) == 2 * n
-    ), "Did not capture all root spans during execution"
+    ), "Did not capture all ancestors during execution"
 
     assert (
-        len(set(id(span) for span in root_spans_during_execution)) == 2 * n
-    ), "No root spans are duplicated"
+        len(set(id(span) for span in root_spans_during_execution)) == n
+    ), "Both Lambdas share the same ancestor"
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"

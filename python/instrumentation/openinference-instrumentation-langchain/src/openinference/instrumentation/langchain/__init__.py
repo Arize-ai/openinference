@@ -64,18 +64,25 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
     def get_span(self, run_id: UUID) -> Optional[Span]:
         return self._tracer.get_span(run_id) if self._tracer else None
 
-    def get_root_chain_spans(self, run_id: UUID) -> Optional[List[Span]]:
-        span = self.get_span(run_id)
-        root_chain_spans = []
-        while span and span.get_span_context().is_valid:
-            span_id = span.get_span_context().span_id
-            tracer = self._tracer
-            assert tracer
-            if span_id in tracer._root_span_ids:
-                root_chain_spans.append(span)
+    def get_ancestors(self, run_id: UUID) -> Optional[List[Span]]:
+        ancestors = []
+        tracer = self._tracer
+        assert tracer
 
-            span = tracer._parent_span_by_span_id.get(span_id)  # get parent span
-        return root_chain_spans if root_chain_spans else None
+        run = tracer.run_map.get(str(run_id))
+        if not run:
+            return None
+
+        run_id = run.parent_run_id
+
+        while run_id:
+            span = self.get_span(run_id)
+            if span:
+                ancestors.append(span)
+
+            run = tracer.run_map.get(str(run_id))
+            run_id = run.parent_run_id
+        return ancestors if ancestors else None
 
 
 class _BaseCallbackManagerInit:
@@ -119,7 +126,7 @@ def get_current_span() -> Optional[Span]:
     return LangChainInstrumentor().get_span(run_id)
 
 
-def get_current_root_chain_spans() -> Optional[List[Span]]:
+def get_ancestor_spans() -> Optional[List[Span]]:
     import langchain_core
 
     run_id: Optional[UUID] = None
@@ -133,4 +140,4 @@ def get_current_root_chain_spans() -> Optional[List[Span]]:
             break
     if not run_id:
         return None
-    return LangChainInstrumentor().get_root_chain_spans(run_id)
+    return LangChainInstrumentor().get_ancestors(run_id)
