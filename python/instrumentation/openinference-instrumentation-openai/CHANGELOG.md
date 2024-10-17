@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.14...python-openinference-instrumentation-openai-v0.1.15) (2024-10-17)
+
+
+### Bug Fixes
+
+* increase version lower bound for openinference-instrumentation ([#1012](https://github.com/Arize-ai/openinference/issues/1012)) ([3236d27](https://github.com/Arize-ai/openinference/commit/3236d2733a46b84d693ddb7092209800cde8cc34))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.13...python-openinference-instrumentation-openai-v0.1.14) (2024-08-16)
 
 
