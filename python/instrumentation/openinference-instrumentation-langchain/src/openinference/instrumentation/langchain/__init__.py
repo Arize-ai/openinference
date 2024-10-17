@@ -129,6 +129,13 @@ def get_current_span() -> Optional[Span]:
 
 
 def get_ancestor_spans() -> Optional[List[Span]]:
+    """
+    Retrieve the ancestor spans for the current LangChain run.
+
+    This function traverses the LangChain run tree from the current run's parent up to the root,
+    collecting the spans associated with each ancestor run. The list is ordered from the immediate
+    parent of the current run to the root of the run tree.
+    """
     import langchain_core
 
     run_id: Optional[UUID] = None
