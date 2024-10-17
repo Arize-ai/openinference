@@ -73,15 +73,17 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         if not run:
             return None
 
-        run_id = run.parent_run_id  # start with the first ancestor
+        ancestor_run_id = run.parent_run_id  # start with the first ancestor
 
-        while run_id:
-            span = self.get_span(run_id)
+        while ancestor_run_id:
+            span = self.get_span(ancestor_run_id)
             if span:
                 ancestors.append(span)
 
-            run = tracer.run_map.get(str(run_id))
-            run_id = run.parent_run_id
+            run = tracer.run_map.get(str(ancestor_run_id))
+            if not run:
+                break
+            ancestor_run_id = run.parent_run_id
         return ancestors if ancestors else None
 
 
