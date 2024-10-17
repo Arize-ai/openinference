@@ -112,7 +112,7 @@ async def test_get_ancestor_spans(
         assert current_span is not root_spans[0], "Ancestor is distinct from the current span"
         root_spans_during_execution.append(root_spans[0])
         assert (
-            root_spans[0].name == "RunnableSequence"  # type: ignore
+            root_spans[0].name == "RunnableSequence"  # type: ignore[attr-defined, unused-ignore]
         ), "RunnableSequence should be the outermost ancestor"
         return x + 1
 
@@ -157,7 +157,7 @@ async def test_get_ancestor_spans_async(
         assert current_span is not root_spans[0], "Ancestor is distinct from the current span"
         root_spans_during_execution.append(root_spans[0])
         assert (
-            root_spans[0].name == "RunnableSequence"  # type: ignore
+            root_spans[0].name == "RunnableSequence"  # type: ignore[attr-defined, unused-ignore]
         ), "RunnableSequence should be the outermost ancestor"
         await asyncio.sleep(0.01)
         return x + 1
