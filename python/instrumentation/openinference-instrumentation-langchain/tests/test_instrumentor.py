@@ -102,7 +102,7 @@ async def test_get_ancestor_spans(
     n = 10  # Number of concurrent runs
     loop = asyncio.get_running_loop()
 
-    root_spans_during_execution = []
+    ancestors_during_execution = []
 
     def f(x: int) -> int:
         current_span = get_current_span()
@@ -110,7 +110,7 @@ async def test_get_ancestor_spans(
         assert root_spans is not None, "Ancestor should not be None during execution (async)"
         assert len(root_spans) == 1, "Only get ancestor spans"
         assert current_span is not root_spans[0], "Ancestor is distinct from the current span"
-        root_spans_during_execution.append(root_spans[0])
+        ancestors_during_execution.append(root_spans[0])
         assert (
             root_spans[0].name == "RunnableSequence"  # type: ignore[attr-defined, unused-ignore]
         ), "RunnableSequence should be the outermost ancestor"
@@ -124,15 +124,15 @@ async def test_get_ancestor_spans(
         tasks = [loop.run_in_executor(executor, sequence.invoke, 1) for _ in range(n)]
         await asyncio.gather(*tasks)
 
-    root_span_after_execution = get_ancestor_spans()
-    assert root_span_after_execution is None, "Ancestor should be None after execution"
+    ancestors_after_execution = get_ancestor_spans()
+    assert ancestors_after_execution == [], "No ancestors after execution"
 
     assert (
-        len(root_spans_during_execution) == 2 * n
+        len(ancestors_during_execution) == 2 * n
     ), "Did not capture all ancestors during execution"
 
     assert (
-        len(set(id(span) for span in root_spans_during_execution)) == n
+        len(set(id(span) for span in ancestors_during_execution)) == n
     ), "Both Lambdas share the same ancestor"
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -147,7 +147,7 @@ async def test_get_ancestor_spans_async(
         pytest.xfail("Async test may fail on Python versions below 3.11")
     n = 10  # Number of concurrent runs
 
-    root_spans_during_execution = []
+    ancestors_during_execution = []
 
     async def f(x: int) -> int:
         current_span = get_current_span()
@@ -155,7 +155,7 @@ async def test_get_ancestor_spans_async(
         assert root_spans is not None, "Ancestor should not be None during execution (async)"
         assert len(root_spans) == 1, "Only get ancestor spans"
         assert current_span is not root_spans[0], "Ancestor is distinct from the current span"
-        root_spans_during_execution.append(root_spans[0])
+        ancestors_during_execution.append(root_spans[0])
         assert (
             root_spans[0].name == "RunnableSequence"  # type: ignore[attr-defined, unused-ignore]
         ), "RunnableSequence should be the outermost ancestor"
@@ -168,15 +168,15 @@ async def test_get_ancestor_spans_async(
 
     await asyncio.gather(*(sequence.ainvoke(1) for _ in range(n)))
 
-    root_span_after_execution = get_ancestor_spans()
-    assert root_span_after_execution is None, "Ancestor should be None after execution"
+    ancestors_after_execution = get_ancestor_spans()
+    assert ancestors_after_execution == [], "No ancestors after execution"
 
     assert (
-        len(root_spans_during_execution) == 2 * n
+        len(ancestors_during_execution) == 2 * n
     ), "Did not capture all ancestors during execution"
 
     assert (
-        len(set(id(span) for span in root_spans_during_execution)) == n
+        len(set(id(span) for span in ancestors_during_execution)) == n
     ), "Both Lambdas share the same ancestor"
 
     spans = in_memory_span_exporter.get_finished_spans()
