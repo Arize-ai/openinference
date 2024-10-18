@@ -316,6 +316,7 @@ class OpenInferenceLLMSystemValues(Enum):
     ANTHROPIC = "anthropic"
     COHERE = "cohere"
     MISTRALAI = "mistralai"
+    VERTEXAI = "vertexai"
 
 
 class OpenInferenceLLMProviderValues(Enum):
