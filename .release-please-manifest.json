@@ -1,5 +1,5 @@
 {
-    "python/openinference-semantic-conventions": "0.1.10",
+    "python/openinference-semantic-conventions": "0.1.11",
     "python/instrumentation/openinference-instrumentation-openai": "0.1.14",
     "python/instrumentation/openinference-instrumentation-llama-index": "3.0.2",
     "python/instrumentation/openinference-instrumentation-dspy": "0.1.13",
