@@ -51,7 +51,7 @@ class SpanAttributes:
     """
     LLM_SYSTEM = "llm.system"
     """
-    The AI product as identified by the client or server 
+    The AI product as identified by the client or server
     """
     LLM_PROMPTS = "llm.prompts"
     """

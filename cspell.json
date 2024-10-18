@@ -10,6 +10,7 @@
         "dspy",
         "instrumentator",
         "Instrumentor",
+        "instrumentors",
         "langchain",
         "litellm",
         "llms",
@@ -25,7 +26,5 @@
         "vertexai",
         "weaviate"
     ],
-    "flagWords": [
-        "hte"
-    ]
+    "flagWords": ["hte"]
 }
