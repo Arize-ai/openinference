@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.11.0
+
+### Minor Changes
+
+- d200d85: Add semantic conventions for llm.system and llm.provider
+
 ## 0.10.0
 
 ### Minor Changes
