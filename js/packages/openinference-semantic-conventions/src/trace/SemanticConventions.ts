@@ -496,9 +496,8 @@ export enum LLMProvider {
   ANTHROPIC = "anthropic",
   MISTRALAI = "mistralai",
   COHERE = "cohere",
-  VERTEXAI = "vertexai",
   // Cloud Providers of LLM systems
-  GCP = "gcp",
+  GOOGLE = "google",
   AWS = "aws",
   AZURE = "azure",
 }
