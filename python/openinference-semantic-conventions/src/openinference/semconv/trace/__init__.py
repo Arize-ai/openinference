@@ -325,5 +325,5 @@ class OpenInferenceLLMProviderValues(Enum):
     COHERE = "cohere"
     MISTRALAI = "mistralai"
     GOOGLE = "google"
-    azure = "azure"
-    aws = "aws"
+    AZURE = "azure"
+    AWS = "aws"
