@@ -159,6 +159,17 @@ export const LLM_OUTPUT_MESSAGES =
 export const LLM_MODEL_NAME =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.model_name}` as const;
 
+/**
+ * The provider of the inferences. E.g. the cloud provider
+ */
+export const LLM_PROVIDER =
+  `${SemanticAttributePrefixes.llm}.provider` as const;
+
+/**
+ * The AI product as identified by the client or server
+ */
+export const LLM_SYSTEM = `${SemanticAttributePrefixes.llm}.system` as const;
+
 /** Token count for the completion by the llm */
 export const LLM_TOKEN_COUNT_COMPLETION =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.completion` as const;
@@ -470,4 +481,24 @@ export enum OpenInferenceSpanKind {
 export enum MimeType {
   TEXT = "text/plain",
   JSON = "application/json",
+}
+
+export enum LLMSystem {
+  OPENAI = "openai",
+  ANTHROPIC = "anthropic",
+  MISTRALAI = "mistralai",
+  COHERE = "cohere",
+  VERTEXAI = "vertexai",
+}
+
+export enum LLMProvider {
+  OPENAI = "openai",
+  ANTHROPIC = "anthropic",
+  MISTRALAI = "mistralai",
+  COHERE = "cohere",
+  VERTEXAI = "vertexai",
+  // Cloud Providers of LLM systems
+  GCP = "gcp",
+  AWS = "aws",
+  AZURE = "azure",
 }
