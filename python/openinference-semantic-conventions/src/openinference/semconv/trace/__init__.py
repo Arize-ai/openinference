@@ -45,6 +45,14 @@ class SpanAttributes:
     """
     The name of the model being used.
     """
+    LLM_PROVIDER = "llm.provider"
+    """
+    The provider of the model, such as OpenAI, Azure, Google, etc.
+    """
+    LLM_SYSTEM = "llm.system"
+    """
+    The AI product as identified by the client or server 
+    """
     LLM_PROMPTS = "llm.prompts"
     """
     Prompts provided to a completions API.
@@ -301,3 +309,20 @@ class OpenInferenceSpanKindValues(Enum):
 class OpenInferenceMimeTypeValues(Enum):
     TEXT = "text/plain"
     JSON = "application/json"
+
+
+class OpenInferenceLLMSystemValues(Enum):
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    COHERE = "cohere"
+    MISTRALAI = "mistralai"
+
+
+class OpenInferenceLLMProviderValues(Enum):
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    COHERE = "cohere"
+    MISTRALAI = "mistralai"
+    GOOGLE = "google"
+    azure = "azure"
+    aws = "aws"

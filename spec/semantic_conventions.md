@@ -8,7 +8,7 @@ operations used by applications. These conventions are used to populate the `att
 The following attributes are reserved and MUST be supported by all OpenInference Tracing SDKs:
 
 | Attribute                              | Type                        | Example                                                                    | Description                                                                   |
-|----------------------------------------| --------------------------- |----------------------------------------------------------------------------| ----------------------------------------------------------------------------- |
+| -------------------------------------- | --------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `document.content`                     | String                      | `"This is a sample document content."`                                     | The content of a retrieved document                                           |
 | `document.id`                          | String/Integer              | `"1234"` or `1`                                                            | Unique identifier for a document                                              |
 | `document.metadata`                    | JSON String                 | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                           | Metadata associated with a document                                           |
@@ -27,6 +27,8 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `llm.function_call`                    | JSON String                 | `"{function_name: 'add', args: [1, 2]}"`                                   | Object recording details of a function call in models or APIs                 |
 | `llm.input_messages`                   | List of objects<sup>†</sup> | `[{"message.role": "user", "message.content": "hello"}]`                   | List of messages sent to the LLM in a chat API request                        |
 | `llm.invocation_parameters`            | JSON string                 | `"{model_name: 'gpt-3', temperature: 0.7}"`                                | Parameters used during the invocation of an LLM or API                        |
+| `llm.provider`                         | String                      | `openai`, `azure`                                                          | The hosting provider of the llm, e.x. `azure`                                 |
+| `llm.system`                           | String                      | `anthropic`, `openai`                                                      | The AI product as identified by the client or server instrumentation.         |
 | `llm.model_name`                       | String                      | `"gpt-3.5-turbo"`                                                          | The name of the language model being utilized                                 |
 | `llm.output_messages`                  | List of objects<sup>†</sup> | `[{"message.role": "user", "message.content": "hello"}]`                   | List of messages received from the LLM in a chat API request                  |
 | `llm.prompt_template.template`         | String                      | `"Weather forecast for {city} on {date}"`                                  | Template used to generate prompts as Python f-strings                         |
@@ -68,6 +70,29 @@ The following attributes are reserved and MUST be supported by all OpenInference
 <sup>†</sup> To get a list of objects exported as OpenTelemetry span attributes, flattening of the list is necessary as
 shown in the examples below.
 
+`llm.system` has the following list of well-known values. If one of them applies, then the respective value MUST be used; otherwise, a custom value MAY be used.
+
+| Value       | Description |
+| ----------- | ----------- |
+| `anthropic` | Anthropic   |
+| `openai`    | OpenAI      |
+| `vertexai`  | Vertex AI   |
+| `cohere`    | Cohere      |
+| `mistralai` | Mistral AI  |
+
+`llm.provider` has the following list of well-known values. If one of them applies, then the respective value MUST be used; otherwise, a custom value MAY be used.
+
+| Value       | Description     |
+| ----------- | --------------- |
+| `anthropic` | Anthropic       |
+| `openai`    | OpenAI          |
+| `vertexai`  | Vertex AI       |
+| `cohere`    | Cohere          |
+| `mistralai` | Mistral AI      |
+| `azure`     | Azure           |
+| `google`    | Google (Vertex) |
+| `aws`       | AWS Bedrock     |
+
 #### Python
 
 ```python
@@ -83,17 +108,17 @@ for i, obj in enumerate(messages):
 
 ```javascript
 const messages = [
-  { "message.role": "user", "message.content": "hello" },
-  {
-    "message.role": "assistant",
-    "message.content": "hi",
-  },
+    { "message.role": "user", "message.content": "hello" },
+    {
+        "message.role": "assistant",
+        "message.content": "hi",
+    },
 ];
 
 for (const [i, obj] of messages.entries()) {
-  for (const [key, value] of Object.entries(obj)) {
-    span.setAttribute(`input.messages.${i}.${key}`, value);
-  }
+    for (const [key, value] of Object.entries(obj)) {
+        span.setAttribute(`input.messages.${i}.${key}`, value);
+    }
 }
 ```
 

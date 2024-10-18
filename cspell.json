@@ -13,6 +13,7 @@
         "langchain",
         "litellm",
         "llms",
+        "mistralai",
         "nextjs",
         "openinference",
         "otel",
@@ -21,6 +22,7 @@
         "Streamlit",
         "uninstrument",
         "unsuppress",
+        "vertexai",
         "weaviate"
     ],
     "flagWords": [
