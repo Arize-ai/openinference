@@ -299,9 +299,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.INPUT_MIME_TYPE]: isStringInput
                 ? MimeType.TEXT
                 : MimeType.JSON,
-
-              [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
-              [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
               ...getEmbeddingTextAttributes(body),
             },
           });
