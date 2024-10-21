@@ -20,6 +20,8 @@ import {
   SemanticConventions,
   OpenInferenceSpanKind,
   MimeType,
+  LLMSystem,
+  LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
 import {
   ChatCompletion,
@@ -141,6 +143,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
                 [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                   JSON.stringify(invocationParameters),
+                [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
+                [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
                 ...getLLMInputMessagesAttributes(body),
                 ...getLLMToolsJSONSchema(body),
               },
@@ -220,6 +224,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.LLM_MODEL_NAME]: body.model,
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                 JSON.stringify(invocationParameters),
+              [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
+              [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
               ...getCompletionInputValueAndMimeType(body),
             },
           });
@@ -293,6 +299,9 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.INPUT_MIME_TYPE]: isStringInput
                 ? MimeType.TEXT
                 : MimeType.JSON,
+
+              [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
+              [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
               ...getEmbeddingTextAttributes(body),
             },
           });
