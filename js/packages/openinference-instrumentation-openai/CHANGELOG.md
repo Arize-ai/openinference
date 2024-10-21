@@ -1,5 +1,19 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 0.6.0
+
+### Minor Changes
+
+- f965410: Add system and provider attributes to openai spans
+
+### Patch Changes
+
+- Updated dependencies [f965410]
+- Updated dependencies [712b9da]
+- Updated dependencies [d200d85]
+  - @arizeai/openinference-semantic-conventions@0.11.0
+  - @arizeai/openinference-core@0.3.0
+
 ## 0.5.0
 
 ### Minor Changes
