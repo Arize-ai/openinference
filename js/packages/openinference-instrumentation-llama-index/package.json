@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-llama-index",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "OpenInference Instrumentation Llama Index",
   "private": false,
   "main": "dist/src/index.js",

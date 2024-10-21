@@ -1,5 +1,17 @@
 # @arizeai/openinference-core
 
+## 0.3.0
+
+### Minor Changes
+
+- 712b9da: add OITracer and trace config to allow for masking of sensitive information on spans
+
+### Patch Changes
+
+- Updated dependencies [f965410]
+- Updated dependencies [d200d85]
+  - @arizeai/openinference-semantic-conventions@0.11.0
+
 ## 0.2.0
 
 ### Minor Changes
