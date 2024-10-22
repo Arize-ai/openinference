@@ -78,15 +78,28 @@ function getExecContext(span: Span) {
   }
   return execContext;
 }
+/**
+ * An auto instrumentation class for OpenAI that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for the OpenAI API
+ * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
+ * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
+ */
 export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   private oiTracer: OITracer;
   constructor({
     instrumentationConfig,
     traceConfig,
   }: {
+    /**
+     * The config for the instrumentation
+     * @see {@link InstrumentationConfig}
+     */
     instrumentationConfig?: InstrumentationConfig;
+    /**
+     * The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans.
+     * @see {@link TraceConfigOptions}
+     */
     traceConfig?: TraceConfigOptions;
-  }) {
+  } = {}) {
     super(
       "@arizeai/openinference-instrumentation-openai",
       VERSION,
