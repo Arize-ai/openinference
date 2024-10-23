@@ -114,7 +114,7 @@ This fetching and propagation is controlled by our [OITracer](./packages/openinf
 
 #### Trace Configuration
 
-In some situations, users may want to control what data gets added to a span. We allow them to do this via [trace config](./packages/openinference-core/src/trace/trace-config/). Our trace config allows users to mask certain fields on a span to prevent sensitive information from leaving their system. 
+In some situations, users may want to control what data gets added to a span. We allow them to do this via [trace config](./packages/openinference-core/src/trace/trace-config/). Our trace config allows users to mask certain fields on a span to prevent sensitive information from leaving their system.
 
 As with context attribute propagation, this is controlled by our OITracer and [OISpan](./packages/openinference-core/src/trace/trace-config/OISpan.ts#21). See the example above to properly use the OITracer in your instrumentor to ensure the trace config is respected.
 
