@@ -17,11 +17,18 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { LangChainTracer } from "../src/tracer";
-import { trace } from "@opentelemetry/api";
+import { context, trace } from "@opentelemetry/api";
 import { completionsResponse, functionCallResponse } from "./fixtures";
 import { DynamicTool } from "@langchain/coreV0.1/tools";
 import { createRetrievalChain } from "langchainV0.1/chains/retrieval";
 import { createStuffDocumentsChain } from "langchainV0.1/chains/combine_documents";
+import {
+  OITracer,
+  setAttributes,
+  setSession,
+} from "@arizeai/openinference-core";
+
+const memoryExporter = new InMemorySpanExporter();
 
 const {
   INPUT_VALUE,
@@ -47,12 +54,6 @@ const {
   RETRIEVAL_DOCUMENTS,
   METADATA,
 } = SemanticConventions;
-
-const tracerProvider = new NodeTracerProvider();
-tracerProvider.register();
-
-const instrumentation = new LangChainInstrumentation();
-instrumentation.disable();
 
 jest.mock("@langchain/openaiV0.1", () => {
   const originalModule = jest.requireActual("@langchain/openaiV0.1");
@@ -154,7 +155,10 @@ const expectedSpanAttributes = {
 };
 
 describe("LangChainInstrumentation", () => {
-  const memoryExporter = new InMemorySpanExporter();
+  const tracerProvider = new NodeTracerProvider();
+  tracerProvider.register();
+  const instrumentation = new LangChainInstrumentation();
+  instrumentation.disable();
   const provider = new NodeTracerProvider();
   provider.getTracer("default");
 
@@ -524,6 +528,129 @@ describe("LangChainInstrumentation", () => {
       metadata: "{}",
     });
   });
+
+  it("should capture context attributes and add them to spans", async () => {
+    await context.with(
+      setSession(
+        setAttributes(context.active(), {
+          "test-attribute": "test-value",
+        }),
+        { sessionId: "session-id" },
+      ),
+      async () => {
+        const chatModel = new ChatOpenAI({
+          openAIApiKey: "my-api-key",
+          modelName: "gpt-3.5-turbo",
+          temperature: 0,
+        });
+        await chatModel.invoke("hello, this is a test");
+      },
+    );
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"messages":[[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"hello, this is a test","additional_kwargs":{},"response_metadata":{}}}]]}",
+  "llm.input_messages.0.message.content": "hello, this is a test",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}",
+  "llm.model_name": "gpt-3.5-turbo",
+  "llm.output_messages.0.message.content": "This is a test.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.token_count.completion": 5,
+  "llm.token_count.prompt": 12,
+  "llm.token_count.total": 17,
+  "metadata": "{}",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17},"finish_reason":"stop"}}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17}}}",
+  "session.id": "session-id",
+  "test-attribute": "test-value",
+}
+`);
+  });
+});
+
+describe("LangChainInstrumentation with TraceConfigOptions", () => {
+  const tracerProvider = new NodeTracerProvider();
+  tracerProvider.register();
+  const instrumentation = new LangChainInstrumentation({
+    traceConfig: {
+      hideInputs: true,
+    },
+  });
+  instrumentation.disable();
+  const provider = new NodeTracerProvider();
+  provider.getTracer("default");
+
+  instrumentation.setTracerProvider(tracerProvider);
+  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+
+  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+  instrumentation._modules[0].moduleExports = CallbackManager;
+  beforeAll(() => {
+    instrumentation.enable();
+  });
+  afterAll(() => {
+    instrumentation.disable();
+  });
+  beforeEach(() => {
+    memoryExporter.reset();
+  });
+  afterEach(() => {
+    jest.resetAllMocks();
+    jest.clearAllMocks();
+  });
+  it("should patch the callback manager module", async () => {
+    expect(
+      (CallbackManager as { openInferencePatched?: boolean })
+        .openInferencePatched,
+    ).toBe(true);
+  });
+
+  it("should respect trace config options", async () => {
+    await context.with(
+      setSession(
+        setAttributes(context.active(), {
+          "test-attribute": "test-value",
+        }),
+        { sessionId: "session-id" },
+      ),
+      async () => {
+        const chatModel = new ChatOpenAI({
+          openAIApiKey: "my-api-key",
+          modelName: "gpt-3.5-turbo",
+          temperature: 0,
+        });
+        await chatModel.invoke("hello, this is a test");
+      },
+    );
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.value": "__REDACTED__",
+  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}",
+  "llm.model_name": "gpt-3.5-turbo",
+  "llm.output_messages.0.message.content": "This is a test.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.token_count.completion": 5,
+  "llm.token_count.prompt": 12,
+  "llm.token_count.total": 17,
+  "metadata": "{}",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17},"finish_reason":"stop"}}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17}}}",
+  "session.id": "session-id",
+  "test-attribute": "test-value",
+}
+`);
+  });
 });
 
 describe("LangChainTracer", () => {
@@ -533,7 +660,8 @@ describe("LangChainTracer", () => {
     id: [],
   };
   it("should delete runs after they are ended", async () => {
-    const langChainTracer = new LangChainTracer(trace.getTracer("default"));
+    const oiTracer = new OITracer({ tracer: trace.getTracer("default") });
+    const langChainTracer = new LangChainTracer(oiTracer);
     for (let i = 0; i < 10; i++) {
       await langChainTracer.handleLLMStart(testSerialized, [], "runId");
       expect(Object.keys(langChainTracer["runs"]).length).toBe(1);

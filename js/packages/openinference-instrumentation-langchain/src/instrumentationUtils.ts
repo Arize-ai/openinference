@@ -1,7 +1,7 @@
 import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
 import type * as CallbackManagerModuleV01 from "@langchain/coreV0.1/callbacks/manager";
-import { Tracer } from "@opentelemetry/api";
 import { LangChainTracer } from "./tracer";
+import { OITracer } from "@arizeai/openinference-core";
 
 /**
  * Adds the {@link LangChainTracer} to the callback handlers if it is not already present
@@ -16,15 +16,15 @@ import { LangChainTracer } from "./tracer";
  * We support both versions and our tracer is compatible with either as it will extend the BaseTracer from the installed version which will be the same as the version of handlers passed in here
  */
 export function addTracerToHandlers(
-  tracer: Tracer,
+  tracer: OITracer,
   handlers?: CallbackManagerModuleV01.Callbacks,
 ): CallbackManagerModuleV01.Callbacks;
 export function addTracerToHandlers(
-  tracer: Tracer,
+  tracer: OITracer,
   handlers?: CallbackManagerModuleV02.Callbacks,
 ): CallbackManagerModuleV02.Callbacks;
 export function addTracerToHandlers(
-  tracer: Tracer,
+  tracer: OITracer,
   handlers?:
     | CallbackManagerModuleV01.Callbacks
     | CallbackManagerModuleV02.Callbacks,

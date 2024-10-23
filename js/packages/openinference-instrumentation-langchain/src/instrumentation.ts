@@ -10,6 +10,7 @@ import {
 import { VERSION } from "./version";
 import { diag } from "@opentelemetry/api";
 import { addTracerToHandlers } from "./instrumentationUtils";
+import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 
 const MODULE_NAME = "@langchain/core/callbacks";
 
@@ -31,12 +32,20 @@ type CallbackManagerModule =
   | typeof CallbackManagerModuleV02;
 
 export class LangChainInstrumentation extends InstrumentationBase<CallbackManagerModule> {
-  constructor(config?: InstrumentationConfig) {
+  private oiTracer: OITracer;
+
+  constructor(
+    config?: InstrumentationConfig & { traceConfig?: TraceConfigOptions },
+  ) {
     super(
       "@arizeai/openinference-instrumentation-langchain",
       VERSION,
       Object.assign({}, config),
     );
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: config?.traceConfig,
+    });
   }
 
   manuallyInstrument(module: CallbackManagerModule) {
@@ -90,7 +99,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
         ) {
           const inheritableHandlers = args[0];
           const newInheritableHandlers = addTracerToHandlers(
-            instrumentation.tracer,
+            instrumentation.oiTracer,
             inheritableHandlers,
           );
           args[0] = newInheritableHandlers;
@@ -108,7 +117,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
         ) {
           const handlers = args[0];
           const newHandlers = addTracerToHandlers(
-            instrumentation.tracer,
+            instrumentation.oiTracer,
             handlers,
           );
           args[0] = newHandlers;
