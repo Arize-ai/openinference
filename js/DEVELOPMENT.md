@@ -66,7 +66,7 @@ pnpm run -r test
 
 To keep our instrumentors up to date and in sync there is a set of features that each instrumentor must contain. Most of these features are implemented in our [openinference-core package](./packages/openinference-core/) and will be handled by the [OITracer](./packages/openinference-core/src/trace/trace-config/OITracer.ts) and underlying [OISpan](./packages/openinference-core/src/trace/trace-config/OISpan.ts) so it's important to use the OITracer in your instrumentations.
 
-To use the our OITracer in your instrumentor's make sure to add it as a private property on your instrumentor class. Then be sure to use it anytime you need to create a span (or do anything else with the `tracer`). Example:
+To use the OITracer within your instrumentors, make sure to set the OITracer as a private property on your instrumentor class. Then be sure to use it anytime you need to create a span (or do anything else with the `tracer`). Example:
 
 ```typescript
 export class MyInstrumentation extends InstrumentationBase<
