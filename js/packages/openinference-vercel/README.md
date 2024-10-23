@@ -44,14 +44,14 @@ export function register() {
   registerOTel({
     serviceName: "phoenix-next-app",
     attributes: {
-      // This is not required but it will
+      // This is not required but it will ensure your traces get added to a specific project in Arize Phoenix
       [SEMRESATTRS_PROJECT_NAME]: "your-next-app",
     },
     spanProcessors: [
       new OpenInferenceSimpleSpanProcessor({
         exporter: new OTLPTraceExporter({
           headers: {
-            // API key if you are sending it ot Phoenix
+            // API key if you are sending it to Phoenix
             api_key: process.env["PHOENIX_API_KEY"],
           },
           url:
