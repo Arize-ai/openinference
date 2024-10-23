@@ -40,7 +40,11 @@ import {
 import { assertUnreachable, isString } from "./typeUtils";
 import { isTracingSuppressed } from "@opentelemetry/core";
 
-import { safelyJSONStringify } from "@arizeai/openinference-core";
+import {
+  OITracer,
+  safelyJSONStringify,
+  TraceConfigOptions,
+} from "@arizeai/openinference-core";
 
 const MODULE_NAME = "openai";
 
@@ -74,13 +78,34 @@ function getExecContext(span: Span) {
   }
   return execContext;
 }
+/**
+ * An auto instrumentation class for OpenAI that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for the OpenAI API
+ * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
+ * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
+ */
 export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
-  constructor(config?: InstrumentationConfig) {
+  private oiTracer: OITracer;
+  constructor({
+    instrumentationConfig,
+    traceConfig,
+  }: {
+    /**
+     * The config for the instrumentation
+     * @see {@link InstrumentationConfig}
+     */
+    instrumentationConfig?: InstrumentationConfig;
+    /**
+     * The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans.
+     * @see {@link TraceConfigOptions}
+     */
+    traceConfig?: TraceConfigOptions;
+  } = {}) {
     super(
       "@arizeai/openinference-instrumentation-openai",
       VERSION,
-      Object.assign({}, config),
+      Object.assign({}, instrumentationConfig),
     );
+    this.oiTracer = new OITracer({ tracer: this.tracer, traceConfig });
   }
 
   protected init(): InstrumentationModuleDefinition<typeof openai> {
@@ -131,7 +156,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         ) {
           const body = args[0];
           const { messages: _messages, ...invocationParameters } = body;
-          const span = instrumentation.tracer.startSpan(
+          const span = instrumentation.oiTracer.startSpan(
             `OpenAI Chat Completions`,
             {
               kind: SpanKind.INTERNAL,
@@ -216,19 +241,22 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
         ) {
           const body = args[0];
           const { prompt: _prompt, ...invocationParameters } = body;
-          const span = instrumentation.tracer.startSpan(`OpenAI Completions`, {
-            kind: SpanKind.INTERNAL,
-            attributes: {
-              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                OpenInferenceSpanKind.LLM,
-              [SemanticConventions.LLM_MODEL_NAME]: body.model,
-              [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
-                JSON.stringify(invocationParameters),
-              [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
-              [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
-              ...getCompletionInputValueAndMimeType(body),
+          const span = instrumentation.oiTracer.startSpan(
+            `OpenAI Completions`,
+            {
+              kind: SpanKind.INTERNAL,
+              attributes: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+                [SemanticConventions.LLM_MODEL_NAME]: body.model,
+                [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+                  JSON.stringify(invocationParameters),
+                [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
+                [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
+                ...getCompletionInputValueAndMimeType(body),
+              },
             },
-          });
+          );
           const execContext = getExecContext(span);
 
           const execPromise = safeExecuteInTheMiddle<
@@ -287,7 +315,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           const body = args[0];
           const { input } = body;
           const isStringInput = typeof input === "string";
-          const span = instrumentation.tracer.startSpan(`OpenAI Embeddings`, {
+          const span = instrumentation.oiTracer.startSpan(`OpenAI Embeddings`, {
             kind: SpanKind.INTERNAL,
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
@@ -345,7 +373,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       // This can fail if the module is made immutable via the runtime or bundler
       module.openInferencePatched = true;
     } catch (e) {
-      diag.warn(`Failed to set ${MODULE_NAME} patched flag on the module`, e);
+      diag.debug(`Failed to set ${MODULE_NAME} patched flag on the module`, e);
     }
 
     return module;
