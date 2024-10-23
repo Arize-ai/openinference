@@ -24,7 +24,8 @@ npm i @opentelemetry/api @vercel/otel @opentelemetry/exporter-trace-otlp-proto @
 
 To process your Vercel AI SDK Spans add a `OpenInferenceSimpleSpanProcessor` or `OpenInferenceBatchSpanProcessor` to your OpenTelemetry configuration.
 
-> Note: The `OpenInferenceSpanProcessor` does not handle the exporting of spans so you will pass it an [exporter](https://opentelemetry.io/docs/languages/js/exporters/) as a parameter.
+> [!NOTE]
+> The `OpenInferenceSpanProcessor` does not handle the exporting of spans so you will pass it an [exporter](https://opentelemetry.io/docs/languages/js/exporters/) as a parameter.
 
 ```typescript
 import { registerOTel } from "@vercel/otel";

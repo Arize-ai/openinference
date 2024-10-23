@@ -2,6 +2,11 @@
 - [Setup](#setup)
 - [Testing](#testing)
 - [Creating an Instrumentor](#creating-an-instrumentor)
+  - [Minimum Feature Set](#minimum-feature-set)
+    - [Suppress Tracing](#suppress-tracing)
+    - [Context Attribute Propagation](#context-attribute-propagation)
+    - [Trace Configuration](#trace-configuration)
+    - [Testing](#testing-1)
 - [Changesets](#changesets)
 - [Publishing](#publishing)
 

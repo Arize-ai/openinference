@@ -373,7 +373,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       // This can fail if the module is made immutable via the runtime or bundler
       module.openInferencePatched = true;
     } catch (e) {
-      diag.warn(`Failed to set ${MODULE_NAME} patched flag on the module`, e);
+      diag.debug(`Failed to set ${MODULE_NAME} patched flag on the module`, e);
     }
 
     return module;
