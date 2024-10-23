@@ -31,20 +31,37 @@ type CallbackManagerModule =
   | typeof CallbackManagerModuleV01
   | typeof CallbackManagerModuleV02;
 
+/**
+ * An auto instrumentation class for LangChain that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for LangChain
+ * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
+ * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
+ */
 export class LangChainInstrumentation extends InstrumentationBase<CallbackManagerModule> {
   private oiTracer: OITracer;
 
-  constructor(
-    config?: InstrumentationConfig & { traceConfig?: TraceConfigOptions },
-  ) {
+  constructor({
+    instrumentationConfig,
+    traceConfig,
+  }: {
+    /**
+     * The config for the instrumentation
+     * @see {@link InstrumentationConfig}
+     */
+    instrumentationConfig?: InstrumentationConfig;
+    /**
+     * The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans.
+     * @see {@link TraceConfigOptions}
+     */
+    traceConfig?: TraceConfigOptions;
+  } = {}) {
     super(
       "@arizeai/openinference-instrumentation-langchain",
       VERSION,
-      Object.assign({}, config),
+      Object.assign({}, instrumentationConfig),
     );
     this.oiTracer = new OITracer({
       tracer: this.tracer,
-      traceConfig: config?.traceConfig,
+      traceConfig,
     });
   }
 
