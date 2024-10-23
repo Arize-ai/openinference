@@ -6,14 +6,10 @@ import {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { suppressTracing } from "@opentelemetry/core";
 import { context } from "@opentelemetry/api";
-const tracerProvider = new NodeTracerProvider();
-tracerProvider.register();
-
-const instrumentation = new OpenAIInstrumentation();
-instrumentation.disable();
 
 import * as OpenAI from "openai";
 import { Stream } from "openai/streaming";
+import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
 
 // Function tools
 async function getCurrentLocation() {
@@ -24,10 +20,14 @@ async function getWeather(_args: { location: string }) {
   return { temperature: 52, precipitation: "rainy" };
 }
 
-describe("OpenAIInstrumentation", () => {
-  let openai: OpenAI.OpenAI;
+const memoryExporter = new InMemorySpanExporter();
 
-  const memoryExporter = new InMemorySpanExporter();
+describe("OpenAIInstrumentation", () => {
+  const tracerProvider = new NodeTracerProvider();
+  tracerProvider.register();
+  const instrumentation = new OpenAIInstrumentation();
+  instrumentation.disable();
+  let openai: OpenAI.OpenAI;
 
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
@@ -837,6 +837,156 @@ describe("OpenAIInstrumentation", () => {
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
   "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+}
+`);
+  });
+
+  it("should capture context attributes and add them to spans", async () => {
+    const response = {
+      id: "cmpl-8fZu1H3VijJUWev9asnxaYyQvJTC9",
+      object: "text_completion",
+      created: 1704920149,
+      model: "gpt-3.5-turbo-instruct",
+      choices: [
+        {
+          text: "This is a test",
+          index: 0,
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 },
+    };
+    // Mock out the completions endpoint
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+    await context.with(
+      setSession(
+        setPromptTemplate(context.active(), {
+          template: "hello {name}",
+          variables: { name: "world" },
+          version: "V1.0",
+        }),
+        { sessionId: "session-id" },
+      ),
+      async () => {
+        await openai.completions.create({
+          prompt: "Say this is a test",
+          model: "gpt-3.5-turbo-instruct",
+        });
+      },
+    );
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "text/plain",
+  "input.value": "Say this is a test",
+  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo-instruct"}",
+  "llm.model_name": "gpt-3.5-turbo-instruct",
+  "llm.prompt_template.template": "hello {name}",
+  "llm.prompt_template.variables": "{"name":"world"}",
+  "llm.prompt_template.version": "V1.0",
+  "llm.provider": "openai",
+  "llm.system": "openai",
+  "llm.token_count.completion": 5,
+  "llm.token_count.prompt": 12,
+  "llm.token_count.total": 17,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "text/plain",
+  "output.value": "This is a test",
+  "session.id": "session-id",
+}
+`);
+  });
+});
+
+describe("OpenAIInstrumentation with TraceConfig", () => {
+  const tracerProvider = new NodeTracerProvider();
+  tracerProvider.register();
+  const instrumentation = new OpenAIInstrumentation({
+    traceConfig: { hideInputs: true },
+  });
+  instrumentation.disable();
+  let openai: OpenAI.OpenAI;
+
+  instrumentation.setTracerProvider(tracerProvider);
+  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+  instrumentation._modules[0].moduleExports = OpenAI;
+
+  beforeAll(() => {
+    instrumentation.enable();
+    openai = new OpenAI.OpenAI({
+      apiKey: "fake-api-key",
+    });
+  });
+  afterAll(() => {
+    instrumentation.disable();
+  });
+  beforeEach(() => {
+    memoryExporter.reset();
+  });
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+  it("is patched", () => {
+    expect(
+      (OpenAI as { openInferencePatched?: boolean }).openInferencePatched,
+    ).toBe(true);
+    expect(isPatched()).toBe(true);
+  });
+  it("should respect a trace config and mask attributes accordingly", async () => {
+    const response = {
+      id: "cmpl-8fZu1H3VijJUWev9asnxaYyQvJTC9",
+      object: "text_completion",
+      created: 1704920149,
+      model: "gpt-3.5-turbo-instruct",
+      choices: [
+        {
+          text: "This is a test",
+          index: 0,
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 },
+    };
+    // Mock out the completions endpoint
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+
+    await openai.completions.create({
+      prompt: "Say this is a test",
+      model: "gpt-3.5-turbo-instruct",
+    });
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.value": "__REDACTED__",
+  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo-instruct"}",
+  "llm.model_name": "gpt-3.5-turbo-instruct",
+  "llm.provider": "openai",
+  "llm.system": "openai",
+  "llm.token_count.completion": 5,
+  "llm.token_count.prompt": 12,
+  "llm.token_count.total": 17,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "text/plain",
+  "output.value": "This is a test",
 }
 `);
   });

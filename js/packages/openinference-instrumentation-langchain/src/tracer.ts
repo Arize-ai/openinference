@@ -1,6 +1,5 @@
 import { BaseTracer, Run } from "@langchain/core/tracers/base";
 import {
-  Tracer,
   SpanKind,
   Span,
   context,
@@ -23,6 +22,7 @@ import {
   safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
 } from "./utils";
+import { OITracer } from "@arizeai/openinference-core";
 
 type RunWithSpan = {
   run: Run;
@@ -30,9 +30,9 @@ type RunWithSpan = {
 };
 
 export class LangChainTracer extends BaseTracer {
-  private tracer: Tracer;
+  private tracer: OITracer;
   private runs: Record<string, RunWithSpan | undefined> = {};
-  constructor(tracer: Tracer) {
+  constructor(tracer: OITracer) {
     super();
     this.tracer = tracer;
   }

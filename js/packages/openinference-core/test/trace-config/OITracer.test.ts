@@ -10,11 +10,21 @@ import {
   Tracer,
 } from "@opentelemetry/api";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import {
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+
+const tracerProvider = new NodeTracerProvider();
+tracerProvider.register();
 
 describe("OITracer", () => {
   let mockTracer: jest.Mocked<Tracer>;
   let mockSpan: jest.Mocked<Span>;
   let contextManager: ContextManager;
+  const memoryExporter = new InMemorySpanExporter();
+  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
 
   beforeEach(() => {
     contextManager = new AsyncHooksContextManager().enable();
@@ -31,7 +41,9 @@ describe("OITracer", () => {
       }),
     } as unknown as jest.Mocked<Tracer>;
   });
-
+  beforeEach(() => {
+    memoryExporter.reset();
+  });
   afterEach(() => {
     context.disable();
   });
@@ -95,7 +107,6 @@ describe("OITracer", () => {
         },
       );
     });
-    it("should correctly nest spans", () => {});
   });
 
   describe("startActiveSpan", () => {
@@ -204,6 +215,43 @@ describe("OITracer", () => {
 
           expect(span).toBeInstanceOf(OISpan);
         },
+      );
+    });
+    it("should properly nest spans", () => {
+      const tracer = tracerProvider.getTracer("test");
+
+      const oiTracer = new OITracer({
+        tracer,
+        traceConfig: {
+          hideInputs: true,
+        },
+      });
+
+      oiTracer.startActiveSpan("parent", (parentSpan) => {
+        const childSpan = oiTracer.startSpan("child");
+        childSpan.end();
+        parentSpan.end();
+      });
+
+      oiTracer.startSpan("parent2").end();
+
+      const spans = memoryExporter.getFinishedSpans();
+      const parentSpan = spans.find((span) => span.name === "parent");
+      const childSpan = spans.find((span) => span.name === "child");
+      const parent2 = spans.find((span) => span.name === "parent2");
+
+      expect(parentSpan).toBeDefined();
+      expect(childSpan).toBeDefined();
+      const parentSpanId = parentSpan?.spanContext().spanId;
+      expect(parentSpanId).toBeDefined();
+      const childSpanParentId = childSpan?.parentSpanId;
+      expect(childSpanParentId).toBeDefined();
+      expect(childSpanParentId).toBe(parentSpanId);
+      expect(childSpan?.spanContext().traceId).toBe(
+        parentSpan?.spanContext().traceId,
+      );
+      expect(parent2?.spanContext().traceId).not.toBe(
+        childSpan?.spanContext().traceId,
       );
     });
   });
