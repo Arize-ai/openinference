@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 1.0.0
+
+### Major Changes
+
+- c03a5b6: add support for trace config to OpenAI and LangChain auto instrumentors to allow for attribute masking on spans
+
 ## 0.6.0
 
 ### Minor Changes
