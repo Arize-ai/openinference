@@ -325,6 +325,7 @@ describe("LangChainInstrumentation", () => {
       `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`
     ];
 
+    // Remove the id since it is randomly generated and inherited from the run
     const actualAttributes = { ...span.attributes };
     const output = JSON.parse(String(actualAttributes[OUTPUT_VALUE]));
     delete output.generations[0][0].message.kwargs.id;
