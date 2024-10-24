@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.10...python-openinference-semantic-conventions-v0.1.11) (2024-10-24)
+
+
+### Features
+
+* **semcov:** llm system and llm provicer conventions ([#1071](https://github.com/Arize-ai/openinference/issues/1071)) ([d200d85](https://github.com/Arize-ai/openinference/commit/d200d8509c28407c6b68426b579fd8a547f13579))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.9...python-openinference-semantic-conventions-v0.1.10) (2024-08-16)
 
 
