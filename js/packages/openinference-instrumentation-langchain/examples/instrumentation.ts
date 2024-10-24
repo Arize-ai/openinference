@@ -6,15 +6,17 @@ import {
 } from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { SEMRESATTRS_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 const provider = new NodeTracerProvider({
   resource: new Resource({
-    [SEMRESATTRS_SERVICE_NAME]: "langchain-service",
+    [ATTR_SERVICE_NAME]: "langchain-service",
+    [SEMRESATTRS_PROJECT_NAME]: "langchain-project",
   }),
 });
 
