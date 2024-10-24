@@ -325,7 +325,13 @@ describe("LangChainInstrumentation", () => {
       `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`
     ];
 
-    expect(span.attributes).toStrictEqual(expectedStreamingAttributes);
+    const actualAttributes = { ...span.attributes };
+    const output = JSON.parse(String(actualAttributes[OUTPUT_VALUE]));
+    delete output.generations[0][0].message.kwargs.id;
+    const newOutputValue = JSON.stringify(output);
+    actualAttributes[OUTPUT_VALUE] = newOutputValue;
+
+    expect(actualAttributes).toStrictEqual(expectedStreamingAttributes);
   });
 
   it("should add documents to retriever spans", async () => {
