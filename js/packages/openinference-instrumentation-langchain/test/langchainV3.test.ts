@@ -4,14 +4,14 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { LangChainInstrumentation } from "../src";
-import * as CallbackManager from "@langchain/coreV0.2/callbacks/manager";
-import { ChatPromptTemplate } from "@langchain/coreV0.2/prompts";
-import { MemoryVectorStore } from "langchainV0.2/vectorstores/memory";
-import { createStuffDocumentsChain } from "langchainV0.2/chains/combine_documents";
-import { createRetrievalChain } from "langchainV0.2/chains/retrieval";
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openaiV0.2";
+import * as CallbackManager from "@langchain/core/callbacks/manager";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import { createRetrievalChain } from "langchain/chains/retrieval";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import { Stream } from "openai/streaming";
-import { RecursiveCharacterTextSplitter } from "langchainV0.2/text_splitter";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import "dotenv/config";
 import {
   MESSAGE_FUNCTION_CALL_NAME,
@@ -22,7 +22,7 @@ import {
 import { LangChainTracer } from "../src/tracer";
 import { trace } from "@opentelemetry/api";
 import { completionsResponse, functionCallResponse } from "./fixtures";
-import { DynamicTool } from "@langchain/coreV0.2/tools";
+import { DynamicTool } from "@langchain/core/tools";
 import {
   OITracer,
   setAttributes,
@@ -57,8 +57,8 @@ const {
   RETRIEVAL_DOCUMENTS,
 } = SemanticConventions;
 
-jest.mock("@langchain/openaiV0.2", () => {
-  const originalModule = jest.requireActual("@langchain/openaiV0.2");
+jest.mock("@langchain/openai", () => {
+  const originalModule = jest.requireActual("@langchain/openai");
   class MockChatOpenAI extends originalModule.ChatOpenAI {
     constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
       super(...args);
@@ -108,39 +108,8 @@ const expectedSpanAttributes = {
     ],
   }),
   [INPUT_MIME_TYPE]: "application/json",
-  [OUTPUT_VALUE]: JSON.stringify({
-    generations: [
-      [
-        {
-          text: "This is a test.",
-          message: {
-            lc: 1,
-            type: "constructor",
-            id: ["langchain_core", "messages", "AIMessage"],
-            kwargs: {
-              content: "This is a test.",
-              tool_calls: [],
-              invalid_tool_calls: [],
-              additional_kwargs: {},
-              response_metadata: {
-                tokenUsage: {
-                  completionTokens: 5,
-                  promptTokens: 12,
-                  totalTokens: 17,
-                },
-                finish_reason: "stop",
-              },
-              id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
-            },
-          },
-          generationInfo: { finish_reason: "stop" },
-        },
-      ],
-    ],
-    llmOutput: {
-      tokenUsage: { completionTokens: 5, promptTokens: 12, totalTokens: 17 },
-    },
-  }),
+  [OUTPUT_VALUE]:
+    '{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"lc_serializable":true,"lc_kwargs":{"lc_serializable":true,"lc_kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17}}}',
   [LLM_TOKEN_COUNT_COMPLETION]: 5,
   [LLM_TOKEN_COUNT_PROMPT]: 12,
   [LLM_TOKEN_COUNT_TOTAL]: 17,
@@ -287,7 +256,7 @@ describe("LangChainInstrumentation", () => {
   it("should add attributes to llm spans when streaming", async () => {
     // Do this to update the mock to return a streaming response
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ChatOpenAI } = jest.requireMock("@langchain/openaiV0.2");
+    const { ChatOpenAI } = jest.requireMock("@langchain/openai");
 
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
@@ -317,7 +286,7 @@ describe("LangChainInstrumentation", () => {
       [LLM_TOKEN_COUNT_COMPLETION]: 6,
       [LLM_TOKEN_COUNT_TOTAL]: 19,
       [OUTPUT_VALUE]:
-        '{"generations":[[{"text":"This is a test stream.","generationInfo":{"prompt":0,"completion":0},"message":{"lc":1,"type":"constructor","id":["langchain_core","messages","ChatMessageChunk"],"kwargs":{"content":"This is a test stream.","additional_kwargs":{},"response_metadata":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19},"prompt":0,"completion":0}}}}]],"llmOutput":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19}}}',
+        '{"generations":[[{"text":"This is a test stream.","generationInfo":{"prompt":0,"completion":0},"message":{"lc":1,"type":"constructor","id":["langchain_core","messages","ChatMessageChunk"],"kwargs":{"content":"This is a test stream.","additional_kwargs":{},"response_metadata":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19},"prompt":0,"completion":0,"usage":{}}}}}]],"llmOutput":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19}}}',
       [METADATA]:
         '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1}',
     };
@@ -448,7 +417,7 @@ describe("LangChainInstrumentation", () => {
   it("should add function calls to spans", async () => {
     // Do this to update the mock to return a function call response
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ChatOpenAI } = jest.requireMock("@langchain/openaiV0.2");
+    const { ChatOpenAI } = jest.requireMock("@langchain/openai");
 
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
@@ -512,7 +481,7 @@ describe("LangChainInstrumentation", () => {
         '{"messages":[[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"whats the weather like in seattle, wa in fahrenheit?","additional_kwargs":{},"response_metadata":{}}}]]}',
       [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_VALUE]:
-        '{"generations":[[{"text":"","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110},"finish_reason":"function_call"},"id":"chatcmpl-9D6ZQKSVCtEeMT272J8h6xydy1jE2"}},"generationInfo":{"finish_reason":"function_call"}}]],"llmOutput":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110}}}',
+        '{"generations":[[{"text":"","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"lc_serializable":true,"lc_kwargs":{"lc_serializable":true,"lc_kwargs":{"content":"","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{},"id":"chatcmpl-9D6ZQKSVCtEeMT272J8h6xydy1jE2"},"lc_namespace":["langchain_core","messages"],"content":"","additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{},"id":"chatcmpl-9D6ZQKSVCtEeMT272J8h6xydy1jE2","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":22,"input_tokens":88,"total_tokens":110,"input_token_details":{},"output_token_details":{}}},"lc_namespace":["langchain_core","messages"],"content":"","additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{"tokenUsage":{"promptTokens":88,"completionTokens":22,"totalTokens":110},"finish_reason":"function_call"},"id":"chatcmpl-9D6ZQKSVCtEeMT272J8h6xydy1jE2","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":22,"input_tokens":88,"total_tokens":110,"input_token_details":{},"output_token_details":{}}}},"generationInfo":{"finish_reason":"function_call"}}]],"llmOutput":{"tokenUsage":{"promptTokens":88,"completionTokens":22,"totalTokens":110}}}',
       [OUTPUT_MIME_TYPE]: "application/json",
       metadata:
         '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1}',
@@ -585,7 +554,7 @@ describe("LangChainInstrumentation", () => {
   "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}",
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
-  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17}}}",
+  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"lc_serializable":true,"lc_kwargs":{"lc_serializable":true,"lc_kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17}}}",
   "session.id": "session-id",
   "test-attribute": "test-value",
 }
@@ -663,7 +632,7 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
   "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}",
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
-  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17}}}",
+  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"lc_serializable":true,"lc_kwargs":{"lc_serializable":true,"lc_kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17}}}",
   "session.id": "session-id",
   "test-attribute": "test-value",
 }
