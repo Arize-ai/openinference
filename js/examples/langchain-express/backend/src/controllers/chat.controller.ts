@@ -46,10 +46,15 @@ export const createChatController =
         llm,
       });
 
-      if (response.text == null) {
+      console.dir({
+        test: "test----------",
+        ...response,
+      });
+
+      if (response.answer == null) {
         throw new Error("No response from the model");
       }
-      res.send(response.text);
+      res.send(response.answer);
       res.end();
     } catch (error) {
       // eslint-disable-next-line no-console
