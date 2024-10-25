@@ -30,7 +30,11 @@ from openinference.instrumentation.openai._utils import (
     _io_value_and_type,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceLLMSystemValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 __all__ = (
     "_Request",
@@ -121,6 +125,7 @@ class _WithOpenAI(ABC):
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
+        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
             yield from _as_input_attributes(
                 _io_value_and_type(request_parameters),

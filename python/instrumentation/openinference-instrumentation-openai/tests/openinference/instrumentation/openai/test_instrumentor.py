@@ -36,6 +36,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -176,6 +178,8 @@ def test_chat_completions(
         assert event.name == "exception"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
@@ -331,6 +335,8 @@ def test_completions(
         assert event.name == "exception"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert (
         json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
@@ -442,6 +448,8 @@ def test_embeddings(
     assert (
         attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.EMBEDDING.value
     )
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert (
         json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
@@ -576,6 +584,8 @@ def test_chat_completions_with_multiple_message_contents(
         assert event.name == "exception"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
@@ -689,6 +699,8 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     if hide_inputs:
         assert attributes.pop(INPUT_VALUE, None) == REDACTED_VALUE
     else:
@@ -792,6 +804,8 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
@@ -1300,3 +1314,8 @@ SESSION_ID = SpanAttributes.SESSION_ID
 USER_ID = SpanAttributes.USER_ID
 METADATA = SpanAttributes.METADATA
 TAG_TAGS = SpanAttributes.TAG_TAGS
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_PROVIDER_OPENAI = OpenInferenceLLMProviderValues.OPENAI.value
+LLM_PROVIDER_AZURE = OpenInferenceLLMProviderValues.AZURE.value
+LLM_SYSTEM_OPENAI = OpenInferenceLLMSystemValues.OPENAI.value

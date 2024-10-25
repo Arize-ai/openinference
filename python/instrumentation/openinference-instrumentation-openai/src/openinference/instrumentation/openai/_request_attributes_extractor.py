@@ -8,10 +8,12 @@ from typing import (
     Iterator,
     List,
     Mapping,
+    Optional,
     Tuple,
     Type,
     TypeVar,
 )
+from urllib.parse import urlparse
 
 from opentelemetry.util.types import AttributeValue
 
@@ -21,6 +23,7 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -58,6 +61,7 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not isinstance(request_parameters, Mapping):
             return
+        yield from self._get_attributes_from_base_url(request_parameters.pop("base_url", None))
         if cast_to is self._chat_completion_type:
             yield from self._get_attributes_from_chat_completion_create_param(request_parameters)
         elif cast_to is self._create_embedding_response_type:
@@ -178,6 +182,22 @@ class _RequestAttributesExtractor:
         image = dict(image)
         if url := image.pop("url"):
             yield f"{ImageAttributes.IMAGE_URL}", url
+
+    def _get_attributes_from_base_url(
+        self, base_url: Optional[str]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        is_azure_provider = (
+            base_url
+            and (parsed_base_url := urlparse(base_url))
+            and isinstance(hostname := parsed_base_url.hostname, str)
+            and hostname.endswith(".openai.azure.com")
+        )
+        yield (
+            SpanAttributes.LLM_PROVIDER,
+            OpenInferenceLLMProviderValues.AZURE.value
+            if is_azure_provider
+            else OpenInferenceLLMProviderValues.OPENAI.value,
+        )
 
 
 def _get_attributes_from_completion_create_param(
