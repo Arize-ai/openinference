@@ -18,12 +18,21 @@ The possible settings are:
 | OPENINFERENCE_HIDE_EMBEDDING_VECTORS  | Hides returned embedding vectors                             | bool | False   |
 | OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH | Limits characters of a base64 encoding of an image           | int  | 32,000  |
 
-## Setup a Configuration in Python
+## Usage
 
-If you are working in Python, and want to set up a configuration different than the default values you can:
-- Create the environment variables with the desired values, or
-- Define the configuration in code as shown below, passing it to the `instrument()` method of your instrumentator (the example below demonstrates using the OpenAiInstrumentator)
-    ```python
+To set up this configuration you can either:
+- Set environment variables as specified above
+- Define the configuration in code as shown below
+- Do nothing and fall back to the default values
+- Use a combination of the three, the order of precedence is:
+  - Values set in the TraceConfig in code
+  - Environment variables
+  - Default values
+
+### Python
+
+If you are working in Python, and want to set up a configuration different than the default you can define the configuration in code as shown below, passing it to the `instrument()` method of your instrumentator (the example below demonstrates using the OpenAIInstrumentator)
+```python
     from openinference.instrumentation import TraceConfig
     config = TraceConfig(        
         hide_inputs=...,
@@ -42,5 +51,20 @@ If you are working in Python, and want to set up a configuration different than 
         tracer_provider=tracer_provider,
         config=config,
     )
-    ```
-- Do nothing and the default values will be used.
+```
+
+### Javascript
+
+If you are working in JavaScript, and want to set up a configuration different than the default you can define the configuration as shown below and pass it into any OpenInference instrumentation (the example below demonstrates using the OpenAIInstrumentation)
+
+```typescript
+import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai"
+
+/**
+ * Everything left out of here will fallback to
+ * environment variables then defaults
+ */
+const traceConfig = { hideInputs: true } 
+
+const instrumentation = new OpenAIInstrumentation({ traceConfig })
+```
