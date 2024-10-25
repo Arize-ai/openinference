@@ -61,7 +61,7 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not isinstance(request_parameters, Mapping):
             return
-        yield from self._get_attributes_from_base_url(request_parameters.pop("base_url", None))
+        yield from self._get_attributes_from_base_url(request_parameters.get("base_url"))
         if cast_to is self._chat_completion_type:
             yield from self._get_attributes_from_chat_completion_create_param(request_parameters)
         elif cast_to is self._create_embedding_response_type:
