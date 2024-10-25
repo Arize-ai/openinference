@@ -46,11 +46,6 @@ export const createChatController =
         llm,
       });
 
-      console.dir({
-        test: "test----------",
-        ...response,
-      });
-
       if (response.answer == null) {
         throw new Error("No response from the model");
       }
