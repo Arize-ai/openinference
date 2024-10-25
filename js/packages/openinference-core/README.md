@@ -28,36 +28,33 @@ The `@arizeai/openinference-core` package offers utilities to track important ap
 ### Examples
 
 `setSession`
-```typescript
-import { context } from "@opentelemetry/api"
-import { setSession } from "@openinference-core"
 
-context.with(
-  setSession(context.active(), { sessionId: "session-id" }),
-  () => {
-      // Calls within this block will generate spans with the attributes:
-      // "session.id" = "session-id"
-  }
-)
+```typescript
+import { context } from "@opentelemetry/api";
+import { setSession } from "@openinference-core";
+
+context.with(setSession(context.active(), { sessionId: "session-id" }), () => {
+  // Calls within this block will generate spans with the attributes:
+  // "session.id" = "session-id"
+});
 ```
 
 Each setter function returns a new active context, so they can be chained together.
 
 ```typescript
-import { context } from "@opentelemetry/api"
-import { setAttributes, setSession } from "@openinference-core"
+import { context } from "@opentelemetry/api";
+import { setAttributes, setSession } from "@openinference-core";
 
 context.with(
-  setAttributes(
-    setSession(context.active(), { sessionId: "session-id"}),
-    { myAttribute: "test" }
-  ),
+  setAttributes(setSession(context.active(), { sessionId: "session-id" }), {
+    myAttribute: "test",
+  }),
   () => {
-      // Calls within this block will generate spans with the attributes:
-      // "myAttribute" = "test"
-      // "session.id" = "session-id"
-  }
-)
+    // Calls within this block will generate spans with the attributes:
+    // "myAttribute" = "test"
+    // "session.id" = "session-id"
+  },
+);
 ```
 
 Additionally, they can be used in conjunction with the [OpenInference Semantic Conventions](../openinference-semantic-conventions/).
@@ -83,15 +80,14 @@ If you are creating spans manually and want to propagate context attributes you'
 
 ```typescript
 import { getAttributesFromContext } from "@arizeai/openinference-core";
-import { context, trace } from "@opentelemetry/api"
+import { context, trace } from "@opentelemetry/api";
 
-const contextAttributes = getAttributesFromContext(context.active())
-const tracer = trace.getTracer("example")
-const span = tracer.startSpan("example span")
-span.setAttributes(contextAttributes)
+const contextAttributes = getAttributesFromContext(context.active());
+const tracer = trace.getTracer("example");
+const span = tracer.startSpan("example span");
+span.setAttributes(contextAttributes);
 span.end();
 ```
-
 
 ## Trace Config
 
@@ -102,13 +98,13 @@ This package also provides support for controlling settings like data privacy an
 Here is an example of how to configure these settings using the OpenAI auto instrumentation. Note that all of our auto instrumentations will accept a traceConfig object.
 
 ```typescript
-import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai"
+import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
 
 /**
  * Everything left out of here will fallback to
  * environment variables then defaults
  */
-const traceConfig = { hideInputs: true } 
+const traceConfig = { hideInputs: true };
 
-const instrumentation = new OpenAIInstrumentation({ traceConfig })
+const instrumentation = new OpenAIInstrumentation({ traceConfig });
 ```

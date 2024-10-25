@@ -25,7 +25,7 @@ To run the example locally you need to:
 2. To run [Arize-Phoenix](https://github.com/Arize-ai/phoenix) locally run `docker run -p 6006:6006 -i -t arizephoenix/phoenix`
 3. `npm i` to install the required dependencies.
 4. Use node version >=18.18.0 see [nvm](https://github.com/nvm-sh/nvm) for docs on how to install and manage node versions
-4. `npm run dev` to launch the development server.
+5. `npm run dev` to launch the development server.
 
 To view [Arize-Phoenix](https://github.com/Arize-ai/phoenix) and the example app visit:
 
