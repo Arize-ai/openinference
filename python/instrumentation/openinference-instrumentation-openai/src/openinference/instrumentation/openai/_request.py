@@ -123,15 +123,12 @@ class _WithOpenAI(ABC):
         )
 
     def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
-        is_azure_provider = isinstance(
-            base_url := getattr(instance, "base_url", None), URL
-        ) and base_url.host.endswith("openai.azure.com")
-        yield (
-            SpanAttributes.LLM_PROVIDER,
-            OpenInferenceLLMProviderValues.AZURE.value
-            if is_azure_provider
-            else OpenInferenceLLMProviderValues.OPENAI.value,
-        )
+        if not isinstance(base_url := getattr(instance, "base_url", None), URL):
+            return
+        if base_url.host.endswith("api.openai.com"):
+            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+        if base_url.host.endswith("openai.azure.com"):
+            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
 
     def _get_attributes_from_request(
         self,
