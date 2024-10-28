@@ -1,9 +1,11 @@
 import logging
 from abc import ABC
 from contextlib import contextmanager
+from itertools import chain
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
+from httpx import URL
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -30,7 +32,12 @@ from openinference.instrumentation.openai._utils import (
     _io_value_and_type,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 __all__ = (
     "_Request",
@@ -115,12 +122,21 @@ class _WithOpenAI(ABC):
             else OpenInferenceSpanKindValues.LLM.value
         )
 
+    def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
+        if not isinstance(base_url := getattr(instance, "base_url", None), URL):
+            return
+        if base_url.host.endswith("api.openai.com"):
+            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+        if base_url.host.endswith("openai.azure.com"):
+            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
+
     def _get_attributes_from_request(
         self,
         cast_to: type,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
+        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
             yield from _as_input_attributes(
                 _io_value_and_type(request_parameters),
@@ -259,9 +275,12 @@ class _Request(_WithTracer, _WithOpenAI):
             return wrapped(*args, **kwargs)
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=self._get_attributes_from_request(
-                cast_to=cast_to,
-                request_parameters=request_parameters,
+            attributes=chain(
+                self._get_attributes_from_instance(instance),
+                self._get_attributes_from_request(
+                    cast_to=cast_to,
+                    request_parameters=request_parameters,
+                ),
             ),
             context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(
@@ -313,9 +332,12 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
             return await wrapped(*args, **kwargs)
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=self._get_attributes_from_request(
-                cast_to=cast_to,
-                request_parameters=request_parameters,
+            attributes=chain(
+                self._get_attributes_from_instance(instance),
+                self._get_attributes_from_request(
+                    cast_to=cast_to,
+                    request_parameters=request_parameters,
+                ),
             ),
             context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(
