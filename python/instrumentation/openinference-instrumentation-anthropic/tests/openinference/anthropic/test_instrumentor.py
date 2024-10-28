@@ -31,6 +31,8 @@ from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -147,6 +149,8 @@ def test_anthropic_instrumentation_completions_streaming(
     print(attributes)
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
@@ -159,6 +163,7 @@ def test_anthropic_instrumentation_completions_streaming(
     invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
     assert json.loads(inv_params) == invocation_params
     assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
+    assert not attributes
 
 
 @pytest.mark.asyncio
@@ -196,6 +201,8 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     print(attributes)
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
@@ -208,6 +215,7 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
     assert json.loads(inv_params) == invocation_params
     assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
+    assert not attributes
 
 
 @pytest.mark.vcr(
@@ -242,6 +250,8 @@ def test_anthropic_instrumentation_completions(
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
@@ -286,6 +296,8 @@ def test_anthropic_instrumentation_messages(
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert isinstance(
@@ -343,6 +355,8 @@ def test_anthropic_instrumentation_messages_streaming(
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert isinstance(
@@ -405,6 +419,8 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert isinstance(
@@ -462,6 +478,8 @@ async def test_anthropic_instrumentation_async_completions(
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
@@ -506,6 +524,8 @@ async def test_anthropic_instrumentation_async_messages(
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert isinstance(
@@ -625,6 +645,8 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert isinstance(attributes.pop(OUTPUT_MIME_TYPE), str)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert not attributes
 
 
@@ -728,6 +750,8 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert not attributes
 
 
@@ -993,3 +1017,7 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 USER_ID = SpanAttributes.USER_ID
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_PROVIDER_ANTHROPIC = OpenInferenceLLMProviderValues.ANTHROPIC.value
+LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
