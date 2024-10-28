@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.14...python-openinference-instrumentation-openai-v0.1.15) (2024-10-28)
+
+
+### Features
+
+* **openai:** add llm provider and system attributes ([#1082](https://github.com/Arize-ai/openinference/issues/1082)) ([232c031](https://github.com/Arize-ai/openinference/commit/232c031deea6b81a007447a37db2b0e5eb8ce613))
+
+
+### Bug Fixes
+
+* increase version lower bound for openinference-instrumentation ([#1012](https://github.com/Arize-ai/openinference/issues/1012)) ([3236d27](https://github.com/Arize-ai/openinference/commit/3236d2733a46b84d693ddb7092209800cde8cc34))
+
+
+### Documentation
+
+* **openai:** simplify tool calling example ([#1069](https://github.com/Arize-ai/openinference/issues/1069)) ([67da961](https://github.com/Arize-ai/openinference/commit/67da961147ff6ac6892bd6683e4048cad35906a5))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.13...python-openinference-instrumentation-openai-v0.1.14) (2024-08-16)
 
 
