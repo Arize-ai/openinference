@@ -16,6 +16,8 @@ from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -88,6 +90,8 @@ class _CompletionsWrapper(_WithTracer):
             span.set_attributes(
                 {
                     **dict(_get_llm_model(arguments)),
+                    **dict(_get_llm_provider()),
+                    **dict(_get_llm_system()),
                     OPENINFERENCE_SPAN_KIND: LLM,
                     LLM_PROMPTS: [llm_prompt],
                     INPUT_VALUE: safe_json_dumps(arguments),
@@ -146,6 +150,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
             span.set_attributes(
                 {
                     **dict(_get_llm_model(arguments)),
+                    **dict(_get_llm_provider()),
+                    **dict(_get_llm_system()),
                     OPENINFERENCE_SPAN_KIND: LLM,
                     LLM_PROMPTS: [llm_prompt],
                     INPUT_VALUE: safe_json_dumps(arguments),
@@ -204,6 +210,8 @@ class _MessagesWrapper(_WithTracer):
             span.set_attributes(
                 {
                     **dict(_get_llm_model(arguments)),
+                    **dict(_get_llm_provider()),
+                    **dict(_get_llm_system()),
                     OPENINFERENCE_SPAN_KIND: LLM,
                     **dict(_get_input_messages(llm_input_messages)),
                     LLM_INVOCATION_PARAMETERS: safe_json_dumps(invocation_parameters),
@@ -263,6 +271,8 @@ class _AsyncMessagesWrapper(_WithTracer):
 
             span.set_attributes(
                 {
+                    **dict(_get_llm_provider()),
+                    **dict(_get_llm_system()),
                     **dict(_get_llm_model(arguments)),
                     OPENINFERENCE_SPAN_KIND: LLM,
                     **dict(_get_input_messages(llm_input_messages)),
@@ -293,6 +303,14 @@ class _AsyncMessagesWrapper(_WithTracer):
                 )
                 span.finish_tracing()
                 return response
+
+
+def _get_llm_provider() -> Iterator[Tuple[str, Any]]:
+    yield LLM_PROVIDER, LLM_PROVIDER_ANTHROPIC
+
+
+def _get_llm_system() -> Iterator[Tuple[str, Any]]:
+    yield LLM_SYSTEM, LLM_SYSTEM_ANTHROPIC
 
 
 def _get_llm_model(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -450,3 +468,7 @@ TAG_TAGS = SpanAttributes.TAG_TAGS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 USER_ID = SpanAttributes.USER_ID
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_PROVIDER_ANTHROPIC = OpenInferenceLLMProviderValues.ANTHROPIC.value
+LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
