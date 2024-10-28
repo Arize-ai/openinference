@@ -149,6 +149,8 @@ def test_anthropic_instrumentation_completions_streaming(
     print(attributes)
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
@@ -161,6 +163,7 @@ def test_anthropic_instrumentation_completions_streaming(
     invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
     assert json.loads(inv_params) == invocation_params
     assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
+    assert not attributes
 
 
 @pytest.mark.asyncio
@@ -198,6 +201,8 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     print(attributes)
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
@@ -210,6 +215,7 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
     assert json.loads(inv_params) == invocation_params
     assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
+    assert not attributes
 
 
 @pytest.mark.vcr(
