@@ -20,6 +20,7 @@ from typing import (
     Union,
     cast,
 )
+from urllib.parse import urljoin
 
 import pytest
 from httpx import AsyncByteStream, Response
@@ -50,13 +51,24 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.handlers.clear()
         logger.addHandler(logging.StreamHandler())
 
+_OPENAI_BASE_URL = "https://api.openai.com/v1/"
+_AZURE_BASE_URL = "https://aoairesource.openai.azure.com"
 
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        pytest.param(_OPENAI_BASE_URL, id="openai-base-url"),
+        pytest.param(_AZURE_BASE_URL, id="azure-base-url"),
+    ),
+)
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_raw", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_chat_completions(
+    base_url: str,
     is_async: bool,
     is_raw: bool,
     is_stream: bool,
@@ -85,7 +97,7 @@ def test_chat_completions(
         "temperature": random.random(),
         "n": len(output_messages),
     }
-    url = "https://api.openai.com/v1/chat/completions"
+    url = urljoin(base_url, "chat/completions")
     respx_kwargs: Dict[str, Any] = {
         **(
             {"stream": MockAsyncByteStream(chat_completion_mock_stream[0])}
@@ -106,9 +118,9 @@ def test_chat_completions(
     create_kwargs = {"messages": input_messages, **invocation_parameters}
     openai = import_module("openai")
     completions = (
-        openai.AsyncOpenAI(api_key="sk-").chat.completions
+        openai.AsyncOpenAI(api_key="sk-", base_url=base_url).chat.completions
         if is_async
-        else openai.OpenAI(api_key="sk-").chat.completions
+        else openai.OpenAI(api_key="sk-", base_url=base_url).chat.completions
     )
     create = completions.with_raw_response.create if is_raw else completions.create
 
@@ -178,7 +190,9 @@ def test_chat_completions(
         assert event.name == "exception"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
-    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_PROVIDER, None) == (
+        LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
+    )
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
