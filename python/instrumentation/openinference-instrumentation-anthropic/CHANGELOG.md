@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.4...python-openinference-instrumentation-anthropic-v0.1.5) (2024-10-28)
+
+
+### Features
+
+* **anthropic:** add llm provider and system attributes to anthropic instrumentation ([#1084](https://github.com/Arize-ai/openinference/issues/1084)) ([32756ed](https://github.com/Arize-ai/openinference/commit/32756ed864849082f9eefc63e7d1fd8ec999d0b3))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.3...python-openinference-instrumentation-anthropic-v0.1.4) (2024-10-11)
 
 
