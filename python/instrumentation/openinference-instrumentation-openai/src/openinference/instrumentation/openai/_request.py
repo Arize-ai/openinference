@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from itertools import chain
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
-from urllib.parse import urlparse
 
 from httpx import URL
 from opentelemetry import context as context_api
@@ -124,12 +123,9 @@ class _WithOpenAI(ABC):
         )
 
     def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
-        is_azure_provider = (
-            isinstance(base_url := getattr(instance, "base_url", None), URL)
-            and (parsed_base_url := urlparse(str(base_url)))
-            and isinstance(hostname := parsed_base_url.hostname, str)
-            and hostname.endswith(".openai.azure.com")
-        )
+        is_azure_provider = isinstance(
+            base_url := getattr(instance, "base_url", None), URL
+        ) and base_url.host.endswith("openai.azure.com")
         yield (
             SpanAttributes.LLM_PROVIDER,
             OpenInferenceLLMProviderValues.AZURE.value
