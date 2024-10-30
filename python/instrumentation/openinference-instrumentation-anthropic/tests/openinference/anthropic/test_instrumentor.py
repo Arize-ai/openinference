@@ -14,6 +14,7 @@ from anthropic.types import (
     MessageParam,
     TextBlock,
     TextBlockParam,
+    ToolParam,
     ToolResultBlockParam,
     ToolUseBlock,
     ToolUseBlockParam,
@@ -565,10 +566,10 @@ def test_anthropic_instrumentation_multiple_tool_calling(
         "What is the weather like right now in New York?"
         " Also what time is it there? Use necessary tools simultaneously."
     )
-    get_weather_tool_schema = {
-        "name": "get_weather",
-        "description": "Get the current weather in a given location",
-        "input_schema": {
+    get_weather_tool_schema = ToolParam(
+        name="get_weather",
+        description="Get the current weather in a given location",
+        input_schema={
             "type": "object",
             "properties": {
                 "location": {
@@ -583,11 +584,11 @@ def test_anthropic_instrumentation_multiple_tool_calling(
             },
             "required": ["location"],
         },
-    }
-    get_time_tool_schema = {
-        "name": "get_time",
-        "description": "Get the current time in a given time zone",
-        "input_schema": {
+    )
+    get_time_tool_schema = ToolParam(
+        name="get_time",
+        description="Get the current time in a given time zone",
+        input_schema={
             "type": "object",
             "properties": {
                 "timezone": {
@@ -597,7 +598,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
             },
             "required": ["timezone"],
         },
-    }
+    )
     client.messages.create(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1024,
@@ -668,10 +669,10 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
         "What is the weather like right now in New York?"
         " Also what time is it there? Use necessary tools simultaneously."
     )
-    get_weather_tool_schema = {
-        "name": "get_weather",
-        "description": "Get the current weather in a given location",
-        "input_schema": {
+    get_weather_tool_schema = ToolParam(
+        name="get_weather",
+        description="Get the current weather in a given location",
+        input_schema={
             "type": "object",
             "properties": {
                 "location": {
@@ -686,11 +687,11 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
             },
             "required": ["location"],
         },
-    }
-    get_time_tool_schema = {
-        "name": "get_time",
-        "description": "Get the current time in a given time zone",
-        "input_schema": {
+    )
+    get_time_tool_schema = ToolParam(
+        name="get_time",
+        description="Get the current time in a given time zone",
+        input_schema={
             "type": "object",
             "properties": {
                 "timezone": {
@@ -700,7 +701,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
             },
             "required": ["timezone"],
         },
-    }
+    )
     stream = client.messages.create(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1024,
