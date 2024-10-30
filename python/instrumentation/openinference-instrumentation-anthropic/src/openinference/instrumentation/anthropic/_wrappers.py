@@ -22,6 +22,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -98,6 +99,7 @@ class _CompletionsWrapper(_WithTracer):
                     _get_llm_prompts(llm_prompt),
                     _get_inputs(arguments),
                     _get_llm_invocation_parameters(llm_invocation_parameters),
+                    _get_llm_tools(llm_invocation_parameters),
                 )
             ),
         ) as span:
@@ -150,6 +152,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
                     _get_llm_prompts(llm_prompt),
                     _get_inputs(arguments),
                     _get_llm_invocation_parameters(invocation_parameters),
+                    _get_llm_tools(invocation_parameters),
                 )
             ),
         ) as span:
@@ -201,6 +204,7 @@ class _MessagesWrapper(_WithTracer):
                     _get_llm_span_kind(),
                     _get_llm_input_messages(llm_input_messages),
                     _get_llm_invocation_parameters(invocation_parameters),
+                    _get_llm_tools(invocation_parameters),
                     _get_inputs(arguments),
                 )
             ),
@@ -260,6 +264,7 @@ class _AsyncMessagesWrapper(_WithTracer):
                     _get_llm_span_kind(),
                     _get_llm_input_messages(llm_input_messages),
                     _get_llm_invocation_parameters(invocation_parameters),
+                    _get_llm_tools(invocation_parameters),
                     _get_inputs(arguments),
                 )
             ),
@@ -296,6 +301,12 @@ def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
 def _get_outputs(response: "BaseModel") -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_VALUE, response.model_dump_json()
     yield OUTPUT_MIME_TYPE, JSON
+
+
+def _get_llm_tools(invocation_parameters: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    if isinstance(tools := invocation_parameters.get("tools"), list):
+        for tool_index, tool_schema in enumerate(tools):
+            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool_schema)
 
 
 def _get_llm_span_kind() -> Iterator[Tuple[str, Any]]:
@@ -464,6 +475,7 @@ LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
@@ -479,6 +491,7 @@ SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 USER_ID = SpanAttributes.USER_ID
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
