@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.5...python-openinference-instrumentation-anthropic-v0.1.6) (2024-10-30)
+
+
+### Features
+
+* **anthropic:** add tool json schema attributes to anthropic instrumentation ([#1087](https://github.com/Arize-ai/openinference/issues/1087)) ([907b6e5](https://github.com/Arize-ai/openinference/commit/907b6e530cb3ded377e99a7cbe7de1f35f55d39f))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.4...python-openinference-instrumentation-anthropic-v0.1.5) (2024-10-28)
 
 
