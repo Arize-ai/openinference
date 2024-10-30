@@ -225,7 +225,7 @@ def test_chat_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-        else:
+        elif _openai_version() >= (1, 12, 0):
             assert (
                 attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.id")
                 == "call_amGrubFmr2FSPHeC5OPgwcNs"
@@ -660,7 +660,7 @@ def test_chat_completions_with_multiple_message_contents(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-        else:
+        elif _openai_version() >= (1, 12, 0):
             assert (
                 attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.id")
                 == "call_amGrubFmr2FSPHeC5OPgwcNs"
