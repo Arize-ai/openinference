@@ -195,6 +195,13 @@ class _ResponseAttributesExtractor:
         ):
             # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_message_tool_call.py#L23  # noqa: E501
             for index, tool_call in enumerate(tool_calls):
+                if (tool_call_id := getattr(tool_call, "id", None)) is not None:
+                    # https://github.com/openai/openai-python/blob/891e1c17b7fecbae34d1915ba90c15ddece807f9/src/openai/types/chat/chat_completion_message_tool_call.py#L24
+                    yield (
+                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                        f"{ToolCallAttributes.TOOL_CALL_ID}",
+                        tool_call_id,
+                    )
                 if function := getattr(tool_call, "function", None):
                     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_message_tool_call.py#L10  # noqa: E501
                     if name := getattr(function, "name", None):
