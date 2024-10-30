@@ -195,7 +195,7 @@ def _flat_dict(cls: Type[Any]) -> Dict[str, str]:
 
 
 def _nested_dict(
-    attributes: Mapping[str, Any],
+    attributes: Mapping[str, str],
 ) -> Dict[str, Any]:
     nested_attributes: Dict[str, Any] = {}
     for name, value in attributes.items():
