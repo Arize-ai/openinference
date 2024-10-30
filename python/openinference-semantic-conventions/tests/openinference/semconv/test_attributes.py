@@ -1,5 +1,4 @@
-from collections import defaultdict
-from typing import Any, DefaultDict, Dict, Mapping, Type
+from typing import Any, Dict, Mapping, Type
 
 from openinference.semconv.resource import ResourceAttributes
 from openinference.semconv.trace import (
@@ -191,22 +190,20 @@ class TestResourceAttributes:
         }
 
 
-def _flat_dict(cls: Type[Any]) -> Dict[str, Any]:
+def _flat_dict(cls: Type[Any]) -> Dict[str, str]:
     return {v: k for k, v in cls.__dict__.items() if k.isupper()}
 
 
 def _nested_dict(
     attributes: Mapping[str, Any],
-) -> DefaultDict[str, Any]:
-    nested_attributes = _trie()
-    for attribute_name, attribute_value in attributes.items():
+) -> Dict[str, Any]:
+    nested_attributes: Dict[str, Any] = {}
+    for name, value in attributes.items():
         trie = nested_attributes
-        keys = attribute_name.split(".")
+        keys = name.split(".")
         for key in keys[:-1]:
+            if key not in trie:
+                trie[key] = {}
             trie = trie[key]
-        trie[keys[-1]] = attribute_value
+        trie[keys[-1]] = value
     return nested_attributes
-
-
-def _trie() -> DefaultDict[str, Any]:
-    return defaultdict(_trie)
