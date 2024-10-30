@@ -88,7 +88,7 @@ class SpanAttributes:
     """
     TOOL_ID = "tool.id"
     """
-    The id of the tool call result.
+    The identifier for the result of a tool call (corresponding to tool_call.id)
     """
     TOOL_NAME = "tool.name"
     """
