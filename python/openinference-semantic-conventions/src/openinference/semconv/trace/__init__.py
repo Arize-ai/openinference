@@ -164,6 +164,10 @@ class MessageAttributes:
     The JSON string representing the arguments passed to the function
     during a function call.
     """
+    MESSAGE_TOOL_CALL_ID = "message.tool_call_id"
+    """
+    The id of the tool call.
+    """
 
 
 class MessageContentAttributes:
@@ -270,6 +274,10 @@ class ToolCallAttributes:
     Attributes for a tool call
     """
 
+    TOOL_CALL_ID = "tool_call.id"
+    """
+    The id of the tool call.
+    """
     TOOL_CALL_FUNCTION_NAME = "tool_call.function.name"
     """
     The name of function that is being called during a tool call.
