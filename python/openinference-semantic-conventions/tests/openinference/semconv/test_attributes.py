@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, DefaultDict, Mapping
+from typing import Any, DefaultDict, Dict, Mapping, Type
 
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -16,7 +16,7 @@ from openinference.semconv.trace import (
 
 class TestSpanAttributes:
     def test_nesting(self) -> None:
-        attributes = {v: ... for k, v in SpanAttributes.__dict__.items() if k.isupper()}
+        attributes = _flat_dict(SpanAttributes)
         assert _nested_dict(attributes) == {
             "embedding": {
                 "embeddings": ...,
@@ -75,7 +75,7 @@ class TestSpanAttributes:
 
 class TestMessageAttributes:
     def test_nesting(self) -> None:
-        attributes = {v: ... for k, v in MessageAttributes.__dict__.items() if k.isupper()}
+        attributes = _flat_dict(MessageAttributes)
         assert _nested_dict(attributes) == {
             "message": {
                 "content": ...,
@@ -92,7 +92,7 @@ class TestMessageAttributes:
 
 class TestMessageContentAttributes:
     def test_nesting(self) -> None:
-        attributes = {v: ... for k, v in MessageContentAttributes.__dict__.items() if k.isupper()}
+        attributes = _flat_dict(MessageContentAttributes)
         assert _nested_dict(attributes) == {
             "message_content": {
                 "image": ...,
@@ -104,7 +104,7 @@ class TestMessageContentAttributes:
 
 class TestImageAttributes:
     def test_nesting(self) -> None:
-        attributes = {v: ... for k, v in ImageAttributes.__dict__.items() if k.isupper()}
+        attributes = _flat_dict(ImageAttributes)
         assert _nested_dict(attributes) == {
             "image": {
                 "url": ...,
@@ -114,7 +114,7 @@ class TestImageAttributes:
 
 class TestDocumentAttributes:
     def test_nesting(self) -> None:
-        attributes = {v: ... for k, v in DocumentAttributes.__dict__.items() if k.isupper()}
+        attributes = _flat_dict(DocumentAttributes)
         assert _nested_dict(attributes) == {
             "document": {
                 "content": ...,
@@ -127,7 +127,7 @@ class TestDocumentAttributes:
 
 class TestRerankerAttributes:
     def test_nesting(self) -> None:
-        attributes = {v: ... for k, v in RerankerAttributes.__dict__.items() if k.isupper()}
+        attributes = _flat_dict(RerankerAttributes)
         assert _nested_dict(attributes) == {
             "reranker": {
                 "input_documents": ...,
@@ -141,7 +141,7 @@ class TestRerankerAttributes:
 
 class TestEmbeddingAttributes:
     def test_nesting(self) -> None:
-        attributes = {v: ... for k, v in EmbeddingAttributes.__dict__.items() if k.isupper()}
+        attributes = _flat_dict(EmbeddingAttributes)
         assert _nested_dict(attributes) == {
             "embedding": {
                 "text": ...,
@@ -152,7 +152,7 @@ class TestEmbeddingAttributes:
 
 class TestToolCallAttributes:
     def test_nesting(self) -> None:
-        attributes = {v: ... for k, v in ToolCallAttributes.__dict__.items() if k.isupper()}
+        attributes = _flat_dict(ToolCallAttributes)
         assert _nested_dict(attributes) == {
             "tool_call": {
                 "function": {
@@ -166,7 +166,7 @@ class TestToolCallAttributes:
 
 class TestToolAttributes:
     def test_nesting(self) -> None:
-        attributes = {v: ... for k, v in ToolAttributes.__dict__.items() if k.isupper()}
+        attributes = _flat_dict(ToolAttributes)
         assert _nested_dict(attributes) == {
             "tool": {
                 "json_schema": ...,
@@ -174,8 +174,8 @@ class TestToolAttributes:
         }
 
 
-def _trie() -> DefaultDict[str, Any]:
-    return defaultdict(_trie)
+def _flat_dict(cls: Type[Any]) -> Dict[str, Any]:
+    return {v: ... for k, v in cls.__dict__.items() if k.isupper()}
 
 
 def _nested_dict(
@@ -189,3 +189,7 @@ def _nested_dict(
             trie = trie[key]
         trie[keys[-1]] = attribute_value
     return nested_attributes
+
+
+def _trie() -> DefaultDict[str, Any]:
+    return defaultdict(_trie)
