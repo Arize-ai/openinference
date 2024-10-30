@@ -20,60 +20,60 @@ class TestSpanAttributes:
         attributes = _flat_dict(SpanAttributes)
         assert _nested_dict(attributes) == {
             "embedding": {
-                "embeddings": ...,
-                "model_name": ...,
+                "embeddings": "EMBEDDING_EMBEDDINGS",
+                "model_name": "EMBEDDING_MODEL_NAME",
             },
             "input": {
-                "mime_type": ...,
-                "value": ...,
+                "mime_type": "INPUT_MIME_TYPE",
+                "value": "INPUT_VALUE",
             },
             "llm": {
-                "function_call": ...,
-                "input_messages": ...,
-                "invocation_parameters": ...,
-                "model_name": ...,
-                "output_messages": ...,
+                "function_call": "LLM_FUNCTION_CALL",
+                "input_messages": "LLM_INPUT_MESSAGES",
+                "invocation_parameters": "LLM_INVOCATION_PARAMETERS",
+                "model_name": "LLM_MODEL_NAME",
+                "output_messages": "LLM_OUTPUT_MESSAGES",
                 "prompt_template": {
-                    "template": ...,
-                    "variables": ...,
-                    "version": ...,
+                    "template": "LLM_PROMPT_TEMPLATE",
+                    "variables": "LLM_PROMPT_TEMPLATE_VARIABLES",
+                    "version": "LLM_PROMPT_TEMPLATE_VERSION",
                 },
-                "prompts": ...,
-                "provider": ...,
-                "system": ...,
+                "prompts": "LLM_PROMPTS",
+                "provider": "LLM_PROVIDER",
+                "system": "LLM_SYSTEM",
                 "token_count": {
-                    "completion": ...,
-                    "prompt": ...,
-                    "total": ...,
+                    "completion": "LLM_TOKEN_COUNT_COMPLETION",
+                    "prompt": "LLM_TOKEN_COUNT_PROMPT",
+                    "total": "LLM_TOKEN_COUNT_TOTAL",
                 },
-                "tools": ...,
+                "tools": "LLM_TOOLS",
             },
-            "metadata": ...,
+            "metadata": "METADATA",
             "openinference": {
                 "span": {
-                    "kind": ...,
+                    "kind": "OPENINFERENCE_SPAN_KIND",
                 }
             },
             "output": {
-                "mime_type": ...,
-                "value": ...,
+                "mime_type": "OUTPUT_MIME_TYPE",
+                "value": "OUTPUT_VALUE",
             },
             "retrieval": {
-                "documents": ...,
+                "documents": "RETRIEVAL_DOCUMENTS",
             },
             "session": {
-                "id": ...,
+                "id": "SESSION_ID",
             },
             "tag": {
-                "tags": ...,
+                "tags": "TAG_TAGS",
             },
             "tool": {
-                "description": ...,
-                "name": ...,
-                "parameters": ...,
+                "description": "TOOL_DESCRIPTION",
+                "name": "TOOL_NAME",
+                "parameters": "TOOL_PARAMETERS",
             },
             "user": {
-                "id": ...,
+                "id": "USER_ID",
             },
         }
 
@@ -83,14 +83,14 @@ class TestMessageAttributes:
         attributes = _flat_dict(MessageAttributes)
         assert _nested_dict(attributes) == {
             "message": {
-                "content": ...,
-                "contents": ...,
-                "function_call_arguments_json": ...,
-                "function_call_name": ...,
-                "name": ...,
-                "role": ...,
-                "tool_call_id": ...,
-                "tool_calls": ...,
+                "content": "MESSAGE_CONTENT",
+                "contents": "MESSAGE_CONTENTS",
+                "function_call_arguments_json": "MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON",
+                "function_call_name": "MESSAGE_FUNCTION_CALL_NAME",
+                "name": "MESSAGE_NAME",
+                "role": "MESSAGE_ROLE",
+                "tool_call_id": "MESSAGE_TOOL_CALL_ID",
+                "tool_calls": "MESSAGE_TOOL_CALLS",
             }
         }
 
@@ -100,9 +100,9 @@ class TestMessageContentAttributes:
         attributes = _flat_dict(MessageContentAttributes)
         assert _nested_dict(attributes) == {
             "message_content": {
-                "image": ...,
-                "text": ...,
-                "type": ...,
+                "image": "MESSAGE_CONTENT_IMAGE",
+                "text": "MESSAGE_CONTENT_TEXT",
+                "type": "MESSAGE_CONTENT_TYPE",
             }
         }
 
@@ -112,7 +112,7 @@ class TestImageAttributes:
         attributes = _flat_dict(ImageAttributes)
         assert _nested_dict(attributes) == {
             "image": {
-                "url": ...,
+                "url": "IMAGE_URL",
             }
         }
 
@@ -122,10 +122,10 @@ class TestDocumentAttributes:
         attributes = _flat_dict(DocumentAttributes)
         assert _nested_dict(attributes) == {
             "document": {
-                "content": ...,
-                "id": ...,
-                "metadata": ...,
-                "score": ...,
+                "content": "DOCUMENT_CONTENT",
+                "id": "DOCUMENT_ID",
+                "metadata": "DOCUMENT_METADATA",
+                "score": "DOCUMENT_SCORE",
             }
         }
 
@@ -135,11 +135,11 @@ class TestRerankerAttributes:
         attributes = _flat_dict(RerankerAttributes)
         assert _nested_dict(attributes) == {
             "reranker": {
-                "input_documents": ...,
-                "model_name": ...,
-                "output_documents": ...,
-                "query": ...,
-                "top_k": ...,
+                "input_documents": "RERANKER_INPUT_DOCUMENTS",
+                "model_name": "RERANKER_MODEL_NAME",
+                "output_documents": "RERANKER_OUTPUT_DOCUMENTS",
+                "query": "RERANKER_QUERY",
+                "top_k": "RERANKER_TOP_K",
             }
         }
 
@@ -149,8 +149,8 @@ class TestEmbeddingAttributes:
         attributes = _flat_dict(EmbeddingAttributes)
         assert _nested_dict(attributes) == {
             "embedding": {
-                "text": ...,
-                "vector": ...,
+                "text": "EMBEDDING_TEXT",
+                "vector": "EMBEDDING_VECTOR",
             }
         }
 
@@ -161,10 +161,10 @@ class TestToolCallAttributes:
         assert _nested_dict(attributes) == {
             "tool_call": {
                 "function": {
-                    "arguments": ...,
-                    "name": ...,
+                    "arguments": "TOOL_CALL_FUNCTION_ARGUMENTS_JSON",
+                    "name": "TOOL_CALL_FUNCTION_NAME",
                 },
-                "id": ...,
+                "id": "TOOL_CALL_ID",
             },
         }
 
@@ -174,7 +174,7 @@ class TestToolAttributes:
         attributes = _flat_dict(ToolAttributes)
         assert _nested_dict(attributes) == {
             "tool": {
-                "json_schema": ...,
+                "json_schema": "TOOL_JSON_SCHEMA",
             }
         }
 
@@ -185,14 +185,14 @@ class TestResourceAttributes:
         assert _nested_dict(attributes) == {
             "openinference": {
                 "project": {
-                    "name": ...,
+                    "name": "PROJECT_NAME",
                 }
             }
         }
 
 
 def _flat_dict(cls: Type[Any]) -> Dict[str, Any]:
-    return {v: ... for k, v in cls.__dict__.items() if k.isupper()}
+    return {v: k for k, v in cls.__dict__.items() if k.isupper()}
 
 
 def _nested_dict(
