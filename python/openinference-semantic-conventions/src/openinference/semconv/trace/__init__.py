@@ -86,10 +86,7 @@ class SpanAttributes:
     """
     List of tools that are advertised to the LLM to be able to call
     """
-    TOOL_TOOL_CALL_ID = "tool.tool_call_id"
-    """
-    The identifier for the result of a tool call (corresponding to tool_call.id)
-    """
+
     TOOL_NAME = "tool.name"
     """
     Name of the tool being used.
