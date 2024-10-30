@@ -28,8 +28,8 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.17",
-  "openinference-semantic-conventions>=0.1.9",
+  "openinference-instrumentation>=0.1.18",
+  "openinference-semantic-conventions>=0.1.12",
   "typing-extensions",
   "wrapt",
 ]
@@ -44,6 +44,7 @@ test = [
   "opentelemetry-instrumentation-httpx",
   "respx",
   "numpy",
+  "pytest-vcr",
 ]
 
 [project.urls]
@@ -63,6 +64,7 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]

@@ -104,7 +104,9 @@ class _RequestAttributesExtractor:
                 MessageAttributes.MESSAGE_ROLE,
                 role.value if isinstance(role, Enum) else role,
             )
-
+        if tool_call_id := message.get("tool_call_id"):
+            # https://github.com/openai/openai-python/blob/891e1c17b7fecbae34d1915ba90c15ddece807f9/src/openai/types/chat/chat_completion_tool_message_param.py#L20
+            yield MessageAttributes.MESSAGE_TOOL_CALL_ID, tool_call_id
         if content := message.get("content"):
             if isinstance(content, str):
                 yield MessageAttributes.MESSAGE_CONTENT, content
@@ -140,6 +142,13 @@ class _RequestAttributesExtractor:
                 # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_message_tool_call_param.py#L23  # noqa: E501
                 if not hasattr(tool_call, "get"):
                     continue
+                if (tool_call_id := tool_call.get("id")) is not None:
+                    # https://github.com/openai/openai-python/blob/891e1c17b7fecbae34d1915ba90c15ddece807f9/src/openai/types/chat/chat_completion_message_tool_call_param.py#L24
+                    yield (
+                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
+                        f"{ToolCallAttributes.TOOL_CALL_ID}",
+                        tool_call_id,
+                    )
                 if (function := tool_call.get("function")) and hasattr(function, "get"):
                     # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_message_tool_call_param.py#L10  # noqa: E501
                     if name := function.get("name"):
