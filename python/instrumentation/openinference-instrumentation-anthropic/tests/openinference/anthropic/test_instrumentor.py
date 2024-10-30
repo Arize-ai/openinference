@@ -14,6 +14,7 @@ from anthropic.types import (
     MessageParam,
     TextBlock,
     TextBlockParam,
+    ToolParam,
     ToolResultBlockParam,
     ToolUseBlock,
     ToolUseBlockParam,
@@ -36,6 +37,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -564,46 +566,43 @@ def test_anthropic_instrumentation_multiple_tool_calling(
         "What is the weather like right now in New York?"
         " Also what time is it there? Use necessary tools simultaneously."
     )
-
+    get_weather_tool_schema = ToolParam(
+        name="get_weather",
+        description="Get the current weather in a given location",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "The city and state, e.g. San Francisco, CA",
+                },
+                "unit": {
+                    "type": "string",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                },
+            },
+            "required": ["location"],
+        },
+    )
+    get_time_tool_schema = ToolParam(
+        name="get_time",
+        description="Get the current time in a given time zone",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "timezone": {
+                    "type": "string",
+                    "description": "The IANA time zone name, e.g. America/Los_Angeles",
+                }
+            },
+            "required": ["timezone"],
+        },
+    )
     client.messages.create(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1024,
-        tools=[
-            {
-                "name": "get_weather",
-                "description": "Get the current weather in a given location",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city and state, e.g. San Francisco, CA",
-                        },
-                        "unit": {
-                            "type": "string",
-                            "enum": ["celsius", "fahrenheit"],
-                            "description": "The unit of temperature,"
-                            " either 'celsius' or 'fahrenheit'",
-                        },
-                    },
-                    "required": ["location"],
-                },
-            },
-            {
-                "name": "get_time",
-                "description": "Get the current time in a given time zone",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "timezone": {
-                            "type": "string",
-                            "description": "The IANA time zone name, e.g. America/Los_Angeles",
-                        }
-                    },
-                    "required": ["timezone"],
-                },
-            },
-        ],
+        tools=[get_weather_tool_schema, get_time_tool_schema],
         messages=[{"role": "user", "content": input_message}],
     )
 
@@ -616,6 +615,10 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert isinstance(tool_schema0 := attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str)
+    assert json.loads(tool_schema0) == get_weather_tool_schema
+    assert isinstance(tool_schema1 := attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}"), str)
+    assert json.loads(tool_schema1) == get_time_tool_schema
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -666,46 +669,43 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
         "What is the weather like right now in New York?"
         " Also what time is it there? Use necessary tools simultaneously."
     )
-
+    get_weather_tool_schema = ToolParam(
+        name="get_weather",
+        description="Get the current weather in a given location",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "The city and state, e.g. San Francisco, CA",
+                },
+                "unit": {
+                    "type": "string",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                },
+            },
+            "required": ["location"],
+        },
+    )
+    get_time_tool_schema = ToolParam(
+        name="get_time",
+        description="Get the current time in a given time zone",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "timezone": {
+                    "type": "string",
+                    "description": "The IANA time zone name, e.g. America/Los_Angeles",
+                }
+            },
+            "required": ["timezone"],
+        },
+    )
     stream = client.messages.create(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1024,
-        tools=[
-            {
-                "name": "get_weather",
-                "description": "Get the current weather in a given location",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city and state, e.g. San Francisco, CA",
-                        },
-                        "unit": {
-                            "type": "string",
-                            "enum": ["celsius", "fahrenheit"],
-                            "description": "The unit of temperature,"
-                            " either 'celsius' or 'fahrenheit'",
-                        },
-                    },
-                    "required": ["location"],
-                },
-            },
-            {
-                "name": "get_time",
-                "description": "Get the current time in a given time zone",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "timezone": {
-                            "type": "string",
-                            "description": "The IANA time zone name, e.g. America/Los_Angeles",
-                        }
-                    },
-                    "required": ["timezone"],
-                },
-            },
-        ],
+        tools=[get_weather_tool_schema, get_time_tool_schema],
         messages=[{"role": "user", "content": input_message}],
         stream=True,
     )
@@ -721,6 +721,10 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert isinstance(tool_schema0 := attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str)
+    assert json.loads(tool_schema0) == get_weather_tool_schema
+    assert isinstance(tool_schema1 := attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}"), str)
+    assert json.loads(tool_schema1) == get_time_tool_schema
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -1000,6 +1004,7 @@ LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
@@ -1014,6 +1019,7 @@ SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 USER_ID = SpanAttributes.USER_ID
