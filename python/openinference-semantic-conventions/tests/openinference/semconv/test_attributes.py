@@ -69,9 +69,9 @@ class TestSpanAttributes:
             },
             "tool": {
                 "description": ...,
-                "id": ...,
                 "name": ...,
                 "parameters": ...,
+                "tool_call_id": ...,
             },
             "user": {
                 "id": ...,
