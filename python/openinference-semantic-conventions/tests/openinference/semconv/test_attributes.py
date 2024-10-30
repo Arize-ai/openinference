@@ -48,7 +48,11 @@ class TestSpanAttributes:
                 "tools": ...,
             },
             "metadata": ...,
-            "openinference": {"span": {"kind": ...}},
+            "openinference": {
+                "span": {
+                    "kind": ...,
+                }
+            },
             "output": {
                 "mime_type": ...,
                 "value": ...,
