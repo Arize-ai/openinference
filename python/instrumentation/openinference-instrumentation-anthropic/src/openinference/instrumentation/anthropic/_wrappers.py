@@ -44,9 +44,6 @@ class _WithTracer(ABC):
     def _start_as_current_span(
         self, span_name: str, attributes: Optional[Mapping[str, Any]] = None
     ) -> Iterator[_WithSpan]:
-        # Because OTEL has a default limit of 128 attributes, we split our attributes into
-        # two tiers, where the addition of "extra_attributes" is deferred until the end
-        # and only after the "attributes" are added.
         try:
             span = self._tracer.start_span(
                 name=span_name,
