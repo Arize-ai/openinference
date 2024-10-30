@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.11...python-openinference-semantic-conventions-v0.1.12) (2024-10-30)
+
+
+### Features
+
+* add tool call id ([#1085](https://github.com/Arize-ai/openinference/issues/1085)) ([4813de5](https://github.com/Arize-ai/openinference/commit/4813de5e8f9e7a22e27e6c20353a529a7fd640b6))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.10...python-openinference-semantic-conventions-v0.1.11) (2024-10-24)
 
 
