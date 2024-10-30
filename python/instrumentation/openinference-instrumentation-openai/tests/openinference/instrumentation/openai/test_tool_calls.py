@@ -1,5 +1,4 @@
 import json
-from contextlib import suppress
 from importlib import import_module
 from importlib.metadata import version
 from typing import Tuple, cast
@@ -9,8 +8,12 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
-@pytest.mark.disable_socket
-def test_tool_call(
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_tool_calls(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
 ) -> None:
@@ -58,25 +61,106 @@ def test_tool_call(
             },
         ),
     ]
-    with suppress(openai.APIConnectionError):
-        client.chat.completions.create(
-            model="gpt-4",
-            tools=input_tools,
-            messages=[
-                {
-                    "role": "user",
-                    "content": "What's the weather like in San Francisco?",
-                },
-            ],
-        )
+    client.chat.completions.create(
+        extra_headers={"Accept-Encoding": "gzip"},
+        model="gpt-4o-mini",
+        tools=input_tools,
+        messages=[
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call_62136355",
+                        "type": "function",
+                        "function": {"name": "get_weather", "arguments": '{"city": "New York"}'},
+                    },
+                    {
+                        "id": "call_62136356",
+                        "type": "function",
+                        "function": {"name": "get_population", "arguments": '{"city": "New York"}'},
+                    },
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_62136355",
+                "content": '{"city": "New York", "weather": "fine"}',
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_62136356",
+                "content": '{"city": "New York", "weather": "large"}',
+            },
+            {
+                "role": "assistant",
+                "content": "In New York the weather is fine and the population is large.",
+            },
+            {
+                "role": "user",
+                "content": "What's the weather and population in San Francisco?",
+            },
+        ],
+    )
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 4
-    span = spans[3]
-    attributes = span.attributes or dict()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
     for i in range(len(input_tools)):
-        json_schema = attributes.get(f"llm.tools.{i}.tool.json_schema")
+        json_schema = attributes.pop(f"llm.tools.{i}.tool.json_schema")
         assert isinstance(json_schema, str)
         assert json.loads(json_schema)
+    assert (
+        attributes.pop("llm.input_messages.0.message.tool_calls.0.tool_call.id") == "call_62136355"
+    )
+    assert (
+        attributes.pop("llm.input_messages.0.message.tool_calls.0.tool_call.function.name")
+        == "get_weather"
+    )
+    assert (
+        attributes.pop("llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments")
+        == '{"city": "New York"}'
+    )
+    assert (
+        attributes.pop("llm.input_messages.0.message.tool_calls.1.tool_call.id") == "call_62136356"
+    )
+    assert (
+        attributes.pop("llm.input_messages.0.message.tool_calls.1.tool_call.function.name")
+        == "get_population"
+    )
+    assert (
+        attributes.pop("llm.input_messages.0.message.tool_calls.1.tool_call.function.arguments")
+        == '{"city": "New York"}'
+    )
+    assert attributes.pop("llm.input_messages.1.message.role") == "tool"
+    assert attributes.pop("llm.input_messages.1.message.tool_call_id") == "call_62136355"
+    assert (
+        attributes.pop("llm.input_messages.1.message.content")
+        == '{"city": "New York", "weather": "fine"}'
+    )
+    assert attributes.pop("llm.input_messages.2.message.role") == "tool"
+    assert attributes.pop("llm.input_messages.2.message.tool_call_id") == "call_62136356"
+    assert (
+        attributes.pop("llm.input_messages.2.message.content")
+        == '{"city": "New York", "weather": "large"}'
+    )
+    assert attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.id")
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.name")
+        == "get_weather"
+    )
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments")
+        == '{"city": "San Francisco"}'
+    )
+    assert attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.id")
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.function.name")
+        == "get_population"
+    )
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments")
+        == '{"city": "San Francisco"}'
+    )
 
 
 def _openai_version() -> Tuple[int, int, int]:
