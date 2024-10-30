@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Any, DefaultDict, Dict, Mapping, Type
 
+from openinference.semconv.resource import ResourceAttributes
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -174,6 +175,18 @@ class TestToolAttributes:
         assert _nested_dict(attributes) == {
             "tool": {
                 "json_schema": ...,
+            }
+        }
+
+
+class TestResourceAttributes:
+    def test_nesting(self) -> None:
+        attributes = _flat_dict(ResourceAttributes)
+        assert _nested_dict(attributes) == {
+            "openinference": {
+                "project": {
+                    "name": ...,
+                }
             }
         }
 
