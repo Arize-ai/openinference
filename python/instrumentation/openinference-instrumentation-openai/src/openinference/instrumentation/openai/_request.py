@@ -5,7 +5,6 @@ from itertools import chain
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
-from httpx import URL
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -123,11 +122,15 @@ class _WithOpenAI(ABC):
         )
 
     def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
-        if not isinstance(base_url := getattr(instance, "base_url", None), URL):
+        if (
+            not (base_url := getattr(instance, "base_url", None))
+            or not (host := getattr(base_url, "host", None))
+            or not isinstance(host, str)
+        ):
             return
-        if base_url.host.endswith("api.openai.com"):
+        if host.endswith("api.openai.com"):
             yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-        if base_url.host.endswith("openai.azure.com"):
+        elif host.endswith("openai.azure.com"):
             yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
 
     def _get_attributes_from_request(
