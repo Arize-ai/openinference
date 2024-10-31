@@ -36,13 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    "anthropic >= 0.25.0",
-]
-test = [
-    "anthropic >= 0.25.0",
-    "opentelemetry-sdk",
-    "pytest-asyncio",
-    "pytest.recording"
+    "anthropic >= 0.30.0",
 ]
 
 [project.urls]
@@ -61,6 +55,7 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = [
     "tests",
 ]
