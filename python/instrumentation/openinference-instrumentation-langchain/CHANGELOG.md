@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.28...python-openinference-instrumentation-langchain-v0.1.29) (2024-10-30)
+
+
+### Features
+
+* Add `get_chain_root_span` utility for langchain instrumentation ([#1054](https://github.com/Arize-ai/openinference/issues/1054)) ([4337aa1](https://github.com/Arize-ai/openinference/commit/4337aa1674476958bdfcdd3725b0145c37268425))
+* support langchain 0.3 ([#1045](https://github.com/Arize-ai/openinference/issues/1045)) ([ff43e9d](https://github.com/Arize-ai/openinference/commit/ff43e9ddc0a5f683f80d09139247ad194d6c29af))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.27...python-openinference-instrumentation-langchain-v0.1.28) (2024-09-10)
 
 
