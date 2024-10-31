@@ -1,0 +1,6 @@
+openai==1.0.0
+opentelemetry-sdk
+opentelemetry-instrumentation-httpx
+respx
+numpy
+pytest-vcr
