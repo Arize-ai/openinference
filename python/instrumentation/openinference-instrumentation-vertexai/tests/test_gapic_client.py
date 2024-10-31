@@ -34,7 +34,7 @@ from google.cloud.aiplatform_v1 import (
     Tool,
     Type,
 )
-from google.cloud.aiplatform_v1.services.prediction_service.transports import (
+from google.cloud.aiplatform_v1.services.prediction_service.transports import (  # type: ignore[attr-defined,unused-ignore]
     PredictionServiceGrpcAsyncIOTransport,
     PredictionServiceGrpcTransport,
 )
