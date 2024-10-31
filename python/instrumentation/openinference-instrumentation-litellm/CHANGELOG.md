@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.4...python-openinference-instrumentation-litellm-v0.1.5) (2024-10-31)
+
+
+### Bug Fixes
+
+* increase version lower bound for openinference-instrumentation ([#1012](https://github.com/Arize-ai/openinference/issues/1012)) ([3236d27](https://github.com/Arize-ai/openinference/commit/3236d2733a46b84d693ddb7092209800cde8cc34))
+
+
+### Documentation
+
+* litellm examples ([#681](https://github.com/Arize-ai/openinference/issues/681)) ([b6cfe69](https://github.com/Arize-ai/openinference/commit/b6cfe6933d840b2344b5c132a9d471d239af1c9d))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.3...python-openinference-instrumentation-litellm-v0.1.4) (2024-08-27)
 
 
