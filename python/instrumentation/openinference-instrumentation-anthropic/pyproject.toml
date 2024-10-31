@@ -38,12 +38,6 @@ dependencies = [
 instruments = [
     "anthropic >= 0.25.0",
 ]
-test = [
-    "anthropic >= 0.25.0",
-    "opentelemetry-sdk",
-    "pytest-asyncio",
-    "pytest.recording"
-]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-anthropic"
