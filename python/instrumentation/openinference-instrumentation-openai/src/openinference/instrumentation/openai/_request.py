@@ -5,13 +5,6 @@ from itertools import chain
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeAlias
-
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -37,6 +30,12 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.trace import INVALID_SPAN
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeAlias
 
 __all__ = (
     "_Request",
@@ -130,7 +129,7 @@ class _WithOpenAI(ABC):
             return
         if host.endswith("api.openai.com"):
             yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-        if host.endswith("openai.azure.com"):
+        elif host.endswith("openai.azure.com"):
             yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
 
     def _get_attributes_from_request(
