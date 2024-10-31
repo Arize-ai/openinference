@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.2...python-openinference-instrumentation-llama-index-v3.0.3) (2024-10-31)
+
+
+### Bug Fixes
+
+* increase version lower bound for openinference-instrumentation ([#1012](https://github.com/Arize-ai/openinference/issues/1012)) ([3236d27](https://github.com/Arize-ai/openinference/commit/3236d2733a46b84d693ddb7092209800cde8cc34))
+
 ## [3.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.1...python-openinference-instrumentation-llama-index-v3.0.2) (2024-09-06)
 
 
