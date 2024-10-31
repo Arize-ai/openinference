@@ -1,6 +1,7 @@
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Callable,
@@ -19,17 +20,6 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
-from anthropic import Stream
-from anthropic.types import (
-    Completion,
-    RawMessageStreamEvent,
-)
-from anthropic.types.raw_content_block_delta_event import RawContentBlockDeltaEvent
-from anthropic.types.raw_content_block_start_event import RawContentBlockStartEvent
-from anthropic.types.raw_message_delta_event import RawMessageDeltaEvent
-from anthropic.types.raw_message_start_event import RawMessageStartEvent
-from anthropic.types.text_block import TextBlock
-from anthropic.types.tool_use_block import ToolUseBlock
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
     _as_output_attributes,
@@ -44,6 +34,13 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
+if TYPE_CHECKING:
+    from anthropic import Stream
+    from anthropic.types import Completion, RawMessageStreamEvent
+    from anthropic.types.raw_content_block_delta_event import RawContentBlockDeltaEvent
+    from anthropic.types.text_block import TextBlock
+    from anthropic.types.tool_use_block import ToolUseBlock
+
 
 class _Stream(ObjectProxy):  # type: ignore
     __slots__ = (
@@ -54,14 +51,14 @@ class _Stream(ObjectProxy):  # type: ignore
 
     def __init__(
         self,
-        stream: Stream[Completion],
+        stream: "Stream[Completion]",
         with_span: _WithSpan,
     ) -> None:
         super().__init__(stream)
         self._response_accumulator = _ResponseAccumulator()
         self._with_span = with_span
 
-    def __iter__(self) -> Iterator[Completion]:
+    def __iter__(self) -> Iterator["Completion"]:
         try:
             for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
@@ -80,7 +77,7 @@ class _Stream(ObjectProxy):  # type: ignore
         )
         self._finish_tracing(status=status)
 
-    async def __aiter__(self) -> AsyncIterator[Completion]:
+    async def __aiter__(self) -> AsyncIterator["Completion"]:
         try:
             async for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
@@ -124,7 +121,7 @@ class _ResponseAccumulator:
             stop_reason=_SimpleStringReplace(),
         )
 
-    def process_chunk(self, chunk: Completion) -> None:
+    def process_chunk(self, chunk: "Completion") -> None:
         self._is_null = False
         values = chunk.model_dump(exclude_unset=True, warnings=False)
         self._values += values
@@ -168,14 +165,14 @@ class _MessagesStream(ObjectProxy):  # type: ignore
 
     def __init__(
         self,
-        stream: Stream[RawMessageStreamEvent],
+        stream: "Stream[RawMessageStreamEvent]",
         with_span: _WithSpan,
     ) -> None:
         super().__init__(stream)
         self._response_accumulator = _MessageResponseAccumulator()
         self._with_span = with_span
 
-    def __iter__(self) -> Iterator[RawMessageStreamEvent]:
+    def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:
             for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
@@ -194,7 +191,7 @@ class _MessagesStream(ObjectProxy):  # type: ignore
         )
         self._finish_tracing(status=status)
 
-    async def __aiter__(self) -> AsyncIterator[RawMessageStreamEvent]:
+    async def __aiter__(self) -> AsyncIterator["RawMessageStreamEvent"]:
         try:
             async for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
@@ -237,7 +234,7 @@ class _MessageResponseAccumulator:
     def __init__(self) -> None:
         self._is_null = True
         self._current_message_idx = -1
-        self._current_content_block_type: Union[TextBlock, ToolUseBlock, None] = None
+        self._current_content_block_type: Union["TextBlock", "ToolUseBlock", None] = None
         self._values = _ValuesAccumulator(
             messages=_IndexedAccumulator(
                 lambda: _ValuesAccumulator(
@@ -257,7 +254,14 @@ class _MessageResponseAccumulator:
             ),
         )
 
-    def process_chunk(self, chunk: RawContentBlockDeltaEvent) -> None:
+    def process_chunk(self, chunk: "RawContentBlockDeltaEvent") -> None:
+        from anthropic.types.raw_content_block_delta_event import RawContentBlockDeltaEvent
+        from anthropic.types.raw_content_block_start_event import RawContentBlockStartEvent
+        from anthropic.types.raw_message_delta_event import RawMessageDeltaEvent
+        from anthropic.types.raw_message_start_event import RawMessageStartEvent
+        from anthropic.types.text_block import TextBlock
+        from anthropic.types.tool_use_block import ToolUseBlock
+
         self._is_null = False
         if isinstance(chunk, RawMessageStartEvent):
             self._current_message_idx += 1
