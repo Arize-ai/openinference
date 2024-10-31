@@ -38,14 +38,6 @@ dependencies = [
 instruments = [
   "openai >= 1.0.0",
 ]
-test = [
-  "openai == 1.0.0",
-  "opentelemetry-sdk",
-  "opentelemetry-instrumentation-httpx",
-  "respx",
-  "numpy",
-  "pytest-vcr",
-]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openai"
@@ -56,7 +48,6 @@ path = "src/openinference/instrumentation/openai/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]
