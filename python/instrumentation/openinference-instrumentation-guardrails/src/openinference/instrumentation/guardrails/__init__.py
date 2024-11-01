@@ -1,13 +1,13 @@
 import contextvars
 import logging
 from importlib import import_module, metadata
-from typing import Any, Collection, Tuple, cast
+from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from packaging.version import Version
 from wrapt import ObjectProxy, wrap_function_wrapper
 
-import guardrails as gd
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.guardrails._wrap_guard_call import (
     _ParseCallableWrapper,
@@ -18,16 +18,11 @@ from openinference.instrumentation.guardrails.version import __version__
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("guardrails-ai >= 0.4.5",)
+_instruments = ("guardrails-ai>=0.4.5,<0.5.1",)
 
 _VALIDATION_MODULE = "guardrails.validator_service"
 _LLM_PROVIDERS_MODULE = "guardrails.llm_providers"
 _RUNNER_MODULE = "guardrails.run"
-
-GUARDRAILS_VERSION = cast(
-    Tuple[int, int, int],
-    tuple(map(int, metadata.version("guardrails-ai").split(".")[:3])),
-)
 
 
 class _Contextvars(ObjectProxy):  # type: ignore
@@ -53,9 +48,12 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        if GUARDRAILS_VERSION >= (0, 5, 2):
-            logger.info("Guardrails version >= 0.5.2 detected, skipping instrumentation")
+        version = Version(metadata.version("guardrails-ai"))
+        if (version.major, version.minor, version.micro) >= (0, 5, 1):
+            logger.info("Guardrails version >= 0.5.1 detected, skipping instrumentation")
             return
+
+        import guardrails as gd
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
@@ -109,6 +107,8 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        import guardrails as gd
+
         # not unwrapping by checking and using the __wrap__ attribute below because the
         # original package itself also uses wrapping
         if self._original_guardrails_llm_providers_call is not None:
