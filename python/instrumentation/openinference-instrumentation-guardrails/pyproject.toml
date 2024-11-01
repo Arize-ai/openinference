@@ -31,16 +31,12 @@ dependencies = [
   "openinference-semantic-conventions",
   "wrapt",
   "typing-extensions",
+  "packaging",
 ]
 
 [project.optional-dependencies]
 instruments = [
   "guardrails-ai",
-]
-test = [
-  "guardrails-ai == 0.4.5",
-  "opentelemetry-sdk",
-  "responses",
 ]
 
 [project.urls]
