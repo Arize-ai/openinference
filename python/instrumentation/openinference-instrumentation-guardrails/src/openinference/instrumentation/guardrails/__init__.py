@@ -15,6 +15,7 @@ from openinference.instrumentation.guardrails._wrap_guard_call import (
     _PromptCallableWrapper,
 )
 from openinference.instrumentation.guardrails.version import __version__
+from packaging import version
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,9 @@ _VALIDATION_MODULE = "guardrails.validator_service"
 _LLM_PROVIDERS_MODULE = "guardrails.llm_providers"
 _RUNNER_MODULE = "guardrails.run"
 
-GUARDRAILS_VERSION = cast(
-    Tuple[int, int, int],
-    tuple(map(int, metadata.version("guardrails-ai").split(".")[:3])),
-)
+guardrails_version_str = metadata.version("guardrails-ai")
+parsed_version = version.parse(guardrails_version_str)
+GUARDRAILS_VERSION = (parsed_version.major, parsed_version.minor, parsed_version.micro or 0)
 
 
 class _Contextvars(ObjectProxy):  # type: ignore
