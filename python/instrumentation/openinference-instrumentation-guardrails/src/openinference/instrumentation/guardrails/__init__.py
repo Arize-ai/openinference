@@ -1,7 +1,7 @@
 import contextvars
 import logging
 from importlib import import_module, metadata
-from typing import Any, Collection, Tuple
+from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
@@ -23,8 +23,6 @@ _instruments = ("guardrails-ai >= 0.4.5",)
 _VALIDATION_MODULE = "guardrails.validator_service"
 _LLM_PROVIDERS_MODULE = "guardrails.llm_providers"
 _RUNNER_MODULE = "guardrails.run"
-
-GUARDRAILS_VERSION: Tuple[int, int, int] = (0, 0, 0)
 
 
 class _Contextvars(ObjectProxy):  # type: ignore
@@ -51,10 +49,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _instrument(self, **kwargs: Any) -> None:
         version = Version(metadata.version("guardrails-ai"))
-        global GUARDRAILS_VERSION
-        GUARDRAILS_VERSION = (version.major, version.minor, version.micro)
-
-        if GUARDRAILS_VERSION >= (0, 5, 2):
+        if (version.major, version.minor, version.micro) >= (0, 5, 2):
             logger.info("Guardrails version >= 0.5.2 detected, skipping instrumentation")
             return
 
