@@ -18,7 +18,7 @@ from openinference.instrumentation.guardrails.version import __version__
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("guardrails-ai >= 0.4.5",)
+_instruments = ("guardrails-ai>=0.4.5,<0.5.1",)
 
 _VALIDATION_MODULE = "guardrails.validator_service"
 _LLM_PROVIDERS_MODULE = "guardrails.llm_providers"
@@ -49,8 +49,8 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _instrument(self, **kwargs: Any) -> None:
         version = Version(metadata.version("guardrails-ai"))
-        if (version.major, version.minor, version.micro) >= (0, 5, 2):
-            logger.info("Guardrails version >= 0.5.2 detected, skipping instrumentation")
+        if (version.major, version.minor, version.micro) >= (0, 5, 1):
+            logger.info("Guardrails version >= 0.5.1 detected, skipping instrumentation")
             return
 
         import guardrails as gd
