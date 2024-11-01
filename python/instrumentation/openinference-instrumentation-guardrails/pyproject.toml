@@ -37,11 +37,6 @@ dependencies = [
 instruments = [
   "guardrails-ai",
 ]
-test = [
-  "guardrails-ai == 0.4.5",
-  "opentelemetry-sdk",
-  "responses",
-]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-guardrails"
