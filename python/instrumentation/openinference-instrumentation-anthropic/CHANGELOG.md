@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.6...python-openinference-instrumentation-anthropic-v0.1.7) (2024-10-31)
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.6...python-openinference-instrumentation-anthropic-v0.1.7) (2024-11-01)
 
 
 ### Bug Fixes
