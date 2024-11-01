@@ -50,8 +50,6 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        import guardrails as gd
-
         version = Version(metadata.version("guardrails-ai"))
         global GUARDRAILS_VERSION
         GUARDRAILS_VERSION = (version.major, version.minor, version.micro)
@@ -59,6 +57,8 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         if GUARDRAILS_VERSION >= (0, 5, 2):
             logger.info("Guardrails version >= 0.5.2 detected, skipping instrumentation")
             return
+
+        import guardrails as gd
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
