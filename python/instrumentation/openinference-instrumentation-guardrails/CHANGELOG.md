@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-guardrails-v0.1.2...python-openinference-instrumentation-guardrails-v0.1.3) (2024-11-01)
+
+
+### Bug Fixes
+
+* defer version detection until run time for guardrails-ai ([#1099](https://github.com/Arize-ai/openinference/issues/1099)) ([156b6c1](https://github.com/Arize-ai/openinference/commit/156b6c11b0cbade2b99e37af49a77f4e1af79f84))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-guardrails-v0.1.1...python-openinference-instrumentation-guardrails-v0.1.2) (2024-10-31)
 
 
