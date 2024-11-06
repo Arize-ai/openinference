@@ -181,7 +181,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             ReturnType<ChatCompletionCreateType>
           >(
             () => {
-              return context.with(execContext, () => {
+              return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
               });
             },
@@ -263,7 +263,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             ReturnType<CompletionsCreateType>
           >(
             () => {
-              return context.with(execContext, () => {
+              return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
               });
             },
@@ -335,7 +335,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             ReturnType<EmbeddingsCreateType>
           >(
             () => {
-              return context.with(execContext, () => {
+              return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
               });
             },
