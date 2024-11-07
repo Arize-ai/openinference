@@ -402,6 +402,22 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
+      case AISemanticConventions.TOOL_CALL_ID:
+        testCases.push([
+          `${vercelSemanticConvention} to ${SemanticConventions.TOOL_CALL_ID}`,
+          {
+            vercelFunctionName: "ai.toolCall",
+            vercelAttributes: {
+              [vercelSemanticConvention]: "test-tool-id",
+            },
+            addedOpenInferenceAttributes: {
+              [SemanticConventions.TOOL_CALL_ID]: "test-tool-id",
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.TOOL,
+            },
+          },
+        ]);
+        break;
       case AISemanticConventions.TOOL_CALL_NAME:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.TOOL_NAME}`,

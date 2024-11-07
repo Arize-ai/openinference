@@ -400,6 +400,11 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
             ...openInferenceAttributes,
             [openInferenceKey]: attributes[convention],
           };
+        case AISemanticConventions.TOOL_CALL_ID:
+          return {
+            ...openInferenceAttributes,
+            [openInferenceKey]: attributes[convention],
+          };
         case AISemanticConventions.TOOL_CALL_NAME:
           return {
             ...openInferenceAttributes,
