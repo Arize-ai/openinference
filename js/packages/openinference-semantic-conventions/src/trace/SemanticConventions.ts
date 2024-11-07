@@ -74,6 +74,7 @@ export const MessageAttributePostfixes = {
   function_call_name: "function_call_name",
   function_call_arguments_json: "function_call_arguments_json",
   tool_calls: "tool_calls",
+  tool_call_id: "tool_call_id",
 } as const;
 
 export const MessageContentsAttributePostfixes = {
@@ -89,6 +90,7 @@ export const ImageAttributesPostfixes = {
 export const ToolCallAttributePostfixes = {
   function_name: "function.name",
   function_arguments_json: "function.arguments",
+  id: "id",
 } as const;
 
 export const DocumentAttributePostfixes = {
@@ -203,6 +205,12 @@ export const MESSAGE_TOOL_CALLS =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.tool_calls}` as const;
 
 /**
+ * The id of the tool call
+ */
+export const MESSAGE_TOOL_CALL_ID =
+  `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.tool_call_id}` as const;
+
+/**
  * tool_call.function.name
  */
 export const TOOL_CALL_FUNCTION_NAME =
@@ -213,6 +221,12 @@ export const TOOL_CALL_FUNCTION_NAME =
  */
 export const TOOL_CALL_FUNCTION_ARGUMENTS_JSON =
   `${SemanticAttributePrefixes.tool_call}.${ToolCallAttributePostfixes.function_arguments_json}` as const;
+
+/**
+ * The id of the tool call
+ */
+export const TOOL_CALL_ID =
+  `${SemanticAttributePrefixes.tool_call}.${ToolCallAttributePostfixes.id}` as const;
 
 /**
  * The LLM function call function name
@@ -430,6 +444,8 @@ export const SemanticConventions = {
   MESSAGE_ROLE,
   MESSAGE_NAME,
   MESSAGE_TOOL_CALLS,
+  MESSAGE_TOOL_CALL_ID,
+  TOOL_CALL_ID,
   TOOL_CALL_FUNCTION_NAME,
   TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
   MESSAGE_FUNCTION_CALL_NAME,
