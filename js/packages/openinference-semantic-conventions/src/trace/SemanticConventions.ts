@@ -205,7 +205,7 @@ export const MESSAGE_TOOL_CALLS =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.tool_calls}` as const;
 
 /**
- * The id of the tool call
+ * The id of the tool call on a "tool" role message
  */
 export const MESSAGE_TOOL_CALL_ID =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.tool_call_id}` as const;
