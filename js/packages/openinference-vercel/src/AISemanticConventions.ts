@@ -32,6 +32,7 @@ const AIPromptPostfixes = {
 } as const;
 
 const AIToolCallPostfixes = {
+  id: "id",
   name: "name",
   args: "args",
   result: "result",
@@ -68,6 +69,8 @@ const EMBEDDING_VECTOR = `${AI_PREFIX}.embedding` as const;
 const EMBEDDING_TEXTS = `${AI_PREFIX}.values` as const;
 const EMBEDDING_VECTORS = `${AI_PREFIX}.embeddings` as const;
 
+const TOOL_CALL_ID =
+  `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.id}` as const;
 const TOOL_CALL_NAME =
   `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.name}` as const;
 const TOOL_CALL_ARGS =
@@ -94,6 +97,7 @@ export const AISemanticConventions = {
   EMBEDDING_VECTOR,
   EMBEDDING_TEXTS,
   EMBEDDING_VECTORS,
+  TOOL_CALL_ID,
   TOOL_CALL_NAME,
   TOOL_CALL_ARGS,
   TOOL_CALL_RESULT,
