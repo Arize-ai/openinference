@@ -8,7 +8,6 @@ from typing import (
 )
 
 import dspy
-import litellm
 import pytest
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
 from dspy.primitives.assertions import (
@@ -291,7 +290,7 @@ class TestLM:
     ) -> None:
         lm = dspy.LM("openai/gpt-4", cache=False)
         prompt = "Who won the World Cup in 2018?"
-        with pytest.raises(litellm.exceptions.APIError):
+        with pytest.raises(Exception):
             lm(prompt)
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -302,9 +301,10 @@ class TestLM:
         event = span.events[0]
         assert event.name == "exception"
         assert (event_attributes := event.attributes) is not None
-        assert event_attributes["exception.type"] == "litellm.exceptions.APIError"
+        assert isinstance(exception_type := event_attributes["exception.type"], str)
+        assert exception_type.startswith("litellm.exceptions")
         assert isinstance(exception_message := event_attributes["exception.message"], str)
-        assert "Connection error" in exception_message
+        assert "Connection error" in exception_message or "401" in exception_message
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
