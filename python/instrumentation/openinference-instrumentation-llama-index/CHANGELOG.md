@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.3...python-openinference-instrumentation-llama-index-v3.0.4) (2024-11-12)
+
+
+### Bug Fixes
+
+* remove attaching and detaching of opentelemetry contexts ([#1112](https://github.com/Arize-ai/openinference/issues/1112)) ([0f16ffb](https://github.com/Arize-ai/openinference/commit/0f16ffbebb00bb80345fafe03919bb3a5b17d2ae))
+
 ## [3.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.2...python-openinference-instrumentation-llama-index-v3.0.3) (2024-10-31)
 
 
