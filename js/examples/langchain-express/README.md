@@ -16,6 +16,8 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Getting Started With Docker-Compose
 
+Configure a `.env` file with your `OPENAI_API_KEY`.
+
 Ensure that Docker is installed and running. Run the command `docker compose up` to spin up services for the frontend, backend, and Phoenix. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface. When you're finished, run `docker compose down` to spin down the services.
 
 ## Learn More
