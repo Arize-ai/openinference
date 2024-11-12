@@ -15,7 +15,7 @@ from dspy.primitives.assertions import (
     backtrack_handler,
 )
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
-from litellm import AuthenticationError  # type: ignore[attr-defined]
+from litellm import APIError  # type: ignore[attr-defined]
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
@@ -291,7 +291,7 @@ class TestLM:
     ) -> None:
         lm = dspy.LM("openai/gpt-4", cache=False)
         prompt = "Who won the World Cup in 2018?"
-        with pytest.raises(AuthenticationError):
+        with pytest.raises(APIError):
             lm(prompt)
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -302,9 +302,9 @@ class TestLM:
         event = span.events[0]
         assert event.name == "exception"
         assert (event_attributes := event.attributes) is not None
-        assert event_attributes["exception.type"] == "litellm.exceptions.AuthenticationError"
+        assert event_attributes["exception.type"] == "litellm.exceptions.APIError"
         assert isinstance(exception_message := event_attributes["exception.message"], str)
-        assert "401" in exception_message
+        assert "Connection error" in exception_message
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
