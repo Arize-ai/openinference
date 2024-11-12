@@ -29,7 +29,7 @@ from typing import (
 )
 
 from opentelemetry import context as context_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
 from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel as PydanticBaseModel
@@ -694,13 +694,11 @@ class _ExportQueue:
 
 
 class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
-    _context_tokens: Dict[str, object] = PrivateAttr()
     _otel_tracer: Tracer = PrivateAttr()
     _export_queue: _ExportQueue = PrivateAttr()
 
     def __init__(self, tracer: Tracer) -> None:
         super().__init__()
-        self._context_tokens: Dict[str, object] = {}
         self._otel_tracer = tracer
         self._export_queue = _ExportQueue()
 
@@ -723,8 +721,6 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             attributes=dict(get_attributes_from_context()),
             context=(parent.context if parent else None),
         )
-        with self.lock:
-            self._context_tokens[id_] = attach(set_span_in_context(otel_span))
         span = _Span(
             otel_span=otel_span,
             span_kind=_init_span_kind(instance),
@@ -748,9 +744,6 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             return None
         with self.lock:
             span = self.open_spans.get(id_)
-            token = self._context_tokens.get(id_)
-        if token:
-            detach(token)
         if span:
             if isinstance(instance, (BaseLLM, MultiModalLLM)) and (
                 isinstance(result, Generator)
@@ -779,9 +772,6 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             return None
         with self.lock:
             span = self.open_spans.get(id_)
-            token = self._context_tokens.get(id_)
-        if token:
-            detach(token)
         if span:
             if err and isinstance(err, WorkflowDone):
                 span.end()
