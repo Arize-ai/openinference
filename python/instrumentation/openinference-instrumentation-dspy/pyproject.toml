@@ -38,7 +38,7 @@ instruments = [
   "dspy-ai >= 2.5.0",
 ]
 test = [
-  "dspy-ai==2.5.0",
+  "dspy-ai>=2.5.27",
   "google-generativeai",
   "opentelemetry-sdk",
   "pytest-recording",
