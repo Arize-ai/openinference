@@ -8,6 +8,7 @@ from typing import (
 )
 
 import dspy
+import litellm
 import pytest
 from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
 from dspy.primitives.assertions import (
@@ -15,7 +16,6 @@ from dspy.primitives.assertions import (
     backtrack_handler,
 )
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
-from litellm import APIError  # type: ignore[attr-defined]
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
@@ -291,7 +291,7 @@ class TestLM:
     ) -> None:
         lm = dspy.LM("openai/gpt-4", cache=False)
         prompt = "Who won the World Cup in 2018?"
-        with pytest.raises(APIError):
+        with pytest.raises(litellm.APIError):
             lm(prompt)
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
