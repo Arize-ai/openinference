@@ -291,7 +291,7 @@ class TestLM:
     ) -> None:
         lm = dspy.LM("openai/gpt-4", cache=False)
         prompt = "Who won the World Cup in 2018?"
-        with pytest.raises(litellm.APIError):
+        with pytest.raises(litellm.exceptions.APIError):
             lm(prompt)
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
