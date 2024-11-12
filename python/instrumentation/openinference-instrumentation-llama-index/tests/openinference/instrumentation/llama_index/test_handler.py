@@ -41,7 +41,6 @@ from tenacity import wait_none
 
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -154,12 +153,7 @@ def test_handler_basic_retrieval(
     for span in spans:
         traces[span.context.trace_id][span.name] = span
 
-    if is_stream:
-        # OpenAIInstrumentor is on a separate trace because no span
-        # is open when the stream iteration starts.
-        assert len(traces) == n * 2
-    else:
-        assert len(traces) == n
+    assert len(traces) == n
     for spans_by_name in traces.values():
         spans_by_id = _spans_by_id(spans_by_name.values())
         if is_stream and len(spans_by_name) == 1:
@@ -461,9 +455,7 @@ def instrument(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
     LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
-    OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
-    OpenAIInstrumentor().uninstrument()
     LlamaIndexInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
 
