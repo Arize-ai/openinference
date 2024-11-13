@@ -5,9 +5,12 @@ services:
     ports:
       - "6006:6006"
   backend:
-    build: backend
+    build:
+      context: backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    env_file: .env
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
@@ -18,7 +21,9 @@ services:
       timeout: 1s
       retries: 5
   frontend:
-    build: frontend
+    build:
+      context: frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     depends_on:

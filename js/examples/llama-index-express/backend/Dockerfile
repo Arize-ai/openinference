@@ -6,7 +6,7 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm i --quiet
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -20,7 +20,7 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV production
 COPY --from=builder /app/dist ./dist
+COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
-RUN npm i --production
 EXPOSE 8000
 CMD ["node", "--import", "./dist/instrumentation.cjs", "./dist/index.cjs"]
