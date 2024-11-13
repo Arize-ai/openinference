@@ -17,6 +17,7 @@ services:
       interval: 5s
       timeout: 1s
       retries: 5
+    env_file: .env
   frontend:
     build: frontend
     ports:
