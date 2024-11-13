@@ -16,7 +16,9 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Getting Started With Docker-Compose
 
-Ensure that Docker is installed and running. Run the command `docker compose up` to spin up services for the frontend, backend, and Phoenix. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface. When you're finished, run `docker compose down` to spin down the services.
+Copy the `.env.example` file to `.env` and set your `OPENAI_API_KEY`.
+
+Ensure that Docker is installed and running. Run the command `docker compose up` to spin up services for the frontend, backend, and Phoenix. Once those services are running, open [http://localhost:3000](http://localhost:3000) to use the chat interface and [http://localhost:6006](http://localhost:6006) to view the Phoenix UI. When you're finished, run `docker compose down` to spin down the services.
 
 ## Learn More
 
