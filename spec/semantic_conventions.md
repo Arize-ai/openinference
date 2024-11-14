@@ -91,7 +91,6 @@ used; otherwise, a custom value MAY be used.
 |-------------|-----------------|
 | `anthropic` | Anthropic       |
 | `openai`    | OpenAI          |
-| `vertexai`  | Vertex AI       |
 | `cohere`    | Cohere          |
 | `mistralai` | Mistral AI      |
 | `azure`     | Azure           |
