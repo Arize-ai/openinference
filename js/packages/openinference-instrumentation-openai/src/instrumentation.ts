@@ -180,7 +180,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             ReturnType<ChatCompletionCreateType>
           >(
             () => {
-              return context.with(trace.setSpan(context.active(), span), () => {
+              return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
               });
             },
