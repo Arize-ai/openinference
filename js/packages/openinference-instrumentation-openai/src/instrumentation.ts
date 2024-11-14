@@ -175,7 +175,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               },
             },
           );
-
           const execContext = getExecContext(span);
           const execPromise = safeExecuteInTheMiddle<
             ReturnType<ChatCompletionCreateType>
