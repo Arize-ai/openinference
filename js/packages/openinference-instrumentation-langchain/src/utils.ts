@@ -478,12 +478,42 @@ function getTokenCount(maybeCount: unknown) {
  * Formats the token counts of a langchain run into OpenInference attributes.
  * @param outputs - The outputs of a langchain run
  * @returns The OpenInference attributes for the token counts
+ *
+ * @see https://github.com/langchain-ai/langchainjs/blob/main/langchain-core/src/language_models/chat_models.ts#L403 for how token counts get added to outputs
  */
 function formatTokenCounts(
   outputs: Run["outputs"],
 ): TokenCountAttributes | null {
   if (!isObject(outputs)) {
     return null;
+  }
+  const firstGeneration = getFirstOutputGeneration(outputs);
+
+  /**
+   * Some community models have non standard output structures and show token counts in different places notable ChatBedrock
+   * @see https://github.com/langchain-ai/langchainjs/blob/a173e300ef9ada416220876a2739e024b3a7f268/libs/langchain-community/src/chat_models/bedrock/web.ts
+   */
+  // Generations is an array of arrays containing messages
+  const maybeGenerationComponent =
+    firstGeneration != null ? firstGeneration[0] : null;
+  const maybeMessage = isObject(maybeGenerationComponent)
+    ? maybeGenerationComponent.message
+    : null;
+  const usageMetadata = isObject(maybeMessage)
+    ? maybeMessage.usage_metadata
+    : null;
+  if (isObject(usageMetadata)) {
+    return {
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(
+        usageMetadata.output_tokens,
+      ),
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: getTokenCount(
+        usageMetadata.input_tokens,
+      ),
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: getTokenCount(
+        usageMetadata.total_tokens,
+      ),
+    };
   }
   const llmOutput = outputs.llmOutput;
   if (!isObject(llmOutput)) {
@@ -517,6 +547,33 @@ function formatTokenCounts(
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: getTokenCount(
         llmOutput.estimatedTokenUsage.totalTokens,
       ),
+    };
+  }
+
+  /**
+   * In some cases community models have a different output structure do to the way they extend the base model
+   * Notably ChatBedrock may have tokens stored in this format instead of normalized
+   * @see https://github.com/langchain-ai/langchainjs/blob/a173e300ef9ada416220876a2739e024b3a7f268/libs/langchain-community/src/chat_models/bedrock/web.ts for ChatBedrock
+   * and
+   * @see https://github.com/langchain-ai/langchainjs/blob/main/langchain-core/src/language_models/chat_models.ts#L403 for nomalization
+   */
+  if (isObject(llmOutput.usage)) {
+    const maybePromptTokens = getTokenCount(llmOutput.usage.input_tokens);
+    const maybeCompletionTokens = getTokenCount(llmOutput.usage.output_tokens);
+    let maybeTotalTokens = getTokenCount(llmOutput.usage.total_tokens);
+    if (maybeTotalTokens == null) {
+      maybeTotalTokens =
+        isNumber(maybePromptTokens) && isNumber(maybeCompletionTokens)
+          ? maybePromptTokens + maybeCompletionTokens
+          : undefined;
+    }
+    return {
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(
+        maybeCompletionTokens,
+      ),
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
+        getTokenCount(maybePromptTokens),
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: maybeTotalTokens,
     };
   }
   return null;
@@ -589,7 +646,7 @@ function formatMetadata(run: Run) {
     return null;
   }
   return {
-    metadata: safelyJSONStringify(run.extra.metadata),
+    [SemanticConventions.METADATA]: safelyJSONStringify(run.extra.metadata),
   };
 }
 
