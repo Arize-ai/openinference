@@ -1,7 +1,7 @@
 interactions:
 - request:
     body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": "What''s
-      the capital of France?"}], "model": "claude-3-opus-20240229"}'
+      the capital of France?"}], "model": "claude-3-opus-latest"}'
     headers: {}
     method: POST
     uri: https://api.anthropic.com/v1/messages

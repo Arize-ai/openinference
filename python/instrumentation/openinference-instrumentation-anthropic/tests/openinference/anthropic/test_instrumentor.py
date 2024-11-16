@@ -279,7 +279,7 @@ def test_anthropic_instrumentation_messages(
     client = Anthropic(api_key="fake")
     input_message = "What's the capital of France?"
 
-    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-20240229"}
+    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-latest"}
 
     client.messages.create(
         max_tokens=1024,
@@ -289,7 +289,7 @@ def test_anthropic_instrumentation_messages(
                 "content": input_message,
             }
         ],
-        model="claude-3-opus-20240229",
+        model="claude-3-opus-latest",
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
