@@ -1,5 +1,18 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 1.1.0
+
+### Minor Changes
+
+- a0e6f30: Support tool_call_id and tool_call.id
+
+### Patch Changes
+
+- 47cd6b5: fix: propgate context to spans created as a result of work done within openai calls
+- Updated dependencies [a0e6f30]
+  - @arizeai/openinference-semantic-conventions@0.12.0
+  - @arizeai/openinference-core@0.3.1
+
 ## 1.0.0
 
 ### Major Changes

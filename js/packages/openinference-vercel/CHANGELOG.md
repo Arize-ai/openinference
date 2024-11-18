@@ -1,5 +1,17 @@
 # @arizeai/openinference-vercel
 
+## 1.2.0
+
+### Minor Changes
+
+- a0e6f30: Support tool_call_id and tool_call.id
+
+### Patch Changes
+
+- Updated dependencies [a0e6f30]
+  - @arizeai/openinference-semantic-conventions@0.12.0
+  - @arizeai/openinference-core@0.3.1
+
 ## 1.1.0
 
 ### Minor Changes

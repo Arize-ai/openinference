@@ -1,5 +1,14 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 1.0.1
+
+### Patch Changes
+
+- 210ab8c: fix: add support for capturing ChatBedrock token counts
+- Updated dependencies [a0e6f30]
+  - @arizeai/openinference-semantic-conventions@0.12.0
+  - @arizeai/openinference-core@0.3.1
+
 ## 1.0.0
 
 ### Major Changes
