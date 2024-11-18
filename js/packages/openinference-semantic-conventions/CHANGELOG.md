@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.12.0
+
+### Minor Changes
+
+- a0e6f30: Support tool_call_id and tool_call.id
+
 ## 0.11.0
 
 ### Minor Changes
