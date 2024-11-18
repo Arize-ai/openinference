@@ -605,6 +605,66 @@ describe("formatTokenCounts", () => {
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 30,
     });
   });
+
+  it("should add token counts from generations message usage metadata if present", () => {
+    const outputs = {
+      generations: [
+        [
+          {
+            message: {
+              usage_metadata: {
+                input_tokens: 20,
+                output_tokens: 10,
+                total_tokens: 30,
+              },
+            },
+          },
+        ],
+      ],
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 30,
+    });
+  });
+
+  it("should add token counts from llmOutput.usage if present adding together input and output tokens if total tokens is not present", () => {
+    const outputs = {
+      llmOutput: {
+        usage: {
+          input_tokens: 20,
+          output_tokens: 10,
+        },
+      },
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 30,
+    });
+  });
+
+  it("should add token counts from llmOutput.usage if present using total_tokens if present", () => {
+    const outputs = {
+      llmOutput: {
+        usage: {
+          input_tokens: 20,
+          output_tokens: 10,
+          // incorrect total tokens to show that this number is prioritized over addition
+          total_tokens: 35,
+        },
+      },
+    };
+    const result = safelyFormatTokenCounts(outputs);
+    expect(result).toEqual({
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 35,
+    });
+  });
 });
 
 describe("formatFunctionCalls", () => {
