@@ -5,7 +5,9 @@ services:
     ports:
       - "6006:6006"
   backend:
-    build: backend
+    build:
+      context: backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
@@ -19,7 +21,9 @@ services:
       timeout: 1s
       retries: 5
   frontend:
-    build: frontend
+    build:
+      context: frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     depends_on:
