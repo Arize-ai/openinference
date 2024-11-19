@@ -92,7 +92,7 @@ class _CompletionsWrapper(_WithTracer):
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_model_arg(arguments),
+                    _get_llm_model_name_from_input(arguments),
                     _get_llm_provider(),
                     _get_llm_system(),
                     _get_llm_span_kind(),
@@ -145,7 +145,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_model_arg(arguments),
+                    _get_llm_model_name_from_input(arguments),
                     _get_llm_provider(),
                     _get_llm_system(),
                     _get_llm_span_kind(),
@@ -198,7 +198,7 @@ class _MessagesWrapper(_WithTracer):
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
-                    _get_llm_model_arg(arguments),
+                    _get_llm_model_name_from_input(arguments),
                     _get_llm_provider(),
                     _get_llm_system(),
                     _get_llm_span_kind(),
@@ -223,7 +223,7 @@ class _MessagesWrapper(_WithTracer):
                 span.set_attributes(
                     dict(
                         chain(
-                            _get_llm_model(response),
+                            _get_llm_model_name_from_response(response),
                             _get_output_messages(response),
                             _get_llm_token_counts(response.usage),
                             _get_outputs(response),
@@ -261,7 +261,7 @@ class _AsyncMessagesWrapper(_WithTracer):
                     get_attributes_from_context(),
                     _get_llm_provider(),
                     _get_llm_system(),
-                    _get_llm_model_arg(arguments),
+                    _get_llm_model_name_from_input(arguments),
                     _get_llm_span_kind(),
                     _get_llm_input_messages(llm_input_messages),
                     _get_llm_invocation_parameters(invocation_parameters),
@@ -284,7 +284,7 @@ class _AsyncMessagesWrapper(_WithTracer):
                 span.set_attributes(
                     dict(
                         chain(
-                            _get_llm_model(response),
+                            _get_llm_model_name_from_response(response),
                             _get_output_messages(response),
                             _get_llm_token_counts(response.usage),
                             _get_outputs(response),
@@ -328,12 +328,12 @@ def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
     yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
 
 
-def _get_llm_model_arg(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_llm_model_name_from_input(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     if model_name := arguments.get("model"):
         yield LLM_MODEL_NAME, model_name
 
 
-def _get_llm_model(message: "Message") -> Iterator[Tuple[str, Any]]:
+def _get_llm_model_name_from_response(message: "Message") -> Iterator[Tuple[str, Any]]:
     if model_name := getattr(message, "model"):
         yield LLM_MODEL_NAME, model_name
 
