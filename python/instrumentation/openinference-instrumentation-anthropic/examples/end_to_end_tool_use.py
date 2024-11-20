@@ -1,116 +1,100 @@
-from typing import Optional
+import random
 
-import anthropic
-from anthropic.types import (
-    Message,
-    MessageParam,
-    TextBlock,
-    ToolResultBlockParam,
-    ToolUseBlock,
-)
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk import trace as trace_sdk
+from anthropic import Anthropic
+from anthropic.types.message_param import MessageParam
+from anthropic.types.model_param import ModelParam
+from anthropic.types.tool_param import ToolParam
+from dotenv import load_dotenv
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from typing_extensions import assert_never
 
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
 
-endpoint = "http://127.0.0.1:6006/v1/traces"
-tracer_provider = trace_sdk.TracerProvider()
-tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
+load_dotenv()
 
+endpoint = "http://127.0.0.1:4317"
+tracer_provider = TracerProvider()
+tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
 
+client = Anthropic()
+MODEL: ModelParam = "claude-3-5-haiku-latest"
 
-def _to_assistant_message_param(
-    message: Message,
-) -> MessageParam:
-    content = []
-    for block in message.content:
-        if isinstance(block, TextBlock):
-            content.append(block)
-        elif isinstance(block, ToolUseBlock):
-            content.append(block)
-        else:
-            assert_never(block)
-    return MessageParam(content=content, role="assistant")
+weather_bot_prompt = """
+I am a helpful weather bot. Provide me with a location and units,
+and I will output the current weather.
+"""
+question = "what is the weather in california in imperial units?"
 
+messages: list[MessageParam] = [
+    {"role": "assistant", "content": weather_bot_prompt},
+    {"role": "user", "content": question},
+]
 
-def _get_tool_use_id(message: Message) -> Optional[str]:
-    for block in message.content:
-        if isinstance(block, ToolUseBlock):
-            return block.id
-    return None
-
-
-client = anthropic.Anthropic()
-messages = [{"role": "user", "content": "What is the weather like in San Francisco in Fahrenheit?"}]
-response = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
-    max_tokens=1024,
-    tools=[
-        {
-            "name": "get_weather",
-            "description": "Get the current weather in a given location",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "The city and state, e.g. San Francisco, CA",
-                    },
-                    "unit": {
-                        "type": "string",
-                        "enum": ["celsius", "fahrenheit"],
-                        "description": 'The unit of temperature, either "celsius" or "fahrenheit"',
-                    },
-                },
-                "required": ["location"],
+# Define the tool as a JSON schema string for Claude
+tools: list[ToolParam] = [
+    {
+        "name": "get_weather",
+        "description": "Get the current weather for a given location and units",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string"},
+                "units": {"type": "string", "enum": ["metric", "imperial"]},
             },
-        }
-    ],
-    messages=messages,
-)
-messages.append(_to_assistant_message_param(response))
+            "required": ["location", "units"],
+        },
+    }
+]
 
-assert (tool_use_id := _get_tool_use_id(response)) is not None, "tool was not called"
-messages.append(
-    MessageParam(
-        content=[
-            ToolResultBlockParam(
-                tool_use_id=tool_use_id,
-                content='{"weather": "sunny", "temperature": "75"}',
-                type="tool_result",
-                is_error=False,
-            )
-        ],
-        role="user",
-    )
-)
-response = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
-    max_tokens=1024,
-    tools=[
-        {
-            "name": "get_weather",
-            "description": "Get the current weather in a given location",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "The city and state, e.g. San Francisco, CA",
-                    },
-                    "unit": {
-                        "type": "string",
-                        "enum": ["celsius", "fahrenheit"],
-                        "description": 'The unit of temperature, either "celsius" or "fahrenheit"',
-                    },
-                },
-                "required": ["location"],
-            },
-        }
-    ],
+
+message = client.messages.create(
+    model=MODEL,
     messages=messages,
+    tools=tools,
+    max_tokens=1024,
 )
-print(f"{response=}")
+
+
+def get_weather(location: str, units: str) -> str:
+    return f"The weather in {location} is {random.randint(0, 100)} degrees {units}"
+
+
+assert message.stop_reason == "tool_use"
+
+tool = next(tool for tool in message.content if tool.type == "tool_use")
+result: str = get_weather(
+    location=tool.input["location"],  # type: ignore
+    units=tool.input["units"],  # type: ignore
+)
+
+tool_use_message: MessageParam = {
+    "role": "user",
+    "content": [
+        {
+            "type": "tool_result",
+            "tool_use_id": tool.id,
+            "content": [{"type": "text", "text": result}],
+        },
+    ],
+}
+
+new_messages: list[MessageParam] = messages + [
+    {"role": message.role, "content": message.content},
+    tool_use_message,
+]
+
+response = client.messages.create(
+    model=MODEL,
+    messages=new_messages,
+    max_tokens=1024,
+    tools=tools,
+)
+
+res_content = response.content[0]
+
+if res_content.type == "text":
+    print(res_content.text)
+
+print(f"\n\nMessages used: {new_messages}")
