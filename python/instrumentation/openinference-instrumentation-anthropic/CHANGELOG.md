@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.8...python-openinference-instrumentation-anthropic-v0.1.9) (2024-11-21)
+
+
+### Bug Fixes
+
+* add tool id for anthropic instrumentor and serialize `content` to string if it's not a string ([#1129](https://github.com/Arize-ai/openinference/issues/1129)) ([682724c](https://github.com/Arize-ai/openinference/commit/682724ce436ef8ece5d821073e3845cc3a9d602d))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.7...python-openinference-instrumentation-anthropic-v0.1.8) (2024-11-20)
 
 
