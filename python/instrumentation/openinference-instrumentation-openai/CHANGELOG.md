@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.17...python-openinference-instrumentation-openai-v0.1.18) (2024-11-22)
+
+
+### Bug Fixes
+
+* add google as provider for openai instrumentor ([#1131](https://github.com/Arize-ai/openinference/issues/1131)) ([3ef4243](https://github.com/Arize-ai/openinference/commit/3ef424304343ede04910512380ef4c0a01638fb0))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.16...python-openinference-instrumentation-openai-v0.1.17) (2024-10-31)
 
 
