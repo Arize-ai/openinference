@@ -132,6 +132,8 @@ class _WithOpenAI(ABC):
             yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
         elif host.endswith("openai.azure.com"):
             yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
+        elif host.endswith("googleapis.com"):
+            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
 
     def _get_attributes_from_request(
         self,
