@@ -141,30 +141,31 @@ class _CompletionsWrapper(_WithTracer):
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
+                response = exception
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
                     description=f"{type(exception).__name__}: {exception}",
                 )
                 span.finish_tracing(status=status)
-            content = response.choices[0].message.content
-            span.set_attributes(
-                dict(
-                    _flatten(
-                        {
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": content,
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
-                            SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
-                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
-                            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
-                            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
-                        }
+            else:
+                content = response.choices[0].message.content
+                span.set_attributes(
+                    dict(
+                        _flatten(
+                            {
+                                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": content,
+                                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
+                                SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
+                                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                                LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
+                                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
+                                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
+                            }
+                        )
                     )
                 )
-            )
-            span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
-        return response
+                span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
 
 
 class _AsyncCompletionsWrapper(_WithTracer):
@@ -224,6 +225,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
+                response = exception
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -231,23 +233,24 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 )
                 span.finish_tracing(status=status)
                 raise
-            content = response.choices[0].message.content
-            span.set_attributes(
-                dict(
-                    _flatten(
-                        {
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": content,
-                            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
-                            SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
-                            SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                            LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
-                            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
-                            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
-                        }
+            else:
+                content = response.choices[0].message.content
+                span.set_attributes(
+                    dict(
+                        _flatten(
+                            {
+                                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": content,
+                                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
+                                SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
+                                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
+                                LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
+                                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
+                                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
+                            }
+                        )
                     )
                 )
-            )
-            span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
+                span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return response
 
 
