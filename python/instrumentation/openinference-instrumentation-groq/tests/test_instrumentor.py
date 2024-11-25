@@ -336,7 +336,7 @@ def test_groq_tool_call(
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
-    invocation_params: dict[str, Any] = json.loads(
+    invocation_params = json.loads(
         attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS, "{}")  # type: ignore
     )
     assert invocation_params["model"] == "fake_model"
@@ -468,7 +468,7 @@ def test_groq_async_tool_call(
         )
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    invocation_params: dict[str, Any] = json.loads(
+    invocation_params = json.loads(
         attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS, "{}")  # type: ignore
     )
 
