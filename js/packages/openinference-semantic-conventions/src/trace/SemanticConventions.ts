@@ -24,6 +24,8 @@ export const SemanticAttributePrefixes = {
 } as const;
 
 export const LLMAttributePostfixes = {
+  provider: "provider",
+  system: "system",
   model_name: "model_name",
   token_count: "token_count",
   input_messages: "input_messages",
@@ -165,12 +167,13 @@ export const LLM_MODEL_NAME =
  * The provider of the inferences. E.g. the cloud provider
  */
 export const LLM_PROVIDER =
-  `${SemanticAttributePrefixes.llm}.provider` as const;
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.provider}` as const;
 
 /**
  * The AI product as identified by the client or server
  */
-export const LLM_SYSTEM = `${SemanticAttributePrefixes.llm}.system` as const;
+export const LLM_SYSTEM =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.system}` as const;
 
 /** Token count for the completion by the llm */
 export const LLM_TOKEN_COUNT_COMPLETION =
