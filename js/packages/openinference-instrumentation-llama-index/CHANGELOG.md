@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-llama-index
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies [710d1d3]
+  - @arizeai/openinference-semantic-conventions@0.13.0
+
 ## 0.0.11
 
 ### Patch Changes

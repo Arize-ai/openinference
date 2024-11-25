@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.13.0
+
+### Minor Changes
+
+- 710d1d3: Add llm.system and llm.provider to LLMAttributePostfixes record
+
 ## 0.12.0
 
 ### Minor Changes
