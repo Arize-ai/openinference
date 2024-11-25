@@ -7,6 +7,7 @@ from groq import AsyncGroq, Groq
 from groq._base_client import _StreamT
 from groq._types import Body, RequestFiles, RequestOptions, ResponseT
 from groq.resources.chat.completions import AsyncCompletions, Completions
+from groq.types.chat import ChatCompletionToolParam
 from groq.types.chat.chat_completion import (  # type: ignore[attr-defined]
     ChatCompletion,
     ChatCompletionMessage,
@@ -17,6 +18,7 @@ from groq.types.chat.chat_completion_message_tool_call import (
     Function,
 )
 from groq.types.completion_usage import CompletionUsage
+from groq.types.shared import FunctionDefinition
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -90,14 +92,12 @@ mock_tool_completion = ChatCompletion(
     ),
 )
 
-test_tool = {
-    "type": "function",
-    "function": {
-        "name": "hello_world",
-        "description": ("Print 'Hello world!'"),
-        "parameters": {"input": "ex"},
-    },
-}
+test_tool = ChatCompletionToolParam(
+    type="function",
+    function=FunctionDefinition(
+        name="hello_world", description=("Print 'Hello world!'"), parameters={"input": "ex"}
+    ),  # type: ignore
+)
 
 
 def _mock_post(
@@ -336,16 +336,16 @@ def test_groq_tool_call(
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
-    invocation_params = json.loads(attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS, {}))
+    invocation_params: dict[str, Any] = json.loads(
+        attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS, "{}")  # type: ignore
+    )
     assert invocation_params["model"] == "fake_model"
+    assert invocation_params["temperature"] == 0.0
     assert invocation_params["tool_choice"] == "required"
     assert invocation_params["tools"][0] == {
-        "function": {
-            "description": "Print 'Hello world!'",
-            "name": "hello_world",
-            "parameters": {"input": "ex"},
-        },
         "type": "function",
+        "function": "FunctionDefinition(name='hello_world', description=\"Print 'Hello world!'\", "
+        "parameters={'input': 'ex'})",
     }
 
 
@@ -468,16 +468,17 @@ def test_groq_async_tool_call(
         )
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    invocation_params = json.loads(attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS, {}))
+    invocation_params: dict[str, Any] = json.loads(
+        attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS, "{}")  # type: ignore
+    )
+
     assert invocation_params["model"] == "fake_model"
+    assert invocation_params["temperature"] == 0.0
     assert invocation_params["tool_choice"] == "required"
     assert invocation_params["tools"][0] == {
-        "function": {
-            "description": "Print 'Hello world!'",
-            "name": "hello_world",
-            "parameters": {"input": "ex"},
-        },
         "type": "function",
+        "function": "FunctionDefinition(name='hello_world', description=\"Print 'Hello world!'\", "
+        "parameters={'input': 'ex'})",
     }
 
 
