@@ -62,6 +62,7 @@ target-version = "py38"
 "*.ipynb" = ["E402", "E501"]
 
 [tool.ruff.lint]
+ignore-init-module-imports = true
 select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
