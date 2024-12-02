@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.18...python-openinference-instrumentation-v0.1.19) (2024-12-02)
+
+
+### Bug Fixes
+
+* increase python upperbound to include 3.13 for openinference-instrumentation ([#1137](https://github.com/Arize-ai/openinference/issues/1137)) ([0c2f297](https://github.com/Arize-ai/openinference/commit/0c2f297bb479b6cd4a70c7e0b28d6578e0abc6e3))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.17...python-openinference-instrumentation-v0.1.18) (2024-09-11)
 
 
