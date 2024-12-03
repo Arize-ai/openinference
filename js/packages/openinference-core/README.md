@@ -31,7 +31,7 @@ The `@arizeai/openinference-core` package offers utilities to track important ap
 
 ```typescript
 import { context } from "@opentelemetry/api";
-import { setSession } from "@openinference-core";
+import { setSession } from "@arizeai/openinference-core";
 
 context.with(setSession(context.active(), { sessionId: "session-id" }), () => {
   // Calls within this block will generate spans with the attributes:
@@ -43,7 +43,7 @@ Each setter function returns a new active context, so they can be chained togeth
 
 ```typescript
 import { context } from "@opentelemetry/api";
-import { setAttributes, setSession } from "@openinference-core";
+import { setAttributes, setSession } from "@arizeai/openinference-core";
 
 context.with(
   setAttributes(setSession(context.active(), { sessionId: "session-id" }), {
