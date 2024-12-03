@@ -6,11 +6,8 @@ import { insertDataIntoMessages } from "./transform";
 import { ChatInput, ChatMessages } from "./ui/chat";
 
 export default function ChatSection() {
-  // Get or create session and user IDs
   const sessionId = useMemo(() => {
-    // Check if we're in a browser environment
     if (typeof window === 'undefined') return "";
-    
     const stored = sessionStorage.getItem("sessionId");
     if (!stored) {
       const newId = crypto.randomUUID();
@@ -21,9 +18,7 @@ export default function ChatSection() {
   }, []);
 
   const userId = useMemo(() => {
-    // Check if we're in a browser environment
     if (typeof window === 'undefined') return "";
-    
     const stored = sessionStorage.getItem("userId");
     if (!stored) {
       const newId = crypto.randomUUID();
@@ -32,9 +27,7 @@ export default function ChatSection() {
     }
     return stored;
   }, []);
-  console.log({sessionId, userId});
 
-  console.log(`process.env.NEXT_PUBLIC_CHAT_API: ${process.env.NEXT_PUBLIC_CHAT_API}`);
   const {
     messages,
     input,
