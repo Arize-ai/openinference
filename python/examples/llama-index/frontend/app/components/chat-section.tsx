@@ -6,6 +6,28 @@ import { insertDataIntoMessages } from "./transform";
 import { ChatInput, ChatMessages } from "./ui/chat";
 
 export default function ChatSection() {
+  const sessionId = useMemo(() => {
+    if (typeof window === 'undefined') return "";
+    const stored = sessionStorage.getItem("sessionId");
+    if (!stored) {
+      const newId = crypto.randomUUID();
+      sessionStorage.setItem("sessionId", newId);
+      return newId;
+    }
+    return stored;
+  }, []);
+
+  const userId = useMemo(() => {
+    if (typeof window === 'undefined') return "";
+    const stored = sessionStorage.getItem("userId");
+    if (!stored) {
+      const newId = crypto.randomUUID();
+      sessionStorage.setItem("userId", newId);
+      return newId;
+    }
+    return stored;
+  }, []);
+
   const {
     messages,
     input,
@@ -19,6 +41,8 @@ export default function ChatSection() {
     api: process.env.NEXT_PUBLIC_CHAT_API,
     headers: {
       "Content-Type": "application/json", // using JSON because of vercel/ai 2.2.26
+      "X-Session-Id": sessionId,
+      "X-User-Id": userId,
     },
   });
 
