@@ -99,8 +99,12 @@ async def chat(
     data: _ChatData,
     chat_engine: BaseChatEngine = Depends(get_chat_engine),
 ):
-    span = tracer.start_span("chat", attributes={SpanAttributes.OPENINFERENCE_SPAN_KIND: "CHAIN"})
-    with trace.use_span(span, end_on_exit=False):
+    attributes = {SpanAttributes.OPENINFERENCE_SPAN_KIND: "CHAIN"}
+    if (session_id := request.headers.get("X-Session-Id", None)) is not None:
+        attributes[SpanAttributes.SESSION_ID] = session_id
+    if (user_id := request.headers.get("X-User-Id", None)) is not None:
+        attributes[SpanAttributes.USER_ID] = user_id
+    with tracer.start_as_current_span("chat", attributes=attributes,end_on_exit=False) as span:
         last_message_content, messages = await parse_chat_data(data)
         span.set_attribute(SpanAttributes.INPUT_VALUE, last_message_content)
         response = await chat_engine.astream_chat(last_message_content, messages)
