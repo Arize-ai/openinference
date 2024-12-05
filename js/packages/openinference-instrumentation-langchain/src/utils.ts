@@ -31,6 +31,12 @@ import { withSafety } from "@arizeai/openinference-core";
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
 
+export const SESSION_ID_KEYS = [
+  "session_id",
+  "thread_id",
+  "conversation_id",
+] as const;
+
 /**
  * Handler for any unexpected errors that occur during processing.
  */
@@ -659,7 +665,6 @@ function formatMetadata(run: Run) {
  * @returns The OpenInference attributes for the session id
  */
 function formatSessionId(run: Run) {
-  const sessionKeys = ["session_id", "thread_id", "conversation_id"];
   if (!isObject(run.extra)) {
     return null;
   }
@@ -667,7 +672,7 @@ function formatSessionId(run: Run) {
   if (!isObject(metadata)) {
     return null;
   }
-  const sessionId = sessionKeys.find((key) => isString(metadata[key]));
+  const sessionId = SESSION_ID_KEYS.find((key) => isString(metadata[key]));
   if (sessionId == null) {
     return null;
   }
