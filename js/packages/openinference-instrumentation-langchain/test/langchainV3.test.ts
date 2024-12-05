@@ -560,6 +560,96 @@ describe("LangChainInstrumentation", () => {
 }
 `);
   });
+
+  it("should extract session ID from run metadata with session_id", async () => {
+    const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
+      modelName: "gpt-3.5-turbo",
+    });
+
+    await chatModel.invoke("test message", {
+      metadata: {
+        session_id: "test-session-123",
+      },
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
+      "test-session-123",
+    );
+  });
+
+  it("should extract session ID from run metadata with thread_id", async () => {
+    const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
+      modelName: "gpt-3.5-turbo",
+    });
+
+    await chatModel.invoke("test message", {
+      metadata: {
+        thread_id: "thread-456",
+      },
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
+      "thread-456",
+    );
+  });
+
+  it("should extract session ID from run metadata with conversation_id", async () => {
+    const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
+      modelName: "gpt-3.5-turbo",
+    });
+
+    await chatModel.invoke("test message", {
+      metadata: {
+        conversation_id: "conv-789",
+      },
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
+      "conv-789",
+    );
+  });
+
+  it("should prioritize session_id over thread_id and conversation_id", async () => {
+    const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
+      modelName: "gpt-3.5-turbo",
+    });
+
+    await chatModel.invoke("test message", {
+      metadata: {
+        session_id: "session-123",
+        thread_id: "thread-456",
+        conversation_id: "conv-789",
+      },
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
+      "session-123",
+    );
+  });
+
+  it("should handle missing session identifiers in metadata", async () => {
+    const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
+      modelName: "gpt-3.5-turbo",
+    });
+
+    await chatModel.invoke("test message", {
+      metadata: {
+        other_field: "some-value",
+      },
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBeUndefined();
+  });
 });
 
 describe("LangChainInstrumentation with TraceConfigOptions", () => {
