@@ -1,4 +1,4 @@
-export { TraceConfigOptions } from "./types";
+export type { TraceConfigOptions } from "./types";
 export {
   OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
   OPENINFERENCE_HIDE_EMBEDDING_VECTORS,
