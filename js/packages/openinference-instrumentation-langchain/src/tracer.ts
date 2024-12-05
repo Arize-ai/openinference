@@ -18,6 +18,7 @@ import {
   safelyFormatOutputMessages,
   safelyFormatPromptTemplate,
   safelyFormatRetrievalDocuments,
+  safelyFormatSessionId,
   safelyFormatTokenCounts,
   safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
@@ -134,6 +135,7 @@ export class LangChainTracer extends BaseTracer {
       ...safelyFormatFunctionCalls(run.outputs),
       ...safelyFormatToolCalls(run),
       ...safelyFormatMetadata(run),
+      ...safelyFormatSessionId(run),
     });
     if (attributes != null) {
       span.setAttributes(attributes);

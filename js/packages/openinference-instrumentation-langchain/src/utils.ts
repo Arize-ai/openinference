@@ -31,6 +31,12 @@ import { withSafety } from "@arizeai/openinference-core";
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
 
+export const SESSION_ID_KEYS = [
+  "session_id",
+  "thread_id",
+  "conversation_id",
+] as const;
+
 /**
  * Handler for any unexpected errors that occur during processing.
  */
@@ -650,6 +656,31 @@ function formatMetadata(run: Run) {
   };
 }
 
+/**
+ * Formats the session id of a langchain run into OpenInference attributes.
+ *
+ * @see https://docs.smith.langchain.com/observability/how_to_guides/monitoring/threads#group-traces-into-threads
+ *
+ * @param run - The langchain run to extract the session id from
+ * @returns The OpenInference attributes for the session id
+ */
+function formatSessionId(run: Run) {
+  if (!isObject(run.extra)) {
+    return null;
+  }
+  const metadata = run.extra.metadata;
+  if (!isObject(metadata)) {
+    return null;
+  }
+  const sessionId = SESSION_ID_KEYS.find((key) => isString(metadata[key]));
+  if (sessionId == null) {
+    return null;
+  }
+  return {
+    [SemanticConventions.SESSION_ID]: metadata[sessionId],
+  };
+}
+
 export const safelyFlattenAttributes = withSafety({
   fn: flattenAttributes,
   onError: onError("Error flattening attributes"),
@@ -697,4 +728,8 @@ export const safelyFormatToolCalls = withSafety({
 export const safelyFormatMetadata = withSafety({
   fn: formatMetadata,
   onError: onError("Error formatting metadata"),
+});
+export const safelyFormatSessionId = withSafety({
+  fn: formatSessionId,
+  onError: onError("Error formatting session id"),
 });
