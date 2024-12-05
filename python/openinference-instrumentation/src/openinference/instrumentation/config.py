@@ -10,7 +10,6 @@ from typing import (
     Literal,
     Optional,
     Sequence,
-    TypeAlias,
     Union,
     cast,
     get_args,
@@ -36,6 +35,7 @@ from opentelemetry.trace import (
     use_span,
 )
 from opentelemetry.util.types import Attributes, AttributeValue
+from typing_extensions import TypeAlias
 
 from openinference.semconv.trace import (
     EmbeddingAttributes,
