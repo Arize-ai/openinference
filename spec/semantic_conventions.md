@@ -8,7 +8,7 @@ operations used by applications. These conventions are used to populate the `att
 The following attributes are reserved and MUST be supported by all OpenInference Tracing SDKs:
 
 | Attribute                              | Type                        | Example                                                                    | Description                                                                           |
-|----------------------------------------|-----------------------------|----------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
+| -------------------------------------- | --------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | `document.content`                     | String                      | `"This is a sample document content."`                                     | The content of a retrieved document                                                   |
 | `document.id`                          | String/Integer              | `"1234"` or `1`                                                            | Unique identifier for a document                                                      |
 | `document.metadata`                    | JSON String                 | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                           | Metadata associated with a document                                                   |
@@ -69,6 +69,9 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `tool_call.function.name`              | String                      | `"get_current_weather"`                                                    | The name of the function being invoked by a tool call                                 |
 | `tool_call.id`                         | string                      | `"call_62136355"`                                                          | The id of the a tool call (useful when there are more than one call at the same time) |
 | `user.id`                              | String                      | `"9328ae73-7141-4f45-a044-8e06192aa465"`                                   | Unique identifier for a user                                                          |
+| `audio.url`                            | String                      | `https://storage.com/buckets/1/file.wav`                                   | The url to an audio file (e.x. cloud storage)                                         |
+| `audio.mime_type`                      | String                      | `audio/mpeg`                                                               | The mime type of the audio file (e.x. `audio/mpeg`, `audio/wav` )                     |
+| `audio.transcript`                     | String                      | `"Hello, how are you?"`                                                    | The transcript of the audio file (e.x. whisper transcription)                         |
 
 <sup>†</sup> To get a list of objects exported as OpenTelemetry span attributes, flattening of the list is necessary as
 shown in the examples below.
@@ -77,7 +80,7 @@ shown in the examples below.
 used; otherwise, a custom value MAY be used.
 
 | Value       | Description |
-|-------------|-------------|
+| ----------- | ----------- |
 | `anthropic` | Anthropic   |
 | `openai`    | OpenAI      |
 | `vertexai`  | Vertex AI   |
@@ -88,7 +91,7 @@ used; otherwise, a custom value MAY be used.
 used; otherwise, a custom value MAY be used.
 
 | Value       | Description     |
-|-------------|-----------------|
+| ----------- | --------------- |
 | `anthropic` | Anthropic       |
 | `openai`    | OpenAI          |
 | `cohere`    | Cohere          |
@@ -112,17 +115,17 @@ for i, obj in enumerate(messages):
 
 ```javascript
 const messages = [
-  { "message.role": "user", "message.content": "hello" },
-  {
-    "message.role": "assistant",
-    "message.content": "hi",
-  },
+    { "message.role": "user", "message.content": "hello" },
+    {
+        "message.role": "assistant",
+        "message.content": "hi",
+    },
 ];
 
 for (const [i, obj] of messages.entries()) {
-  for (const [key, value] of Object.entries(obj)) {
-    span.setAttribute(`input.messages.${i}.${key}`, value);
-  }
+    for (const [key, value] of Object.entries(obj)) {
+        span.setAttribute(`input.messages.${i}.${key}`, value);
+    }
 }
 ```
 
