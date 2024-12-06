@@ -69,8 +69,9 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `tool_call.function.name`              | String                      | `"get_current_weather"`                                                    | The name of the function being invoked by a tool call                                 |
 | `tool_call.id`                         | string                      | `"call_62136355"`                                                          | The id of the a tool call (useful when there are more than one call at the same time) |
 | `user.id`                              | String                      | `"9328ae73-7141-4f45-a044-8e06192aa465"`                                   | Unique identifier for a user                                                          |
-| `audio.url`                            | String                      | The url to an audio file (e.x. cloud storage)                              |
-| `audio.mime_type`                      | String                      | The mime type of the audio file (e.x. `audio/mpeg`, `audio/wav` )          |
+| `audio.url`                            | String                      | `https://storage.com/buckets/1/file.wav`                                   | The url to an audio file (e.x. cloud storage)                                         |
+| `audio.mime_type`                      | String                      | `audio/mpeg`                                                               | The mime type of the audio file (e.x. `audio/mpeg`, `audio/wav` )                     |
+| `audio.transcript`                     | String                      | `"Hello, how are you?"`                                                    | The transcript of the audio file (e.x. whisper transcription)                         |
 
 <sup>†</sup> To get a list of objects exported as OpenTelemetry span attributes, flattening of the list is necessary as
 shown in the examples below.
