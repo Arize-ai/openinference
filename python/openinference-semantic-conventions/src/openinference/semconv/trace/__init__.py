@@ -203,6 +203,25 @@ class ImageAttributes:
     """
 
 
+class AudioAttributes:
+    """
+    Attributes for audio
+    """
+
+    AUDIO_URL = "audio.url"
+    """
+    The url to an audio file
+    """
+    AUDIO_MIME_TYPE = "audio.mime_type"
+    """
+    The mime type of the audio file
+    """
+    AUDIO_TRANSCRIPT = "audio.transcript"
+    """
+    The transcript of the audio file
+    """
+
+
 class DocumentAttributes:
     """
     Attributes for a document.

@@ -21,6 +21,7 @@ export const SemanticAttributePrefixes = {
   openinference: "openinference",
   message_content: "message_content",
   image: "image",
+  audio: "audio",
 } as const;
 
 export const LLMAttributePostfixes = {
@@ -112,6 +113,12 @@ export const SessionAttributePostfixes = {
 
 export const UserAttributePostfixes = {
   id: "id",
+} as const;
+
+export const AudioAttributesPostfixes = {
+  url: "url",
+  mime_type: "mime_type",
+  transcript: "transcript",
 } as const;
 
 /**
@@ -427,6 +434,24 @@ export const PROMPT_TEMPLATE_VERSION =
 export const TAG_TAGS =
   `${SemanticAttributePrefixes.tag}.${TagAttributePostfixes.tags}` as const;
 
+/**
+ * The url of an audio file
+ */
+export const AUDIO_URL =
+  `${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.url}` as const;
+
+/**
+ * The audio mime type
+ */
+export const AUDIO_MIME_TYPE =
+  `${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.mime_type}` as const;
+
+/**
+ * The audio transcript as text
+ */
+export const AUDIO_TRANSCRIPT =
+  `${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.transcript}` as const;
+
 export const SemanticConventions = {
   IMAGE_URL,
   INPUT_VALUE,
@@ -499,9 +524,13 @@ export enum OpenInferenceSpanKind {
   EVALUATOR = "EVALUATOR",
 }
 
+/**
+ * An enum of common mime types. Not exhaustive.
+ */
 export enum MimeType {
   TEXT = "text/plain",
   JSON = "application/json",
+  AUDIO_WAV = "audio/wav",
 }
 
 export enum LLMSystem {
