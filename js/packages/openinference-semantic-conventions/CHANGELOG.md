@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 0.14.0
+
+### Minor Changes
+
+- 1188c6d: add semantic conventions for audio
+
 ## 0.13.0
 
 ### Minor Changes
