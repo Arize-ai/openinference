@@ -1,5 +1,17 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 1.1.0
+
+### Minor Changes
+
+- 8182c3a: Parses metadata with key name in (session_id, thread_id, conversation_id) into semantic conventions session id
+
+### Patch Changes
+
+- Updated dependencies [1188c6d]
+  - @arizeai/openinference-semantic-conventions@0.14.0
+  - @arizeai/openinference-core@0.3.3
+
 ## 1.0.2
 
 ### Patch Changes
