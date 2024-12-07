@@ -1,12 +1,5 @@
 import logging
-from typing import (
-    Any,
-    Iterable,
-    Iterator,
-    Mapping,
-    Tuple,
-    TypeVar,
-)
+from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
 
 from opentelemetry.util.types import AttributeValue
 
@@ -49,10 +42,10 @@ class _RequestAttributesExtractor:
         if not isinstance(request_parameters, Mapping):
             return
         invocation_params = dict(request_parameters)
-        invocation_params.pop("messages", None)
-        invocation_params.pop("functions", None)
-        invocation_params.pop("tools", None)
+        invocation_params.pop("messages", None)  # Remove LLM input messages
+
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+
         if (input_messages := request_parameters.get("messages")) and isinstance(
             input_messages, Iterable
         ):
