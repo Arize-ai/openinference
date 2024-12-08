@@ -12,7 +12,7 @@ OpenInference uses OpenTelemetry Protocol (OTLP) to send traces to a compatible 
 Install the OpenTelemetry SDK:
 
 ```shell
-npm install --save @opentelemetry/exporter-trace-otlp-http @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-node
+npm install --save @opentelemetry/exporter-trace-otlp-http @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-node @opentelemetry/instrumentation
 ```
 
 Install the OpenInference instrumentation you would like to use:
