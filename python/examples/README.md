@@ -14,7 +14,7 @@ The examples listed below are expected to be updated with every OpenInference Py
 
 ## Contributing
 
-Please see [CONTRIBUTING.md](../../CONTRIBUTING.md) for instructions on how to contribute.
+Please see [the contributing guide](../../CONTRIBUTING) for instructions on how to contribute.
 
 ## LICENSE
 
