@@ -12,11 +12,18 @@
     "url": "https://github.com/Arize-ai/openinference.git"
   },
   "scripts": {
-    "prebuild": "rimraf dist & pnpm run version:update",
-    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json",
+    "prebuild": "rimraf dist && pnpm run version:update",
+    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
+    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
     "test": "jest"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/src/index.js"
+    }
   },
   "keywords": [],
   "files": [

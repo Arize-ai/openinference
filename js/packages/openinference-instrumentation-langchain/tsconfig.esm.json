@@ -7,6 +7,10 @@
   },
   "include": ["src/**/*.ts"],
   "references": [],
+  "tsc-alias": {
+    "verbose": false,
+    "resolveFullPaths": true
+  },
   "paths": {
     "langchainV0.1/*": ["node_modules/langchainV0.1/*"],
     "@langchain/coreV0.1/*": ["node_modules/@langchain/coreV0.1/*"],
