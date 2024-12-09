@@ -1,18 +1,12 @@
 import logging
 import warnings
-from typing import (
-    Any,
-    Iterator,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-)
+from typing import Any, Iterable, Iterator, Mapping, NamedTuple, Optional, Sequence, Tuple
 
-from opentelemetry.util.types import AttributeValue
+from opentelemetry import trace as trace_api
+from opentelemetry.util.types import Attributes, AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
 logger = logging.getLogger(__name__)
@@ -55,3 +49,40 @@ def _as_input_attributes(
     # It's assumed to be TEXT by default, so we can skip to save one attribute.
     if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
         yield SpanAttributes.INPUT_MIME_TYPE, value_and_type.type.value
+
+
+def _as_output_attributes(
+    value_and_type: Optional[_ValueAndType],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if not value_and_type:
+        return
+    yield SpanAttributes.OUTPUT_VALUE, value_and_type.value
+    # It's assumed to be TEXT by default, so we can skip to save one attribute.
+    if value_and_type.type is not OpenInferenceMimeTypeValues.TEXT:
+        yield SpanAttributes.OUTPUT_MIME_TYPE, value_and_type.type.value
+
+
+def _finish_tracing(
+    with_span: _WithSpan,
+    attributes: Iterable[Tuple[str, AttributeValue]],
+    extra_attributes: Iterable[Tuple[str, AttributeValue]],
+    status: Optional[trace_api.Status] = None,
+) -> None:
+    try:
+        attributes: Attributes = dict(attributes)
+    except Exception:
+        logger.exception("Failed to get attributes")
+        attributes = None
+    try:
+        extra_attributes: Attributes = dict(extra_attributes)
+    except Exception:
+        logger.exception("Failed to get extra attributes")
+        extra_attributes = None
+    try:
+        with_span.finish_tracing(
+            status=status,
+            attributes=attributes,
+            extra_attributes=extra_attributes,
+        )
+    except Exception:
+        logger.exception("Failed to finish tracing")

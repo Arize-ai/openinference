@@ -1,4 +1,5 @@
 import json
+import logging
 from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
@@ -14,14 +15,20 @@ from openinference.instrumentation import get_attributes_from_context, safe_json
 from openinference.instrumentation.groq._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
+from openinference.instrumentation.groq._response_attributes_extractor import (
+    _ResponseAttributesExtractor,
+)
+from openinference.instrumentation.groq._utils import _finish_tracing
 from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
-    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -111,6 +118,7 @@ class _CompletionsWrapper(_WithTracer):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._request_extractor = _RequestAttributesExtractor()
+        self._response_extractor = _ResponseAttributesExtractor()
 
     def __call__(
         self,
@@ -141,31 +149,26 @@ class _CompletionsWrapper(_WithTracer):
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
-                response = exception
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
                     description=f"{type(exception).__name__}: {exception}",
                 )
                 span.finish_tracing(status=status)
-            else:
-                content = response.choices[0].message.content
-                span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": content,
-                                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
-                                SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
-                                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                                LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
-                                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
-                                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
-                            }
-                        )
-                    )
+                raise
+            try:
+                _finish_tracing(
+                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                    with_span=span,
+                    attributes=self._response_extractor.get_attributes(response=response),
+                    extra_attributes=self._response_extractor.get_extra_attributes(
+                        response=response, request_parameters=request_parameters
+                    ),
                 )
-                span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
+            except Exception:
+                logger.exception(f"Failed to finalize response of type {type(response)}")
+                span.finish_tracing()
+        return response
 
 
 class _AsyncCompletionsWrapper(_WithTracer):
@@ -177,6 +180,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._request_extractor = _RequestAttributesExtractor()
+        self._response_extractor = _ResponseAttributesExtractor()
 
     async def __call__(
         self,
@@ -195,8 +199,6 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        llm_invocation_params = kwargs
-        llm_messages = dict(kwargs).pop("messages", None)
 
         span_name = "AsyncCompletions"
         with self._start_as_current_span(
@@ -207,25 +209,9 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 request_parameters
             ),
         ) as span:
-            span.set_attributes(
-                dict(
-                    _flatten(
-                        {
-                            SpanAttributes.OPENINFERENCE_SPAN_KIND: LLM,
-                            SpanAttributes.LLM_INPUT_MESSAGES: llm_messages,
-                            SpanAttributes.LLM_INVOCATION_PARAMETERS: safe_json_dumps(
-                                llm_invocation_params
-                            ),
-                            SpanAttributes.LLM_MODEL_NAME: llm_invocation_params.get("model"),
-                            SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                        }
-                    )
-                )
-            )
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
-                response = exception
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -233,24 +219,18 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 )
                 span.finish_tracing(status=status)
                 raise
-            else:
-                content = response.choices[0].message.content
-                span.set_attributes(
-                    dict(
-                        _flatten(
-                            {
-                                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}": content,
-                                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "assistant",
-                                SpanAttributes.OUTPUT_VALUE: response.choices[0].message.content,
-                                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON,
-                                LLM_TOKEN_COUNT_COMPLETION: response.usage.completion_tokens,
-                                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage.prompt_tokens,
-                                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage.total_tokens,
-                            }
-                        )
-                    )
+            try:
+                _finish_tracing(
+                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                    with_span=span,
+                    attributes=self._response_extractor.get_attributes(response=response),
+                    extra_attributes=self._response_extractor.get_extra_attributes(
+                        response=response, request_parameters=request_parameters
+                    ),
                 )
-                span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
+            except Exception:
+                logger.exception(f"Failed to finalize response of type {type(response)}")
+                span.finish_tracing()
         return response
 
 
