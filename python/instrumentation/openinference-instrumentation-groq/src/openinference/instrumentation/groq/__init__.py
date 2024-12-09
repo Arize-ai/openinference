@@ -3,8 +3,8 @@ from importlib import import_module
 from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
-    BaseInstrumentor,
+from opentelemetry.instrumentation.instrumentor import (
+    BaseInstrumentor,  # type: ignore[attr-defined]
 )
 from wrapt import wrap_function_wrapper
 
@@ -17,6 +17,7 @@ from openinference.instrumentation.groq._wrappers import (
 from openinference.instrumentation.groq.version import __version__
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 _instruments = ("groq >= 0.9.0",)
 

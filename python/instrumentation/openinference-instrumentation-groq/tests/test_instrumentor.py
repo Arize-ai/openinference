@@ -1,27 +1,24 @@
 import asyncio
-from typing import (
-    Any,
-    Dict,
-    Generator,
-    List,
-    Mapping,
-    Optional,
-    Type,
-    Union,
-    cast,
-)
+import json
+from typing import Any, Dict, Generator, List, Mapping, Optional, Type, Union, cast
 
 import pytest
 from groq import AsyncGroq, Groq
 from groq._base_client import _StreamT
 from groq._types import Body, RequestFiles, RequestOptions, ResponseT
 from groq.resources.chat.completions import AsyncCompletions, Completions
+from groq.types.chat import ChatCompletionToolParam
 from groq.types.chat.chat_completion import (  # type: ignore[attr-defined]
     ChatCompletion,
     ChatCompletionMessage,
     Choice,
 )
+from groq.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+    Function,
+)
 from groq.types.completion_usage import CompletionUsage
+from groq.types.shared import FunctionDefinition
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -30,10 +27,7 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
-from openinference.semconv.trace import (
-    MessageAttributes,
-    SpanAttributes,
-)
+from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 mock_completion = ChatCompletion(
     id="chat_comp_0",
@@ -60,6 +54,49 @@ mock_completion = ChatCompletion(
         queue_time=None,
         total_time=0.6188120300000001,
     ),
+)
+
+mock_tool_completion = ChatCompletion(
+    id="chat_comp_0",
+    choices=[
+        Choice(
+            finish_reason="tool_calls",
+            index=0,
+            logprobs=None,
+            message=ChatCompletionMessage(
+                content="",
+                role="assistant",
+                function_call=None,
+                tool_calls=[
+                    ChatCompletionMessageToolCall(
+                        id="call_t760",
+                        function=Function(arguments="{}", name="hello_world"),
+                        type="function",
+                    )
+                ],
+            ),
+        )
+    ],
+    created=1722531851,
+    model="fake_model",
+    object="chat.completion",
+    system_fingerprint="fp0",
+    usage=CompletionUsage(
+        completion_tokens=379,
+        prompt_tokens=25,
+        total_tokens=404,
+        completion_time=0.616262398,
+        prompt_time=0.002549632,
+        queue_time=None,
+        total_time=0.6188120300000001,
+    ),
+)
+
+test_tool = ChatCompletionToolParam(
+    type="function",
+    function=FunctionDefinition(
+        name="hello_world", description=("Print 'Hello world!'"), parameters={"input": "ex"}
+    ),  # type: ignore
 )
 
 
@@ -250,6 +287,68 @@ def test_groq_instrumentation(
     )
 
 
+def test_groq_tool_call(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_groq_instrumentation: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    client = Groq(api_key="fake")
+    client.chat.completions._post = _mock_post  # type: ignore[assignment]
+
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    ):
+        client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Print hello world",
+                }
+            ],
+            model="fake_model",
+            temperature=0.0,
+            tools=[test_tool],
+            tool_choice="required",
+        )
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "Completions"
+    assert spans[0].attributes and spans[0].attributes.get("openinference.span.kind") == "LLM"
+
+    for span in spans:
+        att = span.attributes
+        _check_context_attributes(
+            att,
+        )
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    invocation_params = json.loads(
+        attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS, "{}")  # type: ignore
+    )
+    assert invocation_params["model"] == "fake_model"
+    assert invocation_params["temperature"] == 0.0
+    assert invocation_params["tool_choice"] == "required"
+    assert invocation_params["tools"][0] == {
+        "type": "function",
+        "function": "FunctionDefinition(name='hello_world', description=\"Print 'Hello world!'\", "
+        "parameters={'input': 'ex'})",
+    }
+
+
 def test_groq_async_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -299,6 +398,7 @@ def test_groq_async_instrumentation(
         )
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    print(attributes)
     assert (
         attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
         == "user"
@@ -315,6 +415,67 @@ def test_groq_async_instrumentation(
         attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == "idk, sorry!"
     )
+
+
+def test_groq_async_tool_call(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_groq_instrumentation: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    client = AsyncGroq(api_key="fake")
+    client.chat.completions._post = _async_mock_post  # type: ignore[assignment]
+
+    async def exec_comp() -> None:
+        await client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Print hello world",
+                }
+            ],
+            model="fake_model",
+            temperature=0.0,
+            tools=[test_tool],
+            tool_choice="required",
+        )
+
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    ):
+        asyncio.run(exec_comp())
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "AsyncCompletions"
+    assert spans[0].attributes and spans[0].attributes.get("openinference.span.kind") == "LLM"
+
+    for span in spans:
+        att = span.attributes
+        _check_context_attributes(
+            att,
+        )
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    invocation_params = json.loads(
+        attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS, "{}")  # type: ignore
+    )
+
+    assert invocation_params["model"] == "fake_model"
+    assert invocation_params["temperature"] == 0.0
+    assert invocation_params["tool_choice"] == "required"
 
 
 def test_groq_uninstrumentation(
