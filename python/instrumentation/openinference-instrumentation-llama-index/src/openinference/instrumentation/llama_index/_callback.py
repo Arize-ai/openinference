@@ -502,7 +502,7 @@ def _get_span_kind(event_type: Optional[CBEventType]) -> OpenInferenceSpanKindVa
 
 def _message_payload_to_attributes(message: Any) -> Dict[str, Optional[str]]:
     if isinstance(message, ChatMessage):
-        message_attributes = {
+        message_attributes: dict[str, Any] = {
             MESSAGE_ROLE: message.role.value,
             MESSAGE_CONTENT: message.content,
         }
