@@ -13,6 +13,7 @@ from typing import (
     Union,
     cast,
     get_args,
+    overload,
 )
 
 import wrapt
@@ -37,6 +38,7 @@ from opentelemetry.trace import (
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import TypeAlias
 
+from openinference.instrumentation.helpers import safe_json_dumps
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -52,6 +54,10 @@ from .logging import logger
 OpenInferenceMimeType: TypeAlias = Union[
     Literal[tuple(mime_type.value for mime_type in OpenInferenceMimeTypeValues)],
     OpenInferenceMimeTypeValues,
+]
+OpenInferenceSpanKind: TypeAlias = Union[
+    Literal[tuple(kind.value.lower() for kind in OpenInferenceSpanKindValues)],
+    OpenInferenceSpanKindValues,
 ]
 
 
@@ -373,27 +379,51 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
             span.set_attribute(k, v)
         span.end(end_time)
 
-    def set_input_value(self, input_value: str, /) -> None:
-        if not isinstance(input_value, str):
-            raise TypeError(f"input value must be a string, got {type(input_value).__name__}")
-        self.set_attribute(INPUT_VALUE, input_value)
+    def set_input(
+        self, value: str, mime_type: OpenInferenceMimeType = OpenInferenceMimeTypeValues.TEXT
+    ) -> None:
+        if not isinstance(value, str):
+            raise TypeError(f"input value must be a string, got {type(value).__name__}")
+        mime_type = _normalize_mime_type(mime_type)
+        self.set_attribute(INPUT_VALUE, value)
+        self.set_attribute(INPUT_MIME_TYPE, mime_type)
 
-    def set_input_mime_type(self, input_mime_type: OpenInferenceMimeType, /) -> None:
-        self.set_attribute(INPUT_MIME_TYPE, _normalize_mime_type(input_mime_type))
-
-    def set_output_value(self, output_value: str, /) -> None:
-        if not isinstance(output_value, str):
-            raise TypeError(f"output value must be a string, got {type(output_value).__name__}")
-        self.set_attribute(OUTPUT_VALUE, output_value)
-
-    def set_output_mime_type(self, output_mime_type: OpenInferenceMimeType, /) -> None:
-        self.set_attribute(OUTPUT_MIME_TYPE, _normalize_mime_type(output_mime_type))
+    def set_output(
+        self, value: str, mime_type: OpenInferenceMimeType = OpenInferenceMimeTypeValues.TEXT
+    ) -> None:
+        if not isinstance(value, str):
+            raise TypeError(f"output value must be a string, got {type(value).__name__}")
+        mime_type = _normalize_mime_type(mime_type)
+        self.set_attribute(OUTPUT_VALUE, value)
+        self.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
 
-class OpenInferenceChainSpan(OpenInferenceSpan):
+class ChainSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
         self.__wrapped__.set_attribute(OPENINFERENCE_SPAN_KIND, CHAIN)
+
+    def set_input(self, value: Any, mime_type: Optional[OpenInferenceMimeType] = None) -> None:
+        normalized_mime_type: OpenInferenceMimeTypeValues
+        if isinstance(value, str):
+            normalized_mime_type = (
+                _normalize_mime_type(mime_type) if mime_type is not None else TEXT
+            )
+        else:
+            if mime_type == TEXT:
+                raise ValueError('input value must be a string for "text/plain" mime type')
+            value = safe_json_dumps(value)
+            normalized_mime_type = JSON
+        self.set_attribute(INPUT_VALUE, value)
+        self.set_attribute(INPUT_MIME_TYPE, normalized_mime_type)
+
+    def set_output(self, value: str, mime_type: Optional[OpenInferenceMimeType] = None) -> None:
+        if not isinstance(value, str):
+            raise TypeError(f"output value must be a string, got {type(value).__name__}")
+        mime_type = _normalize_mime_type(mime_type)
+        self.set_attribute(OUTPUT_VALUE, value)
+        self.set_attribute(OUTPUT_MIME_TYPE, mime_type)
+        self.set_attributes()
 
 
 class _IdGenerator(IdGenerator):
@@ -424,7 +454,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         return self._self_id_generator
 
     @contextmanager
-    def start_as_current_span(
+    def _start_as_current_span(
         self,
         name: str,
         context: Optional[Context] = None,
@@ -487,32 +517,36 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         name: str,
         *,
         input_value: Optional[str] = None,
-        input_mime_type: Optional[OpenInferenceMimeType] = None,
+        input_mime_type: OpenInferenceMimeType = OpenInferenceMimeTypeValues.TEXT,
         **kwargs: Any,
-    ) -> OpenInferenceChainSpan:
+    ) -> ChainSpan:
         span = self.start_span(name, **kwargs)
-        span = OpenInferenceChainSpan(span)
-        if input_value is not None:
-            span.set_input_value(input_value)
-        if input_mime_type is not None:
-            span.set_input_mime_type(input_mime_type)
+        span = ChainSpan(span)
+        input_mime_type = _normalize_mime_type(input_mime_type)
+        span.set_input(input_value, mime_type=input_mime_type)
         return span
 
-    @contextmanager
-    def start_as_current_chain_span(
+    @overload
+    def start_as_current_span(
         self,
         name: str,
         *,
-        input_value: Optional[str] = None,
-        input_mime_type: Optional[OpenInferenceMimeType] = None,
+        kind: Union[Literal["chain"], Literal[OpenInferenceSpanKindValues.CHAIN]],
         **kwargs: Any,
-    ) -> Iterator[OpenInferenceChainSpan]:
-        with self.start_as_current_span(name, **kwargs) as span:
-            span = OpenInferenceChainSpan(span, config=self._self_config)
-            if input_value is not None:
-                span.set_input_value(input_value)
-            if input_mime_type is not None:
-                span.set_input_mime_type(input_mime_type)
+    ) -> Iterator[ChainSpan]: ...
+
+    @contextmanager
+    def start_as_current_span(
+        self,
+        name: str,
+        *,
+        kind: Optional[OpenInferenceSpanKind] = None,
+        **kwargs: Any,
+    ) -> Iterator[Span]:
+        kind = _normalize_span_kind(kind)
+        with self._start_as_current_span(name, **kwargs) as span:
+            if kind is not None:
+                span = _as_openinference_span(span, self._self_config, kind)
             yield span
 
 
@@ -532,10 +566,10 @@ def is_base64_url(url: str) -> bool:
     return url.startswith("data:image/") and "base64" in url
 
 
-def _normalize_mime_type(mime_type: OpenInferenceMimeType) -> OpenInferenceMimeTypeValues:
+def _normalize_mime_type(mime_type: OpenInferenceMimeType) -> str:
     if not isinstance(mime_type, OpenInferenceMimeTypeValues):
         try:
-            return OpenInferenceMimeTypeValues(mime_type)
+            mime_type = OpenInferenceMimeTypeValues(mime_type)
         except ValueError:
             valid_mime_types = ", ".join(
                 f'"{mime_type.value}"' for mime_type in OpenInferenceMimeTypeValues
@@ -543,7 +577,28 @@ def _normalize_mime_type(mime_type: OpenInferenceMimeType) -> OpenInferenceMimeT
             raise ValueError(
                 f"Invalid mime type: {mime_type}. Valid mime types are: {valid_mime_types}"
             )
-    return mime_type
+    return mime_type.value
+
+
+def _normalize_span_kind(kind: OpenInferenceSpanKind) -> OpenInferenceSpanKindValues:
+    try:
+        return OpenInferenceSpanKindValues(kind)
+    except ValueError:
+        valid_span_kinds = ", ".join(f'"{kind.value}"' for kind in OpenInferenceSpanKindValues)
+        raise ValueError(f"Invalid span kind: {kind}. Valid span kinds are: {valid_span_kinds}")
+
+
+def _infer_mime_type(value: Any) -> OpenInferenceMimeType:
+    if isinstance(value, str):
+        return TEXT
+
+
+def _as_openinference_span(
+    span: Span, config: TraceConfig, kind: OpenInferenceSpanKindValues
+) -> OpenInferenceSpan:
+    if kind == CHAIN:
+        return ChainSpan(span, config=config)
+    raise NotImplementedError(f"Span kind {kind.value} is not yet supported")
 
 
 # span attributes
@@ -552,6 +607,10 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+
+# mime types
+JSON = OpenInferenceMimeTypeValues.JSON.value
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
 
 # span kinds
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
