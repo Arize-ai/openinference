@@ -1,65 +1,21 @@
 import json
-from typing import Any, Optional, Type, Union, cast
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import pytest
 from groq import Groq
 from groq._base_client import _StreamT
 from groq._types import Body, RequestFiles, RequestOptions, ResponseT
-from groq.types.chat import (
-    ChatCompletion,
-    ChatCompletionMessage,
+from groq.types import CompletionUsage
+from groq.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionToolParam
+from groq.types.chat.chat_completion import Choice
+from groq.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
-    ChatCompletionToolParam,
+    Function,
 )
-from groq.types.chat.chat_completion import Choice, CompletionUsage
-from groq.types.chat.chat_completion_message_tool_call import Function
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-
-def create_mock_tool_completion(messages):
-    last_user_message = next(msg for msg in messages[::-1] if msg.get("role") == "user")
-    city = last_user_message["content"].split(" in ")[-1].split("?")[0].strip()
-
-    # Create tool calls with dynamically generated IDs
-    tool_calls = [
-        ChatCompletionMessageToolCall(
-            id=f"call_{62136355 + i}",  # Use a base ID and increment
-            function=Function(arguments=json.dumps({"city": city}), name=tool_name),
-            type="function",
-        )
-        for i, tool_name in enumerate(["get_weather", "get_population"])
-    ]
-
-    return ChatCompletion(
-        id="chat_comp_0",
-        choices=[
-            Choice(
-                finish_reason="tool_calls",
-                index=0,
-                logprobs=None,
-                message=ChatCompletionMessage(
-                    content="", role="assistant", function_call=None, tool_calls=tool_calls
-                ),
-            )
-        ],
-        created=1722531851,
-        model="fake_groq_model",
-        object="chat.completion",
-        system_fingerprint="fp0",
-        usage=CompletionUsage(
-            completion_tokens=379,
-            prompt_tokens=25,
-            total_tokens=404,
-            completion_time=0.616262398,
-            prompt_time=0.002549632,
-            queue_time=None,
-            total_time=0.6188120300000001,
-        ),
-    )
+from openinference.instrumentation import using_attributes
 
 
 def _mock_post(
@@ -73,38 +29,122 @@ def _mock_post(
     stream: bool = False,
     stream_cls: Optional[Type[_StreamT]] = None,
 ) -> Union[ResponseT, _StreamT]:
-    # Extract messages from the request body
-    messages = body.get("messages", []) if body else []
-
-    # Create a mock completion based on the messages
-    mock_completion = create_mock_tool_completion(messages)
-
-    return cast(ResponseT, mock_completion)
+    """
+    opts = FinalRequestOptions.construct(
+        method="post", url=path, json_data=body, files=to_httpx_files(files), **options
+    )
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+    """
+    mock_tool_completion = ChatCompletion(
+        id="chat_comp_0",
+        choices=[
+            Choice(
+                finish_reason="tool_calls",
+                index=0,
+                logprobs=None,
+                message=ChatCompletionMessage(
+                    content="",
+                    role="assistant",
+                    function_call=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_62136357",
+                            function=Function(
+                                arguments='{"city": "San Francisco"}', name="get_weather"
+                            ),
+                            type="function",
+                        ),
+                        ChatCompletionMessageToolCall(
+                            id="call_62136358",
+                            function=Function(
+                                arguments='{"city": "San Francisco"}', name="get_population"
+                            ),
+                            type="function",
+                        ),
+                    ],
+                ),
+            )
+        ],
+        created=1722531851,
+        model="test_groq_model",
+        object="chat.completion",
+        system_fingerprint="fp0",
+        usage=CompletionUsage(
+            completion_tokens=379,
+            prompt_tokens=25,
+            total_tokens=404,
+            completion_time=0.616262398,
+            prompt_time=0.002549632,
+            queue_time=None,
+            total_time=0.6188120300000001,
+        ),
+    )
+    return cast(ResponseT, mock_tool_completion)
 
 
 @pytest.fixture()
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
+def session_id() -> str:
+    return "my-test-session-id"
 
 
 @pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
+def user_id() -> str:
+    return "my-test-user-id"
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.fixture()
+def metadata() -> Dict[str, Any]:
+    return {
+        "test-int": 1,
+        "test-str": "string",
+        "test-list": [1, 2, 3],
+        "test-dict": {
+            "key-1": "val-1",
+            "key-2": "val-2",
+        },
+    }
+
+
+@pytest.fixture()
+def tags() -> List[str]:
+    return ["tag-1", "tag-2"]
+
+
+@pytest.fixture
+def prompt_template() -> str:
+    return (
+        "This is a test prompt template with int {var_int}, "
+        "string {var_string}, and list {var_list}"
+    )
+
+
+@pytest.fixture
+def prompt_template_version() -> str:
+    return "v1.0"
+
+
+@pytest.fixture
+def prompt_template_variables() -> Dict[str, Any]:
+    return {
+        "var_int": 1,
+        "var_str": "2",
+        "var_list": [1, 2, 3],
+    }
+
+
 def test_tool_calls(
+    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-    tracer_provider: trace_api.TracerProvider,
+    setup_groq_instrumentation: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
 ) -> None:
-    client = Groq(api_key="fake")
+    client = Groq(api_key="fake-api-key")
     client.chat.completions._post = _mock_post  # type: ignore[assignment]
 
     input_tools = [
@@ -143,46 +183,61 @@ def test_tool_calls(
             },
         ),
     ]
-    client.chat.completions.create(
-        extra_headers={"Accept-Encoding": "gzip"},
-        model="fake_groq_model",
-        tools=input_tools,
-        messages=[
-            {
-                "role": "assistant",
-                "tool_calls": [
-                    {
-                        "id": "call_62136355",
-                        "type": "function",
-                        "function": {"name": "get_weather", "arguments": '{"city": "New York"}'},
-                    },
-                    {
-                        "id": "call_62136356",
-                        "type": "function",
-                        "function": {"name": "get_population", "arguments": '{"city": "New York"}'},
-                    },
-                ],
-            },
-            {
-                "role": "tool",
-                "tool_call_id": "call_62136355",
-                "content": '{"city": "New York", "weather": "fine"}',
-            },
-            {
-                "role": "tool",
-                "tool_call_id": "call_62136356",
-                "content": '{"city": "New York", "weather": "large"}',
-            },
-            {
-                "role": "assistant",
-                "content": "In New York the weather is fine and the population is large.",
-            },
-            {
-                "role": "user",
-                "content": "What's the weather and population in San Francisco?",
-            },
-        ],
-    )
+
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    ):
+        client.chat.completions.create(
+            model="test_groq_model",
+            tools=input_tools,
+            messages=[
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "call_62136355",
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": '{"city": "New York"}',
+                            },
+                        },
+                        {
+                            "id": "call_62136356",
+                            "type": "function",
+                            "function": {
+                                "name": "get_population",
+                                "arguments": '{"city": "New York"}',
+                            },
+                        },
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_62136355",
+                    "content": '{"city": "New York", "weather": "fine"}',
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_62136356",
+                    "content": '{"city": "New York", "weather": "large"}',
+                },
+                {
+                    "role": "assistant",
+                    "content": "In New York the weather is fine and the population is large.",
+                },
+                {
+                    "role": "user",
+                    "content": "What's the weather and population in San Francisco?",
+                },
+            ],
+        )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]

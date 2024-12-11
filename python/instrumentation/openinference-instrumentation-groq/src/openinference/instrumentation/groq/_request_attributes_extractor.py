@@ -1,9 +1,11 @@
 import logging
 from enum import Enum
-from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Tuple, TypeVar
 
 from opentelemetry.util.types import AttributeValue
 
+from groq.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall
+from groq.types.chat.chat_completion_message_tool_call import Function
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.groq._utils import _as_input_attributes, _io_value_and_type
 from openinference.semconv.trace import (
@@ -68,19 +70,29 @@ class _RequestAttributesExtractor:
         message: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not hasattr(message, "get"):
-            return
+            if isinstance(message, ChatCompletionMessage):
+                message = self._cast_chat_completion_to_mapping(message)
+            else:
+                return
         if role := message.get("role"):
             yield (
                 MessageAttributes.MESSAGE_ROLE,
                 role.value if isinstance(role, Enum) else role,
             )
+
         if content := message.get("content"):
             yield (
                 MessageAttributes.MESSAGE_CONTENT,
                 content,
             )
+
         if name := message.get("name"):
             yield MessageAttributes.MESSAGE_NAME, name
+
+        if tool_call_id := message.get("tool_call_id"):
+            yield MessageAttributes.MESSAGE_TOOL_CALL_ID, tool_call_id
+
+        # Deprecated by Groq
         if (function_call := message.get("function_call")) and hasattr(function_call, "get"):
             if function_name := function_call.get("name"):
                 yield MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, function_name
@@ -89,7 +101,8 @@ class _RequestAttributesExtractor:
                     MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON,
                     function_arguments,
                 )
-        if (tool_calls := message.get("tool_calls")) and isinstance(tool_calls, Iterable):
+
+        if (tool_calls := message.get("tool_calls"),) and isinstance(tool_calls, Iterable):
             for index, tool_call in enumerate(tool_calls):
                 if not hasattr(tool_call, "get"):
                     continue
@@ -112,6 +125,36 @@ class _RequestAttributesExtractor:
                             f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             arguments,
                         )
+
+    def _cast_chat_completion_to_mapping(self, message: ChatCompletionMessage) -> Mapping[str, Any]:
+        try:
+            casted_message = dict(message)
+            if (tool_calls := casted_message.get("tool_calls")) and isinstance(
+                tool_calls, Iterable
+            ):
+                casted_tool_calls: List[Dict[str, Any]] = []
+                for tool_call in tool_calls:
+                    if isinstance(tool_call, ChatCompletionMessageToolCall):
+                        tool_call_dict = dict(tool_call)
+
+                        if (function := tool_call_dict.get("function")) and isinstance(
+                            function, Function
+                        ):
+                            tool_call_dict["function"] = dict(function)
+
+                        casted_tool_calls.append(tool_call_dict)
+                    else:
+                        logger.debug(f"Skipping tool_call of unexpected type: {type(tool_call)}")
+
+                casted_message["tool_calls"] = casted_tool_calls
+
+            return casted_message
+
+        except Exception as e:
+            logger.exception(
+                f"Failed to convert ChatCompletionMessage to mapping for {message}: {e}"
+            )
+            return {}
 
 
 T = TypeVar("T", bound=type)

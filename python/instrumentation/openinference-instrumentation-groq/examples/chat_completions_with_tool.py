@@ -2,7 +2,7 @@ import asyncio
 import os
 
 from groq import AsyncGroq, Groq
-from groq.types.chat import ChatCompletionToolParam
+from groq.types.chat import ChatCompletionToolMessageParam
 from phoenix.otel import register
 
 from openinference.instrumentation.groq import GroqInstrumentor
@@ -48,7 +48,7 @@ def test():
     tool_call_id = tool_calls[0].id
     messages.append(message)
     messages.append(
-        ChatCompletionToolParam(content="sunny", role="tool", tool_call_id=tool_call_id),
+        ChatCompletionToolMessageParam(content="sunny", role="tool", tool_call_id=tool_call_id),
     )
     final_response = client.chat.completions.create(
         model="mixtral-8x7b-32768",
@@ -97,7 +97,7 @@ async def async_test():
     tool_call_id = tool_calls[0].id
     messages.append(message)
     messages.append(
-        ChatCompletionToolParam(content="sunny", role="tool", tool_call_id=tool_call_id),
+        ChatCompletionToolMessageParam(content="sunny", role="tool", tool_call_id=tool_call_id),
     )
     final_response = await client.chat.completions.create(
         model="mixtral-8x7b-32768",

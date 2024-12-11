@@ -65,12 +65,14 @@ class _ResponseAttributesExtractor:
         ):
             for index, tool_call in enumerate(tool_calls):
                 if (tool_call_id := getattr(tool_call, "id", None)) is not None:
+                    # https://github.com/groq/groq-python/blob/fa2e13b5747d18aeb478700f1e5426af2fd087a1/src/groq/types/chat/chat_completion_tool_message_param.py#L17  # noqa: E501
                     yield (
                         f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
                         f"{ToolCallAttributes.TOOL_CALL_ID}",
                         tool_call_id,
                     )
                 if function := getattr(tool_call, "function", None):
+                    # https://github.com/groq/groq-python/blob/fa2e13b5747d18aeb478700f1e5426af2fd087a1/src/groq/types/chat/chat_completion_message_tool_call.py#L10  # noqa: E501
                     if name := getattr(function, "name", None):
                         yield (
                             (

@@ -3,7 +3,7 @@ import warnings
 from typing import Any, Iterable, Iterator, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import Attributes, AttributeValue
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.groq._with_span import _WithSpan
@@ -69,20 +69,18 @@ def _finish_tracing(
     status: Optional[trace_api.Status] = None,
 ) -> None:
     try:
-        attributes: Attributes = dict(attributes)
+        attributes_dict = dict(attributes)
     except Exception:
         logger.exception("Failed to get attributes")
-        attributes = None
     try:
-        extra_attributes: Attributes = dict(extra_attributes)
+        extra_attributes_dict = dict(extra_attributes)
     except Exception:
         logger.exception("Failed to get extra attributes")
-        extra_attributes = None
     try:
         with_span.finish_tracing(
             status=status,
-            attributes=attributes,
-            extra_attributes=extra_attributes,
+            attributes=attributes_dict,
+            extra_attributes=extra_attributes_dict,
         )
     except Exception:
         logger.exception("Failed to finish tracing")
