@@ -7,9 +7,5 @@
     "baseUrl": "./src"
   },
   "include": ["src/**/*.ts"],
-  "tsc-alias": {
-    "verbose": false,
-    "resolveFullPaths": true
-  },
   "references": []
 }
