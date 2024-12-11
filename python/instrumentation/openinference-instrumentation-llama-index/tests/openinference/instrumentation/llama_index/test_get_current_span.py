@@ -12,7 +12,7 @@ from openinference.instrumentation.llama_index import LlamaIndexInstrumentor, ge
 dispatcher = get_dispatcher(__name__)
 
 
-@dispatcher.span
+@dispatcher.span  # type: ignore[misc,unused-ignore]
 async def foo(k: int) -> str:
     if k > 1:
         await gather(sleep(random() / 100), foo(k - 1))
