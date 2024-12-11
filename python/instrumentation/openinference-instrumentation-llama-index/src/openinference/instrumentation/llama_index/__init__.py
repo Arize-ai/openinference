@@ -1,8 +1,9 @@
 import logging
-from typing import Any, Collection
+from typing import Any, Collection, Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.llama_index.package import _instruments
@@ -104,3 +105,13 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
                 dispatcher.event_handlers,
             )
             self._event_handler = None
+
+
+def get_current_span() -> Optional[Span]:
+    from llama_index.core.instrumentation.span import active_span_id
+
+    if not isinstance(id_ := active_span_id.get(), str):
+        return None
+    if (span := LlamaIndexInstrumentor()._span_handler.open_spans.get(id_)) is None:
+        return None
+    return span._otel_span
