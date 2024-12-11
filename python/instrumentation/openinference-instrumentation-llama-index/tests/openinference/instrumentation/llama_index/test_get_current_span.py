@@ -1,4 +1,3 @@
-import asyncio
 from asyncio import gather, sleep
 from random import random
 from typing import Iterator
