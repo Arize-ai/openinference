@@ -24,7 +24,7 @@ async def foo(k: int) -> str:
 async def test_get_current_span(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    n, k = 100, 3
+    n, k = 10, 10
     await gather(*(foo(k) for _ in range(n)))
     assert len(spans := in_memory_span_exporter.get_finished_spans()) == n * k
     seen = set()
