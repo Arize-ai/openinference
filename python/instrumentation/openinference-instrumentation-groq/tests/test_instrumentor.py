@@ -1,15 +1,5 @@
 import asyncio
-from typing import (
-    Any,
-    Dict,
-    Generator,
-    List,
-    Mapping,
-    Optional,
-    Type,
-    Union,
-    cast,
-)
+from typing import Any, Dict, List, Mapping, Optional, Type, Union, cast
 
 import pytest
 from groq import AsyncGroq, Groq
@@ -22,20 +12,15 @@ from groq.types.chat.chat_completion import (  # type: ignore[attr-defined]
     Choice,
 )
 from groq.types.completion_usage import CompletionUsage
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
-from openinference.semconv.trace import (
-    MessageAttributes,
-    SpanAttributes,
-)
+from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
-mock_completion = ChatCompletion(
+MOCK_COMPLETION = ChatCompletion(
     id="chat_comp_0",
     choices=[
         Choice(
@@ -80,7 +65,7 @@ def _mock_post(
     )
     return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
     """
-    return cast(ResponseT, mock_completion)
+    return cast(ResponseT, MOCK_COMPLETION)
 
 
 async def _async_mock_post(
@@ -100,7 +85,7 @@ async def _async_mock_post(
     )
     return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
     """
-    return cast(ResponseT, mock_completion)
+    return cast(ResponseT, MOCK_COMPLETION)
 
 
 @pytest.fixture()
@@ -151,28 +136,6 @@ def prompt_template_variables() -> Dict[str, Any]:
         "var_str": "2",
         "var_list": [1, 2, 3],
     }
-
-
-@pytest.fixture()
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
-@pytest.fixture()
-def setup_groq_instrumentation(
-    tracer_provider: TracerProvider,
-) -> Generator[None, None, None]:
-    GroqInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    GroqInstrumentor().uninstrument()
 
 
 def _check_context_attributes(
@@ -299,6 +262,7 @@ def test_groq_async_instrumentation(
         )
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    print(attributes)
     assert (
         attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
         == "user"
