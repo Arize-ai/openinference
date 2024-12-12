@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.4...python-openinference-instrumentation-llama-index-v3.1.0) (2024-12-12)
+
+
+### Features
+
+* add get_current_span helper function for llama-index ([#1165](https://github.com/Arize-ai/openinference/issues/1165)) ([b46931c](https://github.com/Arize-ai/openinference/commit/b46931c7cec73f73873a3ae15003f3c6c52173e1))
+
+
+### Bug Fixes
+
+* get_current_span should return None when llama-index is not instrumented ([#1169](https://github.com/Arize-ai/openinference/issues/1169)) ([12d64bc](https://github.com/Arize-ai/openinference/commit/12d64bc489bc1530458f10e815f771ac8a42fd02))
+* handle multiple embedding events for llama-index ([#1166](https://github.com/Arize-ai/openinference/issues/1166)) ([0cef233](https://github.com/Arize-ai/openinference/commit/0cef233aa3ad60a17bbc28e4c80d1d1bb859f360))
+
 ## [3.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.3...python-openinference-instrumentation-llama-index-v3.0.4) (2024-11-12)
 
 
