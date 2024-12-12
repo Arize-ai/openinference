@@ -109,9 +109,17 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
 
 def get_current_span() -> Optional[Span]:
     from llama_index.core.instrumentation.span import active_span_id
+    from openinference.instrumentation.llama_index._handler import _SpanHandler
 
     if not isinstance(id_ := active_span_id.get(), str):
         return None
-    if (span := LlamaIndexInstrumentor()._span_handler.open_spans.get(id_)) is None:
+    instrumentor = LlamaIndexInstrumentor()
+    try:
+        span_handler = instrumentor._span_handler
+    except AttributeError:
+        return None
+    if not isinstance(span_handler, _SpanHandler):
+        return None
+    if (span := span_handler.open_spans.get(id_)) is None:
         return None
     return span._otel_span
