@@ -114,7 +114,10 @@ def get_current_span() -> Optional[Span]:
     if not isinstance(id_ := active_span_id.get(), str):
         return None
     instrumentor = LlamaIndexInstrumentor()
-    span_handler = getattr(instrumentor, "_span_handler", None)
+    try:
+        span_handler = instrumentor._span_handler
+    except AttributeError:
+        return None
     if not isinstance(span_handler, _SpanHandler):
         return None
     if (span := span_handler.open_spans.get(id_)) is None:
