@@ -6,7 +6,6 @@
 "@arizeai/openinference-core": major
 ---
 
-
 ESM support
 
 Packages are now shipped as "Dual Package" meaning that ESM and CJS module resolution
