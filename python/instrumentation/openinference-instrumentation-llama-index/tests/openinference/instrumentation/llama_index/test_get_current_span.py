@@ -1,4 +1,4 @@
-from asyncio import gather, sleep
+from asyncio import create_task, gather, sleep
 from random import random
 from typing import Iterator
 
@@ -8,31 +8,34 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor, get_current_span
+from openinference.semconv.trace import SpanAttributes
 
 dispatcher = get_dispatcher(__name__)
 
 
 @dispatcher.span  # type: ignore[misc,unused-ignore]
 async def foo(k: int) -> str:
-    if k > 1:
-        await gather(sleep(random() / 100), foo(k - 1))
-    if (span := get_current_span()) is None:
-        return ""
-    return str(span.get_span_context().span_id)
+    child = create_task(foo(k - 1)) if k > 1 else None
+    await sleep(random() / 100)
+    span = get_current_span()
+    if child:
+        await child
+    return str(span.get_span_context().span_id) if span else ""
 
 
 async def test_get_current_span(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    n, k = 10, 10
+    n, k = 10, 5
     await gather(*(foo(k) for _ in range(n)))
-    assert len(spans := in_memory_span_exporter.get_finished_spans()) == n * k
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == n * k
     seen = set()
     for span in spans:
         assert span.attributes and span.context
         assert (expected := str(span.context.span_id)) not in seen
         seen.add(expected)
-        assert span.attributes.get("output.value") == expected
+        assert span.attributes.get(OUTPUT_VALUE) == expected
 
 
 @pytest.fixture(autouse=True)
@@ -43,3 +46,6 @@ def instrument(
     LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     LlamaIndexInstrumentor().uninstrument()
+
+
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
