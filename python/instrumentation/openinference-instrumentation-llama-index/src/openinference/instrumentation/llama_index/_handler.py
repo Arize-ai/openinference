@@ -4,6 +4,7 @@ import inspect
 import json
 import logging
 import weakref
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
@@ -15,6 +16,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AsyncGenerator,
+    DefaultDict,
     Dict,
     Generator,
     Iterable,
@@ -183,6 +185,7 @@ class _Span(BaseSpan):
         self._attributes = {}
         self._end_time = None
         self._last_updated_at = time()
+        self._list_attr_len: DefaultDict[str, int] = defaultdict(int)
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
         self._attributes[key] = value
@@ -362,9 +365,12 @@ class _Span(BaseSpan):
 
     @_process_event.register
     def _(self, event: EmbeddingEndEvent) -> None:
-        for i, (text, vector) in enumerate(zip(event.chunks, event.embeddings)):
+        i = self._list_attr_len[EMBEDDING_EMBEDDINGS]
+        for text, vector in zip(event.chunks, event.embeddings):
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
+            i += 1
+        self._list_attr_len[EMBEDDING_EMBEDDINGS] = i
 
     @_process_event.register
     def _(self, event: StreamChatStartEvent) -> None:
