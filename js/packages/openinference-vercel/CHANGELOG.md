@@ -1,5 +1,23 @@
 # @arizeai/openinference-vercel
 
+## 2.0.0
+
+### Major Changes
+
+- 16a3815: ESM support
+
+  Packages are now shipped as "Dual Package" meaning that ESM and CJS module resolution
+  should be supported for each package.
+
+  Support is described as "experimental" because opentelemetry describes support for autoinstrumenting
+  ESM projects as "ongoing". See https://github.com/open-telemetry/opentelemetry-js/blob/61d5a0e291db26c2af638274947081b29db3f0ca/doc/esm-support.md
+
+### Patch Changes
+
+- Updated dependencies [16a3815]
+  - @arizeai/openinference-semantic-conventions@1.0.0
+  - @arizeai/openinference-core@1.0.0
+
 ## 1.2.2
 
 ### Patch Changes
