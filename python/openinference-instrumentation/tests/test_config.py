@@ -193,7 +193,7 @@ def test_settings_from_env_vars_and_code(
         ),
         (
             "hide_llm_invocation_parameters",
-            False,
+            None,
             SpanAttributes.LLM_INVOCATION_PARAMETERS,
             "{api_key: '123'}",
             "{api_key: '123'}",
@@ -202,14 +202,14 @@ def test_settings_from_env_vars_and_code(
 )
 def test_hide_llm_invocation_parameters(
     param: str,
-    param_value: bool,
+    param_value: Optional[bool],
     attr_key: str,
     attr_value: Any,
     expected_value: Any,
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    config = TraceConfig(**{param: param_value})
+    config = TraceConfig(**({} if param_value is None else {param: param_value}))
     tracer = OITracer(get_tracer(__name__, tracer_provider=tracer_provider), config=config)
     tracer.start_span("test", attributes={attr_key: attr_value}).end()
     span = in_memory_span_exporter.get_finished_spans()[0]
