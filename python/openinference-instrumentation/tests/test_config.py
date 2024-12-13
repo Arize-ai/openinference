@@ -8,7 +8,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import SpanLimits
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import TracerProvider, get_tracer, use_span
+from opentelemetry.trace import TracerProvider, use_span
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import TraceConfig
@@ -210,7 +210,7 @@ def test_trace_config(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     config = TraceConfig(**({} if param_value is None else {param: param_value}))
-    tracer = OITracer(get_tracer(__name__, tracer_provider=tracer_provider), config=config)
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
     tracer.start_span("test", attributes={attr_key: attr_value}).end()
     span = in_memory_span_exporter.get_finished_spans()[0]
     assert span.attributes is not None
