@@ -1,14 +1,14 @@
 import os
 from contextlib import suppress
 from random import random
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import pytest
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import SpanLimits
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import TracerProvider, use_span
+from opentelemetry.trace import TracerProvider, get_tracer, use_span
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import TraceConfig
@@ -19,6 +19,7 @@ from openinference.instrumentation.config import (
     DEFAULT_HIDE_INPUT_MESSAGES,
     DEFAULT_HIDE_INPUT_TEXT,
     DEFAULT_HIDE_INPUTS,
+    DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS,
     DEFAULT_HIDE_OUTPUT_MESSAGES,
     DEFAULT_HIDE_OUTPUT_TEXT,
     DEFAULT_HIDE_OUTPUTS,
@@ -33,10 +34,12 @@ from openinference.instrumentation.config import (
     REDACTED_VALUE,
     OITracer,
 )
+from openinference.semconv.trace import SpanAttributes
 
 
 def test_default_settings() -> None:
     config = TraceConfig()
+    assert config.hide_llm_invocation_parameters == DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS
     assert config.hide_inputs == DEFAULT_HIDE_INPUTS
     assert config.hide_outputs == DEFAULT_HIDE_OUTPUTS
     assert config.hide_input_messages == DEFAULT_HIDE_INPUT_MESSAGES
@@ -176,6 +179,45 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_input_text is new_hide_input_text
     assert config.hide_output_text is new_hide_output_text
     assert config.base64_image_max_length == new_base64_image_max_length
+
+
+@pytest.mark.parametrize(
+    "param,param_value,attr_key,attr_value,expected_value",
+    [
+        (
+            "hide_llm_invocation_parameters",
+            True,
+            SpanAttributes.LLM_INVOCATION_PARAMETERS,
+            "{api_key: '123'}",
+            None,
+        ),
+        (
+            "hide_llm_invocation_parameters",
+            False,
+            SpanAttributes.LLM_INVOCATION_PARAMETERS,
+            "{api_key: '123'}",
+            "{api_key: '123'}",
+        ),
+    ],
+)
+def test_hide_llm_invocation_parameters(
+    param: str,
+    param_value: bool,
+    attr_key: str,
+    attr_value: Any,
+    expected_value: Any,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    config = TraceConfig(**{param: param_value})
+    tracer = OITracer(get_tracer(__name__, tracer_provider=tracer_provider), config=config)
+    tracer.start_span("test", attributes={attr_key: attr_value}).end()
+    span = in_memory_span_exporter.get_finished_spans()[0]
+    assert span.attributes is not None
+    if expected_value is None:
+        assert span.attributes.get(attr_key) is None
+    else:
+        assert span.attributes.get(attr_key) == expected_value
 
 
 def parse_bool_from_env(env_var: str) -> Optional[bool]:
