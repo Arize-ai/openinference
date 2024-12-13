@@ -70,6 +70,7 @@ class suppress_tracing:
         detach(self._token)
 
 
+OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS = "OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS"
 OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS"
 # Hides input value & messages
 OPENINFERENCE_HIDE_OUTPUTS = "OPENINFERENCE_HIDE_OUTPUTS"
@@ -91,6 +92,7 @@ OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"
 REDACTED_VALUE = "__REDACTED__"
 # When a value is hidden, it will be replaced by this redacted value
 
+DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS = False
 DEFAULT_HIDE_INPUTS = False
 DEFAULT_HIDE_OUTPUTS = False
 
@@ -118,6 +120,13 @@ class TraceConfig:
     observability.
     """
 
+    hide_llm_invocation_parameters: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS,
+            "default_value": DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS,
+        },
+    )
     hide_inputs: Optional[bool] = field(
         default=None,
         metadata={
@@ -208,7 +217,9 @@ class TraceConfig:
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> Optional[AttributeValue]:
-        if self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
+        if self.hide_llm_invocation_parameters and key == SpanAttributes.LLM_INVOCATION_PARAMETERS:
+            return
+        elif self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
             return
