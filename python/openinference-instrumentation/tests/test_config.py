@@ -200,7 +200,7 @@ def test_settings_from_env_vars_and_code(
         ),
     ],
 )
-def test_hide_llm_invocation_parameters(
+def test_trace_config(
     param: str,
     param_value: Optional[bool],
     attr_key: str,
