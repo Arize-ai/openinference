@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.19...python-openinference-instrumentation-v0.1.20) (2024-12-13)
+
+
+### Features
+
+* add ability to hide LLM invocation paramaters for OITracer ([#1171](https://github.com/Arize-ai/openinference/issues/1171)) ([f7e94c7](https://github.com/Arize-ai/openinference/commit/f7e94c7f658570169c564f11663fc9eeaee05f46))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.18...python-openinference-instrumentation-v0.1.19) (2024-12-02)
 
 
