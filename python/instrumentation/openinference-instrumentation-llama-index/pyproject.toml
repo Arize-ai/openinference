@@ -43,6 +43,8 @@ test = [
   "llama-index == 0.11.0",
   "llama-index-core >= 0.11.0",
   "llama-index-llms-openai",
+  "llama-index-llms-groq",
+  "pytest-vcr",
   "llama-index-multi-modal-llms-openai>=0.1.7",
   "openinference-instrumentation-openai",
   "opentelemetry-sdk",
