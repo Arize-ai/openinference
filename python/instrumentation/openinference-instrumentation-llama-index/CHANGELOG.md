@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.1.0...python-openinference-instrumentation-llama-index-v3.1.1) (2024-12-17)
+
+
+### Bug Fixes
+
+* **llama-index:** extract token counts for groq when streaming ([#1174](https://github.com/Arize-ai/openinference/issues/1174)) ([0aafe9c](https://github.com/Arize-ai/openinference/commit/0aafe9c78a4455ab2612a34a5c648e1362c338cc))
+
 ## [3.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.4...python-openinference-instrumentation-llama-index-v3.1.0) (2024-12-12)
 
 
