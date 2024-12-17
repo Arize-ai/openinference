@@ -535,6 +535,16 @@ class _Span(BaseSpan):
         ):
             for k, v in _get_token_counts(usage):
                 self[k] = v
+        if (
+            (raw := getattr(response, "raw", None))
+            and (model_extra := getattr(raw, "model_extra", None))
+            and hasattr(model_extra, "get")
+            and (x_groq := model_extra.get("x_groq"))
+            and hasattr(x_groq, "get")
+            and (usage := x_groq.get("usage"))
+        ):
+            for k, v in _get_token_counts(usage):
+                self[k] = v
         # Look for token counts in additional_kwargs of the completion payload
         # This is needed for non-OpenAI models
         if additional_kwargs := getattr(response, "additional_kwargs", None):
