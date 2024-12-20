@@ -13,8 +13,6 @@ logger.addHandler(logging.NullHandler())
 
 
 class _ResponseAttributesExtractor:
-    __slots__ = ()
-
     def get_attributes(self, response: Any) -> Iterator[Tuple[str, AttributeValue]]:
         yield from _as_output_attributes(
             _io_value_and_type(response),

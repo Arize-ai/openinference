@@ -11,6 +11,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
+from groq import NOT_GIVEN
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.groq._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -93,11 +94,11 @@ def _parse_args(
 ) -> Dict[str, Any]:
     bound_signature = signature.bind(*args, **kwargs)
     bound_signature.apply_defaults()
-    bound_arguments = bound_signature.arguments
+    bound_arguments = bound_signature.arguments  # Defaults empty to NOT_GIVEN
     request_data: Dict[str, Any] = {}
     for key, value in bound_arguments.items():
         try:
-            if value is not None:
+            if value is not None and value is not NOT_GIVEN:
                 try:
                     # ensure the value is JSON-serializable
                     safe_json_dumps(value)

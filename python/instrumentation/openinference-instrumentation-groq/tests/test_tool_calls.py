@@ -15,8 +15,6 @@ from groq.types.chat.chat_completion_message_tool_call import (
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.instrumentation import using_attributes
-
 
 def _mock_post(
     self: Any,
@@ -184,51 +182,51 @@ def test_tool_calls(
         ),
     ]
 
-        client.chat.completions.create(
-            model="test_groq_model",
-            tools=input_tools,
-            messages=[
-                {
-                    "role": "assistant",
-                    "tool_calls": [
-                        {
-                            "id": "call_62136355",
-                            "type": "function",
-                            "function": {
-                                "name": "get_weather",
-                                "arguments": '{"city": "New York"}',
-                            },
+    client.chat.completions.create(
+        model="test_groq_model",
+        tools=input_tools,
+        messages=[
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call_62136355",
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": '{"city": "New York"}',
                         },
-                        {
-                            "id": "call_62136356",
-                            "type": "function",
-                            "function": {
-                                "name": "get_population",
-                                "arguments": '{"city": "New York"}',
-                            },
+                    },
+                    {
+                        "id": "call_62136356",
+                        "type": "function",
+                        "function": {
+                            "name": "get_population",
+                            "arguments": '{"city": "New York"}',
                         },
-                    ],
-                },
-                {
-                    "role": "tool",
-                    "tool_call_id": "call_62136355",
-                    "content": '{"city": "New York", "weather": "fine"}',
-                },
-                {
-                    "role": "tool",
-                    "tool_call_id": "call_62136356",
-                    "content": '{"city": "New York", "weather": "large"}',
-                },
-                {
-                    "role": "assistant",
-                    "content": "In New York the weather is fine and the population is large.",
-                },
-                {
-                    "role": "user",
-                    "content": "What's the weather and population in San Francisco?",
-                },
-            ],
-        )
+                    },
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_62136355",
+                "content": '{"city": "New York", "weather": "fine"}',
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_62136356",
+                "content": '{"city": "New York", "weather": "large"}',
+            },
+            {
+                "role": "assistant",
+                "content": "In New York the weather is fine and the population is large.",
+            },
+            {
+                "role": "user",
+                "content": "What's the weather and population in San Francisco?",
+            },
+        ],
+    )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
