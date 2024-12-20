@@ -23,7 +23,7 @@ import pytest
 from httpx import Response
 from llama_index.core.base.llms.types import ChatMessage, MessageRole
 from llama_index.core.multi_modal_llms.generic_utils import load_image_urls
-from llama_index.llms.openai import OpenAI  # type: ignore
+from llama_index.llms.openai import OpenAI
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal  # type: ignore
 from llama_index.multi_modal_llms.openai import utils as openai_utils
 from opentelemetry import trace as trace_api

@@ -825,7 +825,19 @@ class EventHandler(BaseEventHandler, extra="allow"):
 
 
 def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
-    if function := getattr(tool_call, "function", None):
+    if isinstance(tool_call, dict):
+        if tool_call_id := tool_call.get("id"):
+            yield TOOL_CALL_ID, tool_call_id
+        if name := tool_call.get("name"):
+            yield TOOL_CALL_FUNCTION_NAME, name
+        if arguments := tool_call.get("input"):
+            if isinstance(arguments, str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            elif isinstance(arguments, dict):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
+    elif function := getattr(tool_call, "function", None):
+        if tool_call_id := getattr(tool_call, "id", None):
+            yield TOOL_CALL_ID, tool_call_id
         if name := getattr(function, "name", None):
             yield TOOL_CALL_FUNCTION_NAME, name
         if arguments := getattr(function, "arguments", None):
@@ -1032,6 +1044,7 @@ RERANKER_OUTPUT_DOCUMENTS = RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
 RERANKER_QUERY = RerankerAttributes.RERANKER_QUERY
 RERANKER_TOP_K = RerankerAttributes.RERANKER_TOP_K
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
