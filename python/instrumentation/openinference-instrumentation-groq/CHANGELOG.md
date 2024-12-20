@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.4...python-openinference-instrumentation-groq-v0.1.5) (2024-12-20)
+
+
+### Features
+
+* **groq:** refactor groq, add groq tool call support ([#1133](https://github.com/Arize-ai/openinference/issues/1133)) ([6057418](https://github.com/Arize-ai/openinference/commit/6057418f26ad2cbbb05c122550fcce462c684058))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.3...python-openinference-instrumentation-groq-v0.1.4) (2024-10-16)
 
 
