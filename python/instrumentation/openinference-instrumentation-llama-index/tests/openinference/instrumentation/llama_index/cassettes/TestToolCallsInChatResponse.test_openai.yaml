@@ -1,0 +1,29 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"what''s the weather in San Francisco?"}],"model":"gpt-4o-mini","stream":false,"temperature":0.1,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"get_weather","description":"get_weather(location:
+      str) -> str\nUseful for getting the weather for a given location.","parameters":{"properties":{"location":{"title":"Location","type":"string"}},"required":["location"],"type":"object","additionalProperties":false},"strict":false}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AgcDNYhR5NPYhy2hmtnkm6CP8GFAN\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1734720037,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_FjpIANozIfaXzuQQnmhK0yD3\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"get_weather\",\n
+        \             \"arguments\": \"{\\\"location\\\":\\\"San Francisco\\\"}\"\n
+        \           }\n          }\n        ],\n        \"refusal\": null\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n    }\n
+        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 68,\n    \"completion_tokens\":
+        16,\n    \"total_tokens\": 84,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"system_fingerprint\":
+        \"fp_0aa8d3e20b\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

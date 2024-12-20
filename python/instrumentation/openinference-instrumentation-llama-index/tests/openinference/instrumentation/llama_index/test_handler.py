@@ -30,7 +30,7 @@ from httpx import AsyncByteStream, Response, SyncByteStream
 from llama_index.core import Document, ListIndex, Settings
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.schema import TextNode
-from llama_index.llms.openai import OpenAI  # type: ignore
+from llama_index.llms.openai import OpenAI
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
