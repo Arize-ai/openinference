@@ -1,0 +1,18 @@
+interactions:
+- request:
+    body: '{"max_tokens":512,"messages":[{"role":"user","content":[{"text":"what''s
+      the weather in San Francisco?","type":"text"}]}],"model":"claude-3-5-haiku-20241022","stream":false,"system":"","temperature":0.1,"tools":[{"name":"get_weather","description":"get_weather(location:
+      str) -> str\nUseful for getting the weather for a given location.","input_schema":{"properties":{"location":{"title":"Location","type":"string"}},"required":["location"],"type":"object"}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"id":"msg_011UbtsepYnQzWFNg8fDmFZ2","type":"message","role":"assistant","model":"claude-3-5-haiku-20241022","content":[{"type":"text","text":"I''ll
+        help you check the weather in San Francisco right away."},{"type":"tool_use","id":"toolu_01P7dMjNQjMNZK8BB8sKP25k","name":"get_weather","input":{"location":"San
+        Francisco"}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":355,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":68}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

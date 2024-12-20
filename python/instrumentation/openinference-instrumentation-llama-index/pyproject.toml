@@ -43,8 +43,10 @@ test = [
   "llama-index == 0.11.0",
   "llama-index-core >= 0.11.0",
   "llama-index-llms-openai",
+  "llama_index.llms.anthropic",
   "llama-index-llms-groq",
   "pytest-vcr",
+  "anthropic<0.41",
   "llama-index-multi-modal-llms-openai>=0.1.7",
   "openinference-instrumentation-openai",
   "opentelemetry-sdk",
@@ -86,6 +88,8 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
+  "llama_index.llms.anthropic",
+  "llama_index.llms.openai",
 ]
 
 [tool.ruff]
