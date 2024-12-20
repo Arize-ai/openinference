@@ -47,7 +47,7 @@ class TestToolCallsInChatResponse:
         await self._test(llm, in_memory_span_exporter)
 
     @pytest.mark.skipif(
-        LLAMA_INDEX_LLMS_OPENAI_VERSION < (0, 6),
+        LLAMA_INDEX_LLMS_ANTHROPIC_VERSION < (0, 6),
         reason="ignore older versions to simplify test upkeep",
     )
     @pytest.mark.vcr(
