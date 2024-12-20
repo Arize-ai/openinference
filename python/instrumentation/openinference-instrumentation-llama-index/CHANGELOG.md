@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.1.1...python-openinference-instrumentation-llama-index-v3.1.2) (2024-12-20)
+
+
+### Bug Fixes
+
+* **llama-index:** capture tool calls from anthropic chat response ([#1177](https://github.com/Arize-ai/openinference/issues/1177)) ([e1ba6a5](https://github.com/Arize-ai/openinference/commit/e1ba6a5dcfc7f6b43cbe40d62e7bff55d45a3f12))
+
 ## [3.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.1.0...python-openinference-instrumentation-llama-index-v3.1.1) (2024-12-17)
 
 
