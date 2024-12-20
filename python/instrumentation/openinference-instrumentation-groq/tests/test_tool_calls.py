@@ -184,15 +184,6 @@ def test_tool_calls(
         ),
     ]
 
-    with using_attributes(
-        session_id=session_id,
-        user_id=user_id,
-        metadata=metadata,
-        tags=tags,
-        prompt_template=prompt_template,
-        prompt_template_version=prompt_template_version,
-        prompt_template_variables=prompt_template_variables,
-    ):
         client.chat.completions.create(
             model="test_groq_model",
             tools=input_tools,
