@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.12...python-openinference-semantic-conventions-v0.1.13) (2024-12-21)
+
+
+### Features
+
+* **semcov:** audio conventions ([#1153](https://github.com/Arize-ai/openinference/issues/1153)) ([1188c6d](https://github.com/Arize-ai/openinference/commit/1188c6d3363a388f3eacf35c8a8669084fdefd5b))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.11...python-openinference-semantic-conventions-v0.1.12) (2024-10-30)
 
 
