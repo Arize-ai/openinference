@@ -37,7 +37,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `llm.token_count.completion`           | Integer                     | `15`                                                                       | The number of tokens in the completion                                                |
 | `llm.token_count.prompt`               | Integer                     | `5`                                                                        | The number of tokens in the prompt                                                    |
 | `llm.token_count.total`                | Integer                     | `20`                                                                       | Total number of tokens, including prompt and completion                               |
-| `llm.tools`                            | List of objects<sup>†</sup> | `[{"tool": {"json_schema": "{}"}, ...]`                                    | List of tools that are advertised to the LLM to be able to call                       |
+| `llm.tools`                            | List of objects<sup>†</sup> | `[{"tool.name": "calculate", "tool.json_schema": "{}"}, ...]`              | List of tools that are advertised to the LLM to be able to call                       |
 | `message.content`                      | String                      | `"What's the weather today?"`                                              | The content of a message in a chat                                                    |
 | `message.contents`                     | List of objects<sup>†</sup> | `[{"message_content.type": "text", "message_content.text": "Hello"}, ...]` | The message contents to the llm, it is an array of `message_content` objects.         |
 | `message.function_call_arguments_json` | JSON String                 | `"{ 'x': 2 }"`                                                             | The arguments to the function call in JSON                                            |
@@ -115,17 +115,17 @@ for i, obj in enumerate(messages):
 
 ```javascript
 const messages = [
-    { "message.role": "user", "message.content": "hello" },
-    {
-        "message.role": "assistant",
-        "message.content": "hi",
-    },
+  { "message.role": "user", "message.content": "hello" },
+  {
+    "message.role": "assistant",
+    "message.content": "hi",
+  },
 ];
 
 for (const [i, obj] of messages.entries()) {
-    for (const [key, value] of Object.entries(obj)) {
-        span.setAttribute(`input.messages.${i}.${key}`, value);
-    }
+  for (const [key, value] of Object.entries(obj)) {
+    span.setAttribute(`input.messages.${i}.${key}`, value);
+  }
 }
 ```
 
