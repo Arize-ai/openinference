@@ -116,8 +116,8 @@ class _RunWrapper:
             span.set_attribute("additional_args", json.dumps(additional_args) if additional_args else "")
             span.set_attribute("additional_args", json.dumps(additional_args) if additional_args else "")
             model_id = f" - {agent.model.model_id}" if hasattr(agent.model, "model_id") else ""
-            model_description = f"{type(agent.model).__name__}" + model_id
-            span.set_attribute("model", model_description)
+            model_type = f"{type(agent.model).__name__}"
+            span.set_attribute("model", model_type + model_id)
             span.set_attribute("max_steps", agent.max_steps)
             span.set_attribute("tools_names", list(agent.tools.keys()))
 
@@ -126,12 +126,14 @@ class _RunWrapper:
                 json.dumps(
                     [
                         {
-                            "name": agent.name,
-                            "description": agent.description,
-                            "max_steps": agent.max_steps,
+                            "name": managed_agent.name,
+                            "description": managed_agent.description,
+                            "additional_prompting": managed_agent.additional_prompting,
+                            "model": f"{type(managed_agent.agent.model).__name__}" + f" - {managed_agent.agent.model.model_id}" if hasattr(managed_agent.agent.model, "model_id") else "",
+                            "max_steps": managed_agent.agent.max_steps,
                             "tools_names": list(agent.tools.keys()),
                         }
-                        for agent in agent.managed_agents
+                        for managed_agent in agent.managed_agents.values()
                     ]
                 ),
             )
@@ -195,6 +197,9 @@ class _StepWrapper:
                     agent.model.last_input_token_count + agent.model.last_output_token_count
                 )
                 span.set_attribute("Observations", step_log.observations)
+                # if step_log.error is not None:
+                #     span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(step_log.error)))
+                #     span.record_exception(str(step_log.error))
 
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
