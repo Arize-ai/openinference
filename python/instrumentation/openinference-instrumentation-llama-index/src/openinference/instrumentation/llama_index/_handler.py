@@ -853,22 +853,40 @@ def _get_token_counts(usage: Union[object, Mapping[str, Any]]) -> Iterator[Tuple
 
 def _get_token_counts_from_object(usage: object) -> Iterator[Tuple[str, Any]]:
     if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
-        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT, int(prompt_tokens)
+        except BaseException:
+            pass
     if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
-        yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+        try:
+            yield LLM_TOKEN_COUNT_COMPLETION, int(completion_tokens)
+        except BaseException:
+            pass
     if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
-        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+        try:
+            yield LLM_TOKEN_COUNT_TOTAL, int(total_tokens)
+        except BaseException:
+            pass
 
 
 def _get_token_counts_from_mapping(
     usage_mapping: Mapping[str, Any],
 ) -> Iterator[Tuple[str, Any]]:
     if (prompt_tokens := usage_mapping.get("prompt_tokens")) is not None:
-        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT, int(prompt_tokens)
+        except BaseException:
+            pass
     if (completion_tokens := usage_mapping.get("completion_tokens")) is not None:
-        yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+        try:
+            yield LLM_TOKEN_COUNT_COMPLETION, int(completion_tokens)
+        except BaseException:
+            pass
     if (total_tokens := usage_mapping.get("total_tokens")) is not None:
-        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+        try:
+            yield LLM_TOKEN_COUNT_TOTAL, int(total_tokens)
+        except BaseException:
+            pass
 
 
 @singledispatch
