@@ -13,6 +13,7 @@ from openinference.instrumentation import (
 from openinference.instrumentation.smolagents._wrappers import (
     _RunWrapper,
     _StepWrapper,
+    _ModelWrapper,
     _ToolCallWrapper,
 )
 from openinference.instrumentation.smolagents.version import __version__
@@ -27,6 +28,8 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_run",
         "_original_step",
         "_original_tool_call",
+        "_original_model_generate",
+        "_original_model_get_tool_call",
         "_tracer",
     )
 
@@ -46,23 +49,47 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         run_wrapper = _RunWrapper(tracer=self._tracer)
-        self._original_run = getattr(import_module("smolagents").MultiStepAgent, "run", None)
+        self._original_run = getattr(import_module("smolagents.agents").MultiStepAgent, "run", None)
         wrap_function_wrapper(
             module="smolagents",
             name="MultiStepAgent.run",
             wrapper=run_wrapper,
         )
 
-        step_wrapper = _StepWrapper(tracer=self._tracer)
-        self._original_step = getattr(import_module("smolagents").Tool, "step", None)
+        step_wrapper_code = _StepWrapper(tracer=self._tracer)
+        self._original_step = getattr(import_module("smolagents.agents").CodeAgent, "step", None)
         wrap_function_wrapper(
             module="smolagents",
             name="CodeAgent.step",
-            wrapper=step_wrapper,
+            wrapper=step_wrapper_code,
+        )
+
+        step_wrapper_tool_calling = _StepWrapper(tracer=self._tracer)
+        self._original_step = getattr(import_module("smolagents.agents").ToolCallingAgent, "step", None)
+        wrap_function_wrapper(
+            module="smolagents",
+            name="ToolCallingAgent.step",
+            wrapper=step_wrapper_tool_calling,
+        )
+
+        model_generate_wrapper = _ModelWrapper(tracer=self._tracer)
+        self._original_model_generate = getattr(import_module("smolagents").Model, "__call__", None)
+        wrap_function_wrapper(
+            module="smolagents",
+            name="Model.__call__",
+            wrapper=model_generate_wrapper,
+        )
+
+        model_tool_call_wrapper = _ModelWrapper(tracer=self._tracer)
+        self._original_model_tool_call = getattr(import_module("smolagents").Model, "get_tool_call", None)
+        wrap_function_wrapper(
+            module="smolagents",
+            name="Model.get_tool_call",
+            wrapper=model_tool_call_wrapper,
         )
 
         tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
-        self._original_tool_call = getattr(import_module("smolagents").Tool, "__call__", None)
+        self._original_tool_call = getattr(import_module("smolagents.tools").Tool, "__call__", None)
         wrap_function_wrapper(
             module="smolagents",
             name="Tool.__call__",
@@ -78,6 +105,16 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_step is not None:
             smolagents_module = import_module("smolagents.agents")
             smolagents_module.MultiStepAgent.step = self._original_step
+            self._original_step = None
+
+        if self._original_model_generate is not None:
+            smolagents_module = import_module("smolagents.models")
+            smolagents_module.MultimodelAgent.model = self._original_model_generate
+            self._original_step = None
+
+        if self._original_model_get_tool_call is not None:
+            smolagents_module = import_module("smolagents.models")
+            smolagents_module.MultimodelAgent.model = self._original_model_get_tool_call
             self._original_step = None
 
         if self._original_tool_call is not None:

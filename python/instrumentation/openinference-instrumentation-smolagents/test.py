@@ -13,16 +13,16 @@ trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)
 SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
 SmolagentsInstrumentor()._instrument(tracer_provider=trace_provider)
 
-from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel, ManagedAgent
+from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel, ManagedAgent, ToolCallingAgent
 
-agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=HfApiModel())
+agent = ToolCallingAgent(tools=[DuckDuckGoSearchTool()], model=HfApiModel(), max_steps=3)
 
 managed_agent = ManagedAgent(
     agent=agent,
     name="managed_agent",
-    description="This is an agent that you manage. When solving a task, ask him directly first, he gives good answers. Then you can double check."
+    description="This is an agent that can do web search. When solving a task, ask him directly first, he gives good answers. Then you can double check."
 )
 
 manager_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=HfApiModel(), managed_agents=[managed_agent])
 
-manager_agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts? Import numpy as np whenever you write a code blob.")
+manager_agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts? ASK YOUR MANAGED AGENT FOR LEOPARD SPEED FIRST")
