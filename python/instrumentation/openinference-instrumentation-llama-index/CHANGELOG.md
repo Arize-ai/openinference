@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.1.2...python-openinference-instrumentation-llama-index-v3.1.3) (2025-01-09)
+
+
+### Bug Fixes
+
+* **llama-index:** coerce token counts to be integers ([#1183](https://github.com/Arize-ai/openinference/issues/1183)) ([3af6ca6](https://github.com/Arize-ai/openinference/commit/3af6ca626c8f37c931eb51b846b0b3d24afdb615))
+
 ## [3.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.1.1...python-openinference-instrumentation-llama-index-v3.1.2) (2024-12-20)
 
 
