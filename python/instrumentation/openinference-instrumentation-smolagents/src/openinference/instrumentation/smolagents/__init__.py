@@ -28,8 +28,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_run",
         "_original_step",
         "_original_tool_call",
-        "_original_model_generate",
-        "_original_model_get_tool_call",
+        "_original_model_call",
         "_tracer",
     )
 
@@ -72,21 +71,15 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=step_wrapper_tool_calling,
         )
 
-        model_generate_wrapper = _ModelWrapper(tracer=self._tracer)
-        self._original_model_generate = getattr(import_module("smolagents").Model, "__call__", None)
-        wrap_function_wrapper(
-            module="smolagents",
-            name="Model.__call__",
-            wrapper=model_generate_wrapper,
-        )
-
-        model_tool_call_wrapper = _ModelWrapper(tracer=self._tracer)
-        self._original_model_tool_call = getattr(import_module("smolagents").Model, "get_tool_call", None)
-        wrap_function_wrapper(
-            module="smolagents",
-            name="Model.get_tool_call",
-            wrapper=model_tool_call_wrapper,
-        )
+        from smolagents import Model
+        model_subclasses = Model.__subclasses__()
+        for model_subclass in model_subclasses:
+            model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
+            wrap_function_wrapper(
+                module="smolagents",
+                name=model_subclass.__name__ + ".__call__",
+                wrapper=model_subclass_wrapper,
+            )
 
         tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
         self._original_tool_call = getattr(import_module("smolagents.tools").Tool, "__call__", None)
@@ -110,12 +103,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_model_generate is not None:
             smolagents_module = import_module("smolagents.models")
             smolagents_module.MultimodelAgent.model = self._original_model_generate
-            self._original_step = None
-
-        if self._original_model_get_tool_call is not None:
-            smolagents_module = import_module("smolagents.models")
-            smolagents_module.MultimodelAgent.model = self._original_model_get_tool_call
-            self._original_step = None
+            self._original_model = None
 
         if self._original_tool_call is not None:
             tool_usage_module = import_module("smolagents.tools")

@@ -1,14 +1,19 @@
 import json
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -210,6 +215,35 @@ class _StepWrapper:
             span.set_attributes(dict(get_attributes_from_context()))
         return result
 
+def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
+    method_signature = signature(method)
+    bound_args = method_signature.bind(*args, **kwargs)
+    bound_args.apply_defaults()
+    return bound_args.arguments
+
+def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    if isinstance(prompt := arguments.get("prompt"), str):
+        yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}", "user"
+        yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}", prompt
+    elif isinstance(messages := arguments.get("messages"), list):
+        for i, message in enumerate(messages):
+            if not isinstance(message, dict):
+                continue
+            if (role := message.get("role", None)) is not None:
+                yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}", role
+            if (content := message.get("content", None)) is not None:
+                yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}", content
+
+
+def _llm_invocation_parameters(model, arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    model_kwargs = _ if isinstance(_ := getattr(model, "kwargs", {}), dict) else {}
+    kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
+    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(model_kwargs | kwargs)
+
+def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+    yield SpanAttributes.INPUT_VALUE, safe_json_dumps(arguments)
+
 class _ModelWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -223,6 +257,7 @@ class _ModelWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
         if instance:
             span_name = f"{instance.__class__.__name__}"
         else:
@@ -234,11 +269,10 @@ class _ModelWrapper:
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(_llm_invocation_parameters(instance, arguments)),
+                        **dict(_llm_input_messages(arguments)),
+                        **dict(get_attributes_from_context()),
                     }
                 )
             ),
@@ -253,6 +287,7 @@ class _ModelWrapper:
                 raise
             span.set_attribute(LLM_TOKEN_COUNT_PROMPT, model.last_input_token_count)
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, model.last_output_token_count)
+            span.set_attribute(LLM_MODEL_NAME, model.model_id)
             span.set_attribute(
                 LLM_TOKEN_COUNT_TOTAL,
                 model.last_input_token_count + model.last_output_token_count
@@ -297,7 +332,8 @@ class _ToolCallWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            span.set_attribute(SpanAttributes.TOOL_NAME, f"{instance.__class__.__name__}")
+            span.set_attribute(SpanAttributes.TOOL_NAME, f"{instance.__class__.name}")
+            span.set_attribute(SpanAttributes.TOOL_PARAMETERS, json.dumps(kwargs))
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -314,6 +350,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
