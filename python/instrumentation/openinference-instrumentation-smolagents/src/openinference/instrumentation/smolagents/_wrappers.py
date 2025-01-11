@@ -123,8 +123,12 @@ class _RunWrapper:
             span.set_attribute(INPUT_VALUE, task)
             span.set_attribute("agent_name", str(agent.__class__.__name__))
             span.set_attribute("task", task)
-            span.set_attribute("additional_args", json.dumps(additional_args) if additional_args else "")
-            span.set_attribute("additional_args", json.dumps(additional_args) if additional_args else "")
+            span.set_attribute(
+                "additional_args", json.dumps(additional_args) if additional_args else ""
+            )
+            span.set_attribute(
+                "additional_args", json.dumps(additional_args) if additional_args else ""
+            )
             model_id = f" - {agent.model.model_id}" if hasattr(agent.model, "model_id") else ""
             model_type = f"{type(agent.model).__name__}"
             span.set_attribute("model", model_type + model_id)
@@ -139,7 +143,10 @@ class _RunWrapper:
                             "name": managed_agent.name,
                             "description": managed_agent.description,
                             "additional_prompting": managed_agent.additional_prompting,
-                            "model": f"{type(managed_agent.agent.model).__name__}" + f" - {managed_agent.agent.model.model_id}" if hasattr(managed_agent.agent.model, "model_id") else "",
+                            "model": f"{type(managed_agent.agent.model).__name__}"
+                            + f" - {managed_agent.agent.model.model_id}"
+                            if hasattr(managed_agent.agent.model, "model_id")
+                            else "",
                             "max_steps": managed_agent.agent.max_steps,
                             "tools_names": list(agent.tools.keys()),
                         }
@@ -150,10 +157,12 @@ class _RunWrapper:
             try:
                 agent_output = wrapped(*args, **kwargs)
                 span.set_attribute(LLM_TOKEN_COUNT_PROMPT, agent.monitor.total_input_token_count)
-                span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count)
+                span.set_attribute(
+                    LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count
+                )
                 span.set_attribute(
                     LLM_TOKEN_COUNT_TOTAL,
-                    agent.monitor.total_input_token_count + agent.monitor.total_output_token_count
+                    agent.monitor.total_input_token_count + agent.monitor.total_output_token_count,
                 )
 
             except Exception as exception:
@@ -197,9 +206,11 @@ class _StepWrapper:
                 result = wrapped(*args, **kwargs)
                 if result is not None:
                     span.set_attribute("Final answer", result)
-                step_log = args[0] # ActionStep
+                step_log = args[0]  # ActionStep
                 # if step_log.error is not None:
-                #     span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(step_log.error)))
+                #     span.set_status(
+                #         trace_api.Status(trace_api.StatusCode.ERROR, str(step_log.error))
+                #     )
                 #     span.record_exception(str(step_log.error))
 
             except Exception as exception:
@@ -215,11 +226,13 @@ class _StepWrapper:
             span.set_attributes(dict(get_attributes_from_context()))
         return result
 
+
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
     method_signature = signature(method)
     bound_args = method_signature.bind(*args, **kwargs)
     bound_args.apply_defaults()
     return bound_args.arguments
+
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     if isinstance(prompt := arguments.get("prompt"), str):
@@ -230,19 +243,29 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
             if not isinstance(message, dict):
                 continue
             if (role := message.get("role", None)) is not None:
-                yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}", role
+                yield (
+                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}",
+                    role,
+                )
             if (content := message.get("content", None)) is not None:
-                yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}", content
+                yield (
+                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}",
+                    content,
+                )
 
 
-def _llm_invocation_parameters(model, arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _llm_invocation_parameters(
+    model: Any, arguments: Mapping[str, Any]
+) -> Iterator[Tuple[str, Any]]:
     model_kwargs = _ if isinstance(_ := getattr(model, "kwargs", {}), dict) else {}
     kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
     yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(model_kwargs | kwargs)
 
+
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
     yield SpanAttributes.INPUT_VALUE, safe_json_dumps(arguments)
+
 
 class _ModelWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
@@ -289,8 +312,7 @@ class _ModelWrapper:
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, model.last_output_token_count)
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
             span.set_attribute(
-                LLM_TOKEN_COUNT_TOTAL,
-                model.last_input_token_count + model.last_output_token_count
+                LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
             )
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, response)

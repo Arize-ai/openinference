@@ -11,9 +11,9 @@ from openinference.instrumentation import (
     TraceConfig,
 )
 from openinference.instrumentation.smolagents._wrappers import (
+    _ModelWrapper,
     _RunWrapper,
     _StepWrapper,
-    _ModelWrapper,
     _ToolCallWrapper,
 )
 from openinference.instrumentation.smolagents.version import __version__
@@ -28,7 +28,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_run",
         "_original_step",
         "_original_tool_call",
-        "_original_model_call",
+        "_original_model",
         "_tracer",
     )
 
@@ -64,7 +64,9 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         step_wrapper_tool_calling = _StepWrapper(tracer=self._tracer)
-        self._original_step = getattr(import_module("smolagents.agents").ToolCallingAgent, "step", None)
+        self._original_step = getattr(
+            import_module("smolagents.agents").ToolCallingAgent, "step", None
+        )
         wrap_function_wrapper(
             module="smolagents",
             name="ToolCallingAgent.step",
@@ -72,6 +74,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         from smolagents import Model
+
         model_subclasses = Model.__subclasses__()
         for model_subclass in model_subclasses:
             model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
