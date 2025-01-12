@@ -18,7 +18,6 @@ trace_provider = TracerProvider()
 trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
 SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
-SmolagentsInstrumentor()._instrument(tracer_provider=trace_provider)
 
 knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
 knowledge_base = knowledge_base.filter(

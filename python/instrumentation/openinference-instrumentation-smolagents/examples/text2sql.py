@@ -30,7 +30,6 @@ trace_provider = TracerProvider()
 trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
 SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
-SmolagentsInstrumentor()._instrument(tracer_provider=trace_provider)
 
 engine = create_engine("sqlite:///:memory:")
 metadata_obj = MetaData()

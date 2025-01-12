@@ -282,7 +282,7 @@ class _ModelWrapper:
             return wrapped(*args, **kwargs)
         arguments = _bind_arguments(wrapped, *args, **kwargs)
         if instance:
-            span_name = f"{instance.__class__.__name__}"
+            span_name = f"{instance.__class__.__name__}.__call__"
         else:
             span_name = wrapped.__name__
         model = instance

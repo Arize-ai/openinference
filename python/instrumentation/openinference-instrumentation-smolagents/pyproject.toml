@@ -34,13 +34,12 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "smolagents >= 1.1.0",
+  "smolagents>=1.2.2",
 ]
 test = [
-  "smolagents == 1.1.0",
+  "smolagents>=1.2.2",
   "opentelemetry-sdk",
-  "responses",
-  "vcrpy",
+  "pytest-recording",
 ]
 
 [project.urls]

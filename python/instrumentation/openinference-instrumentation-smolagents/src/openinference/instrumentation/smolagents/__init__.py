@@ -18,7 +18,7 @@ from openinference.instrumentation.smolagents._wrappers import (
 )
 from openinference.instrumentation.smolagents.version import __version__
 
-_instruments = ("smolagents >= 1.1.0",)
+_instruments = ("smolagents >= 1.2.2",)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_run",
         "_original_step",
         "_original_tool_call",
-        "_original_model",
+        "_original_model_calls",
         "_tracer",
     )
 
@@ -76,8 +76,10 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         from smolagents import Model
 
         model_subclasses = Model.__subclasses__()
+        self._original_model_calls = {}
         for model_subclass in model_subclasses:
             model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
+            self._original_model_calls[model_subclass] = getattr(model_subclass, "__call__")
             wrap_function_wrapper(
                 module="smolagents",
                 name=model_subclass.__name__ + ".__call__",
@@ -103,10 +105,11 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             smolagents_module.MultiStepAgent.step = self._original_step
             self._original_step = None
 
-        if self._original_model_generate is not None:
+        if self._original_model_calls is not None:
             smolagents_module = import_module("smolagents.models")
-            smolagents_module.MultimodelAgent.model = self._original_model_generate
-            self._original_model = None
+            for model_subclass, original_model_call in self._original_model_calls.items():
+                setattr(model_subclass, "__call__", original_model_call)
+            self._original_model_calls = None
 
         if self._original_tool_call is not None:
             tool_usage_module = import_module("smolagents.tools")
