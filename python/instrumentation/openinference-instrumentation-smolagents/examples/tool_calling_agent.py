@@ -17,7 +17,7 @@ endpoint = "http://0.0.0.0:6006/v1/traces"
 trace_provider = TracerProvider()
 trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
-SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
+SmolagentsInstrumentor().instrument(tracer_provider=trace_provider, skip_dep_check=True)
 
 # Choose which LLM engine to use!
 # model = HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")

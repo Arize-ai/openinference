@@ -3,12 +3,14 @@ import os
 from typing import Any, Generator
 
 import pytest
+from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from smolagents import OpenAIServerModel
+from smolagents.tools import Tool
 
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from openinference.semconv.trace import (
@@ -16,6 +18,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -94,7 +97,6 @@ class TestModels:
         self,
         # openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
-        tracer_provider: trace_api.TracerProvider,
     ) -> None:
         model = OpenAIServerModel(
             model_id="gpt-4o",
@@ -114,10 +116,6 @@ class TestModels:
         )
         output_message_content = output_message.content
         assert output_message_content == "France"
-
-        tracer = trace_api.get_tracer("smolagents")
-        with tracer.start_as_current_span("test") as span:
-            span.set_attribute("test", "test")
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -145,6 +143,98 @@ class TestModels:
         assert (
             attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == output_message_content
         )
+        assert not attributes
+
+    # @pytest.mark.vcr(
+    #     decode_compressed_response=True,
+    #     before_record_request=remove_all_vcr_request_headers,
+    #     before_record_response=remove_all_vcr_response_headers,
+    # )
+    def test_openai_server_model_tool_call(
+        self,
+        # openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer_provider: trace_api.TracerProvider,
+    ) -> None:
+        model = OpenAIServerModel(
+            model_id="gpt-4o",
+            api_key=os.environ["OPENAI_API_KEY"],
+            api_base="https://api.openai.com/v1",
+        )
+        input_message_content = "What is the weather in Paris?"
+
+        class GetWeatherTool(Tool):
+            name = "get_weather"
+            description = "Get the weather for a given city"
+            inputs = {
+                "location": {"type": "string", "description": "The city to get the weather for"}
+            }
+            output_type = "string"
+
+            def forward(self, location: str) -> str:
+                return "sunny"
+
+        output_message = model(
+            messages=[
+                {
+                    "role": "user",
+                    "content": input_message_content,
+                }
+            ],
+            tools_to_call_from=[GetWeatherTool()],
+        )
+        output_message_content = output_message.content
+        assert output_message_content is None
+        tool_calls = output_message.tool_calls
+        assert len(tool_calls) == 1
+        assert isinstance(tool_call := tool_calls[0], ChatCompletionMessageToolCall)
+        assert tool_call.function.name == "get_weather"
+        assert isinstance(tool_call_arguments := tool_call.function.arguments, str)
+        assert json.loads(tool_call_arguments) == {"location": "Paris"}
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "OpenAIServerModel.__call__"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        input_data = json.loads(input_value)
+        assert "messages" in input_data
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(json.loads(output_value), dict)
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == {}
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert isinstance(
+            tool_json_schema := attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str
+        )
+        assert json.loads(tool_json_schema) == {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get the weather for a given city",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city to get the weather for",
+                        },
+                    },
+                    "required": ["location"],
+                },
+            },
+        }
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
         assert not attributes
 
 
@@ -176,9 +266,13 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+
+# tool attributes
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 
 # tool call attributes
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON

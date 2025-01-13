@@ -1,5 +1,4 @@
 import json
-from dataclasses import asdict
 from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
@@ -14,6 +13,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -278,6 +278,20 @@ def _llm_invocation_parameters(
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(model_kwargs | kwargs)
 
 
+def _llm_tools(tools_to_call_from: List[Any]) -> Iterator[Tuple[str, Any]]:
+    from smolagents import Tool
+    from smolagents.models import get_json_schema
+
+    if not isinstance(tools_to_call_from, list):
+        return
+    for tool_index, tool in enumerate(tools_to_call_from):
+        if isinstance(tool, Tool):
+            yield (
+                f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}",
+                safe_json_dumps(get_json_schema(tool)),
+            )
+
+
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(arguments)
@@ -304,17 +318,13 @@ class _ModelWrapper:
         model = instance
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: LLM,
-                        **dict(_input_value_and_mime_type(arguments)),
-                        **dict(_llm_invocation_parameters(instance, arguments)),
-                        **dict(_llm_input_messages(arguments)),
-                        **dict(get_attributes_from_context()),
-                    }
-                )
-            ),
+            attributes={
+                OPENINFERENCE_SPAN_KIND: LLM,
+                **dict(_input_value_and_mime_type(arguments)),
+                **dict(_llm_invocation_parameters(instance, arguments)),
+                **dict(_llm_input_messages(arguments)),
+                **dict(get_attributes_from_context()),
+            },
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
@@ -333,6 +343,7 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, output_message)
             span.set_attributes(dict(_llm_output_messages(output_message)))
+            span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
         return output_message
 
@@ -396,6 +407,7 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
@@ -417,6 +429,9 @@ AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 TOOL = OpenInferenceSpanKindValues.TOOL.value
+
+# tool attributes
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 
 # tool call attributes
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
