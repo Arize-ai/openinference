@@ -1,7 +1,6 @@
 import json
 from enum import Enum
 from functools import wraps
-from time import sleep
 from typing import (
     Any,
     Callable,
@@ -12,7 +11,6 @@ from typing import (
     Mapping,
     Tuple,
     TypeVar,
-    Union,
 )
 
 from openai.types.image import Image
@@ -28,7 +26,7 @@ from litellm.types.utils import (
     EmbeddingResponse,
     ImageResponse,
     ModelResponse,
-    ModelResponseStream
+    ModelResponseStream,
 )
 from openinference.instrumentation import (
     OITracer,
@@ -169,13 +167,14 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         for idx, choice in enumerate(result.choices):
             if not isinstance(choice, Choices):
                 continue
-        
+
             if idx == 0 and choice.message and (output := choice.message.content):
                 _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
 
             for key, value in _get_attributes_from_message_param(choice.message):
-                _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
-
+                _set_span_attribute(
+                    span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
+                )
 
     elif isinstance(result, EmbeddingResponse):
         if result_data := result.data:
