@@ -394,6 +394,99 @@ final_answer("Final report.")
         assert report == "Final report."
 
 
+class TestTools:
+    def test_tool_invocation_returning_string_has_expected_attributes(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        class GetWeatherTool(Tool):
+            name = "get_weather"
+            description = "Get the weather for a given city"
+            inputs = {
+                "location": {"type": "string", "description": "The city to get the weather for"}
+            }
+            output_type = "string"
+
+            def forward(self, location: str) -> str:
+                return "sunny"
+
+        weather_tool = GetWeatherTool()
+
+        result = weather_tool("Paris")
+        assert result == "sunny"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {
+            "args": ["Paris"],
+            "sanitize_inputs_outputs": False,
+            "kwargs": {},
+        }
+        assert attributes.pop(OUTPUT_VALUE) == "sunny"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(TOOL_NAME) == "get_weather"
+        assert attributes.pop(TOOL_DESCRIPTION) == "Get the weather for a given city"
+        assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
+        assert json.loads(tool_parameters) == {
+            "location": {
+                "type": "string",
+                "description": "The city to get the weather for",
+            },
+        }
+        assert not attributes
+
+    def test_tool_invocation_returning_dict_has_expected_attributes(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        class GetWeatherTool(Tool):
+            name = "get_weather"
+            description = "Get detailed weather information for a given city"
+            inputs = {
+                "location": {"type": "string", "description": "The city to get the weather for"}
+            }
+            output_type = "object"
+
+            def forward(self, location: str) -> dict:
+                return {"condition": "sunny", "temperature": 25, "humidity": 60}
+
+        weather_tool = GetWeatherTool()
+
+        result = weather_tool("Paris")
+        assert result == {"condition": "sunny", "temperature": 25, "humidity": 60}
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {
+            "args": ["Paris"],
+            "sanitize_inputs_outputs": False,
+            "kwargs": {},
+        }
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == {"condition": "sunny", "temperature": 25, "humidity": 60}
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert attributes.pop(TOOL_NAME) == "get_weather"
+        assert (
+            attributes.pop(TOOL_DESCRIPTION) == "Get detailed weather information for a given city"
+        )
+        assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
+        assert json.loads(tool_parameters) == {
+            "location": {
+                "type": "string",
+                "description": "The city to get the weather for",
+            },
+        }
+        assert not attributes
+
+
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
@@ -426,6 +519,9 @@ LLM_TOOLS = SpanAttributes.LLM_TOOLS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
+TOOL_NAME = SpanAttributes.TOOL_NAME
+TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 
 # tool attributes
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA

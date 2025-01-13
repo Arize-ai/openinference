@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -16,6 +16,9 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+if TYPE_CHECKING:
+    from smolagents.tools import Tool
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -38,37 +41,20 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
 
 
 def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
-    """
-    Parses a method call's inputs into a JSON string. Ensures a consistent
-    output regardless of whether the those inputs are passed as positional or
-    keyword arguments.
-    """
+    arguments = _bind_arguments(method, *args, **kwargs)
+    arguments = _strip_method_args(arguments)
+    return safe_json_dumps(arguments)
 
-    # For typical class methods, the corresponding instance of inspect.Signature
-    # does not include the self parameter. However, the inspect.Signature
-    # instance for __call__ does include the self parameter.
+
+def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
     method_signature = signature(method)
-    first_parameter_name = next(iter(method_signature.parameters), None)
-    signature_contains_self_parameter = first_parameter_name in ["self"]
-    bound_arguments = method_signature.bind(
-        *(
-            [None]  # the value bound to the method's self argument is discarded below, so pass None
-            if signature_contains_self_parameter
-            else []  # no self parameter, so no need to pass a value
-        ),
-        *args,
-        **kwargs,
-    )
-    return safe_json_dumps(
-        {
-            **{
-                argument_name: argument_value
-                for argument_name, argument_value in bound_arguments.arguments.items()
-                if argument_name not in ["self", "kwargs"]
-            },
-            **bound_arguments.arguments.get("kwargs", {}),
-        },
-    )
+    bound_args = method_signature.bind(*args, **kwargs)
+    bound_args.apply_defaults()
+    return bound_args.arguments
+
+
+def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
 
 
 class _RunWrapper:
@@ -210,13 +196,6 @@ class _StepWrapper:
         return result
 
 
-def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
-    method_signature = signature(method)
-    bound_args = method_signature.bind(*args, **kwargs)
-    bound_args.apply_defaults()
-    return bound_args.arguments
-
-
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     if isinstance(prompt := arguments.get("prompt"), str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
@@ -293,6 +272,14 @@ def _llm_tools(tools_to_call_from: List[Any]) -> Iterator[Tuple[str, Any]]:
                 f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}",
                 safe_json_dumps(get_json_schema(tool)),
             )
+
+
+def _tools(tool: "Tool") -> Iterator[Tuple[str, Any]]:
+    if tool_name := getattr(tool, "name", None):
+        yield TOOL_NAME, tool_name
+    if tool_description := getattr(tool, "description", None):
+        yield TOOL_DESCRIPTION, tool_description
+    yield TOOL_PARAMETERS, safe_json_dumps(tool.inputs)
 
 
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -379,14 +366,13 @@ class _ToolCallWrapper:
                             *args,
                             **kwargs,
                         ),
+                        **dict(_tools(instance)),
                     }
                 )
             ),
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            span.set_attribute(TOOL_CALL_FUNCTION_NAME, f"{instance.__class__.name}")
-            span.set_attribute(TOOL_CALL_FUNCTION_ARGUMENTS_JSON, json.dumps(kwargs))
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -394,9 +380,34 @@ class _ToolCallWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
             span.set_attributes(dict(get_attributes_from_context()))
+            span.set_attributes(
+                dict(
+                    _output_value_and_mime_type_for_tool_span(
+                        response=response,
+                        output_type=instance.output_type,
+                    )
+                )
+            )
         return response
+
+
+def _output_value_and_mime_type_for_tool_span(
+    response: Any, output_type: str
+) -> Iterator[Tuple[str, Any]]:
+    if output_type in (
+        "string",
+        "boolean",
+        "integer",
+        "number",
+    ):
+        yield OUTPUT_VALUE, response
+        yield OUTPUT_MIME_TYPE, TEXT
+    elif output_type == "object":
+        yield OUTPUT_VALUE, safe_json_dumps(response)
+        yield OUTPUT_MIME_TYPE, JSON
+
+    # TODO: handle other types
 
 
 # span attributes
@@ -414,6 +425,9 @@ LLM_TOOLS = SpanAttributes.LLM_TOOLS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
+TOOL_NAME = SpanAttributes.TOOL_NAME
+TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
