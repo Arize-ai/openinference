@@ -264,10 +264,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         ) as span:
             _instrument_func_type_completion(span, kwargs)
             result = self.original_litellm_funcs["completion"](*args, **kwargs)
-            if isinstance(result, litellm.CustomStreamWrapper):
-                _finalize_span(span, result.completion_stream)
-            else:
-                _finalize_span(span, result)
+            _finalize_span(span, result)
         return result  # type:ignore
 
     @wraps(litellm.acompletion)

@@ -5,7 +5,7 @@ from unittest.mock import patch
 import litellm
 import pytest
 from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
-from litellm.types.utils import EmbeddingResponse, ImageResponse, Usage
+from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -548,7 +548,7 @@ def test_image_generation_url(
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
+        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")],
     )
 
     with patch.object(
@@ -618,7 +618,7 @@ def test_image_generation_b64json(
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[{"b64_json": "dummy_b64_json", "revised_prompt": None, "url": None}],
+        data=[ImageObject(b64_json="dummy_b64_json", revised_prompt=None, url=None)],
     )
 
     with patch.object(
@@ -688,7 +688,7 @@ async def test_aimage_generation(
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
+        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")],
     )
     with patch.object(
         OpenAIChatCompletion, "aimage_generation", return_value=mock_response_image_gen
