@@ -11,6 +11,7 @@ from typing import (
     Mapping,
     Tuple,
     TypeVar,
+    Union,
 )
 
 from openai.types.image import Image
@@ -59,7 +60,7 @@ def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
 
 
 def _get_attributes_from_message_param(
-    message: Mapping[str, Any],
+    message: Union[Mapping[str, Any], litellm.Message],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not hasattr(message, "get"):
         return
