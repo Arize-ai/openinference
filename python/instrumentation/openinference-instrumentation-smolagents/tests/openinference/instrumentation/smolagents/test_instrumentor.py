@@ -130,9 +130,9 @@ class TestModels:
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
         input_data = json.loads(input_value)
         assert "messages" in input_data
-        # assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-        # assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
-        # assert isinstance(output_data := json.loads(output_value), list)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
@@ -141,10 +141,10 @@ class TestModels:
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
-        # assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-        # assert (
-        #     attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == output_message_content
-        # )
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == output_message_content
+        )
         assert not attributes
 
 
