@@ -263,6 +263,24 @@ def _llm_output_messages(output_message: Any) -> Iterator[Tuple[str, Any]]:
             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}",
             content,
         )
+    if isinstance(tool_calls := getattr(output_message, "tool_calls", None), list):
+        for tool_call_index, tool_call in enumerate(tool_calls):
+            if (tool_call_id := getattr(tool_call, "id", None)) is not None:
+                yield (
+                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_ID}",
+                    tool_call_id,
+                )
+            if (function := getattr(tool_call, "function", None)) is not None:
+                if (name := getattr(function, "name", None)) is not None:
+                    yield (
+                        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
+                        name,
+                    )
+                if isinstance(arguments := getattr(function, "arguments", None), str):
+                    yield (
+                        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        arguments,
+                    )
 
 
 def _output_value_and_mime_type(output: Any) -> Iterator[Tuple[str, Any]]:
@@ -436,3 +454,4 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 # tool call attributes
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
