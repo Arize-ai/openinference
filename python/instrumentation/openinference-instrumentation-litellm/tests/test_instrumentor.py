@@ -47,6 +47,7 @@ def test_oitracer(
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
+@pytest.mark.parametrize("n", [1, 5])
 def test_completion(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -58,11 +59,13 @@ def test_completion(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
+    n: int,
 ) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    response = None
     if use_context_attributes:
         with using_attributes(
             session_id=session_id,
@@ -73,15 +76,17 @@ def test_completion(
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         ):
-            litellm.completion(
+            response = litellm.completion(
                 model="gpt-3.5-turbo",
                 messages=input_messages,
+                n=n,
                 mock_response="Beijing",
             )
     else:
-        litellm.completion(
+        response = litellm.completion(
             model="gpt-3.5-turbo",
             messages=input_messages,
+            n=n,
             mock_response="Beijing",
         )
 
@@ -94,6 +99,9 @@ def test_completion(
     assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    for i, choice in enumerate(response['choices']):
+        _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, choice.message)
+
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -111,6 +119,37 @@ def test_completion(
         )
     LiteLLMInstrumentor().uninstrument()
 
+@pytest.mark.parametrize("n", [1, 4])
+def test_completion_streaming(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    n: int,
+) -> None:
+    in_memory_span_exporter.clear()
+    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
+
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+
+    response = litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        mock_response="Beijing",
+        stream=True,
+        n=n,
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+
+    for i, chunk in response.chunks:
+        _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, chunk.message.delta)
+
+    LiteLLMInstrumentor().uninstrument()
 
 def test_completion_with_parameters(
     tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
