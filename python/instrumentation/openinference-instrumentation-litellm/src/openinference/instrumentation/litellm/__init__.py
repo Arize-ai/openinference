@@ -264,9 +264,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             name="completion", attributes=dict(get_attributes_from_context())
         ) as span:
             _instrument_func_type_completion(span, kwargs)
-            print("1: ", kwargs)
             result = self.original_litellm_funcs["completion"](*args, **kwargs)
-            print("1.5:", result)
             if isinstance(result, litellm.CustomStreamWrapper):
                 _finalize_span(span, result.completion_stream)
             else:
