@@ -13,21 +13,9 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
 )
-
-
-class SafeJSONEncoder(json.JSONEncoder):
-    """
-    Safely encodes non-JSON-serializable objects.
-    """
-
-    def default(self, o: Any) -> Any:
-        try:
-            return super().default(o)
-        except TypeError:
-            if hasattr(o, "dict") and callable(o.dict):  # pydantic v1 models, e.g., from Cohere
-                return o.dict()
-            return repr(o)
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -80,7 +68,6 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
             },
             **bound_arguments.arguments.get("kwargs", {}),
         },
-        cls=SafeJSONEncoder,
     )
 
 
@@ -105,8 +92,8 @@ class _RunWrapper:
             attributes=dict(
                 _flatten(
                     {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                        OPENINFERENCE_SPAN_KIND: AGENT,
+                        INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
                             **kwargs,
@@ -194,13 +181,9 @@ class _StepWrapper:
             span_name,
             record_exception=False,
             set_status_on_exception=False,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
-                    }
-                )
-            ),
+            attributes={
+                OPENINFERENCE_SPAN_KIND: CHAIN,
+            },
         ) as span:
             try:
                 result = wrapped(*args, **kwargs)
@@ -236,22 +219,58 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     if isinstance(prompt := arguments.get("prompt"), str):
-        yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}", "user"
-        yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}", prompt
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
     elif isinstance(messages := arguments.get("messages"), list):
         for i, message in enumerate(messages):
             if not isinstance(message, dict):
                 continue
             if (role := message.get("role", None)) is not None:
                 yield (
-                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_ROLE}",
+                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}",
                     role,
                 )
             if (content := message.get("content", None)) is not None:
                 yield (
-                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.{MessageAttributes.MESSAGE_CONTENT}",
+                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
                     content,
                 )
+
+
+def _llm_output_messages(output_message: Any) -> Iterator[Tuple[str, Any]]:
+    if (role := getattr(output_message, "role", None)) is not None:
+        yield (
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}",
+            role,
+        )
+    if (content := getattr(output_message, "content", None)) is not None:
+        yield (
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}",
+            content,
+        )
+    if isinstance(tool_calls := getattr(output_message, "tool_calls", None), list):
+        for tool_call_index, tool_call in enumerate(tool_calls):
+            if (tool_call_id := getattr(tool_call, "id", None)) is not None:
+                yield (
+                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_ID}",
+                    tool_call_id,
+                )
+            if (function := getattr(tool_call, "function", None)) is not None:
+                if (name := getattr(function, "name", None)) is not None:
+                    yield (
+                        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
+                        name,
+                    )
+                if isinstance(arguments := getattr(function, "arguments", None), str):
+                    yield (
+                        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        arguments,
+                    )
+
+
+def _output_value_and_mime_type(output: Any) -> Iterator[Tuple[str, Any]]:
+    yield OUTPUT_MIME_TYPE, JSON
+    yield OUTPUT_VALUE, output.model_dump_json()
 
 
 def _llm_invocation_parameters(
@@ -259,12 +278,26 @@ def _llm_invocation_parameters(
 ) -> Iterator[Tuple[str, Any]]:
     model_kwargs = _ if isinstance(_ := getattr(model, "kwargs", {}), dict) else {}
     kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
-    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(model_kwargs | kwargs)
+    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(model_kwargs | kwargs)
+
+
+def _llm_tools(tools_to_call_from: List[Any]) -> Iterator[Tuple[str, Any]]:
+    from smolagents import Tool
+    from smolagents.models import get_json_schema
+
+    if not isinstance(tools_to_call_from, list):
+        return
+    for tool_index, tool in enumerate(tools_to_call_from):
+        if isinstance(tool, Tool):
+            yield (
+                f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}",
+                safe_json_dumps(get_json_schema(tool)),
+            )
 
 
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
-    yield SpanAttributes.INPUT_VALUE, safe_json_dumps(arguments)
+    yield INPUT_MIME_TYPE, JSON
+    yield INPUT_VALUE, safe_json_dumps(arguments)
 
 
 class _ModelWrapper:
@@ -282,28 +315,24 @@ class _ModelWrapper:
             return wrapped(*args, **kwargs)
         arguments = _bind_arguments(wrapped, *args, **kwargs)
         if instance:
-            span_name = f"{instance.__class__.__name__}"
+            span_name = f"{instance.__class__.__name__}.__call__"
         else:
             span_name = wrapped.__name__
         model = instance
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM,
-                        **dict(_input_value_and_mime_type(arguments)),
-                        **dict(_llm_invocation_parameters(instance, arguments)),
-                        **dict(_llm_input_messages(arguments)),
-                        **dict(get_attributes_from_context()),
-                    }
-                )
-            ),
+            attributes={
+                OPENINFERENCE_SPAN_KIND: LLM,
+                **dict(_input_value_and_mime_type(arguments)),
+                **dict(_llm_invocation_parameters(instance, arguments)),
+                **dict(_llm_input_messages(arguments)),
+                **dict(get_attributes_from_context()),
+            },
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
             try:
-                response = wrapped(*args, **kwargs)
+                output_message = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
@@ -315,9 +344,11 @@ class _ModelWrapper:
                 LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
             )
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
-            span.set_attributes(dict(get_attributes_from_context()))
-        return response
+            span.set_attribute(OUTPUT_VALUE, output_message)
+            span.set_attributes(dict(_llm_output_messages(output_message)))
+            span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
+            span.set_attributes(dict(_output_value_and_mime_type(output_message)))
+        return output_message
 
 
 class _ToolCallWrapper:
@@ -342,8 +373,8 @@ class _ToolCallWrapper:
             attributes=dict(
                 _flatten(
                     {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                        OPENINFERENCE_SPAN_KIND: TOOL,
+                        INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
                             **kwargs,
@@ -354,8 +385,8 @@ class _ToolCallWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            span.set_attribute(SpanAttributes.TOOL_NAME, f"{instance.__class__.name}")
-            span.set_attribute(SpanAttributes.TOOL_PARAMETERS, json.dumps(kwargs))
+            span.set_attribute(TOOL_CALL_FUNCTION_NAME, f"{instance.__class__.name}")
+            span.set_attribute(TOOL_CALL_FUNCTION_ARGUMENTS_JSON, json.dumps(kwargs))
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -368,11 +399,44 @@ class _ToolCallWrapper:
         return response
 
 
+# span attributes
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
-OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
-OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
-OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
-LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+
+# message attributes
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
+MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
+MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+
+# mime types
+JSON = OpenInferenceMimeTypeValues.JSON.value
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
+
+# span kinds
+AGENT = OpenInferenceSpanKindValues.AGENT.value
+CHAIN = OpenInferenceSpanKindValues.CHAIN.value
+LLM = OpenInferenceSpanKindValues.LLM.value
+TOOL = OpenInferenceSpanKindValues.TOOL.value
+
+# tool attributes
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+
+# tool call attributes
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
