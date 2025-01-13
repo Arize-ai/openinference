@@ -200,7 +200,7 @@ class _StepWrapper:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-
+            span.set_attribute("Tool calls", step_log.tool_calls)
             if step_log.error is not None:
                 span.set_attribute("Error", str(step_log.error))
             span.set_attribute("Observations", step_log.observations)
