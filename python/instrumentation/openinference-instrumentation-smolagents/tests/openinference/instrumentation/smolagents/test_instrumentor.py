@@ -88,14 +88,14 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 class TestModels:
-    # @pytest.mark.vcr(
-    #     decode_compressed_response=True,
-    #     before_record_request=remove_all_vcr_request_headers,
-    #     before_record_response=remove_all_vcr_response_headers,
-    # )
-    def test_openai_server_model(
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    def test_openai_server_model_has_expected_attributes(
         self,
-        # openai_api_key: str,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
         model = OpenAIServerModel(
@@ -145,14 +145,14 @@ class TestModels:
         )
         assert not attributes
 
-    # @pytest.mark.vcr(
-    #     decode_compressed_response=True,
-    #     before_record_request=remove_all_vcr_request_headers,
-    #     before_record_response=remove_all_vcr_response_headers,
-    # )
-    def test_openai_server_model_tool_call(
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    def test_openai_server_model_with_tool_has_expected_attributes(
         self,
-        # openai_api_key: str,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer_provider: trace_api.TracerProvider,
     ) -> None:
