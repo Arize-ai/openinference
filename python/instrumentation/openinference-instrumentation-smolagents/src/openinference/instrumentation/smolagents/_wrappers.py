@@ -283,7 +283,7 @@ def _llm_invocation_parameters(
 
 def _llm_tools(tools_to_call_from: List[Any]) -> Iterator[Tuple[str, Any]]:
     from smolagents import Tool
-    from smolagents.models import get_json_schema
+    from smolagents.models import get_json_schema  # type:ignore[import-untyped]
 
     if not isinstance(tools_to_call_from, list):
         return

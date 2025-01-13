@@ -1,6 +1,6 @@
 import logging
 from importlib import import_module
-from typing import Any, Collection
+from typing import Any, Callable, Collection, Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
@@ -76,7 +76,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         from smolagents import Model
 
         model_subclasses = Model.__subclasses__()
-        self._original_model_calls = {}
+        self._original_model_calls: Optional[dict[type, Callable[..., Any]]] = {}
         for model_subclass in model_subclasses:
             model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
             self._original_model_calls[model_subclass] = getattr(model_subclass, "__call__")
