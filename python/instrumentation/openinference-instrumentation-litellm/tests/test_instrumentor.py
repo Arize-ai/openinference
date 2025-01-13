@@ -99,7 +99,7 @@ def test_completion(
     assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
-    for i, choice in enumerate(response['choices']):
+    for i, choice in enumerate(response["choices"]):
         _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, choice.message)
 
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
@@ -118,6 +118,7 @@ def test_completion(
             prompt_template_variables,
         )
     LiteLLMInstrumentor().uninstrument()
+
 
 @pytest.mark.parametrize("n", [1, 4])
 def test_completion_streaming(
@@ -149,7 +150,9 @@ def test_completion_streaming(
     for i, chunk in response.chunks:
         _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, chunk.message.delta)
 
+    # usage is not used in streaming completion
     LiteLLMInstrumentor().uninstrument()
+
 
 def test_completion_with_parameters(
     tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter

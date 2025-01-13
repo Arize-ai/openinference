@@ -1,7 +1,18 @@
 import json
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Collection, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    Iterable,
+    Iterator,
+    Mapping,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 from openai.types.image import Image
 from opentelemetry import context as context_api
@@ -12,11 +23,11 @@ from opentelemetry.util.types import AttributeValue
 
 import litellm
 from litellm.types.utils import (
-    StreamingChoices,
     Choices,
     EmbeddingResponse,
     ImageResponse,
     ModelResponse,
+    StreamingChoices,
 )
 from openinference.instrumentation import (
     OITracer,
@@ -156,7 +167,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
     if isinstance(result, ModelResponse):
         for idx, choice in enumerate(result.choices):
             _process_choice(span, choice, idx)
-            
+
     elif isinstance(result, EmbeddingResponse):
         if result_data := result.data:
             first_embedding = result_data[0]
@@ -187,23 +198,23 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
             span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, result.usage["total_tokens"]
         )
 
-def _process_choice(span: trace_api.Span, choice: Union[Choices, StreamingChoices], idx: int) -> None:
-    if isinstance(choice, Choices):            
+
+def _process_choice(
+    span: trace_api.Span, choice: Union[Choices, StreamingChoices], idx: int
+) -> None:
+    if isinstance(choice, Choices):
         if idx == 0 and choice.message and (output := choice.message.content):
             _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
 
         for key, value in _get_attributes_from_message_param(choice.message):
-            _set_span_attribute(
-                span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
-            )
+            _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
     elif isinstance(choice, StreamingChoices):
         if idx == 0 and choice.delta and (output := choice.delta.content):
             _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
 
         for key, value in _get_attributes_from_message_param(choice.delta):
-            _set_span_attribute(
-                span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
-            )
+            _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
+
 
 class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
     original_litellm_funcs: Dict[
