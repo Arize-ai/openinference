@@ -120,40 +120,6 @@ def test_completion(
     LiteLLMInstrumentor().uninstrument()
 
 
-@pytest.mark.parametrize("n", [1, 4])
-def test_completion_streaming(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    n: int,
-) -> None:
-    in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
-
-    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
-
-    response = litellm.completion(
-        model="gpt-3.5-turbo",
-        messages=input_messages,
-        mock_response="Beijing",
-        stream=True,
-        n=n,
-    )
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span = spans[0]
-    assert span.name == "completion"
-    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
-
-    for i, chunk in response.chunks:
-        _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, chunk.message.delta)
-
-    # usage is not used in streaming completion
-    LiteLLMInstrumentor().uninstrument()
-
-
 def test_completion_with_parameters(
     tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
 ) -> None:

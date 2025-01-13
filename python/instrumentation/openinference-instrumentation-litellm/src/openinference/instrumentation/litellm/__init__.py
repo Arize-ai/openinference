@@ -1,6 +1,7 @@
 import json
 from enum import Enum
 from functools import wraps
+from time import sleep
 from typing import (
     Any,
     Callable,
@@ -27,7 +28,7 @@ from litellm.types.utils import (
     EmbeddingResponse,
     ImageResponse,
     ModelResponse,
-    StreamingChoices,
+    ModelResponseStream
 )
 from openinference.instrumentation import (
     OITracer,
@@ -164,9 +165,17 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
 
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
-    if isinstance(result, ModelResponse):
+    if isinstance(result, ModelResponse) or isinstance(result, ModelResponseStream):
         for idx, choice in enumerate(result.choices):
-            _process_choice(span, choice, idx)
+            if not isinstance(choice, Choices):
+                continue
+        
+            if idx == 0 and choice.message and (output := choice.message.content):
+                _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
+
+            for key, value in _get_attributes_from_message_param(choice.message):
+                _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
+
 
     elif isinstance(result, EmbeddingResponse):
         if result_data := result.data:
@@ -197,23 +206,6 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         _set_span_attribute(
             span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, result.usage["total_tokens"]
         )
-
-
-def _process_choice(
-    span: trace_api.Span, choice: Union[Choices, StreamingChoices], idx: int
-) -> None:
-    if isinstance(choice, Choices):
-        if idx == 0 and choice.message and (output := choice.message.content):
-            _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
-
-        for key, value in _get_attributes_from_message_param(choice.message):
-            _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
-    elif isinstance(choice, StreamingChoices):
-        if idx == 0 and choice.delta and (output := choice.delta.content):
-            _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
-
-        for key, value in _get_attributes_from_message_param(choice.delta):
-            _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
 
 
 class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
@@ -272,8 +264,13 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             name="completion", attributes=dict(get_attributes_from_context())
         ) as span:
             _instrument_func_type_completion(span, kwargs)
+            print("1: ", kwargs)
             result = self.original_litellm_funcs["completion"](*args, **kwargs)
-            _finalize_span(span, result)
+            print("1.5:", result)
+            if isinstance(result, litellm.CustomStreamWrapper):
+                _finalize_span(span, result.completion_stream)
+            else:
+                _finalize_span(span, result)
         return result  # type:ignore
 
     @wraps(litellm.acompletion)
