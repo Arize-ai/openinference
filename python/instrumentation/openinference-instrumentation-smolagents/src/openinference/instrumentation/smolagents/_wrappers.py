@@ -18,20 +18,6 @@ from openinference.semconv.trace import (
 )
 
 
-class SafeJSONEncoder(json.JSONEncoder):
-    """
-    Safely encodes non-JSON-serializable objects.
-    """
-
-    def default(self, o: Any) -> Any:
-        try:
-            return super().default(o)
-        except TypeError:
-            if hasattr(o, "dict") and callable(o.dict):  # pydantic v1 models, e.g., from Cohere
-                return o.dict()
-            return repr(o)
-
-
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
         return
@@ -82,7 +68,6 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
             },
             **bound_arguments.arguments.get("kwargs", {}),
         },
-        cls=SafeJSONEncoder,
     )
 
 
