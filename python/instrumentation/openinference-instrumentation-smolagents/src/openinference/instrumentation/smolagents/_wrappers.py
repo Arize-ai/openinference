@@ -57,7 +57,7 @@ def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _smolagent_run_attributes(
-    agent: Any, arguments: Optional[dict[str, Any]]
+    agent: Any, arguments: dict[str, Any]
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if task := agent.task:
         yield "smolagents.task", task
