@@ -23,10 +23,10 @@ from opentelemetry.util.types import AttributeValue
 
 import litellm
 from litellm.types.utils import (
-    Message,
     Choices,
     EmbeddingResponse,
     ImageResponse,
+    Message,
     ModelResponse,
     ModelResponseStream,
 )

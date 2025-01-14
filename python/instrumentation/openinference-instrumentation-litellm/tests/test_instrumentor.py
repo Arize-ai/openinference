@@ -548,7 +548,7 @@ def test_image_generation_url(
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")], # type: ignore
+        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")],  # type: ignore
     )
 
     with patch.object(
@@ -686,9 +686,9 @@ async def test_aimage_generation(
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    mock_response_image_gen = ImageResponse( 
+    mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")], # type: ignore
+        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")],  # type: ignore
     )
     with patch.object(
         OpenAIChatCompletion, "aimage_generation", return_value=mock_response_image_gen
