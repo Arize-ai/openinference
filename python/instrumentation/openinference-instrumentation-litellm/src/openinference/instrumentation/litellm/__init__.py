@@ -23,6 +23,7 @@ from opentelemetry.util.types import AttributeValue
 
 import litellm
 from litellm.types.utils import (
+    Message,
     Choices,
     EmbeddingResponse,
     ImageResponse,
@@ -60,7 +61,7 @@ def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
 
 
 def _get_attributes_from_message_param(
-    message: Union[Mapping[str, Any], litellm.Message],
+    message: Union[Mapping[str, Any], Message],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not hasattr(message, "get"):
         return
