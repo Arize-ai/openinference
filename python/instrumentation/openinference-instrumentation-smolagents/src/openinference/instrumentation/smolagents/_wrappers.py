@@ -73,8 +73,6 @@ class _RunWrapper:
         span_name = f"{instance.__class__.__name__}.run"
         with self._tracer.start_as_current_span(
             span_name,
-            record_exception=False,
-            set_status_on_exception=False,
             attributes=dict(
                 _flatten(
                     {
@@ -126,19 +124,13 @@ class _RunWrapper:
                     ]
                 ),
             )
-            try:
-                agent_output = wrapped(*args, **kwargs)
-                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, agent.monitor.total_input_token_count)
-                span.set_attribute(
-                    LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count
-                )
-                span.set_attribute(
-                    LLM_TOKEN_COUNT_TOTAL,
-                    agent.monitor.total_input_token_count + agent.monitor.total_output_token_count,
-                )
-            except Exception as exception:
-                span.record_exception(exception)
-                raise
+            agent_output = wrapped(*args, **kwargs)
+            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, agent.monitor.total_input_token_count)
+            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count)
+            span.set_attribute(
+                LLM_TOKEN_COUNT_TOTAL,
+                agent.monitor.total_input_token_count + agent.monitor.total_output_token_count,
+            )
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, str(agent_output))
             span.set_attributes(dict(get_attributes_from_context()))
@@ -162,29 +154,18 @@ class _StepWrapper:
         span_name = f"Step {agent.step_number}"
         with self._tracer.start_as_current_span(
             span_name,
-            record_exception=False,
-            set_status_on_exception=False,
             attributes={
                 OPENINFERENCE_SPAN_KIND: CHAIN,
                 INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            try:
-                result = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.record_exception(exception)
-                raise
+            result = wrapped(*args, **kwargs)
             step_log = args[0]  # ActionStep
-            # if step_log.error is not None:
-            #     span.set_status(
-            #         trace_api.Status(trace_api.StatusCode.ERROR, str(step_log.error))
-            #     )
-            #     span.record_exception(str(step_log.error))
-            if step_log.error is not None:
-                span.set_attribute("Error", str(step_log.error))
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, step_log.observations)
+            if step_log.error is not None:
+                span.record_exception(step_log.error)
+            span.set_status(trace_api.StatusCode.OK)
         return result
 
 
@@ -304,22 +285,16 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-            record_exception=False,
-            set_status_on_exception=False,
         ) as span:
-            try:
-                output_message = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
+            output_message = wrapped(*args, **kwargs)
+
+            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_TOKEN_COUNT_PROMPT, model.last_input_token_count)
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, model.last_output_token_count)
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
             span.set_attribute(
                 LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
             )
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, output_message)
             span.set_attributes(dict(_llm_output_messages(output_message)))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
@@ -353,15 +328,8 @@ class _ToolCallWrapper:
                 **dict(_tools(instance)),
                 **dict(get_attributes_from_context()),
             },
-            record_exception=False,
-            set_status_on_exception=False,
         ) as span:
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
+            response = wrapped(*args, **kwargs)
             span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(
                 dict(
