@@ -28,7 +28,6 @@ from litellm.types.utils import (
     ImageResponse,
     Message,
     ModelResponse,
-    ModelResponseStream,
 )
 from openinference.instrumentation import (
     OITracer,
@@ -165,7 +164,7 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
 
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
-    if isinstance(result, ModelResponse) or isinstance(result, ModelResponseStream):
+    if isinstance(result, ModelResponse):
         for idx, choice in enumerate(result.choices):
             if not isinstance(choice, Choices):
                 continue
