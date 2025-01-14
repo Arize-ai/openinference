@@ -398,7 +398,7 @@ class TestTools:
     def test_tool_invocation_returning_string_has_expected_attributes(
         self, in_memory_span_exporter: InMemorySpanExporter
     ) -> None:
-        class GetWeatherTool(Tool):
+        class GetWeatherTool(Tool):  # type: ignore[misc]
             name = "get_weather"
             description = "Get the weather for a given city"
             inputs = {
@@ -442,7 +442,7 @@ class TestTools:
     def test_tool_invocation_returning_dict_has_expected_attributes(
         self, in_memory_span_exporter: InMemorySpanExporter
     ) -> None:
-        class GetWeatherTool(Tool):
+        class GetWeatherTool(Tool):  # type: ignore[misc]
             name = "get_weather"
             description = "Get detailed weather information for a given city"
             inputs = {
@@ -450,7 +450,7 @@ class TestTools:
             }
             output_type = "object"
 
-            def forward(self, location: str) -> dict:
+            def forward(self, location: str) -> dict[str, Any]:
                 return {"condition": "sunny", "temperature": 25, "humidity": 60}
 
         weather_tool = GetWeatherTool()

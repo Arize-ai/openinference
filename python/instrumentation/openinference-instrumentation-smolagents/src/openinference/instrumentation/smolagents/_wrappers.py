@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Mapping, Optional, Tuple
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -18,7 +18,7 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    from smolagents.tools import Tool
+    from smolagents.tools import Tool  # type: ignore[import-untyped]
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -30,7 +30,7 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
         if isinstance(value, Mapping):
             for sub_key, sub_value in _flatten(value):
                 yield f"{key}.{sub_key}", sub_value
-        elif isinstance(value, List) and any(isinstance(item, Mapping) for item in value):
+        elif isinstance(value, list) and any(isinstance(item, Mapping) for item in value):
             for index, sub_mapping in enumerate(value):
                 for sub_key, sub_value in _flatten(sub_mapping):
                     yield f"{key}.{index}.{sub_key}", sub_value
@@ -92,7 +92,6 @@ class _RunWrapper:
             task = agent.task
             additional_args = kwargs.get("additional_args", None)
 
-            # span.set_attribute("agent_key", agent.key)
             span.set_attribute(INPUT_VALUE, task)
             span.set_attribute("agent_name", str(agent.__class__.__name__))
             span.set_attribute("task", task)
@@ -137,9 +136,7 @@ class _RunWrapper:
                     LLM_TOKEN_COUNT_TOTAL,
                     agent.monitor.total_input_token_count + agent.monitor.total_output_token_count,
                 )
-
             except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
@@ -169,30 +166,25 @@ class _StepWrapper:
             set_status_on_exception=False,
             attributes={
                 OPENINFERENCE_SPAN_KIND: CHAIN,
+                INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
+                **dict(get_attributes_from_context()),
             },
         ) as span:
             try:
                 result = wrapped(*args, **kwargs)
-                if result is not None:
-                    span.set_attribute("Final answer", result)
-                step_log = args[0]  # ActionStep
-                # if step_log.error is not None:
-                #     span.set_status(
-                #         trace_api.Status(trace_api.StatusCode.ERROR, str(step_log.error))
-                #     )
-                #     span.record_exception(str(step_log.error))
-
             except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            span.set_attribute("Tool calls", step_log.tool_calls)
+            step_log = args[0]  # ActionStep
+            # if step_log.error is not None:
+            #     span.set_status(
+            #         trace_api.Status(trace_api.StatusCode.ERROR, str(step_log.error))
+            #     )
+            #     span.record_exception(str(step_log.error))
             if step_log.error is not None:
                 span.set_attribute("Error", str(step_log.error))
-            span.set_attribute("Observations", step_log.observations)
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, step_log.observations)
-            span.set_attributes(dict(get_attributes_from_context()))
         return result
 
 
@@ -260,7 +252,7 @@ def _llm_invocation_parameters(
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(model_kwargs | kwargs)
 
 
-def _llm_tools(tools_to_call_from: List[Any]) -> Iterator[Tuple[str, Any]]:
+def _llm_tools(tools_to_call_from: list[Any]) -> Iterator[Tuple[str, Any]]:
     from smolagents import Tool
     from smolagents.models import get_json_schema  # type:ignore[import-untyped]
 
@@ -301,10 +293,7 @@ class _ModelWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         arguments = _bind_arguments(wrapped, *args, **kwargs)
-        if instance:
-            span_name = f"{instance.__class__.__name__}.__call__"
-        else:
-            span_name = wrapped.__name__
+        span_name = f"{instance.__class__.__name__}.__call__"
         model = instance
         with self._tracer.start_as_current_span(
             span_name,
@@ -351,25 +340,19 @@ class _ToolCallWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        if instance:
-            span_name = f"{instance.__class__.__name__}"
-        else:
-            span_name = wrapped.__name__
+        span_name = f"{instance.__class__.__name__}"
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: TOOL,
-                        INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                        **dict(_tools(instance)),
-                    }
-                )
-            ),
+            attributes={
+                OPENINFERENCE_SPAN_KIND: TOOL,
+                INPUT_VALUE: _get_input_value(
+                    wrapped,
+                    *args,
+                    **kwargs,
+                ),
+                **dict(_tools(instance)),
+                **dict(get_attributes_from_context()),
+            },
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
@@ -380,7 +363,6 @@ class _ToolCallWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(get_attributes_from_context()))
             span.set_attributes(
                 dict(
                     _output_value_and_mime_type_for_tool_span(
