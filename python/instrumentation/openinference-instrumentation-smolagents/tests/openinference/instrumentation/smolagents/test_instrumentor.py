@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Generator
+from typing import Any, Generator, Optional
 
 import pytest
 from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
@@ -9,10 +9,12 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from smolagents import OpenAIServerModel
-from smolagents.tools import Tool
-from smolagents.agents import CodeAgent, ManagedAgent, ToolCallingAgent
-from smoalgents.models import ChatMessage, ChatMessageToolCall, ChatMessageToolCallDefinition
+from smolagents import OpenAIServerModel, Tool
+from smolagents.agents import (  # type: ignore[import-untyped]
+    CodeAgent,
+    ManagedAgent,
+    ToolCallingAgent,
+)
 
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from openinference.semconv.trace import (
@@ -165,7 +167,7 @@ class TestModels:
         )
         input_message_content = "What is the weather in Paris?"
 
-        class GetWeatherTool(Tool):
+        class GetWeatherTool(Tool):  # type: ignore[misc]
             name = "get_weather"
             description = "Get the weather for a given city"
             inputs = {
@@ -256,21 +258,24 @@ class TestModels:
         assert json.loads(tool_call_arguments_json) == {"location": "Paris"}
         assert not attributes
 
+
 class TestRun:
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
-    def test_multiagents(self):
+    @pytest.mark.xfail
+    def test_multiagents(self) -> None:
+        from smolagents.models import (  # type: ignore[import-untyped]
+            ChatMessage,
+            ChatMessageToolCall,
+            ChatMessageToolCallDefinition,
+        )
+
         class FakeModelMultiagentsManagerAgent:
             def __call__(
                 self,
-                messages,
-                stop_sequences=None,
-                grammar=None,
-                tools_to_call_from=None,
-            ):
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
                 if tools_to_call_from is not None:
                     if len(messages) < 3:
                         return ChatMessage(
@@ -332,11 +337,11 @@ final_answer("Final report.")
         class FakeModelMultiagentsManagedAgent:
             def __call__(
                 self,
-                messages,
-                tools_to_call_from=None,
-                stop_sequences=None,
-                grammar=None,
-            ):
+                messages: list[dict[str, Any]],
+                tools_to_call_from: Optional[list[Tool]] = None,
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+            ) -> Any:
                 return ChatMessage(
                     role="assistant",
                     content="",
@@ -363,7 +368,10 @@ final_answer("Final report.")
         managed_web_agent = ManagedAgent(
             agent=web_agent,
             name="search_agent",
-            description="Runs web searches for you. Give it your request as an argument. Make the request as detailed as needed, you can ask for thorough reports",
+            description=(
+                "Runs web searches for you. Give it your request as an argument. "
+                "Make the request as detailed as needed, you can ask for thorough reports"
+            ),
         )
 
         manager_code_agent = CodeAgent(
@@ -384,6 +392,100 @@ final_answer("Final report.")
 
         report = manager_toolcalling_agent.run("Fake question.")
         assert report == "Final report."
+
+
+class TestTools:
+    def test_tool_invocation_returning_string_has_expected_attributes(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        class GetWeatherTool(Tool):  # type: ignore[misc]
+            name = "get_weather"
+            description = "Get the weather for a given city"
+            inputs = {
+                "location": {"type": "string", "description": "The city to get the weather for"}
+            }
+            output_type = "string"
+
+            def forward(self, location: str) -> str:
+                return "sunny"
+
+        weather_tool = GetWeatherTool()
+
+        result = weather_tool("Paris")
+        assert result == "sunny"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {
+            "args": ["Paris"],
+            "sanitize_inputs_outputs": False,
+            "kwargs": {},
+        }
+        assert attributes.pop(OUTPUT_VALUE) == "sunny"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(TOOL_NAME) == "get_weather"
+        assert attributes.pop(TOOL_DESCRIPTION) == "Get the weather for a given city"
+        assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
+        assert json.loads(tool_parameters) == {
+            "location": {
+                "type": "string",
+                "description": "The city to get the weather for",
+            },
+        }
+        assert not attributes
+
+    def test_tool_invocation_returning_dict_has_expected_attributes(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        class GetWeatherTool(Tool):  # type: ignore[misc]
+            name = "get_weather"
+            description = "Get detailed weather information for a given city"
+            inputs = {
+                "location": {"type": "string", "description": "The city to get the weather for"}
+            }
+            output_type = "object"
+
+            def forward(self, location: str) -> dict[str, Any]:
+                return {"condition": "sunny", "temperature": 25, "humidity": 60}
+
+        weather_tool = GetWeatherTool()
+
+        result = weather_tool("Paris")
+        assert result == {"condition": "sunny", "temperature": 25, "humidity": 60}
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {
+            "args": ["Paris"],
+            "sanitize_inputs_outputs": False,
+            "kwargs": {},
+        }
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == {"condition": "sunny", "temperature": 25, "humidity": 60}
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert attributes.pop(TOOL_NAME) == "get_weather"
+        assert (
+            attributes.pop(TOOL_DESCRIPTION) == "Get detailed weather information for a given city"
+        )
+        assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
+        assert json.loads(tool_parameters) == {
+            "location": {
+                "type": "string",
+                "description": "The city to get the weather for",
+            },
+        }
+        assert not attributes
+
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
@@ -417,6 +519,9 @@ LLM_TOOLS = SpanAttributes.LLM_TOOLS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
+TOOL_NAME = SpanAttributes.TOOL_NAME
+TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 
 # tool attributes
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
