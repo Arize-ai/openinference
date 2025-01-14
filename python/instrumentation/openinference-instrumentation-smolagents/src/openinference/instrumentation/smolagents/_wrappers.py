@@ -1,4 +1,3 @@
-import json
 from enum import Enum
 from inspect import signature
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Mapping, Optional, Tuple
@@ -57,6 +56,36 @@ def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
 
 
+def _smolagent_run_attributes(
+    agent: Any, arguments: Optional[dict[str, Any]]
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if task := agent.task:
+        yield "smolagents.task", task
+    if additional_args := arguments.get("additional_args"):
+        yield "smolagents.additional_args", safe_json_dumps(additional_args)
+    yield "smolagents.max_steps", agent.max_steps
+    yield "smolagents.tools_names", list(agent.tools.keys())
+    for managed_agent_index, managed_agent in enumerate(agent.managed_agents.values()):
+        yield f"smolagents.managed_agents.{managed_agent_index}.name", managed_agent.name
+        yield (
+            f"smolagents.managed_agents.{managed_agent_index}.description",
+            managed_agent.description,
+        )
+        if managed_agent.additional_prompting:
+            yield (
+                f"smolagents.managed_agents.{managed_agent_index}.additional_prompting",
+                managed_agent.additional_prompting,
+            )
+        yield (
+            f"smolagents.managed_agents.{managed_agent_index}.max_steps",
+            managed_agent.agent.max_steps,
+        )
+        yield (
+            f"smolagents.managed_agents.{managed_agent_index}.tools_names",
+            list(managed_agent.agent.tools.keys()),
+        )
+
+
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -71,6 +100,8 @@ class _RunWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         span_name = f"{instance.__class__.__name__}.run"
+        agent = instance
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -82,48 +113,12 @@ class _RunWrapper:
                             *args,
                             **kwargs,
                         ),
+                        **dict(_smolagent_run_attributes(agent, arguments)),
+                        **dict(get_attributes_from_context()),
                     }
                 )
             ),
         ) as span:
-            agent = instance
-            task = agent.task
-            additional_args = kwargs.get("additional_args", None)
-
-            span.set_attribute(INPUT_VALUE, task)
-            span.set_attribute("agent_name", str(agent.__class__.__name__))
-            span.set_attribute("task", task)
-            span.set_attribute(
-                "additional_args", json.dumps(additional_args) if additional_args else ""
-            )
-            span.set_attribute(
-                "additional_args", json.dumps(additional_args) if additional_args else ""
-            )
-            model_id = f" - {agent.model.model_id}" if hasattr(agent.model, "model_id") else ""
-            model_type = f"{type(agent.model).__name__}"
-            span.set_attribute("model", model_type + model_id)
-            span.set_attribute("max_steps", agent.max_steps)
-            span.set_attribute("tools_names", list(agent.tools.keys()))
-
-            span.set_attribute(
-                "managed_agents",
-                json.dumps(
-                    [
-                        {
-                            "name": managed_agent.name,
-                            "description": managed_agent.description,
-                            "additional_prompting": managed_agent.additional_prompting,
-                            "model": f"{type(managed_agent.agent.model).__name__}"
-                            + f" - {managed_agent.agent.model.model_id}"
-                            if hasattr(managed_agent.agent.model, "model_id")
-                            else "",
-                            "max_steps": managed_agent.agent.max_steps,
-                            "tools_names": list(agent.tools.keys()),
-                        }
-                        for managed_agent in agent.managed_agents.values()
-                    ]
-                ),
-            )
             agent_output = wrapped(*args, **kwargs)
             span.set_attribute(LLM_TOKEN_COUNT_PROMPT, agent.monitor.total_input_token_count)
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count)
@@ -133,7 +128,6 @@ class _RunWrapper:
             )
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, str(agent_output))
-            span.set_attributes(dict(get_attributes_from_context()))
         return agent_output
 
 
@@ -287,7 +281,6 @@ class _ModelWrapper:
             },
         ) as span:
             output_message = wrapped(*args, **kwargs)
-
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_TOKEN_COUNT_PROMPT, model.last_input_token_count)
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, model.last_output_token_count)
