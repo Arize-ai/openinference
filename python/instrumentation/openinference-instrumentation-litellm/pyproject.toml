@@ -39,6 +39,7 @@ test = [
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "tenacity",
+  "tokenizers>=0.21.0"
 ]
 
 [project.urls]
