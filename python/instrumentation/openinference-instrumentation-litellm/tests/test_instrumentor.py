@@ -5,7 +5,7 @@ from unittest.mock import patch
 import litellm
 import pytest
 from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
-from litellm.types.utils import EmbeddingResponse, ImageResponse, Usage
+from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -47,6 +47,7 @@ def test_oitracer(
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
+@pytest.mark.parametrize("n", [1, 5])
 def test_completion(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -58,11 +59,13 @@ def test_completion(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
+    n: int,
 ) -> None:
     in_memory_span_exporter.clear()
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    response = None
     if use_context_attributes:
         with using_attributes(
             session_id=session_id,
@@ -73,15 +76,17 @@ def test_completion(
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         ):
-            litellm.completion(
+            response = litellm.completion(
                 model="gpt-3.5-turbo",
                 messages=input_messages,
+                n=n,
                 mock_response="Beijing",
             )
     else:
-        litellm.completion(
+        response = litellm.completion(
             model="gpt-3.5-turbo",
             messages=input_messages,
+            n=n,
             mock_response="Beijing",
         )
 
@@ -94,6 +99,9 @@ def test_completion(
     assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    for i, choice in enumerate(response["choices"]):
+        _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, choice.message)
+
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -540,7 +548,7 @@ def test_image_generation_url(
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
+        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")],  # type: ignore
     )
 
     with patch.object(
@@ -610,7 +618,7 @@ def test_image_generation_b64json(
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[{"b64_json": "dummy_b64_json", "revised_prompt": None, "url": None}],
+        data=[ImageObject(b64_json="dummy_b64_json", revised_prompt=None, url=None)],  # type: ignore
     )
 
     with patch.object(
@@ -680,7 +688,7 @@ async def test_aimage_generation(
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
+        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")],  # type: ignore
     )
     with patch.object(
         OpenAIChatCompletion, "aimage_generation", return_value=mock_response_image_gen

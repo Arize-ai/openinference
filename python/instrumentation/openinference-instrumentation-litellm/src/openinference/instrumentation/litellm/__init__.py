@@ -1,7 +1,18 @@
 import json
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Collection, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    Iterable,
+    Iterator,
+    Mapping,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 from openai.types.image import Image
 from opentelemetry import context as context_api
@@ -15,6 +26,7 @@ from litellm.types.utils import (
     Choices,
     EmbeddingResponse,
     ImageResponse,
+    Message,
     ModelResponse,
 )
 from openinference.instrumentation import (
@@ -48,7 +60,7 @@ def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
 
 
 def _get_attributes_from_message_param(
-    message: Mapping[str, Any],
+    message: Union[Mapping[str, Any], Message],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not hasattr(message, "get"):
         return
@@ -153,10 +165,18 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
     if isinstance(result, ModelResponse):
-        if (choices := result.choices) and len(choices) > 0:
-            choice = choices[0]
-            if isinstance(choice, Choices) and (output := choice.message.content):
+        for idx, choice in enumerate(result.choices):
+            if not isinstance(choice, Choices):
+                continue
+
+            if idx == 0 and choice.message and (output := choice.message.content):
                 _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
+
+            for key, value in _get_attributes_from_message_param(choice.message):
+                _set_span_attribute(
+                    span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
+                )
+
     elif isinstance(result, EmbeddingResponse):
         if result_data := result.data:
             first_embedding = result_data[0]
