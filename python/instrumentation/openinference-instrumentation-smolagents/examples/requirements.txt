@@ -1,0 +1,9 @@
+datasets
+langchain
+langchain-community
+opentelemetry-exporter-otlp
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk
+rank_bm25
+requests
+sqlalchemy
