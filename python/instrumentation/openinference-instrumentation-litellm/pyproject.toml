@@ -31,6 +31,7 @@ dependencies = [
   "openinference-instrumentation>=0.1.17",
   "openinference-semantic-conventions>=0.1.9",
   "wrapt",
+  "setuptools",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +40,7 @@ test = [
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "tenacity",
+  "tokenizers==0.20.3; python_version == '3.8'"
 ]
 
 [project.urls]
