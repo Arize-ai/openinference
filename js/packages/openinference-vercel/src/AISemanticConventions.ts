@@ -13,7 +13,7 @@ const AIPrefixes = {
   telemetry: "telemetry",
   prompt: "prompt",
   toolCall: "toolCall",
-  result: "result",
+  result: "response",
 } as const;
 
 const AIUsagePostfixes = {
