@@ -10,7 +10,6 @@ from typing import (
     Literal,
     Optional,
     Sequence,
-    Tuple,
     Type,
     Union,
     cast,
@@ -55,7 +54,18 @@ OpenInferenceMimeType: TypeAlias = Union[
     OpenInferenceMimeTypeValues,
 ]
 OpenInferenceSpanKind: TypeAlias = Union[
-    Literal["chain"],
+    Literal[
+        "agent",
+        "chain",
+        "embedding",
+        "evaluator",
+        "guardrail",
+        "llm",
+        "reranker",
+        "retriever",
+        "tool",
+        "unknown",
+    ],
     OpenInferenceSpanKindValues,
 ]
 
@@ -349,10 +359,17 @@ _IMPORTANT_ATTRIBUTES = [
 ]
 
 
+def get_openinference_span_kind(kind: OpenInferenceSpanKind) -> Dict[str, AttributeValue]:
+    normalized_kind = _normalize_openinference_span_kind(kind)
+    return {
+        OPENINFERENCE_SPAN_KIND: normalized_kind.value,
+    }
+
+
 def get_input_value_and_mime_type(
     value: str,
     mime_type: OpenInferenceMimeType = OpenInferenceMimeTypeValues.TEXT,
-) -> Tuple[AttributeValue, OpenInferenceMimeTypeValues]:
+) -> Dict[str, AttributeValue]:
     mime_type = _normalize_mime_type(mime_type)
     return {
         INPUT_VALUE: value,
@@ -363,7 +380,7 @@ def get_input_value_and_mime_type(
 def get_output_value_and_mime_type(
     value: Union[int, float, bool, str],
     mime_type: OpenInferenceMimeType = OpenInferenceMimeTypeValues.TEXT,
-) -> Tuple[AttributeValue, OpenInferenceMimeTypeValues]:
+) -> Dict[str, AttributeValue]:
     mime_type = _normalize_mime_type(mime_type)
     return {
         OUTPUT_VALUE: value,
@@ -418,7 +435,7 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
 class ChainSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
-        self.__wrapped__.set_attribute(OPENINFERENCE_SPAN_KIND, CHAIN)
+        self.__wrapped__.set_attributes(get_openinference_span_kind(CHAIN))
 
 
 class _IdGenerator(IdGenerator):
