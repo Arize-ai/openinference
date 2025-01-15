@@ -66,6 +66,10 @@
         "python/instrumentation/openinference-instrumentation-anthropic": {
             "package-name": "python-openinference-instrumentation-anthropic",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-smolagents": {
+            "package-name": "python-openinference-instrumentation-smolagents",
+            "release-type": "python"
         }
     }
 }
