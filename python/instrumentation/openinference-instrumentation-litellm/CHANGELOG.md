@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.5...python-openinference-instrumentation-litellm-v0.1.6) (2025-01-15)
+
+
+### Bug Fixes
+
+* Add support for output messages for sync/async ([#1188](https://github.com/Arize-ai/openinference/issues/1188)) ([0bb96b6](https://github.com/Arize-ai/openinference/commit/0bb96b65ebd261445fb63ccc06da49f365dc1fa3))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.4...python-openinference-instrumentation-litellm-v0.1.5) (2024-10-31)
 
 
