@@ -30,6 +30,7 @@ from opentelemetry.context import (
     detach,
     set_value,
 )
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.id_generator import IdGenerator
 from opentelemetry.trace import (
     INVALID_SPAN_ID,
@@ -666,6 +667,25 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         if attributes:
             span.set_attributes(dict(attributes))
         return span
+
+
+class OpenInferenceTracerProvider(TracerProvider):
+    def __init__(
+        self,
+        *args: Any,
+        config: Optional[TraceConfig] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._oi_trace_config = config or TraceConfig()
+
+    def get_tracer(
+        self,
+        *args: Any,
+        **kwargs: Any,
+    ) -> OITracer:
+        tracer = super().get_tracer(*args, **kwargs)
+        return OITracer(tracer, config=self._oi_trace_config)
 
 
 def is_base64_url(url: str) -> bool:
