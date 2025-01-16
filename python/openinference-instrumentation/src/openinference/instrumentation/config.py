@@ -1,22 +1,28 @@
+import asyncio
+import inspect
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
 from secrets import randbits
+from types import TracebackType
 from typing import (
     Any,
+    Awaitable,
     Callable,
     Dict,
     Iterator,
     Literal,
     Optional,
     Sequence,
+    Tuple,
     Type,
+    TypeVar,
     Union,
     cast,
     get_args,
 )
 
-import wrapt
+import wrapt  # type: ignore[import-untyped]
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     Context,
@@ -24,18 +30,21 @@ from opentelemetry.context import (
     detach,
     set_value,
 )
-from opentelemetry.sdk.trace import IdGenerator
+from opentelemetry.sdk.trace.id_generator import IdGenerator
 from opentelemetry.trace import (
     INVALID_SPAN_ID,
     INVALID_TRACE_ID,
     Link,
     Span,
     SpanKind,
+    Status,
+    StatusCode,
     Tracer,
+    get_tracer,
     use_span,
 )
 from opentelemetry.util.types import Attributes, AttributeValue
-from typing_extensions import TypeAlias
+from typing_extensions import ParamSpec, TypeAlias, overload
 
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -47,6 +56,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
+from .helpers import safe_json_dumps
 from .logging import logger
 
 OpenInferenceMimeType: TypeAlias = Union[
@@ -88,10 +98,20 @@ class suppress_tracing:
         self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         detach(self._token)
 
-    def __aexit__(self, exc_type, exc_value, traceback) -> None:
+    def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         detach(self._token)
 
 
@@ -243,23 +263,23 @@ class TraceConfig:
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> Optional[AttributeValue]:
         if self.hide_llm_invocation_parameters and key == SpanAttributes.LLM_INVOCATION_PARAMETERS:
-            return
+            return None
         elif self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
-            return
+            return None
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_MIME_TYPE:
-            return
+            return None
         elif (
             self.hide_inputs or self.hide_input_messages
         ) and SpanAttributes.LLM_INPUT_MESSAGES in key:
-            return
+            return None
         elif (
             self.hide_outputs or self.hide_output_messages
         ) and SpanAttributes.LLM_OUTPUT_MESSAGES in key:
-            return
+            return None
         elif (
             self.hide_input_text
             and SpanAttributes.LLM_INPUT_MESSAGES in key
@@ -291,7 +311,7 @@ class TraceConfig:
             and SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
         ):
-            return
+            return None
         elif (
             is_base64_url(value)  # type:ignore
             and len(value) > self.base64_image_max_length  # type:ignore
@@ -305,7 +325,7 @@ class TraceConfig:
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key
             and EmbeddingAttributes.EMBEDDING_VECTOR in key
         ):
-            return
+            return None
         return value() if callable(value) else value
 
     def _parse_value(
@@ -343,7 +363,7 @@ class TraceConfig:
         self,
         value: Any,
         cast_to: Any,
-    ) -> None:
+    ) -> Any:
         if cast_to is bool:
             if isinstance(value, str) and value.lower() == "true":
                 return True
@@ -388,6 +408,118 @@ def get_output_value_and_mime_type(
     }
 
 
+ParametersType = ParamSpec("ParametersType")
+ReturnType = TypeVar("ReturnType")
+
+
+# overload for @chain usage (no parameters)
+@overload
+def chain(
+    wrapped_function: Callable[ParametersType, ReturnType],
+    /,
+    *,
+    name: None = None,
+) -> Callable[ParametersType, ReturnType]: ...
+
+
+# overload for @chain(name="name") usage (with parameters)
+@overload
+def chain(
+    wrapped_function: None = None,
+    /,
+    *,
+    name: Optional[str] = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+
+def chain(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    name: Optional[str] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    @wrapt.decorator  # type: ignore[misc]
+    def sync_wrapper(
+        wrapped: Callable[ParametersType, ReturnType],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> ReturnType:
+        tracer = OITracer(get_tracer(__name__), config=TraceConfig())
+        span_name = name or wrapped.__name__
+        bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
+        bound_args.apply_defaults()
+        arguments = bound_args.arguments
+
+        with tracer.start_as_current_span(
+            span_name,
+            openinference_span_kind="chain",
+            attributes=get_input_value_and_mime_type(
+                value=safe_json_dumps(arguments),
+                mime_type=OpenInferenceMimeTypeValues.JSON,
+            ),
+        ) as span:
+            output = wrapped(*args, **kwargs)
+            if isinstance(output, (str, int, float, bool)):
+                span.set_output(
+                    output,
+                    mime_type=OpenInferenceMimeTypeValues.TEXT,
+                )
+            else:
+                span.set_output(
+                    safe_json_dumps(output),
+                    mime_type=OpenInferenceMimeTypeValues.JSON,
+                )
+            span.set_status(Status(StatusCode.OK))
+            return output
+
+    @wrapt.decorator  #  type: ignore[misc]
+    async def async_wrapper(
+        wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> ReturnType:
+        tracer = OITracer(get_tracer(__name__), config=TraceConfig())
+        span_name = name or wrapped.__name__
+        bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
+        bound_args.apply_defaults()
+        arguments = bound_args.arguments
+
+        with tracer.start_as_current_span(
+            span_name,
+            openinference_span_kind="chain",
+            attributes=get_input_value_and_mime_type(
+                value=safe_json_dumps(arguments),
+                mime_type=OpenInferenceMimeTypeValues.JSON,
+            ),
+        ) as span:
+            output = await wrapped(*args, **kwargs)
+            if isinstance(output, (str, int, float, bool)):
+                span.set_output(
+                    output,
+                    mime_type=OpenInferenceMimeTypeValues.TEXT,
+                )
+            else:
+                span.set_output(
+                    safe_json_dumps(output),
+                    mime_type=OpenInferenceMimeTypeValues.JSON,
+                )
+            span.set_status(Status(StatusCode.OK))
+            return output
+
+    if wrapped_function is not None:
+        if asyncio.iscoroutinefunction(wrapped_function):
+            return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
+        return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
+    if asyncio.iscoroutinefunction(wrapped_function):
+        return lambda x: async_wrapper(x)
+    return lambda x: sync_wrapper(x)
+
+
 class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
@@ -403,13 +535,13 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> None:
-        value = self._self_config.mask(key, value)
-        if value is not None:
+        masked_value = self._self_config.mask(key, value)
+        if masked_value is not None:
             if key in _IMPORTANT_ATTRIBUTES:
-                self._self_important_attributes[key] = value
+                self._self_important_attributes[key] = masked_value
             else:
                 span = cast(Span, self.__wrapped__)
-                span.set_attribute(key, value)
+                span.set_attribute(key, masked_value)
 
     def end(self, end_time: Optional[int] = None) -> None:
         span = cast(Span, self.__wrapped__)
@@ -435,7 +567,9 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
 class ChainSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
-        self.__wrapped__.set_attributes(get_openinference_span_kind(CHAIN))
+        self.__wrapped__.set_attributes(
+            get_openinference_span_kind(OpenInferenceSpanKindValues.CHAIN)
+        )
 
 
 class _IdGenerator(IdGenerator):
@@ -530,7 +664,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             span_wrapper_cls = _get_span_wrapper_cls(normalized_span_kind)
         span = span_wrapper_cls(span, config=self._self_config)
         if attributes:
-            span.set_attributes(attributes)
+            span.set_attributes(dict(attributes))
         return span
 
 
