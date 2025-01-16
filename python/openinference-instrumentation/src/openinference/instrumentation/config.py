@@ -456,7 +456,7 @@ def chain(
 
         with tracer.start_as_current_span(
             span_name,
-            openinference_span_kind="chain",
+            openinference_span_kind=OpenInferenceSpanKindValues.CHAIN,
             attributes=get_input_value_and_mime_type(
                 value=safe_json_dumps(arguments),
                 mime_type=OpenInferenceMimeTypeValues.JSON,
@@ -491,7 +491,7 @@ def chain(
 
         with tracer.start_as_current_span(
             span_name,
-            openinference_span_kind="chain",
+            openinference_span_kind=OpenInferenceSpanKindValues.CHAIN,
             attributes=get_input_value_and_mime_type(
                 value=safe_json_dumps(arguments),
                 mime_type=OpenInferenceMimeTypeValues.JSON,
@@ -704,10 +704,3 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
-
-# mime types
-JSON = OpenInferenceMimeTypeValues.JSON.value
-TEXT = OpenInferenceMimeTypeValues.TEXT.value
-
-# span kinds
-CHAIN = OpenInferenceSpanKindValues.CHAIN.value
