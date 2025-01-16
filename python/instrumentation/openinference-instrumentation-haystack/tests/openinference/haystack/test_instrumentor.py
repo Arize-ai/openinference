@@ -448,7 +448,7 @@ def test_tool_calling_llm_span_has_expected_attributes(
             }
         }
     )
-    assert "get_current_weather" in response["llm"]["replies"][0].content
+    assert "get_current_weather" in response["llm"]["replies"][0].text
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
@@ -527,7 +527,7 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
             }
         }
     )
-    assert "argentina" in response["llm"]["replies"][0].content.lower()
+    assert "argentina" in response["llm"]["replies"][0].text.lower()
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
@@ -729,8 +729,8 @@ def test_cohere_reranker_span_has_expected_attributes(
     )
     ranker_response = response["ranker"]
     assert len(response_documents := ranker_response["documents"]) == 2
-    assert "Lionel Messi" in response_documents[0].content
-    assert "Paul Graham" in response_documents[1].content
+    assert "Lionel Messi" in response_documents[0].text
+    assert "Paul Graham" in response_documents[1].text
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
@@ -872,9 +872,9 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     )
     assert (response_documents := response["embedder"].get("documents")) is not None
     assert len(response_documents) == 2
-    assert "Argentina won the World Cup in 2022." == response_documents[0].content
+    assert "Argentina won the World Cup in 2022." == response_documents[0].text
     assert response_documents[0].embedding is not None
-    assert "France won the World Cup in 2018." == response_documents[1].content
+    assert "France won the World Cup in 2018." == response_documents[1].text
     assert response_documents[1].embedding is not None
 
     spans = in_memory_span_exporter.get_finished_spans()

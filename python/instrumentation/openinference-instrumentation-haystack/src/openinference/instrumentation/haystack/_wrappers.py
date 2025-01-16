@@ -380,7 +380,7 @@ def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[
         map(lambda x: isinstance(x, ChatMessage), messages)
     ):
         for message_index, message in enumerate(messages):
-            if (content := message.content) is not None:
+            if (content := message.text) is not None:
                 yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}", content
             if (role := message.role) is not None:
                 yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}", role
@@ -409,7 +409,7 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
                 continue
             if finish_reason == "tool_calls":
                 try:
-                    tool_calls = json.loads(reply.content)
+                    tool_calls = json.loads(reply.text)
                 except json.JSONDecodeError:
                     continue
                 for tool_call_index, tool_call in enumerate(tool_calls):
@@ -426,7 +426,7 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
                             tool_name,
                         )
             else:
-                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.content
+                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.text
             yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role.value
         elif isinstance(reply, str):
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", reply
