@@ -44,6 +44,9 @@ from opentelemetry.trace import (
     get_tracer,
     use_span,
 )
+from opentelemetry.trace import (
+    get_current_span as otel_get_current_span,
+)
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import ParamSpec, TypeAlias, overload
 
@@ -464,6 +467,10 @@ def chain(
             ),
         ) as span:
             output = wrapped(*args, **kwargs)
+            span.set_status(Status(StatusCode.OK))
+            has_output = OUTPUT_MIME_TYPE in span.attributes or OUTPUT_VALUE in span.attributes
+            if has_output:
+                return output  # don't overwrite if the output is set inside the wrapped function
             if isinstance(output, (str, int, float, bool)):
                 span.set_output(
                     output,
@@ -474,7 +481,6 @@ def chain(
                     safe_json_dumps(output),
                     mime_type=OpenInferenceMimeTypeValues.JSON,
                 )
-            span.set_status(Status(StatusCode.OK))
             return output
 
     @wrapt.decorator  #  type: ignore[misc]
@@ -499,6 +505,10 @@ def chain(
             ),
         ) as span:
             output = await wrapped(*args, **kwargs)
+            span.set_status(Status(StatusCode.OK))
+            has_output = OUTPUT_MIME_TYPE in span.attributes or OUTPUT_VALUE in span.attributes
+            if has_output:
+                return output  # don't overwrite if the output is set inside the wrapped function
             if isinstance(output, (str, int, float, bool)):
                 span.set_output(
                     output,
@@ -509,7 +519,6 @@ def chain(
                     safe_json_dumps(output),
                     mime_type=OpenInferenceMimeTypeValues.JSON,
                 )
-            span.set_status(Status(StatusCode.OK))
             return output
 
     if wrapped_function is not None:
@@ -563,6 +572,10 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         mime_type: OpenInferenceMimeType = OpenInferenceMimeTypeValues.TEXT,
     ) -> None:
         self.set_attributes(get_output_value_and_mime_type(value, mime_type))
+
+
+def get_current_span(context: Optional[Context] = None) -> OpenInferenceSpan:
+    return OpenInferenceSpan(otel_get_current_span(context), TraceConfig())
 
 
 class ChainSpan(OpenInferenceSpan):
