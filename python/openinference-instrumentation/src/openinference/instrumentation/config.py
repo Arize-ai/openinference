@@ -28,11 +28,13 @@ from opentelemetry.context import (
     Context,
     attach,
     detach,
+    get_value,
     set_value,
 )
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.id_generator import IdGenerator
 from opentelemetry.trace import (
+    INVALID_SPAN,
     INVALID_SPAN_ID,
     INVALID_TRACE_ID,
     Link,
@@ -60,6 +62,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
+from .context_attributes import get_attributes_from_context
 from .helpers import safe_json_dumps
 from .logging import logger
 
@@ -468,7 +471,10 @@ def chain(
         ) as span:
             output = wrapped(*args, **kwargs)
             span.set_status(Status(StatusCode.OK))
-            has_output = OUTPUT_MIME_TYPE in span.attributes or OUTPUT_VALUE in span.attributes
+            attributes = getattr(
+                span, "attributes", {}
+            )  # INVALID_SPAN does not have the attributes property
+            has_output = OUTPUT_MIME_TYPE in attributes or OUTPUT_VALUE in attributes
             if has_output:
                 return output  # don't overwrite if the output is set inside the wrapped function
             if isinstance(output, (str, int, float, bool)):
@@ -506,7 +512,10 @@ def chain(
         ) as span:
             output = await wrapped(*args, **kwargs)
             span.set_status(Status(StatusCode.OK))
-            has_output = OUTPUT_MIME_TYPE in span.attributes or OUTPUT_VALUE in span.attributes
+            attributes = getattr(
+                span, "attributes", {}
+            )  # INVALID_SPAN does not have the attributes property
+            has_output = OUTPUT_MIME_TYPE in attributes or OUTPUT_VALUE in attributes
             if has_output:
                 return output  # don't overwrite if the output is set inside the wrapped function
             if isinstance(output, (str, int, float, bool)):
@@ -660,6 +669,12 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         openinference_span_kind: Optional[OpenInferenceSpanKind] = None,
     ) -> OpenInferenceSpan:
+        span_wrapper_cls = OpenInferenceSpan
+        if openinference_span_kind is not None:
+            normalized_span_kind = _normalize_openinference_span_kind(openinference_span_kind)
+            span_wrapper_cls = _get_span_wrapper_cls(normalized_span_kind)
+        if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return span_wrapper_cls(INVALID_SPAN, self._self_config)
         tracer = cast(Tracer, self.__wrapped__)
         span = tracer.__class__.start_span(
             self,
@@ -672,13 +687,10 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,
         )
-        span_wrapper_cls = OpenInferenceSpan
-        if openinference_span_kind is not None:
-            normalized_span_kind = _normalize_openinference_span_kind(openinference_span_kind)
-            span_wrapper_cls = _get_span_wrapper_cls(normalized_span_kind)
         span = span_wrapper_cls(span, config=self._self_config)
         if attributes:
             span.set_attributes(dict(attributes))
+        span.set_attributes(dict(get_attributes_from_context()))
         return span
 
 
