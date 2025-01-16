@@ -457,8 +457,8 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
             ...safelyGetInvocationParamAttributes(attributes),
           };
         case AISemanticConventions.PROMPT:
-        case AISemanticConventions.RESULT_OBJECT:
-        case AISemanticConventions.RESULT_TEXT: {
+        case AISemanticConventions.RESPONSE_OBJECT:
+        case AISemanticConventions.RESPONSE_TEXT: {
           return {
             ...openInferenceAttributes,
             ...safelyGetIOValueAttributes({
@@ -468,7 +468,7 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
             }),
           };
         }
-        case AISemanticConventions.RESULT_TOOL_CALLS:
+        case AISemanticConventions.RESPONSE_TOOL_CALLS:
           return {
             ...openInferenceAttributes,
             ...safelyGetToolCallMessageAttributes(attributes[convention]),

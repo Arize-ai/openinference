@@ -13,7 +13,7 @@ const AIPrefixes = {
   telemetry: "telemetry",
   prompt: "prompt",
   toolCall: "toolCall",
-  result: "response",
+  response: "response",
 } as const;
 
 const AIUsagePostfixes = {
@@ -21,7 +21,7 @@ const AIUsagePostfixes = {
   promptTokens: "promptTokens",
 } as const;
 
-const AIResultPostfixes = {
+const AIResponsePostfixes = {
   text: "text",
   toolCalls: "toolCalls",
   object: "object",
@@ -50,14 +50,14 @@ const TOKEN_COUNT_COMPLETION =
 const TOKEN_COUNT_PROMPT =
   `${AI_PREFIX}.${AIPrefixes.usage}.${AIUsagePostfixes.promptTokens}` as const;
 
-const RESULT_TEXT =
-  `${AI_PREFIX}.${AIPrefixes.result}.${AIResultPostfixes.text}` as const;
+const RESPONSE_TEXT =
+  `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.text}` as const;
 
-const RESULT_TOOL_CALLS =
-  `${AI_PREFIX}.${AIPrefixes.result}.${AIResultPostfixes.toolCalls}` as const;
+const RESPONSE_TOOL_CALLS =
+  `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.toolCalls}` as const;
 
-const RESULT_OBJECT =
-  `${AI_PREFIX}.${AIPrefixes.result}.${AIResultPostfixes.object}` as const;
+const RESPONSE_OBJECT =
+  `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.object}` as const;
 
 const PROMPT = `${AI_PREFIX}.${AIPrefixes.prompt}` as const;
 
@@ -88,9 +88,9 @@ export const AISemanticConventions = {
   SETTINGS,
   TOKEN_COUNT_COMPLETION,
   TOKEN_COUNT_PROMPT,
-  RESULT_TEXT,
-  RESULT_TOOL_CALLS,
-  RESULT_OBJECT,
+  RESPONSE_TEXT,
+  RESPONSE_TOOL_CALLS,
+  RESPONSE_OBJECT,
   PROMPT,
   PROMPT_MESSAGES,
   EMBEDDING_TEXT,
