@@ -2,7 +2,7 @@ import json
 from typing import Any, Callable, Dict, Optional, Union
 
 from opentelemetry import trace
-from opentelemetry.trace import Link, Span, SpanContext, Status, StatusCode
+from opentelemetry.trace import Link, SpanContext, Status, StatusCode
 
 from autogen import ConversableAgent  # type: ignore
 
@@ -34,7 +34,6 @@ class AutogenInstrumentor:
             sender: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            span: Optional[Span] = None
             try:
                 current_span = trace.get_current_span()
                 current_context: SpanContext = current_span.get_span_context()
@@ -76,7 +75,6 @@ class AutogenInstrumentor:
         def wrapped_initiate_chat(
             agent_self: ConversableAgent, recipient: Any, *args: Any, **kwargs: Any
         ) -> Any:
-            span: Optional[Span] = None
             try:
                 message = kwargs.get("message", args[0] if args else None)
                 current_span = trace.get_current_span()
@@ -128,7 +126,6 @@ class AutogenInstrumentor:
             call_id: Optional[str] = None,
             verbose: bool = False,
         ) -> Any:
-            span: Optional[Span] = None
             try:
                 current_span = trace.get_current_span()
                 current_context: SpanContext = current_span.get_span_context()
