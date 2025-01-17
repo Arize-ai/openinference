@@ -113,6 +113,9 @@ def test_crewai_instrumentation(
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "CHAIN"
             assert attributes.get("output.value")
+            # assert that there are no tokens on the kickoff chain so that we do not
+            # double count token when a user is also instrumenting with another instrumentor
+            # that provides token counts via the spans.
             assert attributes.get("llm.token_count.prompt") == 0
             assert attributes.get("llm.token_count.completion") == 0
             assert attributes.get("llm.token_count.total") == 0
