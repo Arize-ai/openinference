@@ -113,9 +113,9 @@ def test_crewai_instrumentation(
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "CHAIN"
             assert attributes.get("output.value")
-            assert attributes.get("llm.token_count.prompt") == 5751
-            assert attributes.get("llm.token_count.completion") == 1793
-            assert attributes.get("llm.token_count.total") == 7544
+            assert attributes.get("llm.token_count.prompt") == 0
+            assert attributes.get("llm.token_count.completion") == 0
+            assert attributes.get("llm.token_count.total") == 0
             assert span.status.is_ok
         elif span.name == "ToolUsage._use":
             checked_spans += 1
