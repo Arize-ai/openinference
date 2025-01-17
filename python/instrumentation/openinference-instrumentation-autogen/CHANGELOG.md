@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.0...python-openinference-instrumentation-autogen-v0.1.1) (2025-01-17)
+
+
+### Features
+
+* **autogen2:** basic tool calling ([#1216](https://github.com/Arize-ai/openinference/issues/1216)) ([2a638f7](https://github.com/Arize-ai/openinference/commit/2a638f7ca51a2d77b27a556bed75aa6318aa805b))
+
 ## 0.1.0 (2025-01-17)
 
 
