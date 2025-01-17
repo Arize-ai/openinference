@@ -2,11 +2,12 @@ import os
 from importlib import import_module
 
 import autogen
-from openinference.instrumentation.autogen import AutogenInstrumentor
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.autogen import AutogenInstrumentor
 
 
 def main():
