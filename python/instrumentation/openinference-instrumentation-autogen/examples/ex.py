@@ -10,6 +10,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from openinference.instrumentation.autogen import AutogenInstrumentor
 
 
+# mypy: ignore-errors
 def main():
     trace_provider = TracerProvider()
 

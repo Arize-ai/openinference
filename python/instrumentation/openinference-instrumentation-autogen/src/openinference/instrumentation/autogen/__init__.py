@@ -6,6 +6,7 @@ from opentelemetry.trace import Status, StatusCode
 from autogen import ConversableAgent
 
 
+# mypy: ignore-errors
 class AutogenInstrumentor:
     def __init__(self):
         self.tracer = trace.get_tracer(__name__)
