@@ -1,4 +1,3 @@
-import json
 from abc import ABC
 from enum import Enum, auto
 from inspect import BoundArguments, Parameter, signature
@@ -380,7 +379,7 @@ def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[
         map(lambda x: isinstance(x, ChatMessage), messages)
     ):
         for message_index, message in enumerate(messages):
-            if (content := message.content) is not None:
+            if (content := message.text) is not None:
                 yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}", content
             if (role := message.role) is not None:
                 yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}", role
@@ -408,25 +407,20 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
             ):
                 continue
             if finish_reason == "tool_calls":
-                try:
-                    tool_calls = json.loads(reply.content)
-                except json.JSONDecodeError:
-                    continue
+                tool_calls = reply.tool_calls
                 for tool_call_index, tool_call in enumerate(tool_calls):
-                    if (function_call := tool_call.get("function")) is None:
-                        continue
-                    if (tool_call_arguments_json := function_call.get("arguments")) is not None:
+                    if (tool_call_arguments := tool_call.arguments) is not None:
                         yield (
                             f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            tool_call_arguments_json,
+                            safe_json_dumps(tool_call_arguments),
                         )
-                    if (tool_name := function_call.get("name")) is not None:
+                    if (tool_name := tool_call.tool_name) is not None:
                         yield (
                             f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
                             tool_name,
                         )
             else:
-                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.content
+                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.text
             yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role.value
         elif isinstance(reply, str):
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", reply
