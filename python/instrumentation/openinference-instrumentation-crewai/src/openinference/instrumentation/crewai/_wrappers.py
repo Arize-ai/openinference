@@ -214,20 +214,6 @@ class _KickoffWrapper:
             )
             try:
                 crew_output = wrapped(*args, **kwargs)
-                usage_metrics = crew.usage_metrics
-                if isinstance(usage_metrics, dict):
-                    if (prompt_tokens := usage_metrics.get("prompt_tokens")) is not None:
-                        span.set_attribute(LLM_TOKEN_COUNT_PROMPT, int(prompt_tokens))
-                    if (completion_tokens := usage_metrics.get("completion_tokens")) is not None:
-                        span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, int(completion_tokens))
-                    if (total_tokens := usage_metrics.get("total_tokens")) is not None:
-                        span.set_attribute(LLM_TOKEN_COUNT_TOTAL, int(total_tokens))
-                else:
-                    # version 0.51 and onwards
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, usage_metrics.prompt_tokens)
-                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, usage_metrics.completion_tokens)
-                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, usage_metrics.total_tokens)
-
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
@@ -298,6 +284,3 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
-LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
-LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
-LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
