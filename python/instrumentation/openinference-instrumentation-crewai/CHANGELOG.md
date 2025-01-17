@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.3...python-openinference-instrumentation-crewai-v0.1.4) (2025-01-17)
+
+
+### Bug Fixes
+
+* remove token on crewai kickoff chain span ([#1213](https://github.com/Arize-ai/openinference/issues/1213)) ([f015bca](https://github.com/Arize-ai/openinference/commit/f015bca24ce5757e8c7c604487c81889e3e84027))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.2...python-openinference-instrumentation-crewai-v0.1.3) (2024-10-31)
 
 
