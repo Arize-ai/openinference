@@ -47,11 +47,9 @@ from opentelemetry.trace import (
     Status,
     StatusCode,
     Tracer,
+    get_current_span,
     get_tracer,
     use_span,
-)
-from opentelemetry.trace import (
-    get_current_span as otel_get_current_span,
 )
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import ParamSpec, TypeAlias, TypeGuard, overload
@@ -492,6 +490,27 @@ def safe_json_dumps_io_value(obj: Any, **kwargs: Any) -> str:
     )
 
 
+def get_tool_attributes(
+    *,
+    name: str,
+    description: Optional[str] = None,
+    parameters: Union[str, Dict[str, Any]],
+) -> Dict[str, AttributeValue]:
+    if isinstance(parameters, str):
+        parameters_json = parameters
+    elif isinstance(parameters, Mapping):
+        parameters_json = safe_json_dumps_io_value(parameters)
+    else:
+        raise ValueError(f"Invalid parameters type: {type(parameters)}")
+    attributes = {
+        TOOL_NAME: name,
+        TOOL_PARAMETERS: parameters_json,
+    }
+    if description is not None:
+        attributes[TOOL_DESCRIPTION] = description
+    return attributes
+
+
 ParametersType = ParamSpec("ParametersType")
 ReturnType = TypeVar("ReturnType")
 
@@ -646,16 +665,71 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         self.set_attributes(get_output_value_and_mime_type(value, mime_type))
 
 
-def get_current_span(context: Optional[Context] = None) -> OpenInferenceSpan:
-    return OpenInferenceSpan(otel_get_current_span(context), TraceConfig())
-
-
 class ChainSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
         self.__wrapped__.set_attributes(
             get_openinference_span_kind(OpenInferenceSpanKindValues.CHAIN)
         )
+
+
+class ToolSpan(OpenInferenceSpan):
+    def __init__(self, wrapped: Span, config: TraceConfig) -> None:
+        super().__init__(wrapped, config)
+        self.__wrapped__.set_attributes(
+            get_openinference_span_kind(OpenInferenceSpanKindValues.TOOL)
+        )
+
+    def set_tool(
+        self,
+        *,
+        name: str,
+        description: Optional[str] = None,
+        parameters: Union[str, Dict[str, Any]],
+    ) -> None:
+        self.set_attributes(
+            get_tool_attributes(
+                name=name,
+                description=description,
+                parameters=parameters,
+            )
+        )
+
+
+@overload
+def get_current_openinference_span(
+    context: Optional[Context] = None,
+    *,
+    kind: Literal["chain"],
+) -> ChainSpan: ...
+
+
+@overload
+def get_current_openinference_span(
+    context: Optional[Context] = None,
+    *,
+    kind: Literal["tool"],
+) -> ToolSpan: ...
+
+
+@overload
+def get_current_openinference_span(
+    context: Optional[Context] = None,
+    *,
+    kind: None,
+) -> OpenInferenceSpan: ...
+
+
+def get_current_openinference_span(
+    context: Optional[Context] = None,
+    *,
+    kind: Optional[OpenInferenceSpanKind] = None,
+) -> OpenInferenceSpan:
+    span_wrapper_cls = OpenInferenceSpan
+    if kind is not None:
+        normalized_span_kind = _normalize_openinference_span_kind(kind)
+        span_wrapper_cls = _get_span_wrapper_cls(normalized_span_kind)
+    return span_wrapper_cls(get_current_span(context), TraceConfig())
 
 
 class _IdGenerator(IdGenerator):
@@ -803,6 +877,8 @@ def _normalize_openinference_span_kind(kind: OpenInferenceSpanKind) -> OpenInfer
 def _get_span_wrapper_cls(kind: OpenInferenceSpanKindValues) -> Type[OpenInferenceSpan]:
     if kind is OpenInferenceSpanKindValues.CHAIN:
         return ChainSpan
+    if kind is OpenInferenceSpanKindValues.TOOL:
+        return ToolSpan
     raise NotImplementedError(f"Span kind {kind.value} is not yet supported")
 
 
@@ -817,3 +893,6 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
+TOOL_NAME = SpanAttributes.TOOL_NAME
+TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
