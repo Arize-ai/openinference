@@ -1,8 +1,9 @@
 import json
 
-from autogen import ConversableAgent
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
+
+from autogen import ConversableAgent
 
 
 class AutogenInstrumentor:
