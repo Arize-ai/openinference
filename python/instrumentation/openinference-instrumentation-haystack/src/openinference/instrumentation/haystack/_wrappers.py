@@ -408,19 +408,14 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
             ):
                 continue
             if finish_reason == "tool_calls":
-                try:
-                    tool_calls = json.loads(reply.text)
-                except json.JSONDecodeError:
-                    continue
+                tool_calls = reply.tool_calls
                 for tool_call_index, tool_call in enumerate(tool_calls):
-                    if (function_call := tool_call.get("function")) is None:
-                        continue
-                    if (tool_call_arguments_json := function_call.get("arguments")) is not None:
+                    if (tool_call_arguments := tool_call.arguments) is not None:
                         yield (
                             f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            tool_call_arguments_json,
+                            safe_json_dumps(tool_call_arguments),
                         )
-                    if (tool_name := function_call.get("name")) is not None:
+                    if (tool_name := tool_call.tool_name) is not None:
                         yield (
                             f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
                             tool_name,
