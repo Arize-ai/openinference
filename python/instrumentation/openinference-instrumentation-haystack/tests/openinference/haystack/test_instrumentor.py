@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Any, Dict, Generator, List, Optional, Sequence, Union
 
 import pytest
-import respx
 from haystack import Document
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
@@ -26,7 +25,6 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.rankers.cohere import (  # type: ignore[import-untyped]
     CohereRanker,
 )
-from httpx import Response
 from openai import AuthenticationError
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -448,7 +446,9 @@ def test_tool_calling_llm_span_has_expected_attributes(
             }
         }
     )
-    assert "get_current_weather" in response["llm"]["replies"][0].content
+    chat_message = response["llm"]["replies"][0]
+    tool_call = chat_message.tool_calls[0]
+    assert tool_call.tool_name == "get_current_weather"
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
@@ -527,7 +527,7 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
             }
         }
     )
-    assert "argentina" in response["llm"]["replies"][0].content.lower()
+    assert "argentina" in response["llm"]["replies"][0].text.lower()
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
@@ -837,26 +837,16 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     assert not attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_openai_document_embedder_embedding_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
-    respx_mock: Any,
 ) -> None:
-    respx.post("https://api.openai.com/v1/embeddings").mock(
-        return_value=Response(
-            200,
-            json={
-                "object": "list",
-                "data": [
-                    {"object": "embedding", "index": 0, "embedding": [1, 2, 3]},
-                    {"object": "embedding", "index": 1, "embedding": [4, 5, 6]},
-                ],
-                "model": "text-embedding-3-small",
-                "usage": {"prompt_tokens": 20, "total_tokens": 20},
-            },
-        )
-    )
     pipe = Pipeline()
     embedder = OpenAIDocumentEmbedder(model="text-embedding-3-small")
     pipe.add_component("embedder", embedder)
