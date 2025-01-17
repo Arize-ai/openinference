@@ -1,15 +1,26 @@
+import os
+from importlib import import_module
+
+import autogen
 from openinference.instrumentation.autogen import AutogenInstrumentor
+from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from openinference-instrumentation-openai import OpenAIInstrumentor
 
 
 def main():
-    endpoint = "http://0.0.0.0:6006/v1/traces"
     trace_provider = TracerProvider()
-    trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-    OpenAIInstrumentor().instrument(tracer_provider=trace_provider)
+
+    endpoint = "http://127.0.0.1:6006/v1/traces"
+    exporter = OTLPSpanExporter(endpoint=endpoint)
+    span_processor = SimpleSpanProcessor(exporter)
+    trace_provider.add_span_processor(span_processor)
+
+    trace.set_tracer_provider(trace_provider)
+
+    openai_instrumentation = import_module("openinference.instrumentation.openai")
+    openai_instrumentation.OpenAIInstrumentor().instrument(tracer_provider=trace_provider)
     AutogenInstrumentor().instrument()
 
     config_list = [
