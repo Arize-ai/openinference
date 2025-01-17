@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Haystack Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8, <3.13"
+requires-python = ">=3.9, <3.13"
 authors = [
     { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
