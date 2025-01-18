@@ -35,7 +35,7 @@ from opentelemetry.context import (
     get_value,
     set_value,
 )
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import TracerProvider as OTelTracerProvider
 from opentelemetry.sdk.trace.id_generator import IdGenerator
 from opentelemetry.trace import (
     INVALID_SPAN,
@@ -47,10 +47,10 @@ from opentelemetry.trace import (
     Status,
     StatusCode,
     Tracer,
-    get_current_span,
     get_tracer,
     use_span,
 )
+from opentelemetry.trace import get_current_span as otel_get_current_span
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import ParamSpec, TypeAlias, TypeGuard, overload
 
@@ -396,7 +396,7 @@ _IMPORTANT_ATTRIBUTES = [
 ]
 
 
-def get_openinference_span_kind(kind: OpenInferenceSpanKind) -> Dict[str, AttributeValue]:
+def get_span_kind(kind: OpenInferenceSpanKind) -> Dict[str, AttributeValue]:
     normalized_kind = _normalize_openinference_span_kind(kind)
     return {
         OPENINFERENCE_SPAN_KIND: normalized_kind.value,
@@ -796,17 +796,13 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
 class ChainSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
-        self.__wrapped__.set_attributes(
-            get_openinference_span_kind(OpenInferenceSpanKindValues.CHAIN)
-        )
+        self.__wrapped__.set_attributes(get_span_kind(OpenInferenceSpanKindValues.CHAIN))
 
 
 class ToolSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
-        self.__wrapped__.set_attributes(
-            get_openinference_span_kind(OpenInferenceSpanKindValues.TOOL)
-        )
+        self.__wrapped__.set_attributes(get_span_kind(OpenInferenceSpanKindValues.TOOL))
 
     def set_tool(
         self,
@@ -825,7 +821,7 @@ class ToolSpan(OpenInferenceSpan):
 
 
 @overload
-def get_current_openinference_span(
+def get_current_span(
     context: Optional[Context] = None,
     *,
     kind: Literal["chain"] = "chain",
@@ -833,7 +829,7 @@ def get_current_openinference_span(
 
 
 @overload
-def get_current_openinference_span(
+def get_current_span(
     context: Optional[Context] = None,
     *,
     kind: Literal["tool"] = "tool",
@@ -841,14 +837,14 @@ def get_current_openinference_span(
 
 
 @overload
-def get_current_openinference_span(
+def get_current_span(
     context: Optional[Context] = None,
     *,
     kind: None = None,
 ) -> OpenInferenceSpan: ...
 
 
-def get_current_openinference_span(
+def get_current_span(
     context: Optional[Context] = None,
     *,
     kind: Optional[OpenInferenceSpanKind] = None,
@@ -857,7 +853,7 @@ def get_current_openinference_span(
     if kind is not None:
         normalized_span_kind = _normalize_openinference_span_kind(kind)
         span_wrapper_cls = _get_span_wrapper_cls(normalized_span_kind)
-    return span_wrapper_cls(get_current_span(context), TraceConfig())
+    return span_wrapper_cls(otel_get_current_span(context), TraceConfig())
 
 
 class _IdGenerator(IdGenerator):
@@ -1010,7 +1006,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         return span
 
 
-class OpenInferenceTracerProvider(TracerProvider):
+class TracerProvider(OTelTracerProvider):
     def __init__(
         self,
         *args: Any,
