@@ -1,0 +1,2 @@
+def test() -> None:
+    return
