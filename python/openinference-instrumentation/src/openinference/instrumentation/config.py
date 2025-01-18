@@ -95,6 +95,8 @@ OpenInferenceSpanKind: TypeAlias = Union[
     ],
     OpenInferenceSpanKindValues,
 ]
+ParametersType = ParamSpec("ParametersType")
+ReturnType = TypeVar("ReturnType")
 
 
 class suppress_tracing:
@@ -511,244 +513,6 @@ def get_tool_attributes(
     return attributes
 
 
-ParametersType = ParamSpec("ParametersType")
-ReturnType = TypeVar("ReturnType")
-
-
-# overload for @chain usage (no parameters)
-@overload
-def chain(
-    wrapped_function: Callable[ParametersType, ReturnType],
-    /,
-    *,
-    name: None = None,
-) -> Callable[ParametersType, ReturnType]: ...
-
-
-# overload for @chain(name="name") usage (with parameters)
-@overload
-def chain(
-    wrapped_function: None = None,
-    /,
-    *,
-    name: Optional[str] = None,
-) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
-
-
-def chain(
-    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
-    /,
-    *,
-    name: Optional[str] = None,
-) -> Union[
-    Callable[ParametersType, ReturnType],
-    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
-]:
-    @wrapt.decorator  # type: ignore[misc]
-    def sync_wrapper(
-        wrapped: Callable[ParametersType, ReturnType],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Dict[str, Any],
-    ) -> ReturnType:
-        tracer = OITracer(get_tracer(__name__), config=TraceConfig())
-        span_name = name or wrapped.__name__
-        bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
-        bound_args.apply_defaults()
-        arguments = bound_args.arguments
-
-        if len(arguments) == 1:
-            argument = next(iter(arguments.values()))
-            input_attributes = get_input_value_and_mime_type(value=argument)
-        else:
-            input_attributes = get_input_value_and_mime_type(value=arguments)
-        with tracer.start_as_current_span(
-            span_name,
-            openinference_span_kind=OpenInferenceSpanKindValues.CHAIN,
-            attributes=input_attributes,
-        ) as span:
-            output = wrapped(*args, **kwargs)
-            span.set_status(Status(StatusCode.OK))
-            attributes = getattr(
-                span, "attributes", {}
-            )  # INVALID_SPAN does not have the attributes property
-            has_output = OUTPUT_VALUE in attributes
-            if has_output:
-                return output  # don't overwrite if the output is set inside the wrapped function
-            span.set_output(value=output)
-            return output
-
-    @wrapt.decorator  #  type: ignore[misc]
-    async def async_wrapper(
-        wrapped: Callable[ParametersType, Awaitable[ReturnType]],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Dict[str, Any],
-    ) -> ReturnType:
-        tracer = OITracer(get_tracer(__name__), config=TraceConfig())
-        span_name = name or wrapped.__name__
-        bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
-        bound_args.apply_defaults()
-        arguments = bound_args.arguments
-
-        if len(arguments) == 1:
-            argument = next(iter(arguments.values()))
-            input_attributes = get_input_value_and_mime_type(value=argument)
-        else:
-            input_attributes = get_input_value_and_mime_type(value=arguments)
-        with tracer.start_as_current_span(
-            span_name,
-            openinference_span_kind=OpenInferenceSpanKindValues.CHAIN,
-            attributes=input_attributes,
-        ) as span:
-            output = await wrapped(*args, **kwargs)
-            span.set_status(Status(StatusCode.OK))
-            attributes = getattr(
-                span, "attributes", {}
-            )  # INVALID_SPAN does not have the attributes property
-            has_output = OUTPUT_VALUE in attributes
-            if has_output:
-                return output  # don't overwrite if the output is set inside the wrapped function
-            span.set_output(value=output)
-            return output
-
-    if wrapped_function is not None:
-        if asyncio.iscoroutinefunction(wrapped_function):
-            return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-    if asyncio.iscoroutinefunction(wrapped_function):
-        return lambda x: async_wrapper(x)
-    return lambda x: sync_wrapper(x)
-
-
-# overload for @tool usage (no parameters)
-@overload
-def tool(
-    wrapped_function: Callable[ParametersType, ReturnType],
-    /,
-    *,
-    name: None = None,
-    description: Optional[str] = None,
-) -> Callable[ParametersType, ReturnType]: ...
-
-
-# overload for @tool(name="name") usage (with parameters)
-@overload
-def tool(
-    wrapped_function: None = None,
-    /,
-    *,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
-
-
-def tool(
-    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
-    /,
-    *,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-) -> Union[
-    Callable[ParametersType, ReturnType],
-    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
-]:
-    @wrapt.decorator  # type: ignore[misc]
-    def sync_wrapper(
-        wrapped: Callable[ParametersType, ReturnType],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Dict[str, Any],
-    ) -> ReturnType:
-        tracer = OITracer(get_tracer(__name__), config=TraceConfig())
-        span_name = name or wrapped.__name__
-        bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
-        bound_args.apply_defaults()
-        arguments = bound_args.arguments
-
-        if len(arguments) == 1:
-            argument = next(iter(arguments.values()))
-            input_attributes = get_input_value_and_mime_type(value=argument)
-        else:
-            input_attributes = get_input_value_and_mime_type(value=arguments)
-        tool_parameters = safe_json_dumps_io_value(arguments)
-        tool_attributes = get_tool_attributes(
-            name=name or wrapped.__name__,
-            description=description or wrapped.__doc__,
-            parameters=tool_parameters,
-        )
-        with tracer.start_as_current_span(
-            span_name,
-            openinference_span_kind=OpenInferenceSpanKindValues.TOOL,
-            attributes={
-                **input_attributes,
-                **tool_attributes,
-            },
-        ) as span:
-            output = wrapped(*args, **kwargs)
-            span.set_status(Status(StatusCode.OK))
-            attributes = getattr(
-                span, "attributes", {}
-            )  # INVALID_SPAN does not have the attributes property
-            has_output = OUTPUT_VALUE in attributes
-            if not has_output:
-                span.set_output(value=output)
-            return output
-
-    @wrapt.decorator  #  type: ignore[misc]
-    async def async_wrapper(
-        wrapped: Callable[ParametersType, Awaitable[ReturnType]],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Dict[str, Any],
-    ) -> ReturnType:
-        tracer = OITracer(get_tracer(__name__), config=TraceConfig())
-        span_name = name or wrapped.__name__
-        bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
-        bound_args.apply_defaults()
-        arguments = bound_args.arguments
-
-        if len(arguments) == 1:
-            argument = next(iter(arguments.values()))
-            input_attributes = get_input_value_and_mime_type(value=argument)
-        else:
-            input_attributes = get_input_value_and_mime_type(value=arguments)
-        tool_parameters = safe_json_dumps_io_value(arguments)
-        tool_description: Optional[str] = None
-        if (docstring := wrapped.__doc__) is not None:
-            tool_description = docstring.strip()
-        tool_attributes = get_tool_attributes(
-            name=name or wrapped.__name__,
-            description=tool_description,
-            parameters=tool_parameters,
-        )
-        with tracer.start_as_current_span(
-            span_name,
-            openinference_span_kind=OpenInferenceSpanKindValues.TOOL,
-            attributes={
-                **input_attributes,
-                **tool_attributes,
-            },
-        ) as span:
-            output = await wrapped(*args, **kwargs)
-            span.set_status(Status(StatusCode.OK))
-            attributes = getattr(
-                span, "attributes", {}
-            )  # INVALID_SPAN does not have the attributes property
-            has_output = OUTPUT_VALUE in attributes
-            if not has_output:  # don't overwrite if the output is set inside the wrapped function
-                span.set_output(value=output)
-            return output
-
-    if wrapped_function is not None:
-        if asyncio.iscoroutinefunction(wrapped_function):
-            return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-    if asyncio.iscoroutinefunction(wrapped_function):
-        return lambda x: async_wrapper(x)
-    return lambda x: sync_wrapper(x)
-
-
 class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
@@ -1004,6 +768,246 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             span.set_attributes(dict(attributes))
         span.set_attributes(dict(get_attributes_from_context()))
         return span
+
+    # overload for @tracer.chain usage (no parameters)
+    @overload
+    def chain(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    # overload for @tracer.chain(name="name") usage (with parameters)
+    @overload
+    def chain(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def chain(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        @wrapt.decorator  # type: ignore[misc]
+        def sync_wrapper(
+            wrapped: Callable[ParametersType, ReturnType],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+        ) -> ReturnType:
+            tracer = self
+            span_name = name or wrapped.__name__
+            bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
+            bound_args.apply_defaults()
+            arguments = bound_args.arguments
+
+            if len(arguments) == 1:
+                argument = next(iter(arguments.values()))
+                input_attributes = get_input_value_and_mime_type(value=argument)
+            else:
+                input_attributes = get_input_value_and_mime_type(value=arguments)
+            with tracer.start_as_current_span(
+                span_name,
+                openinference_span_kind=OpenInferenceSpanKindValues.CHAIN,
+                attributes=input_attributes,
+            ) as span:
+                output = wrapped(*args, **kwargs)
+                span.set_status(Status(StatusCode.OK))
+                attributes = getattr(
+                    span, "attributes", {}
+                )  # INVALID_SPAN does not have the attributes property
+                has_output = OUTPUT_VALUE in attributes
+                if has_output:
+                    return (
+                        output  # don't overwrite if the output is set inside the wrapped function
+                    )
+                span.set_output(value=output)
+                return output
+
+        @wrapt.decorator  #  type: ignore[misc]
+        async def async_wrapper(
+            wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+        ) -> ReturnType:
+            tracer = self
+            span_name = name or wrapped.__name__
+            bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
+            bound_args.apply_defaults()
+            arguments = bound_args.arguments
+
+            if len(arguments) == 1:
+                argument = next(iter(arguments.values()))
+                input_attributes = get_input_value_and_mime_type(value=argument)
+            else:
+                input_attributes = get_input_value_and_mime_type(value=arguments)
+            with tracer.start_as_current_span(
+                span_name,
+                openinference_span_kind=OpenInferenceSpanKindValues.CHAIN,
+                attributes=input_attributes,
+            ) as span:
+                output = await wrapped(*args, **kwargs)
+                span.set_status(Status(StatusCode.OK))
+                attributes = getattr(
+                    span, "attributes", {}
+                )  # INVALID_SPAN does not have the attributes property
+                has_output = OUTPUT_VALUE in attributes
+                if has_output:
+                    return (
+                        output  # don't overwrite if the output is set inside the wrapped function
+                    )
+                span.set_output(value=output)
+                return output
+
+        if wrapped_function is not None:
+            if asyncio.iscoroutinefunction(wrapped_function):
+                return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
+            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
+        if asyncio.iscoroutinefunction(wrapped_function):
+            return lambda x: async_wrapper(x)
+        return lambda x: sync_wrapper(x)
+
+    # overload for @tool usage (no parameters)
+    @overload
+    def tool(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+        description: Optional[str] = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    # overload for @tool(name="name") usage (with parameters)
+    @overload
+    def tool(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def tool(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        @wrapt.decorator  # type: ignore[misc]
+        def sync_wrapper(
+            wrapped: Callable[ParametersType, ReturnType],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+        ) -> ReturnType:
+            tracer = self
+            span_name = name or wrapped.__name__
+            bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
+            bound_args.apply_defaults()
+            arguments = bound_args.arguments
+
+            if len(arguments) == 1:
+                argument = next(iter(arguments.values()))
+                input_attributes = get_input_value_and_mime_type(value=argument)
+            else:
+                input_attributes = get_input_value_and_mime_type(value=arguments)
+            tool_parameters = safe_json_dumps_io_value(arguments)
+            tool_attributes = get_tool_attributes(
+                name=name or wrapped.__name__,
+                description=description or wrapped.__doc__,
+                parameters=tool_parameters,
+            )
+            with tracer.start_as_current_span(
+                span_name,
+                openinference_span_kind=OpenInferenceSpanKindValues.TOOL,
+                attributes={
+                    **input_attributes,
+                    **tool_attributes,
+                },
+            ) as span:
+                output = wrapped(*args, **kwargs)
+                span.set_status(Status(StatusCode.OK))
+                attributes = getattr(
+                    span, "attributes", {}
+                )  # INVALID_SPAN does not have the attributes property
+                has_output = OUTPUT_VALUE in attributes
+                if not has_output:
+                    span.set_output(value=output)
+                return output
+
+        @wrapt.decorator  #  type: ignore[misc]
+        async def async_wrapper(
+            wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+        ) -> ReturnType:
+            tracer = self
+            span_name = name or wrapped.__name__
+            bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
+            bound_args.apply_defaults()
+            arguments = bound_args.arguments
+
+            if len(arguments) == 1:
+                argument = next(iter(arguments.values()))
+                input_attributes = get_input_value_and_mime_type(value=argument)
+            else:
+                input_attributes = get_input_value_and_mime_type(value=arguments)
+            tool_parameters = safe_json_dumps_io_value(arguments)
+            tool_description: Optional[str] = None
+            if (docstring := wrapped.__doc__) is not None:
+                tool_description = docstring.strip()
+            tool_attributes = get_tool_attributes(
+                name=name or wrapped.__name__,
+                description=tool_description,
+                parameters=tool_parameters,
+            )
+            with tracer.start_as_current_span(
+                span_name,
+                openinference_span_kind=OpenInferenceSpanKindValues.TOOL,
+                attributes={
+                    **input_attributes,
+                    **tool_attributes,
+                },
+            ) as span:
+                output = await wrapped(*args, **kwargs)
+                span.set_status(Status(StatusCode.OK))
+                attributes = getattr(
+                    span, "attributes", {}
+                )  # INVALID_SPAN does not have the attributes property
+                has_output = OUTPUT_VALUE in attributes
+                if (
+                    not has_output
+                ):  # don't overwrite if the output is set inside the wrapped function
+                    span.set_output(value=output)
+                return output
+
+        if wrapped_function is not None:
+            if asyncio.iscoroutinefunction(wrapped_function):
+                return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
+            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
+        if asyncio.iscoroutinefunction(wrapped_function):
+            return lambda x: async_wrapper(x)
+        return lambda x: sync_wrapper(x)
 
 
 class TracerProvider(OTelTracerProvider):
