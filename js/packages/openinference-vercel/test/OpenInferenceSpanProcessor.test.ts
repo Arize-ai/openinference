@@ -165,7 +165,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           ],
         );
         break;
-      case AISemanticConventions.RESULT_TEXT:
+      case AISemanticConventions.RESPONSE_TEXT:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.OUTPUT_VALUE} with MIME type ${MimeType.TEXT}`,
           {
@@ -182,7 +182,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case AISemanticConventions.RESULT_OBJECT:
+      case AISemanticConventions.RESPONSE_OBJECT:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.OUTPUT_VALUE} with MIME type ${MimeType.JSON}`,
           {
@@ -201,7 +201,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case AISemanticConventions.RESULT_TOOL_CALLS: {
+      case AISemanticConventions.RESPONSE_TOOL_CALLS: {
         const firstOutputMessageToolPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}`;
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.MESSAGE_TOOL_CALLS} on ${SemanticConventions.LLM_OUTPUT_MESSAGES}`,
