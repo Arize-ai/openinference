@@ -648,7 +648,7 @@ class TestTracerChainDecorator:
         assert attributes.pop(INPUT_VALUE) == "input"
         assert not attributes
 
-    def test_class_method(
+    def test_method(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
@@ -664,7 +664,7 @@ class TestTracerChainDecorator:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "decorated_chain_method"
+        assert span.name == "ChainRunner.decorated_chain_method"
         assert span.status.is_ok
         assert not span.events
         attributes = dict(span.attributes or {})
@@ -851,6 +851,41 @@ class TestTracerToolDecorator:
         assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
         assert attributes.pop(OUTPUT_VALUE) == "None"
         assert attributes.pop(TOOL_NAME) == "decorated_tool"
+        assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
+        assert json.loads(tool_parameters) == {}
+        assert not attributes
+
+    def test_class_tool_with_call_method(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        class ClassTool:
+            @tracer.tool
+            def __call__(self, input: str) -> None:
+                """
+                tool-description
+                """
+                pass
+
+        callable_instance = ClassTool()
+        callable_instance("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "ClassTool.__call__"
+        assert span.status.is_ok
+        assert not span.events
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input": "input"}
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "None"
+        assert attributes.pop(TOOL_NAME) == "ClassTool.__call__"
+        assert attributes.pop(TOOL_DESCRIPTION) == "tool-description"
         assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
         assert json.loads(tool_parameters) == {}
         assert not attributes
