@@ -1050,9 +1050,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             if asyncio.iscoroutinefunction(wrapped_function):
                 return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
             return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        if asyncio.iscoroutinefunction(wrapped_function):
-            return lambda x: async_wrapper(x)
-        return lambda x: sync_wrapper(x)
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
 
 
 class TracerProvider(OTelTracerProvider):
