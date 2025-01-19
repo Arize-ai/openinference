@@ -857,33 +857,17 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             kwargs: Dict[str, Any],
         ) -> ReturnType:
             tracer = self
-            span_name = name or wrapped.__name__
-            bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
-            bound_args.apply_defaults()
-            arguments = bound_args.arguments
-
-            if len(arguments) == 1:
-                argument = next(iter(arguments.values()))
-                input_attributes = get_input_value_and_mime_type(value=argument)
-            else:
-                input_attributes = get_input_value_and_mime_type(value=arguments)
-            with tracer.start_as_current_span(
-                span_name,
-                openinference_span_kind=kind,
-                attributes=input_attributes,
-            ) as span:
+            with _chain_context(
+                tracer=tracer,
+                name=name,
+                kind=kind,
+                wrapped=wrapped,
+                instance=instance,
+                args=args,
+                kwargs=kwargs,
+            ) as chain_context:
                 output = wrapped(*args, **kwargs)
-                span.set_status(Status(StatusCode.OK))
-                attributes = getattr(
-                    span, "attributes", {}
-                )  # INVALID_SPAN does not have the attributes property
-                has_output = OUTPUT_VALUE in attributes
-                if has_output:
-                    return (
-                        output  # don't overwrite if the output is set inside the wrapped function
-                    )
-                span.set_output(value=output)
-                return output
+                return chain_context.process_output(output)
 
         @wrapt.decorator  #  type: ignore[misc]
         async def async_wrapper(
@@ -893,33 +877,17 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             kwargs: Dict[str, Any],
         ) -> ReturnType:
             tracer = self
-            span_name = name or wrapped.__name__
-            bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
-            bound_args.apply_defaults()
-            arguments = bound_args.arguments
-
-            if len(arguments) == 1:
-                argument = next(iter(arguments.values()))
-                input_attributes = get_input_value_and_mime_type(value=argument)
-            else:
-                input_attributes = get_input_value_and_mime_type(value=arguments)
-            with tracer.start_as_current_span(
-                span_name,
-                openinference_span_kind=kind,
-                attributes=input_attributes,
-            ) as span:
+            with _chain_context(
+                tracer=tracer,
+                name=name,
+                kind=kind,
+                wrapped=wrapped,
+                instance=instance,
+                args=args,
+                kwargs=kwargs,
+            ) as chain_context:
                 output = await wrapped(*args, **kwargs)
-                span.set_status(Status(StatusCode.OK))
-                attributes = getattr(
-                    span, "attributes", {}
-                )  # INVALID_SPAN does not have the attributes property
-                has_output = OUTPUT_VALUE in attributes
-                if has_output:
-                    return (
-                        output  # don't overwrite if the output is set inside the wrapped function
-                    )
-                span.set_output(value=output)
-                return output
+                return chain_context.process_output(output)
 
         if wrapped_function is not None:
             if asyncio.iscoroutinefunction(wrapped_function):
@@ -1109,6 +1077,50 @@ def _get_span_wrapper_cls(kind: OpenInferenceSpanKindValues) -> Type[OpenInferen
 def _is_dataclass_instance(obj: Any) -> TypeGuard["DataclassInstance"]:
     cls = type(obj)
     return hasattr(cls, "__dataclass_fields__")
+
+
+class _ChainContext:
+    def __init__(self, span: OpenInferenceSpan) -> None:
+        self._span = span
+
+    def process_output(self, output: Any) -> Any:
+        attributes = getattr(self._span, "attributes", {})
+        has_output = OUTPUT_VALUE in attributes
+        if not has_output:
+            self._span.set_output(value=output)
+        return output
+
+
+@contextmanager
+def _chain_context(
+    *,
+    tracer: "OITracer",
+    name: Optional[str],
+    kind: OpenInferenceSpanKindValues,
+    wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+    instance: Any,
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
+) -> Iterator[_ChainContext]:
+    span_name = name or wrapped.__name__
+    bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
+    bound_args.apply_defaults()
+    arguments = bound_args.arguments
+
+    if len(arguments) == 1:
+        argument = next(iter(arguments.values()))
+        input_attributes = get_input_value_and_mime_type(value=argument)
+    else:
+        input_attributes = get_input_value_and_mime_type(value=arguments)
+
+    with tracer.start_as_current_span(
+        span_name,
+        openinference_span_kind=kind,
+        attributes=input_attributes,
+    ) as span:
+        context = _ChainContext(span=span)
+        yield context
+        span.set_status(Status(StatusCode.OK))
 
 
 # span attributes
