@@ -676,6 +676,62 @@ class TestTracerChainDecorator:
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
 
+    def test_class_method(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        class ChainRunner:
+            @tracer.chain
+            @classmethod
+            def decorated_chain_method(cls, input1: str, input2: str) -> str:
+                return "output"
+
+        ChainRunner.decorated_chain_method("input1", "input2")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "ChainRunner.decorated_chain_method"
+        assert span.status.is_ok
+        assert not span.events
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input1": "input1", "input2": "input2"}
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_static_method(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        class ChainRunner:
+            @tracer.chain
+            @staticmethod
+            def decorated_chain_method(input1: str, input2: str) -> str:
+                return "output"
+
+        ChainRunner.decorated_chain_method("input1", "input2")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_chain_method"  # hard to reliably grab the class name
+        assert span.status.is_ok
+        assert not span.events
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input1": "input1", "input2": "input2"}
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
     def test_manual_span_updates(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
