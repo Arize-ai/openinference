@@ -119,6 +119,33 @@ class TestStartAsCurrentSpanContextManager:
         assert json.loads(output_value) == {"string_output": "output", "int_output": 2}
         assert not attributes
 
+    def test_agent(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        with tracer.start_as_current_span(
+            "agent-span-name",
+            openinference_span_kind="agent",
+        ) as agent_span:
+            agent_span.set_input("input")
+            agent_span.set_output("output")
+            agent_span.set_status(Status(StatusCode.OK))
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "agent-span-name"
+        assert span.status.is_ok
+        assert not span.events
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == AGENT
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
     def test_tool(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -714,6 +741,58 @@ class TestTracerChainDecorator:
         assert attributes[SESSION_ID] == "123"
 
 
+class TestAgentDecorator:
+    def test_plain_text_input_and_output(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.agent
+        def decorated_agent(input: str) -> str:
+            return "output"
+
+        decorated_agent("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_agent"
+        assert span.status.is_ok
+        assert not span.events
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == AGENT
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    async def test_async_with_overridden_name(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.agent(name="custom-name")
+        async def decorated_agent(input: str) -> str:
+            return "output"
+
+        await decorated_agent("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "custom-name"
+        assert span.status.is_ok
+        assert not span.events
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == AGENT
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+
 class TestTracerToolDecorator:
     def test_tool_with_one_argument_and_docstring(
         self,
@@ -970,6 +1049,7 @@ TEXT = OpenInferenceMimeTypeValues.TEXT.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
 
 # span kinds
+AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 TOOL = OpenInferenceSpanKindValues.TOOL.value
 

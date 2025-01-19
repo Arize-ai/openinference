@@ -556,6 +556,12 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         self.set_attributes(get_output_value_and_mime_type(value, mime_type))
 
 
+class AgentSpan(OpenInferenceSpan):
+    def __init__(self, wrapped: Span, config: TraceConfig) -> None:
+        super().__init__(wrapped, config)
+        self.__wrapped__.set_attributes(get_span_kind(OpenInferenceSpanKindValues.AGENT))
+
+
 class ChainSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
@@ -768,8 +774,41 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         span.set_attributes(dict(get_attributes_from_context()))
         return span
 
-    # overload for @tracer.chain usage (no parameters)
-    @overload
+    @overload  # for @tracer.agent usage (no parameters)
+    def agent(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.agent(name="name") usage (with parameters)
+    def agent(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def agent(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(
+            wrapped_function,
+            kind=OpenInferenceSpanKindValues.AGENT,  # chains and agents differ only in span kind
+            name=name,
+        )
+
+    @overload  # for @tracer.chain usage (no parameters)
     def chain(
         self,
         wrapped_function: Callable[ParametersType, ReturnType],
@@ -778,8 +817,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         name: None = None,
     ) -> Callable[ParametersType, ReturnType]: ...
 
-    # overload for @tracer.chain(name="name") usage (with parameters)
-    @overload
+    @overload  # for @tracer.chain(name="name") usage (with parameters)
     def chain(
         self,
         wrapped_function: None = None,
@@ -798,13 +836,14 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        return self._chain(wrapped_function, name=name)
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.CHAIN, name=name)
 
     def _chain(
         self,
         wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
         /,
         *,
+        kind: OpenInferenceSpanKindValues,
         name: Optional[str] = None,
     ) -> Union[
         Callable[ParametersType, ReturnType],
@@ -830,7 +869,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 input_attributes = get_input_value_and_mime_type(value=arguments)
             with tracer.start_as_current_span(
                 span_name,
-                openinference_span_kind=OpenInferenceSpanKindValues.CHAIN,
+                openinference_span_kind=kind,
                 attributes=input_attributes,
             ) as span:
                 output = wrapped(*args, **kwargs)
@@ -866,7 +905,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 input_attributes = get_input_value_and_mime_type(value=arguments)
             with tracer.start_as_current_span(
                 span_name,
-                openinference_span_kind=OpenInferenceSpanKindValues.CHAIN,
+                openinference_span_kind=kind,
                 attributes=input_attributes,
             ) as span:
                 output = await wrapped(*args, **kwargs)
@@ -886,12 +925,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             if asyncio.iscoroutinefunction(wrapped_function):
                 return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
             return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        if asyncio.iscoroutinefunction(wrapped_function):
-            return lambda x: async_wrapper(x)
-        return lambda x: sync_wrapper(x)
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
 
-    # overload for @tool usage (no parameters)
-    @overload
+    @overload  # for @tracer.tool usage (no parameters)
     def tool(
         self,
         wrapped_function: Callable[ParametersType, ReturnType],
@@ -901,8 +937,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         description: Optional[str] = None,
     ) -> Callable[ParametersType, ReturnType]: ...
 
-    # overload for @tool(name="name") usage (with parameters)
-    @overload
+    @overload  # for @tracer.tool(name="name") usage (with parameters)
     def tool(
         self,
         wrapped_function: None = None,
@@ -1064,6 +1099,8 @@ def _normalize_openinference_span_kind(kind: OpenInferenceSpanKind) -> OpenInfer
 
 
 def _get_span_wrapper_cls(kind: OpenInferenceSpanKindValues) -> Type[OpenInferenceSpan]:
+    if kind is OpenInferenceSpanKindValues.AGENT:
+        return AgentSpan
     if kind is OpenInferenceSpanKindValues.CHAIN:
         return ChainSpan
     if kind is OpenInferenceSpanKindValues.TOOL:
