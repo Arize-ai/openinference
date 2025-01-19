@@ -888,6 +888,35 @@ class TestTracerToolDecorator:
         assert json.loads(tool_parameters) == {}
         assert not attributes
 
+    async def test_async_tool_with_overridden_name(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.tool(name="overridden-name")
+        async def decorated_async_tool(input: str) -> None:
+            pass
+
+        await decorated_async_tool("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "overridden-name"
+        assert span.status.is_ok
+        assert not span.events
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input": "input"}
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "None"
+        assert attributes.pop(TOOL_NAME) == "overridden-name"
+        assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
+        assert json.loads(tool_parameters) == {}
+        assert not attributes
+
     def test_tool_with_zero_arguments_and_overridden_name_and_description(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
