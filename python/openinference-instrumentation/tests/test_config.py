@@ -128,16 +128,17 @@ def test_settings_from_env_vars_and_code(
     hide_input_text: bool,
     hide_output_text: bool,
     base64_image_max_length: int,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # First part of the test verifies that environment variables are read correctly
-    os.environ[OPENINFERENCE_HIDE_INPUTS] = str(hide_inputs)
-    os.environ[OPENINFERENCE_HIDE_OUTPUTS] = str(hide_outputs)
-    os.environ[OPENINFERENCE_HIDE_INPUT_MESSAGES] = str(hide_input_messages)
-    os.environ[OPENINFERENCE_HIDE_OUTPUT_MESSAGES] = str(hide_output_messages)
-    os.environ[OPENINFERENCE_HIDE_INPUT_IMAGES] = str(hide_input_images)
-    os.environ[OPENINFERENCE_HIDE_INPUT_TEXT] = str(hide_input_text)
-    os.environ[OPENINFERENCE_HIDE_OUTPUT_TEXT] = str(hide_output_text)
-    os.environ[OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH] = str(base64_image_max_length)
+    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUTS, str(hide_inputs))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUTS, str(hide_outputs))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_MESSAGES, str(hide_input_messages))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_MESSAGES, str(hide_output_messages))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_IMAGES, str(hide_input_images))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_TEXT, str(hide_input_text))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_TEXT, str(hide_output_text))
+    monkeypatch.setenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, str(base64_image_max_length))
 
     config = TraceConfig()
     assert config.hide_inputs is parse_bool_from_env(OPENINFERENCE_HIDE_INPUTS)

@@ -47,7 +47,6 @@ from opentelemetry.trace import (
     Status,
     StatusCode,
     Tracer,
-    get_tracer,
     use_span,
 )
 from opentelemetry.trace import get_current_span as otel_get_current_span
@@ -924,17 +923,18 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
             bound_args.apply_defaults()
             arguments = bound_args.arguments
-
-            if len(arguments) == 1:
-                argument = next(iter(arguments.values()))
-                input_attributes = get_input_value_and_mime_type(value=argument)
-            else:
-                input_attributes = get_input_value_and_mime_type(value=arguments)
-            tool_parameters = safe_json_dumps_io_value(arguments)
+            input_attributes = get_input_value_and_mime_type(value=arguments)
+            tool_description: Optional[str] = description
+            if (
+                not tool_description
+                and (docstring := wrapped.__doc__) is not None
+                and (stripped_docstring := docstring.strip())
+            ):
+                tool_description = stripped_docstring
             tool_attributes = get_tool_attributes(
                 name=name or wrapped.__name__,
-                description=description or wrapped.__doc__,
-                parameters=tool_parameters,
+                description=tool_description,
+                parameters={},
             )
             with tracer.start_as_current_span(
                 span_name,
@@ -966,20 +966,18 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
             bound_args.apply_defaults()
             arguments = bound_args.arguments
-
-            if len(arguments) == 1:
-                argument = next(iter(arguments.values()))
-                input_attributes = get_input_value_and_mime_type(value=argument)
-            else:
-                input_attributes = get_input_value_and_mime_type(value=arguments)
-            tool_parameters = safe_json_dumps_io_value(arguments)
-            tool_description: Optional[str] = None
-            if (docstring := wrapped.__doc__) is not None:
-                tool_description = docstring.strip()
+            input_attributes = get_input_value_and_mime_type(value=arguments)
+            tool_description: Optional[str] = description
+            if (
+                not tool_description
+                and (docstring := wrapped.__doc__) is not None
+                and (stripped_docstring := docstring.strip())
+            ):
+                tool_description = stripped_docstring
             tool_attributes = get_tool_attributes(
                 name=name or wrapped.__name__,
                 description=tool_description,
-                parameters=tool_parameters,
+                parameters={},
             )
             with tracer.start_as_current_span(
                 span_name,
