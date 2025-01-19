@@ -1056,7 +1056,7 @@ def _chain_context(
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
 ) -> Iterator[_ChainContext]:
-    span_name = name or _infer_span_name(class_instance=instance, callable=wrapped)
+    span_name = name or _infer_span_name(instance=instance, callable=wrapped)
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
@@ -1100,7 +1100,7 @@ def _tool_context(
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
 ) -> Iterator[_ToolContext]:
-    span_name = name or _infer_span_name(class_instance=instance, callable=wrapped)
+    span_name = name or _infer_span_name(instance=instance, callable=wrapped)
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
@@ -1124,10 +1124,19 @@ def _tool_context(
         span.set_status(Status(StatusCode.OK))
 
 
-def _infer_span_name(*, class_instance: Any, callable: Callable[..., Any]) -> str:
-    is_method = class_instance is not None
-    if is_method:
-        class_name = class_instance.__class__.__name__
+def _infer_span_name(*, instance: Any, callable: Callable[..., Any]) -> str:
+    """
+    Makes a best-effort attempt to infer a span name from the bound instance
+    (e.g., self or cls) and the callable (the function or method being wrapped).
+    Handles functions, methods, and class methods.
+    """
+
+    if inspect.ismethod(callable):
+        is_class_method = isinstance(instance, type)
+        if is_class_method:
+            class_name = instance.__name__
+        else:  # regular method
+            class_name = instance.__class__.__name__
         method_name = callable.__name__
         return f"{class_name}.{method_name}"
     function_name = callable.__name__
