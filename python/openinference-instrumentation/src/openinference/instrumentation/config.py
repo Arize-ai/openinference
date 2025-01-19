@@ -397,7 +397,7 @@ _IMPORTANT_ATTRIBUTES = [
 ]
 
 
-def get_span_kind(kind: OpenInferenceSpanKind) -> Dict[str, AttributeValue]:
+def get_span_kind(kind: OpenInferenceSpanKind, /) -> Dict[str, AttributeValue]:
     normalized_kind = _normalize_openinference_span_kind(kind)
     return {
         OPENINFERENCE_SPAN_KIND: normalized_kind.value,
@@ -406,6 +406,7 @@ def get_span_kind(kind: OpenInferenceSpanKind) -> Dict[str, AttributeValue]:
 
 def get_input_value_and_mime_type(
     value: Any,
+    *,
     mime_type: Optional[OpenInferenceMimeType] = None,
 ) -> Dict[str, AttributeValue]:
     normalized_mime_type: Optional[OpenInferenceMimeTypeValues] = None
@@ -428,6 +429,7 @@ def get_input_value_and_mime_type(
 
 def get_output_value_and_mime_type(
     value: Any,
+    *,
     mime_type: Optional[OpenInferenceMimeType] = None,
 ) -> Dict[str, AttributeValue]:
     normalized_mime_type: Optional[OpenInferenceMimeTypeValues] = None
@@ -546,14 +548,14 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         value: Any,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
-        self.set_attributes(get_input_value_and_mime_type(value, mime_type))
+        self.set_attributes(get_input_value_and_mime_type(value, mime_type=mime_type))
 
     def set_output(
         self,
         value: Any,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
-        self.set_attributes(get_output_value_and_mime_type(value, mime_type))
+        self.set_attributes(get_output_value_and_mime_type(value, mime_type=mime_type))
 
 
 class AgentSpan(OpenInferenceSpan):
@@ -1054,16 +1056,16 @@ def _chain_context(
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
 ) -> Iterator[_ChainContext]:
-    span_name = name or wrapped.__name__
+    span_name = name or _infer_span_name(class_instance=instance, callable=wrapped)
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
 
     if len(arguments) == 1:
         argument = next(iter(arguments.values()))
-        input_attributes = get_input_value_and_mime_type(value=argument)
+        input_attributes = get_input_value_and_mime_type(argument)
     else:
-        input_attributes = get_input_value_and_mime_type(value=arguments)
+        input_attributes = get_input_value_and_mime_type(arguments)
 
     with tracer.start_as_current_span(
         span_name,
@@ -1098,20 +1100,14 @@ def _tool_context(
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
 ) -> Iterator[_ToolContext]:
-    span_name = name or wrapped.__name__
+    span_name = name or _infer_span_name(class_instance=instance, callable=wrapped)
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
-    input_attributes = get_input_value_and_mime_type(value=arguments)
-    tool_description: Optional[str] = description
-    if (
-        not tool_description
-        and (docstring := wrapped.__doc__) is not None
-        and (stripped_docstring := docstring.strip())
-    ):
-        tool_description = stripped_docstring
+    input_attributes = get_input_value_and_mime_type(arguments)
+    tool_description = description or _infer_tool_description_from_docstring(wrapped.__doc__)
     tool_attributes = get_tool_attributes(
-        name=name or wrapped.__name__,
+        name=span_name,
         description=tool_description,
         parameters={},
     )
@@ -1126,6 +1122,22 @@ def _tool_context(
         context = _ToolContext(span=span)
         yield context
         span.set_status(Status(StatusCode.OK))
+
+
+def _infer_span_name(*, class_instance: Any, callable: Callable[..., Any]) -> str:
+    is_method = class_instance is not None
+    if is_method:
+        class_name = class_instance.__class__.__name__
+        method_name = callable.__name__
+        return f"{class_name}.{method_name}"
+    function_name = callable.__name__
+    return function_name
+
+
+def _infer_tool_description_from_docstring(docstring: Optional[str]) -> Optional[str]:
+    if docstring is not None and (stripped_docstring := docstring.strip()):
+        return stripped_docstring
+    return None
 
 
 # span attributes
