@@ -798,6 +798,18 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
+        return self._chain(wrapped_function, name=name)
+
+    def _chain(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
         @wrapt.decorator  # type: ignore[misc]
         def sync_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
