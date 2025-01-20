@@ -907,6 +907,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         name: None = None,
         description: Optional[str] = None,
+        parameters: Optional[Union[str, Dict[str, Any]]] = None,
     ) -> Callable[ParametersType, ReturnType]: ...
 
     @overload  # for @tracer.tool(name="name") usage (with parameters)
@@ -917,6 +918,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        parameters: Optional[Union[str, Dict[str, Any]]] = None,
     ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
 
     def tool(
@@ -926,6 +928,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        parameters: Optional[Union[str, Dict[str, Any]]] = None,
     ) -> Union[
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
@@ -942,6 +945,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 tracer=tracer,
                 name=name,
                 description=description,
+                parameters=parameters,
                 wrapped=wrapped,
                 instance=instance,
                 args=args,
@@ -962,6 +966,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 tracer=tracer,
                 name=name,
                 description=description,
+                parameters=parameters,
                 wrapped=wrapped,
                 instance=instance,
                 args=args,
@@ -1097,6 +1102,7 @@ def _tool_context(
     tracer: "OITracer",
     name: Optional[str],
     description: Optional[str],
+    parameters: Optional[Union[str, Dict[str, Any]]],
     wrapped: Callable[ParametersType, ReturnType],
     instance: Any,
     args: Tuple[Any, ...],
@@ -1108,10 +1114,11 @@ def _tool_context(
     arguments = bound_args.arguments
     input_attributes = get_input_value_and_mime_type(arguments)
     tool_description = description or _infer_tool_description_from_docstring(wrapped.__doc__)
+    tool_parameters = parameters or _infer_parameters(wrapped)
     tool_attributes = get_tool_attributes(
         name=span_name,
         description=tool_description,
-        parameters={},
+        parameters=tool_parameters,
     )
     with tracer.start_as_current_span(
         span_name,
@@ -1151,7 +1158,7 @@ def _infer_tool_description_from_docstring(docstring: Optional[str]) -> Optional
     return None
 
 
-def _infer_jsonschema(callable: Callable[..., Any]) -> Dict[str, Any]:
+def _infer_parameters(callable: Callable[..., Any]) -> Dict[str, Any]:
     json_schema: Dict[str, Any] = {"type": "object"}
     properties = {}
     required_properties = []
@@ -1175,7 +1182,8 @@ def _infer_jsonschema(callable: Callable[..., Any]) -> Dict[str, Any]:
         properties[param_name] = property_data
 
     json_schema["properties"] = properties
-    json_schema["required"] = required_properties
+    if required_properties:
+        json_schema["required"] = required_properties
     return json_schema
 
 
@@ -1213,10 +1221,8 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
     is_literal_type = annotation_type_origin is Literal
     if is_literal_type:
         enum_values = list(annotation_type_args)
-        unique_enum_value_types = dict.fromkeys(type(value) for value in enum_values)
-        jsonschema_types = [
-            _get_jsonschema_type(value_type) for value_type in unique_enum_value_types
-        ]
+        unique_enum_types = dict.fromkeys(type(value) for value in enum_values)
+        jsonschema_types = [_get_jsonschema_type(value_type) for value_type in unique_enum_types]
         result = {}
         if len(jsonschema_types) == 1:
             result.update(jsonschema_types[0])
