@@ -1,4 +1,5 @@
 import asyncio
+import collections.abc
 import inspect
 import json
 import os
@@ -16,6 +17,7 @@ from typing import (
     Callable,
     Dict,
     Iterator,
+    List,
     Literal,
     Optional,
     Tuple,
@@ -24,6 +26,7 @@ from typing import (
     Union,
     cast,
     get_args,
+    get_origin,
 )
 
 import wrapt  # type: ignore[import-untyped]
@@ -51,7 +54,7 @@ from opentelemetry.trace import (
 )
 from opentelemetry.trace import get_current_span as otel_get_current_span
 from opentelemetry.util.types import Attributes, AttributeValue
-from typing_extensions import ParamSpec, TypeAlias, TypeGuard, overload
+from typing_extensions import ParamSpec, TypeAlias, TypeGuard, _AnnotatedAlias, overload
 
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -1147,6 +1150,123 @@ def _infer_tool_description_from_docstring(docstring: Optional[str]) -> Optional
     if docstring is not None and (stripped_docstring := docstring.strip()):
         return stripped_docstring
     return None
+
+
+def _infer_jsonschema(callable: Callable[..., Any]) -> dict:
+    json_schema = {"type": "object"}
+    properties = {}
+    required_properties = []
+    signature = inspect.signature(callable)
+    for param_name, param in signature.parameters.items():
+        property_data = {}
+        default_value = param.default
+        has_default = default_value is not inspect.Parameter.empty
+        if has_default:
+            property_data["default"] = default_value
+        if not has_default:
+            required_properties.append(param_name)
+        annotation = param.annotation
+        if (jsonschema_type := dict(_get_jsonschema_type(annotation))) is not None:
+            property_data.update(jsonschema_type)
+        metadata = getattr(annotation, "__metadata__", None)
+        description: Optional[str] = None
+        if metadata and isinstance(first_metadata := metadata[0], str):
+            description = first_metadata
+        if description:
+            property_data["description"] = description
+        properties[param_name] = property_data
+
+    json_schema["properties"] = properties
+    json_schema["required"] = required_properties
+    return json_schema
+
+
+def _get_jsonschema_type(annotation_type: type) -> Optional[Union[str, List[str]]]:
+    if isinstance(annotation_type, _AnnotatedAlias):
+        annotation_type = annotation_type.__args__[0]
+        yield from _get_jsonschema_type(annotation_type)
+    if annotation_type is type(None) or annotation_type is None:
+        yield "type", "null"
+        return
+    if annotation_type is str:
+        yield "type", "string"
+        return
+    if annotation_type is int:
+        yield "type", "integer"
+        return
+    if annotation_type is float:
+        yield "type", "number"
+        return
+    if annotation_type is bool:
+        yield "type", "boolean"
+        return
+    if annotation_type is datetime:
+        yield "type", "string"
+        yield "format", "date-time"
+        return
+    annotation_type_origin = get_origin(annotation_type)
+    annotation_type_args = get_args(annotation_type)
+    is_union_type = annotation_type_origin is Union
+    if is_union_type:
+        jsonschema_types = []
+        for type_ in annotation_type_args:
+            if (jsonschema_type := dict(_get_jsonschema_type(type_))) is not None:
+                jsonschema_types.append(jsonschema_type)
+        yield "type", {"anyOf": jsonschema_types}
+        return
+    is_literal_type = annotation_type_origin is Literal
+    if is_literal_type:
+        enum_values = list(annotation_type_args)
+        enum_value_types = set(type(value) for value in enum_values)
+        jsonschema_types = [
+            jsonschema_type
+            for value_type in enum_value_types
+            if (jsonschema_type := dict(_get_jsonschema_type(value_type))) is not None
+        ]
+        if len(jsonschema_types) == 1:
+            yield from jsonschema_types[0].items()
+        elif len(jsonschema_types) > 1:
+            yield "type", {"anyOf": jsonschema_types}
+        yield "enum", enum_values
+    is_list_type = (
+        annotation_type_origin is list or annotation_type_origin is collections.abc.Sequence
+    )
+    if is_list_type:
+        yield "type", "array"
+        if len(annotation_type_args) == 1:
+            list_item_type = annotation_type_args[0]
+            yield "items", dict(_get_jsonschema_type(list_item_type))
+    is_tuple_type = annotation_type_origin is tuple
+    if is_tuple_type:
+        yield "type", "array"
+        if len(annotation_type_args) == 2 and annotation_type_args[-1] is Ellipsis:
+            item_type = annotation_type_args[0]
+            yield "items", dict(_get_jsonschema_type(item_type))
+        elif annotation_type_args:
+            items = []
+            for arg_type in annotation_type_args:
+                item_schema = dict(_get_jsonschema_type(arg_type))
+                items.append(item_schema)
+            yield "items", items
+            yield "minItems", len(annotation_type_args)
+            yield "maxItems", len(annotation_type_args)
+    is_dict_type = (
+        annotation_type_origin is dict or annotation_type_origin is collections.abc.Mapping
+    )
+    if is_dict_type:
+        yield "type", "object"
+        if len(annotation_type_args) == 2:
+            key_type, value_type = annotation_type_args
+            if key_type is not str:
+                return  # jsonschema requires that the keys in object type are string
+            yield "additionalProperties", dict(_get_jsonschema_type(value_type))
+            return
+    if (
+        pydantic is not None
+        and isinstance(annotation_type, type)
+        and issubclass(annotation_type, pydantic.BaseModel)
+    ):
+        yield from annotation_type.schema().items()
 
 
 # span attributes
