@@ -16,7 +16,7 @@ from openinference.instrumentation import (
     suppress_tracing,
     using_session,
 )
-from openinference.instrumentation.config import _infer_jsonschema
+from openinference.instrumentation.config import _infer_parameters
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -882,7 +882,15 @@ class TestTracerToolDecorator:
         assert attributes.pop(TOOL_NAME) == "decorated_tool"
         assert attributes.pop(TOOL_DESCRIPTION) == "tool-description"
         assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
-        assert json.loads(tool_parameters) == {}
+        assert json.loads(tool_parameters) == {
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string",
+                },
+            },
+            "required": ["input"],
+        }
         assert not attributes
 
     def test_tool_with_two_arguments_and_no_docstring(
@@ -911,7 +919,18 @@ class TestTracerToolDecorator:
         assert attributes.pop(OUTPUT_VALUE) == "None"
         assert attributes.pop(TOOL_NAME) == "decorated_tool"
         assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
-        assert json.loads(tool_parameters) == {}
+        assert json.loads(tool_parameters) == {
+            "type": "object",
+            "properties": {
+                "input1": {
+                    "type": "string",
+                },
+                "input2": {
+                    "type": "integer",
+                },
+            },
+            "required": ["input1", "input2"],
+        }
         assert not attributes
 
     def test_class_tool_with_call_method(
@@ -946,7 +965,15 @@ class TestTracerToolDecorator:
         assert attributes.pop(TOOL_NAME) == "ClassTool.__call__"
         assert attributes.pop(TOOL_DESCRIPTION) == "tool-description"
         assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
-        assert json.loads(tool_parameters) == {}
+        assert json.loads(tool_parameters) == {
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string",
+                },
+            },
+            "required": ["input"],
+        }
         assert not attributes
 
     async def test_async_tool(
@@ -979,15 +1006,38 @@ class TestTracerToolDecorator:
         assert attributes.pop(TOOL_NAME) == "decorated_async_tool"
         assert attributes.pop(TOOL_DESCRIPTION) == "tool-description"
         assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
-        assert json.loads(tool_parameters) == {}
+        assert json.loads(tool_parameters) == {
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string",
+                },
+            },
+            "required": ["input"],
+        }
         assert not attributes
 
-    async def test_async_tool_with_overridden_name(
+    async def test_async_tool_with_overriddes(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.tool(name="overridden-name")
+        overridden_parameters = {
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "description": "overridden-description",
+                },
+            },
+            "required": ["input"],
+        }
+
+        @tracer.tool(
+            name="overridden-name",
+            description="overridden-description",
+            parameters=overridden_parameters,
+        )
         async def decorated_async_tool(input: str) -> None:
             pass
 
@@ -1007,8 +1057,9 @@ class TestTracerToolDecorator:
         assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
         assert attributes.pop(OUTPUT_VALUE) == "None"
         assert attributes.pop(TOOL_NAME) == "overridden-name"
+        assert attributes.pop(TOOL_DESCRIPTION) == "overridden-description"
         assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
-        assert json.loads(tool_parameters) == {}
+        assert json.loads(tool_parameters) == overridden_parameters
         assert not attributes
 
     def test_tool_with_zero_arguments_and_overridden_name_and_description(
@@ -1043,7 +1094,10 @@ class TestTracerToolDecorator:
         assert attributes.pop(TOOL_NAME) == "decorated-tool-with-overriden-name"
         assert attributes.pop(TOOL_DESCRIPTION) == "overriden-tool-description"
         assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
-        assert json.loads(tool_parameters) == {}
+        assert json.loads(tool_parameters) == {
+            "type": "object",
+            "properties": {},
+        }
         assert not attributes
 
     def test_manual_span_updates(
@@ -1104,7 +1158,7 @@ class TestTracerToolDecorator:
         tracer: OITracer,
     ) -> None:
         @tracer.tool
-        def tool_with_error(input_str: str) -> str:
+        def tool_with_error(input_str: str = "default") -> str:
             raise ValueError("test error")
 
         with pytest.raises(ValueError, match="test error"):
@@ -1124,7 +1178,15 @@ class TestTracerToolDecorator:
         assert json.loads(input_value) == {"input_str": "input"}
         assert attributes.pop(TOOL_NAME) == "tool_with_error"
         assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
-        assert json.loads(tool_parameters) == {}
+        assert json.loads(tool_parameters) == {
+            "type": "object",
+            "properties": {
+                "input_str": {
+                    "type": "string",
+                    "default": "default",
+                },
+            },
+        }
         assert not attributes
 
     def test_suppress_tracing(
@@ -1167,7 +1229,7 @@ class TestTracerToolDecorator:
         assert attributes[SESSION_ID] == session_id
 
 
-def test_infer_jsonschema() -> None:
+def test_infer_parameters() -> None:
     class PydanticModel(pydantic.BaseModel):
         string_param: str
         int_param: int
@@ -1213,7 +1275,7 @@ def test_infer_jsonschema() -> None:
     ) -> None:
         pass
 
-    schema = _infer_jsonschema(example_function)
+    schema = _infer_parameters(example_function)
     assert schema == {
         "type": "object",
         "properties": {
