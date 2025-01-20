@@ -1,12 +1,14 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
+import pydantic
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
+from typing_extensions import Annotated, TypeAlias
 
 from openinference.instrumentation import (
     OITracer,
@@ -14,6 +16,7 @@ from openinference.instrumentation import (
     suppress_tracing,
     using_session,
 )
+from openinference.instrumentation.config import _infer_jsonschema
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -1162,6 +1165,329 @@ class TestTracerToolDecorator:
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes[SESSION_ID] == session_id
+
+
+def test_infer_jsonschema() -> None:
+    class PydanticModel(pydantic.BaseModel):
+        string_param: str
+        int_param: int
+        float_param: float
+        bool_param: bool
+        any_param: Any
+
+    AnnotatedWithTypeAlias: TypeAlias = Annotated[str, "This is a description"]
+
+    def example_function(  # type: ignore[no-untyped-def]
+        untyped_param,
+        none_param: None,
+        string_param: str,
+        int_param: int,
+        float_param: float,
+        bool_param: bool,
+        datetime_param: datetime,
+        any_param: Any,
+        optional_int_param: Optional[int],
+        union_string_int_param: Union[str, int],
+        literal_string_param: Literal["hello", "world"],
+        literal_string_int_param: Literal[1, "hello"],
+        list_string_param: List[str],
+        list_of_union_string_int_param: List[Union[str, int]],
+        list_without_item_type_param: List,  # type: ignore[type-arg]
+        sequence_string_param: Sequence[str],
+        sequence_without_item_type_param: Sequence,  # type: ignore[type-arg]
+        tuple_string_int_param: Tuple[str, int],
+        tuple_of_strings_param: Tuple[str, ...],
+        tuple_of_union_string_int_param: Tuple[Union[str, int]],
+        tuple_without_item_type_param: Tuple,  # type: ignore[type-arg]
+        dict_string_param: Dict[str, str],
+        dict_union_string_int_param: Dict[str, Union[str, int]],
+        dict_without_type_param: Dict,  # type: ignore[type-arg]
+        mapping_string_param: Mapping[str, str],
+        mapping_union_string_int_param: Mapping[str, Union[str, int]],
+        mapping_without_type_param: Mapping,  # type: ignore[type-arg]
+        annotated_string_param: Annotated[str, "This is a description"],
+        annotated_param_with_type_alias: AnnotatedWithTypeAlias,
+        pydantic_model_param: PydanticModel,
+        string_param_with_default: str = "default",
+        untyped_param_with_default="default",
+    ) -> None:
+        pass
+
+    schema = _infer_jsonschema(example_function)
+    assert schema == {
+        "type": "object",
+        "properties": {
+            "untyped_param": {},
+            "none_param": {
+                "type": "null",
+            },
+            "string_param": {
+                "type": "string",
+            },
+            "int_param": {
+                "type": "integer",
+            },
+            "float_param": {
+                "type": "number",
+            },
+            "bool_param": {
+                "type": "boolean",
+            },
+            "datetime_param": {
+                "type": "string",
+                "format": "date-time",
+            },
+            "any_param": {},
+            "optional_int_param": {
+                "type": {
+                    "anyOf": [
+                        {
+                            "type": "integer",
+                        },
+                        {
+                            "type": "null",
+                        },
+                    ]
+                }
+            },
+            "union_string_int_param": {
+                "type": {
+                    "anyOf": [
+                        {
+                            "type": "string",
+                        },
+                        {
+                            "type": "integer",
+                        },
+                    ]
+                }
+            },
+            "literal_string_param": {
+                "type": "string",
+                "enum": [
+                    "hello",
+                    "world",
+                ],
+            },
+            "literal_string_int_param": {
+                "type": {
+                    "anyOf": [
+                        {
+                            "type": "integer",
+                        },
+                        {
+                            "type": "string",
+                        },
+                    ]
+                },
+                "enum": [
+                    1,
+                    "hello",
+                ],
+            },
+            "list_string_param": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                },
+            },
+            "list_of_union_string_int_param": {
+                "type": "array",
+                "items": {
+                    "type": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                            },
+                            {
+                                "type": "integer",
+                            },
+                        ]
+                    }
+                },
+            },
+            "list_without_item_type_param": {
+                "type": "array",
+            },
+            "sequence_string_param": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                },
+            },
+            "sequence_without_item_type_param": {
+                "type": "array",
+            },
+            "tuple_string_int_param": {
+                "type": "array",
+                "items": [
+                    {
+                        "type": "string",
+                    },
+                    {
+                        "type": "integer",
+                    },
+                ],
+                "minItems": 2,
+                "maxItems": 2,
+            },
+            "tuple_of_strings_param": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                },
+            },
+            "tuple_of_union_string_int_param": {
+                "type": "array",
+                "items": [
+                    {
+                        "type": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                },
+                                {
+                                    "type": "integer",
+                                },
+                            ]
+                        }
+                    }
+                ],
+                "minItems": 1,
+                "maxItems": 1,
+            },
+            "tuple_without_item_type_param": {
+                "type": "array",
+            },
+            "dict_string_param": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "string",
+                },
+            },
+            "dict_union_string_int_param": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                            },
+                            {
+                                "type": "integer",
+                            },
+                        ]
+                    }
+                },
+            },
+            "dict_without_type_param": {
+                "type": "object",
+            },
+            "mapping_string_param": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "string",
+                },
+            },
+            "mapping_union_string_int_param": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                            },
+                            {
+                                "type": "integer",
+                            },
+                        ]
+                    }
+                },
+            },
+            "mapping_without_type_param": {
+                "type": "object",
+            },
+            "annotated_string_param": {
+                "type": "string",
+                "description": "This is a description",
+            },
+            "annotated_param_with_type_alias": {
+                "type": "string",
+                "description": "This is a description",
+            },
+            "pydantic_model_param": {
+                "properties": {
+                    "string_param": {
+                        "title": "String Param",
+                        "type": "string",
+                    },
+                    "int_param": {
+                        "title": "Int Param",
+                        "type": "integer",
+                    },
+                    "float_param": {
+                        "title": "Float Param",
+                        "type": "number",
+                    },
+                    "bool_param": {
+                        "title": "Bool Param",
+                        "type": "boolean",
+                    },
+                    "any_param": {
+                        "title": "Any Param",
+                    },
+                },
+                "required": [
+                    "string_param",
+                    "int_param",
+                    "float_param",
+                    "bool_param",
+                    "any_param",
+                ],
+                "title": "PydanticModel",
+                "type": "object",
+            },
+            "string_param_with_default": {
+                "default": "default",
+                "type": "string",
+            },
+            "untyped_param_with_default": {
+                "default": "default",
+            },
+        },
+        "required": [
+            "untyped_param",
+            "none_param",
+            "string_param",
+            "int_param",
+            "float_param",
+            "bool_param",
+            "datetime_param",
+            "any_param",
+            "optional_int_param",
+            "union_string_int_param",
+            "literal_string_param",
+            "literal_string_int_param",
+            "list_string_param",
+            "list_of_union_string_int_param",
+            "list_without_item_type_param",
+            "sequence_string_param",
+            "sequence_without_item_type_param",
+            "tuple_string_int_param",
+            "tuple_of_strings_param",
+            "tuple_of_union_string_int_param",
+            "tuple_without_item_type_param",
+            "dict_string_param",
+            "dict_union_string_int_param",
+            "dict_without_type_param",
+            "mapping_string_param",
+            "mapping_union_string_int_param",
+            "mapping_without_type_param",
+            "annotated_string_param",
+            "annotated_param_with_type_alias",
+            "pydantic_model_param",
+        ],
+    }
 
 
 # mime types
