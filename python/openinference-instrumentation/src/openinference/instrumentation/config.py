@@ -507,7 +507,7 @@ def get_tool_attributes(
         parameters_json = safe_json_dumps_io_value(parameters)
     else:
         raise ValueError(f"Invalid parameters type: {type(parameters)}")
-    attributes = {
+    attributes: Dict[str, AttributeValue] = {
         TOOL_NAME: name,
         TOOL_PARAMETERS: parameters_json,
     }
@@ -1039,7 +1039,7 @@ class _ChainContext:
     def __init__(self, span: OpenInferenceSpan) -> None:
         self._span = span
 
-    def process_output(self, output: Any) -> Any:
+    def process_output(self, output: ReturnType) -> ReturnType:
         attributes = getattr(self._span, "attributes", {})
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
@@ -1053,7 +1053,7 @@ def _chain_context(
     tracer: "OITracer",
     name: Optional[str],
     kind: OpenInferenceSpanKindValues,
-    wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+    wrapped: Callable[ParametersType, ReturnType],
     instance: Any,
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
@@ -1083,7 +1083,7 @@ class _ToolContext:
     def __init__(self, span: OpenInferenceSpan) -> None:
         self._span = span
 
-    def process_output(self, output: Any) -> Any:
+    def process_output(self, output: ReturnType) -> ReturnType:
         attributes = getattr(self._span, "attributes", {})
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
@@ -1097,7 +1097,7 @@ def _tool_context(
     tracer: "OITracer",
     name: Optional[str],
     description: Optional[str],
-    wrapped: Callable[ParametersType, Union[ReturnType, Awaitable[ReturnType]]],
+    wrapped: Callable[ParametersType, ReturnType],
     instance: Any,
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
@@ -1151,8 +1151,8 @@ def _infer_tool_description_from_docstring(docstring: Optional[str]) -> Optional
     return None
 
 
-def _infer_jsonschema(callable: Callable[..., Any]) -> dict:
-    json_schema = {"type": "object"}
+def _infer_jsonschema(callable: Callable[..., Any]) -> Dict[str, Any]:
+    json_schema: Dict[str, Any] = {"type": "object"}
     properties = {}
     required_properties = []
     signature = inspect.signature(callable)
@@ -1262,7 +1262,7 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
         and isinstance(annotation_type, type)
         and issubclass(annotation_type, pydantic.BaseModel)
     ):
-        return annotation_type.schema()
+        return annotation_type.schema()  # type: ignore[no-any-return,attr-defined]
     return {}
 
 
