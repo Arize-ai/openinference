@@ -17,7 +17,6 @@ from typing import (
     Callable,
     Dict,
     Iterator,
-    List,
     Literal,
     Optional,
     Tuple,
@@ -1166,8 +1165,7 @@ def _infer_jsonschema(callable: Callable[..., Any]) -> dict:
         if not has_default:
             required_properties.append(param_name)
         annotation = param.annotation
-        if (jsonschema_type := dict(_get_jsonschema_type(annotation))) is not None:
-            property_data.update(jsonschema_type)
+        property_data.update(_get_jsonschema_type(annotation))
         metadata = getattr(annotation, "__metadata__", None)
         description: Optional[str] = None
         if metadata and isinstance(first_metadata := metadata[0], str):
@@ -1181,92 +1179,91 @@ def _infer_jsonschema(callable: Callable[..., Any]) -> dict:
     return json_schema
 
 
-def _get_jsonschema_type(annotation_type: type) -> Optional[Union[str, List[str]]]:
+def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
     if isinstance(annotation_type, _AnnotatedAlias):
         annotation_type = annotation_type.__args__[0]
-        yield from _get_jsonschema_type(annotation_type)
+        return _get_jsonschema_type(annotation_type)
     if annotation_type is type(None) or annotation_type is None:
-        yield "type", "null"
-        return
+        return {"type": "null"}
     if annotation_type is str:
-        yield "type", "string"
-        return
+        return {"type": "string"}
     if annotation_type is int:
-        yield "type", "integer"
-        return
+        return {"type": "integer"}
     if annotation_type is float:
-        yield "type", "number"
-        return
+        return {"type": "number"}
     if annotation_type is bool:
-        yield "type", "boolean"
-        return
+        return {"type": "boolean"}
     if annotation_type is datetime:
-        yield "type", "string"
-        yield "format", "date-time"
-        return
+        return {
+            "type": "string",
+            "format": "date-time",
+        }
     annotation_type_origin = get_origin(annotation_type)
     annotation_type_args = get_args(annotation_type)
     is_union_type = annotation_type_origin is Union
     if is_union_type:
         jsonschema_types = []
         for type_ in annotation_type_args:
-            if (jsonschema_type := dict(_get_jsonschema_type(type_))) is not None:
-                jsonschema_types.append(jsonschema_type)
-        yield "type", {"anyOf": jsonschema_types}
-        return
+            jsonschema_types.append(_get_jsonschema_type(type_))
+        return {
+            "type": {
+                "anyOf": jsonschema_types,
+            }
+        }
     is_literal_type = annotation_type_origin is Literal
     if is_literal_type:
         enum_values = list(annotation_type_args)
         enum_value_types = set(type(value) for value in enum_values)
-        jsonschema_types = [
-            jsonschema_type
-            for value_type in enum_value_types
-            if (jsonschema_type := dict(_get_jsonschema_type(value_type))) is not None
-        ]
+        jsonschema_types = [_get_jsonschema_type(value_type) for value_type in enum_value_types]
+        result = {}
         if len(jsonschema_types) == 1:
-            yield from jsonschema_types[0].items()
+            result.update(jsonschema_types[0])
         elif len(jsonschema_types) > 1:
-            yield "type", {"anyOf": jsonschema_types}
-        yield "enum", enum_values
+            result["type"] = {"anyOf": jsonschema_types}
+        result["enum"] = enum_values
+        return result
     is_list_type = (
         annotation_type_origin is list or annotation_type_origin is collections.abc.Sequence
     )
     if is_list_type:
-        yield "type", "array"
+        result = {"type": "array"}
         if len(annotation_type_args) == 1:
             list_item_type = annotation_type_args[0]
-            yield "items", dict(_get_jsonschema_type(list_item_type))
+            result["items"] = _get_jsonschema_type(list_item_type)
+        return result
     is_tuple_type = annotation_type_origin is tuple
     if is_tuple_type:
-        yield "type", "array"
+        result = {"type": "array"}
         if len(annotation_type_args) == 2 and annotation_type_args[-1] is Ellipsis:
             item_type = annotation_type_args[0]
-            yield "items", dict(_get_jsonschema_type(item_type))
+            result["items"] = _get_jsonschema_type(item_type)
         elif annotation_type_args:
             items = []
             for arg_type in annotation_type_args:
-                item_schema = dict(_get_jsonschema_type(arg_type))
+                item_schema = _get_jsonschema_type(arg_type)
                 items.append(item_schema)
-            yield "items", items
-            yield "minItems", len(annotation_type_args)
-            yield "maxItems", len(annotation_type_args)
+            result["items"] = items
+            result["minItems"] = len(annotation_type_args)
+            result["maxItems"] = len(annotation_type_args)
+        return result
     is_dict_type = (
         annotation_type_origin is dict or annotation_type_origin is collections.abc.Mapping
     )
     if is_dict_type:
-        yield "type", "object"
+        result = {"type": "object"}
         if len(annotation_type_args) == 2:
-            key_type, value_type = annotation_type_args
-            if key_type is not str:
-                return  # jsonschema requires that the keys in object type are string
-            yield "additionalProperties", dict(_get_jsonschema_type(value_type))
-            return
+            # jsonschema requires that the keys in object type are strings, so
+            # we ignore the key type
+            _, value_type = annotation_type_args
+            result["additionalProperties"] = _get_jsonschema_type(value_type)
+        return result
     if (
         pydantic is not None
         and isinstance(annotation_type, type)
         and issubclass(annotation_type, pydantic.BaseModel)
     ):
-        yield from annotation_type.schema().items()
+        return annotation_type.schema()
+    return {}
 
 
 # span attributes
