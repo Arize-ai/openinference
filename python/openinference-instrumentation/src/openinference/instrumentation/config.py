@@ -1213,8 +1213,10 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
     is_literal_type = annotation_type_origin is Literal
     if is_literal_type:
         enum_values = list(annotation_type_args)
-        enum_value_types = set(type(value) for value in enum_values)
-        jsonschema_types = [_get_jsonschema_type(value_type) for value_type in enum_value_types]
+        unique_enum_value_types = dict.fromkeys(type(value) for value in enum_values)
+        jsonschema_types = [
+            _get_jsonschema_type(value_type) for value_type in unique_enum_value_types
+        ]
         result = {}
         if len(jsonschema_types) == 1:
             result.update(jsonschema_types[0])
