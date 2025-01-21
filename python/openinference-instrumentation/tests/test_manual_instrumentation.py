@@ -1315,10 +1315,10 @@ def test_infer_parameters() -> None:
         tuple_of_union_string_int_param: Tuple[Union[str, int], ...],
         tuple_without_item_type_param: Tuple,  # type: ignore[type-arg]
         dict_string_param: Dict[str, str],
-        # dict_union_string_int_param: Dict[str, Union[str, int]],
+        dict_union_string_int_param: Dict[str, Union[str, int]],
         dict_without_type_param: Dict,  # type: ignore[type-arg]
         mapping_string_param: Mapping[str, str],
-        # mapping_union_string_int_param: Mapping[str, Union[str, int]],
+        mapping_union_string_int_param: Mapping[str, Union[str, int]],
         mapping_without_type_param: Mapping,  # type: ignore[type-arg]
         annotated_string_param: Annotated[str, "This is a description"],
         annotated_param_with_type_alias: AnnotatedWithTypeAlias,
@@ -1468,21 +1468,19 @@ def test_infer_parameters() -> None:
                     "type": "string",
                 },
             },
-            #     "dict_union_string_int_param": {
-            #         "type": "object",
-            #         "additionalProperties": {
-            #             "type": {
-            #                 "anyOf": [
-            #                     {
-            #                         "type": "string",
-            #                     },
-            #                     {
-            #                         "type": "integer",
-            #                     },
-            #                 ]
-            #             }
-            #         },
-            #     },
+            "dict_union_string_int_param": {
+                "type": "object",
+                "additionalProperties": {
+                    "anyOf": [
+                        {
+                            "type": "string",
+                        },
+                        {
+                            "type": "integer",
+                        },
+                    ]
+                },
+            },
             "dict_without_type_param": {
                 "type": "object",
             },
@@ -1492,21 +1490,19 @@ def test_infer_parameters() -> None:
                     "type": "string",
                 },
             },
-            #     "mapping_union_string_int_param": {
-            #         "type": "object",
-            #         "additionalProperties": {
-            #             "type": {
-            #                 "anyOf": [
-            #                     {
-            #                         "type": "string",
-            #                     },
-            #                     {
-            #                         "type": "integer",
-            #                     },
-            #                 ]
-            #             }
-            #         },
-            #     },
+            "mapping_union_string_int_param": {
+                "type": "object",
+                "additionalProperties": {
+                    "anyOf": [
+                        {
+                            "type": "string",
+                        },
+                        {
+                            "type": "integer",
+                        },
+                    ]
+                },
+            },
             "mapping_without_type_param": {
                 "type": "object",
             },
@@ -1581,10 +1577,10 @@ def test_infer_parameters() -> None:
             "tuple_of_union_string_int_param",
             "tuple_without_item_type_param",
             "dict_string_param",
-            # "dict_union_string_int_param",
+            "dict_union_string_int_param",
             "dict_without_type_param",
             "mapping_string_param",
-            # "mapping_union_string_int_param",
+            "mapping_union_string_int_param",
             "mapping_without_type_param",
             "annotated_string_param",
             "annotated_param_with_type_alias",
