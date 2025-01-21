@@ -550,6 +550,8 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
+        if OPENINFERENCE_SPAN_KIND not in self._self_important_attributes:
+            raise ValueError("Cannot set input attributes on a non-OpenInference span")
         self.set_attributes(get_input_attributes(value, mime_type=mime_type))
 
     def set_output(
@@ -558,6 +560,8 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
+        if OPENINFERENCE_SPAN_KIND not in self._self_important_attributes:
+            raise ValueError("Cannot set output attributes on a non-OpenInference span")
         self.set_attributes(get_output_attributes(value, mime_type=mime_type))
 
     def set_tool(

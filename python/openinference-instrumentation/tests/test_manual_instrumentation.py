@@ -165,6 +165,42 @@ class TestStartAsCurrentSpanContextManager:
                 )
             assert str(exc_info.value) == "Cannot set tool attributes on a non-tool span"
 
+    def test_non_openinference_span(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        with tracer.start_as_current_span("non-openinference-span") as non_openinference_span:
+            non_openinference_span.set_attribute("custom.attribute", "value")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "non-openinference-span"
+        attributes = dict(span.attributes or {})
+        assert attributes.pop("custom.attribute") == "value"
+        assert not attributes
+
+    def test_cannot_set_input_on_non_openinference_span(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        with tracer.start_as_current_span("non-openinference-span") as span:
+            with pytest.raises(ValueError) as exc_info:
+                span.set_input("input")
+            assert str(exc_info.value) == "Cannot set input attributes on a non-OpenInference span"
+
+    def test_cannot_set_output_on_non_openinference_span(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        with tracer.start_as_current_span("non-openinference-span") as span:
+            with pytest.raises(ValueError) as exc_info:
+                span.set_output("output")
+            assert str(exc_info.value) == "Cannot set output attributes on a non-OpenInference span"
+
     def test_tool(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
