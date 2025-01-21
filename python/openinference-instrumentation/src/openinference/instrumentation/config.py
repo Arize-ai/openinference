@@ -1008,20 +1008,24 @@ def _tool_context(
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
 ) -> Iterator[_ToolContext]:
-    span_name = name or _infer_span_name(instance=instance, callable=wrapped)
+    tool_name = name or _infer_span_name(instance=instance, callable=wrapped)
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
     input_attributes = get_input_attributes(arguments)
     tool_description = description or _infer_tool_description(wrapped)
-    tool_parameters = parameters or _infer_parameters(wrapped)
+    tool_parameters = parameters or _infer_tool_parameters(
+        callable=wrapped,
+        tool_name=tool_name,
+        tool_description=tool_description,
+    )
     tool_attributes = get_tool_attributes(
-        name=span_name,
+        name=tool_name,
         description=tool_description,
         parameters=tool_parameters,
     )
     with tracer.start_as_current_span(
-        span_name,
+        tool_name,
         openinference_span_kind=OpenInferenceSpanKindValues.TOOL,
         attributes={
             **input_attributes,
@@ -1062,8 +1066,15 @@ def _infer_tool_description(callable: Callable[..., Any]) -> Optional[str]:
     return None
 
 
-def _infer_parameters(callable: Callable[..., Any]) -> Dict[str, Any]:
-    json_schema: Dict[str, Any] = {"type": "object"}
+def _infer_tool_parameters(
+    *,
+    callable: Callable[..., Any],
+    tool_name: str,
+    tool_description: Optional[str],
+) -> Dict[str, Any]:
+    json_schema: Dict[str, Any] = {"type": "object", "title": tool_name}
+    if tool_description:
+        json_schema["description"] = tool_description
     properties = {}
     required_properties = []
     signature = inspect.signature(callable)
