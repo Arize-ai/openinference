@@ -10,7 +10,7 @@ from datetime import datetime
 from json import JSONEncoder
 from secrets import randbits
 from types import ModuleType, TracebackType
-from typing import (
+from typing import (  #  type: ignore[attr-defined]
     TYPE_CHECKING,
     Any,
     Awaitable,
@@ -641,8 +641,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             end_on_exit=end_on_exit,
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,
-        ) as span:
-            yield span
+        ) as current_span:
+            yield cast(OpenInferenceSpan, current_span)
 
     def start_span(
         self,
