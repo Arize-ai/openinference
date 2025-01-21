@@ -1127,7 +1127,7 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
         if len(jsonschema_types) == 1:
             result.update(jsonschema_types[0])
         elif len(jsonschema_types) > 1:
-            result["type"] = {"anyOf": jsonschema_types}
+            result["anyOf"] = jsonschema_types
         result["enum"] = enum_values
         return result
     is_list_type = (

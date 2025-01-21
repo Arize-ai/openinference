@@ -1304,7 +1304,7 @@ def test_infer_parameters() -> None:
         optional_int_param: Optional[int],
         union_string_int_param: Union[str, int],
         literal_string_param: Literal["hello", "world"],
-        # literal_string_int_param: Literal[1, "hello"],
+        literal_string_int_param: Literal[1, "hello"],
         list_string_param: List[str],
         list_of_union_string_int_param: List[Union[str, int]],
         list_without_item_type_param: List,  # type: ignore[type-arg]
@@ -1380,22 +1380,20 @@ def test_infer_parameters() -> None:
                     "world",
                 ],
             },
-            #     "literal_string_int_param": {
-            #         "type": {
-            #             "anyOf": [
-            #                 {
-            #                     "type": "integer",
-            #                 },
-            #                 {
-            #                     "type": "string",
-            #                 },
-            #             ]
-            #         },
-            #         "enum": [
-            #             1,
-            #             "hello",
-            #         ],
-            #     },
+            "literal_string_int_param": {
+                "anyOf": [
+                    {
+                        "type": "integer",
+                    },
+                    {
+                        "type": "string",
+                    },
+                ],
+                "enum": [
+                    1,
+                    "hello",
+                ],
+            },
             "list_string_param": {
                 "type": "array",
                 "items": {
@@ -1566,7 +1564,7 @@ def test_infer_parameters() -> None:
             "optional_int_param",
             "union_string_int_param",
             "literal_string_param",
-            # "literal_string_int_param",
+            "literal_string_int_param",
             "list_string_param",
             "list_of_union_string_int_param",
             "list_without_item_type_param",
