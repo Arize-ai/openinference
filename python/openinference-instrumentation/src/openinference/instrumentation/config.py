@@ -999,6 +999,12 @@ def _get_span_wrapper_cls(kind: OpenInferenceSpanKindValues) -> Type[OpenInferen
 
 
 def _is_dataclass_instance(obj: Any) -> TypeGuard["DataclassInstance"]:
+    """
+    dataclasses.is_dataclass return true for both dataclass types and instances.
+    This function returns true only for instances.
+
+    See https://github.com/python/cpython/blob/05d12eecbde1ace39826320cadf8e673d709b229/Lib/dataclasses.py#L1391
+    """
     cls = type(obj)
     return hasattr(cls, "__dataclass_fields__")
 
