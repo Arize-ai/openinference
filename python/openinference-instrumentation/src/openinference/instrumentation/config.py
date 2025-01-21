@@ -1117,11 +1117,7 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
         jsonschema_types = []
         for type_ in annotation_type_args:
             jsonschema_types.append(_get_jsonschema_type(type_))
-        return {
-            "type": {
-                "anyOf": jsonschema_types,
-            }
-        }
+        return {"anyOf": jsonschema_types}
     is_literal_type = annotation_type_origin is Literal
     if is_literal_type:
         enum_values = list(annotation_type_args)
