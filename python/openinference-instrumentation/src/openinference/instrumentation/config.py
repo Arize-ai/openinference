@@ -23,6 +23,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    _TypedDictMeta,
     cast,
     get_args,
     get_origin,
@@ -1175,6 +1176,14 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
             # we ignore the key type
             _, value_type = annotation_type_args
             result["additionalProperties"] = _get_jsonschema_type(value_type)
+        return result
+    is_typed_dict_type = isinstance(annotation_type, _TypedDictMeta)
+    if is_typed_dict_type:
+        result = {"type": "object"}
+        properties = {}
+        for field_name, field_type in annotation_type.__annotations__.items():
+            properties[field_name] = _get_jsonschema_type(field_type)
+        result["properties"] = properties
         return result
     if (
         pydantic is not None

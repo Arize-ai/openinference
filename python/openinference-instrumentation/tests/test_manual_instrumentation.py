@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, TypedDict, Union
 
 import jsonschema
 import pydantic
@@ -1300,6 +1300,17 @@ def test_infer_tool_parameters() -> None:
         bool_param: bool
         any_param: Any
 
+    class TypedDictModel(TypedDict):
+        """
+        typed-dict-description
+        """
+
+        string_param: str
+        int_param: int
+        float_param: float
+        bool_param: bool
+        any_param: Any
+
     AnnotatedWithTypeAlias: TypeAlias = Annotated[str, "This is a description"]
 
     def example_function(  # type: ignore[no-untyped-def]
@@ -1333,6 +1344,7 @@ def test_infer_tool_parameters() -> None:
         annotated_string_param: Annotated[str, "This is a description"],
         annotated_param_with_type_alias: AnnotatedWithTypeAlias,
         pydantic_model_param: PydanticModel,
+        typed_dict_param: TypedDictModel,
         string_param_with_default: str = "default",
         untyped_param_with_default="default",
     ) -> None:
@@ -1560,6 +1572,24 @@ def test_infer_tool_parameters() -> None:
                 "title": "PydanticModel",
                 "type": "object",
             },
+            "typed_dict_param": {
+                "type": "object",
+                "properties": {
+                    "string_param": {
+                        "type": "string",
+                    },
+                    "int_param": {
+                        "type": "integer",
+                    },
+                    "float_param": {
+                        "type": "number",
+                    },
+                    "bool_param": {
+                        "type": "boolean",
+                    },
+                    "any_param": {},
+                },
+            },
             "string_param_with_default": {
                 "default": "default",
                 "type": "string",
@@ -1599,6 +1629,7 @@ def test_infer_tool_parameters() -> None:
             "annotated_string_param",
             "annotated_param_with_type_alias",
             "pydantic_model_param",
+            "typed_dict_param",
         ],
     }
     jsonschema.Draft7Validator.check_schema(
