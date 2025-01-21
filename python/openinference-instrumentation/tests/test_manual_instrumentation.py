@@ -31,8 +31,8 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "span-name",
-            openinference_span_kind="chain",
         ) as chain_span:
+            chain_span.set_openinference_span_kind("chain")
             chain_span.set_input("plain-text-input")
             chain_span.set_output("plain-text-output")
             chain_span.set_status(Status(StatusCode.OK))
@@ -58,8 +58,8 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "span-name",
-            openinference_span_kind="chain",
         ) as chain_span:
+            chain_span.set_openinference_span_kind("chain")
             chain_span.set_input(
                 {"input-key": "input-value"},
             )
@@ -99,8 +99,8 @@ class TestStartAsCurrentSpanContextManager:
 
         with tracer.start_as_current_span(
             "span-name",
-            openinference_span_kind="chain",
         ) as chain_span:
+            chain_span.set_openinference_span_kind("chain")
             chain_span.set_input(InputModel(string_input="input1", int_input=1))
             chain_span.set_output(OutputModel(string_output="output", int_output=2))
             chain_span.set_status(Status(StatusCode.OK))
@@ -128,8 +128,8 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "agent-span-name",
-            openinference_span_kind="agent",
         ) as agent_span:
+            agent_span.set_openinference_span_kind("agent")
             agent_span.set_input("input")
             agent_span.set_output("output")
             agent_span.set_status(Status(StatusCode.OK))
@@ -155,8 +155,8 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "tool-span-name",
-            openinference_span_kind="tool",
         ) as tool_span:
+            tool_span.set_openinference_span_kind("tool")
             tool_span.set_input("input")
             tool_span.set_output("output")
             tool_span.set_tool(
@@ -193,8 +193,8 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "tool-span-name",
-            openinference_span_kind="tool",
         ) as tool_span:
+            tool_span.set_openinference_span_kind("tool")
             tool_span.set_input("input")
             tool_span.set_output("output")
             tool_span.set_tool(
@@ -228,8 +228,8 @@ class TestStartAsCurrentSpanContextManager:
         with pytest.raises(ValueError, match=error_message):
             with tracer.start_as_current_span(
                 "span-name",
-                openinference_span_kind="chain",
-            ):
+            ) as chain_span:
+                chain_span.set_openinference_span_kind("chain")
                 raise ValueError(error_message)
 
         spans = in_memory_span_exporter.get_finished_spans()
@@ -263,8 +263,8 @@ class TestStartAsCurrentSpanContextManager:
             with suppress_tracing():
                 with tracer.start_as_current_span(
                     "span-name",
-                    openinference_span_kind="chain",
-                ):
+                ) as span:
+                    span.set_openinference_span_kind("chain")
                     raise ValueError("Something went wrong")
 
         spans = in_memory_span_exporter.get_finished_spans()
@@ -278,8 +278,8 @@ class TestStartAsCurrentSpanContextManager:
         with using_session("123"):
             with tracer.start_as_current_span(
                 "chain-span-with-session",
-                openinference_span_kind="chain",
             ) as chain_span:
+                chain_span.set_openinference_span_kind("chain")
                 chain_span.set_input("input")
                 chain_span.set_output("output")
                 chain_span.set_status(Status(StatusCode.OK))

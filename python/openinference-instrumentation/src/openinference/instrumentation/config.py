@@ -544,6 +544,9 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
             span.set_attribute(k, v)
         span.end(end_time)
 
+    def set_openinference_span_kind(self, /, kind: OpenInferenceSpanKind) -> None:
+        self.set_attributes(get_span_kind_attributes(kind))
+
     def set_input(
         self,
         value: Any,
@@ -557,24 +560,6 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
         self.set_attributes(get_output_attributes(value=value, mime_type=mime_type))
-
-
-class AgentSpan(OpenInferenceSpan):
-    def __init__(self, wrapped: Span, config: TraceConfig) -> None:
-        super().__init__(wrapped, config)
-        self.__wrapped__.set_attributes(get_span_kind_attributes(OpenInferenceSpanKindValues.AGENT))
-
-
-class ChainSpan(OpenInferenceSpan):
-    def __init__(self, wrapped: Span, config: TraceConfig) -> None:
-        super().__init__(wrapped, config)
-        self.__wrapped__.set_attributes(get_span_kind_attributes(OpenInferenceSpanKindValues.CHAIN))
-
-
-class ToolSpan(OpenInferenceSpan):
-    def __init__(self, wrapped: Span, config: TraceConfig) -> None:
-        super().__init__(wrapped, config)
-        self.__wrapped__.set_attributes(get_span_kind_attributes(OpenInferenceSpanKindValues.TOOL))
 
     def set_tool(
         self,
@@ -619,57 +604,6 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
     def id_generator(self) -> IdGenerator:
         return self._self_id_generator
 
-    # @contextmanager
-    # @overload
-    # def start_as_current_span(
-    #     self,
-    #     name: str,
-    #     context: Optional[Context] = None,
-    #     kind: SpanKind = SpanKind.INTERNAL,
-    #     attributes: Attributes = None,
-    #     links: Optional["Sequence[Link]"] = (),
-    #     start_time: Optional[int] = None,
-    #     record_exception: bool = True,
-    #     set_status_on_exception: bool = True,
-    #     end_on_exit: bool = True,
-    #     *,
-    #     openinference_span_kind: Literal["chain"],
-    # ) -> Iterator[ChainSpan]: ...
-
-    # @contextmanager
-    # @overload
-    # def start_as_current_span(
-    #     self,
-    #     name: str,
-    #     context: Optional[Context] = None,
-    #     kind: SpanKind = SpanKind.INTERNAL,
-    #     attributes: Attributes = None,
-    #     links: Optional["Sequence[Link]"] = (),
-    #     start_time: Optional[int] = None,
-    #     record_exception: bool = True,
-    #     set_status_on_exception: bool = True,
-    #     end_on_exit: bool = True,
-    #     *,
-    #     openinference_span_kind: Literal["tool"],
-    # ) -> Iterator[ToolSpan]: ...
-
-    # @contextmanager
-    # @overload
-    # def start_as_current_span(
-    #     self,
-    #     name: str,
-    #     context: Optional[Context] = None,
-    #     kind: SpanKind = SpanKind.INTERNAL,
-    #     attributes: Attributes = None,
-    #     links: Optional["Sequence[Link]"] = (),
-    #     start_time: Optional[int] = None,
-    #     record_exception: bool = True,
-    #     set_status_on_exception: bool = True,
-    #     end_on_exit: bool = True,
-    #     *,
-    #     openinference_span_kind: Optional[OpenInferenceSpanKind] = None,
-    # ) -> Iterator[OpenInferenceSpan]: ...
-
     @contextmanager
     def start_as_current_span(
         self,
@@ -682,12 +616,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         record_exception: bool = True,
         set_status_on_exception: bool = True,
         end_on_exit: bool = True,
-        *,
-        openinference_span_kind: Optional[OpenInferenceSpanKind] = None,
     ) -> Iterator[OpenInferenceSpan]:
         span = self.start_span(
             name=name,
-            openinference_span_kind=openinference_span_kind,
             context=context,
             kind=kind,
             attributes=attributes,
@@ -714,15 +645,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         start_time: Optional[int] = None,
         record_exception: bool = True,
         set_status_on_exception: bool = True,
-        *,
-        openinference_span_kind: Optional[OpenInferenceSpanKind] = None,
     ) -> OpenInferenceSpan:
-        span_wrapper_cls = OpenInferenceSpan
-        if openinference_span_kind is not None:
-            normalized_span_kind = _normalize_openinference_span_kind(openinference_span_kind)
-            span_wrapper_cls = _get_span_wrapper_cls(normalized_span_kind)
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-            return span_wrapper_cls(INVALID_SPAN, self._self_config)
+            return OpenInferenceSpan(INVALID_SPAN, self._self_config)
         tracer = cast(Tracer, self.__wrapped__)
         span = tracer.__class__.start_span(
             self,
@@ -735,7 +660,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,
         )
-        span = span_wrapper_cls(span, config=self._self_config)
+        span = OpenInferenceSpan(span, config=self._self_config)
         if attributes:
             span.set_attributes(dict(attributes))
         span.set_attributes(dict(get_attributes_from_context()))
@@ -988,16 +913,6 @@ def _normalize_openinference_span_kind(kind: OpenInferenceSpanKind) -> OpenInfer
         raise ValueError(f"Invalid OpenInference span kind: {kind}")
 
 
-def _get_span_wrapper_cls(kind: OpenInferenceSpanKindValues) -> Type[OpenInferenceSpan]:
-    if kind is OpenInferenceSpanKindValues.AGENT:
-        return AgentSpan
-    if kind is OpenInferenceSpanKindValues.CHAIN:
-        return ChainSpan
-    if kind is OpenInferenceSpanKindValues.TOOL:
-        return ToolSpan
-    raise NotImplementedError(f"Span kind {kind.value} is not yet supported")
-
-
 def _is_dataclass_instance(obj: Any) -> TypeGuard["DataclassInstance"]:
     """
     dataclasses.is_dataclass return true for both dataclass types and instances.
@@ -1045,9 +960,9 @@ def _chain_context(
 
     with tracer.start_as_current_span(
         span_name,
-        openinference_span_kind=kind,
         attributes=input_attributes,
     ) as span:
+        span.set_openinference_span_kind(kind)
         context = _ChainContext(span=span)
         yield context
         span.set_status(Status(StatusCode.OK))
@@ -1091,12 +1006,12 @@ def _tool_context(
     )
     with tracer.start_as_current_span(
         span_name,
-        openinference_span_kind=OpenInferenceSpanKindValues.TOOL,
         attributes={
             **input_attributes,
             **tool_attributes,
         },
     ) as span:
+        span.set_openinference_span_kind(OpenInferenceSpanKindValues.TOOL)
         context = _ToolContext(span=span)
         yield context
         span.set_status(Status(StatusCode.OK))
