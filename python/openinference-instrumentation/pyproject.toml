@@ -35,6 +35,8 @@ dependencies = [
 test = [
   "pytest-asyncio",
   "pydantic>=2.0.0",
+  "jsonschema",
+  "types-jsonschema",
 ]
 
 [project.urls]
