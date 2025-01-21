@@ -568,6 +568,8 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         description: Optional[str] = None,
         parameters: Union[str, Dict[str, Any]],
     ) -> None:
+        if self._self_important_attributes.get(OPENINFERENCE_SPAN_KIND) != TOOL:
+            raise ValueError("Cannot set tool attributes on a non-tool span")
         self.set_attributes(
             get_tool_attributes(
                 name=name,
@@ -1157,6 +1159,9 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
         return annotation_type.schema()  # type: ignore[no-any-return,attr-defined]
     return {}
 
+
+# span kinds
+TOOL = OpenInferenceSpanKindValues.TOOL.value
 
 # span attributes
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE

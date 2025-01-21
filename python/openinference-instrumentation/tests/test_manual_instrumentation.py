@@ -148,6 +148,23 @@ class TestStartAsCurrentSpanContextManager:
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
 
+    def test_set_tool_attributes_on_non_tool_span_raises_exception(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        with tracer.start_as_current_span(
+            "chain-span-name",
+        ) as chain_span:
+            chain_span.set_openinference_span_kind("chain")
+            with pytest.raises(ValueError) as exc_info:
+                chain_span.set_tool(
+                    name="tool-name",
+                    description="tool-description",
+                    parameters={"type": "string"},
+                )
+            assert str(exc_info.value) == "Cannot set tool attributes on a non-tool span"
+
     def test_tool(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
