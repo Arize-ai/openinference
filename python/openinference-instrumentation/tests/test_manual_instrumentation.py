@@ -6,13 +6,12 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple,
 import pydantic
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import Status, StatusCode, get_current_span
 from pydantic import BaseModel
 from typing_extensions import Annotated, TypeAlias
 
 from openinference.instrumentation import (
     OITracer,
-    get_current_span,
     suppress_tracing,
     using_session,
 )
@@ -743,8 +742,8 @@ class TestTracerChainDecorator:
         @tracer.chain
         def chain_with_manual_span_updates(input: str) -> str:
             span = get_current_span()
-            span.set_input("overridden-input")
-            span.set_output("overridden-output")
+            span.set_input("overridden-input")  # type: ignore[attr-defined]
+            span.set_output("overridden-output")  # type: ignore[attr-defined]
             return "output"
 
         chain_with_manual_span_updates("input")
@@ -1123,9 +1122,9 @@ class TestTracerToolDecorator:
         @tracer.tool
         def tool_with_manual_span_updates(input1: str, input2: int) -> str:
             span = get_current_span()
-            span.set_input("inside-input")
-            span.set_output("inside-output")
-            span.set_tool(
+            span.set_input("inside-input")  # type: ignore[attr-defined]
+            span.set_output("inside-output")  # type: ignore[attr-defined]
+            span.set_tool(  # type: ignore[attr-defined]
                 name="inside-tool-name",
                 description="inside-tool-description",
                 parameters=parameters,

@@ -51,7 +51,6 @@ from opentelemetry.trace import (
     Tracer,
     use_span,
 )
-from opentelemetry.trace import get_current_span as otel_get_current_span
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import ParamSpec, TypeAlias, TypeGuard, _AnnotatedAlias, overload
 
@@ -591,42 +590,6 @@ class ToolSpan(OpenInferenceSpan):
                 parameters=parameters,
             )
         )
-
-
-@overload
-def get_current_span(
-    context: Optional[Context] = None,
-    *,
-    kind: Literal["chain"] = "chain",
-) -> ChainSpan: ...
-
-
-@overload
-def get_current_span(
-    context: Optional[Context] = None,
-    *,
-    kind: Literal["tool"] = "tool",
-) -> ToolSpan: ...
-
-
-@overload
-def get_current_span(
-    context: Optional[Context] = None,
-    *,
-    kind: None = None,
-) -> OpenInferenceSpan: ...
-
-
-def get_current_span(
-    context: Optional[Context] = None,
-    *,
-    kind: Optional[OpenInferenceSpanKind] = None,
-) -> OpenInferenceSpan:
-    span_wrapper_cls = OpenInferenceSpan
-    if kind is not None:
-        normalized_span_kind = _normalize_openinference_span_kind(kind)
-        span_wrapper_cls = _get_span_wrapper_cls(normalized_span_kind)
-    return span_wrapper_cls(otel_get_current_span(context), TraceConfig())
 
 
 class _IdGenerator(IdGenerator):
