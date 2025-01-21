@@ -550,6 +550,7 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
     def set_input(
         self,
         value: Any,
+        *,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
         self.set_attributes(get_input_attributes(value, mime_type=mime_type))
@@ -557,6 +558,7 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
     def set_output(
         self,
         value: Any,
+        *,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
         self.set_attributes(get_output_attributes(value=value, mime_type=mime_type))
