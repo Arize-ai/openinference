@@ -911,6 +911,8 @@ def _normalize_mime_type(mime_type: OpenInferenceMimeType) -> OpenInferenceMimeT
 def _normalize_openinference_span_kind(kind: OpenInferenceSpanKind) -> OpenInferenceSpanKindValues:
     if isinstance(kind, OpenInferenceSpanKindValues):
         return kind
+    if not kind.islower():
+        raise ValueError("kind must be lowercase if provided as a string")
     try:
         return OpenInferenceSpanKindValues(kind.upper())
     except ValueError:
