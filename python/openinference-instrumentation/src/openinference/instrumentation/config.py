@@ -561,7 +561,7 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
-        self.set_attributes(get_output_attributes(value=value, mime_type=mime_type))
+        self.set_attributes(get_output_attributes(value, mime_type=mime_type))
 
     def set_tool(
         self,
@@ -1003,7 +1003,7 @@ def _tool_context(
     bound_args.apply_defaults()
     arguments = bound_args.arguments
     input_attributes = get_input_attributes(arguments)
-    tool_description = description or _infer_tool_description_from_docstring(wrapped.__doc__)
+    tool_description = description or _infer_tool_description(wrapped)
     tool_parameters = parameters or _infer_parameters(wrapped)
     tool_attributes = get_tool_attributes(
         name=span_name,
@@ -1042,7 +1042,11 @@ def _infer_span_name(*, instance: Any, callable: Callable[..., Any]) -> str:
     return function_name
 
 
-def _infer_tool_description_from_docstring(docstring: Optional[str]) -> Optional[str]:
+def _infer_tool_description(callable: Callable[..., Any]) -> Optional[str]:
+    """
+    Infers a tool description from the callable's docstring if one exists.
+    """
+    docstring = callable.__doc__
     if docstring is not None and (stripped_docstring := docstring.strip()):
         return stripped_docstring
     return None
