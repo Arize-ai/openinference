@@ -398,14 +398,14 @@ _IMPORTANT_ATTRIBUTES = [
 ]
 
 
-def get_span_kind(kind: OpenInferenceSpanKind, /) -> Dict[str, AttributeValue]:
+def get_span_kind_attributes(kind: OpenInferenceSpanKind, /) -> Dict[str, AttributeValue]:
     normalized_kind = _normalize_openinference_span_kind(kind)
     return {
         OPENINFERENCE_SPAN_KIND: normalized_kind.value,
     }
 
 
-def get_input_value_and_mime_type(
+def get_input_attributes(
     value: Any,
     *,
     mime_type: Optional[OpenInferenceMimeType] = None,
@@ -428,7 +428,7 @@ def get_input_value_and_mime_type(
     return attributes
 
 
-def get_output_value_and_mime_type(
+def get_output_attributes(
     value: Any,
     *,
     mime_type: Optional[OpenInferenceMimeType] = None,
@@ -549,32 +549,32 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         value: Any,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
-        self.set_attributes(get_input_value_and_mime_type(value, mime_type=mime_type))
+        self.set_attributes(get_input_attributes(value, mime_type=mime_type))
 
     def set_output(
         self,
         value: Any,
         mime_type: Optional[OpenInferenceMimeType] = None,
     ) -> None:
-        self.set_attributes(get_output_value_and_mime_type(value, mime_type=mime_type))
+        self.set_attributes(get_output_attributes(value=value, mime_type=mime_type))
 
 
 class AgentSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
-        self.__wrapped__.set_attributes(get_span_kind(OpenInferenceSpanKindValues.AGENT))
+        self.__wrapped__.set_attributes(get_span_kind_attributes(OpenInferenceSpanKindValues.AGENT))
 
 
 class ChainSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
-        self.__wrapped__.set_attributes(get_span_kind(OpenInferenceSpanKindValues.CHAIN))
+        self.__wrapped__.set_attributes(get_span_kind_attributes(OpenInferenceSpanKindValues.CHAIN))
 
 
 class ToolSpan(OpenInferenceSpan):
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped, config)
-        self.__wrapped__.set_attributes(get_span_kind(OpenInferenceSpanKindValues.TOOL))
+        self.__wrapped__.set_attributes(get_span_kind_attributes(OpenInferenceSpanKindValues.TOOL))
 
     def set_tool(
         self,
@@ -1033,9 +1033,9 @@ def _chain_context(
 
     if len(arguments) == 1:
         argument = next(iter(arguments.values()))
-        input_attributes = get_input_value_and_mime_type(argument)
+        input_attributes = get_input_attributes(argument)
     else:
-        input_attributes = get_input_value_and_mime_type(arguments)
+        input_attributes = get_input_attributes(arguments)
 
     with tracer.start_as_current_span(
         span_name,
@@ -1075,7 +1075,7 @@ def _tool_context(
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
-    input_attributes = get_input_value_and_mime_type(arguments)
+    input_attributes = get_input_attributes(arguments)
     tool_description = description or _infer_tool_description_from_docstring(wrapped.__doc__)
     tool_parameters = parameters or _infer_parameters(wrapped)
     tool_attributes = get_tool_attributes(
