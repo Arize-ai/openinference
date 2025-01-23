@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.20...python-openinference-instrumentation-v0.1.21) (2025-01-23)
+
+
+### Features
+
+* openinference tracer ([#1147](https://github.com/Arize-ai/openinference/issues/1147)) ([22d80ca](https://github.com/Arize-ai/openinference/commit/22d80ca066a8d29e9b9ef08ce581b4a7ad4eb08b))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.19...python-openinference-instrumentation-v0.1.20) (2024-12-13)
 
 
