@@ -40,6 +40,7 @@ test = [
   "smolagents>=1.2.2",
   "opentelemetry-sdk",
   "pytest-recording",
+  "openai",
 ]
 
 [project.urls]
