@@ -15,6 +15,6 @@
     "python/instrumentation/openinference-instrumentation-groq": "0.1.5",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.2",
     "python/instrumentation/openinference-instrumentation-anthropic": "0.1.9",
-    "python/instrumentation/openinference-instrumentation-smolagents": "0.1.0",
+    "python/instrumentation/openinference-instrumentation-smolagents": "0.1.1",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.2"
 }
