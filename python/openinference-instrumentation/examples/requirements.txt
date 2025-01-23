@@ -1,0 +1,4 @@
+jupyter
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+openinference-semantic-conventions

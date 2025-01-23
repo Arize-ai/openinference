@@ -1,4 +1,14 @@
-from .config import REDACTED_VALUE, OITracer, TraceConfig, suppress_tracing
+from .config import (
+    REDACTED_VALUE,
+    OITracer,
+    TraceConfig,
+    TracerProvider,
+    get_input_attributes,
+    get_output_attributes,
+    get_span_kind_attributes,
+    get_tool_attributes,
+    suppress_tracing,
+)
 from .context_attributes import (
     get_attributes_from_context,
     using_attributes,
@@ -28,4 +38,9 @@ __all__ = [
     "TraceConfig",
     "OITracer",
     "REDACTED_VALUE",
+    "TracerProvider",
+    "get_input_attributes",
+    "get_output_attributes",
+    "get_span_kind_attributes",
+    "get_tool_attributes",
 ]
