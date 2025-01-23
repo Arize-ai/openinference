@@ -228,8 +228,17 @@ def _llm_invocation_parameters(
 
 
 def _llm_tools(tools_to_call_from: list[Any]) -> Iterator[Tuple[str, Any]]:
-    from smolagents import Tool
-    from smolagents.models import get_json_schema  # type:ignore[import-untyped]
+    from smolagents import Tool, __version__
+
+    major_version_string, minor_version_string, *_ = __version__.split(".")
+    major_version = int(major_version_string)
+    minor_version = int(minor_version_string)
+    if (major_version, minor_version) >= (1, 5):
+        from smolagents._function_type_hints_utils import (  # type: ignore[import-untyped]
+            get_json_schema,
+        )
+    else:
+        from smolagents.models import get_json_schema  # type: ignore[import-untyped]
 
     if not isinstance(tools_to_call_from, list):
         return
