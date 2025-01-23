@@ -418,7 +418,7 @@ def get_input_attributes(
         value = str(value)
     elif normalized_mime_type is OpenInferenceMimeTypeValues.JSON:
         if not isinstance(value, str):
-            value = safe_json_dumps_io_value(value)
+            value = _json_serialize(value)
     else:
         value, normalized_mime_type = _infer_serialized_io_value_and_mime_type(value)
     attributes = {
@@ -441,7 +441,7 @@ def get_output_attributes(
         value = str(value)
     elif normalized_mime_type is OpenInferenceMimeTypeValues.JSON:
         if not isinstance(value, str):
-            value = safe_json_dumps_io_value(value)
+            value = _json_serialize(value)
     else:
         value, normalized_mime_type = _infer_serialized_io_value_and_mime_type(value)
     attributes = {
@@ -463,13 +463,13 @@ def _infer_serialized_io_value_and_mime_type(
         for element_type in (str, bool, int, float):
             if all(isinstance(element, element_type) for element in value):
                 return value, None
-        return safe_json_dumps_io_value(value), OpenInferenceMimeTypeValues.JSON
+        return _json_serialize(value), OpenInferenceMimeTypeValues.JSON
     if isinstance(value, Mapping):
-        return safe_json_dumps_io_value(value), OpenInferenceMimeTypeValues.JSON
+        return _json_serialize(value), OpenInferenceMimeTypeValues.JSON
     if _is_dataclass_instance(value):
-        return safe_json_dumps_io_value(value), OpenInferenceMimeTypeValues.JSON
+        return _json_serialize(value), OpenInferenceMimeTypeValues.JSON
     if pydantic is not None and isinstance(value, pydantic.BaseModel):
-        return safe_json_dumps_io_value(value), OpenInferenceMimeTypeValues.JSON
+        return _json_serialize(value), OpenInferenceMimeTypeValues.JSON
     return str(value), OpenInferenceMimeTypeValues.TEXT
 
 
@@ -487,7 +487,11 @@ class IOValueJSONEncoder(JSONEncoder):
             return str(obj)
 
 
-def safe_json_dumps_io_value(obj: Any, **kwargs: Any) -> str:
+def _json_serialize(obj: Any, **kwargs: Any) -> str:
+    """
+    Safely JSON dumps input and handles special types such as dataclasses and
+    pydantic models.
+    """
     return json.dumps(
         obj,
         cls=IOValueJSONEncoder,
@@ -504,7 +508,7 @@ def get_tool_attributes(
     if isinstance(parameters, str):
         parameters_json = parameters
     elif isinstance(parameters, Mapping):
-        parameters_json = safe_json_dumps_io_value(parameters)
+        parameters_json = _json_serialize(parameters)
     else:
         raise ValueError(f"Invalid parameters type: {type(parameters)}")
     attributes: Dict[str, AttributeValue] = {
