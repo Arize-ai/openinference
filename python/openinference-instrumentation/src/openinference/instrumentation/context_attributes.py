@@ -1,5 +1,5 @@
 from contextlib import ContextDecorator
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
 
 from opentelemetry.context import (
     attach,
@@ -78,10 +78,20 @@ class _UsingAttributesContextManager(ContextDecorator):
         self.attach_context()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[Any],
+    ) -> None:
         detach(self._token)
 
-    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[Any],
+    ) -> None:
         detach(self._token)
 
 
@@ -289,4 +299,4 @@ class using_attributes(_UsingAttributesContextManager):
 def get_attributes_from_context() -> Iterator[Tuple[str, AttributeValue]]:
     for ctx_attr in CONTEXT_ATTRIBUTES:
         if (val := get_value(ctx_attr)) is not None:
-            yield ctx_attr, val
+            yield ctx_attr, cast(AttributeValue, val)

@@ -33,6 +33,10 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
+  "pytest-asyncio",
+  "pydantic>=2.0.0",
+  "jsonschema",
+  "types-jsonschema",
 ]
 
 [project.urls]
@@ -66,7 +70,21 @@ testpaths = [
 strict = true
 explicit_package_bases = true
 exclude = [
-  "src/openinference/instrumentation/*/*",
+  "src/openinference/instrumentation/anthropic/*",
+  "src/openinference/instrumentation/bedrock/*",
+  "src/openinference/instrumentation/crewai/*",
+  "src/openinference/instrumentation/dspy/*",
+  "src/openinference/instrumentation/groq/*",
+  "src/openinference/instrumentation/guardrails/*",
+  "src/openinference/instrumentation/haystack/*",
+  "src/openinference/instrumentation/instructor/*",
+  "src/openinference/instrumentation/langchain/*",
+  "src/openinference/instrumentation/litellm/*",
+  "src/openinference/instrumentation/llama_index/*",
+  "src/openinference/instrumentation/mistralai/*",
+  "src/openinference/instrumentation/openai/*",
+  "src/openinference/instrumentation/smolagents/*",
+  "src/openinference/instrumentation/vertexai/*",
 ]
 
 [tool.ruff]
