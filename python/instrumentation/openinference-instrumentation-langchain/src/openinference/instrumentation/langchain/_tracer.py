@@ -577,7 +577,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
         token_usage := (
             _parse_token_usage_for_non_streaming_outputs(outputs)
             or _parse_token_usage_for_streaming_outputs(outputs)
-            or _parse_token_usage_for_gemini(outputs)
+            or _parse_token_usage_for_chat_generations(outputs)
         )
     ):
         return
@@ -587,7 +587,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             (
                 "prompt_tokens",
                 "input_tokens",  # Anthropic-specific key
-                "prompt_token_count",  # Gemini-specific key
+                "prompt_token_count",  # Gemini-specific key - https://ai.google.dev/gemini-api/docs/tokens?lang=python
             ),
         ),
         (
@@ -604,11 +604,14 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             yield attribute_name, token_count
 
 
-def _parse_token_usage_for_gemini(
+def _parse_token_usage_for_chat_generations(
     outputs: Optional[Mapping[str, Any]],
 ) -> Any:
     """
-    Parses output to get token usage information for Google Gemini LLMs.
+    Parses output to get token usage information for Google VertexAI LLMs.
+    For chat generations, Langchain groups the raw response, which contains token info,
+    into an attribute called 'generation_info'.
+    https://github.com/langchain-ai/langchain/blob/langchain%3D%3D0.3.12/libs/core/langchain_core/outputs/generation.py#L28
     """
     if (
         outputs
@@ -619,7 +622,9 @@ def _parse_token_usage_for_gemini(
         and hasattr(generations[0], "__getitem__")
         and (generation := generations[0][0])
         and hasattr(generation, "get")
-        and (generation_info := generation.get("generation_info"))
+        and (
+            generation_info := generation.get("generation_info")
+        )  # specific for Langchain chat generations
         and hasattr(generation_info, "get")
         and (token_usage := generation_info.get("usage_metadata"))
     ):
