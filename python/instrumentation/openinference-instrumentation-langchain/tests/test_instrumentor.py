@@ -26,6 +26,7 @@ import numpy as np
 import openai
 import pytest
 import vcr  # type: ignore
+from google.auth.credentials import AnonymousCredentials
 from httpx import AsyncByteStream, Response, SyncByteStream
 from langchain.chains import LLMChain, RetrievalQA
 from langchain_community.embeddings import FakeEmbeddings
@@ -504,7 +505,7 @@ def test_gemini_token_counts_streaming(
     cassette_name: str,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    with patch("google.auth.compute_engine._metadata.is_on_gce", return_value=False) as _:
+    with patch("google.auth.default", return_value=(AnonymousCredentials(), "test-project")) as _:  # type: ignore
         with vcr.use_cassette(path=f"tests/cassettes/test_instrumentor/{cassette_name}.yaml"):
             llm = VertexAI(
                 api_transport="rest",
