@@ -20,16 +20,20 @@ from typing import (
     Optional,
     Tuple,
 )
+from unittest.mock import patch
 
 import numpy as np
 import openai
 import pytest
+import vcr  # type: ignore
+from google.auth.credentials import AnonymousCredentials
 from httpx import AsyncByteStream, Response, SyncByteStream
 from langchain.chains import LLMChain, RetrievalQA
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnableSerializable
+from langchain_google_vertexai import VertexAI
 from langchain_openai import ChatOpenAI
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
@@ -486,6 +490,43 @@ def test_anthropic_token_counts(
     assert llm_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == 5
 
 
+@pytest.mark.parametrize(
+    "streaming, cassette_name",
+    [
+        (True, "test_gemini_token_counts_streaming"),
+        (False, "test_gemini_token_counts"),
+    ],
+)
+@pytest.mark.vcr(
+    match_on=["method", "uri"],
+)
+def test_gemini_token_counts_streaming(
+    streaming: bool,
+    cassette_name: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with patch("google.auth.default", return_value=(AnonymousCredentials(), "test-project")) as _:  # type: ignore
+        # patching with AnonymousCredentials in order to avoid a check on CI where a metadata
+        # request will be made because the job is running in GCE.
+        # ignoring types until https://github.com/googleapis/google-cloud-python/issues/10540
+        with vcr.use_cassette(path=f"tests/cassettes/test_instrumentor/{cassette_name}.yaml"):
+            llm = VertexAI(
+                api_transport="rest",
+                project="test-project",
+                model_name="gemini-pro",
+                streaming=streaming,
+            )
+            llm.invoke("Tell me a funny joke, a one-liner.")
+            spans = in_memory_span_exporter.get_finished_spans()
+            assert len(spans) == 1
+            span = spans[0]
+            attributes = dict(span.attributes or {})
+            assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+            assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT, None), int)
+            assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None), int)
+            assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
+
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 @pytest.mark.parametrize("use_langchain_metadata", [False, True])
 def test_chain_metadata(
@@ -746,7 +787,6 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
 )
 def test_records_token_counts_for_streaming_openai_llm(
     in_memory_span_exporter: InMemorySpanExporter,
-    openai_api_key: str,
 ) -> None:
     llm = ChatOpenAI(streaming=True, stream_usage=True)  # type: ignore[call-arg,unused-ignore]
     llm.invoke("Tell me a funny joke, a one-liner.")
