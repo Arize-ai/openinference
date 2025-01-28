@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.29...python-openinference-instrumentation-langchain-v0.1.30) (2025-01-28)
+
+
+### Bug Fixes
+
+* Fix missing token counts when using VertexAI with Langchain Instrumentor ([#1234](https://github.com/Arize-ai/openinference/issues/1234)) ([e387573](https://github.com/Arize-ai/openinference/commit/e387573a031bdb40a78c2fe92713f132348865f7))
+
 ## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.28...python-openinference-instrumentation-langchain-v0.1.29) (2024-10-30)
 
 
