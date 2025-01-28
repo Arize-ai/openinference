@@ -128,7 +128,7 @@ def get_current_span() -> Optional[Span]:
     return LangChainInstrumentor().get_span(run_id)
 
 
-def get_ancestor_spans() -> List[Span]:
+def get_ancestor_spans() -> Optional[List[Span]]:
     """
     Retrieve the ancestor spans for the current LangChain run.
 
