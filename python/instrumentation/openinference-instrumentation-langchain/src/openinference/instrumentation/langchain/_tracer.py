@@ -577,7 +577,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
         token_usage := (
             _parse_token_usage_for_non_streaming_outputs(outputs)
             or _parse_token_usage_for_streaming_outputs(outputs)
-            or _parse_token_usage_for_chat_generations(outputs)
+            or _parse_token_usage_for_vertexai(outputs)
         )
     ):
         return
@@ -604,12 +604,12 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             yield attribute_name, token_count
 
 
-def _parse_token_usage_for_chat_generations(
+def _parse_token_usage_for_vertexai(
     outputs: Optional[Mapping[str, Any]],
 ) -> Any:
     """
     Parses output to get token usage information for Google VertexAI LLMs.
-    For chat generations, Langchain groups the raw response, which contains token info,
+    For non-chat generations, Langchain groups the raw response, which contains token info,
     into an attribute called 'generation_info'.
     https://github.com/langchain-ai/langchain/blob/langchain%3D%3D0.3.12/libs/core/langchain_core/outputs/generation.py#L28
     """

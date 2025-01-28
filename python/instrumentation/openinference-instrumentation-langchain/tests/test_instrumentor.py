@@ -506,8 +506,8 @@ def test_gemini_token_counts_streaming(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     with patch("google.auth.default", return_value=(AnonymousCredentials(), "test-project")) as _:  # type: ignore
-        # patching with AnonymCredentials in order to avoid a check on CI where a metadata
-        # request will be made because the job is running in GCE
+        # patching with AnonymousCredentials in order to avoid a check on CI where a metadata
+        # request will be made because the job is running in GCE.
         # ignoring types until https://github.com/googleapis/google-cloud-python/issues/10540
         with vcr.use_cassette(path=f"tests/cassettes/test_instrumentor/{cassette_name}.yaml"):
             llm = VertexAI(
