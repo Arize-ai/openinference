@@ -141,7 +141,7 @@ def get_ancestor_spans() -> List[Span]:
     run_id: Optional[UUID] = None
     config = langchain_core.runnables.config.var_child_runnable_config.get()
     if not isinstance(config, dict):
-        return None
+        return []
     for v in config.values():
         if not isinstance(v, langchain_core.callbacks.BaseCallbackManager):
             continue

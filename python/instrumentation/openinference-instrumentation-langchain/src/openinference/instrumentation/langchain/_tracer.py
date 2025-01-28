@@ -577,6 +577,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
         token_usage := (
             _parse_token_usage_for_non_streaming_outputs(outputs)
             or _parse_token_usage_for_streaming_outputs(outputs)
+            or _parse_token_usage_for_vertexai(outputs)
         )
     ):
         return
@@ -586,6 +587,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             (
                 "prompt_tokens",
                 "input_tokens",  # Anthropic-specific key
+                "prompt_token_count",  # Gemini-specific key - https://ai.google.dev/gemini-api/docs/tokens?lang=python
             ),
         ),
         (
@@ -593,12 +595,41 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             (
                 "completion_tokens",
                 "output_tokens",  # Anthropic-specific key
+                "candidates_token_count",  # Gemini-specific key
             ),
         ),
-        (LLM_TOKEN_COUNT_TOTAL, ("total_tokens",)),
+        (LLM_TOKEN_COUNT_TOTAL, ("total_tokens", "total_token_count")),  # Gemini-specific key
     ]:
         if (token_count := _get_first_value(token_usage, keys)) is not None:
             yield attribute_name, token_count
+
+
+def _parse_token_usage_for_vertexai(
+    outputs: Optional[Mapping[str, Any]],
+) -> Any:
+    """
+    Parses output to get token usage information for Google VertexAI LLMs.
+    For non-chat generations, Langchain groups the raw response, which contains token info,
+    into an attribute called 'generation_info'.
+    https://github.com/langchain-ai/langchain/blob/langchain%3D%3D0.3.12/libs/core/langchain_core/outputs/generation.py#L28
+    """
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (generations := outputs.get("generations"))
+        and hasattr(generations, "__getitem__")
+        and generations[0]
+        and hasattr(generations[0], "__getitem__")
+        and (generation := generations[0][0])
+        and hasattr(generation, "get")
+        and (
+            generation_info := generation.get("generation_info")
+        )  # specific for Langchain chat generations
+        and hasattr(generation_info, "get")
+        and (token_usage := generation_info.get("usage_metadata"))
+    ):
+        return token_usage
+    return None
 
 
 def _parse_token_usage_for_non_streaming_outputs(

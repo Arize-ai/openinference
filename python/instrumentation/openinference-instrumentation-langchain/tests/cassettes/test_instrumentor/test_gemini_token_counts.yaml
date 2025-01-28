@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: "test_body"
+    headers: {}
+    method: POST
+    uri: https://oauth2.googleapis.com/token
+  response:
+    body:
+      string: "{\n  \"access_token\": \"test_token\",\n
+        \ \"expires_in\": 3599000,\n  \"scope\": \"https://www.googleapis.com/auth/cloud-platform
+        https://www.googleapis.com/auth/sqlservice.login https://www.googleapis.com/auth/userinfo.email
+        openid\",\n  \"token_type\": \"Bearer\",\n  \"id_token\": \"test_id_token\"\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: "{\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\":
+      [\n        {\n          \"text\": \"Tell me a funny joke, a one-liner.\"\n        }\n
+      \     ]\n    }\n  ],\n  \"generationConfig\": {\n    \"candidateCount\": 1\n
+      \ }\n}"
+    headers: {}
+    method: POST
+    uri: https://us-central1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1/publishers/google/models/gemini-pro:generateContent?%24alt=json%3Benum-encoding%3Dint
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"role\":
+        \"model\",\n        \"parts\": [\n          {\n            \"text\": \"Why
+        did the scarecrow win an award? \\n\\nBecause he was outstanding in his field!
+        \\n\\nWould you like to hear another one? \\n\"\n          }\n        ]\n
+        \     },\n      \"finishReason\": 1,\n      \"safetyRatings\": [\n        {\n
+        \         \"category\": 1,\n          \"probability\": 1,\n          \"probabilityScore\":
+        0.13378906,\n          \"severity\": 1,\n          \"severityScore\": 0.07470703\n
+        \       },\n        {\n          \"category\": 2,\n          \"probability\":
+        1,\n          \"probabilityScore\": 0.080566406,\n          \"severity\":
+        1,\n          \"severityScore\": 0.045410156\n        },\n        {\n          \"category\":
+        3,\n          \"probability\": 1,\n          \"probabilityScore\": 0.20019531,\n
+        \         \"severity\": 1,\n          \"severityScore\": 0.06640625\n        },\n
+        \       {\n          \"category\": 4,\n          \"probability\": 1,\n          \"probabilityScore\":
+        0.051757813,\n          \"severity\": 1,\n          \"severityScore\": 0.07470703\n
+        \       }\n      ],\n      \"avgLogprobs\": -0.19854633269771452\n    }\n
+        \ ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 11,\n    \"candidatesTokenCount\":
+        31,\n    \"totalTokenCount\": 42,\n    \"promptTokensDetails\": [\n      {\n
+        \       \"modality\": 1,\n        \"tokenCount\": 11\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": 1,\n        \"tokenCount\": 31\n      }\n
+        \   ]\n  },\n  \"modelVersion\": \"gemini-1.0-pro-002\",\n  \"createTime\":
+        \"2025-01-28T02:52:56.930875Z\",\n  \"responseId\": \"iEaYZ7voOIWVmecP167EmAQ\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
