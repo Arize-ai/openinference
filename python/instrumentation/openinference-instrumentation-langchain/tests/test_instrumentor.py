@@ -20,6 +20,7 @@ from typing import (
     Optional,
     Tuple,
 )
+from unittest.mock import patch
 
 import numpy as np
 import openai
@@ -498,27 +499,28 @@ def test_anthropic_token_counts(
 @pytest.mark.vcr(
     match_on=["method", "uri"],
 )
-def test_gemini_token_counts_streaming2(
+def test_gemini_token_counts_streaming(
     streaming: bool,
     cassette_name: str,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    with vcr.use_cassette(path=f"tests/cassettes/test_instrumentor/{cassette_name}.yaml"):
-        llm = VertexAI(
-            api_transport="rest",
-            project="test-project",
-            model_name="gemini-pro",
-            streaming=streaming,
-        )
-        llm.invoke("Tell me a funny joke, a one-liner.")
-        spans = in_memory_span_exporter.get_finished_spans()
-        assert len(spans) == 1
-        span = spans[0]
-        attributes = dict(span.attributes or {})
-        assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
-        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT, None), int)
-        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None), int)
-        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
+    with patch("google.auth.compute_engine._metadata.is_on_gce", return_value=False) as _:
+        with vcr.use_cassette(path=f"tests/cassettes/test_instrumentor/{cassette_name}.yaml"):
+            llm = VertexAI(
+                api_transport="rest",
+                project="test-project",
+                model_name="gemini-pro",
+                streaming=streaming,
+            )
+            llm.invoke("Tell me a funny joke, a one-liner.")
+            spans = in_memory_span_exporter.get_finished_spans()
+            assert len(spans) == 1
+            span = spans[0]
+            attributes = dict(span.attributes or {})
+            assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+            assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT, None), int)
+            assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None), int)
+            assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
