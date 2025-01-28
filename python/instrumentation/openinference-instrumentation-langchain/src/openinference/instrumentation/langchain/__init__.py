@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
     from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 

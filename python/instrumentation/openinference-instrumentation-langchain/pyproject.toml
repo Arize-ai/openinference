@@ -35,13 +35,14 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "langchain_core >= 0.1.0",
+  "langchain_core >= 0.2.43",
 ]
 test = [
-  "langchain_core == 0.1.8",
-  "langchain == 0.1.0",
-  "langchain_openai == 0.0.2",
-  "langchain-community == 0.0.10",
+  "langchain_core == 0.3.31",
+  "langchain == 0.3.15",
+  "langchain_openai == 0.2.14",
+  "langchain-community == 0.3.15",
+  "langchain-google-vertexai == 2.0.12",
   "opentelemetry-sdk",
   "respx",
   "pytest-recording",
@@ -51,7 +52,7 @@ test = [
   "uvicorn",
 ]
 type-check = [
-  "langchain_core == 0.1.5",
+  "langchain_core == 0.2.43",
 ]
 
 [project.urls]
