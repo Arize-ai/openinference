@@ -207,10 +207,10 @@ def _llm_output_messages(output_message: Any) -> Iterator[Tuple[str, Any]]:
                         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
                         name,
                     )
-                if isinstance(arguments := getattr(function, "arguments", None), str):
+                if isinstance(arguments := getattr(function, "arguments", None), dict):
                     yield (
                         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                        arguments,
+                        safe_json_dumps(arguments),
                     )
 
 
