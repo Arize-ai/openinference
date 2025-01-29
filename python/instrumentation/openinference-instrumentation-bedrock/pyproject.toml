@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Bedrock Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8, <3.13"
+requires-python = ">=3.9, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,11 +18,11 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
   "opentelemetry-api",
@@ -31,6 +31,8 @@ dependencies = [
   "openinference-instrumentation>=0.1.17",
   "openinference-semantic-conventions>=0.1.7",
   "wrapt",
+  "typing-extensions",
+  "dacite>=1.8.1",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +43,9 @@ test = [
   "boto3 == 1.34.116",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
+  "anthropic>=0.45.2",
+  "pydantic>=2.10.6",
+  "pytest-vcr>=1.0.2",
 ]
 
 [project.urls]
@@ -60,6 +65,7 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]
