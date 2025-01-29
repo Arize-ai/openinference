@@ -37,6 +37,7 @@ from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
 )
+from openinference.instrumentation.bedrock._wrappers import _InvokeModelWithResponseStream
 from openinference.instrumentation.bedrock.package import _instruments
 from openinference.instrumentation.bedrock.version import __version__
 from openinference.semconv.trace import (
@@ -112,6 +113,9 @@ def _client_creation_wrapper(
 
             client._unwrapped_invoke_model = client.invoke_model
             client.invoke_model = _model_invocation_wrapper(tracer)(client)
+            client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
+                client.invoke_model_with_response_stream
+            )
 
             if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
                 client._unwrapped_converse = client.converse
