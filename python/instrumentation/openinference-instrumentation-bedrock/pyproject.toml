@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Bedrock Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8, <3.13"
+requires-python = ">=3.9, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,11 +18,11 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
   "opentelemetry-api",
