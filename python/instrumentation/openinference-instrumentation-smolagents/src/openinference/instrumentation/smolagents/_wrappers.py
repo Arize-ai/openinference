@@ -164,7 +164,7 @@ class _StepWrapper:
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    def process_message(idx: int, role: str, content: str):
+    def process_message(idx: int, role: str, content: str) -> Iterator[Tuple[str, Any]]:
         yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", role
         yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENT}", content
 
