@@ -228,19 +228,8 @@ def _llm_invocation_parameters(
 
 
 def _llm_tools(tools_to_call_from: list[Any]) -> Iterator[Tuple[str, Any]]:
-    from smolagents import Tool, __version__
-
-    major_version_string, minor_version_string, *_ = __version__.split(".")
-    major_version = int(major_version_string)
-    minor_version = int(minor_version_string)
-    if (major_version, minor_version) >= (1, 5):
-        from smolagents.models import get_tool_json_schema  # type: ignore[import-untyped]
-
-        json_schema_function = get_tool_json_schema
-    else:
-        from smolagents.models import get_json_schema  # type: ignore[import-untyped]
-
-        json_schema_function = get_json_schema
+    from smolagents import Tool
+    from smolagents.models import get_tool_json_schema  # type: ignore[import-untyped]
 
     if not isinstance(tools_to_call_from, list):
         return
@@ -248,7 +237,7 @@ def _llm_tools(tools_to_call_from: list[Any]) -> Iterator[Tuple[str, Any]]:
         if isinstance(tool, Tool):
             yield (
                 f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}",
-                safe_json_dumps(json_schema_function(tool)),
+                safe_json_dumps(get_tool_json_schema(tool)),
             )
 
 
@@ -299,7 +288,6 @@ class _ModelWrapper:
             span.set_attribute(
                 LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
             )
-            span.set_attribute(OUTPUT_VALUE, output_message)
             span.set_attributes(dict(_llm_output_messages(output_message)))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
