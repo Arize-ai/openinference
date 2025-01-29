@@ -164,23 +164,26 @@ class _StepWrapper:
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    def process_message(idx: int, role: str, content: str):
+        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", role
+        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENT}", content
+
     if isinstance(prompt := arguments.get("prompt"), str):
-        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
-        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
+        yield from process_message(0, "user", prompt)
     elif isinstance(messages := arguments.get("messages"), list):
-        for i, message in enumerate(messages):
+        i = 0
+        for message in messages:
             if not isinstance(message, dict):
                 continue
-            if (role := message.get("role", None)) is not None:
-                yield (
-                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}",
-                    role,
-                )
-            if (content := message.get("content", None)) is not None:
-                yield (
-                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
-                    content,
-                )
+            role, content = message.get("role"), message.get("content")
+            if isinstance(content, str) and role:
+                yield from process_message(i, role, content)
+                i += 1
+            elif isinstance(content, list) and role:
+                for subcontent in content:
+                    if isinstance(subcontent, dict) and (text := subcontent.get("text")):
+                        yield from process_message(i, role, text)
+                        i += 1
 
 
 def _llm_output_messages(output_message: Any) -> Iterator[Tuple[str, Any]]:
