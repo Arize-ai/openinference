@@ -10,7 +10,7 @@ interactions:
       for"}}, "required": ["city"]}}]}'
     headers: {}
     method: POST
-    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/invoke-with-response-stream
+    uri: https://bedrock-runtime.us-east-2.amazonaws.com/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/invoke-with-response-stream
   response:
     body:
       string: !!binary |
