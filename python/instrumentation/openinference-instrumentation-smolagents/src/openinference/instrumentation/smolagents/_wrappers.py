@@ -297,7 +297,6 @@ class _ModelWrapper:
             span.set_attribute(
                 LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
             )
-            span.set_attribute(OUTPUT_VALUE, output_message)
             span.set_attributes(dict(_llm_output_messages(output_message)))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
