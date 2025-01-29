@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.1...python-openinference-instrumentation-smolagents-v0.1.2) (2025-01-29)
+
+
+### Bug Fixes
+
+* **smolagents:** ensure tool attributes are captured successfully on new versions of smolagents ([#1243](https://github.com/Arize-ai/openinference/issues/1243)) ([03f3ceb](https://github.com/Arize-ai/openinference/commit/03f3ceb25a5adfbfc3e1f329782a11ae59fd5b42))
+* **smolagents:** remove redundant smolagents llm output.value causing warning ([#1239](https://github.com/Arize-ai/openinference/issues/1239)) ([23324a4](https://github.com/Arize-ai/openinference/commit/23324a445f7e13c42b0d17bc46c4e7fdd0ed1f55))
+* **smolagents:** use correct smolagents tool schema extraction function ([#1236](https://github.com/Arize-ai/openinference/issues/1236)) ([7d764fe](https://github.com/Arize-ai/openinference/commit/7d764fe1aabf1223a177eb60cfde13dec7653417))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.0...python-openinference-instrumentation-smolagents-v0.1.1) (2025-01-23)
 
 
