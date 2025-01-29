@@ -3,7 +3,6 @@ import os
 from typing import Any, Generator, Optional
 
 import pytest
-from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
@@ -14,6 +13,11 @@ from smolagents.agents import (  # type: ignore[import-untyped]
     CodeAgent,
     ManagedAgent,
     ToolCallingAgent,
+)
+from smolagents.models import (  # type: ignore[import-untyped]
+    ChatMessage,
+    ChatMessageToolCall,
+    ChatMessageToolCallDefinition,
 )
 
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
@@ -137,7 +141,7 @@ class TestModels:
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {}
+        assert json.loads(inv_params) == {"max_tokens": 4096}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
@@ -191,10 +195,9 @@ class TestModels:
         assert output_message_content is None
         tool_calls = output_message.tool_calls
         assert len(tool_calls) == 1
-        assert isinstance(tool_call := tool_calls[0], ChatCompletionMessageToolCall)
+        assert isinstance(tool_call := tool_calls[0], ChatMessageToolCall)
         assert tool_call.function.name == "get_weather"
-        assert isinstance(tool_call_arguments := tool_call.function.arguments, str)
-        assert json.loads(tool_call_arguments) == {"location": "Paris"}
+        assert tool_call.function.arguments == {"location": "Paris"}
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -212,7 +215,7 @@ class TestModels:
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {}
+        assert json.loads(inv_params) == {"max_tokens": 4096}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
         assert isinstance(
@@ -262,12 +265,6 @@ class TestModels:
 class TestRun:
     @pytest.mark.xfail
     def test_multiagents(self) -> None:
-        from smolagents.models import (  # type: ignore[import-untyped]
-            ChatMessage,
-            ChatMessageToolCall,
-            ChatMessageToolCallDefinition,
-        )
-
         class FakeModelMultiagentsManagerAgent:
             def __call__(
                 self,

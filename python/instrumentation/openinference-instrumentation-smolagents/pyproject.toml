@@ -34,7 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "smolagents>=1.2.2",
+  "smolagents>=1.6.0",
 ]
 test = [
   "smolagents>=1.2.2",
