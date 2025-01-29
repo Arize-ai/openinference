@@ -31,6 +31,7 @@ dependencies = [
   "openinference-instrumentation>=0.1.17",
   "openinference-semantic-conventions>=0.1.7",
   "wrapt",
+  "dacite>=1.8.1",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +42,9 @@ test = [
   "boto3 == 1.34.116",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
+  "anthropic>=0.45.2",
+  "pydantic>=2.10.6",
+  "pytest-vcr>=1.0.2",
 ]
 
 [project.urls]
