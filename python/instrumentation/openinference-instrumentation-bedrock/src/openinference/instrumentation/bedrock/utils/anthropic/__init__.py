@@ -13,14 +13,10 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
-    assert_never,
     cast,
 )
 
 from dacite import from_dict
-from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
-
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.bedrock.types.anthropic import (
     InputJSONDelta,
@@ -47,6 +43,9 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+from opentelemetry.trace import Span
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import assert_never
 
 if TYPE_CHECKING:
     import anthropic
