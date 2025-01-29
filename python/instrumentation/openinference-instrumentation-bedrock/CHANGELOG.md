@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.12...python-openinference-instrumentation-bedrock-v0.1.13) (2025-01-29)
+
+
+### Features
+
+* support bedrock anthropic messages via invoke_model_with_stream_response ([#1240](https://github.com/Arize-ai/openinference/issues/1240)) ([6047451](https://github.com/Arize-ai/openinference/commit/6047451290578402e3d9c6544067c7845c8ec134))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.11...python-openinference-instrumentation-bedrock-v0.1.12) (2024-10-31)
 
 
