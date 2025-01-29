@@ -240,14 +240,25 @@ class TestInvokeModelWithStreamResponse:
                             f"{content['source']['type']},{content['source']['data']}"
                         )
                     elif content["type"] == "tool_result":
-                        ...
+                        if "content" in content:
+                            assert attributes.pop(
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TEXT}"
+                            ) == (
+                                content["content"]
+                                if isinstance(content["content"], str)
+                                else "\n\n".join(
+                                    b["text"] for b in content["content"] if b["type"] == "text"
+                                )
+                            )
+                    elif content["type"] == "document":
+                        pass
                     else:
                         assert_never(content)
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
         assert attributes.pop(
             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
         )
-        for i in range(len(tools)):
+        for i, tool in enumerate(tools):
             assert isinstance(
                 tool_json_schema := attributes.pop(f"{LLM_TOOLS}.{i}.{TOOL_JSON_SCHEMA}"), str
             )
@@ -255,11 +266,17 @@ class TestInvokeModelWithStreamResponse:
             assert attributes.pop(
                 f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{i}.{TOOL_CALL_ID}"
             )
-            assert attributes.pop(
-                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{i}.{TOOL_CALL_FUNCTION_NAME}"
+            assert (
+                attributes.pop(
+                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{i}.{TOOL_CALL_FUNCTION_NAME}"
+                )
+                == tool["name"]
             )
-            assert attributes.pop(
-                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{i}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+            assert (
+                attributes.pop(
+                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{i}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+                )
+                == '{"city": "San Francisco"}'
             )
         assert attributes.pop(OUTPUT_MIME_TYPE)
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)

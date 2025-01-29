@@ -9,7 +9,7 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Tracer
 
 from openinference.instrumentation.bedrock.utils import _EventStream, _use_span
-from openinference.instrumentation.bedrock.utils.anthropic import (
+from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _AnthropicMessagesCallback,
 )
 from openinference.semconv.trace import (
