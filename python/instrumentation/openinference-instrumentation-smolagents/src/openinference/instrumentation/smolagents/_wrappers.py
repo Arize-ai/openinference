@@ -234,11 +234,12 @@ def _llm_tools(tools_to_call_from: list[Any]) -> Iterator[Tuple[str, Any]]:
     major_version = int(major_version_string)
     minor_version = int(minor_version_string)
     if (major_version, minor_version) >= (1, 5):
-        from smolagents._function_type_hints_utils import (  # type: ignore[import-untyped]
-            get_json_schema,
-        )
+        from smolagents.models import get_tool_json_schema  # type: ignore[import-untyped]
+        json_schema_function = get_tool_json_schema
     else:
         from smolagents.models import get_json_schema  # type: ignore[import-untyped]
+        json_schema_function = get_json_schema
+
 
     if not isinstance(tools_to_call_from, list):
         return
@@ -246,7 +247,7 @@ def _llm_tools(tools_to_call_from: list[Any]) -> Iterator[Tuple[str, Any]]:
         if isinstance(tool, Tool):
             yield (
                 f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}",
-                safe_json_dumps(get_json_schema(tool)),
+                safe_json_dumps(json_schema_function(tool)),
             )
 
 
