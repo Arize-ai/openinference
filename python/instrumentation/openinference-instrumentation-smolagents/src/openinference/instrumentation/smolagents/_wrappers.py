@@ -176,10 +176,7 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
             if not isinstance(message, dict):
                 continue
             role, content = message.get("role"), message.get("content")
-            if isinstance(content, str) and role:
-                yield from process_message(i, role, content)
-                i += 1
-            elif isinstance(content, list) and role:
+            if isinstance(content, list) and role:
                 for subcontent in content:
                     if isinstance(subcontent, dict) and (text := subcontent.get("text")):
                         yield from process_message(i, role, text)
