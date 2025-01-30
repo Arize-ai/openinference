@@ -118,7 +118,7 @@ class TestModels:
             messages=[
                 {
                     "role": "user",
-                    "content": input_message_content,
+                    "content": [{"type": "text", "text": input_message_content}],
                 }
             ]
         )
@@ -186,7 +186,7 @@ class TestModels:
             messages=[
                 {
                     "role": "user",
-                    "content": input_message_content,
+                    "content": [{"type": "text", "text": input_message_content}],
                 }
             ],
             tools_to_call_from=[GetWeatherTool()],
