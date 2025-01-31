@@ -41,6 +41,7 @@ class TestInvokeModelWithStreamResponse:
         model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
         client = boto3.client(
             "bedrock-runtime",
+            region_name="us-east-1",
             aws_access_key_id="123",
             aws_secret_access_key="321",
         )
