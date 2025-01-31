@@ -74,6 +74,11 @@ class TestSpanAttributes:
             "user": {
                 "id": "USER_ID",
             },
+            "prompt": {
+                "id": "PROMPT_ID",
+                "url": "PROMPT_URL",
+                "vendor": "PROMPT_VENDOR",
+            },
         }
 
 
