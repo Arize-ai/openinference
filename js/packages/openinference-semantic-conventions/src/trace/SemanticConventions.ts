@@ -462,19 +462,19 @@ export const AUDIO_TRANSCRIPT =
 /**
  * The vendor or origin of the prompt, e.g. a prompt library, a specialized service, etc.
  */
-export const PROMPT_VENDOR = 
+export const PROMPT_VENDOR =
   `${SemanticAttributePrefixes.prompt}.${PromptAttributePostfixes.vendor}` as const;
 
 /**
  * A vendor-specific id used to locate the prompt
  */
-export const PROMPT_ID = 
+export const PROMPT_ID =
   `${SemanticAttributePrefixes.prompt}.${PromptAttributePostfixes.id}` as const;
 
 /**
  * A vendor-specific URL used to locate the prompt
  */
-export const PROMPT_URL = 
+export const PROMPT_URL =
   `${SemanticAttributePrefixes.prompt}.${PromptAttributePostfixes.url}` as const;
 
 export const SemanticConventions = {
