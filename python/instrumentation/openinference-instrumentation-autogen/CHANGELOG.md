@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.2...python-openinference-instrumentation-autogen-v0.1.3) (2025-01-31)
+
+
+### Bug Fixes
+
+* **AG2:** CI fix ([#1221](https://github.com/Arize-ai/openinference/issues/1221)) ([db27dfd](https://github.com/Arize-ai/openinference/commit/db27dfd0e9eea601cd7e4b1048fe1d35983de019))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.1...python-openinference-instrumentation-autogen-v0.1.2) (2025-01-17)
 
 
