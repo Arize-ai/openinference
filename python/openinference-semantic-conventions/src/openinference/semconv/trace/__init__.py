@@ -125,6 +125,19 @@ class SpanAttributes:
     The id of the user
     """
 
+    PROMPT_VENDOR = "prompt.vendor"
+    """
+    The vendor or origin of the prompt, e.g. a prompt library, a specialized service, etc.
+    """
+    PROMPT_ID = "prompt.id"
+    """
+    A vendor-specific id used to locate the prompt.
+    """
+    PROMPT_URL = "prompt.url"
+    """
+    A vendor-specific url used to locate the prompt.
+    """
+
 
 class MessageAttributes:
     """
@@ -167,18 +180,6 @@ class MessageAttributes:
     MESSAGE_TOOL_CALL_ID = "message.tool_call_id"
     """
     The id of the tool call.
-    """
-    PROMPT_VENDOR = "prompt.vendor"
-    """
-    The vendor or origin of the prompt, e.g. a prompt library, a specialized service, etc.
-    """
-    PROMPT_ID = "prompt.id"
-    """
-    A vendor-specific id used to locate the prompt.
-    """
-    PROMPT_URL = "prompt.url"
-    """
-    A vendor-specific url used to locate the prompt.
     """
 
 
