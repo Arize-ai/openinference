@@ -22,6 +22,7 @@ export const SemanticAttributePrefixes = {
   message_content: "message_content",
   image: "image",
   audio: "audio",
+  prompt: "prompt",
 } as const;
 
 export const LLMAttributePostfixes = {
@@ -119,6 +120,12 @@ export const AudioAttributesPostfixes = {
   url: "url",
   mime_type: "mime_type",
   transcript: "transcript",
+} as const;
+
+export const PromptAttributePostfixes = {
+  vendor: "vendor",
+  id: "id",
+  url: "url",
 } as const;
 
 /**
@@ -452,6 +459,24 @@ export const AUDIO_MIME_TYPE =
 export const AUDIO_TRANSCRIPT =
   `${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.transcript}` as const;
 
+/**
+ * The vendor or origin of the prompt, e.g. a prompt library, a specialized service, etc.
+ */
+export const PROMPT_VENDOR =
+  `${SemanticAttributePrefixes.prompt}.${PromptAttributePostfixes.vendor}` as const;
+
+/**
+ * A vendor-specific id used to locate the prompt
+ */
+export const PROMPT_ID =
+  `${SemanticAttributePrefixes.prompt}.${PromptAttributePostfixes.id}` as const;
+
+/**
+ * A vendor-specific URL used to locate the prompt
+ */
+export const PROMPT_URL =
+  `${SemanticAttributePrefixes.prompt}.${PromptAttributePostfixes.url}` as const;
+
 export const SemanticConventions = {
   IMAGE_URL,
   INPUT_VALUE,
@@ -510,6 +535,9 @@ export const SemanticConventions = {
   METADATA,
   TAG_TAGS,
   OPENINFERENCE_SPAN_KIND: `${SemanticAttributePrefixes.openinference}.span.kind`,
+  PROMPT_VENDOR,
+  PROMPT_ID,
+  PROMPT_URL,
 } as const;
 
 export enum OpenInferenceSpanKind {
