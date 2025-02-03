@@ -327,24 +327,24 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
     async def _acompletion_wrapper(self, *args: Any, **kwargs: Any) -> Union[ModelResponse, ModelResponseStream]:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await self.original_litellm_funcs["acompletion"](*args, **kwargs) # type:ignore
-        span = self._tracer.start_span(
-            name="acompletion", attributes=dict(get_attributes_from_context())
-        )
-        result = None
-        try:
+
+        result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
+
+        if hasattr(result, "__aiter__"):
+            span = self._tracer.start_span(
+                name="acompletion",
+                attributes=dict(get_attributes_from_context())
+            )
             _instrument_func_type_completion(span, kwargs)
-            result = await self.original_litellm_funcs["acompletion"](*args, **kwargs) # type:ignore
-            if hasattr(result, "__aiter__"):
-                return _finalize_streaming_span(span, result) # type:ignore
-            else:
+            return _finalize_streaming_span(span, result) # type:ignore
+        else:
+            with self._tracer.start_as_current_span(
+                name="acompletion",
+                attributes=dict(get_attributes_from_context())
+            ) as span:
+                _instrument_func_type_completion(span, kwargs)
                 _finalize_span(span, result)
                 return result # type:ignore
-        except Exception as e:
-            span.record_exception(e)
-            raise
-        finally:
-            if result is None or not hasattr(result, "__aiter__"):
-                span.end()
 
     @wraps(litellm.completion_with_retries)
     def _completion_with_retries_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
