@@ -232,19 +232,15 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: ModelResponseSt
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
         for idx, msg in output_messages.items():
-            if idx == 0:
-                msg["content"] = aggregated_output
-            if msg.get("role"):
+            message = {
+                "role": msg.get("role"),
+                "content": msg.get("content")
+            }
+            for key, value in _get_attributes_from_message_param(message):
                 _set_span_attribute(
                     span,
-                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.message.role",
-                    msg["role"]
-                )
-            if msg.get("content"):
-                _set_span_attribute(
-                    span,
-                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.message.content",
-                    msg["content"]
+                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}",
+                    value
                 )
 
         if usage_stats:
