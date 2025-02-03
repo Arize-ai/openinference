@@ -48,7 +48,6 @@ logger = getLogger(__name__)
 
 
 _DSPY_MODULE = "dspy"
-_DSP_MODULE = "dsp"
 
 
 class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
@@ -121,7 +120,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         # there is for language models. We instrument the retriever models on a
         # case-by-case basis.
         wrap_object(
-            module=_DSP_MODULE,
+            module=_DSPY_MODULE,
             name="ColBERTv2.__call__",
             factory=CopyableFunctionWrapper,
             args=(_RetrieverModelCallWrapper(self._tracer),),
@@ -135,13 +134,6 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        from dsp.modules.lm import LM
-
-        language_model_classes = LM.__subclasses__()
-        for lm in language_model_classes:
-            if hasattr(lm.request, "__wrapped__"):
-                lm.request = lm.request.__wrapped__
-
         # Restore DSPy constructs
         from dspy import Predict
 
@@ -534,8 +526,6 @@ class DSPyJSONEncoder(json.JSONEncoder):
         try:
             return super().default(o)
         except TypeError:
-            from dsp.templates.template_v3 import Template
-
             from dspy.primitives.example import Example
 
             if hasattr(o, "_asdict"):
@@ -544,11 +534,6 @@ class DSPyJSONEncoder(json.JSONEncoder):
             if isinstance(o, Example):
                 # handles Prediction objects and other sub-classes of Example
                 return getattr(o, "_store", {})
-            if isinstance(o, Template):
-                return {
-                    "fields": [self.default(field) for field in o.fields],
-                    "instructions": o.instructions,
-                }
             return repr(o)
 
 
