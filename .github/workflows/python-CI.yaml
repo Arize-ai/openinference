@@ -89,5 +89,5 @@ jobs:
         with:
           version: 0.5.27
           enable-cache: false
-      - run: uvx --with tox-uv tox run -e ${{ matrix.testenv }} -- -ra -x
+      - run: uvx --with tox-uv tox run -e ${{ matrix.testenv }}
         working-directory: python
