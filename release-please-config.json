@@ -1,6 +1,6 @@
 {
     "bump-patch-for-minor-pre-major": true,
-    "separate-pull-requests": true,
+    "separate-pull-requests": false,
     "sequential-calls": true,
     "packages": {
         "python/openinference-semantic-conventions": {
