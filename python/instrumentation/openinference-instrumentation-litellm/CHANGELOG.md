@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.6...python-openinference-instrumentation-litellm-v0.1.7) (2025-02-04)
+
+
+### Features
+
+* **liteLLM:** add support for acompletion streaming (resolves [#1224](https://github.com/Arize-ai/openinference/issues/1224)) ([#1246](https://github.com/Arize-ai/openinference/issues/1246)) ([c461b98](https://github.com/Arize-ai/openinference/commit/c461b981da3ad541fcdf991cca01310cc3eab9a8))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.5...python-openinference-instrumentation-litellm-v0.1.6) (2025-01-15)
 
 
