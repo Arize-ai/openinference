@@ -53,6 +53,8 @@ jobs:
           >> "$GITHUB_OUTPUT"
         id: packages
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: python
       - uses: astral-sh/setup-uv@v5
         with:
           version: 0.5.27
@@ -64,6 +66,9 @@ jobs:
           >> $GITHUB_OUTPUT
         working-directory: python
         id: testenv
+      - name: Fail if no testenv is found
+        if: ${{ steps.testenv.outputs.list == '[]' }}
+        run: exit 1
 
   run-tox-testenv:
     name: ${{ matrix.testenv }}
@@ -76,6 +81,8 @@ jobs:
         testenv: ${{ fromJSON(needs.find-tox-testenv.outputs.list) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: python
       - uses: astral-sh/setup-uv@v5
         with:
           version: 0.5.27
