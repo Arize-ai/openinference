@@ -5,42 +5,91 @@ on:
     - cron: "0 18 * * 1-5"
   workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: ./python
-
 jobs:
-  canary:
-    runs-on: oss-4-core-runner
+  find-tox-testenv:
+    name: Find tox testenv
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.testenv.outputs.list }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
         with:
-          python-version: |
-            3.8
-            3.9
-            3.10
-            3.11
-            3.12
-      - run: pip install tox-uv==1.11.2
-      - run: >-
-          tox run-parallel --parallel-no-spinner
-          -e $(tox -l | egrep -e '-latest$' | paste -sd, -)
-          --result-json=${{ runner.temp }}/.tox-result.json
-      - run: >-
-          echo "testenvs=$(cat ${{ runner.temp }}/.tox-result.json
-          | jq -r '.testenvs | with_entries(select(.value|.result.success==false)) | keys | .[]'
-          | sort
-          | paste -sd, -)"
-          >> "$GITHUB_OUTPUT"
-        id: failed
+          sparse-checkout: python
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: 0.5.27
+          enable-cache: false
+      - name: Extract testenv into JSON list
+        run: >-
+          echo "list=$(uvx --with tox-uv tox -l
+          | egrep -e '-latest$'
+          | jq -R -s -c 'split("\n")[:-1]')"
+          >> $GITHUB_OUTPUT
+        working-directory: python
+        id: testenv
+
+  canary:
+    name: ${{ matrix.testenv }}
+    needs: find-tox-testenv
+    if: ${{ needs.find-tox-testenv.outputs.list != '[]' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        testenv: ${{ fromJSON(needs.find-tox-testenv.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: python
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: 0.5.27
+          enable-cache: false
+      - run: uvx --with tox-uv tox r -e ${{ matrix.testenv }} -- -ra -x
+        working-directory: python
+      - run: touch ${{ runner.temp }}/${{ matrix.testenv }}
         if: failure()
-      - uses: slackapi/slack-github-action@v1
+      - uses: actions/upload-artifact@v4
         if: failure()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          name: ${{ matrix.testenv }}
+          path: ${{ runner.temp }}/${{ matrix.testenv }}
+          retention-days: 1
+
+  slack:
+    name: Slack notification
+    needs: canary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: List failures as markdown
+        run: |
+          {
+            echo "list<<EOF"
+            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | rev | sort -u | rev | nl -w2 -s'. '
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        shell: bash
+        id: failures
+      - name: Create message text
+        if: ${{ steps.failures.outputs.list != '' }}
+        run: |
+          {
+            echo "text<<EOF"
+            echo "CI Failures for Python Packages:"
+            echo "${{ steps.failures.outputs.list }}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        id: message
+      - name: Send message to Slack
+        if: ${{ steps.failures.outputs.list != '' }}
+        uses: slackapi/slack-github-action@v1
         with:
           payload: |
             {
-              "text": "CI Failures for Python Packages: ${{ steps.failed.outputs.testenvs }}"
+              "type": "mrkdwn",
+              "text": ${{ toJSON(steps.message.outputs.text) }}
             }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
