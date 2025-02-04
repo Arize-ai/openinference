@@ -1,19 +1,9 @@
 import json
-from typing import (
-    Any,
-    Dict,
-    Generator,
-    List,
-    cast,
-)
+from importlib.metadata import version
+from typing import Any, Dict, Generator, List, Tuple, cast
 
 import dspy
 import pytest
-from dsp.modules.cache_utils import CacheMemory, NotebookCacheMemory
-from dspy.primitives.assertions import (
-    assert_transform_module,
-    backtrack_handler,
-)
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
@@ -33,6 +23,8 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+
+VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy").split(".")[:3])))
 
 
 def remove_all_vcr_request_headers(request: Any) -> Any:
@@ -104,20 +96,6 @@ def gemini_api_key(monkeypatch: MonkeyPatch) -> str:
     api_key = "sk-fake-key"
     monkeypatch.setenv("GEMINI_API_KEY", api_key)
     return api_key
-
-
-@pytest.fixture(autouse=True)
-def clear_cache() -> None:
-    """
-    DSPy caches responses from retrieval and language models to disk. This
-    fixture clears the cache before each test case to ensure that our mocked
-    responses are used.
-    """
-    try:
-        CacheMemory.clear()
-        NotebookCacheMemory.clear()
-    except Exception:
-        pass
 
 
 def test_oitracer() -> None:
@@ -451,9 +429,7 @@ def test_rag_module(
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
-    assert json.loads(input_value) == {
-        "query_or_queries": "What's the capital of the United States?"
-    }
+    assert json.loads(input_value) == {"query": "What's the capital of the United States?"}
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -566,10 +542,16 @@ def test_rag_module(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
+@pytest.mark.skipif(VERSION >= (2, 6, 0), reason="requires dspy < 2.6.0")
 def test_compilation(
     in_memory_span_exporter: InMemorySpanExporter,
     openai_api_key: str,
 ) -> None:
+    from dspy.primitives.assertions import (
+        assert_transform_module,
+        backtrack_handler,
+    )
+
     class AssertModule(dspy.Module):  # type: ignore
         def __init__(self) -> None:
             super().__init__()

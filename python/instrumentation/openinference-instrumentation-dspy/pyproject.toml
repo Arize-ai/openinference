@@ -35,10 +35,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "dspy >= 2.5.0",
+  "dspy >= 2.6.0",
 ]
 test = [
-  "dspy>=2.5.27",
+  "dspy>=2.6.0",
   "google-generativeai",
   "opentelemetry-sdk",
   "pytest-recording",
@@ -80,7 +80,6 @@ ignore_missing_imports = true
 module = [
   "wrapt",
   "dspy.*",
-  "dsp.*",
 ]
 
 [tool.ruff]
