@@ -40,7 +40,8 @@ jobs:
     outputs:
       list: ${{ steps.testenv.outputs.list }}
     steps:
-      - run: >-
+      - name: Convert JSON list to regex
+        run: >-
           echo "list=$(echo '${{ needs.changes.outputs.diff_files }}'
           | jq -r '.[]'
           | sed -n
@@ -59,7 +60,8 @@ jobs:
         with:
           version: 0.5.27
           enable-cache: false
-      - run: >-
+      - name: Extract testenv into JSON list
+        run: >-
           echo "list=$(uvx --with tox-uv tox -l
           | egrep -e '${{ steps.packages.outputs.list }}'
           | jq -R -s -c 'split("\n")[:-1]')"
