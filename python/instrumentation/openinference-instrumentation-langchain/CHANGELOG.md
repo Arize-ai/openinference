@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.30...python-openinference-instrumentation-langchain-v0.1.31) (2025-02-04)
+
+
+### Bug Fixes
+
+* support python 3.13 and drop python 3.8 ([#1263](https://github.com/Arize-ai/openinference/issues/1263)) ([5bfaa90](https://github.com/Arize-ai/openinference/commit/5bfaa90d800a8f725b3ac7444d16972ed7821738))
+
 ## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.29...python-openinference-instrumentation-langchain-v0.1.30) (2025-01-28)
 
 
