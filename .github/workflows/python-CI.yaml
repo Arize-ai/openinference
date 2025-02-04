@@ -6,28 +6,42 @@ on:
   pull_request:
     paths:
       - "python/**"
+  workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: ./python
+concurrency:
+  group: test-python-${{ github.head_ref }}
+  cancel-in-progress: true
 
 jobs:
-  ci:
-    name: CI Python
-    runs-on: oss-4-core-runner
+  changes:
+    name: Filter Changes
+    runs-on: ubuntu-latest
+    outputs:
+      diff: ${{ steps.filter.outputs.diff }}
+      diff_files: ${{ steps.filter.outputs.diff_files }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          working-directory: python
           list-files: json
           filters: |
             diff:
-              - "python/**/*.py"
-              - "python/**/*.toml"
+              - "python/instrumentation/**/*.py"
+              - "python/instrumentation/**/*.toml"
+              - "python/openinference-*/**/*.py"
+              - "python/openinference-*/**/*.toml"
+
+  find-tox-testenv:
+    name: Find Tox Testenv
+    needs: changes
+    if: ${{ needs.changes.outputs.diff == 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.testenv.outputs.list }}
+    steps:
       - run: >-
-          echo "packages=$(echo '${{ steps.filter.outputs.diff_files }}'
+          echo "list=$(echo '${{ needs.changes.outputs.diff_files }}'
           | jq -r '.[]'
           | sed -n
           -e 's/^python\/instrumentation\/openinference-instrumentation-\([^/]*\)\/.*/\1/p'
@@ -37,20 +51,34 @@ jobs:
           | sed -e 's/semantic-conventions/semconv/' -e 's/-/_/' -e 's/^/\\b/'
           | paste -sd "|" -)"
           >> "$GITHUB_OUTPUT"
-        if: ${{ steps.filter.outputs.diff == 'true' }}
-        id: changes
-      - uses: actions/setup-python@v5
-        if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
+        id: packages
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: |
-            3.8
-            3.9
-            3.10
-            3.11
-            3.12
-      - run: pip install tox-uv==1.11.2
-        if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
+          version: 0.5.27
+          enable-cache: false
       - run: >-
-          tox run-parallel --parallel-no-spinner
-          -e $(tox -l | egrep -e '${{ steps.changes.outputs.packages }}' | paste -sd, -)
-        if: ${{ (steps.filter.outputs.diff == 'true') && (steps.changes.outputs.packages != '') }}
+          echo "list=$(uvx --with tox-uv tox -l
+          | egrep -e '${{ steps.packages.outputs.list }}'
+          | jq -R -s -c 'split("\n")[:-1]')"
+          >> $GITHUB_OUTPUT
+        working-directory: python
+        id: testenv
+
+  run-tox-testenv:
+    name: ${{ matrix.testenv }}
+    needs: find-tox-testenv
+    if: ${{ needs.find-tox-testenv.outputs.list != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        testenv: ${{ fromJSON(needs.find-tox-testenv.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: 0.5.27
+          enable-cache: false
+      - run: uvx --with tox-uv tox run -e ${{ matrix.testenv }} -- -ra -x
+        working-directory: python
