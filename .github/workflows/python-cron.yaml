@@ -7,7 +7,7 @@ on:
 
 jobs:
   find-tox-testenv:
-    name: Find Tox Testenv
+    name: Find tox testenv
     runs-on: ubuntu-latest
     outputs:
       list: ${{ steps.testenv.outputs.list }}
@@ -55,9 +55,10 @@ jobs:
         with:
           name: ${{ matrix.testenv }}
           path: ${{ runner.temp }}/${{ matrix.testenv }}
+          retention-days: 1
 
   slack:
-    name: Slack Notification
+    name: Slack notification
     needs: canary
     runs-on: ubuntu-latest
     steps:
