@@ -29,8 +29,10 @@ jobs:
             diff:
               - "python/instrumentation/**/*.py"
               - "python/instrumentation/**/*.toml"
+              - "python/instrumentation/**/*.yaml"
               - "python/openinference-*/**/*.py"
               - "python/openinference-*/**/*.toml"
+              - "python/openinference-*/**/*.yaml"
 
   find-tox-testenv:
     name: Find Tox Testenv
