@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.1.3...python-openinference-instrumentation-llama-index-v3.1.4) (2025-02-04)
+
+
+### Bug Fixes
+
+* support python 3.13 and drop python 3.8 ([#1263](https://github.com/Arize-ai/openinference/issues/1263)) ([5bfaa90](https://github.com/Arize-ai/openinference/commit/5bfaa90d800a8f725b3ac7444d16972ed7821738))
+
 ## [3.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.1.2...python-openinference-instrumentation-llama-index-v3.1.3) (2025-01-09)
 
 
