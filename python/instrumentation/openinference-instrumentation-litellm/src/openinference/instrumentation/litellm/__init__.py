@@ -22,13 +22,13 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from opentelemetry.util.types import AttributeValue
 
 import litellm
+from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 from litellm.types.utils import (
     Choices,
     EmbeddingResponse,
     ImageResponse,
     Message,
     ModelResponse,
-    ModelResponseStream,
 )
 from openinference.instrumentation import (
     OITracer,
@@ -209,7 +209,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         )
 
 
-async def _finalize_streaming_span(span: trace_api.Span, stream: ModelResponseStream) -> Any:
+async def _finalize_streaming_span(span: trace_api.Span, stream: CustomStreamWrapper) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
     usage_stats = None
     try:
@@ -321,7 +321,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
     @wraps(litellm.acompletion)
     async def _acompletion_wrapper(
         self, *args: Any, **kwargs: Any
-    ) -> Union[ModelResponse, ModelResponseStream]:
+    ) -> Union[ModelResponse, CustomStreamWrapper]:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await self.original_litellm_funcs["acompletion"](*args, **kwargs)  # type:ignore
 
