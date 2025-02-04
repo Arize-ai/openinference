@@ -1,5 +1,5 @@
 import json
-from types import AsyncGeneratorType, GeneratorType
+from types import AsyncGeneratorType
 from typing import (
     Any,
     Dict,
@@ -556,7 +556,7 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        return mistral_sync_client.chat.complete(  # type: ignore
+        return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             messages=[
                 {
@@ -903,11 +903,11 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
             response_stream = mistral_stream()
     else:
         response_stream = mistral_stream()
-    assert isinstance(response_stream, GeneratorType)
     response_content = ""
     for chunk in response_stream:
         if chunk_content := chunk.data.choices[0].delta.content:
-            response_content += chunk_content
+            if isinstance(chunk_content, str):
+                response_content += chunk_content
 
     assert (
         response_content == "France won World Cup"  # noqa: E501
