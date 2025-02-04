@@ -1,15 +1,14 @@
 interactions:
 - request:
-    body: '{"messages": [{"role": "user", "content": "Who won the World Cup in 2018?
-      Answer in one word with no punctuation."}], "model": "gpt-4o", "max_tokens":
-      1500, "stop": null, "temperature": 0.7}'
+    body: '{"messages":[{"role":"user","content":[{"type":"text","text":"Who won the
+      World Cup in 2018? Answer in one word with no punctuation."}]}],"model":"gpt-4o","max_tokens":4096}'
     headers: {}
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-Ap7ufxJG59lObqU3ZjqsDq0ryGo1M\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1736748509,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+      string: "{\n  \"id\": \"chatcmpl-Ax6UoZOGLTVmdQxp0ToJi1tv1FUkb\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1738649686,\n  \"model\": \"gpt-4o-2024-08-06\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"France\",\n        \"refusal\": null\n
         \     },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
@@ -18,7 +17,7 @@ interactions:
         0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_703d4ff298\"\n}\n"
+        \"default\",\n  \"system_fingerprint\": \"fp_4691090a87\"\n}\n"
     headers: {}
     status:
       code: 200
