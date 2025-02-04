@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.2...python-openinference-instrumentation-smolagents-v0.1.3) (2025-02-04)
+
+
+### Bug Fixes
+
+* **smolagents:** support smolagents nested llm input message contents ([#1238](https://github.com/Arize-ai/openinference/issues/1238)) ([51be5e4](https://github.com/Arize-ai/openinference/commit/51be5e47f4d5ae4ccf43d33a09c3475b56edf784))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.1...python-openinference-instrumentation-smolagents-v0.1.2) (2025-01-29)
 
 
