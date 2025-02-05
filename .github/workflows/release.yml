@@ -86,6 +86,7 @@ jobs:
             echo "Re-run CI step if error is transient."
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+        shell: bash
         id: message
       - name: Send message to Slack
         if: ${{ steps.failures.outputs.list != '' }}
