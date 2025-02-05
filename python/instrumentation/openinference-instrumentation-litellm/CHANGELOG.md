@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.8...python-openinference-instrumentation-litellm-v0.1.9) (2025-02-05)
+
+
+### Bug Fixes
+
+* use safe_json_dumps for invocation parameters in litellm instrumentor ([#1269](https://github.com/Arize-ai/openinference/issues/1269)) ([650dbb9](https://github.com/Arize-ai/openinference/commit/650dbb9f83ce7e94329d159819033d8f86e21129))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.7...python-openinference-instrumentation-litellm-v0.1.8) (2025-02-04)
 
 
