@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import logging
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Generator,
@@ -13,9 +16,11 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
-from mistralai.models import CompletionEvent
 from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
+
+if TYPE_CHECKING:
+    from mistralai.models import CompletionEvent
 
 __all__ = (
     "_Stream",
