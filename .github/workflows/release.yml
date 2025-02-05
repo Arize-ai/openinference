@@ -82,6 +82,7 @@ jobs:
             echo "text<<EOF"
             echo "Publication failed for the following packages:"
             echo "${{ steps.failures.outputs.list }}"
+            echo ""
             echo "Re-run CI step if error is transient."
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
