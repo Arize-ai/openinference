@@ -50,4 +50,51 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           twine upload --skip-existing --verbose dist/*
+      - run: echo "NAME=$(basename ${{ matrix.path }})" >> $GITHUB_ENV
+        if: failure()
+      - run: touch ${{ runner.temp }}/${{ env.NAME }}
+        if: failure()
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ runner.temp }}/${{ env.NAME }}
+          retention-days: 1
 
+  slack:
+    name: Slack notification on failure
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: List failures as markdown
+        run: |
+          {
+            echo "list<<EOF"
+            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | nl -w2 -s'. '
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        id: failures
+      - name: Create message text
+        if: ${{ steps.failures.outputs.list != '' }}
+        run: |
+          {
+            echo "text<<EOF"
+            echo "Publication failed for the following packages:"
+            echo "${{ steps.failures.outputs.list }}"
+            echo ""
+            echo "Re-run CI step if error is transient."
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        id: message
+      - name: Send message to Slack
+        if: ${{ steps.failures.outputs.list != '' }}
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "type": "mrkdwn",
+              "text": ${{ toJSON(steps.message.outputs.text) }}
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
