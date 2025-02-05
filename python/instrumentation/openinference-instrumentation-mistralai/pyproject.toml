@@ -37,12 +37,6 @@ instruments = [
   "mistralai >= 1.0.2",
 ]
 test = [
-  "mistralai == 1.0.2",
-  "opentelemetry-sdk",
-  "opentelemetry-instrumentation-httpx",
-  "respx",
-  "pytest-asyncio",
-  "pytest.recording",
 ]
 
 [project.urls]
