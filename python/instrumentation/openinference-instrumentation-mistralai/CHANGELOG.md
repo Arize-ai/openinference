@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.1.1...python-openinference-instrumentation-mistralai-v1.1.2) (2025-02-05)
+
+
+### Bug Fixes
+
+* remove mistralai dependency in mistralai instrumentor ([#1271](https://github.com/Arize-ai/openinference/issues/1271)) ([17c0ce5](https://github.com/Arize-ai/openinference/commit/17c0ce5a1ddc48a5c7a835f09941569232458f76))
+
 ## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.1.0...python-openinference-instrumentation-mistralai-v1.1.1) (2025-02-04)
 
 
