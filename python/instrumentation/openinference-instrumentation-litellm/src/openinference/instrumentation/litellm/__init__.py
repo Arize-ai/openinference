@@ -34,6 +34,7 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     get_attributes_from_context,
+    safe_json_dumps,
 )
 from openinference.instrumentation.litellm.package import _instruments
 from openinference.instrumentation.litellm.version import __version__
@@ -127,7 +128,7 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
 
     invocation_params = {k: v for k, v in kwargs.items() if k not in ["model", "messages"]}
     _set_span_attribute(
-        span, SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_params)
+        span, SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
     )
 
 
