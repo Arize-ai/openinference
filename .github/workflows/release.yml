@@ -74,7 +74,6 @@ jobs:
             find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | nl -w2 -s'. '
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
-        shell: bash
         id: failures
       - name: Create message text
         if: ${{ steps.failures.outputs.list != '' }}
@@ -86,7 +85,6 @@ jobs:
             echo "Re-run CI step if error is transient."
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
-        shell: bash
         id: message
       - name: Send message to Slack
         if: ${{ steps.failures.outputs.list != '' }}
