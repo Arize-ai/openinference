@@ -71,19 +71,25 @@ def _smolagent_run_attributes(
             f"smolagents.managed_agents.{managed_agent_index}.description",
             managed_agent.description,
         )
-        if managed_agent.additional_prompting:
+        if getattr(managed_agent, "additional_prompting", None):
             yield (
                 f"smolagents.managed_agents.{managed_agent_index}.additional_prompting",
                 managed_agent.additional_prompting,
             )
-        yield (
-            f"smolagents.managed_agents.{managed_agent_index}.max_steps",
-            managed_agent.agent.max_steps,
-        )
-        yield (
-            f"smolagents.managed_agents.{managed_agent_index}.tools_names",
-            list(managed_agent.agent.tools.keys()),
-        )
+        elif getattr(managed_agent, "managed_agent_prompt", None):
+            yield (
+                f"smolagents.managed_agents.{managed_agent_index}.managed_agent_prompt",
+                managed_agent.managed_agent_prompt,
+            )
+        if getattr(managed_agent, "agent", None):
+            yield (
+                f"smolagents.managed_agents.{managed_agent_index}.max_steps",
+                managed_agent.agent.max_steps,
+            )
+            yield (
+                f"smolagents.managed_agents.{managed_agent_index}.tools_names",
+                list(managed_agent.agent.tools.keys()),
+            )
 
 
 class _RunWrapper:
