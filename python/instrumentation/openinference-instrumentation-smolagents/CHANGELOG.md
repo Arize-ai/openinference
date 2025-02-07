@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.3...python-openinference-instrumentation-smolagents-v0.1.4) (2025-02-07)
+
+
+### Features
+
+* **smolagents:** add entrypoint for use in opentelemetry-instrument ([#1276](https://github.com/Arize-ai/openinference/issues/1276)) ([7d2af53](https://github.com/Arize-ai/openinference/commit/7d2af53fea2d3b7e03b20cbf056994fddc23d888))
+
+
+### Bug Fixes
+
+* **smolagents:** support new managed agents ([#1274](https://github.com/Arize-ai/openinference/issues/1274)) ([306e1c5](https://github.com/Arize-ai/openinference/commit/306e1c5caf3827433c3a2151b93f7534533bbe94))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.2...python-openinference-instrumentation-smolagents-v0.1.3) (2025-02-04)
 
 
