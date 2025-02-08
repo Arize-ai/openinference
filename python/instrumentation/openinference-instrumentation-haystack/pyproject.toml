@@ -47,6 +47,9 @@ test = [
     "pytest-recording",
 ]
 
+[project.entry-points.opentelemetry_instrumentor]
+haystack = "openinference.instrumentation.haystack:HaystackInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-haystack"
 

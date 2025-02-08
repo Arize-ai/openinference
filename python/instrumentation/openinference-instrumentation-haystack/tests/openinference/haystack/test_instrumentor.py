@@ -31,6 +31,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
+from opentelemetry.util._importlib_metadata import entry_points
 from typing_extensions import TypeGuard
 
 from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
@@ -151,6 +152,19 @@ def setup_haystack_instrumentation(
     HaystackInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     HaystackInstrumentor().uninstrument()
+
+
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="haystack"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, HaystackInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_haystack_instrumentation: Any) -> None:
+        assert isinstance(HaystackInstrumentor()._tracer, OITracer)
 
 
 def test_haystack_instrumentation(

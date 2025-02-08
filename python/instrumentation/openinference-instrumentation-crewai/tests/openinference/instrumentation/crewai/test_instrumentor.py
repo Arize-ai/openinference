@@ -9,6 +9,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -45,14 +46,15 @@ def setup_crewai_instrumentation(
     CrewAIInstrumentor().uninstrument()
 
 
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_crewai_instrumentation: Any,
-) -> None:
-    in_memory_span_exporter.clear()
-    assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="crewai")
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, CrewAIInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_crewai_instrumentation: Any) -> None:
+        assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
 
 
 def test_crewai_instrumentation(

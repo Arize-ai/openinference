@@ -16,6 +16,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from pydash.strings import words as _words
 
 from openinference.instrumentation import OITracer
@@ -74,11 +75,17 @@ def setup_guardrails_instrumentation(
     GuardrailsInstrumentor().uninstrument()
 
 
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(
-    setup_guardrails_instrumentation: Any,
-) -> None:
-    assert isinstance(GuardrailsInstrumentor()._tracer, OITracer)
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="guardrails"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, GuardrailsInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_guardrails_instrumentation: Any) -> None:
+        assert isinstance(GuardrailsInstrumentor()._tracer, OITracer)
 
 
 @patch(
