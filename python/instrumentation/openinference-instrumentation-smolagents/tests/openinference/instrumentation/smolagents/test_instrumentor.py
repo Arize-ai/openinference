@@ -105,7 +105,7 @@ class TestInstrumentor:
         assert isinstance(instrumentor, SmolagentsInstrumentor)
 
     # Ensure we're using the common OITracer from common openinference-instrumentation pkg
-    def test_oitracer(self, instrument: Any) -> None:
+    def test_oitracer(self) -> None:
         assert isinstance(SmolagentsInstrumentor()._tracer, OITracer)
 
 
