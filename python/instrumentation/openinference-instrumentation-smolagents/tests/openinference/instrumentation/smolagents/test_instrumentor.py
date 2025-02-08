@@ -20,6 +20,7 @@ from smolagents.models import (  # type: ignore[import-untyped]
     ChatMessageToolCallDefinition,
 )
 
+from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -102,6 +103,10 @@ class TestInstrumentor:
         )
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, SmolagentsInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, instrument: Any) -> None:
+        assert isinstance(SmolagentsInstrumentor()._tracer, OITracer)
 
 
 class TestModels:
