@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.4...python-openinference-instrumentation-crewai-v0.1.5) (2025-02-11)
+
+
+### Features
+
+* add entrypoint for use in opentelemetry-instrument ([#1278](https://github.com/Arize-ai/openinference/issues/1278)) ([2106acf](https://github.com/Arize-ai/openinference/commit/2106acfd6648804abe9b95e41a49df26a500435c))
+
+
+### Bug Fixes
+
+* fix test failures with crew-latest ([#1282](https://github.com/Arize-ai/openinference/issues/1282)) ([e2e3dd1](https://github.com/Arize-ai/openinference/commit/e2e3dd13bf78a3ad4b0d44fc2ae2151127583dce))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.3...python-openinference-instrumentation-crewai-v0.1.4) (2025-01-17)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.1.2...python-openinference-instrumentation-mistralai-v1.2.0) (2025-02-11)
+
+
+### Features
+
+* add entrypoint for use in opentelemetry-instrument ([#1278](https://github.com/Arize-ai/openinference/issues/1278)) ([2106acf](https://github.com/Arize-ai/openinference/commit/2106acfd6648804abe9b95e41a49df26a500435c))
+
 ## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.1.1...python-openinference-instrumentation-mistralai-v1.1.2) (2025-02-05)
 
 

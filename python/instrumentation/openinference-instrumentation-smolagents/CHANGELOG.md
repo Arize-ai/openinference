@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.4...python-openinference-instrumentation-smolagents-v0.1.5) (2025-02-11)
+
+
+### Features
+
+* **smolagents:** updates to latest and makes examples use opentelemetry-instrument ([#1277](https://github.com/Arize-ai/openinference/issues/1277)) ([b151bc9](https://github.com/Arize-ai/openinference/commit/b151bc9a3f8243c846c2981ade94e3d2823602e7))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.3...python-openinference-instrumentation-smolagents-v0.1.4) (2025-02-07)
 
 
