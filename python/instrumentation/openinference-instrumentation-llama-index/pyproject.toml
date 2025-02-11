@@ -53,6 +53,9 @@ test = [
   "respx",
 ]
 
+[project.entry-points.opentelemetry_instrumentor]
+lama_index = "openinference.instrumentation.llama_index:LlamaIndexInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-llama-index"
 

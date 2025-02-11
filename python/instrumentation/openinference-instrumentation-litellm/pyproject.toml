@@ -43,6 +43,9 @@ test = [
   "tokenizers==0.20.3; python_version == '3.8'"
 ]
 
+[project.entry-points.opentelemetry_instrumentor]
+litellm = "openinference.instrumentation.litellm:LiteLLMInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-litellm"
 

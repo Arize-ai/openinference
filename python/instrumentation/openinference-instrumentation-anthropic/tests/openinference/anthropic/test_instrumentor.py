@@ -23,6 +23,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from typing_extensions import assert_never
 from wrapt import BoundFunctionWrapper
 
@@ -115,6 +116,19 @@ def setup_anthropic_instrumentation(
     AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     AnthropicInstrumentor().uninstrument()
+
+
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="anthropic"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, AnthropicInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_anthropic_instrumentation: Any) -> None:
+        assert isinstance(AnthropicInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.vcr(

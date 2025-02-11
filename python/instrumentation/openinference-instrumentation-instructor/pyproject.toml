@@ -44,6 +44,9 @@ test = [
   "vcrpy",
 ]
 
+[project.entry-points.opentelemetry_instrumentor]
+instructor = "openinference.instrumentation.instructor:InstructorInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-instructor"
 

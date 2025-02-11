@@ -40,10 +40,12 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
+from opentelemetry.util._importlib_metadata import entry_points
 from respx import MockRouter
 
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.langchain import (
+    LangChainInstrumentor,
     get_ancestor_spans,
     get_current_span,
 )
@@ -66,6 +68,15 @@ for name, logger in logging.root.manager.loggerDict.items():
 LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
 LANGCHAIN_OPENAI_VERSION = tuple(map(int, version("langchain-openai").split(".")[:3]))
 SUPPORTS_TEMPLATES = LANGCHAIN_VERSION < (0, 3, 0)
+
+
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="langchain"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, LangChainInstrumentor)
 
 
 @pytest.mark.parametrize("is_async", [False, True])

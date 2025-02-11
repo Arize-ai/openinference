@@ -39,6 +39,9 @@ instruments = [
   "guardrails-ai",
 ]
 
+[project.entry-points.opentelemetry_instrumentor]
+guardrails = "openinference.instrumentation.guardrails:GuardrailsInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-guardrails"
 

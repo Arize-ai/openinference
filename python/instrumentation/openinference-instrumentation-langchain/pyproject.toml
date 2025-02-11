@@ -55,6 +55,9 @@ type-check = [
   "langchain_core == 0.2.43",
 ]
 
+[project.entry-points.opentelemetry_instrumentor]
+langchain = "openinference.instrumentation.langchain:LangChainInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-langchain"
 

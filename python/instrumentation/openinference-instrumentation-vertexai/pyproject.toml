@@ -42,6 +42,9 @@ test = [
   "opentelemetry-sdk",
 ]
 
+[project.entry-points.opentelemetry_instrumentor]
+vertexai = "openinference.instrumentation.vertexai:VertexAIInstrumentor"
+
 [project.urls]
 homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-vertexai"
 

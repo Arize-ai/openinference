@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Mapping, Optional, cast
+from typing import Any, Dict, Generator, List, Mapping, Optional, cast
 from unittest.mock import patch
 
 import litellm
@@ -10,6 +10,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -36,21 +37,33 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
     return tracer_provider
 
 
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(
-    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
-) -> None:
-    in_memory_span_exporter.clear()
+@pytest.fixture()
+def setup_litellm_instrumentation(
+    tracer_provider: TracerProvider,
+) -> Generator[None, None, None]:
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
-    assert isinstance(LiteLLMInstrumentor()._tracer, OITracer)
+    yield
     LiteLLMInstrumentor().uninstrument()
+
+
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="litellm"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, LiteLLMInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_litellm_instrumentation: Any) -> None:
+        assert isinstance(LiteLLMInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 @pytest.mark.parametrize("n", [1, 5])
 def test_completion(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -62,7 +75,6 @@ def test_completion(
     n: int,
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     response = None
@@ -117,14 +129,13 @@ def test_completion(
             prompt_template_version,
             prompt_template_variables,
         )
-    LiteLLMInstrumentor().uninstrument()
 
 
 def test_completion_with_parameters(
-    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     litellm.completion(
@@ -150,14 +161,12 @@ def test_completion_with_parameters(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 def test_completion_with_multiple_messages(
-    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [
         {"content": "Hello, I want to bake a cake", "role": "user"},
@@ -189,14 +198,12 @@ def test_completion_with_multiple_messages(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 def test_completion_image_support(
-    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [
         {
@@ -232,13 +239,11 @@ def test_completion_image_support(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_acompletion(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -249,7 +254,6 @@ async def test_acompletion(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     if use_context_attributes:
@@ -299,13 +303,11 @@ async def test_acompletion(
             prompt_template_variables,
         )
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_completion_with_retries(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -316,7 +318,6 @@ def test_completion_with_retries(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     if use_context_attributes:
@@ -364,7 +365,6 @@ def test_completion_with_retries(
             prompt_template_version,
             prompt_template_variables,
         )
-    LiteLLMInstrumentor().uninstrument()
 
 
 # Bug report filed on GitHub for acompletion_with_retries: https://github.com/BerriAI/litellm/issues/4908
@@ -395,8 +395,8 @@ def test_completion_with_retries(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_embedding(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -407,7 +407,6 @@ def test_embedding(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_embedding = EmbeddingResponse(
         model="text-embedding-ada-002",
@@ -457,13 +456,12 @@ def test_embedding(
             prompt_template_version,
             prompt_template_variables,
         )
-    LiteLLMInstrumentor().uninstrument()
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_aembedding(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -474,7 +472,6 @@ async def test_aembedding(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_embedding = EmbeddingResponse(
         model="text-embedding-ada-002",
@@ -527,13 +524,11 @@ async def test_aembedding(
             prompt_template_variables,
         )
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_image_generation_url(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -544,7 +539,6 @@ def test_image_generation_url(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
@@ -597,13 +591,11 @@ def test_image_generation_url(
             prompt_template_variables,
         )
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_image_generation_b64json(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -614,7 +606,6 @@ def test_image_generation_b64json(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
@@ -667,13 +658,11 @@ def test_image_generation_b64json(
             prompt_template_variables,
         )
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_aimage_generation(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -684,7 +673,6 @@ async def test_aimage_generation(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
@@ -735,8 +723,6 @@ async def test_aimage_generation(
             prompt_template_version,
             prompt_template_variables,
         )
-
-    LiteLLMInstrumentor().uninstrument()
 
 
 def test_uninstrument(tracer_provider: TracerProvider) -> None:
