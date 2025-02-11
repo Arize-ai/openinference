@@ -10,6 +10,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from pytest import MonkeyPatch
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -98,8 +99,15 @@ def gemini_api_key(monkeypatch: MonkeyPatch) -> str:
     return api_key
 
 
-def test_oitracer() -> None:
-    assert isinstance(DSPyInstrumentor()._tracer, OITracer)
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="dspy")
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, DSPyInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self) -> None:
+        assert isinstance(DSPyInstrumentor()._tracer, OITracer)
 
 
 class TestLM:

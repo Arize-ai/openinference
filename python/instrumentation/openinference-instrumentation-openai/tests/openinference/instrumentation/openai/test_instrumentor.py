@@ -27,6 +27,7 @@ from httpx import AsyncByteStream, Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
 
@@ -53,6 +54,13 @@ for name, logger in logging.root.manager.loggerDict.items():
 
 _OPENAI_BASE_URL = "https://api.openai.com/v1/"
 _AZURE_BASE_URL = "https://aoairesource.openai.azure.com"
+
+
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="openai")
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, OpenAIInstrumentor)
 
 
 @pytest.mark.parametrize(

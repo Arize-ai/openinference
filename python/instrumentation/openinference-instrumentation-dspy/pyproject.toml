@@ -45,6 +45,9 @@ test = [
   "litellm",
 ]
 
+[project.entry-points.opentelemetry_instrumentor]
+dspy = "openinference.instrumentation.dspy:DSPyInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-dspy"
 

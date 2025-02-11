@@ -24,6 +24,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -70,9 +71,17 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
     return response
 
 
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer() -> None:
-    assert isinstance(MistralAIInstrumentor()._tracer, OITracer)
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="mistralai"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, MistralAIInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self) -> None:
+        assert isinstance(MistralAIInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
