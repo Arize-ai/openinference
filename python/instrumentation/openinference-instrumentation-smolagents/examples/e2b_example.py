@@ -1,7 +1,3 @@
-from io import BytesIO
-
-import requests
-from PIL import Image
 from smolagents import CodeAgent, GradioUI, HfApiModel, Tool
 from smolagents.default_tools import VisitWebpageTool
 
@@ -17,6 +13,11 @@ class GetCatImageTool(Tool):
         self.url = "https://em-content.zobj.net/source/twitter/53/robot-face_1f916.png"
 
     def forward(self):
+        from io import BytesIO
+
+        import requests
+        from PIL import Image
+
         response = requests.get(self.url)
 
         return Image.open(BytesIO(response.content))

@@ -8,10 +8,10 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from smolagents import OpenAIServerModel, Tool
 from smolagents.agents import (  # type: ignore[import-untyped]
     CodeAgent,
-    ManagedAgent,
     ToolCallingAgent,
 )
 from smolagents.models import (  # type: ignore[import-untyped]
@@ -20,6 +20,7 @@ from smolagents.models import (  # type: ignore[import-untyped]
     ChatMessageToolCallDefinition,
 )
 
+from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -95,6 +96,19 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
     return api_key
 
 
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="smolagents"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, SmolagentsInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self) -> None:
+        assert isinstance(SmolagentsInstrumentor()._tracer, OITracer)
+
+
 class TestModels:
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -141,7 +155,7 @@ class TestModels:
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {"max_tokens": 4096}
+        assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
@@ -215,7 +229,7 @@ class TestModels:
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {"max_tokens": 4096}
+        assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
         assert isinstance(
@@ -360,10 +374,6 @@ final_answer("Final report.")
             tools=[],
             model=managed_model,
             max_steps=10,
-        )
-
-        managed_web_agent = ManagedAgent(
-            agent=web_agent,
             name="search_agent",
             description=(
                 "Runs web searches for you. Give it your request as an argument. "
@@ -374,7 +384,7 @@ final_answer("Final report.")
         manager_code_agent = CodeAgent(
             tools=[],
             model=manager_model,
-            managed_agents=[managed_web_agent],
+            managed_agents=[web_agent],
             additional_authorized_imports=["time", "numpy", "pandas"],
         )
 
@@ -384,7 +394,7 @@ final_answer("Final report.")
         manager_toolcalling_agent = ToolCallingAgent(
             tools=[],
             model=manager_model,
-            managed_agents=[managed_web_agent],
+            managed_agents=[web_agent],
         )
 
         report = manager_toolcalling_agent.run("Fake question.")

@@ -1,10 +1,3 @@
-import os
-
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (
-    SimpleSpanProcessor,
-)
 from smolagents import (
     CodeAgent,
     OpenAIServerModel,
@@ -22,14 +15,6 @@ from sqlalchemy import (
     inspect,
     text,
 )
-
-from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-
-endpoint = "http://0.0.0.0:6006/v1/traces"
-trace_provider = TracerProvider()
-trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-
-SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
 
 engine = create_engine("sqlite:///:memory:")
 metadata_obj = MetaData()
@@ -90,10 +75,6 @@ def sql_engine(query: str) -> str:
 
 agent = CodeAgent(
     tools=[sql_engine],
-    model=OpenAIServerModel(
-        "gpt-4o-mini",
-        api_base="https://api.openai.com/v1",
-        api_key=os.environ["OPENAI_API_KEY"],
-    ),
+    model=OpenAIServerModel("gpt-4o-mini"),
 )
 agent.run("Can you give me the name of the client who got the most expensive receipt?")

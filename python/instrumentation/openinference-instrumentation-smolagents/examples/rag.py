@@ -1,23 +1,8 @@
-import os
-
 import datasets
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.retrievers import BM25Retriever
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (
-    SimpleSpanProcessor,
-)
 from smolagents import CodeAgent, OpenAIServerModel, Tool
-
-from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-
-endpoint = "http://0.0.0.0:6006/v1/traces"
-trace_provider = TracerProvider()
-trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-
-SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
 
 knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
 knowledge_base = knowledge_base.filter(
@@ -78,13 +63,9 @@ class RetrieverTool(Tool):
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
     tools=[retriever_tool],
-    model=OpenAIServerModel(
-        "gpt-4o",
-        api_base="https://api.openai.com/v1",
-        api_key=os.environ["OPENAI_API_KEY"],
-    ),
+    model=OpenAIServerModel("gpt-4o"),
     max_steps=4,
-    verbose=True,
+    verbosity_level=2,
 )
 
 agent_output = agent.run(

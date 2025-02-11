@@ -1,2 +1,5 @@
 # vendored virtual environments
 .venv
+
+# gradio work directory
+.gradio
