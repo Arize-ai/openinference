@@ -76,6 +76,7 @@ def test_crewai_instrumentation(
             verbose=True,
             allow_delegation=False,
             tools=[search_tool],
+            max_iter=1,
         )
         aristocrat = Agent(
             role="Aristocrat",
@@ -85,6 +86,7 @@ def test_crewai_instrumentation(
           give to greeters.""",
             verbose=True,
             allow_delegation=True,
+            max_iter=1,
         )
         # Create tasks for your agents
         task1 = Task(
@@ -105,7 +107,7 @@ def test_crewai_instrumentation(
         )
         crew.kickoff()
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 6
+    assert len(spans) == 9
     checked_spans = 0
     for span in spans:
         attributes = dict(span.attributes or dict())
@@ -124,8 +126,9 @@ def test_crewai_instrumentation(
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "TOOL"
             assert attributes.get("tool.name") in (
-                "Search the internet",
+                "Search the internet with Serper",
                 "Ask question to coworker",
+                "Delegate work to coworker",
             )
             assert span.status.is_ok
         elif span.name == "Task._execute_core":
@@ -133,7 +136,7 @@ def test_crewai_instrumentation(
             assert attributes["openinference.span.kind"] == "AGENT"
             assert attributes.get("input.value")
             assert span.status.is_ok
-    assert checked_spans == 6
+    assert checked_spans == 9
 
 
 def test_crewai_instrumentation_context_attributes(
@@ -175,6 +178,7 @@ def test_crewai_instrumentation_context_attributes(
                 verbose=True,
                 allow_delegation=False,
                 tools=[search_tool],
+                max_iter=1,
             )
             aristocrat = Agent(
                 role="Aristocrat",
@@ -184,6 +188,7 @@ def test_crewai_instrumentation_context_attributes(
               give to greeters.""",
                 verbose=True,
                 allow_delegation=True,
+                max_iter=1,
             )
             # Create tasks for your agents
             task1 = Task(
