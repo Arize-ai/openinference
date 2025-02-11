@@ -14,42 +14,58 @@ pip install openinference-instrumentation-smolagents
 
 ## Quickstart
 
-This quickstart shows you how to instrument your guardrailed LLM application 
+This quickstart shows you how to instrument your LLM agent application.
 
-Install required packages.
+You've already installed openinference-instrumentation-smolagents. Next is to install packages for smolagents,
+Phoenix and `opentelemetry-instrument`, which exports traces to it.
 
 ```shell
-pip install smolagents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install smolagents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc opentelemetry-distro
 ```
 
-Start Phoenix in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address. (Phoenix does not send data over the internet. It only operates locally on your machine.)
+Start Phoenix in the background as a collector, which listens on `http://localhost:6006` and default gRPC port 4317.
+Note that Phoenix does not send data over the internet. It only operates locally on your machine.
 
 ```shell
 python -m phoenix.server.main serve
 ```
 
-Set up `SmolagentsInstrumentor` to trace your crew and send the traces to Phoenix at the endpoint defined below.
+Create an example like this:
 
 ```python
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
-
-endpoint = "http://0.0.0.0:6006/v1/traces"
-trace_provider = TracerProvider()
-trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-
-SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
-
 from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel
 
 agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=HfApiModel())
 
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
+```
+
+Then, run it like this:
+
+```shell
+opentelemetry-instrument python example.py
+```
+
+Finally, browse for your trace in Phoenix at `http://localhost:6006`!
+
+## Manual instrumentation
+
+`opentelemetry-instrument` is the [Zero-code instrumentation](https://opentelemetry.io/docs/zero-code/python) approach
+for Python. It avoids explicitly importing and configuring OpenTelemetry code in your main source. Alternatively, you
+can copy-paste the following into your main source and run it without `opentelemetry-instrument`.
+
+```python
+from opentelemetry.sdk.trace import TracerProvider
+
+from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+trace_provider = TracerProvider()
+trace_provider.add_span_processor(SimpleSpanProcessor(otlp_exporter))
+
+SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
 ```
 
 ## More Info

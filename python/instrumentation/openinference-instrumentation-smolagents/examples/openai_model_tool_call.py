@@ -1,20 +1,5 @@
-import os
-
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (
-    SimpleSpanProcessor,
-)
 from smolagents import OpenAIServerModel
 from smolagents.tools import Tool
-
-from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-
-endpoint = "http://0.0.0.0:6006/v1/traces"
-trace_provider = TracerProvider()
-trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-
-SmolagentsInstrumentor().instrument(tracer_provider=trace_provider, skip_dep_check=True)
 
 
 class GetWeatherTool(Tool):
@@ -27,10 +12,8 @@ class GetWeatherTool(Tool):
         return "sunny"
 
 
-model = OpenAIServerModel(
-    model_id="gpt-4o", api_key=os.environ["OPENAI_API_KEY"], api_base="https://api.openai.com/v1"
-)
-output_message = model(
+model = OpenAIServerModel(model_id="gpt-4o")
+output = model(
     messages=[
         {
             "role": "user",
@@ -39,4 +22,4 @@ output_message = model(
     ],
     tools_to_call_from=[GetWeatherTool()],
 )
-print(output_message)
+print(output.tool_calls[0].function)
