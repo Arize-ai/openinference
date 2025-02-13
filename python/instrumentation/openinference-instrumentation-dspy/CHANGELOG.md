@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.16...python-openinference-instrumentation-dspy-v0.1.17) (2025-02-11)
+
+
+### Features
+
+* add entrypoint for use in opentelemetry-instrument ([#1278](https://github.com/Arize-ai/openinference/issues/1278)) ([2106acf](https://github.com/Arize-ai/openinference/commit/2106acfd6648804abe9b95e41a49df26a500435c))
+
 ## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.15...python-openinference-instrumentation-dspy-v0.1.16) (2025-02-04)
 
 
