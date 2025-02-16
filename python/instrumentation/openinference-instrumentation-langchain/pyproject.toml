@@ -58,6 +58,9 @@ type-check = [
 [project.entry-points.opentelemetry_instrumentor]
 langchain = "openinference.instrumentation.langchain:LangChainInstrumentor"
 
+[project.entry-points.openinference_instrumentor]
+langchain = "openinference.instrumentation.langchain:LangChainInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-langchain"
 

@@ -47,6 +47,9 @@ test = [
 [project.entry-points.opentelemetry_instrumentor]
 crewai = "openinference.instrumentation.crewai:CrewAIInstrumentor"
 
+[project.entry-points.openinference_instrumentor]
+crewai = "openinference.instrumentation.crewai:CrewAIInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-crewai"
 

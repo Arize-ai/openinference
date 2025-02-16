@@ -51,6 +51,9 @@ test = [
 [project.entry-points.opentelemetry_instrumentor]
 bedrock = "openinference.instrumentation.bedrock:BedrockInstrumentor"
 
+[project.entry-points.openinference_instrumentor]
+bedrock = "openinference.instrumentation.bedrock:BedrockInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-bedrock"
 

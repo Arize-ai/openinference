@@ -42,6 +42,9 @@ test = [
 [project.entry-points.opentelemetry_instrumentor]
 mistralai = "openinference.instrumentation.mistralai:MistralAIInstrumentor"
 
+[project.entry-points.openinference_instrumentor]
+mistralai = "openinference.instrumentation.mistralai:MistralAIInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-mistralai"
 
