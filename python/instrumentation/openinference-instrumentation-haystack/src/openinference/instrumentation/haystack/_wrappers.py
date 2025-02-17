@@ -220,7 +220,7 @@ def _get_component_type(component: "Component") -> ComponentType:
 
     from haystack.components.builders import PromptBuilder
 
-    component_name = component_class_name = type(component).__name__ or component.__class__.__name__
+    component_name = type(component).__name__ or component.__class__.__name__
     if (run_method := _get_component_run_method(component)) is None:
         return ComponentType.UNKNOWN
     if "Generator" in component_name or _has_generator_output_type(run_method):
