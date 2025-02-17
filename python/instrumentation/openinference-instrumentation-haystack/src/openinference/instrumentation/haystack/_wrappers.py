@@ -204,24 +204,6 @@ class ComponentType(Enum):
     UNKNOWN = auto()
 
 
-def _get_component_by_name(pipeline: "Pipeline", component_name: str) -> Optional["Component"]:
-    """
-    Gets the component invoked by `haystack.Pipeline._run_component` (if one exists).
-    """
-    if (node := pipeline.graph.nodes.get(component_name)) is None or (
-        component := node.get("instance")
-    ) is None:
-        return None
-    return component
-
-
-def _get_component_class_name(component: "Component") -> str:
-    """
-    Gets the name of the component.
-    """
-    return str(component.__class__.__name__)
-
-
 def _get_component_span_name(*, component_class_name: str, component_name: str) -> str:
     """
     Gets the name of the span for a component.
@@ -238,7 +220,7 @@ def _get_component_type(component: "Component") -> ComponentType:
 
     from haystack.components.builders import PromptBuilder
 
-    component_name = _get_component_class_name(component)
+    component_name = component_class_name = type(component).__name__ or component.__class__.__name__
     if (run_method := _get_component_run_method(component)) is None:
         return ComponentType.UNKNOWN
     if "Generator" in component_name or _has_generator_output_type(run_method):
