@@ -70,12 +70,11 @@ class _ComponentWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         pipe_args = _get_bound_arguments(wrapped, *args, **kwargs).arguments
-        component_name = pipe_args["name"]
-        component = _get_component_by_name(instance, component_name)
+        component = pipe_args["component"]["instance"]
+        component_name = component.__class__.__name__
         if component is None or not hasattr(component, "run") or not callable(component.run):
             return wrapped(*args, **kwargs)
-        component_class_name = _get_component_class_name(component)
-
+        component_class_name = type(component).__name__ or component.__class__.__name__
         run_bound_args = _get_bound_arguments(component.run, **pipe_args["inputs"])
         run_args = run_bound_args.arguments
 
