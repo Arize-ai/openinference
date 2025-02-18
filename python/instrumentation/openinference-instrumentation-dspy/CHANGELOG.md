@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.17...python-openinference-instrumentation-dspy-v0.1.18) (2025-02-18)
+
+
+### Features
+
+* define openinference_instrumentor entry points for all libraries ([#1290](https://github.com/Arize-ai/openinference/issues/1290)) ([4b69fdc](https://github.com/Arize-ai/openinference/commit/4b69fdc13210048009e51639b01e7c0c9550c9d1))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.16...python-openinference-instrumentation-dspy-v0.1.17) (2025-02-11)
 
 

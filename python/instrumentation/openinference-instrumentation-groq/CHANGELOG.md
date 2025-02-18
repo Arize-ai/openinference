@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.7...python-openinference-instrumentation-groq-v0.1.8) (2025-02-18)
+
+
+### Features
+
+* define openinference_instrumentor entry points for all libraries ([#1290](https://github.com/Arize-ai/openinference/issues/1290)) ([4b69fdc](https://github.com/Arize-ai/openinference/commit/4b69fdc13210048009e51639b01e7c0c9550c9d1))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.6...python-openinference-instrumentation-groq-v0.1.7) (2025-02-11)
 
 
