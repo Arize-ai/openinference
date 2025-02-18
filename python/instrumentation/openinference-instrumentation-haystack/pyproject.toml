@@ -37,10 +37,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    "haystack-ai >= 2.9.0",
+    "haystack-ai >= 2.10.0",
 ]
 test = [
-    "haystack-ai==2.9.0",
+    "haystack-ai==2.10.0",
     "cohere-haystack",
     "opentelemetry-sdk",
     "vcrpy>=7.0.0",
