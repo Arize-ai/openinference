@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.5...python-openinference-instrumentation-smolagents-v0.1.6) (2025-02-18)
+
+
+### Features
+
+* define openinference_instrumentor entry points for all libraries ([#1290](https://github.com/Arize-ai/openinference/issues/1290)) ([4b69fdc](https://github.com/Arize-ai/openinference/commit/4b69fdc13210048009e51639b01e7c0c9550c9d1))
+* **smolagents:** support smolagents on python 3.13 ([#1294](https://github.com/Arize-ai/openinference/issues/1294)) ([415f57e](https://github.com/Arize-ai/openinference/commit/415f57e9cdcaf8ad4da8f73043f0fe8e64a7a1e0))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.4...python-openinference-instrumentation-smolagents-v0.1.5) (2025-02-11)
 
 
