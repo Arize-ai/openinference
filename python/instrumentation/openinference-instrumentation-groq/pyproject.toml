@@ -48,6 +48,9 @@ test = [
 [project.entry-points.opentelemetry_instrumentor]
 groq = "openinference.instrumentation.groq:GroqInstrumentor"
 
+[project.entry-points.openinference_instrumentor]
+groq = "openinference.instrumentation.groq:GroqInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-groq"
 

@@ -46,6 +46,9 @@ test = [
 [project.entry-points.opentelemetry_instrumentor]
 litellm = "openinference.instrumentation.litellm:LiteLLMInstrumentor"
 
+[project.entry-points.openinference_instrumentor]
+litellm = "openinference.instrumentation.litellm:LiteLLMInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-litellm"
 

@@ -43,6 +43,9 @@ test = [
 [project.entry-points.opentelemetry_instrumentor]
 autogen = "openinference.instrumentation.autogen:AutogenInstrumentor"
 
+[project.entry-points.openinference_instrumentor]
+autogen = "openinference.instrumentation.autogen:AutogenInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-autogen"
 
