@@ -34,7 +34,7 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    from haystack import Document, Pipeline
+    from haystack import Document
     from haystack.core.component import Component
 
 
