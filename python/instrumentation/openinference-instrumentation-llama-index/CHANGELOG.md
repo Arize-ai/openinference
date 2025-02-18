@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.2.0...python-openinference-instrumentation-llama-index-v3.3.0) (2025-02-18)
+
+
+### Features
+
+* define openinference_instrumentor entry points for all libraries ([#1290](https://github.com/Arize-ai/openinference/issues/1290)) ([4b69fdc](https://github.com/Arize-ai/openinference/commit/4b69fdc13210048009e51639b01e7c0c9550c9d1))
+
+
+### Bug Fixes
+
+* **llama-index:** fix typo in llama-index entry point ([#1288](https://github.com/Arize-ai/openinference/issues/1288)) ([15f3b59](https://github.com/Arize-ai/openinference/commit/15f3b5949121ce9c71f5f41d098858e492d4f5dd))
+
 ## [3.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.1.4...python-openinference-instrumentation-llama-index-v3.2.0) (2025-02-11)
 
 

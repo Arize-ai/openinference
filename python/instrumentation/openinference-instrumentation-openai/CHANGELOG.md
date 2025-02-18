@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.20...python-openinference-instrumentation-openai-v0.1.21) (2025-02-18)
+
+
+### Features
+
+* define openinference_instrumentor entry points for all libraries ([#1290](https://github.com/Arize-ai/openinference/issues/1290)) ([4b69fdc](https://github.com/Arize-ai/openinference/commit/4b69fdc13210048009e51639b01e7c0c9550c9d1))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.19...python-openinference-instrumentation-openai-v0.1.20) (2025-02-11)
 
 
