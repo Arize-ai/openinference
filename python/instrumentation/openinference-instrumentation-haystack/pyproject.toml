@@ -50,6 +50,9 @@ test = [
 [project.entry-points.opentelemetry_instrumentor]
 haystack = "openinference.instrumentation.haystack:HaystackInstrumentor"
 
+[project.entry-points.openinference_instrumentor]
+haystack = "openinference.instrumentation.haystack:HaystackInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-haystack"
 
