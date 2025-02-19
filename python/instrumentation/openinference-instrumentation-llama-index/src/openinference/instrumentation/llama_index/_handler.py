@@ -584,6 +584,8 @@ class _Span(BaseSpan):
                 for j, tool_call in enumerate(tool_calls):
                     for k, v in _get_tool_call(tool_call):
                         self[f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{k}"] = v
+            if tool_call_id := additional_kwargs.get("tool_call_id"):
+                self[f"{prefix}.{i}.{MESSAGE_TOOL_CALL_ID}"] = tool_call_id
 
     def _process_query_type(self, query: Optional[QueryType]) -> None:
         if query is None:
@@ -1053,6 +1055,7 @@ MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
