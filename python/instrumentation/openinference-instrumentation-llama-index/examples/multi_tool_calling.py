@@ -1,13 +1,14 @@
-from pydantic import BaseModel
+from llama_index.core.llms import ChatMessage
 from llama_index.core.tools import FunctionTool
 from llama_index.llms.openai import OpenAI
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter as HTTPSpanExporter,
 )
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from pydantic import BaseModel
+
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-from llama_index.core.llms import ChatMessage
 
 # Add Phoenix
 span_phoenix_processor = SimpleSpanProcessor(
