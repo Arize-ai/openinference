@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.3.0...python-openinference-instrumentation-llama-index-v3.3.1) (2025-02-19)
+
+
+### Bug Fixes
+
+* **llama-index:** Capture tool call id from additional_kwargs ([#1299](https://github.com/Arize-ai/openinference/issues/1299)) ([14c1c0c](https://github.com/Arize-ai/openinference/commit/14c1c0c8f206a00f6cf67a9c1995c24283687f37))
+
 ## [3.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.2.0...python-openinference-instrumentation-llama-index-v3.3.0) (2025-02-18)
 
 
