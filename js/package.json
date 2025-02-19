@@ -45,7 +45,11 @@
   "pnpm": {
     "overrides": {
       "@langchain/openai@^0.2>@langchain/core": "^0.2.36",
-      "@langchain/openai@^0.1>@langchain/core": "^0.1.63"
+      "@langchain/openai@^0.1>@langchain/core": "^0.1.63",
+      "micromatch@<4.0.8": ">=4.0.8",
+      "langchain@<0.2.19": ">=0.2.19",
+      "cross-spawn@<6.0.6": ">=6.0.6",
+      "cross-spawn@>=7.0.0 <7.0.5": ">=7.0.5"
     }
   }
 }
