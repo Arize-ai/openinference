@@ -1,15 +1,15 @@
 interactions:
 - request:
-    body: '{"model":"rerank-english-v2.0","query":"Who won the World Cup in 2022?","documents":["Paul
-      Graham is the founder of Y Combinator.","Lionel Messi, captain of the Argentinian
-      national team,  won his first World Cup in 2022.","France lost the 2022 World
-      Cup."],"top_n":2,"max_chunks_per_doc":null}'
+    body: '{"model": "rerank-english-v2.0", "query": "Who won the World Cup in 2022?",
+      "documents": ["Paul Graham is the founder of Y Combinator.", "Lionel Messi,
+      captain of the Argentinian national team,  won his first World Cup in 2022.",
+      "France lost the 2022 World Cup."], "top_n": 2, "max_chunks_per_doc": null}'
     headers: {}
     method: POST
-    uri: https://api.cohere.com/v1/rerank
+    uri: https://api.cohere.com/v2/rerank
   response:
     body:
-      string: '{"id":"fe852dc1-e19b-4b34-908e-35d018262e22","results":[{"index":1,"relevance_score":0.7140302},{"index":0,"relevance_score":0.51580286}],"meta":{"api_version":{"version":"1"},"billed_units":{"search_units":1}}}'
+      string: '{"id":"a2c52bb8-3297-4630-b008-62283af7dd4a","results":[{"index":1,"relevance_score":0.7140302},{"index":0,"relevance_score":0.51580286}],"meta":{"api_version":{"version":"1"},"billed_units":{"search_units":1}}}'
     headers: {}
     status:
       code: 200
