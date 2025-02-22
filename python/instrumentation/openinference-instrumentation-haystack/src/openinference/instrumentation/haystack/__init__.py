@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Collection
+from typing import Any, Callable, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
@@ -8,7 +8,11 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.haystack._wrappers import _ComponentWrapper, _PipelineWrapper
+from openinference.instrumentation.haystack._wrappers import (
+    _ComponentRunWrapper,
+    _PipelineRunComponentWrapper,
+    _PipelineWrapper,
+)
 from openinference.instrumentation.haystack.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -19,7 +23,12 @@ _instruments = ("haystack-ai >= 2.9.0",)
 class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     """An instrumentor for the Haystack framework."""
 
-    __slots__ = ("_original_pipeline_run", "_original_pipeline_run_component", "_tracer")
+    __slots__ = (
+        "_original_pipeline_run",
+        "_original_pipeline_run_component",
+        "_original_component_run_methods",
+        "_tracer",
+    )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -45,10 +54,25 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             wrapper=_PipelineWrapper(tracer=self._tracer),
         )
         self._original_pipeline_run_component = haystack.Pipeline._run_component
+        self._original_component_run_methods: dict[type[Any], Callable[..., Any]] = {}
+
+        def wrap_component_run_method(
+            component_cls: type[Any], run_method: Callable[..., Any]
+        ) -> None:
+            if component_cls not in self._original_component_run_methods:
+                self._original_component_run_methods[component_cls] = run_method
+                wrap_function_wrapper(
+                    module=component_cls.__module__,
+                    name=f"{component_cls.__name__}.run",
+                    wrapper=_ComponentRunWrapper(tracer=self._tracer),
+                )
+
         wrap_function_wrapper(
             module="haystack.core.pipeline.pipeline",
             name="Pipeline._run_component",
-            wrapper=_ComponentWrapper(tracer=self._tracer),
+            wrapper=_PipelineRunComponentWrapper(
+                tracer=self._tracer, wrap_component_run_method=wrap_component_run_method
+            ),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -59,3 +83,6 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         if self._original_pipeline_run_component is not None:
             haystack.Pipeline._run_component = self._original_pipeline_run_component
+
+        for component_cls, original_run_method in self._original_component_run_methods.items():
+            component_cls.run = original_run_method
