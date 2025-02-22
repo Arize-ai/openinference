@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.17...python-openinference-instrumentation-haystack-v0.1.18) (2025-02-22)
+
+
+### Bug Fixes
+
+* **haystack:** update haystack for compatibility with 2.10 ([#1295](https://github.com/Arize-ai/openinference/issues/1295)) ([2f6c607](https://github.com/Arize-ai/openinference/commit/2f6c6078e4e1412306bbf954e2f9ad35336f3abc))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.16...python-openinference-instrumentation-haystack-v0.1.17) (2025-02-18)
 
 
