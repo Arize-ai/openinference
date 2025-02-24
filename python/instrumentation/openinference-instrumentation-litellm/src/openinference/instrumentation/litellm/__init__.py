@@ -209,6 +209,60 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
             span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, result.usage["total_tokens"]
         )
 
+def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Iterator[Any]:
+    print(f"Finalizing sync streaming span for stream: {stream}")
+    output_messages: Dict[int, Dict[str, Any]] = {}
+    usage_stats = None
+
+    try:
+        for token in stream:
+            choices = getattr(token, "choices", None)
+            if choices:
+                for choice in choices:
+                    idx = choice.index
+                    if idx not in output_messages:
+                        output_messages[idx] = {"role": None, "content": ""}
+                    delta = getattr(choice, "delta", None)
+                    if delta:
+                        role = getattr(delta, "role", None)
+                        content = getattr(delta, "content", None)
+                        if role and output_messages[idx]["role"] is None:
+                            output_messages[idx]["role"] = role
+                        if content:
+                            output_messages[idx]["content"] += content
+            
+            # Capture usage stats if available
+            if hasattr(token, "usage"):
+                usage_stats = token.usage  # Update usage_stats if available
+
+            yield token  # Yield token to maintain streaming behavior
+
+        # Process final aggregated output
+        aggregated_output = output_messages.get(0, {}).get("content", "")
+        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
+
+        for idx, msg in output_messages.items():
+            message = {"role": msg.get("role"), "content": msg.get("content")}
+            for key, value in _get_attributes_from_message_param(message):
+                _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
+
+        # Set token usage stats if available
+        if usage_stats:
+            _set_span_attribute(
+                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, usage_stats.get("prompt_tokens", 0)
+            )
+            _set_span_attribute(
+                span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, usage_stats.get("completion_tokens", 0)
+            )
+            _set_span_attribute(
+                span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, usage_stats.get("total_tokens", 0)
+            )
+
+    except Exception as e:
+        span.record_exception(e)
+        raise
+    finally:
+        span.end()
 
 async def _finalize_streaming_span(span: trace_api.Span, stream: CustomStreamWrapper) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
@@ -311,13 +365,24 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
     def _completion_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return self.original_litellm_funcs["completion"](*args, **kwargs)  # type:ignore
-        with self._tracer.start_as_current_span(
-            name="completion", attributes=dict(get_attributes_from_context())
-        ) as span:
+        
+        result = self.original_litellm_funcs["completion"](*args, **kwargs)
+
+        if hasattr(result, "__iter__"):
+            print("Streaming responseeee")
+            span = self._tracer.start_span(
+                name="completion", attributes=dict(get_attributes_from_context())
+            )
             _instrument_func_type_completion(span, kwargs)
-            result = self.original_litellm_funcs["completion"](*args, **kwargs)
-            _finalize_span(span, result)
-        return result  # type:ignore
+            print("Finalizing sync streaming span")
+            return _finalize_sync_streaming_span(span, result)  # type:ignore
+        else:
+            with self._tracer.start_as_current_span(
+                name="completion", attributes=dict(get_attributes_from_context())
+            ) as span:
+                _instrument_func_type_completion(span, kwargs)
+                _finalize_span(span, result)
+            return result  # type:ignore
 
     @wraps(litellm.acompletion)
     async def _acompletion_wrapper(
