@@ -27,8 +27,10 @@ from litellm.types.utils import (
     Choices,
     EmbeddingResponse,
     ImageResponse,
-    Message,
     ModelResponse,
+)
+from litellm.types.utils import (
+    Message as LitellmMessage,
 )
 from openinference.instrumentation import (
     OITracer,
@@ -62,7 +64,7 @@ def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
 
 
 def _get_attributes_from_message_param(
-    message: Union[Mapping[str, Any], Message],
+    message: Union[Mapping[str, Any], LitellmMessage],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not hasattr(message, "get"):
         return
@@ -119,12 +121,21 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
     _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, kwargs.get("model", "unknown_model"))
 
     if messages := kwargs.get("messages"):
-        _set_span_attribute(span, SpanAttributes.INPUT_VALUE, json.dumps(messages))
-        for index, input_message in list(enumerate(messages)):
+        messages_as_dicts = []
+        for input_message in messages:
+            if isinstance(input_message, LitellmMessage):
+                messages_as_dicts.append(input_message.json())  # type: ignore[no-untyped-call]
+            else:
+                messages_as_dicts.append(input_message)
+
+        for index, input_message in enumerate(messages):
             for key, value in _get_attributes_from_message_param(input_message):
                 _set_span_attribute(
                     span, f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
                 )
+
+        if messages_as_dicts:
+            _set_span_attribute(span, SpanAttributes.INPUT_VALUE, json.dumps(messages_as_dicts))
 
     invocation_params = {k: v for k, v in kwargs.items() if k not in ["model", "messages"]}
     _set_span_attribute(
