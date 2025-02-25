@@ -209,6 +209,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
             span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, result.usage["total_tokens"]
         )
 
+
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Iterator[Any]:
     output_messages: Dict[int, Dict[str, Any]] = {}
     usage_stats = None
@@ -237,14 +238,18 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Iterator
         for idx, msg in output_messages.items():
             message = {"role": msg.get("role"), "content": msg.get("content")}
             for key, value in _get_attributes_from_message_param(message):
-                _set_span_attribute(span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value)
-                
+                _set_span_attribute(
+                    span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
+                )
+
         if usage_stats:
             _set_span_attribute(
                 span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, usage_stats.get("prompt_tokens", 0)
             )
             _set_span_attribute(
-                span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, usage_stats.get("completion_tokens", 0)
+                span,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
+                usage_stats.get("completion_tokens", 0),
             )
             _set_span_attribute(
                 span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, usage_stats.get("total_tokens", 0)
@@ -254,6 +259,7 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Iterator
         raise
     finally:
         span.end()
+
 
 async def _finalize_streaming_span(span: trace_api.Span, stream: CustomStreamWrapper) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
@@ -356,7 +362,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
     def _completion_wrapper(self, *args: Any, **kwargs: Any) -> ModelResponse:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return self.original_litellm_funcs["completion"](*args, **kwargs)  # type:ignore
-        
+
         result = self.original_litellm_funcs["completion"](*args, **kwargs)
 
         if hasattr(result, "__iter__"):
