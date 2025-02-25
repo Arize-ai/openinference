@@ -210,31 +210,29 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         )
 
 
-def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Iterator[Any]:
+def _finalize_sync_streaming_span(span: trace_api.Span, stream: CustomStreamWrapper) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
     usage_stats = None
     try:
         for token in stream:
-            choices = getattr(token, "choices", None)
-            if choices:
-                for choice in choices:
+            if token.choices:
+                for choice in token.choices:
                     idx = choice.index
                     if idx not in output_messages:
                         output_messages[idx] = {"role": None, "content": ""}
-                    delta = getattr(choice, "delta", None)
+                    delta = choice.delta
                     if delta:
                         role = getattr(delta, "role", None)
                         content = getattr(delta, "content", None)
-                        if role and output_messages[idx]["role"] is None:
+                        if role is not None and output_messages[idx]["role"] is None:
                             output_messages[idx]["role"] = role
-                        if content:
+                        if content is not None:
                             output_messages[idx]["content"] += content
-            if hasattr(token, "usage"):
+            if getattr(token, "usage", None):
                 usage_stats = token.usage
             yield token
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
-
         for idx, msg in output_messages.items():
             message = {"role": msg.get("role"), "content": msg.get("content")}
             for key, value in _get_attributes_from_message_param(message):
@@ -244,15 +242,15 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Iterator
 
         if usage_stats:
             _set_span_attribute(
-                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, usage_stats.get("prompt_tokens", 0)
+                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, usage_stats.get("prompt_tokens")
             )
             _set_span_attribute(
                 span,
                 SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
-                usage_stats.get("completion_tokens", 0),
+                usage_stats.get("completion_tokens"),
             )
             _set_span_attribute(
-                span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, usage_stats.get("total_tokens", 0)
+                span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, usage_stats.get("total_tokens")
             )
     except Exception as e:
         span.record_exception(e)
@@ -365,7 +363,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
         result = self.original_litellm_funcs["completion"](*args, **kwargs)
 
-        if hasattr(result, "__iter__"):
+        if isinstance(result, CustomStreamWrapper) and kwargs.get("stream", False):
             span = self._tracer.start_span(
                 name="completion", attributes=dict(get_attributes_from_context())
             )
