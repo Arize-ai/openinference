@@ -19,7 +19,7 @@ from openinference.instrumentation import OITracer, TraceConfig
 def test_id_generator(override: bool) -> None:
     in_memory_span_exporter = InMemorySpanExporter()
     tracer_provider = (
-        TracerProvider(id_generator=type("id_gen", (RandomIdGenerator,), {})())
+        TracerProvider(id_generator=type("Foo", (RandomIdGenerator,), {})())
         if override
         else TracerProvider()
     )
