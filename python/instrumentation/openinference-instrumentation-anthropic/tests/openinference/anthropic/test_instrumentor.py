@@ -24,7 +24,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from typing_extensions import assert_never
 from wrapt import BoundFunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -73,20 +72,6 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
     """
     response["headers"] = {}
     return response
-
-
-def _to_assistant_message_param(
-    message: Message,
-) -> MessageParam:
-    content = []
-    for block in message.content:
-        if isinstance(block, TextBlock):
-            content.append(block)
-        elif isinstance(block, ToolUseBlock):
-            content.append(block)  # type: ignore
-        else:
-            assert_never(block)
-    return MessageParam(content=content, role="assistant")
 
 
 def _get_tool_use_id(message: Message) -> Optional[str]:
