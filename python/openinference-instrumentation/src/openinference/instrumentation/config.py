@@ -30,6 +30,15 @@ from typing import (  #  type: ignore[attr-defined]
 )
 
 import wrapt  # type: ignore[import-untyped]
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     Context,
@@ -54,16 +63,6 @@ from opentelemetry.trace import (
 )
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import ParamSpec, TypeAlias, TypeGuard, _AnnotatedAlias, overload
-
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 
 from .context_attributes import get_attributes_from_context
 from .logging import logger
@@ -612,8 +611,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
     @property
     def id_generator(self) -> IdGenerator:
-        ans = self.__wrapped__.id_generator
-        if ans.__class__ is RandomIdGenerator:
+        ans = getattr(self.__wrapped__, "id_generator", None)
+        if ans and ans.__class__ is RandomIdGenerator:
             return self._self_id_generator
         return cast(IdGenerator, ans)
 
