@@ -50,7 +50,6 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    import anthropic
     from anthropic.types import (
         DocumentBlockParam,
         ImageBlockParam,
@@ -149,9 +148,7 @@ def _attributes_from_message_param(
     num_tool_calls = 0
     for i, block in enumerate(content):
         if TYPE_CHECKING:
-            assert not isinstance(
-                block, (str, anthropic.types.TextBlock, anthropic.types.ToolUseBlock)
-            )
+            assert isinstance(block, dict)
         if "type" not in block:
             continue
         if block["type"] == "text":
@@ -171,6 +168,10 @@ def _attributes_from_message_param(
             yield from _attributes_from_tool_result_param(block, f"{prefix}{MESSAGE_CONTENTS}.{i}.")
         elif block["type"] == "document":
             yield from _attributes_from_document_param(block, f"{prefix}{MESSAGE_CONTENTS}.{i}.")
+        elif block["type"] == "thinking":
+            pass  # TODO
+        elif block["type"] == "redacted_thinking":
+            pass  # TODO
         else:
             if TYPE_CHECKING:
                 assert_never(block)
