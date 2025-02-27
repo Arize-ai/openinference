@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.22...python-openinference-instrumentation-v0.1.23) (2025-02-27)
+
+
+### Bug Fixes
+
+* allow user override of id generator ([#1315](https://github.com/Arize-ai/openinference/issues/1315)) ([1916749](https://github.com/Arize-ai/openinference/commit/19167498fd74f2e93481bd63b5636e264af1eaab))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.21...python-openinference-instrumentation-v0.1.22) (2025-02-04)
 
 
