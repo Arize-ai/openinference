@@ -39,7 +39,7 @@ from opentelemetry.context import (
     set_value,
 )
 from opentelemetry.sdk.trace import TracerProvider as OTelTracerProvider
-from opentelemetry.sdk.trace.id_generator import IdGenerator
+from opentelemetry.sdk.trace.id_generator import IdGenerator, RandomIdGenerator
 from opentelemetry.trace import (
     INVALID_SPAN,
     INVALID_SPAN_ID,
@@ -612,7 +612,10 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
     @property
     def id_generator(self) -> IdGenerator:
-        return self._self_id_generator
+        ans = self.__wrapped__.id_generator
+        if ans.__class__ is RandomIdGenerator:
+            return self._self_id_generator
+        return cast(IdGenerator, ans)
 
     @contextmanager
     def start_as_current_span(
