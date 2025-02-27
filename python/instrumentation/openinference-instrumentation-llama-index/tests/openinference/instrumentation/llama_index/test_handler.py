@@ -28,6 +28,7 @@ import openai
 import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
 from llama_index.core import Document, ListIndex, Settings
+from llama_index.core.base.response.schema import AsyncStreamingResponse, StreamingResponse
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.schema import TextNode
 from llama_index.llms.openai import OpenAI
@@ -118,7 +119,10 @@ def test_handler_basic_retrieval(
     respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
 
     async def aquery(question: str) -> None:
-        await (await query_engine.aquery(question)).get_response()
+        response = await query_engine.aquery(question)
+        if is_stream:
+            assert isinstance(response, AsyncStreamingResponse)
+            await response.get_response()
 
     async def task() -> None:
         await asyncio.gather(*(aquery(question) for question in questions), return_exceptions=True)
@@ -126,6 +130,7 @@ def test_handler_basic_retrieval(
     def query(question: str) -> None:
         response = query_engine.query(question)
         if is_stream:
+            assert isinstance(response, StreamingResponse)
             response.get_response()
 
     def main() -> None:
