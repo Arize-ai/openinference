@@ -269,13 +269,22 @@ def _attributes_from_image_param(
     block: ImageBlockParam,
     prefix: str,
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    media_type = block["source"]["media_type"]
-    data = block["source"]["data"]
-    type_ = block["source"]["type"]
-    yield (
-        f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
-        f"data:{media_type};{type_},{data}",
-    )
+    source = block["source"]
+    if source["type"] == "base64":
+        media_type = source["media_type"]
+        data = source["data"]
+        type_ = source["type"]
+        yield (
+            f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+            f"data:{media_type};{type_},{data}",
+        )
+    elif source["type"] == "url":
+        yield (
+            f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+            source["url"],
+        )
+    elif TYPE_CHECKING:
+        assert_never(source["type"])
 
 
 @_stop_on_exception
