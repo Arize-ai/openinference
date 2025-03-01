@@ -3,6 +3,7 @@ import json
 import boto3
 import pytest
 from anthropic.types import (
+    Base64ImageSourceParam,
     ImageBlockParam,
     MessageParam,
     TextBlock,
@@ -12,7 +13,6 @@ from anthropic.types import (
     ToolUseBlock,
     ToolUseBlockParam,
 )
-from anthropic.types.image_block_param import Source
 from anthropic.types.message_create_params import MessageCreateParamsBase
 from botocore.eventstream import EventStream
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -56,7 +56,7 @@ class TestInvokeModelWithStreamResponse:
                     ),
                     ImageBlockParam(
                         type="image",
-                        source=Source(
+                        source=Base64ImageSourceParam(
                             type="base64",
                             media_type="image/png",
                             data="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==",
