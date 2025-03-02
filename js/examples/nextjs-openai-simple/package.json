@@ -16,7 +16,7 @@
     "@opentelemetry/resources": "^1.24.1",
     "@opentelemetry/sdk-trace-base": "^1.24.1",
     "@opentelemetry/sdk-trace-node": "^1.24.1",
-    "next": "^13.5.6",
+    "next": "^15.2.0",
     "openai": "^4.28.0",
     "react": "^18",
     "react-dom": "^18"
