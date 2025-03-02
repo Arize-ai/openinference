@@ -26,3 +26,7 @@ lcInstrumentation.manuallyInstrument(CallbackManagerModule);
 ```
 
 For more information on OpenTelemetry Node.js SDK, see the [OpenTelemetry Node.js SDK documentation](https://opentelemetry.io/docs/instrumentation/js/getting-started/nodejs/).
+
+## Deprecations
+
+LangChain v0.1 was deprecated on 2025-03-02 due to security vulerabilities in the core package.
