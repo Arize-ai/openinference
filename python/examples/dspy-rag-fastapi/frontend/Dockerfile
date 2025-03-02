@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 # Install gcc
 RUN apt-get update -y \
@@ -15,6 +15,7 @@ RUN pip install poetry
 
 # Copy the pyproject.toml (and possibly poetry.lock) file to the container
 COPY pyproject.toml /front/
+COPY poetry.lock /front/
 
 # Install dependencies via poetry
 RUN poetry config virtualenvs.create false \
