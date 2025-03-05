@@ -9,6 +9,7 @@ from contextlib import suppress
 from contextvars import copy_context
 from functools import partial
 from importlib.metadata import version
+from secrets import token_hex
 from typing import (
     Any,
     AsyncIterator,
@@ -19,6 +20,7 @@ from typing import (
     List,
     Optional,
     Tuple,
+    Union,
 )
 from unittest.mock import patch
 
@@ -31,18 +33,11 @@ from httpx import AsyncByteStream, Response, SyncByteStream
 from langchain.chains import LLMChain, RetrievalQA
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnableSerializable
 from langchain_google_vertexai import VertexAI
 from langchain_openai import ChatOpenAI
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
-from opentelemetry.trace import Span
-from opentelemetry.util._importlib_metadata import entry_points
-from respx import MockRouter
-
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.langchain import (
     LangChainInstrumentor,
@@ -53,11 +48,20 @@ from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.trace import Span
+from opentelemetry.util._importlib_metadata import entry_points
+from respx import MockRouter
+from typing_extensions import assert_never
 
 for name, logger in logging.root.manager.loggerDict.items():
     if name.startswith("openinference.") and isinstance(logger, logging.Logger):
@@ -464,6 +468,63 @@ def test_callback_llm(
 
         assert spans_by_name == {}
     assert len(questions) == 0
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        SystemMessage(name=token_hex(8), content=token_hex(8)),
+        SystemMessage(content=[token_hex(8), token_hex(8)]),
+        HumanMessage(name=token_hex(8), content=token_hex(8)),
+        HumanMessage(content=[token_hex(8), token_hex(8)]),
+        AIMessage(name=token_hex(8), content=token_hex(8)),
+        AIMessage(content=[token_hex(8), token_hex(8)]),
+        ToolMessage(name=token_hex(8), tool_call_id=token_hex(8), content=token_hex(8)),
+        ToolMessage(tool_call_id=token_hex(8), content=[token_hex(8), token_hex(8)]),
+    ],
+)
+def test_input_messages(
+    message: Union[SystemMessage, HumanMessage, AIMessage, ToolMessage],
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    n = 2
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_mock.post(url).mock(Response(400))
+    with suppress(openai.BadRequestError):
+        ChatOpenAI().invoke([message] * n)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    for i in range(n):
+        prefix = f"{LLM_INPUT_MESSAGES}.{i}"
+        key = f"{prefix}.{MESSAGE_ROLE}"
+        if isinstance(message, SystemMessage):
+            assert attributes[key] == "system"
+        elif isinstance(message, HumanMessage):
+            assert attributes[key] == "user"
+        elif isinstance(message, AIMessage):
+            assert attributes[key] == "assistant"
+        elif isinstance(message, ToolMessage):
+            assert attributes[key] == "tool"
+        else:
+            assert_never(message)
+        if message.name:
+            key = f"{prefix}.{MESSAGE_NAME}"
+            assert attributes[key] == message.name
+        if isinstance(message.content, str):
+            key = f"{prefix}.{MESSAGE_CONTENT}"
+            assert attributes[key] == message.content
+        elif isinstance(message.content, list):
+            for j in range(len(message.content)):
+                key = f"{prefix}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TEXT}"
+                assert attributes[key] == message.content[j]
+        else:
+            assert_never(message.content)
+        if isinstance(message, ToolMessage):
+            key = f"{prefix}.{MESSAGE_TOOL_CALL_ID}"
+            assert attributes[key] == message.tool_call_id
 
 
 def test_anthropic_token_counts(
@@ -986,10 +1047,14 @@ LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
+MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
