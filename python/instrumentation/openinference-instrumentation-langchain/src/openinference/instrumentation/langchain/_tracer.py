@@ -449,9 +449,18 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                 yield MESSAGE_CONTENT, content
             elif isinstance(content, list):
                 for i, obj in enumerate(content):
+                    if isinstance(obj, str):
+                        yield f"{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", obj
+                        continue
                     assert hasattr(obj, "get"), f"expected Mapping, found {type(obj)}"
                     for k, v in _get_attributes_from_message_content(obj):
                         yield f"{MESSAGE_CONTENTS}.{i}.{k}", v
+        if tool_call_id := kwargs.get("tool_call_id"):
+            assert isinstance(tool_call_id, str), f"expected str, found {type(tool_call_id)}"
+            yield MESSAGE_TOOL_CALL_ID, tool_call_id
+        if name := kwargs.get("name"):
+            assert isinstance(name, str), f"expected str, found {type(name)}"
+            yield MESSAGE_NAME, name
         if additional_kwargs := kwargs.get("additional_kwargs"):
             assert hasattr(
                 additional_kwargs, "get"
@@ -851,6 +860,7 @@ MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
