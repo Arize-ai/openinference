@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.33...python-openinference-instrumentation-langchain-v0.1.34) (2025-03-05)
+
+
+### Bug Fixes
+
+* message content when it's list of strings ([#1337](https://github.com/Arize-ai/openinference/issues/1337)) ([d79f90e](https://github.com/Arize-ai/openinference/commit/d79f90e8949da449bc0beef0f6ece75077d57e89))
+
 ## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.32...python-openinference-instrumentation-langchain-v0.1.33) (2025-02-18)
 
 
