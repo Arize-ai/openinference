@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.34...python-openinference-instrumentation-langchain-v0.1.35) (2025-03-06)
+
+
+### Bug Fixes
+
+* handle missing attribute if .instrument() has not been called and tracer has not been initialized ([#1340](https://github.com/Arize-ai/openinference/issues/1340)) ([2582513](https://github.com/Arize-ai/openinference/commit/2582513ef60dc510fc3f63930b9717edfe07b9a2))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.33...python-openinference-instrumentation-langchain-v0.1.34) (2025-03-05)
 
 
