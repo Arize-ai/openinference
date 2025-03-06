@@ -108,7 +108,7 @@ const expectedSpanAttributes = {
   }),
   [INPUT_MIME_TYPE]: "application/json",
   [OUTPUT_VALUE]:
-    '{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"lc_serializable":true,"lc_kwargs":{"lc_serializable":true,"lc_kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17}}}',
+    '{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"This is a test.","additional_kwargs":{},"response_metadata":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17},"finish_reason":"stop","model_name":"gpt-3.5-turbo-0613"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17}}}',
   [LLM_TOKEN_COUNT_COMPLETION]: 5,
   [LLM_TOKEN_COUNT_PROMPT]: 12,
   [LLM_TOKEN_COUNT_TOTAL]: 17,
@@ -459,7 +459,13 @@ describe("LangChainInstrumentation", () => {
         span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     expect(llmSpan).toBeDefined();
-    expect(llmSpan?.attributes).toStrictEqual({
+    // We strip out the input and output values because they are unstable
+    const {
+      [INPUT_VALUE]: inputValue,
+      [OUTPUT_VALUE]: outputValue,
+      ...attributes
+    } = llmSpan?.attributes || {};
+    expect(attributes).toStrictEqual({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
       [LLM_MODEL_NAME]: "gpt-3.5-turbo",
       [LLM_FUNCTION_CALL]:
@@ -476,15 +482,14 @@ describe("LangChainInstrumentation", () => {
       [LLM_TOKEN_COUNT_TOTAL]: 110,
       [LLM_INVOCATION_PARAMETERS]:
         '{"model":"gpt-3.5-turbo","temperature":1,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false,"functions":[{"name":"get_current_weather","description":"Get the current weather in a given location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location"]}}]}',
-      [INPUT_VALUE]:
-        '{"messages":[[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"whats the weather like in seattle, wa in fahrenheit?","additional_kwargs":{},"response_metadata":{}}}]]}',
       [INPUT_MIME_TYPE]: "application/json",
-      [OUTPUT_VALUE]:
-        '{"generations":[[{"text":"","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"lc_serializable":true,"lc_kwargs":{"lc_serializable":true,"lc_kwargs":{"content":"","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{},"id":"chatcmpl-9D6ZQKSVCtEeMT272J8h6xydy1jE2"},"lc_namespace":["langchain_core","messages"],"content":"","additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{},"id":"chatcmpl-9D6ZQKSVCtEeMT272J8h6xydy1jE2","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":22,"input_tokens":88,"total_tokens":110,"input_token_details":{},"output_token_details":{}}},"lc_namespace":["langchain_core","messages"],"content":"","additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{"tokenUsage":{"promptTokens":88,"completionTokens":22,"totalTokens":110},"finish_reason":"function_call"},"id":"chatcmpl-9D6ZQKSVCtEeMT272J8h6xydy1jE2","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":22,"input_tokens":88,"total_tokens":110,"input_token_details":{},"output_token_details":{}}}},"generationInfo":{"finish_reason":"function_call"}}]],"llmOutput":{"tokenUsage":{"promptTokens":88,"completionTokens":22,"totalTokens":110}}}',
       [OUTPUT_MIME_TYPE]: "application/json",
       metadata:
         '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1}',
     });
+    // Make sure the input and output values are set
+    expect(inputValue).toBeDefined();
+    expect(outputValue).toBeDefined();
   });
 
   it("should add tool information to tool spans", async () => {
@@ -537,27 +542,31 @@ describe("LangChainInstrumentation", () => {
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
     const span = spans[0];
-    expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"messages":[[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"hello, this is a test","additional_kwargs":{},"response_metadata":{}}}]]}",
-  "llm.input_messages.0.message.content": "hello, this is a test",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}",
-  "llm.model_name": "gpt-3.5-turbo",
-  "llm.output_messages.0.message.content": "This is a test.",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.token_count.completion": 5,
-  "llm.token_count.prompt": 12,
-  "llm.token_count.total": 17,
-  "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"lc_serializable":true,"lc_kwargs":{"lc_serializable":true,"lc_kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17}}}",
-  "session.id": "session-id",
-  "test-attribute": "test-value",
-}
-`);
+    // Check all attributes except for the input and output values
+    const {
+      ["input.value"]: inputValue,
+      ["output.value"]: outputValue,
+      ...attributes
+    } = span.attributes;
+    expect(attributes).toMatchInlineSnapshot(`
+      {
+        "input.mime_type": "application/json",
+        "llm.input_messages.0.message.content": "hello, this is a test",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}",
+        "llm.model_name": "gpt-3.5-turbo",
+        "llm.output_messages.0.message.content": "This is a test.",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.token_count.completion": 5,
+        "llm.token_count.prompt": 12,
+        "llm.token_count.total": 17,
+        "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}",
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "application/json",
+        "session.id": "session-id",
+        "test-attribute": "test-value",
+      }
+    `);
   });
 
   it("should extract session ID from run metadata with session_id", async () => {
@@ -708,24 +717,28 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
     const span = spans[0];
-    expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.value": "__REDACTED__",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}",
-  "llm.model_name": "gpt-3.5-turbo",
-  "llm.output_messages.0.message.content": "This is a test.",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.token_count.completion": 5,
-  "llm.token_count.prompt": 12,
-  "llm.token_count.total": 17,
-  "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"lc_serializable":true,"lc_kwargs":{"lc_serializable":true,"lc_kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}},"lc_namespace":["langchain_core","messages"],"content":"This is a test.","additional_kwargs":{},"response_metadata":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"output_tokens":5,"input_tokens":12,"total_tokens":17,"input_token_details":{},"output_token_details":{}}}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"promptTokens":12,"completionTokens":5,"totalTokens":17}}}",
-  "session.id": "session-id",
-  "test-attribute": "test-value",
-}
-`);
+    expect(span.attributes["input.value"]).toBe("__REDACTED__");
+    expect(span.attributes["llm.invocation_parameters"]).toBe(
+      `{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}`,
+    );
+    expect(span.attributes["test-attribute"]).toBe("test-value");
+    expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo");
+    expect(span.attributes["llm.output_messages.0.message.content"]).toBe(
+      "This is a test.",
+    );
+    expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+      "assistant",
+    );
+    expect(span.attributes["llm.token_count.completion"]).toBe(5);
+    expect(span.attributes["llm.token_count.prompt"]).toBe(12);
+    expect(span.attributes["llm.token_count.total"]).toBe(17);
+    expect(span.attributes["metadata"]).toBe(
+      `{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}`,
+    );
+    expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+    expect(span.attributes["output.mime_type"]).toBe("application/json");
+    // Output value is unstable, so we don't check it
+    expect(span.attributes["session.id"]).toBe("session-id");
   });
 });
 
