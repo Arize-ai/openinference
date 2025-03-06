@@ -38,15 +38,6 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnableSerializable
 from langchain_google_vertexai import VertexAI
 from langchain_openai import ChatOpenAI
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
-from opentelemetry.trace import Span
-from opentelemetry.util._importlib_metadata import entry_points
-from respx import MockRouter
-from typing_extensions import assert_never
-
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.langchain import (
     LangChainInstrumentor,
@@ -63,6 +54,14 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.trace import Span
+from opentelemetry.util._importlib_metadata import entry_points
+from respx import MockRouter
+from typing_extensions import assert_never
 
 for name, logger in logging.root.manager.loggerDict.items():
     if name.startswith("openinference.") and isinstance(logger, logging.Logger):
@@ -113,6 +112,13 @@ async def test_get_current_span(
         id(span.get_span_context())  # type: ignore[no-untyped-call]
         for span in spans
     }
+
+
+def test_get_current_span_when_there_is_no_tracer() -> None:
+    instrumentor = LangChainInstrumentor()
+    instrumentor.uninstrument()
+    del instrumentor._tracer
+    RunnableLambda(lambda _: (get_current_span(), get_ancestor_spans())).invoke(0)
 
 
 async def test_get_ancestor_spans(

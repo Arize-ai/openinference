@@ -62,12 +62,14 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         self._tracer = None
 
     def get_span(self, run_id: UUID) -> Optional[Span]:
-        if not (hasattr(self, "_tracer") and self._tracer is not None):
+        if not hasattr(self, "_tracer") or self._tracer is None:
+            print("Missing `tracer` for spans; please run `LangChainInstrumentor().instrument()`")
             return None
         return self._tracer.get_span(run_id) if self._tracer else None
 
     def get_ancestors(self, run_id: UUID) -> List[Span]:
-        if not (hasattr(self, "_tracer") and self._tracer is not None):
+        if not hasattr(self, "_tracer") or self._tracer is None:
+            print("Missing `tracer` for spans; please run `LangChainInstrumentor().instrument()`")
             return []
         ancestors: List[Span] = []
         tracer = self._tracer
