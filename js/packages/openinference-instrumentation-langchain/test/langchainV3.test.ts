@@ -567,6 +567,8 @@ describe("LangChainInstrumentation", () => {
         "test-attribute": "test-value",
       }
     `);
+    expect(inputValue).toBeDefined();
+    expect(outputValue).toBeDefined();
   });
 
   it("should extract session ID from run metadata with session_id", async () => {
