@@ -534,6 +534,9 @@ function getChatCompletionInputMessageAttributes(
     case "system":
       // There's nothing to add for the system. Content is captured above
       break;
+    case "developer":
+      // There's nothing to add for the developer. Content is captured above
+      break;
     default:
       assertUnreachable(role);
       break;
