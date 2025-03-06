@@ -115,6 +115,16 @@ async def test_get_current_span(
     }
 
 
+def test_get_current_span_when_there_is_no_tracer() -> None:
+    instrumentor = LangChainInstrumentor()
+    instrumentor.uninstrument()
+    del instrumentor._tracer
+    assert RunnableLambda(lambda _: (get_current_span(), get_ancestor_spans())).invoke(0) == (
+        None,
+        [],
+    )
+
+
 async def test_get_ancestor_spans(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
