@@ -29,7 +29,6 @@ import {
   setSession,
 } from "@arizeai/openinference-core";
 import { context } from "@opentelemetry/api";
-jest.useFakeTimers();
 
 const memoryExporter = new InMemorySpanExporter();
 
