@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 2.0.1
+
+### Patch Changes
+
+- b69cca6: Account for developer role in the openai instrumentation
+
 ## 2.0.0
 
 ### Major Changes
