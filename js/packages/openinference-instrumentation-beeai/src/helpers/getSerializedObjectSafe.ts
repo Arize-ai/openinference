@@ -42,7 +42,7 @@ import {
   toolStartEventName,
   toolSuccessEventName,
   updateEventName,
-} from "../config.js";
+} from "../config";
 import {
   LLMAttributePostfixes,
   MessageAttributePostfixes,

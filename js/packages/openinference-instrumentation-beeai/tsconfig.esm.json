@@ -3,11 +3,6 @@
   "compilerOptions": {
     "outDir": "dist/esm",
     "rootDir": "src",
-    "types": ["node", "jest"],
-    "skipLibCheck": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "target": "ES2020",
     "tsBuildInfoFile": "dist/esm/tsconfig.esm.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],

@@ -9,12 +9,12 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 import { Resource } from "@opentelemetry/resources";
 import * as beeaiFramework from "beeai-framework";
-import { BeeAIInstrumentation } from "../src/index.js";
+import { BeeAIInstrumentation } from "../src/index";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
-/////////////////// instrumentation part ///////////////////
+/////////////////// instrumentation ///////////////////
 const provider = new NodeTracerProvider({
   resource: new Resource({
     [ATTR_SERVICE_NAME]: "beeai",

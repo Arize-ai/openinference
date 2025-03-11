@@ -3,10 +3,7 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["node", "jest"],
-    "skipLibCheck": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext"
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*.ts", "examples/**/*.ts"],
   "exclude": ["**/*.test.ts"]

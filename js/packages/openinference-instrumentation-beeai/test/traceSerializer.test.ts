@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { traceSerializer } from "./traceSerializer.js";
+import { traceSerializer } from "../src/helpers/traceSerializer";
 
 describe("trace serializer", () => {
   test("should return the same object", () => {

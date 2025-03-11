@@ -8,7 +8,7 @@ import { Version } from "beeai-framework";
 import * as bee from "beeai-framework";
 
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
-import { createTelemetryMiddleware } from "./middleware.js";
+import { createTelemetryMiddleware } from "./middleware";
 
 const MODULE_NAME = "beeai-framework";
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { IdNameManager } from "./idNameManager.js";
+import { IdNameManager } from "../src/helpers/idNameManager";
 
 describe("id name manager", () => {
   test("should pair events by run ID structure", () => {

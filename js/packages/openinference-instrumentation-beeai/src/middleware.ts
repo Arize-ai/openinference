@@ -15,10 +15,10 @@
  */
 
 import { OITracer } from "@arizeai/openinference-core";
-import { getSerializedObjectSafe } from "./helpers/getSerializedObjectSafe.js";
-import { createSpan } from "./helpers/create-span.js";
-import { IdNameManager } from "./helpers/idNameManager.js";
-import { getErrorSafe } from "./helpers/getErrorSafe.js";
+import { getSerializedObjectSafe } from "./helpers/getSerializedObjectSafe";
+import { createSpan } from "./helpers/create-span";
+import { IdNameManager } from "./helpers/idNameManager";
+import { getErrorSafe } from "./helpers/getErrorSafe";
 import { findLast, isEmpty } from "remeda";
 import type { BeeCallbacks } from "beeai-framework/agents/bee/types";
 import type { InferCallbackValue } from "beeai-framework/emitter/types";
@@ -26,7 +26,7 @@ import { FrameworkError } from "beeai-framework/errors";
 import { Version } from "beeai-framework/version";
 import { Role } from "beeai-framework/backend/message";
 import type { GetRunContext, RunInstance } from "beeai-framework/context";
-import { traceSerializer } from "./helpers/traceSerializer.js";
+import { traceSerializer } from "./helpers/traceSerializer";
 import {
   errorLLMEventName,
   finishLLMEventName,
@@ -34,13 +34,13 @@ import {
   newTokenLLMEventName,
   partialUpdateEventName,
   successLLMEventName,
-} from "./config.js";
+} from "./config";
 import { createFullPath } from "beeai-framework/emitter/utils";
 import type { BeeAgent } from "beeai-framework/agents/bee/agent";
 import { BaseAgent } from "beeai-framework/agents/base";
 import { diag } from "@opentelemetry/api";
-import { FrameworkSpan, GeneratedResponse } from "./types.js";
-import { buildTraceTree } from "./helpers/buildTraceTree.js";
+import { FrameworkSpan, GeneratedResponse } from "./types";
+import { buildTraceTree } from "./helpers/buildTraceTree";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 export const activeTracesMap = new Map<string, string>();

@@ -1,11 +1,10 @@
 {
   "name": "@arizeai/openinference-instrumentation-beeai",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "license": "Apache-2.0",
   "author": "gallas.milan@gmail.com",
   "description": "OpenInference Instrumentation for BeeAI framework",
   "private": false,
-  "type": "module",
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
   "esnext": "dist/esnext/index.js",
@@ -15,9 +14,8 @@
     "url": "https://github.com/Arize-ai/openinference.git"
   },
   "scripts": {
-    "prebuild": "rimraf dist && pnpm run version:update",
+    "prebuild": "rimraf dist",
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
-    "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
     "test": "jest"
   },
@@ -45,7 +43,7 @@
     "@opentelemetry/sdk-node": "^0.57.1",
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "@types/jest": "^29.5.12",
-    "beeai-framework": "^0.1.2",
+    "beeai-framework": "^0.1.5",
     "import-in-the-middle": "^1.13.0",
     "jest": "^29.7.0",
     "ollama": "^0.5.12",

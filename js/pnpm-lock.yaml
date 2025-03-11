@@ -121,8 +121,8 @@ importers:
         specifier: ^29.5.12
         version: 29.5.12
       beeai-framework:
-        specifier: ^0.1.2
-        version: 0.1.4(@aws-sdk/client-bedrock-runtime@3.750.0)(@langchain/core@0.3.13(openai@4.86.2(zod@3.23.8)))(ollama-ai-provider@1.2.0(zod@3.23.8))(react@19.0.0)
+        specifier: ^0.1.5
+        version: 0.1.5(@aws-sdk/client-bedrock-runtime@3.750.0)(@langchain/core@0.3.13(openai@4.86.2(zod@3.23.8)))(ollama-ai-provider@1.2.0(zod@3.23.8))(react@19.0.0)
       import-in-the-middle:
         specifier: ^1.13.0
         version: 1.13.0
@@ -1982,8 +1982,8 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  beeai-framework@0.1.4:
-    resolution: {integrity: sha512-TsfzFMZfbEI/lE+b8cneYAMsYQNTeGrD6QKhN9BEanF+XxP0nkrLrcYTyw0tap5yP515ZzqTLE/H1kZ035GbnQ==}
+  beeai-framework@0.1.5:
+    resolution: {integrity: sha512-0x7J6cq0+nl4MTXMdC0fn6l8TBG3VIARrs6a1jMqsdCPUOOFHBLZnGbyTBPlNBtAi0opo7/TfYh2I4LtpCFvtA==}
     peerDependencies:
       '@ai-sdk/amazon-bedrock': ^1.1.5
       '@ai-sdk/anthropic': ^1.1.6
@@ -6617,7 +6617,7 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  beeai-framework@0.1.4(@aws-sdk/client-bedrock-runtime@3.750.0)(@langchain/core@0.3.13(openai@4.86.2(zod@3.23.8)))(ollama-ai-provider@1.2.0(zod@3.23.8))(react@19.0.0):
+  beeai-framework@0.1.5(@aws-sdk/client-bedrock-runtime@3.750.0)(@langchain/core@0.3.13(openai@4.86.2(zod@3.23.8)))(ollama-ai-provider@1.2.0(zod@3.23.8))(react@19.0.0):
     dependencies:
       '@ai-zen/node-fetch-event-source': 2.1.4
       '@aws-sdk/client-bedrock-runtime': 3.750.0

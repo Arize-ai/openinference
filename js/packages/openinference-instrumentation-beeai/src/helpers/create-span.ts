@@ -15,7 +15,7 @@
  */
 
 import { SpanStatusCode, TimeInput } from "@opentelemetry/api";
-import { FrameworkSpan } from "../types.js";
+import { FrameworkSpan } from "../types";
 import { isEmpty } from "remeda";
 
 interface CreateSpanProps {

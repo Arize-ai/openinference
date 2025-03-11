@@ -1,7 +1,7 @@
 import { OITracer } from "@arizeai/openinference-core";
-import { FrameworkSpan, GeneratedResponse } from "../types.js";
+import { FrameworkSpan, GeneratedResponse } from "../types";
 import { SpanStatusCode, TimeInput } from "@opentelemetry/api";
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import { OpenInferenceSpanKind, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 interface BuiltTraceTreeProps {
   tracer: OITracer;
@@ -30,27 +30,27 @@ interface BuildSpansForParentProps {
 
 function buildSpansForParent({ tracer, data }: BuildSpansForParentProps) {
   data.spans
-    .filter((fwSpan) => fwSpan.parent_id === data.parentId)
-    .forEach((fwSpan) => {
+    .filter((beeaiSpan) => beeaiSpan.parent_id === data.parentId)
+    .forEach((beeaiSpan) => {
       tracer.startActiveSpan(
-        fwSpan.context.span_id,
+        beeaiSpan.context.span_id,
         {
           // custom start time
-          startTime: fwSpan.start_time,
+          startTime: beeaiSpan.start_time,
           // set span important attributes
           attributes: {
-            target: fwSpan.attributes.target,
-            name: fwSpan.name,
+            target: beeaiSpan.attributes.target,
+            name: beeaiSpan.name,
             traceId: data.traceId,
-            ...(fwSpan.attributes.metadata && {
-              metadata: JSON.stringify(fwSpan.attributes.metadata),
+            ...(beeaiSpan.attributes.metadata && {
+              metadata: JSON.stringify(beeaiSpan.attributes.metadata),
             }),
-            ...(fwSpan.attributes.data && { ...fwSpan.attributes.data }),
+            ...(beeaiSpan.attributes.data && { ...beeaiSpan.attributes.data }),
           },
         },
         (activeSpan) => {
           // set status
-          activeSpan.setStatus(fwSpan.status);
+          activeSpan.setStatus(beeaiSpan.status);
 
           // set nested spans
           buildSpansForParent({
@@ -58,12 +58,12 @@ function buildSpansForParent({ tracer, data }: BuildSpansForParentProps) {
             data: {
               spans: data.spans,
               traceId: data.traceId,
-              parentId: fwSpan.context.span_id,
+              parentId: beeaiSpan.context.span_id,
             },
           });
 
           // finish the span
-          activeSpan.end(fwSpan.end_time);
+          activeSpan.end(beeaiSpan.end_time);
         },
       );
     });
@@ -71,14 +71,16 @@ function buildSpansForParent({ tracer, data }: BuildSpansForParentProps) {
 
 export function buildTraceTree({ tracer, data }: BuiltTraceTreeProps) {
   tracer.startActiveSpan(
-    `beeai-framework-${data.source}-${data.traceId}`,
+    `beeai-framework-main`,
     {
       // custom start time
       startTime: data.startTime,
       // set main span important attributes
       attributes: {
+        source: data.source,
         traceId: data.traceId,
-        version: data.version,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+        ["beeai.version"]: data.version,
         ...(data.prompt && { [SemanticConventions.INPUT_VALUE]: data.prompt }),
         ...(data.generatedMessage !== undefined && {
           [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(

@@ -1,4 +1,4 @@
-import "./instrumentation.js";
+import "./instrumentation";
 import { BeeAgent } from "beeai-framework/agents/bee/agent";
 import { OllamaChatModel } from "beeai-framework/adapters/ollama/backend/chat";
 import { TokenMemory } from "beeai-framework/memory/tokenMemory";
