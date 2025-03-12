@@ -57,6 +57,14 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
             name="AsyncOpenAI.request",
             wrapper=_AsyncRequest(tracer=tracer, openai=openai),
         )
+        try:
+            from agents import add_trace_processor
+
+            from openinference.instrumentation.openai._agents import OpenInferenceTracingProcessor
+
+            add_trace_processor(OpenInferenceTracingProcessor(tracer_provider))
+        except ImportError:
+            pass
 
     def _uninstrument(self, **kwargs: Any) -> None:
         openai = import_module(_MODULE)

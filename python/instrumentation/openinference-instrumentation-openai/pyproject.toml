@@ -79,6 +79,7 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
+  "agents.*",
 ]
 
 [tool.ruff]
