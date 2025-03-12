@@ -1,4 +1,5 @@
 from agents import Agent, Runner
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from phoenix.otel import register
 
 from openinference.instrumentation.openai import OpenAIInstrumentor
@@ -6,6 +7,7 @@ from openinference.instrumentation.openai import OpenAIInstrumentor
 tracer_priver = register(project_name="openai-agents-hello-world")
 
 OpenAIInstrumentor().instrument(tracer_provider=tracer_priver)
+HTTPXClientInstrumentor().instrument(tracer_provider=tracer_priver)
 
 agent = Agent(name="Assistant", instructions="You are a helpful assistant")
 
