@@ -15,7 +15,6 @@ from agents.tracing.span_data import (
     ResponseSpanData,
     SpanData,
 )
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry.context import attach, detach, set_value
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import (
@@ -27,6 +26,8 @@ from opentelemetry.trace import (
 )
 from opentelemetry.trace.propagation import _SPAN_KEY
 from opentelemetry.util.types import AttributeValue
+
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ def _as_utc_nano(dt: datetime) -> int:
 def _get_span_name(obj: Span) -> str:
     if hasattr(data := obj.span_data, "name") and isinstance(name := data.name, str):
         return name
-    return obj.span_data.type
+    return obj.span_data.type  # type: ignore[no-any-return]
 
 
 def _get_span_kind(obj: SpanData) -> str:
