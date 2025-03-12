@@ -1,2 +1,2 @@
-_instruments = ("openai >= 1.0.0",)
+_instruments = ("openai-agents >= 0.0.3",)
 _supports_metrics = False
