@@ -286,12 +286,12 @@ export function getSerializedObjectSafe(
       }),
       ...("providerId" in creator && {
         [SemanticConventions.LLM_PROVIDER]: creator.providerId,
-        [`${SemanticAttributePrefixes.metadata}.ls_${LLMAttributePostfixes.provider}`]:
+        [`${SemanticAttributePrefixes.metadata}.${LLMAttributePostfixes.provider}`]:
           creator.providerId,
       }),
       ...("modelId" in creator && {
         [SemanticConventions.LLM_MODEL_NAME]: creator.modelId,
-        [`${SemanticAttributePrefixes.metadata}.ls_${LLMAttributePostfixes.model_name}`]:
+        [`${SemanticAttributePrefixes.metadata}.${LLMAttributePostfixes.model_name}`]:
           creator.modelId,
       }),
       ...(creator.parameters && {

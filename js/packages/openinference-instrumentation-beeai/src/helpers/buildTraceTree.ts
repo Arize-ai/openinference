@@ -1,7 +1,10 @@
 import { OITracer } from "@arizeai/openinference-core";
 import { FrameworkSpan, GeneratedResponse } from "../types";
 import { SpanStatusCode, TimeInput } from "@opentelemetry/api";
-import { OpenInferenceSpanKind, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 
 interface BuiltTraceTreeProps {
   tracer: OITracer;
@@ -79,7 +82,8 @@ export function buildTraceTree({ tracer, data }: BuiltTraceTreeProps) {
       attributes: {
         source: data.source,
         traceId: data.traceId,
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+          OpenInferenceSpanKind.AGENT,
         ["beeai.version"]: data.version,
         ...(data.prompt && { [SemanticConventions.INPUT_VALUE]: data.prompt }),
         ...(data.generatedMessage !== undefined && {
