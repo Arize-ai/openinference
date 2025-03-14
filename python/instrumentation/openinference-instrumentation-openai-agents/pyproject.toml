@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-openai"
+name = "openinference-instrumentation-openai-agents"
 dynamic = ["version"]
-description = "OpenInference OpenAI Instrumentation"
+description = "OpenInference OpenAI Agents Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9, <3.14"
@@ -36,20 +36,20 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "openai >= 1.0.0",
+  "openai-agents >= 0.0.3",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
-openai = "openinference.instrumentation.openai:OpenAIInstrumentor"
+openai_agents = "openinference.instrumentation.openai_agents:OpenAIAgentsInstrumentor"
 
 [project.entry-points.openinference_instrumentor]
-openai = "openinference.instrumentation.openai:OpenAIInstrumentor"
+openai_agents = "openinference.instrumentation.openai_agents:OpenAIAgentsInstrumentor"
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openai"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openai-agents"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/openai/version.py"
+path = "src/openinference/instrumentation/openai_agents/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -79,6 +79,7 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
+  "agents.*",
 ]
 
 [tool.ruff]
@@ -87,6 +88,7 @@ target-version = "py38"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
+"examples/*" = ["E501"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

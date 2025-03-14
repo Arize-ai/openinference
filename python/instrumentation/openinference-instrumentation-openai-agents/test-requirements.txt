@@ -1,7 +1,6 @@
-openai==1.0.0
+openai
+openai_agents
+openinference-instrumentation-openai
 opentelemetry-sdk
-opentelemetry-instrumentation-httpx
 respx
-numpy
 pytest-vcr
-httpx<0.28

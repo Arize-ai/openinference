@@ -1,34 +1,22 @@
 import logging
-from importlib import import_module
-from typing import Any, Collection
+from typing import Any, Collection, cast
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import wrap_function_wrapper
+from opentelemetry.trace import Tracer
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.openai._request import (
-    _AsyncRequest,
-    _Request,
-)
-from openinference.instrumentation.openai.package import _instruments
-from openinference.instrumentation.openai.version import __version__
+from openinference.instrumentation.openai_agents.package import _instruments
+from openinference.instrumentation.openai_agents.version import __version__
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-_MODULE = "openai"
 
-
-class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
+class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
     """
-    An instrumentor for openai
+    An instrumentor for openai-agents
     """
-
-    __slots__ = (
-        "_original_request",
-        "_original_async_request",
-    )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -44,21 +32,14 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
-        openai = import_module(_MODULE)
-        self._original_request = openai.OpenAI.request
-        self._original_async_request = openai.AsyncOpenAI.request
-        wrap_function_wrapper(
-            module=_MODULE,
-            name="OpenAI.request",
-            wrapper=_Request(tracer=tracer, openai=openai),
-        )
-        wrap_function_wrapper(
-            module=_MODULE,
-            name="AsyncOpenAI.request",
-            wrapper=_AsyncRequest(tracer=tracer, openai=openai),
+        from agents import add_trace_processor
+
+        from openinference.instrumentation.openai_agents._processor import (
+            OpenInferenceTracingProcessor,
         )
 
+        add_trace_processor(OpenInferenceTracingProcessor(cast(Tracer, tracer)))
+
     def _uninstrument(self, **kwargs: Any) -> None:
-        openai = import_module(_MODULE)
-        openai.OpenAI.request = self._original_request
-        openai.AsyncOpenAI.request = self._original_async_request
+        # TODO
+        pass
