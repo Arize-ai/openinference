@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.5...python-openinference-instrumentation-instructor-v0.1.6) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.4...python-openinference-instrumentation-instructor-v0.1.5) (2025-02-18)
 
 

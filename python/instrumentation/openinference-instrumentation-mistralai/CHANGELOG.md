@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.3.0...python-openinference-instrumentation-mistralai-v1.3.1) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
 ## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.2.0...python-openinference-instrumentation-mistralai-v1.3.0) (2025-02-18)
 
 
