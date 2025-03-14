@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Union
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
 
 from agents.tracing import Span, Trace, TracingProcessor
 from agents.tracing.span_data import (
@@ -16,9 +16,7 @@ from agents.tracing.span_data import (
     SpanData,
 )
 from openai.types.responses import (
-    ComputerTool,
     EasyInputMessageParam,
-    FileSearchTool,
     FunctionTool,
     Response,
     ResponseComputerToolCall,
@@ -35,7 +33,6 @@ from openai.types.responses import (
     ResponseReasoningItem,
     ResponseUsage,
     Tool,
-    WebSearchTool,
 )
 from openai.types.responses.response_input_item_param import Message
 from openai.types.responses.response_output_message_param import Content
@@ -56,6 +53,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -67,7 +65,6 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
         self._tracer = tracer
         self._root_spans: dict[str, OtelSpan] = {}
         self._otel_spans: dict[str, OtelSpan] = {}
-        # self._tokens: dict[int, object] = {}
 
     def on_trace_start(self, trace: Trace) -> None:
         """Called when a trace is started.
@@ -82,9 +79,6 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
             },
         )
         self._root_spans[trace.trace_id] = otel_span
-        # TODO: Attach the root span to the context
-        # token = attach(set_value(_SPAN_KEY, otel_span))
-        # self._tokens[otel_span.get_span_context().span_id] = token
 
     def on_trace_end(self, trace: Trace) -> None:
         """Called when a trace is finished.
@@ -92,8 +86,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
         Args:
             trace: The trace that started.
         """
-        root_span = self._root_spans.pop(trace.trace_id, None)
-        if root_span:
+        if root_span := self._root_spans.pop(trace.trace_id, None):
             root_span.set_status(Status(StatusCode.OK))
             root_span.end()
 
@@ -120,9 +113,6 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
             attributes={OPENINFERENCE_SPAN_KIND: _get_span_kind(span.span_data)},
         )
         self._otel_spans[span.span_id] = otel_span
-        # TODO: Attach the span to the context
-        # token = attach(set_value(_SPAN_KEY, span))
-        # self._tokens[otel_span.get_span_context().span_id] = token
 
     def on_span_end(self, span: Span[Any]) -> None:
         """Called when a span is finished. Should not block or raise exceptions.
@@ -132,12 +122,9 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
         """
         if not (otel_span := self._otel_spans.pop(span.span_id, None)):
             return
-        # if token := self._tokens.pop(otel_span.get_span_context().span_id, None):
-        #     detach(token)  # type: ignore[arg-type]
-        if not span.ended_at:
-            return
-        flatten_attributes: dict[str, AttributeValue] = dict(_flatten(span.export()))
-        otel_span.set_attributes(flatten_attributes)
+        otel_span.update_name(_get_span_name(span))
+        # flatten_attributes: dict[str, AttributeValue] = dict(_flatten(span.export()))
+        # otel_span.set_attributes(flatten_attributes)
         if isinstance(data := span.span_data, ResponseSpanData):
             if hasattr(data, "response") and isinstance(response := data.response, Response):
                 otel_span.set_attribute(OUTPUT_MIME_TYPE, JSON)
@@ -154,10 +141,12 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
                         otel_span.set_attribute(k, v)
                 elif TYPE_CHECKING:
                     assert_never(input)
-        try:
-            end_time = _as_utc_nano(datetime.fromisoformat(span.ended_at))
-        except ValueError:
-            end_time = None
+        end_time: Optional[int] = None
+        if span.ended_at:
+            try:
+                end_time = _as_utc_nano(datetime.fromisoformat(span.ended_at))
+            except ValueError:
+                pass
         otel_span.end(end_time)
 
     def force_flush(self) -> None:
@@ -178,6 +167,8 @@ def _as_utc_nano(dt: datetime) -> int:
 def _get_span_name(obj: Span) -> str:
     if hasattr(data := obj.span_data, "name") and isinstance(name := data.name, str):
         return name
+    if isinstance(obj.span_data, HandoffSpanData) and obj.span_data.to_agent:
+        return f"handoff to {obj.span_data.to_agent}"
     return obj.span_data.type  # type: ignore[no-any-return]
 
 
@@ -201,8 +192,8 @@ def _get_span_kind(obj: SpanData) -> str:
 
 def _get_attributes_from_input(
     obj: Iterable[ResponseInputItemParam],
+    msg_idx: int = 0,
 ) -> Iterator[tuple[str, AttributeValue]]:
-    msg_idx = 0
     for item in obj:
         if "type" not in item:
             if "role" in item and "content" in item:
@@ -279,45 +270,46 @@ def _get_attributes_from_message_content_list(
 
 
 def _get_attributes_from_response(obj: Response) -> Iterator[tuple[str, AttributeValue]]:
-    if obj.tools:
-        yield from _get_attributes_from_tools(obj.tools)
-    if obj.usage:
-        yield from _get_attributes_from_usage(obj.usage)
-    if obj.output:
-        yield from _get_attributes_from_response_output(obj.output)
+    yield from _get_attributes_from_tools(obj.tools)
+    yield from _get_attributes_from_usage(obj.usage)
+    yield from _get_attributes_from_response_output(obj.output)
+    yield LLM_MODEL_NAME, obj.model
+    param = obj.model_dump(exclude_none=True)
+    param.pop("tools", None)
+    param.pop("usage", None)
+    param.pop("output", None)
+    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(param)
 
 
 def _get_attributes_from_tools(
-    tools: Iterable[Tool],
+    tools: Optional[Iterable[Tool]],
 ) -> Iterator[tuple[str, AttributeValue]]:
+    if not tools:
+        return
     for i, tool in enumerate(tools):
         if isinstance(tool, FunctionTool):
-            yield from _get_attributes_from_function_tool(tool)
-        elif isinstance(tool, FileSearchTool):
-            # TODO
+            yield (
+                f"{LLM_TOOLS}.{i}.{TOOL_JSON_SCHEMA}",
+                safe_json_dumps(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.parameters,
+                            "strict": tool.strict,
+                        },
+                    }
+                ),
+            )
+        else:
             pass
-        elif isinstance(tool, WebSearchTool):
-            # TODO
-            pass
-        elif isinstance(tool, ComputerTool):
-            # TODO
-            pass
-        elif TYPE_CHECKING:
-            assert_never(tool)
-
-
-def _get_attributes_from_function_tool(obj: FunctionTool) -> Iterator[tuple[str, AttributeValue]]:
-    yield f"{TOOL_NAME}", obj.name
-    if obj.description:
-        yield f"{TOOL_DESCRIPTION}", obj.description
-    if obj.parameters:
-        yield f"{TOOL_PARAMETERS}", safe_json_dumps(obj.parameters)
 
 
 def _get_attributes_from_response_output(
     obj: Iterable[ResponseOutputItem],
+    msg_idx: int = 0,
 ) -> Iterator[tuple[str, AttributeValue]]:
-    msg_idx = 0
     tool_call_idx = 0
     for i, item in enumerate(obj):
         if isinstance(item, ResponseOutputMessage):
@@ -366,7 +358,11 @@ def _get_attributes_from_message(
             assert_never(item)
 
 
-def _get_attributes_from_usage(obj: ResponseUsage) -> Iterator[tuple[str, AttributeValue]]:
+def _get_attributes_from_usage(
+    obj: Optional[ResponseUsage],
+) -> Iterator[tuple[str, AttributeValue]]:
+    if not obj:
+        return
     yield LLM_TOKEN_COUNT_COMPLETION, obj.input_tokens
     yield LLM_TOKEN_COUNT_PROMPT, obj.output_tokens
     yield LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
@@ -395,6 +391,8 @@ LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
