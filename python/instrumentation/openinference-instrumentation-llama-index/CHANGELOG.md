@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.3.1...python-openinference-instrumentation-llama-index-v3.3.2) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
 ## [3.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.3.0...python-openinference-instrumentation-llama-index-v3.3.1) (2025-02-19)
 
 

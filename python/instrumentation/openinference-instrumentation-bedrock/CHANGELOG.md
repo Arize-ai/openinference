@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.16...python-openinference-instrumentation-bedrock-v0.1.17) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
 ## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.15...python-openinference-instrumentation-bedrock-v0.1.16) (2025-03-01)
 
 
