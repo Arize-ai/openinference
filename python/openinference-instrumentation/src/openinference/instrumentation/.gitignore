@@ -1,4 +1,5 @@
 /anthropic
+/autogen
 /bedrock
 /crewai
 /dspy
@@ -11,5 +12,6 @@
 /llama_index
 /mistralai
 /openai
+/openai_agents
 /smolagents
 /vertexai
