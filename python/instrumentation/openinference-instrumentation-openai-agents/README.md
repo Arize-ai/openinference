@@ -1,6 +1,6 @@
-# OpenInference OpenAI Instrumentation
+# OpenInference OpenAI Agents Instrumentation
 
-[![pypi](https://badge.fury.io/py/openinference-instrumentation-openai.svg)](https://pypi.org/project/openinference-instrumentation-openai/)
+[![pypi](https://badge.fury.io/py/openinference-instrumentation-openai-agents.svg)](https://pypi.org/project/openinference-instrumentation-openai-agents/)
 
 Python auto-instrumentation library for OpenAI Agents python SDK.
 
@@ -26,12 +26,13 @@ Start the phoenix server so that it is ready to collect traces.
 The Phoenix server runs entirely on your machine and does not send data over the internet.
 
 ```shell
-python -m phoenix.server.main serve
+phoenix serve
 ```
 
 In a python file, set up the `OpenAIAgentsInstrumentor` and configure the tracer to send traces to Phoenix.
 
 ```python
+from agents import Agent, Runner
 from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -43,21 +44,12 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 # Optionally, you can also print the spans to the console.
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
-OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
+OpenAIAgentsInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
-if __name__ == "__main__":
-    client = openai.OpenAI()
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": "Write a haiku."}],
-        max_tokens=20,
-        stream=True,
-        stream_options={"include_usage": True},
-    )
-    for chunk in response:
-        if chunk.choices and (content := chunk.choices[0].delta.content):
-            print(content, end="")
+agent = Agent(name="Assistant", instructions="You are a helpful assistant")
+result = Runner.run_sync(agent, "Write a haiku about recursion in programming.")
+print(result.final_output)
 ```
 
 Since we are using OpenAI, we must set the `OPENAI_API_KEY` environment variable to authenticate with the OpenAI API.
@@ -71,14 +63,3 @@ Now simply run the python file and observe the traces in Phoenix.
 ```shell
 python your_file.py
 ```
-
-## FAQ
-**Q: How to get token counts when streaming?**
-
-**A:** To get token counts when streaming, install `openai>=1.26` and set `stream_options={"include_usage": True}` when calling `create`. See the example shown above. For more info, see [here](https://community.openai.com/t/usage-stats-now-available-when-using-streaming-with-the-chat-completions-api-or-completions-api/738156).
-
-## More Info
-
-* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
-* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
-* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)
