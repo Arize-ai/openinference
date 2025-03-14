@@ -192,7 +192,7 @@ def _get_span_kind(obj: SpanData) -> str:
 
 def _get_attributes_from_input(
     obj: Iterable[ResponseInputItemParam],
-    msg_idx: int = 0,
+    msg_idx: int = 1,
 ) -> Iterator[tuple[str, AttributeValue]]:
     for item in obj:
         if "type" not in item:
@@ -273,6 +273,7 @@ def _get_attributes_from_response(obj: Response) -> Iterator[tuple[str, Attribut
     yield from _get_attributes_from_tools(obj.tools)
     yield from _get_attributes_from_usage(obj.usage)
     yield from _get_attributes_from_response_output(obj.output)
+    yield from _get_attributes_from_response_instruction(obj.instructions)
     yield LLM_MODEL_NAME, obj.model
     param = obj.model_dump(exclude_none=True)
     param.pop("tools", None)
@@ -331,6 +332,15 @@ def _get_attributes_from_response_output(
             ...
         elif TYPE_CHECKING:
             assert_never(item)
+
+
+def _get_attributes_from_response_instruction(
+    instructions: Optional[str],
+) -> Iterator[tuple[str, AttributeValue]]:
+    if not instructions:
+        return
+    yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "system"
+    yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", instructions
 
 
 def _get_attributes_from_function_tool_call(
