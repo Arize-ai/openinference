@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.11...python-openinference-instrumentation-litellm-v0.1.12) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.10...python-openinference-instrumentation-litellm-v0.1.11) (2025-02-18)
 
 
