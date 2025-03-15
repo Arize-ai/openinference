@@ -50,14 +50,14 @@
     "@types/node": "^20.14.11",
     "beeai-framework": "^0.1.5",
     "import-in-the-middle": "^1.13.0",
-    "jest": "^29.7.0"
-  },
-  "optionalDependencies": {
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
     "@opentelemetry/resources": "^1.30.1",
     "@opentelemetry/sdk-node": "^0.57.1",
     "@opentelemetry/sdk-trace-node": "^1.30.1",
     "@opentelemetry/semantic-conventions": "^1.28.0",
+    "jest": "^29.7.0"
+  },
+  "optionalDependencies": {
     "ollama": "^0.5.12",
     "ts-node": "^10.9.2"
   }

@@ -42,7 +42,7 @@ importers:
         version: 5.0.10
       ts-jest:
         specifier: ^29.2.2
-        version: 29.2.4(@babel/core@7.24.9)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.9))(jest@29.7.0)(typescript@5.5.4)
+        version: 29.2.4(@babel/core@7.24.9)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.9))(jest@29.7.0(@types/node@20.14.11)(ts-node@10.9.2(@types/node@20.14.11)(typescript@5.5.4)))(typescript@5.5.4)
       tsc-alias:
         specifier: ^1.8.10
         version: 1.8.10
@@ -105,6 +105,13 @@ importers:
         specifier: ^2.20.2
         version: 2.20.2
     optionalDependencies:
+      ollama:
+        specifier: ^0.5.12
+        version: 0.5.12
+      ts-node:
+        specifier: ^10.9.2
+        version: 10.9.2(@types/node@20.14.11)(typescript@5.5.4)
+    devDependencies:
       '@opentelemetry/exporter-trace-otlp-proto':
         specifier: ^0.50.0
         version: 0.50.0(@opentelemetry/api@1.9.0)
@@ -120,13 +127,6 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.28.0
         version: 1.28.0
-      ollama:
-        specifier: ^0.5.12
-        version: 0.5.12
-      ts-node:
-        specifier: ^10.9.2
-        version: 10.9.2(@types/node@20.14.11)(typescript@5.5.4)
-    devDependencies:
       '@types/jest':
         specifier: ^29.5.12
         version: 29.5.12
@@ -5129,7 +5129,6 @@ snapshots:
     dependencies:
       '@grpc/proto-loader': 0.7.13
       '@js-sdsl/ordered-map': 4.4.2
-    optional: true
 
   '@grpc/proto-loader@0.7.13':
     dependencies:
@@ -5137,7 +5136,6 @@ snapshots:
       long: 5.2.3
       protobufjs: 7.4.0
       yargs: 17.7.2
-    optional: true
 
   '@humanwhocodes/config-array@0.11.14':
     dependencies:
@@ -5355,8 +5353,7 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.0
     optional: true
 
-  '@js-sdsl/ordered-map@4.4.2':
-    optional: true
+  '@js-sdsl/ordered-map@4.4.2': {}
 
   '@lambdatest/node-tunnel@4.0.8':
     dependencies:
@@ -5581,7 +5578,6 @@ snapshots:
   '@opentelemetry/context-async-hooks@1.30.1(@opentelemetry/api@1.9.0)':
     dependencies:
       '@opentelemetry/api': 1.9.0
-    optional: true
 
   '@opentelemetry/core@1.23.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5602,7 +5598,6 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.28.0
-    optional: true
 
   '@opentelemetry/exporter-logs-otlp-grpc@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5612,7 +5607,6 @@ snapshots:
       '@opentelemetry/otlp-grpc-exporter-base': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-logs': 0.57.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-logs-otlp-http@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5622,7 +5616,6 @@ snapshots:
       '@opentelemetry/otlp-exporter-base': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-logs': 0.57.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-logs-otlp-proto@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5634,7 +5627,6 @@ snapshots:
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-logs': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-metrics-otlp-grpc@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5647,7 +5639,6 @@ snapshots:
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-metrics': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-metrics-otlp-http@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5657,7 +5648,6 @@ snapshots:
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-metrics': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-metrics-otlp-proto@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5668,7 +5658,6 @@ snapshots:
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-metrics': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-prometheus@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5676,7 +5665,6 @@ snapshots:
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-metrics': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-trace-otlp-grpc@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5687,7 +5675,6 @@ snapshots:
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-trace-otlp-http@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5697,7 +5684,6 @@ snapshots:
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5717,7 +5703,6 @@ snapshots:
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/exporter-zipkin@1.30.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5726,7 +5711,6 @@ snapshots:
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.28.0
-    optional: true
 
   '@opentelemetry/instrumentation@0.46.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5761,7 +5745,6 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/otlp-grpc-exporter-base@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5770,7 +5753,6 @@ snapshots:
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/otlp-exporter-base': 0.57.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/otlp-transformer': 0.57.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/otlp-proto-exporter-base@0.50.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5799,7 +5781,6 @@ snapshots:
       '@opentelemetry/sdk-metrics': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
       protobufjs: 7.4.0
-    optional: true
 
   '@opentelemetry/propagator-b3@1.25.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5810,7 +5791,6 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/propagator-jaeger@1.25.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5821,7 +5801,6 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/resources@1.23.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5846,7 +5825,6 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.28.0
-    optional: true
 
   '@opentelemetry/sdk-logs@0.50.0(@opentelemetry/api-logs@0.50.0)(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5861,7 +5839,6 @@ snapshots:
       '@opentelemetry/api-logs': 0.57.1
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/sdk-metrics@1.23.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5875,7 +5852,6 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
-    optional: true
 
   '@opentelemetry/sdk-node@0.57.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5902,7 +5878,6 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.28.0
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   '@opentelemetry/sdk-trace-base@1.23.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5931,7 +5906,6 @@ snapshots:
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.28.0
-    optional: true
 
   '@opentelemetry/sdk-trace-node@1.25.1(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -5952,7 +5926,6 @@ snapshots:
       '@opentelemetry/propagator-jaeger': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
       semver: 7.6.3
-    optional: true
 
   '@opentelemetry/semantic-conventions@1.23.0': {}
 
@@ -5960,8 +5933,7 @@ snapshots:
 
   '@opentelemetry/semantic-conventions@1.26.0': {}
 
-  '@opentelemetry/semantic-conventions@1.28.0':
-    optional: true
+  '@opentelemetry/semantic-conventions@1.28.0': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -7997,8 +7969,7 @@ snapshots:
 
   lodash-es@4.17.21: {}
 
-  lodash.camelcase@4.3.0:
-    optional: true
+  lodash.camelcase@4.3.0: {}
 
   lodash.isequal@4.5.0: {}
 
@@ -8675,7 +8646,7 @@ snapshots:
     dependencies:
       typescript: 5.5.4
 
-  ts-jest@29.2.4(@babel/core@7.24.9)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.9))(jest@29.7.0)(typescript@5.5.4):
+  ts-jest@29.2.4(@babel/core@7.24.9)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.9))(jest@29.7.0(@types/node@20.14.11)(ts-node@10.9.2(@types/node@20.14.11)(typescript@5.5.4)))(typescript@5.5.4):
     dependencies:
       bs-logger: 0.2.6
       ejs: 3.1.10
