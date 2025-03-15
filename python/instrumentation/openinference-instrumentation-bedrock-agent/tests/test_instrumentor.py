@@ -1,0 +1,212 @@
+import json
+
+import boto3
+import vcr  # type: ignore
+from botocore.eventstream import EventStream
+from openinference.semconv.trace import (
+    MessageAttributes,
+    ToolCallAttributes,
+    SpanAttributes
+)
+
+
+@vcr.use_cassette('tests/cassettes/test_instrumentor/test_tool_calls_with_input_params.yaml')
+def test_tool_calls_with_input_params(instrument, tracer_provider, in_memory_span_exporter):
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="ap-south-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    attributes = dict(
+        inputText="Find the sum of 10 and 20",
+        agentId='G0OUMYARBX',
+        agentAliasId='TSTALIASID',
+        sessionId="default_session_id",
+        enableTrace=True
+    )
+    response = client.invoke_agent(**attributes)
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response['completion']]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(events) == 10
+    assert len(spans) == 9
+    span_names = [span.name for span in spans]
+    assert span_names == ['llm', 'rational', 'tool_result', 'tool_execution', 'orchestrationTrace', 'llm',
+                          'rational', 'orchestrationTrace', 'bedrock_agent.invoke_agent']
+    llm_span = [span for span in spans if span.name == 'llm'][0]
+    llm_span_attributes = dict(llm_span.attributes)
+    tool_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    tool_function_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    tool_inputs_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    assert llm_span_attributes[tool_function_key] == 'action_group_quick_start_7jzsu__add_two_numbers'
+    assert llm_span_attributes[tool_inputs_key] == '{"number_1": 10, "number_2": 20}'
+    tool_result_span = [span for span in spans if span.name == 'tool_result'][0]
+    tool_span_attributes = dict(tool_result_span.attributes)
+    assert json.loads(tool_span_attributes['metadata'])['result_type'] == 'tool_execution_result'
+    assert tool_span_attributes[SpanAttributes.OUTPUT_VALUE] == '{"text": "The result of adding 10 and 20 is 30"}'
+    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == 'TOOL'
+
+
+@vcr.use_cassette('tests/cassettes/test_instrumentor/test_tool_calls_without_input_params.yaml')
+def test_tool_calls_without_input_params(instrument, tracer_provider, in_memory_span_exporter):
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="ap-south-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    attributes = dict(
+        inputText="What is the time?",
+        agentId='G0OUMYARBX',
+        agentAliasId='TSTALIASID',
+        sessionId="default_session_id",
+        enableTrace=True
+    )
+    response = client.invoke_agent(**attributes)
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response['completion']]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(events) == 10
+    assert len(spans) == 9
+    span_names = [span.name for span in spans]
+    assert span_names == ['llm', 'rational', 'tool_result', 'tool_execution', 'orchestrationTrace', 'llm',
+                          'rational', 'orchestrationTrace', 'bedrock_agent.invoke_agent']
+    llm_span = [span for span in spans if span.name == 'llm'][0]
+    llm_span_attributes = dict(llm_span.attributes)
+    tool_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    tool_function_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    tool_inputs_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    assert llm_span_attributes[tool_function_key] == 'action_group_quick_start_7jzsu__get_time'
+    assert llm_span_attributes[tool_inputs_key] == '{}'
+    tool_result_span = [span for span in spans if span.name == 'tool_result'][0]
+    tool_span_attributes = dict(tool_result_span.attributes)
+    assert json.loads(tool_span_attributes['metadata'])['result_type'] == 'tool_execution_result'
+    assert tool_span_attributes[SpanAttributes.OUTPUT_VALUE] == '{"text": "The current time is 18:41:58"}'
+    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == 'TOOL'
+
+
+@vcr.use_cassette('tests/cassettes/test_instrumentor/test_knowledge_base_results.yaml')
+def test_knowledge_base_results(instrument, tracer_provider, in_memory_span_exporter):
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="ap-south-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    attributes = dict(
+        inputText="What is task decomposition?",
+        agentId='G0OUMYARBX',
+        agentAliasId='TSTALIASID',
+        sessionId="default_session_id",
+        enableTrace=True
+    )
+    response = client.invoke_agent(**attributes)
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response['completion']]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(events) == 10
+    span_names = [span.name for span in spans]
+    assert span_names == ['llm', 'rational', 'knowledge_base_result', 'knowledge_base_lookup', 'orchestrationTrace',
+                          'llm', 'rational', 'orchestrationTrace', 'bedrock_agent.invoke_agent']
+    assert len(spans) == 9
+    llm_span = [span for span in spans if span.name == 'llm'][0]
+    llm_span_attributes = dict(llm_span.attributes)
+    tool_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    tool_function_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    tool_inputs_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    assert llm_span_attributes[tool_function_key] == 'GET__x_amz_knowledgebase_HFUFBERTZV__Search'
+    assert llm_span_attributes[tool_inputs_key] == ('{"searchQuery": "What is task decomposition? Provide a definition'
+                                                    ' and explanation."}')
+
+
+@vcr.use_cassette('tests/cassettes/test_instrumentor/test_preprocessing_trace.yaml')
+def test_preprocessing_trace(instrument, tracer_provider, in_memory_span_exporter):
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="ap-south-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    attributes = dict(
+        inputText="What is best time to visit the Taj Mahal?",
+        agentId='1CF333B9DE',
+        agentAliasId='9QFT0YAI71',
+        sessionId="default_session_id2",
+        enableTrace=True
+    )
+    response = client.invoke_agent(**attributes)
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response['completion']]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(events) == 7
+    assert len(spans) == 7
+    span_names = [span.name for span in spans]
+    assert span_names == ['llm', 'final_response', 'preProcessingTrace', 'llm', 'rational', 'orchestrationTrace',
+                          'bedrock_agent.invoke_agent']
+
+
+@vcr.use_cassette('tests/cassettes/test_instrumentor/test_post_processing_trace.yaml')
+def test_post_processing_trace(instrument, tracer_provider, in_memory_span_exporter):
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="ap-south-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    attributes = dict(
+        inputText="What is best time to visit the Taj Mahal?",
+        agentId='1CF333B9DE',
+        agentAliasId='PG0PYIUJ2F',
+        sessionId="default_session_id2",
+        enableTrace=True
+    )
+    response = client.invoke_agent(**attributes)
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response['completion']]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(events) == 7
+    assert len(spans) == 7
+    span_names = [span.name for span in spans]
+    assert span_names == ['llm', 'rational', 'orchestrationTrace', 'llm', 'final_response',
+                          'postProcessingTrace', 'bedrock_agent.invoke_agent']
+
+
+@vcr.use_cassette('tests/cassettes/test_instrumentor/test_agent_call_without_traces.yaml')
+def test_agent_call_without_traces(instrument, tracer_provider, in_memory_span_exporter):
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="ap-south-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    attributes = dict(
+        inputText="What is task decomposition?",
+        agentId='G0OUMYARBX',
+        agentAliasId='TSTALIASID',
+        sessionId="default_session_id",
+        enableTrace=False
+    )
+    response = client.invoke_agent(**attributes)
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response['completion']]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(events) == 1
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "AGENT"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == 'aws'
+    assert not attributes.pop('tracing.enable_trace')
+    assert isinstance(attributes.pop(SpanAttributes.INPUT_VALUE), str)
+    assert isinstance(attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    assert spans[0].name == 'bedrock_agent.invoke_agent'
+    assert spans[0].attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == 'AGENT'
+    metadata = json.loads(spans[0].attributes['agent.metadata'])
+    metadata.pop('request_timestamp')
+
+    assert metadata == {
+        "agent_id": "G0OUMYARBX",
+        "agent_alias_id": "TSTALIASID",
+        "service": "bedrock-agent",
+        "environment": "production"
+    }
