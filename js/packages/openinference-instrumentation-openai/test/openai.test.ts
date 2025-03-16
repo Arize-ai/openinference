@@ -831,7 +831,7 @@ describe("OpenAIInstrumentation", () => {
   "input.value": "{"messages":[{"role":"user","content":[{"type":"text","text":"Say this is a test"},{"type":"image_url","image_url":{"url":"data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="}}]}],"model":"gpt-3.5-turbo"}",
   "llm.input_messages.0.message.contents.0.message_content.text": "Say this is a test",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
-  "llm.input_messages.0.message.contents.1.message_content.image": "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
   "llm.input_messages.0.message.contents.1.message_content.type": "image",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"model":"gpt-3.5-turbo"}",

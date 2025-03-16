@@ -490,7 +490,7 @@ function getChatCompletionInputMessageAttributes(
           `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
         ] = "image";
         attributes[
-          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}`
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
         ] = part.image_url.url;
       }
     });
