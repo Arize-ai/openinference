@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 2.0.2
+
+### Patch Changes
+
+- f1c1a3c: place image attributes under the right path
+
 ## 2.0.1
 
 ### Patch Changes
