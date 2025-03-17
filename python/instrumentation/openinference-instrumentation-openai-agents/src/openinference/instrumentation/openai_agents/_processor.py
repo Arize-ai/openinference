@@ -187,7 +187,7 @@ def _get_span_kind(obj: SpanData) -> str:
     if isinstance(obj, ResponseSpanData):
         return OpenInferenceSpanKindValues.LLM.value
     if isinstance(obj, HandoffSpanData):
-        return OpenInferenceSpanKindValues.CHAIN.value
+        return OpenInferenceSpanKindValues.TOOL.value
     if isinstance(obj, CustomSpanData):
         return OpenInferenceSpanKindValues.CHAIN.value
     if isinstance(obj, GuardrailSpanData):
