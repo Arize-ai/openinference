@@ -36,6 +36,7 @@ from openai.types.responses import (
 )
 from openai.types.responses.response_input_item_param import Message
 from openai.types.responses.response_output_message_param import Content
+from opentelemetry.context import attach, detach
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import (
     Status,
@@ -65,6 +66,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
         self._tracer = tracer
         self._root_spans: dict[str, OtelSpan] = {}
         self._otel_spans: dict[str, OtelSpan] = {}
+        self._tokens: dict[str, object] = {}
 
     def on_trace_start(self, trace: Trace) -> None:
         """Called when a trace is started.
@@ -113,6 +115,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
             attributes={OPENINFERENCE_SPAN_KIND: _get_span_kind(span.span_data)},
         )
         self._otel_spans[span.span_id] = otel_span
+        self._tokens[span.span_id] = attach(set_span_in_context(otel_span))
 
     def on_span_end(self, span: Span[Any]) -> None:
         """Called when a span is finished. Should not block or raise exceptions.
@@ -120,6 +123,8 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
         Args:
             span: The span that finished.
         """
+        if token := self._tokens.pop(span.span_id, None):
+            detach(token)  # type: ignore[arg-type]
         if not (otel_span := self._otel_spans.pop(span.span_id, None)):
             return
         otel_span.update_name(_get_span_name(span))
