@@ -7,7 +7,7 @@ from typing import (
     TypeVar,
 )
 
-from openinference.instrumentation.bedrock.processerors import process_trace_event
+from openinference.instrumentation.bedrock.processors import process_trace_event
 from openinference.instrumentation.bedrock.utils import TraceContext, TimingMetrics
 from openinference.instrumentation.bedrock.utils import _finish
 from openinference.semconv.trace import SpanAttributes
