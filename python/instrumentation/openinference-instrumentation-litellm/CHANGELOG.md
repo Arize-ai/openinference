@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.12...python-openinference-instrumentation-litellm-v0.1.13) (2025-03-17)
+
+
+### Bug Fixes
+
+* **liteLLM:** support sync stream ([#1307](https://github.com/Arize-ai/openinference/issues/1307)) ([5c04fa0](https://github.com/Arize-ai/openinference/commit/5c04fa0e10cd95db50e11b1be9afa0f2c3a39aa5))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.11...python-openinference-instrumentation-litellm-v0.1.12) (2025-03-14)
 
 

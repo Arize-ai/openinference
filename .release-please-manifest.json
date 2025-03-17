@@ -11,11 +11,11 @@
     "python/instrumentation/openinference-instrumentation-vertexai": "0.1.8",
     "python/instrumentation/openinference-instrumentation-crewai": "0.1.7",
     "python/instrumentation/openinference-instrumentation-haystack": "0.1.19",
-    "python/instrumentation/openinference-instrumentation-litellm": "0.1.12",
+    "python/instrumentation/openinference-instrumentation-litellm": "0.1.13",
     "python/instrumentation/openinference-instrumentation-groq": "0.1.9",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.6",
     "python/instrumentation/openinference-instrumentation-anthropic": "0.1.13",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.7",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.7",
-    "python/instrumentation/openinference-instrumentation-openai-agents": "0.1.0"
+    "python/instrumentation/openinference-instrumentation-openai-agents": "0.1.1"
 }
