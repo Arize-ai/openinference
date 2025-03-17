@@ -2,7 +2,7 @@
 
 Python autoinstrumentation library for AWS Bedrock calls made using `boto3`.
 
-This package implements OpenInference tracing for `invoke_model` and `converse` calls made using a `boto3` `bedrock-runtime` client. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
+This package implements OpenInference tracing for `invoke_model`, `invoke_agent` and `converse` calls made using a `boto3` `bedrock-runtime` and `bedrock-agent-runtime` clients. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-bedrock.svg)](https://pypi.org/project/openinference-instrumentation-bedrock/)
 
@@ -124,6 +124,33 @@ response = client.converse(
 )
 out = response['output']['message']
 print(out.get("content")[-1].get("text"))
+```
+All calls to `invoke_agent` are instrumented and can be viewed in the `phoenix` UI. You can enable the agent traces by passing `enableTrace=True` argument.
+
+```python
+session = boto3.session.Session()
+client = session.client("bedrock-agent-runtime")
+agent_id = '<AgentId>'
+agent_alias_id = '<AgebtAliasId>'
+session_id = f"default-session1_{int(time.time())}"
+
+attributes = dict(
+    inputText="What is the good time to visit the Taj Mahal?",
+    agentId=agent_id,
+    agentAliasId=agent_alias_id,
+    sessionId=session_id,
+    enableTrace=True
+)
+response = client.invoke_agent(**attributes)
+
+for idx, event in enumerate(response['completion']):
+    if 'chunk' in event:
+        chunk_data = event['chunk']
+        if 'bytes' in chunk_data:
+            output_text = chunk_data['bytes'].decode('utf8')
+            print(output_text)
+    elif 'trace' in event:
+        print(event['trace'])
 ```
 
 ## More Info
