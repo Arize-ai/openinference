@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 def handle_user_input_span(obs: dict, current_span: trace.Span, message_callback) -> None:
     """Handle user input as a tool invocation"""
-    # Key observation: the original implementation creates a dedicated span
     with message_callback.timing_metrics.measure("user_input"):
         with message_callback.tracer.start_as_current_span(
                 name="askuser",

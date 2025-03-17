@@ -23,11 +23,11 @@ client = session.client("bedrock-agent-runtime", "us-east-1")
 
 def run():
     agent_id = '<AgentId>'
-    agent_alias_id = '<AgebtAliasId>'
+    agent_alias_id = '<AgentAliasId>'
     session_id = f"default-session1_{int(time.time())}"
 
     attributes = dict(
-        inputText="What is the good time to visit the Taj Mahal?",
+        inputText="When is a good time to visit the Taj Mahal?",
         agentId=agent_id,
         agentAliasId=agent_alias_id,
         sessionId=session_id,
