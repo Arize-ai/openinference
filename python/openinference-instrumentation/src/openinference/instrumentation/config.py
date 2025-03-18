@@ -892,6 +892,48 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
 
 
+class NoOpOITracer(OITracer):
+    def start_span(
+        self,
+        name: str,
+        context: Optional[Context] = None,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Attributes = None,
+        links: Optional["Sequence[Link]"] = (),
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+        *,
+        openinference_span_kind: Optional[OpenInferenceSpanKind] = None,
+    ) -> OpenInferenceSpan:
+        span = OpenInferenceSpan(INVALID_SPAN, self._self_config)
+        if openinference_span_kind is not None:
+            span.set_attributes(get_span_kind_attributes(openinference_span_kind))
+        return span
+
+    def tool(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[ParametersType, ReturnType]:
+        return wrapped_function
+
+    def _chain(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        kind: OpenInferenceSpanKindValues,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return wrapped_function
+
+
 class TracerProvider(OTelTracerProvider):
     def __init__(
         self,
