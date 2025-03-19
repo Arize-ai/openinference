@@ -60,6 +60,14 @@ logger.addHandler(logging.NullHandler())
 
 _AUDIT_TIMING = False
 
+# Patterns for exception messages that should not be recorded on spans
+# These are exceptions that are expected for stopping agent execution and are not indicative of an
+# error in the application
+IGNORED_EXCEPTION_PATTERNS = [
+    r"^Command\(",
+    r"^ParentCommand\(",
+]
+
 
 @wrapt.decorator  # type: ignore
 def audit_timing(wrapped: Any, _: Any, args: Any, kwargs: Any) -> Any:
@@ -138,12 +146,10 @@ class OpenInferenceTracer(BaseTracer):
         # We can't use real time because the handler may be
         # called in a background thread.
         start_time_utc_nano = _as_utc_nano(run.start_time)
-        span = OpenInferenceSpan(
-            self._tracer.start_span(
-                name=run.name,
-                context=parent_context,
-                start_time=start_time_utc_nano,
-            )
+        span = self._tracer.start_span(
+            name=run.name,
+            context=parent_context,
+            start_time=start_time_utc_nano,
         )
 
         # The following line of code is commented out to serve as a reminder that in a system
@@ -236,7 +242,10 @@ def _record_exception(span: Span, error: BaseException) -> None:
 
 @audit_timing  # type: ignore
 def _update_span(span: Span, run: Run) -> None:
-    if run.error is None:
+    # If there  is no error or if there is an agent control exception, set the span to OK
+    if run.error is None or any(
+        re.match(pattern, run.error) for pattern in IGNORED_EXCEPTION_PATTERNS
+    ):
         span.set_status(trace_api.StatusCode.OK)
     else:
         span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, run.error))
@@ -881,53 +890,3 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
-
-
-# Patterns for exception messages that should not be recorded on spans
-# These are exceptions that are expected for stopping agent execution and are not indicative of an
-# error in the application
-IGNORED_EXCEPTION_PATTERNS = [
-    r"^Command\(",
-    r"^ParentCommand\(",
-]
-
-
-class OpenInferenceSpan(ObjectProxy):  # type: ignore
-    """A wrapper around OpenTelemetry's span class that filters certain exceptions."""
-
-    def record_exception(
-        self,
-        exception: BaseException,
-        attributes: Attributes = None,
-        timestamp: Optional[int] = None,
-        escaped: bool = False,
-    ) -> None:
-        """
-        Record an exception on the span, but skip if it matches any of the ignored patterns.
-
-        This method is overridden to skip recording exceptions that match the ignored patterns.
-        """
-        if isinstance(exception, Exception):
-            exception_str = str(exception)
-            if any(re.match(pattern, exception_str) for pattern in IGNORED_EXCEPTION_PATTERNS):
-                return
-        self.__wrapped__.record_exception(exception, attributes, timestamp, escaped)
-
-    def set_status(
-        self,
-        status: Union[Status, StatusCode],
-        description: Optional[str] = None,
-    ) -> None:
-        """
-        Sets the Status of the Span. If used, this will override the default
-        Span status.
-
-        This method is overridden to skip recording exceptions that match the ignored patterns.
-        """
-        status_code = status if isinstance(status, StatusCode) else status.status_code
-        status_description = status.description if isinstance(status, Status) else description
-        if status_code == StatusCode.ERROR and status_description:
-            # Check to see if the description matches any of the ignored patterns
-            if any(re.match(pattern, status_description) for pattern in IGNORED_EXCEPTION_PATTERNS):
-                return
-        self.__wrapped__.set_status(status, description)
