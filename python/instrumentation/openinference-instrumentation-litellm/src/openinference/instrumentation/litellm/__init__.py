@@ -135,7 +135,9 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
                 )
 
         if messages_as_dicts:
-            _set_span_attribute(span, SpanAttributes.INPUT_VALUE, safe_json_dumps({"messages": messages_as_dicts}))
+            _set_span_attribute(
+                span, SpanAttributes.INPUT_VALUE, safe_json_dumps({"messages": messages_as_dicts})
+            )
             _set_span_attribute(span, SpanAttributes.INPUT_MIME_TYPE, "application/json")
 
     invocation_params = {k: v for k, v in kwargs.items() if k not in ["model", "messages"]}
