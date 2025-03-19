@@ -1,11 +1,12 @@
 import json
-from typing import Any, Dict, Generator, List, Mapping, Optional, cast
+from typing import Any, Dict, Generator, List, Mapping, Optional, Union, cast
 from unittest.mock import patch
 
 import litellm
 import pytest
 from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
+from litellm.types.utils import Message as LitellmMessage
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -13,7 +14,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -61,10 +62,18 @@ class TestInstrumentor:
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 @pytest.mark.parametrize("n", [1, 5])
+@pytest.mark.parametrize(
+    "input_messages",
+    [
+        [{"content": "What's the capital of China?", "role": "user"}],
+        [LitellmMessage(content="How can I help you?", role="assistant")],
+    ],
+)
 def test_completion(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
+    input_messages: List[Union[Dict[str, Any], LitellmMessage]],
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -76,7 +85,6 @@ def test_completion(
 ) -> None:
     in_memory_span_exporter.clear()
 
-    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     response = None
     if use_context_attributes:
         with using_attributes(
@@ -108,8 +116,12 @@ def test_completion(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
-
+    input_values = [
+        msg.json() if isinstance(msg, LitellmMessage) else msg  # type: ignore[no-untyped-call]
+        for msg in input_messages
+    ]
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps({"messages": input_values})
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
     for i, choice in enumerate(response["choices"]):
         _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, choice.message)
@@ -190,7 +202,10 @@ def test_completion_sync_streaming(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "The capital of China is Beijing"
 
@@ -227,7 +242,10 @@ def test_completion_with_parameters(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {"mock_response": "Beijing", "temperature": 0.7, "top_p": 0.9}
     )
@@ -260,12 +278,15 @@ def test_completion_with_multiple_messages(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    for i, message in enumerate(input_messages):
+        _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {"mock_response": "Got it! What kind of pie would you like to make?"}
     )
-    for i, message in enumerate(input_messages):
-        _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
     assert (
         attributes.get(SpanAttributes.OUTPUT_VALUE)
         == "Got it! What kind of pie would you like to make?"
@@ -304,12 +325,15 @@ def test_completion_image_support(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    for i, message in enumerate(input_messages):
+        _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {"mock_response": "That's an image of a pasture"}
     )
-    for i, message in enumerate(input_messages):
-        _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "That's an image of a pasture"
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
@@ -360,7 +384,10 @@ async def test_acompletion(
     assert span.name == "acompletion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
@@ -423,7 +450,10 @@ def test_completion_with_retries(
     assert span.name == "completion_with_retries"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
