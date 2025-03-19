@@ -2,7 +2,7 @@
 
 Python autoinstrumentation library for AWS Bedrock calls made using `boto3`.
 
-This package implements OpenInference tracing for `invoke_model`, `invoke_agent` and `converse` calls made using a `boto3` `bedrock-runtime` and `bedrock-agent-runtime` clients. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
+This package implements OpenInference tracing for `invoke_model`, `invoke_agent` and `converse` calls made using the `boto3` `bedrock-runtime` and `bedrock-agent-runtime` clients. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-bedrock.svg)](https://pypi.org/project/openinference-instrumentation-bedrock/)
 
@@ -131,11 +131,11 @@ All calls to `invoke_agent` are instrumented and can be viewed in the `phoenix` 
 session = boto3.session.Session()
 client = session.client("bedrock-agent-runtime")
 agent_id = '<AgentId>'
-agent_alias_id = '<AgebtAliasId>'
+agent_alias_id = '<AgentAliasId>'
 session_id = f"default-session1_{int(time.time())}"
 
 attributes = dict(
-    inputText="What is the good time to visit the Taj Mahal?",
+    inputText="When is a good time to visit the Taj Mahal?",
     agentId=agent_id,
     agentAliasId=agent_alias_id,
     sessionId=session_id,

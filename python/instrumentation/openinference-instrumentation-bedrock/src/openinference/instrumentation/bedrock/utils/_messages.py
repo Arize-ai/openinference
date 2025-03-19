@@ -9,7 +9,7 @@ from typing import (
 
 from opentelemetry.trace import Span, Tracer
 
-from openinference.instrumentation.bedrock.processerors import process_trace_event
+from openinference.instrumentation.bedrock.processors import process_trace_event
 from openinference.instrumentation.bedrock.utils import TraceContext, _finish
 from openinference.semconv.trace import SpanAttributes
 
