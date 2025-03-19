@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+import re
 import time
 import traceback
 from copy import deepcopy
@@ -57,6 +58,14 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 _AUDIT_TIMING = False
+
+# Patterns for exception messages that should not be recorded on spans
+# These are exceptions that are expected for stopping agent execution and are not indicative of an
+# error in the application
+IGNORED_EXCEPTION_PATTERNS = [
+    r"^Command\(",
+    r"^ParentCommand\(",
+]
 
 
 @wrapt.decorator  # type: ignore
@@ -232,7 +241,10 @@ def _record_exception(span: Span, error: BaseException) -> None:
 
 @audit_timing  # type: ignore
 def _update_span(span: Span, run: Run) -> None:
-    if run.error is None:
+    # If there  is no error or if there is an agent control exception, set the span to OK
+    if run.error is None or any(
+        re.match(pattern, run.error) for pattern in IGNORED_EXCEPTION_PATTERNS
+    ):
         span.set_status(trace_api.StatusCode.OK)
     else:
         span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, run.error))
