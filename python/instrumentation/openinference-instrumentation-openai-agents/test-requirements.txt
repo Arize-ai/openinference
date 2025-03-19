@@ -1,0 +1,6 @@
+openai
+openai_agents
+openinference-instrumentation-openai
+opentelemetry-sdk
+respx
+pytest-vcr

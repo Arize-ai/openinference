@@ -50,7 +50,6 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    import anthropic
     from anthropic.types import (
         DocumentBlockParam,
         ImageBlockParam,
@@ -149,9 +148,7 @@ def _attributes_from_message_param(
     num_tool_calls = 0
     for i, block in enumerate(content):
         if TYPE_CHECKING:
-            assert not isinstance(
-                block, (str, anthropic.types.TextBlock, anthropic.types.ToolUseBlock)
-            )
+            assert isinstance(block, dict)
         if "type" not in block:
             continue
         if block["type"] == "text":
@@ -171,6 +168,10 @@ def _attributes_from_message_param(
             yield from _attributes_from_tool_result_param(block, f"{prefix}{MESSAGE_CONTENTS}.{i}.")
         elif block["type"] == "document":
             yield from _attributes_from_document_param(block, f"{prefix}{MESSAGE_CONTENTS}.{i}.")
+        elif block["type"] == "thinking":
+            pass  # TODO
+        elif block["type"] == "redacted_thinking":
+            pass  # TODO
         else:
             if TYPE_CHECKING:
                 assert_never(block)
@@ -268,13 +269,22 @@ def _attributes_from_image_param(
     block: ImageBlockParam,
     prefix: str,
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    media_type = block["source"]["media_type"]
-    data = block["source"]["data"]
-    type_ = block["source"]["type"]
-    yield (
-        f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
-        f"data:{media_type};{type_},{data}",
-    )
+    source = block["source"]
+    if source["type"] == "base64":
+        media_type = source["media_type"]
+        data = source["data"]
+        type_ = source["type"]
+        yield (
+            f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+            f"data:{media_type};{type_},{data}",
+        )
+    elif source["type"] == "url":
+        yield (
+            f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+            source["url"],
+        )
+    elif TYPE_CHECKING:
+        assert_never(source["type"])
 
 
 @_stop_on_exception

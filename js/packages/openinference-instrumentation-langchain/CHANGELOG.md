@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 3.0.0
+
+### Major Changes
+
+- 1ae380c: deprecate support for v0.1
+
 ## 2.0.0
 
 ### Major Changes

@@ -252,9 +252,11 @@ class _Span(BaseSpan):
             try:
                 self[OUTPUT_VALUE] = result.model_dump_json(exclude_unset=True)
                 self[OUTPUT_MIME_TYPE] = JSON
-            except BaseException as e:
-                logger.exception(str(e))
-                pass
+            except Exception:
+                try:
+                    self[OUTPUT_VALUE] = repr(result)
+                except Exception:
+                    pass
         else:
             try:
                 self[OUTPUT_VALUE] = safe_json_dumps(result, cls=_Encoder)

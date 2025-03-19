@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.16...python-openinference-instrumentation-bedrock-v0.1.17) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.15...python-openinference-instrumentation-bedrock-v0.1.16) (2025-03-01)
+
+
+### Bug Fixes
+
+* image source types for anthropic 0.49 ([#1320](https://github.com/Arize-ai/openinference/issues/1320)) ([f022141](https://github.com/Arize-ai/openinference/commit/f022141b990bfd1de53b4c2e9c3f32d238d27048))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.14...python-openinference-instrumentation-bedrock-v0.1.15) (2025-02-18)
 
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.35...python-openinference-instrumentation-langchain-v0.1.36) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.34...python-openinference-instrumentation-langchain-v0.1.35) (2025-03-06)
+
+
+### Bug Fixes
+
+* handle missing attribute if .instrument() has not been called and tracer has not been initialized ([#1340](https://github.com/Arize-ai/openinference/issues/1340)) ([2582513](https://github.com/Arize-ai/openinference/commit/2582513ef60dc510fc3f63930b9717edfe07b9a2))
+
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.33...python-openinference-instrumentation-langchain-v0.1.34) (2025-03-05)
+
+
+### Bug Fixes
+
+* message content when it's list of strings ([#1337](https://github.com/Arize-ai/openinference/issues/1337)) ([d79f90e](https://github.com/Arize-ai/openinference/commit/d79f90e8949da449bc0beef0f6ece75077d57e89))
+
 ## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.32...python-openinference-instrumentation-langchain-v0.1.33) (2025-02-18)
 
 

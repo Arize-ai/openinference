@@ -8,7 +8,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11,<3.12"
-fastapi = "^0.109.1"
+fastapi = "^0.115.11"
 python-dotenv = "^1.0.0"
 llama-index = "0.10.44"
 llama-index-core = "0.10.44"

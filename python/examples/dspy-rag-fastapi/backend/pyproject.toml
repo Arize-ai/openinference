@@ -4,12 +4,13 @@ version = "0.2.0"
 description = "FastAPI wrapper around dspy"
 authors = ["diicell", "mikeldking"]
 license = "MIT"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.10, <3.11"
-fastapi = "^0.110.0"
+fastapi = "^0.115.11"
 uvicorn = {extras = ["standard"], version = "^0.27.1"}
-arize-phoenix = "^3.4.1"
+arize-phoenix = "^8.13.1"
 openinference-instrumentation-dspy = "^0.1.4"
 opentelemetry-exporter-otlp = "^1.23.0"
 weaviate-client = "^4.5.6"

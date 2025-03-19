@@ -490,7 +490,7 @@ function getChatCompletionInputMessageAttributes(
           `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
         ] = "image";
         attributes[
-          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}`
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
         ] = part.image_url.url;
       }
     });
@@ -533,6 +533,9 @@ function getChatCompletionInputMessageAttributes(
       break;
     case "system":
       // There's nothing to add for the system. Content is captured above
+      break;
+    case "developer":
+      // There's nothing to add for the developer. Content is captured above
       break;
     default:
       assertUnreachable(role);

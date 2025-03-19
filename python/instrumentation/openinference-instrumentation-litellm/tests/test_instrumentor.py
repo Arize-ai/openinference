@@ -143,6 +143,82 @@ def test_completion(
         )
 
 
+@pytest.mark.parametrize("use_context_attributes", [True])
+@pytest.mark.parametrize("n", [1])
+def test_completion_sync_streaming(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    use_context_attributes: bool,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+    n: int,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    response = None
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            response = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=input_messages,
+                mock_response="The capital of China is Beijing",
+                n=n,
+                stream=True,
+            )
+    else:
+        response = litellm.completion(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            mock_response="The capital of China is Beijing",
+            n=n,
+            stream=True,
+        )
+
+    output_message = ""
+    for chunk in response:
+        if chunk.choices[0].delta.content:
+            output_message += chunk.choices[0].delta.content
+
+    assert output_message == "The capital of China is Beijing"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "The capital of China is Beijing"
+
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+
+
 def test_completion_with_parameters(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
@@ -227,7 +303,7 @@ def test_completion_image_support(
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": "What’s in this image?"},
+                {"type": "text", "text": "What's in this image?"},
                 {
                     "type": "image_url",
                     "image_url": {"url": "https://dummy_image.jpg"},

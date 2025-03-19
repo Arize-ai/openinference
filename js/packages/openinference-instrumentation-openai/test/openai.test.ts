@@ -712,23 +712,23 @@ describe("OpenAIInstrumentation", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Chat Completions");
     expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"messages":[{"role":"user","content":"What's the weather today?"}],"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
-  "llm.input_messages.0.message.content": "What's the weather today?",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
-  "llm.model_name": "gpt-3.5-turbo",
-  "llm.output_messages.0.message.content": "",
-  "llm.output_messages.0.message.function_call_arguments_json": "{}",
-  "llm.output_messages.0.message.function_call_name": "getWeather",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "openai",
-  "llm.system": "openai",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "",
-}
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"messages":[{"role":"user","content":"What's the weather today?"}],"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
+        "llm.input_messages.0.message.content": "What's the weather today?",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
+        "llm.model_name": "gpt-3.5-turbo",
+        "llm.output_messages.0.message.content": "",
+        "llm.output_messages.0.message.function_call_arguments_json": "{}",
+        "llm.output_messages.0.message.function_call_name": "getWeather",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.provider": "openai",
+        "llm.system": "openai",
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "text/plain",
+        "output.value": "",
+      }
 `);
   });
   it("should not emit a span if tracing is suppressed", async () => {
@@ -831,7 +831,7 @@ describe("OpenAIInstrumentation", () => {
   "input.value": "{"messages":[{"role":"user","content":[{"type":"text","text":"Say this is a test"},{"type":"image_url","image_url":{"url":"data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="}}]}],"model":"gpt-3.5-turbo"}",
   "llm.input_messages.0.message.contents.0.message_content.text": "Say this is a test",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
-  "llm.input_messages.0.message.contents.1.message_content.image": "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
   "llm.input_messages.0.message.contents.1.message_content.type": "image",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"model":"gpt-3.5-turbo"}",

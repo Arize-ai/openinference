@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.23...python-openinference-instrumentation-v0.1.24) (2025-03-14)
+
+
+### Features
+
+* openai-agents instrumentation ([#1350](https://github.com/Arize-ai/openinference/issues/1350)) ([9afbad3](https://github.com/Arize-ai/openinference/commit/9afbad3100d68601a2f9265fe20985a34f80e04b))
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.22...python-openinference-instrumentation-v0.1.23) (2025-02-27)
+
+
+### Bug Fixes
+
+* allow user override of id generator ([#1315](https://github.com/Arize-ai/openinference/issues/1315)) ([1916749](https://github.com/Arize-ai/openinference/commit/19167498fd74f2e93481bd63b5636e264af1eaab))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.21...python-openinference-instrumentation-v0.1.22) (2025-02-04)
 
 
