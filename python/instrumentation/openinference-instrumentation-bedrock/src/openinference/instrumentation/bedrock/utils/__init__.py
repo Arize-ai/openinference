@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-import json
-import time
-from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from threading import Lock
-from typing import Any, Callable, ContextManager, Iterator, Mapping, Optional, cast, Dict
+from typing import Any, Callable, ContextManager, Iterator, Mapping, Optional, cast
 
 import wrapt
 from botocore.eventstream import EventStream
+from opentelemetry import trace
+from opentelemetry.trace import Span, Status, StatusCode, use_span
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.bedrock._proxy import _AnyT, _CallbackT, _Iterator
 from openinference.semconv.trace import (
@@ -20,19 +21,16 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry import trace
-from opentelemetry.trace import Span, Status, StatusCode, use_span
-from opentelemetry.util.types import AttributeValue
 
 
 class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc]
     __wrapped__: EventStream
 
     def __init__(
-            self,
-            obj: EventStream,
-            callback: Optional[_CallbackT[_AnyT]] = None,
-            context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
+        self,
+        obj: EventStream,
+        callback: Optional[_CallbackT[_AnyT]] = None,
+        context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         super().__init__(obj)
         self._self_callback = callback
@@ -46,72 +44,26 @@ class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc]
         )
 
 
-class ActionGroupTiming:
-    def __init__(self):
-        self.start_time = None
-        self.last_event_time = None
-        self.timings = []
-
-    def start(self):
-        self.start_time = time.time()
-        self.last_event_time = self.start_time
-
-    def record_event(self):
-        current_time = time.time()
-        if self.last_event_time:
-            latency = current_time - self.last_event_time
-            self.timings.append({
-                'timestamp': current_time,
-                'latency': latency,
-                'total_duration': current_time - self.start_time
-            })
-        self.last_event_time = current_time
-
-    def get_total_duration(self):
-        if self.start_time and self.last_event_time:
-            return self.last_event_time - self.start_time
-        return 0
-
-
-class TimingMetrics:
-    def __init__(self):
-        self.component_timings = defaultdict(list)
-
-    @contextmanager
-    def measure(self, component_name: str):
-        start_time = time.time_ns() // 1_000_000  # Convert to milliseconds
-        try:
-            yield
-        finally:
-            end_time = time.time_ns() // 1_000_000
-            duration = end_time - start_time
-            self.component_timings[component_name].append(duration)
-            current_span = trace.get_current_span()
-            if current_span:
-                current_span.set_attribute("duration_ms", duration)
-
-
-# Thread-safe trace storage using context
 class TraceContext:
-    def __init__(self):
-        self._storage: Dict[str, Dict[str, Any]] = {}
-        self._metadata: Dict[str, Any] = {}
-        self._session_data: Dict[str, Dict[str, Any]] = {}
+    def __init__(self) -> None:
+        self._storage: dict[str, dict[str, Any]] = {}
+        self._metadata: dict[str, Any] = {}
+        self._session_data: dict[str, dict[str, Any]] = {}
         self._lock = Lock()  # Thread safety
 
-    def get(self, trace_id: str) -> Optional[Dict[str, Any]]:
+    def get(self, trace_id: str) -> Optional[dict[str, Any]]:
         with self._lock:
             return self._storage.get(trace_id)
 
-    def set(self, trace_id: str, data: Dict[str, Any]) -> None:
+    def set(self, trace_id: str, data: dict[str, Any]) -> None:
         with self._lock:
             self._storage[trace_id] = {
                 **data,
-                'metadata': {
-                    'timestamp': datetime.now().isoformat(),
-                    'trace_version': '1.0',
-                    **self._metadata.get(trace_id, {})
-                }
+                "metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "trace_version": "1.0",
+                    **self._metadata.get(trace_id, {}),
+                },
             }
 
     def delete(self, trace_id: str) -> None:
@@ -120,29 +72,29 @@ class TraceContext:
             self._metadata.pop(trace_id, None)
             self._session_data.pop(trace_id, None)
 
-    def add_metadata(self, trace_id: str, metadata: Dict[str, Any]) -> None:
+    def add_metadata(self, trace_id: str, metadata: dict[str, Any]) -> None:
         """Add metadata to a specific trace"""
         with self._lock:
             if trace_id not in self._metadata:
                 self._metadata[trace_id] = {}
             self._metadata[trace_id].update(metadata)
 
-    def set_session_data(self, trace_id: str, session_id: str, data: Dict[str, Any]) -> None:
+    def set_session_data(self, trace_id: str, session_id: str, data: dict[str, Any]) -> None:
         """Store session-specific data"""
         with self._lock:
             if trace_id not in self._session_data:
                 self._session_data[trace_id] = {}
             self._session_data[trace_id][session_id] = {
                 **data,
-                'last_updated': datetime.now().isoformat()
+                "last_updated": datetime.now().isoformat(),
             }
 
-    def get_session_data(self, trace_id: str, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_session_data(self, trace_id: str, session_id: str) -> Optional[dict[str, Any]]:
         """Retrieve session-specific data"""
         with self._lock:
             return self._session_data.get(trace_id, {}).get(session_id)
 
-    def get_trace_metadata(self, trace_id: str) -> Dict[str, Any]:
+    def get_trace_metadata(self, trace_id: str) -> Any:
         """Get all metadata for a trace"""
         with self._lock:
             return self._metadata.get(trace_id, {})
@@ -153,14 +105,14 @@ class TraceContext:
             current_time = datetime.now()
             for trace_id in list(self._storage.keys()):
                 trace_time = datetime.fromisoformat(
-                    self._storage[trace_id]['metadata']['timestamp']
+                    self._storage[trace_id]["metadata"]["timestamp"]
                 )
                 if (current_time - trace_time).total_seconds() > max_age_seconds:
                     self.delete(trace_id)
 
 
 @contextmanager
-def safe_span_operation():
+def safe_span_operation() -> Iterator[Any]:
     """Context manager for safe span operations with error handling"""
     try:
         yield
@@ -174,41 +126,26 @@ def safe_span_operation():
     else:
         # If no exception occurred and status is UNSET, set to OK
         current_span = trace.get_current_span()
-        if current_span and current_span.status.status_code == StatusCode.UNSET:
+        if current_span and current_span.status.status_code == StatusCode.UNSET:  # type: ignore
             current_span.set_status(Status(StatusCode.OK))
 
 
-def set_common_attributes(span, attributes: Dict[str, Any]) -> None:
+def set_common_attributes(span: Span, attributes: dict[str, Any]) -> None:
     for key, value in attributes.items():
         if value is not None and value != "":
             span.set_attribute(key, value)
 
 
-def enhance_span_attributes(span, trace_data: dict):
+def enhance_span_attributes(span: Span, trace_data: dict[str, Any]) -> None:
     """Enhances span with comprehensive attributes"""
-    common_attributes = {
-        "trace.step_number": trace_data.get("step_number", 0),
-        "trace.component_type": trace_data.get("type", "unknown"),
-        "trace.timestamp": datetime.now().isoformat(),
-    }
-
     if "metadata" in trace_data and "usage" in trace_data["metadata"]:
         usage = trace_data["metadata"]["usage"]
-        common_attributes.update({
-            "llm.token_count.input": usage.get("inputTokens", 0),
-            "llm.token_count.output": usage.get("outputTokens", 0),
-            "llm.token_count.total": usage.get("inputTokens", 0) + usage.get("outputTokens", 0)
-        })
-
-    if "duration" in trace_data:
-        common_attributes["trace.duration"] = trace_data["duration"]
-
-    if "metadata" in trace_data:
-        common_attributes["trace.metadata"] = json.dumps(trace_data["metadata"])
-
-    for key, value in common_attributes.items():
-        if value is not None:
-            span.set_attribute(key, value)
+        common_attributes = {
+            LLM_TOKEN_COUNT_PROMPT: usage.get("inputTokens", 0),
+            LLM_TOKEN_COUNT_COMPLETION: usage.get("outputTokens", 0),
+            LLM_TOKEN_COUNT_TOTAL: usage.get("inputTokens", 0) + usage.get("outputTokens", 0),
+        }
+        span.set_attributes(common_attributes)
 
 
 def _use_span(span: Span) -> Callable[[], ContextManager[Span]]:
@@ -219,9 +156,9 @@ def _use_span(span: Span) -> Callable[[], ContextManager[Span]]:
 
 
 def _finish(
-        span: Span,
-        result: Any,
-        request_attributes: Mapping[str, AttributeValue],
+    span: Span,
+    result: Any,
+    request_attributes: Mapping[str, AttributeValue],
 ) -> None:
     if isinstance(result, BaseException):
         span.record_exception(result)

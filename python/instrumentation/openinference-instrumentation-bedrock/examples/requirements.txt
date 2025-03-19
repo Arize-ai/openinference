@@ -1,0 +1,13 @@
+opentelemetry-api
+opentelemetry-instrumentation
+opentelemetry-semantic-conventions
+openinference-instrumentation
+openinference-semantic-conventions
+wrapt
+typing-extensions
+dacite
+boto3
+opentelemetry-sdk
+opentelemetry-instrumentation-httpx
+anthropic
+pydantic

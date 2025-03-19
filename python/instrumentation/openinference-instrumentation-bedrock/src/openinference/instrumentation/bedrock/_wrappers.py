@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import json
 from typing import Any, Callable
 
@@ -10,10 +9,10 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Tracer
 
 from openinference.instrumentation.bedrock.utils import _EventStream, _use_span
+from openinference.instrumentation.bedrock.utils._messages import _MessagesCallback
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _AnthropicMessagesCallback,
 )
-from openinference.instrumentation.bedrock.utils._messages import _MessagesCallback
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -66,7 +65,6 @@ class _InvokeModelWithResponseStream(_WithTracer):
             return response
 
 
-
 class _InvokeAgentWithResponseStream(_WithTracer):
     _name = "bedrock_agent.invoke_agent"
 
@@ -80,29 +78,16 @@ class _InvokeAgentWithResponseStream(_WithTracer):
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        metadata = {
-            "agent_id": kwargs.get('agentId', ''),
-            "agent_alias_id": kwargs.get('agentAliasId', ''),
-            "service": "bedrock-agent",
-            "environment": "production",
-            "request_timestamp": datetime.datetime.now().isoformat()
-        }
         span = self._tracer.start_span(self._name)
-        prompt_variables = {"input_text": kwargs.get('inputText', '')}
         attributes = {
             SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
             SpanAttributes.LLM_PROVIDER: "aws",
             SpanAttributes.LLM_SYSTEM: "bedrock",
-            SpanAttributes.INPUT_VALUE: kwargs.get('inputText', ''),
-            SpanAttributes.SESSION_ID: kwargs.get('sessionId', 'default-session'),
-            "agent.id": kwargs.get('agentId', ''),
-            "agent.alias_id": kwargs.get('agentAliasId', ''),
-            "agent.metadata": json.dumps(metadata),
-            "metadata": json.dumps(metadata),
-            "tracing.enable_trace": kwargs.get('enableTrace', False),
-            "prompt_template_variables": prompt_variables
+            SpanAttributes.INPUT_VALUE: kwargs.get("inputText"),
+            "agent.id": kwargs.get("agentId"),
+            "agent.alias_id": kwargs.get("agentAliasId"),
         }
-        span.set_attributes(attributes)
+        span.set_attributes({k: v for k, v in attributes.items() if v is not None})
         response = wrapped(*args, **kwargs)
         response["completion"] = _EventStream(
             response["completion"],

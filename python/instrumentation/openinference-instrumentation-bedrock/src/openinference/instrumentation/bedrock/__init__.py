@@ -1,6 +1,5 @@
 import base64
 import io
-import datetime
 import json
 import logging
 from enum import Enum
@@ -39,8 +38,8 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.instrumentation.bedrock._wrappers import (
+    _InvokeAgentWithResponseStream,
     _InvokeModelWithResponseStream,
-    _InvokeAgentWithResponseStream
 )
 from openinference.instrumentation.bedrock.package import _instruments
 from openinference.instrumentation.bedrock.version import __version__
@@ -115,7 +114,7 @@ def _client_creation_wrapper(
         bound_arguments = call_signature.bind(*args, **kwargs)
         bound_arguments.apply_defaults()
 
-        if bound_arguments.arguments.get("service_name") == 'bedrock-agent-runtime':
+        if bound_arguments.arguments.get("service_name") == "bedrock-agent-runtime":
             client = cast(InstrumentedClient, client)
 
             client._unwrapped_invoke_agent = client.invoke_agent
