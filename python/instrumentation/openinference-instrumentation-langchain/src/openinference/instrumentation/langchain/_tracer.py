@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+import re
 import time
 import traceback
 from copy import deepcopy
@@ -23,6 +24,7 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
+    Union,
     cast,
 )
 from uuid import UUID
@@ -35,8 +37,8 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
-from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
+from opentelemetry.trace import Span, Status, StatusCode
+from opentelemetry.util.types import Attributes, AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -136,10 +138,12 @@ class OpenInferenceTracer(BaseTracer):
         # We can't use real time because the handler may be
         # called in a background thread.
         start_time_utc_nano = _as_utc_nano(run.start_time)
-        span = self._tracer.start_span(
-            name=run.name,
-            context=parent_context,
-            start_time=start_time_utc_nano,
+        span = OpenInferenceSpan(
+            self._tracer.start_span(
+                name=run.name,
+                context=parent_context,
+                start_time=start_time_utc_nano,
+            )
         )
 
         # The following line of code is commented out to serve as a reminder that in a system
@@ -877,3 +881,53 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+
+
+# Patterns for exception messages that should not be recorded on spans
+# These are exceptions that are expected for stopping agent execution and are not indicative of an
+# error in the application
+IGNORED_EXCEPTION_PATTERNS = [
+    r"^Command\(",
+    r"^ParentCommand\(",
+]
+
+
+class OpenInferenceSpan(ObjectProxy):  # type: ignore
+    """A wrapper around OpenTelemetry's span class that filters certain exceptions."""
+
+    def record_exception(
+        self,
+        exception: BaseException,
+        attributes: Attributes = None,
+        timestamp: Optional[int] = None,
+        escaped: bool = False,
+    ) -> None:
+        """
+        Record an exception on the span, but skip if it matches any of the ignored patterns.
+
+        This method is overridden to skip recording exceptions that match the ignored patterns.
+        """
+        if isinstance(exception, Exception):
+            exception_str = str(exception)
+            if any(re.match(pattern, exception_str) for pattern in IGNORED_EXCEPTION_PATTERNS):
+                return
+        self.__wrapped__.record_exception(exception, attributes, timestamp, escaped)
+
+    def set_status(
+        self,
+        status: Union[Status, StatusCode],
+        description: Optional[str] = None,
+    ) -> None:
+        """
+        Sets the Status of the Span. If used, this will override the default
+        Span status.
+
+        This method is overridden to skip recording exceptions that match the ignored patterns.
+        """
+        status_code = status if isinstance(status, StatusCode) else status.status_code
+        status_description = status.description if isinstance(status, Status) else description
+        if status_code == StatusCode.ERROR and status_description:
+            # Check to see if the description matches any of the ignored patterns
+            if any(re.match(pattern, status_description) for pattern in IGNORED_EXCEPTION_PATTERNS):
+                return
+        self.__wrapped__.set_status(status, description)
