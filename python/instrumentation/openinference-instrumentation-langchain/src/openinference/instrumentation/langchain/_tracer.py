@@ -37,8 +37,8 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
-from opentelemetry.trace import Span, Status, StatusCode
-from opentelemetry.util.types import Attributes, AttributeValue
+from opentelemetry.trace import Span
+from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
