@@ -202,7 +202,10 @@ def test_completion_sync_streaming(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "The capital of China is Beijing"
 
