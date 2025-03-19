@@ -24,7 +24,6 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
-    Union,
     cast,
 )
 from uuid import UUID
