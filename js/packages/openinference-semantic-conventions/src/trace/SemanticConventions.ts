@@ -193,9 +193,17 @@ export const LLM_SYSTEM =
 export const LLM_TOKEN_COUNT_COMPLETION =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.completion` as const;
 
+/** Token count for the reasoning steps in the completion */
+export const LLM_TOKEN_COUNT_COMPLETION_REASONING =
+  `${LLM_TOKEN_COUNT_COMPLETION}.reasoning` as const;
+
 /** Token count for the prompt to the llm */
 export const LLM_TOKEN_COUNT_PROMPT =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt` as const;
+
+/** Token count for the cached tokens in the prompt */
+export const LLM_TOKEN_COUNT_PROMPT_CACHED =
+  `${LLM_TOKEN_COUNT_PROMPT}.cached` as const;
 
 /** Token count for the entire transaction with the llm */
 export const LLM_TOKEN_COUNT_TOTAL =

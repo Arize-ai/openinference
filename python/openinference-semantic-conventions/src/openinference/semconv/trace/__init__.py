@@ -73,9 +73,17 @@ class SpanAttributes:
     """
     Number of tokens in the prompt.
     """
+    LLM_TOKEN_COUNT_PROMPT_CACHED = "llm.token_count.prompt.cached"
+    """
+    Number of tokens in the prompt that were retrieved from cache.
+    """
     LLM_TOKEN_COUNT_COMPLETION = "llm.token_count.completion"
     """
     Number of tokens in the completion.
+    """
+    LLM_TOKEN_COUNT_COMPLETION_REASONING = "llm.token_count.completion.reasoning"
+    """
+    Number of tokens used for reasoning steps in the completion.
     """
     LLM_TOKEN_COUNT_TOTAL = "llm.token_count.total"
     """
