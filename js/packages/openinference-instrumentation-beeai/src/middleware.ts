@@ -20,7 +20,7 @@ import { createSpan } from "./helpers/create-span";
 import { IdNameManager } from "./helpers/idNameManager";
 import { getErrorSafe } from "./helpers/getErrorSafe";
 import { findLast, isEmpty } from "remeda";
-import type { BeeCallbacks } from "beeai-framework/agents/bee/types";
+import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
 import type { InferCallbackValue } from "beeai-framework/emitter/types";
 import { FrameworkError } from "beeai-framework/errors";
 import { Version } from "beeai-framework/version";
@@ -36,12 +36,15 @@ import {
   successLLMEventName,
 } from "./config";
 import { createFullPath } from "beeai-framework/emitter/utils";
-import type { BeeAgent } from "beeai-framework/agents/bee/agent";
+import type { ReActAgent } from "beeai-framework/agents/react/agent";
 import { BaseAgent } from "beeai-framework/agents/base";
 import { diag } from "@opentelemetry/api";
 import { FrameworkSpan, GeneratedResponse } from "./types";
 import { buildTraceTree } from "./helpers/buildTraceTree";
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 
 export const activeTracesMap = new Map<string, string>();
 
@@ -52,7 +55,10 @@ export const activeTracesMap = new Map<string, string>();
  * Then we create the open telemetry spans when all data are collected. We are retroactively deleting some unnecessary internal spans
  * see "emitter.match((event) => event.path === `${basePath}.run.${finishEventName}`" section
  */
-export function createTelemetryMiddleware(tracer: OITracer) {
+export function createTelemetryMiddleware(
+  tracer: OITracer,
+  mainSpanKind: OpenInferenceSpanKind,
+) {
   return (context: GetRunContext<RunInstance, unknown>) => {
     if (!context.emitter?.trace?.id) {
       throw new FrameworkError(`Fatal error. Missing traceId`, [], { context });
@@ -73,7 +79,7 @@ export function createTelemetryMiddleware(tracer: OITracer) {
 
     let prompt: string | undefined | null = null;
     if (instance instanceof BaseAgent) {
-      prompt = (runParams as Parameters<BeeAgent["run"]>)[0].prompt;
+      prompt = (runParams as Parameters<ReActAgent["run"]>)[0].prompt;
     }
 
     const spansMap = new Map<string, FrameworkSpan>();
@@ -151,6 +157,7 @@ export function createTelemetryMiddleware(tracer: OITracer) {
           // create tracer spans from collected data
           buildTraceTree({
             tracer,
+            mainSpanKind,
             data: {
               prompt: prompt,
               history,
@@ -301,7 +308,7 @@ export function createTelemetryMiddleware(tracer: OITracer) {
       (event) =>
         event.name === successLLMEventName &&
         event.creator instanceof BaseAgent,
-      (data: InferCallbackValue<BeeCallbacks["success"]>) => {
+      (data: InferCallbackValue<ReActAgentCallbacks["success"]>) => {
         const { data: dataObject, memory } = data;
 
         generatedMessage = {

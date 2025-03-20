@@ -59,8 +59,10 @@ pnpm -r build
 
 4. Run the following command from the `openinference-instrumentation-beeai` package directory
 
-```shell
-node dist/examples/bee.js
-```
+| Module | command                           |
+| ------ | --------------------------------- |
+| Agent  | `node dist/examples/run-agent.js` |
+| LLM    | `node dist/examples/run-llm.js`   |
+| Tool   | `node dist/examples/run-tool.js`  |
 
 You should see your spans exported in your console. If you've set up a locally running Phoenix server, head to `localhost:6006` to see your spans.

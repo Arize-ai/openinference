@@ -9,6 +9,7 @@ import * as bee from "beeai-framework";
 
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 import { createTelemetryMiddleware } from "./middleware";
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 const MODULE_NAME = "beeai-framework";
 
@@ -83,21 +84,71 @@ export class BeeAIInstrumentation extends InstrumentationBase {
       return module;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const createWrappedMethod = <T extends (...args: any[]) => any>(
+      instrumentation: BeeAIInstrumentation,
+      original: T,
+      mainSpanKind: OpenInferenceSpanKind,
+    ) => {
+      return function wrappedMethod(this: unknown, ...args: unknown[]) {
+        const returned = original.apply(this, args);
+        if (returned?.middleware) {
+          returned.middleware(
+            createTelemetryMiddleware(instrumentation.oiTracer, mainSpanKind),
+          );
+        }
+        return returned;
+      };
+    };
     diag.info("[BeeaiInstrumentation] Patching BaseAgent.run");
 
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: BeeAIInstrumentation = this;
 
-    this._wrap(module.BaseAgent.prototype, "run", (original) => {
-      return function wrappedRun(this: unknown, ...args) {
-        const returned = original.apply(this, args);
-        returned.middleware(
-          createTelemetryMiddleware(instrumentation.oiTracer),
-        );
+    this._wrap(module.BaseAgent.prototype, "run", (original) =>
+      createWrappedMethod(
+        instrumentation,
+        original,
+        OpenInferenceSpanKind.AGENT,
+      ),
+    );
 
-        return returned;
-      };
-    });
+    // tool instrumentation support
+    if (module.Tool) {
+      this._wrap(module.Tool.prototype, "run", (original) =>
+        createWrappedMethod(
+          instrumentation,
+          original,
+          OpenInferenceSpanKind.TOOL,
+        ),
+      );
+    }
+    // model instrumentation support
+    if (module.ChatModel) {
+      this._wrap(module.ChatModel.prototype, "create", (original) =>
+        createWrappedMethod(
+          instrumentation,
+          original,
+          OpenInferenceSpanKind.LLM,
+        ),
+      );
+      this._wrap(module.ChatModel.prototype, "createStructure", (original) =>
+        createWrappedMethod(
+          instrumentation,
+          original,
+          OpenInferenceSpanKind.LLM,
+        ),
+      );
+    }
+    if (module.EmbeddingModel) {
+      this._wrap(module.EmbeddingModel.prototype, "create", (original) =>
+        createWrappedMethod(
+          instrumentation,
+          original,
+          OpenInferenceSpanKind.EMBEDDING,
+        ),
+      );
+    }
 
     return module;
   }

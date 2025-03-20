@@ -18,7 +18,7 @@ import { Serializable } from "beeai-framework/internals/serializable";
 import { instrumentationLogger } from "beeai-framework/instrumentation/logger";
 import { getProp } from "beeai-framework/internals/helpers/object";
 import { EventMeta, InferCallbackValue } from "beeai-framework/emitter/types";
-import { BeeCallbacks } from "beeai-framework/agents/bee/types";
+import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
 import { ChatModel, ChatModelEvents } from "beeai-framework/backend/chat";
 import { BaseAgent } from "beeai-framework/agents/base";
 import { Message, MessageContentPart } from "beeai-framework/backend/message";
@@ -96,16 +96,16 @@ export function getSerializedObjectSafe(
   // agent events
   if (
     [startEventName, successEventName, errorEventName, retryEventName].includes(
-      meta.name as keyof BeeCallbacks,
+      meta.name as keyof ReActAgentCallbacks,
     ) &&
     meta.creator instanceof BaseAgent
   ) {
     const { meta, tools, memory, error, data } =
       dataObject as InferCallbackValue<
-        | BeeCallbacks["start"]
-        | BeeCallbacks["error"]
-        | BeeCallbacks["success"]
-        | BeeCallbacks["retry"]
+        | ReActAgentCallbacks["start"]
+        | ReActAgentCallbacks["error"]
+        | ReActAgentCallbacks["success"]
+        | ReActAgentCallbacks["retry"]
       >;
     return {
       [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
@@ -137,11 +137,11 @@ export function getSerializedObjectSafe(
   // update events
   if (
     [updateEventName, partialUpdateEventName].includes(
-      meta.name as keyof BeeCallbacks,
+      meta.name as keyof ReActAgentCallbacks,
     )
   ) {
     const { data } = dataObject as InferCallbackValue<
-      BeeCallbacks["partialUpdate"] | BeeCallbacks["update"]
+      ReActAgentCallbacks["partialUpdate"] | ReActAgentCallbacks["update"]
     >;
 
     const output = data.final_answer || data.tool_output;
@@ -165,13 +165,13 @@ export function getSerializedObjectSafe(
   // tool events (from agent)
   if (
     [toolErrorEventName, toolStartEventName, toolSuccessEventName].includes(
-      meta.name as keyof BeeCallbacks,
+      meta.name as keyof ReActAgentCallbacks,
     )
   ) {
     const { data } = dataObject as InferCallbackValue<
-      | BeeCallbacks["toolError"]
-      | BeeCallbacks["toolStart"]
-      | BeeCallbacks["toolSuccess"]
+      | ReActAgentCallbacks["toolError"]
+      | ReActAgentCallbacks["toolStart"]
+      | ReActAgentCallbacks["toolSuccess"]
     >;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const output: any = data.result && data.result.createSnapshot();
