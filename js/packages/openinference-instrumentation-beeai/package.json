@@ -43,12 +43,12 @@
     "remeda": "^2.20.2"
   },
   "peerDependencies": {
-    "beeai-framework": "^0.1.5"
+    "beeai-framework": "^0.1.8"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.14.11",
-    "beeai-framework": "^0.1.5",
+    "beeai-framework": "^0.1.8",
     "import-in-the-middle": "^1.13.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
     "@opentelemetry/resources": "^1.30.1",
