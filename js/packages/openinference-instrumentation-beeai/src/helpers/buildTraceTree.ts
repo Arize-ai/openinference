@@ -5,9 +5,11 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+import { startEventName, successEventName } from "../config";
 
 interface BuiltTraceTreeProps {
   tracer: OITracer;
+  mainSpanKind: OpenInferenceSpanKind;
   data: {
     prompt?: string | null;
     history: GeneratedResponse[] | undefined;
@@ -72,7 +74,90 @@ function buildSpansForParent({ tracer, data }: BuildSpansForParentProps) {
     });
 }
 
-export function buildTraceTree({ tracer, data }: BuiltTraceTreeProps) {
+function buildAgentMainSpanData(data: BuiltTraceTreeProps["data"]) {
+  return {
+    ...(data.prompt && { [SemanticConventions.INPUT_VALUE]: data.prompt }),
+    ...(data.generatedMessage !== undefined && {
+      [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(data.generatedMessage),
+    }),
+    ...(data.history && { history: JSON.stringify(data.history) }),
+  };
+}
+
+function buildToolMainSpanData(data: BuiltTraceTreeProps["data"]) {
+  const startBeeaiSpan = data.spans.find(
+    (span) => span.name === startEventName,
+  );
+  const successBeeeaiSpan = data.spans.find(
+    (span) => span.name === successEventName,
+  );
+
+  return {
+    ...(startBeeaiSpan && {
+      [SemanticConventions.INPUT_VALUE]:
+        startBeeaiSpan.attributes.data?.[SemanticConventions.TOOL_PARAMETERS],
+      [SemanticConventions.TOOL_PARAMETERS]:
+        startBeeaiSpan.attributes.data?.[SemanticConventions.TOOL_PARAMETERS],
+    }),
+    ...(successBeeeaiSpan && {
+      [SemanticConventions.OUTPUT_VALUE]:
+        successBeeeaiSpan.attributes.data?.[SemanticConventions.OUTPUT_VALUE],
+    }),
+  };
+}
+
+function buildLLMMainSpanData(data: BuiltTraceTreeProps["data"]) {
+  const startBeeaiSpan = data.spans.find(
+    (span) => span.name === startEventName,
+  );
+  const successBeeeaiSpan = data.spans.find(
+    (span) => span.name === successEventName,
+  );
+
+  if (!startBeeaiSpan && !successBeeeaiSpan) return {};
+
+  const provider =
+    startBeeaiSpan?.attributes.data?.[SemanticConventions.LLM_PROVIDER] ||
+    successBeeeaiSpan?.attributes.data?.[SemanticConventions.LLM_PROVIDER];
+
+  const modelName =
+    startBeeaiSpan?.attributes.data?.[SemanticConventions.LLM_MODEL_NAME] ||
+    successBeeeaiSpan?.attributes.data?.[SemanticConventions.LLM_MODEL_NAME];
+
+  return {
+    ...(startBeeaiSpan && {
+      [SemanticConventions.INPUT_VALUE]:
+        startBeeaiSpan?.attributes.data?.[SemanticConventions.INPUT_VALUE],
+      [SemanticConventions.INPUT_MIME_TYPE]:
+        startBeeaiSpan?.attributes.data?.[SemanticConventions.INPUT_MIME_TYPE],
+    }),
+    ...(successBeeeaiSpan && {
+      [SemanticConventions.OUTPUT_MIME_TYPE]:
+        successBeeeaiSpan.attributes.data?.[
+          SemanticConventions.OUTPUT_MIME_TYPE
+        ],
+      [SemanticConventions.OUTPUT_VALUE]:
+        successBeeeaiSpan.attributes.data?.[SemanticConventions.OUTPUT_VALUE],
+    }),
+    ...(provider && { [SemanticConventions.LLM_PROVIDER]: provider }),
+    ...(modelName && { [SemanticConventions.LLM_MODEL_NAME]: modelName }),
+  };
+}
+
+export function buildTraceTree({
+  tracer,
+  data,
+  mainSpanKind,
+}: BuiltTraceTreeProps) {
+  const computedData =
+    mainSpanKind === OpenInferenceSpanKind.AGENT
+      ? buildAgentMainSpanData(data)
+      : mainSpanKind === OpenInferenceSpanKind.TOOL
+        ? buildToolMainSpanData(data)
+        : mainSpanKind === OpenInferenceSpanKind.LLM
+          ? buildLLMMainSpanData(data)
+          : {};
+
   tracer.startActiveSpan(
     `beeai-framework-main`,
     {
@@ -82,16 +167,9 @@ export function buildTraceTree({ tracer, data }: BuiltTraceTreeProps) {
       attributes: {
         source: data.source,
         traceId: data.traceId,
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.AGENT,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: mainSpanKind,
         ["beeai.version"]: data.version,
-        ...(data.prompt && { [SemanticConventions.INPUT_VALUE]: data.prompt }),
-        ...(data.generatedMessage !== undefined && {
-          [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(
-            data.generatedMessage,
-          ),
-        }),
-        ...(data.history && { history: JSON.stringify(data.history) }),
+        ...computedData,
       },
     },
     (activeSpan) => {
