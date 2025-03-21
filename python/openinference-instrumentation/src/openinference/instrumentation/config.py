@@ -928,8 +928,6 @@ class TracerProvider(OTelTracerProvider):
         *args: Any,
         **kwargs: Any,
     ) -> OITracer:
-        if self._disabled:
-            return NoOpOITracer(wrapped=NoOpTracer(), config=self._oi_trace_config)
         tracer = super().get_tracer(*args, **kwargs)
         return OITracer(tracer, config=self._oi_trace_config)
 
