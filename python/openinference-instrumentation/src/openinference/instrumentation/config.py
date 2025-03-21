@@ -45,7 +45,6 @@ from opentelemetry.trace import (
     INVALID_SPAN_ID,
     INVALID_TRACE_ID,
     Link,
-    NoOpTracer,
     Span,
     SpanKind,
     Status,
