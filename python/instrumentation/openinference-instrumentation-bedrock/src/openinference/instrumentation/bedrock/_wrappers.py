@@ -9,6 +9,7 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Tracer
 
 from openinference.instrumentation.bedrock.utils import _EventStream, _use_span
+from openinference.instrumentation.bedrock.utils._messages import _MessagesCallback
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _AnthropicMessagesCallback,
 )
@@ -62,6 +63,38 @@ class _InvokeModelWithResponseStream(_WithTracer):
             span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
             span.end()
             return response
+
+
+class _InvokeAgentWithResponseStream(_WithTracer):
+    _name = "bedrock_agent.invoke_agent"
+
+    @wrapt.decorator  # type: ignore[misc]
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        span = self._tracer.start_span(self._name)
+        attributes = {
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+            SpanAttributes.LLM_PROVIDER: "aws",
+            SpanAttributes.LLM_SYSTEM: "bedrock",
+            SpanAttributes.INPUT_VALUE: kwargs.get("inputText"),
+            "agent.id": kwargs.get("agentId"),
+            "agent.alias_id": kwargs.get("agentAliasId"),
+        }
+        span.set_attributes({k: v for k, v in attributes.items() if v is not None})
+        response = wrapped(*args, **kwargs)
+        response["completion"] = _EventStream(
+            response["completion"],
+            _MessagesCallback(span, self._tracer, kwargs),
+            _use_span(span),
+        )
+        return response
 
 
 IMAGE_URL = ImageAttributes.IMAGE_URL
