@@ -32,7 +32,8 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        from smolagents import CodeAgent, Model, MultiStepAgent, Tool, ToolCallingAgent
+        from smolagents import CodeAgent, models, MultiStepAgent, Tool, ToolCallingAgent
+        import smolagents
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
@@ -63,14 +64,19 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 wrapper=step_wrapper,
             )
 
-        model_subclasses = Model.__subclasses__()
         self._original_model_call_methods: Optional[dict[type, Callable[..., Any]]] = {}
-        for model_subclass in model_subclasses:
+        
+        exported_model_subclasses = [
+            attr for _, attr in vars(smolagents).items() 
+            if isinstance(attr, type) and issubclass(attr, models.Model)
+        ]
+        
+        for model_subclass in exported_model_subclasses:
             model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
             self._original_model_call_methods[model_subclass] = getattr(model_subclass, "__call__")
             wrap_function_wrapper(
                 module="smolagents",
-                name=model_subclass.__name__ + ".__call__",
+                name=f"{model_subclass.__name__}.__call__",
                 wrapper=model_subclass_wrapper,
             )
 
