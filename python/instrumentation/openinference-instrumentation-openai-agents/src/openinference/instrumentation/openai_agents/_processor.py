@@ -130,7 +130,11 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
         otel_span.update_name(_get_span_name(span))
         # flatten_attributes: dict[str, AttributeValue] = dict(_flatten(span.export()))
         # otel_span.set_attributes(flatten_attributes)
-        if isinstance(data := span.span_data, ResponseSpanData):
+        data = span.span_data
+        if isinstance(data, FunctionSpanData):
+            for k, v in _get_attributes_from_function_span_data(data):
+                otel_span.set_attribute(k, v)
+        elif isinstance(data, ResponseSpanData):
             if hasattr(data, "response") and isinstance(response := data.response, Response):
                 otel_span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 otel_span.set_attribute(OUTPUT_VALUE, response.model_dump_json())
@@ -251,6 +255,19 @@ def _get_attributes_from_message_param(
             yield f"{prefix}{MESSAGE_CONTENT}", content
         elif isinstance(content, list):
             yield from _get_attributes_from_message_content_list(content, prefix)
+
+
+def _get_attributes_from_function_span_data(
+    obj: FunctionSpanData,
+) -> Iterator[tuple[str, AttributeValue]]:
+    yield TOOL_NAME, obj.name
+    if obj.input:
+        yield INPUT_VALUE, obj.input
+        yield INPUT_MIME_TYPE, JSON
+    if obj.output:
+        yield OUTPUT_VALUE, obj.output
+        if obj.output[0] == "{" and obj.output[-1] == "}":
+            yield OUTPUT_MIME_TYPE, JSON
 
 
 def _get_attributes_from_message_content_list(
