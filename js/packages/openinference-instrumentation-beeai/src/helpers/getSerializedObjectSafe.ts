@@ -15,7 +15,6 @@
  */
 
 import { Serializable } from "beeai-framework/internals/serializable";
-import { instrumentationLogger } from "beeai-framework/instrumentation/logger";
 import { getProp } from "beeai-framework/internals/helpers/object";
 import { EventMeta, InferCallbackValue } from "beeai-framework/emitter/types";
 import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
@@ -52,6 +51,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { Tool, ToolEvents } from "beeai-framework/tools/base";
+import { diag } from "@opentelemetry/api";
 
 function parserLLMInputMessages(
   messages: readonly Message<MessageContentPart, string>[],
@@ -313,10 +313,7 @@ export function getSerializedObjectSafe(
     try {
       return { data: JSON.stringify(data.createSnapshot()), test: "hallo" };
     } catch (e) {
-      instrumentationLogger.warn(
-        e,
-        "Invalid createSnapshot method in the Serializable class",
-      );
+      diag.warn("Invalid createSnapshot method in the Serializable class", e);
       return null;
     }
   }
