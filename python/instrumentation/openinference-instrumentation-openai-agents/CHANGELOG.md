@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.1...python-openinference-instrumentation-openai-agents-v0.1.2) (2025-03-21)
+
+
+### Bug Fixes
+
+* add span attributes for FunctionSpanData ([#1408](https://github.com/Arize-ai/openinference/issues/1408)) ([48d1a35](https://github.com/Arize-ai/openinference/commit/48d1a3549eb8dda55e941cab867d9581a96fdf33))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.0...python-openinference-instrumentation-openai-agents-v0.1.1) (2025-03-17)
 
 
