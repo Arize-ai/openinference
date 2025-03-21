@@ -28,3 +28,8 @@ def tracer_provider(
 @pytest.fixture
 def tracer(tracer_provider: TracerProvider) -> OITracer:
     return tracer_provider.get_tracer(__name__)
+
+
+@pytest.fixture
+def otel_sdk_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
