@@ -32,8 +32,8 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        from smolagents import CodeAgent, models, MultiStepAgent, Tool, ToolCallingAgent
         import smolagents
+        from smolagents import CodeAgent, MultiStepAgent, Tool, ToolCallingAgent, models
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
