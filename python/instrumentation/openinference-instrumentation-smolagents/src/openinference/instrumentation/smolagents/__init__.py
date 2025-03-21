@@ -19,6 +19,15 @@ from openinference.instrumentation.smolagents.version import __version__
 _instruments = ("smolagents >= 1.2.2",)
 
 
+def get_all_subclasses(cls):
+    all_subclasses = set()
+    direct_subclasses = cls.__subclasses__()
+    all_subclasses.update(direct_subclasses)
+    for subclass in direct_subclasses:
+        all_subclasses.update(get_all_subclasses(subclass))
+    return all_subclasses
+
+
 class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_run_method",
@@ -63,7 +72,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 wrapper=step_wrapper,
             )
 
-        model_subclasses = Model.__subclasses__()
+        model_subclasses = get_all_subclasses(Model)
         self._original_model_call_methods: Optional[dict[type, Callable[..., Any]]] = {}
         for model_subclass in model_subclasses:
             model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
