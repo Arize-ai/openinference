@@ -47,7 +47,7 @@ class TestSpanAttributes:
                     },
                     "prompt": "LLM_TOKEN_COUNT_PROMPT",
                     "prompt_details":{
-                        "cached": "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHED"
+                        "cached": "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHED",
                     },
                     "total": "LLM_TOKEN_COUNT_TOTAL",
                 },
