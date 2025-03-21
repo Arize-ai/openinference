@@ -333,8 +333,10 @@ class TestStartAsCurrentSpanContextManager:
         with tracer.start_as_current_span(
             "span-name",
             openinference_span_kind="chain",
-        ):
-            pass
+        ) as span:
+            span.set_input("hello")
+            span.set_output("world")
+            span.set_status(Status(StatusCode.OK))
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 0
