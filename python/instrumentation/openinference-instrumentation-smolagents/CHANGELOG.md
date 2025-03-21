@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.7...python-openinference-instrumentation-smolagents-v0.1.8) (2025-03-21)
+
+
+### Bug Fixes
+
+* only import exported smolagents models ([#1403](https://github.com/Arize-ai/openinference/issues/1403)) ([e175778](https://github.com/Arize-ai/openinference/commit/e175778252b0cd50d1d1fa20b53547fbf83f74cd))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.6...python-openinference-instrumentation-smolagents-v0.1.7) (2025-03-14)
 
 
