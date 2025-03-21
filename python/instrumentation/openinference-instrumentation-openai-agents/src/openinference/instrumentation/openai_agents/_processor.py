@@ -131,10 +131,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
         # flatten_attributes: dict[str, AttributeValue] = dict(_flatten(span.export()))
         # otel_span.set_attributes(flatten_attributes)
         data = span.span_data
-        if isinstance(data, FunctionSpanData):
-            for k, v in _get_attributes_from_function_span_data(data):
-                otel_span.set_attribute(k, v)
-        elif isinstance(data, ResponseSpanData):
+        if isinstance(data, ResponseSpanData):
             if hasattr(data, "response") and isinstance(response := data.response, Response):
                 otel_span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 otel_span.set_attribute(OUTPUT_VALUE, response.model_dump_json())
@@ -150,6 +147,9 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
                         otel_span.set_attribute(k, v)
                 elif TYPE_CHECKING:
                     assert_never(input)
+        elif isinstance(data, FunctionSpanData):
+            for k, v in _get_attributes_from_function_span_data(data):
+                otel_span.set_attribute(k, v)
         end_time: Optional[int] = None
         if span.ended_at:
             try:
