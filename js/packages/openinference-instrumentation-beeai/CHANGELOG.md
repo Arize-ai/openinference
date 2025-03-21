@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.1.1
+
+### Patch Changes
+
+- f5b1c34: Remove deprecated instrumentation logger
+
 ## 1.1.0
 
 ### Minor Changes
