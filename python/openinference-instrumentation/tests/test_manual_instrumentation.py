@@ -324,6 +324,21 @@ class TestStartAsCurrentSpanContextManager:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 0
 
+    def test_no_traces_are_produced_when_otel_sdk_disabled(
+        self,
+        otel_sdk_disabled: pytest.MonkeyPatch,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        with tracer.start_as_current_span(
+            "span-name",
+            openinference_span_kind="chain",
+        ):
+            pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 0
+
     def test_using_session(
         self,
         in_memory_span_exporter: InMemorySpanExporter,

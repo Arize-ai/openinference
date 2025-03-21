@@ -45,6 +45,7 @@ from opentelemetry.trace import (
     INVALID_SPAN_ID,
     INVALID_TRACE_ID,
     Link,
+    NoOpTracer,
     Span,
     SpanKind,
     Status,
@@ -911,28 +912,6 @@ class NoOpOITracer(OITracer):
             span.set_attributes(get_span_kind_attributes(openinference_span_kind))
         return span
 
-    def tool(
-        self,
-        wrapped_function: Callable[ParametersType, ReturnType],
-        /,
-        *,
-        name: Optional[str] = None,
-    ) -> Callable[ParametersType, ReturnType]:
-        return wrapped_function
-
-    def _chain(
-        self,
-        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
-        /,
-        *,
-        kind: OpenInferenceSpanKindValues,
-        name: Optional[str] = None,
-    ) -> Union[
-        Callable[ParametersType, ReturnType],
-        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
-    ]:
-        return wrapped_function
-
 
 class TracerProvider(OTelTracerProvider):
     def __init__(
@@ -949,6 +928,8 @@ class TracerProvider(OTelTracerProvider):
         *args: Any,
         **kwargs: Any,
     ) -> OITracer:
+        if self._disabled:
+            return NoOpOITracer(wrapped=NoOpTracer(), config=self._oi_trace_config)
         tracer = super().get_tracer(*args, **kwargs)
         return OITracer(tracer, config=self._oi_trace_config)
 
