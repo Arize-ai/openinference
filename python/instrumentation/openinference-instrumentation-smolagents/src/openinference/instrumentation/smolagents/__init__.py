@@ -77,7 +77,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_model_call_methods[model_subclass] = getattr(model_subclass, "__call__")
             wrap_function_wrapper(
                 module="smolagents",
-                name=f"{model_subclass.__name__}.__call__",
+                name=model_subclass.__name__ + ".__call__",
                 wrapper=model_subclass_wrapper,
             )
 
