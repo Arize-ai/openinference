@@ -65,12 +65,13 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             )
 
         self._original_model_call_methods: Optional[dict[type, Callable[..., Any]]] = {}
-        
+
         exported_model_subclasses = [
-            attr for _, attr in vars(smolagents).items() 
+            attr
+            for _, attr in vars(smolagents).items()
             if isinstance(attr, type) and issubclass(attr, models.Model)
         ]
-        
+
         for model_subclass in exported_model_subclasses:
             model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
             self._original_model_call_methods[model_subclass] = getattr(model_subclass, "__call__")
