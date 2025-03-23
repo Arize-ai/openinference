@@ -12,8 +12,8 @@ from opentelemetry.trace import TracerProvider, use_span
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES
 from openinference.instrumentation.config import (
-    _IMPORTANT_ATTRIBUTES,
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
     DEFAULT_HIDE_INPUT_IMAGES,
     DEFAULT_HIDE_INPUT_MESSAGES,

@@ -4,16 +4,22 @@ import wrapt  # type: ignore[import-untyped]
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 
+from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+
+from ._types import OpenInferenceMimeType
 from .config import (
-    _IMPORTANT_ATTRIBUTES,
-    OPENINFERENCE_SPAN_KIND,
-    TOOL,
-    OpenInferenceMimeType,
     TraceConfig,
     get_input_attributes,
     get_output_attributes,
     get_tool_attributes,
 )
+
+_IMPORTANT_ATTRIBUTES = [
+    SpanAttributes.OPENINFERENCE_SPAN_KIND,
+]
 
 
 class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
@@ -81,3 +87,11 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
                 parameters=parameters,
             )
         )
+
+
+# span kinds
+TOOL = OpenInferenceSpanKindValues.TOOL.value
+
+
+# span attributes
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND

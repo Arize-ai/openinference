@@ -16,7 +16,7 @@ from openinference.instrumentation import (
     suppress_tracing,
     using_session,
 )
-from openinference.instrumentation.config import _infer_tool_parameters
+from openinference.instrumentation._tracers import _infer_tool_parameters
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
