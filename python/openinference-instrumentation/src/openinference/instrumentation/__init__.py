@@ -1,12 +1,14 @@
+from ._attributes import (
+    get_input_attributes,
+    get_output_attributes,
+    get_span_kind_attributes,
+    get_tool_attributes,
+)
 from ._tracer_providers import TracerProvider
 from ._tracers import OITracer
 from .config import (
     REDACTED_VALUE,
     TraceConfig,
-    get_input_attributes,
-    get_output_attributes,
-    get_span_kind_attributes,
-    get_tool_attributes,
     suppress_tracing,
 )
 from .context_attributes import (

@@ -46,12 +46,14 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
-from ._spans import OpenInferenceSpan
-from .config import (
-    TraceConfig,
+from ._attributes import (
     get_input_attributes,
     get_span_kind_attributes,
     get_tool_attributes,
+)
+from ._spans import OpenInferenceSpan
+from .config import (
+    TraceConfig,
 )
 from .context_attributes import get_attributes_from_context
 

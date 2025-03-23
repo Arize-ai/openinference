@@ -9,12 +9,14 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
-from ._types import OpenInferenceMimeType
-from .config import (
-    TraceConfig,
+from ._attributes import (
     get_input_attributes,
     get_output_attributes,
     get_tool_attributes,
+)
+from ._types import OpenInferenceMimeType
+from .config import (
+    TraceConfig,
 )
 
 _IMPORTANT_ATTRIBUTES = [
