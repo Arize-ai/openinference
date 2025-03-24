@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.24...python-openinference-instrumentation-v0.1.25) (2025-03-24)
+
+
+### Bug Fixes
+
+* add type stubs for openinference span ([#1415](https://github.com/Arize-ai/openinference/issues/1415)) ([2170977](https://github.com/Arize-ai/openinference/commit/21709778f59c2fd31b1c14ee1bfb465e48771d5b))
+
 ## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.23...python-openinference-instrumentation-v0.1.24) (2025-03-14)
 
 
