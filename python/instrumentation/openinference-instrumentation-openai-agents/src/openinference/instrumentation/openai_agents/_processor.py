@@ -264,9 +264,9 @@ def _get_attributes_from_function_span_data(
     if obj.input:
         yield INPUT_VALUE, obj.input
         yield INPUT_MIME_TYPE, JSON
-    if obj.output:
+    if obj.output is not None:
         yield OUTPUT_VALUE, obj.output
-        if obj.output[0] == "{" and obj.output[-1] == "}":
+        if isinstance(obj.output, str) and obj.output[0] == "{" and obj.output[-1] == "}":
             yield OUTPUT_MIME_TYPE, JSON
 
 
