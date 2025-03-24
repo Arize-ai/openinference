@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.2...python-openinference-instrumentation-openai-agents-v0.1.3) (2025-03-24)
+
+
+### Bug Fixes
+
+* openai agent with int tool return ([#1419](https://github.com/Arize-ai/openinference/issues/1419)) ([1bb75a9](https://github.com/Arize-ai/openinference/commit/1bb75a94999bbe8615cdc7a5490fb2668833742f))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.1...python-openinference-instrumentation-openai-agents-v0.1.2) (2025-03-21)
 
 
