@@ -127,7 +127,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             set_status_on_exception=set_status_on_exception,
         )
         with use_span(
-            span,
+            span,  # type: ignore[arg-type]
             end_on_exit=end_on_exit,
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,
@@ -147,12 +147,12 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
     ) -> OpenInferenceSpan:
-        span: Span
+        otel_span: Span
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-            span = INVALID_SPAN
+            otel_span = INVALID_SPAN
         else:
             tracer = cast(Tracer, self.__wrapped__)
-            span = tracer.__class__.start_span(
+            otel_span = tracer.__class__.start_span(
                 self,
                 name=name,
                 context=context,
@@ -163,13 +163,13 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 record_exception=record_exception,
                 set_status_on_exception=set_status_on_exception,
             )
-        span = OpenInferenceSpan(span, config=self._self_config)
+        openinference_span = OpenInferenceSpan(otel_span, config=self._self_config)
         if attributes:
-            span.set_attributes(dict(attributes))
+            openinference_span.set_attributes(dict(attributes))
         if openinference_span_kind is not None:
-            span.set_attributes(get_span_kind_attributes(openinference_span_kind))
-        span.set_attributes(dict(get_attributes_from_context()))
-        return span
+            openinference_span.set_attributes(get_span_kind_attributes(openinference_span_kind))
+        openinference_span.set_attributes(dict(get_attributes_from_context()))
+        return openinference_span
 
     @overload  # for @tracer.agent usage (no parameters)
     def agent(

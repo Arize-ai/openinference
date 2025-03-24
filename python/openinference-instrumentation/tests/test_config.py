@@ -12,7 +12,7 @@ from opentelemetry.trace import TracerProvider, use_span
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES
+from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
 from openinference.instrumentation.config import (
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
     DEFAULT_HIDE_INPUT_IMAGES,
@@ -96,11 +96,11 @@ def test_attribute_priority(k: str, in_memory_span_exporter: InMemorySpanExporte
             span5.set_attributes(extra_attributes)
             raise RuntimeError
     with suppress(RuntimeError):
-        with use_span(tracer.start_span("6", attributes=attributes), True) as span6:
+        with use_span(tracer.start_span("6", attributes=attributes), True) as span6:  # type:ignore[arg-type]
             span6.set_attributes(extra_attributes)
             raise RuntimeError
     with suppress(RuntimeError):
-        with use_span(tracer.start_span("7"), True) as span7:
+        with use_span(tracer.start_span("7"), True) as span7:  # type:ignore[arg-type]
             span7.set_attributes(extra_attributes)
             span7.set_attributes(attributes)
             span7.set_attributes(extra_attributes)
