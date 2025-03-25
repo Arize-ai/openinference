@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.3...python-openinference-instrumentation-openai-agents-v0.1.4) (2025-03-25)
+
+
+### Bug Fixes
+
+* get attributes from GenerationSpanData (i.e. chat completions api) ([#1426](https://github.com/Arize-ai/openinference/issues/1426)) ([c0f238d](https://github.com/Arize-ai/openinference/commit/c0f238d36f18bdec0062e84ca4e53a66c63508e0))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.2...python-openinference-instrumentation-openai-agents-v0.1.3) (2025-03-24)
 
 
