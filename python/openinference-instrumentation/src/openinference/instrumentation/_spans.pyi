@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from types import TracebackType
 from typing import Any, Dict, Mapping, Optional, Type, Union
 
@@ -5,7 +6,14 @@ from opentelemetry.trace import Span, SpanContext, Status, StatusCode
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import Self
 
-from ._types import OpenInferenceMimeType
+from ._types import (
+    Message,
+    OpenInferenceLLMProvider,
+    OpenInferenceLLMSystem,
+    OpenInferenceMimeType,
+    TokenCount,
+    Tool,
+)
 from .config import TraceConfig
 
 class OpenInferenceSpan(Span):
@@ -67,4 +75,16 @@ class OpenInferenceSpan(Span):
         name: str,
         description: Optional[str] = None,
         parameters: Union[str, Dict[str, Any]],
+    ) -> None: ...
+    def set_llm(
+        self,
+        *,
+        provider: Optional[OpenInferenceLLMProvider] = None,
+        system: Optional[OpenInferenceLLMSystem] = None,
+        model_name: Optional[str] = None,
+        invocation_parameters: Optional[Union[str, Dict[str, Any]]] = None,
+        input_messages: Optional["Sequence[Message]"] = None,
+        output_messages: Optional["Sequence[Message]"] = None,
+        token_count: Optional[TokenCount] = None,
+        tools: Optional["Sequence[Tool]"] = None,
     ) -> None: ...
