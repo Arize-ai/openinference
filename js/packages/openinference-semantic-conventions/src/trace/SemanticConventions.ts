@@ -201,9 +201,13 @@ export const LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING =
 export const LLM_TOKEN_COUNT_PROMPT =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt` as const;
 
-/** Token count for the cached tokens in the prompt */
-export const LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHED =
-  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt_details.cached` as const;
+/** Token count for the tokens written to the cache */
+export const LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt_details.cache_write` as const;
+
+/** Token count for the tokens retrieved from the cache */
+export const LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ =
+    `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt_details.cache_read` as const;
 
 /** Token count for the entire transaction with the llm */
 export const LLM_TOKEN_COUNT_TOTAL =
@@ -499,7 +503,8 @@ export const SemanticConventions = {
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
   LLM_TOKEN_COUNT_PROMPT,
-  LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHED,
+  LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+  LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
   LLM_TOKEN_COUNT_TOTAL,
   LLM_SYSTEM,
   LLM_PROVIDER,

@@ -73,9 +73,13 @@ class SpanAttributes:
     """
     Number of tokens in the prompt.
     """
-    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHED = "llm.token_count.prompt_details.cached"
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = "llm.token_count.prompt_details.cache_write"
     """
-    Number of tokens in the prompt that were retrieved from cache.
+    Number of tokens in the prompt that were written to cache.
+    """
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = "llm.token_count.prompt_details.cache_read"
+    """
+    Number of tokens in the prompt that were read from cache.
     """
     LLM_TOKEN_COUNT_COMPLETION = "llm.token_count.completion"
     """

@@ -37,7 +37,8 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `llm.token_count.completion`                   | Integer                     | `15`                                                                       | The number of tokens in the completion                                                |
 | `llm.token_count.completion_details.reasoning` | Integer                     | `10`                                                                       | The number of tokens used for model reasoning                                         |
 | `llm.token_count.prompt`                       | Integer                     | `10`                                                                       | The number of tokens in the prompt                                                    |
-| `llm.token_count.prompt_details.cached`        | Integer                     | `5`                                                                        | The number of cached tokens used from previous prompts                                |
+| `llm.token_count.prompt_details.cache_read`    | Integer                     | `5`                                                                        | The number of tokens read from previously cached prompts                              |
+| `llm.token_count.prompt_details.cache_write`   | Integer                     | `0`                                                                        | The number of tokens written to cache                                                 |
 | `llm.token_count.total`                        | Integer                     | `20`                                                                       | Total number of tokens, including prompt and completion                               |
 | `llm.tools`                                    | List of objects<sup>†</sup> | `[{"tool.name": "calculate", "tool.json_schema": "{}"}, ...]`              | List of tools that are advertised to the LLM to be able to call                       |
 | `message.content`                              | String                      | `"What's the weather today?"`                                              | The content of a message in a chat                                                    |
@@ -82,7 +83,7 @@ shown in the examples below.
 used; otherwise, a custom value MAY be used.
 
 | Value       | Description |
-| ----------- | ----------- |
+|-------------|-------------|
 | `anthropic` | Anthropic   |
 | `openai`    | OpenAI      |
 | `vertexai`  | Vertex AI   |
@@ -93,7 +94,7 @@ used; otherwise, a custom value MAY be used.
 used; otherwise, a custom value MAY be used.
 
 | Value       | Description     |
-| ----------- | --------------- |
+|-------------|-----------------|
 | `anthropic` | Anthropic       |
 | `openai`    | OpenAI          |
 | `cohere`    | Cohere          |
@@ -117,17 +118,17 @@ for i, obj in enumerate(messages):
 
 ```javascript
 const messages = [
-  { "message.role": "user", "message.content": "hello" },
-  {
-    "message.role": "assistant",
-    "message.content": "hi",
-  },
+    {"message.role": "user", "message.content": "hello"},
+    {
+        "message.role": "assistant",
+        "message.content": "hi",
+    },
 ];
 
 for (const [i, obj] of messages.entries()) {
-  for (const [key, value] of Object.entries(obj)) {
-    span.setAttribute(`input.messages.${i}.${key}`, value);
-  }
+    for (const [key, value] of Object.entries(obj)) {
+        span.setAttribute(`input.messages.${i}.${key}`, value);
+    }
 }
 ```
 
