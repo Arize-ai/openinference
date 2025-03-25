@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Sequence, Union
 
 from agents.tracing import Span, Trace, TracingProcessor
 from agents.tracing.span_data import (
@@ -22,6 +22,7 @@ from openai.types.responses import (
     ResponseComputerToolCall,
     ResponseFileSearchToolCall,
     ResponseFunctionToolCall,
+    ResponseFunctionToolCallParam,
     ResponseFunctionWebSearch,
     ResponseInputContentParam,
     ResponseInputItemParam,
@@ -34,7 +35,7 @@ from openai.types.responses import (
     ResponseUsage,
     Tool,
 )
-from openai.types.responses.response_input_item_param import Message
+from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
 from openai.types.responses.response_output_message_param import Content
 from opentelemetry.context import attach, detach
 from opentelemetry.trace import Span as OtelSpan
@@ -51,6 +52,8 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -112,7 +115,10 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
             name=span_name,
             context=context,
             start_time=_as_utc_nano(start_time),
-            attributes={OPENINFERENCE_SPAN_KIND: _get_span_kind(span.span_data)},
+            attributes={
+                OPENINFERENCE_SPAN_KIND: _get_span_kind(span.span_data),
+                LLM_SYSTEM: OpenInferenceLLMSystemValues.OPENAI.value,
+            },
         )
         self._otel_spans[span.span_id] = otel_span
         self._tokens[span.span_id] = attach(set_span_in_context(otel_span))
@@ -147,6 +153,9 @@ class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
                         otel_span.set_attribute(k, v)
                 elif TYPE_CHECKING:
                     assert_never(input)
+        elif isinstance(data, GenerationSpanData):
+            for k, v in _get_attributes_from_generation_span_data(data):
+                otel_span.set_attribute(k, v)
         elif isinstance(data, FunctionSpanData):
             for k, v in _get_attributes_from_function_span_data(data):
                 otel_span.set_attribute(k, v)
@@ -204,9 +213,9 @@ def _get_attributes_from_input(
     msg_idx: int = 1,
 ) -> Iterator[tuple[str, AttributeValue]]:
     for item in obj:
+        prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
         if "type" not in item:
             if "role" in item and "content" in item:
-                prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
                 yield from _get_attributes_from_message_param(
                     {
                         "type": "message",
@@ -215,12 +224,9 @@ def _get_attributes_from_input(
                     },
                     prefix,
                 )
-                msg_idx += 1
             continue
         if item["type"] == "message":
-            prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
             yield from _get_attributes_from_message_param(item, prefix)
-            msg_idx += 1
         elif item["type"] == "file_search_call":
             continue
         elif item["type"] == "computer_call":
@@ -230,15 +236,16 @@ def _get_attributes_from_input(
         elif item["type"] == "web_search_call":
             continue
         elif item["type"] == "function_call":
-            continue
+            yield from _get_attributes_from_response_function_tool_call_param(item, prefix)
         elif item["type"] == "function_call_output":
-            continue
+            yield from _get_attributes_from_function_call_output(item, prefix)
         elif item["type"] == "reasoning":
             continue
         elif item["type"] == "item_reference":
             continue
         elif TYPE_CHECKING:
             assert_never(item["type"])
+        msg_idx += 1
 
 
 def _get_attributes_from_message_param(
@@ -255,6 +262,151 @@ def _get_attributes_from_message_param(
             yield f"{prefix}{MESSAGE_CONTENT}", content
         elif isinstance(content, list):
             yield from _get_attributes_from_message_content_list(content, prefix)
+
+
+def _get_attributes_from_response_function_tool_call_param(
+    obj: ResponseFunctionToolCallParam,
+    prefix: str,
+) -> Iterator[tuple[str, AttributeValue]]:
+    yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+    yield f"{prefix}{TOOL_CALL_ID}", obj["call_id"]
+    yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", obj["name"]
+    if obj["arguments"] != "{}":
+        yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", obj["arguments"]
+
+
+def _get_attributes_from_function_call_output(
+    obj: FunctionCallOutput,
+    prefix: str,
+) -> Iterator[tuple[str, AttributeValue]]:
+    yield f"{prefix}{MESSAGE_ROLE}", "tool"
+    yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", obj["call_id"]
+    yield f"{prefix}{MESSAGE_CONTENT}", obj["output"]
+
+
+def _get_attributes_from_generation_span_data(
+    obj: GenerationSpanData,
+) -> Iterator[tuple[str, AttributeValue]]:
+    if isinstance(model := obj.model, str):
+        yield LLM_MODEL_NAME, model
+    if isinstance(obj.model_config, dict) and (
+        param := {k: v for k, v in obj.model_config.items() if v is not None}
+    ):
+        yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(param)
+        if base_url := param.get("base_url"):
+            if "api.openai.com" in base_url:
+                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+    yield from _get_attributes_from_chat_completions_input(obj.input)
+    yield from _get_attributes_from_chat_completions_output(obj.output)
+    yield from _get_attributes_from_chat_completions_usage(obj.usage)
+
+
+def _get_attributes_from_chat_completions_input(
+    obj: Optional[Sequence[Mapping[str, Any]]],
+) -> Iterator[tuple[str, AttributeValue]]:
+    if not obj:
+        return
+    try:
+        yield INPUT_VALUE, safe_json_dumps(obj)
+        yield INPUT_MIME_TYPE, JSON
+    except Exception:
+        pass
+    yield from _get_attributes_from_chat_completions_message_dicts(
+        obj,
+        f"{LLM_INPUT_MESSAGES}.",
+    )
+
+
+def _get_attributes_from_chat_completions_output(
+    obj: Optional[Sequence[Mapping[str, Any]]],
+) -> Iterator[tuple[str, AttributeValue]]:
+    if not obj:
+        return
+    try:
+        yield OUTPUT_VALUE, safe_json_dumps(obj)
+        yield OUTPUT_MIME_TYPE, JSON
+    except Exception:
+        pass
+    yield from _get_attributes_from_chat_completions_message_dicts(
+        obj,
+        f"{LLM_OUTPUT_MESSAGES}.",
+    )
+
+
+def _get_attributes_from_chat_completions_message_dicts(
+    obj: Iterable[Mapping[str, Any]],
+    prefix: str,
+    msg_idx: int = 0,
+    tool_call_idx: int = 0,
+) -> Iterator[tuple[str, AttributeValue]]:
+    if not isinstance(obj, Iterable):
+        return
+    for msg in obj:
+        if isinstance(role := msg.get("role"), str):
+            yield f"{prefix}{msg_idx}.{MESSAGE_ROLE}", role
+        if content := msg.get("content"):
+            yield from _get_attributes_from_chat_completions_message_content(
+                content,
+                f"{prefix}{msg_idx}.",
+            )
+        if isinstance(tool_call_id := msg.get("tool_call_id"), str):
+            yield f"{prefix}{msg_idx}.{MESSAGE_TOOL_CALL_ID}", tool_call_id
+        if isinstance(tool_calls := msg.get("tool_calls"), Iterable):
+            for tc in tool_calls:
+                yield from _get_attributes_from_chat_completions_tool_call_dict(
+                    tc,
+                    f"{prefix}{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}.",
+                )
+                tool_call_idx += 1
+        msg_idx += 1
+
+
+def _get_attributes_from_chat_completions_message_content(
+    obj: Union[str, list[Mapping[str, Any]]],
+    prefix: str,
+) -> Iterator[tuple[str, AttributeValue]]:
+    if isinstance(obj, str):
+        yield f"{prefix}{MESSAGE_CONTENT}", obj
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            yield from _get_attributes_from_chat_completions_message_content_item(
+                item,
+                f"{prefix}{MESSAGE_CONTENTS}.{i}.",
+            )
+
+
+def _get_attributes_from_chat_completions_message_content_item(
+    obj: Mapping[str, Any],
+    prefix: str,
+) -> Iterator[tuple[str, AttributeValue]]:
+    if obj.get("type") == "text" and (text := obj.get("text")):
+        yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "text"
+        yield f"{prefix}{MESSAGE_CONTENT_TEXT}", text
+
+
+def _get_attributes_from_chat_completions_tool_call_dict(
+    obj: Mapping[str, Any],
+    prefix: str,
+) -> Iterator[tuple[str, AttributeValue]]:
+    if id_ := obj.get("id"):
+        yield f"{prefix}{TOOL_CALL_ID}", id_
+    if function := obj.get("function"):
+        if name := function.get("name"):
+            yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", name
+        if arguments := function.get("arguments"):
+            if arguments != "{}":
+                yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", arguments
+
+
+def _get_attributes_from_chat_completions_usage(
+    obj: Optional[Mapping[str, Any]],
+) -> Iterator[tuple[str, AttributeValue]]:
+    if not obj:
+        return
+    if input_tokens := obj.get("input_tokens"):
+        yield LLM_TOKEN_COUNT_PROMPT, input_tokens
+    if output_tokens := obj.get("output_tokens"):
+        yield LLM_TOKEN_COUNT_COMPLETION, output_tokens
 
 
 def _get_attributes_from_function_span_data(
@@ -415,16 +567,24 @@ def _flatten(
 
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
-JSON = OpenInferenceMimeTypeValues.JSON.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
-TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+METADATA = SpanAttributes.METADATA
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
+TOOL_NAME = SpanAttributes.TOOL_NAME
+TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
@@ -434,13 +594,12 @@ MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_A
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
-METADATA = SpanAttributes.METADATA
-OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
-OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
-OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
+
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
-TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
-TOOL_NAME = SpanAttributes.TOOL_NAME
-TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+
+JSON = OpenInferenceMimeTypeValues.JSON.value
