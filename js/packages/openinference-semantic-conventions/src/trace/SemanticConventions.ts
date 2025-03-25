@@ -207,7 +207,7 @@ export const LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE =
 
 /** Token count for the tokens retrieved from the cache */
 export const LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ =
-    `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt_details.cache_read` as const;
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt_details.cache_read` as const;
 
 /** Token count for the entire transaction with the llm */
 export const LLM_TOKEN_COUNT_TOTAL =
