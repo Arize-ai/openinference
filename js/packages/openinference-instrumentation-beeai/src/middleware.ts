@@ -207,99 +207,103 @@ export function createTelemetryMiddleware(
         );
       }
 
-      /**
-       * create groupId span level (id does not exist)
-       * I use only the top-level groups like iterations other nested groups like tokens would introduce unuseful complexity
-       */
-      if (
-        meta.groupId &&
-        !meta.trace.parentRunId &&
-        !groupIterations.includes(meta.groupId)
-      ) {
-        spansMap.set(
-          meta.groupId,
-          createSpan({
-            id: meta.groupId,
-            name: meta.groupId,
-            target: "groupId",
-            data: {
-              [SemanticConventions.OPENINFERENCE_SPAN_KIND]: "Chain",
-            },
-            startedAt: convertDateToPerformance(meta.createdAt),
-          }),
-        );
-        groupIterations.push(meta.groupId);
-      }
-
-      const { spanId, parentSpanId } = idNameManager.getIds({
-        path: meta.path,
-        id: meta.id,
-        runId: meta.trace.runId,
-        parentRunId: meta.trace.parentRunId,
-        groupId: meta.groupId,
-      });
-
-      const serializedData = getSerializedObjectSafe(data, meta);
-
-      // skip partialUpdate events with no data
-      if (meta.name === partialUpdateEventName && isEmpty(serializedData)) {
-        return;
-      }
-
-      const span = createSpan({
-        id: spanId,
-        name: meta.name,
-        target: meta.path,
-        ...(parentSpanId && { parent: { id: parentSpanId } }),
-        ctx: meta.context,
-        data: serializedData,
-        error: getErrorSafe(data),
-        startedAt: convertDateToPerformance(meta.createdAt),
-      });
-
-      const lastIteration = groupIterations[groupIterations.length - 1];
-
-      // delete the `partialUpdate` event if does not have nested spans
-      const lastIterationEventSpanId = eventsIterationsMap
-        .get(lastIteration)
-        ?.get(meta.name);
-      if (
-        lastIterationEventSpanId &&
-        partialUpdateEventName === meta.name &&
-        spansMap.has(lastIterationEventSpanId)
-      ) {
-        const { context } = spansMap.get(lastIterationEventSpanId)!;
-        if (parentIdsMap.has(context.span_id)) {
-          spansToDeleteMap.set(lastIterationEventSpanId, undefined);
-        } else {
-          // delete span
-          cleanSpanSources({ spanId: lastIterationEventSpanId });
-          spansMap.delete(lastIterationEventSpanId);
+      try {
+        /**
+         * create groupId span level (id does not exist)
+         * I use only the top-level groups like iterations other nested groups like tokens would introduce unuseful complexity
+         */
+        if (
+          meta.groupId &&
+          !meta.trace.parentRunId &&
+          !groupIterations.includes(meta.groupId)
+        ) {
+          spansMap.set(
+            meta.groupId,
+            createSpan({
+              id: meta.groupId,
+              name: meta.groupId,
+              target: "groupId",
+              data: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]: "Chain",
+              },
+              startedAt: convertDateToPerformance(meta.createdAt),
+            }),
+          );
+          groupIterations.push(meta.groupId);
         }
-      }
 
-      // create new span
-      spansMap.set(span.context.span_id, span);
-      // update number of nested spans for parent_id if exists
-      if (span.parent_id) {
-        parentIdsMap.set(
-          span.parent_id,
-          (parentIdsMap.get(span.parent_id) || 0) + 1,
-        );
-      }
+        const { spanId, parentSpanId } = idNameManager.getIds({
+          path: meta.path,
+          id: meta.id,
+          runId: meta.trace.runId,
+          parentRunId: meta.trace.parentRunId,
+          groupId: meta.groupId,
+        });
 
-      // save the last event for each iteration
-      if (groupIterations.length > 0) {
-        if (eventsIterationsMap.has(lastIteration)) {
-          eventsIterationsMap
-            .get(lastIteration)!
-            .set(meta.name, span.context.span_id);
-        } else {
-          eventsIterationsMap.set(
-            lastIteration,
-            new Map().set(meta.name, span.context.span_id),
+        const serializedData = getSerializedObjectSafe(data, meta);
+
+        // skip partialUpdate events with no data
+        if (meta.name === partialUpdateEventName && isEmpty(serializedData)) {
+          return;
+        }
+
+        const span = createSpan({
+          id: spanId,
+          name: meta.name,
+          target: meta.path,
+          ...(parentSpanId && { parent: { id: parentSpanId } }),
+          ctx: meta.context,
+          data: serializedData,
+          error: getErrorSafe(data),
+          startedAt: convertDateToPerformance(meta.createdAt),
+        });
+
+        const lastIteration = groupIterations[groupIterations.length - 1];
+
+        // delete the `partialUpdate` event if does not have nested spans
+        const lastIterationEventSpanId = eventsIterationsMap
+          .get(lastIteration)
+          ?.get(meta.name);
+        if (
+          lastIterationEventSpanId &&
+          partialUpdateEventName === meta.name &&
+          spansMap.has(lastIterationEventSpanId)
+        ) {
+          const { context } = spansMap.get(lastIterationEventSpanId)!;
+          if (parentIdsMap.has(context.span_id)) {
+            spansToDeleteMap.set(lastIterationEventSpanId, undefined);
+          } else {
+            // delete span
+            cleanSpanSources({ spanId: lastIterationEventSpanId });
+            spansMap.delete(lastIterationEventSpanId);
+          }
+        }
+
+        // create new span
+        spansMap.set(span.context.span_id, span);
+        // update number of nested spans for parent_id if exists
+        if (span.parent_id) {
+          parentIdsMap.set(
+            span.parent_id,
+            (parentIdsMap.get(span.parent_id) || 0) + 1,
           );
         }
+
+        // save the last event for each iteration
+        if (groupIterations.length > 0) {
+          if (eventsIterationsMap.has(lastIteration)) {
+            eventsIterationsMap
+              .get(lastIteration)!
+              .set(meta.name, span.context.span_id);
+          } else {
+            eventsIterationsMap.set(
+              lastIteration,
+              new Map().set(meta.name, span.context.span_id),
+            );
+          }
+        }
+      } catch (e) {
+        diag.warn("Instrumentation error", e);
       }
     });
 
@@ -309,16 +313,23 @@ export function createTelemetryMiddleware(
         event.name === successLLMEventName &&
         event.creator instanceof BaseAgent,
       (data: InferCallbackValue<ReActAgentCallbacks["success"]>) => {
-        const { data: dataObject, memory } = data;
+        try {
+          const { data: dataObject, memory } = data;
 
-        generatedMessage = {
-          role: dataObject.role,
-          text: dataObject.text,
-        };
-        history = memory.messages.map((msg) => ({
-          text: msg.text,
-          role: msg.role,
-        }));
+          generatedMessage = {
+            role: dataObject.role,
+            text: dataObject.text,
+          };
+          history = memory.messages.map((msg) => ({
+            text: msg.text,
+            role: msg.role,
+          }));
+        } catch (e) {
+          diag.warn(
+            "Instrumentation error. Unable to map messages to history",
+            e,
+          );
+        }
       },
     );
   };
