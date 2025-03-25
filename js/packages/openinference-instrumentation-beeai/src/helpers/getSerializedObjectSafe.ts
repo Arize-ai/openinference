@@ -118,7 +118,7 @@ export function getSerializedObjectSafe(
           "tool.options": tool.options,
         })),
       }),
-      ...(memory.messages.length > 0 && {
+      ...(memory?.messages.length > 0 && {
         [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
         [SemanticConventions.INPUT_VALUE]: JSON.stringify(memory.messages),
       }),
@@ -144,15 +144,15 @@ export function getSerializedObjectSafe(
       ReActAgentCallbacks["partialUpdate"] | ReActAgentCallbacks["update"]
     >;
 
-    const output = data.final_answer || data.tool_output;
+    const output = data?.final_answer || data?.tool_output;
     return {
       [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
         OpenInferenceSpanKind.AGENT,
       thought: data.thought,
-      ...(data.tool_name && {
+      ...(data?.tool_name && {
         [SemanticConventions.TOOL_NAME]: data.tool_name,
       }),
-      ...(data.tool_input && {
+      ...(data?.tool_input && {
         [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(data.tool_input),
       }),
       ...(output && {
@@ -174,21 +174,21 @@ export function getSerializedObjectSafe(
       | ReActAgentCallbacks["toolSuccess"]
     >;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const output: any = data.result && data.result.createSnapshot();
+    const output: any = data?.result && data.result.createSnapshot();
 
     return {
       [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
       thought: data.iteration.thought,
-      ...(data.input
+      ...(data?.input
         ? { [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(data.input) }
         : {}),
-      ...(data.tool.description && {
+      ...(data?.tool.description && {
         [SemanticConventions.TOOL_DESCRIPTION]: data.tool.description,
       }),
-      ...(data.tool.name && {
+      ...(data?.tool.name && {
         [SemanticConventions.TOOL_NAME]: data.tool.name,
       }),
-      ...(data.error && {
+      ...(data?.error && {
         "exception.message": data.error.message,
         "exception.stacktrace": data.error.stack,
         "exception.type": data.error.name,
@@ -294,7 +294,7 @@ export function getSerializedObjectSafe(
         [`${SemanticAttributePrefixes.metadata}.${LLMAttributePostfixes.model_name}`]:
           creator.modelId,
       }),
-      ...(creator.parameters && {
+      ...(creator?.parameters && {
         [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(
           creator.parameters,
         ),
