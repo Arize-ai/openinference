@@ -7,15 +7,6 @@ from ._attributes import (
 )
 from ._tracer_providers import TracerProvider
 from ._tracers import OITracer
-from ._types import (
-    Message,
-    MessageContent,
-    MessageContentImage,
-    OpenInferenceMimeType,
-    OpenInferenceSpanKind,
-    TokenCount,
-    Tool,
-)
 from .config import (
     REDACTED_VALUE,
     TraceConfig,
@@ -56,11 +47,4 @@ __all__ = [
     "get_output_attributes",
     "get_span_kind_attributes",
     "get_tool_attributes",
-    "Message",
-    "MessageContent",
-    "MessageContentImage",
-    "OpenInferenceMimeType",
-    "OpenInferenceSpanKind",
-    "TokenCount",
-    "Tool",
 ]

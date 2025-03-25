@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Any, Dict, Literal, TypedDict, Union
 
-from typing_extensions import TypeAlias
+from typing_extensions import Required, TypeAlias
 
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
@@ -33,14 +33,21 @@ OpenInferenceLLMProvider: TypeAlias = Union[str, OpenInferenceLLMProviderValues]
 OpenInferenceLLMSystem: TypeAlias = Union[str, OpenInferenceLLMSystemValues]
 
 
-class MessageContentImage(TypedDict, total=False):
+class Image(TypedDict, total=False):
     url: str
 
 
-class MessageContent(TypedDict, total=False):
-    type: Literal["text", "image"]
+class TextMessageContent(TypedDict):
+    type: Literal["text"]
     text: str
-    image: MessageContentImage
+
+
+class ImageMessageContent(TypedDict):
+    type: Literal["image"]
+    image: Image
+
+
+MessageContent: TypeAlias = Union[TextMessageContent, ImageMessageContent]
 
 
 class ToolCallFunction(TypedDict, total=False):
@@ -54,7 +61,7 @@ class ToolCall(TypedDict, total=False):
 
 
 class Message(TypedDict, total=False):
-    role: str
+    role: Required[str]
     content: str
     contents: "Sequence[MessageContent]"
     tool_call_id: str
