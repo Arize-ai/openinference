@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.1.2
+
+### Patch Changes
+
+- a5e06dd: Fix beeai empty data serialization
+
 ## 1.1.1
 
 ### Patch Changes
