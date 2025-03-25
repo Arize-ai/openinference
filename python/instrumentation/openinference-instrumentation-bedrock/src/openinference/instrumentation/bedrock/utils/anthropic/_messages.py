@@ -197,8 +197,12 @@ def _attributes_from_message(
             if TYPE_CHECKING:
                 assert_never(block)
     usage = message.usage
-    if usage.input_tokens:
-        yield LLM_TOKEN_COUNT_PROMPT, usage.input_tokens
+    if prompt_tokens := (
+        usage.input_tokens
+        + (usage.cache_creation_input_tokens or 0)
+        + (usage.cache_read_input_tokens or 0)
+    ):
+        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
     if usage.output_tokens:
         yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
 

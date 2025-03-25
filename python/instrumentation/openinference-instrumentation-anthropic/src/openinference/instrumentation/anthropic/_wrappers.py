@@ -324,7 +324,12 @@ def _get_llm_system() -> Iterator[Tuple[str, Any]]:
 
 
 def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
-    yield LLM_TOKEN_COUNT_PROMPT, usage.input_tokens
+    yield (
+        LLM_TOKEN_COUNT_PROMPT,
+        usage.input_tokens
+        + (usage.cache_read_input_tokens or 0)
+        + (usage.cache_creation_input_tokens or 0),
+    )
     yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
 
 
