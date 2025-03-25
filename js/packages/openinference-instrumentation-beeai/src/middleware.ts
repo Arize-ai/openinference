@@ -325,7 +325,7 @@ export function createTelemetryMiddleware(
             role: msg.role,
           }));
         } catch (e) {
-          diag.warn("Instrumentation error", e);
+          diag.warn("Instrumentation error. Unable to map messages to history", e);
         }
       },
     );
