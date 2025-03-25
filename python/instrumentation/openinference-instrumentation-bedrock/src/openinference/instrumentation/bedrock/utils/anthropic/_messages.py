@@ -197,6 +197,10 @@ def _attributes_from_message(
             if TYPE_CHECKING:
                 assert_never(block)
     usage = message.usage
+    # See https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#tracking-cache-performance
+    # cache_creation_input_tokens: Number of tokens written to the cache when creating a new entry.
+    # cache_read_input_tokens: Number of tokens retrieved from the cache for this request.
+    # input_tokens: Number of input tokens which were not read from or used to create a cache.
     if prompt_tokens := (
         usage.input_tokens
         + (usage.cache_creation_input_tokens or 0)
