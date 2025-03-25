@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.17...python-openinference-instrumentation-bedrock-v0.1.18) (2025-03-25)
+
+
+### Bug Fixes
+
+* include cache tokens in prompt tokens for anthropic ([#1429](https://github.com/Arize-ai/openinference/issues/1429)) ([abd36c4](https://github.com/Arize-ai/openinference/commit/abd36c45ea4ff966b58eccee42de252bc876d5ab))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.16...python-openinference-instrumentation-bedrock-v0.1.17) (2025-03-14)
 
 
