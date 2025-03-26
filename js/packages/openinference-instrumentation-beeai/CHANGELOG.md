@@ -1,5 +1,17 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.2.0
+
+### Minor Changes
+
+- cf44ebb: Add support for ToolCalling agent
+
+### Patch Changes
+
+- Updated dependencies [c4e2252]
+  - @arizeai/openinference-semantic-conventions@1.0.1
+  - @arizeai/openinference-core@1.0.1
+
 ## 1.1.2
 
 ### Patch Changes
