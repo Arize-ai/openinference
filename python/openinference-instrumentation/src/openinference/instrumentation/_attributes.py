@@ -28,6 +28,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -368,12 +369,10 @@ def _llm_tool_attributes(tools: Optional["Sequence[Tool]"]) -> Iterator[Tuple[st
     for tool_index, tool in enumerate(tools):
         if not isinstance(tool, dict):
             continue
-        if isinstance(tool_name := tool.get("name"), str):
-            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_NAME}", tool_name
-        if isinstance(tool_parameters := tool.get("parameters"), str):
-            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}", tool_parameters
-        elif isinstance(tool_parameters, dict):
-            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}", _json_serialize(tool_parameters)
+        if isinstance(tool_json_schema := tool.get("json_schema"), str):
+            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", tool_json_schema
+        elif isinstance(tool_json_schema, dict):
+            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", _json_serialize(tool_json_schema)
 
 
 def _quote_string(string: str) -> str:
@@ -417,6 +416,10 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+
+
+# tool attributes
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 
 
 # tool call attributes

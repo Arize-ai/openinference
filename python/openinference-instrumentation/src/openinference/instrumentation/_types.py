@@ -75,6 +75,4 @@ class TokenCount(TypedDict, total=False):
 
 
 class Tool(TypedDict, total=False):
-    id: str
-    name: str
-    parameters: Union[str, Dict[str, Any]]
+    json_schema: Required[Union[str, Dict[str, Any]]]
