@@ -60,10 +60,11 @@ pnpm -r build
 
 4. Run the following command from the `openinference-instrumentation-beeai` package directory
 
-| Module | command                           |
-| ------ | --------------------------------- |
-| Agent  | `node dist/examples/run-agent.js` |
-| LLM    | `node dist/examples/run-llm.js`   |
-| Tool   | `node dist/examples/run-tool.js`  |
+| Module            | command                                       |
+| ----------------- | --------------------------------------------- |
+| ReAct Agent       | `node dist/examples/run-react-agent.js`       |
+| ToolCalling Agent | `node dist/examples/run-toolcalling-agent.js` |
+| LLM               | `node dist/examples/run-llm.js`               |
+| Tool              | `node dist/examples/run-tool.js`              |
 
 You should see your spans exported in your console. If you've set up a locally running Phoenix server, open http://localhost:6006 in your browser and navigate to the default project to explore the collected traces.

@@ -114,7 +114,7 @@ export function getSerializedObjectSafe(
       return {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
           OpenInferenceSpanKind.AGENT,
-        iteration: meta.iteration,
+        iteration: meta?.iteration,
         ...(tools?.length > 0 && {
           [SemanticConventions.LLM_TOOLS]: tools.map((tool) => ({
             [SemanticConventions.TOOL_NAME]: tool.name,
@@ -185,7 +185,7 @@ export function getSerializedObjectSafe(
       return {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
           OpenInferenceSpanKind.TOOL,
-        thought: data.iteration.thought,
+        thought: data?.iteration?.thought,
         ...(data?.input
           ? {
               [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(data.input),
