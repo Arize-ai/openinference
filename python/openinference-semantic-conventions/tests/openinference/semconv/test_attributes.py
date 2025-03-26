@@ -42,7 +42,14 @@ class TestSpanAttributes:
                 "system": "LLM_SYSTEM",
                 "token_count": {
                     "completion": "LLM_TOKEN_COUNT_COMPLETION",
+                    "completion_details": {
+                        "reasoning": "LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING",
+                    },
                     "prompt": "LLM_TOKEN_COUNT_PROMPT",
+                    "prompt_details": {
+                        "cache_write": "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE",
+                        "cache_read": "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ",
+                    },
                     "total": "LLM_TOKEN_COUNT_TOTAL",
                 },
                 "tools": "LLM_TOOLS",
