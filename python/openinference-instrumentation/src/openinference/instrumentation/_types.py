@@ -61,7 +61,7 @@ class ToolCall(TypedDict, total=False):
 
 
 class Message(TypedDict, total=False):
-    role: Required[str]
+    role: str
     content: str
     contents: "Sequence[MessageContent]"
     tool_call_id: str
