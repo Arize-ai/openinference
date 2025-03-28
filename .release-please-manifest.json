@@ -17,5 +17,5 @@
     "python/instrumentation/openinference-instrumentation-anthropic": "0.1.14",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.8",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.7",
-    "python/instrumentation/openinference-instrumentation-openai-agents": "0.1.4"
+    "python/instrumentation/openinference-instrumentation-openai-agents": "0.1.5"
 }
