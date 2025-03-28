@@ -36,7 +36,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.instrumentation.langchain import LangChainInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 
@@ -45,7 +44,6 @@ trace_provider = TracerProvider()
 trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
 CrewAIInstrumentor().instrument(tracer_provider=trace_provider)
-LangChainInstrumentor().instrument(tracer_provider=trace_provider)
 ```
 
 Set up a simple crew to do research
@@ -101,8 +99,8 @@ task2 = Task(
 crew = Crew(
   agents=[researcher, writer],
   tasks=[task1, task2],
-  verbose=2, # You can set it to 1 or 2 to different logging levels
-  process = Process.sequential
+  verbose=True,
+  process=Process.sequential
 )
 
 # Get your crew to work!

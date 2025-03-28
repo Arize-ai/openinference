@@ -79,6 +79,17 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     )
 
 
+def _set_response_attributes(span: trace_api.Span, response: Any) -> None:
+    if hasattr(response, "to_dict") and (response_dict := response.to_dict()):
+        span.set_attribute(OUTPUT_VALUE, json.dumps(response_dict))
+        span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+    elif isinstance(response, dict):
+        span.set_attribute(OUTPUT_VALUE, json.dumps(response))
+        span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+    else:
+        span.set_attribute(OUTPUT_VALUE, str(response))
+
+
 class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -133,7 +144,8 @@ class _ExecuteCoreWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
+
+            _set_response_attributes(span, response)
             span.set_attributes(dict(get_attributes_from_context()))
         return response
 
@@ -219,11 +231,8 @@ class _KickoffWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            if crew_output_dict := crew_output.to_dict():
-                span.set_attribute(OUTPUT_VALUE, json.dumps(crew_output_dict))
-                span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
-            else:
-                span.set_attribute(OUTPUT_VALUE, str(crew_output))
+
+            _set_response_attributes(span, crew_output)
             span.set_attributes(dict(get_attributes_from_context()))
         return crew_output
 
@@ -275,7 +284,8 @@ class _ToolUseWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
+
+            _set_response_attributes(span, response)
             span.set_attributes(dict(get_attributes_from_context()))
         return response
 
