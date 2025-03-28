@@ -94,6 +94,5 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
 # span kinds
 TOOL = OpenInferenceSpanKindValues.TOOL.value
 
-
 # span attributes
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
