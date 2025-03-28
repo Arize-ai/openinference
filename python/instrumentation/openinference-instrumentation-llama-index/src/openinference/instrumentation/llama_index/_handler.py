@@ -48,6 +48,9 @@ from llama_index.core.base.llms.types import (
     ChatMessage,
     ChatResponse,
     CompletionResponse,
+    ContentBlock,
+    ImageBlock,
+    TextBlock,
 )
 from llama_index.core.base.response.schema import (
     RESPONSE_TYPE,
@@ -570,15 +573,16 @@ class _Span(BaseSpan):
     ) -> None:
         for i, message in enumerate(messages):
             self[f"{prefix}.{i}.{MESSAGE_ROLE}"] = message.role.value
-            if content := message.content:
-                if isinstance(content, str):
-                    self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = str(content)
-                elif is_iterable_of(content, dict):
-                    for j, c in list(enumerate(content)):
-                        for key, value in self._get_attributes_from_message_content(
-                            c,
-                        ):
-                            self[f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{key}"] = value
+            blocks = message.blocks
+            if len(blocks) == 1 and isinstance(blocks[0], TextBlock):
+                self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = blocks[0].text
+            else:
+                for j, block in enumerate(blocks):
+                    for k, v in _get_attributes_from_content_block(
+                        block,
+                        prefix=f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.",
+                    ):
+                        self[k] = v
             additional_kwargs = message.additional_kwargs
             if name := additional_kwargs.get("name"):
                 self[f"{prefix}.{i}.{MESSAGE_NAME}"] = name
@@ -652,6 +656,40 @@ class _Span(BaseSpan):
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if url := image.get("url"):
             yield f"{ImageAttributes.IMAGE_URL}", url
+
+
+def _get_attributes_from_content_block(
+    obj: ContentBlock,
+    prefix: str,
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if isinstance(obj, TextBlock):
+        yield from _get_attributes_from_text_block(obj, prefix=prefix)
+    elif isinstance(obj, ImageBlock):
+        yield from _get_attributes_from_image_block(obj, prefix=prefix)
+
+
+def _get_attributes_from_text_block(
+    obj: TextBlock,
+    prefix: str = "",
+) -> Iterator[Tuple[str, AttributeValue]]:
+    yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "text"
+    yield f"{prefix}{MESSAGE_CONTENT_TEXT}", obj.text
+
+
+def _get_attributes_from_image_block(
+    obj: ImageBlock,
+    prefix: str = "",
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if obj.image and obj.image_mimetype:
+        url = f"data:{obj.image_mimetype};base64,{obj.image.decode()}"
+        yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
+        yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
+    elif obj.url:
+        yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", str(obj.url)
+        yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
+    elif obj.path:
+        yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", str(obj.path)
+        yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
 
 
 END_OF_QUEUE = None
