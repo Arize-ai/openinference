@@ -8,7 +8,7 @@ from typing_extensions import Self
 from ._types import OpenInferenceMimeType
 from .config import TraceConfig
 
-class OpenInferenceSpan:
+class OpenInferenceSpan(Span):
     # methods from opentelemetry.trace.Span interface
     def end(self, end_time: Optional[int] = None) -> None: ...
     def get_span_context(self) -> SpanContext: ...
