@@ -56,7 +56,6 @@ jobs:
           DIFF_FILES='${{ needs.changes.outputs.diff_files }}'
           TOX_ENVIRONMENTS=$(uvx --with tox-uv tox list | grep ^py | awk '{print $1}' | jq -R . | jq -sc .)
           SELECTED_TOX_ENVIRONMENTS=$(python3 scripts/select_tox_environments.py "$DIFF_FILES" "$TOX_ENVIRONMENTS")
-          echo "SELECTED_TOX_ENVIRONMENTS=$SELECTED_TOX_ENVIRONMENTS"
           echo "list=$SELECTED_TOX_ENVIRONMENTS" >> $GITHUB_OUTPUT
         working-directory: python
         id: testenv
