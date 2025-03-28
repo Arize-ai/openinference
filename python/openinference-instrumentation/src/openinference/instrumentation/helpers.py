@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from opentelemetry.trace import Span  # comment
+from opentelemetry.trace import Span
 
 
 def get_span_id(span: Span) -> str:
