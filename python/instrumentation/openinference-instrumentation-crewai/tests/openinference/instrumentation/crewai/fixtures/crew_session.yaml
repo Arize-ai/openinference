@@ -18,11 +18,11 @@ interactions:
       all necessary information is gathered, return the following format:\n\n```\nThought:
       I now know the final answer\nFinal Answer: the final answer to the original
       input question\n```"}, {"role": "user", "content": "\nCurrent Task: greet like
-      you''ve never greeted before\n\nThis is the expect criteria for your final answer:
-      A greeting in bullet points\nyou MUST return the actual complete content as
-      the final answer, not a summary.\n\nBegin! This is VERY important to you, use
-      the tools available and give your best Final Answer, your job depends on it!\n\nThought:"}],
-      "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
+      you''ve never greeted before\n\nThis is the expected criteria for your final
+      answer: A greeting in bullet points\nyou MUST return the actual complete content
+      as the final answer, not a summary.\n\nBegin! This is VERY important to you,
+      use the tools available and give your best Final Answer, your job depends on
+      it!\n\nThought:"}], "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
     headers:
       accept:
       - application/json
@@ -31,15 +31,15 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '1793'
+      - '1795'
       content-type:
       - application/json
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.61.1
+      - OpenAI/Python 1.69.0
       x-stainless-arch:
-      - arm64
+      - x64
       x-stainless-async:
       - 'false'
       x-stainless-lang:
@@ -47,32 +47,35 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.61.1
+      - 1.69.0
       x-stainless-raw-response:
       - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
       x-stainless-retry-count:
       - '0'
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.12.4
+      - 3.12.9
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAAwAAAP//jFPLbtswELzrKxY8W4EfClzrllOTW4sciqYqBJpcSZtKJE2u0sSG/72g
-        /JCCpkAvOuzsDHdmV4cEQJAWOQjVSFada9O7vdyp7/vPYfv121PlnxaWlvve3fsvm8aKWWTY7TMq
-        vrBulO1ci0zWnGDlUTJG1cV6tVlmq/kiG4DOamwjrXacZjbtyFC6nC+zdL5OF5/O7MaSwiBy+JEA
-        AByGb5zTaHwVOcxnl0qHIcgaRX5tAhDetrEiZAgUWBoWsxFU1jCaYfQHMIga2EItuUEPZIIjL6MP
-        qKyHwQa9IEijgTonFVd9C7VHZDJ1uIHCFOZORUIOjyi9aoAbBDKM3iDDb+IGHtE79ACXVngwrucc
-        DoUIA6fc9ejfCpEXoje063E2Pn19DPBVxpRDIY5QmKknj1UfZMzV9G17rh+vIbW2dt5uwxm/1isy
-        FJrSowzWxEACWycG9JgA/ByW0b/LVzhvO8cl219oouDqdnPSE+MNTNEzyJZlO6lvstkHeqVGltSG
-        yTqFkqpBPVLH3ctek50AycT139N8pH1yTqb+H/kRUAodoy6dR03qveOxzWP8Rf7Vdk15GFgE9C+k
-        sGRCHzehsZJ9ezpcEd4CY1dWZGr0ztPpeitXrpeo13J7mymRHJM/AAAA//8DAFJJAyfLAwAA
+        H4sIAAAAAAAAAwAAAP//jFPBbtswDL3nKwidkyJN2jrxrcPQodhpCLYBmwtDlhhbqyyqEt2mCPLv
+        g5ymdrcO2EUHPj6S75HaTwCE0SIHoRrJqvV29uHTerHzmr61arPKbpYfb+h7/Tl+/WG+XJOYJgZV
+        v1DxiXWmqPUW2ZA7wiqgZExVz7OL5fkqyxbLHmhJo0202vPsgmatcWa2mC8uZvNsdr56YTdkFEaR
+        w88JAMC+f9OcTuNO5DCfniItxihrFPlrEoAIZFNEyBhNZOlYTAdQkWN0/ei3EBvqrAZujLsHWVHH
+        0NATMMFRAUgHuFPokzRpQToNLbYUZGUR6oDIxtVnULjCXauUlMMGZVANcINgHGNwyPBkuIENBo8B
+        4JQKt853nMO+ELHnlA8dhudC5FCIzpmHDvuG/SjmcegXC3EAGIsKuO2iTMa6ztoRIJ0jlqlbb+fd
+        C3J4NdBS7QNV8Q+q2BpnYlMGlJFcMisyedGjhwnAXb+o7o33wgdqPZdM99i3W16uj/XEcB8jNHsB
+        mVjaUXx9NX2nXqmRpbFxtGqhpGpQD9ThLmSnDY2AyUj139O8V/uo3Lj6f8oPgErHgrr0AbVRbxUP
+        aQHT9/lX2qvL/cAiYng0Cks2GNImNG5lZ49HLeJzZGzLrXE1Bh/M8bK3vqyW2ZXeVpW+FJPD5DcA
+        AAD//wMABqiMZecDAAA=
     headers:
       CF-RAY:
-      - 91011b49dc592b6c-LAX
+      - 92794da8fdadfd60-GRU
       Connection:
       - keep-alive
       Content-Encoding:
@@ -80,14 +83,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 11 Feb 2025 03:03:35 GMT
+      - Fri, 28 Mar 2025 18:48:45 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=jjtl_zMYbU5UMFbFLkzjT8Hm7x59vEkg9.zXwzp0G.c-1739243015-1.0.1.1-K3LfneuSWnqdJ_zqi16E0P65Bz9cvrAlUkqIH.UaNL54l7s5SMG6HbB5B6QR4WjNDoUqg1h_aSjMwknDEzC9YQ;
-        path=/; expires=Tue, 11-Feb-25 03:33:35 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=pyXRwWW0EZ.MBiNjEhiGsZQiBSvyA0JGiO7VmKJvxmQ-1743187725-1.0.1.1-QArMazupZLVhgCTABbQ0oPO57r.IB9m1f.O9Ja1btlzmFmJ4VRslaXhWmQrzOSd.w7U4IlWgiH6n_uFnrO9YziG4L2gQZSRPICxrSGNpOlk;
+        path=/; expires=Fri, 28-Mar-25 19:18:45 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=vBprcgSnG2w1q14Kj730hIsg6drhOqYwKv25arPYpss-1739243015699-0.0.1.1-604800000;
+      - _cfuvid=5Od97M5WTBv7k9v6_N6QGhQO4.BJeG0eSyUVUiEO9wg-1743187725235-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -102,7 +105,7 @@ interactions:
       openai-organization:
       - arize-zi
       openai-processing-ms:
-      - '933'
+      - '1381'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -114,18 +117,18 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999575'
+      - '149999589'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_2131551f34394f6cff6d2572774753f8
+      - req_f7837fb1131d98f5349a90f2a557b073
     status:
       code: 200
       message: OK
 - request:
-    body: '{"q": "unique, creative greetings examples", "num": 10}'
+    body: '{"q": "unique and creative greetings", "num": 10}'
     headers:
       Accept:
       - '*/*'
@@ -134,304 +137,156 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '55'
+      - '49'
       User-Agent:
       - python-requests/2.32.3
-      X-API-KEY:
-      - test-api-key
       content-type:
       - application/json
     method: POST
     uri: https://google.serper.dev/search
   response:
     body:
-      string: '{"message":"Unauthorized.","statusCode":403}'
+      string: "{\"searchParameters\":{\"q\":\"unique and creative greetings\",\"type\":\"search\",\"num\":10,\"engine\":\"google\"},\"organic\":[{\"title\":\"120
+        Cool And Creative Ways to Say Hello | PINKVILLA\",\"link\":\"https://www.pinkvilla.com/lifestyle/relationships/ways-to-say-hello-1200199\",\"snippet\":\"120
+        Cool And Creative Ways to Say Hello \xB7 1. Howdy bro! Tell me what's new
+        going on! \xB7 2. Hey there, buddy! Wassup? \xB7 3. Wassup, partner! \xB7
+        4.\",\"date\":\"Jan 21, 2025\",\"position\":1},{\"title\":\"123 Cool And Different
+        Ways To Say Hello And Greet People\",\"link\":\"https://www.stylecraze.com/articles/ways-to-say-hello/\",\"snippet\":\"123
+        Cool And Different Ways To Say Hello And Greet People. From Aloha to Zdravstvuyte,
+        explore unique greetings that spice up conversations and impress!\",\"date\":\"Mar
+        10, 2025\",\"sitelinks\":[{\"title\":\"Informal Ways To Say Hello To...\",\"link\":\"https://www.stylecraze.com/articles/ways-to-say-hello/#informal-ways-to-say-hello-to-people\"},{\"title\":\"Non-Verbal
+        Cues That...\",\"link\":\"https://www.stylecraze.com/articles/ways-to-say-hello/#non-verbal-cues-that-accompany-greetings-in-certain-cultures\"}],\"position\":2},{\"title\":\"What
+        are some fun and unique ways to say hello instead of just 'hello'?\",\"link\":\"https://www.reddit.com/r/AskReddit/comments/1b0pr1h/what_are_some_fun_and_unique_ways_to_say_hello/\",\"snippet\":\"Greetings
+        From The Mortal Plane, Emperors Light be Upon You, and of course if you dislike
+        the person, Let us become better strangers.\",\"date\":\"Feb 26, 2024\",\"sitelinks\":[{\"title\":\"What
+        different ways are there to greet people? Funny answers only ...\",\"link\":\"https://www.reddit.com/r/EnglishLearning/comments/mnhilj/what_different_ways_are_there_to_greet_people/\"},{\"title\":\"What's
+        a more creative way to say hello? : r/AskReddit\",\"link\":\"https://www.reddit.com/r/AskReddit/comments/cn8iwu/whats_a_more_creative_way_to_say_hello/\"},{\"title\":\"Reddit
+        I'm tired of greeting people with \\\" hello \\\", \\\" how are you doing
+        ...\",\"link\":\"https://www.reddit.com/r/AskReddit/comments/12834i/reddit_im_tired_of_greeting_people_with_hello_how/\"},{\"title\":\"What
+        are some unique greetings of your world? : r/worldbuilding\",\"link\":\"https://www.reddit.com/r/worldbuilding/comments/1ekdqa5/what_are_some_unique_greetings_of_your_world/\"}],\"position\":3},{\"title\":\"Exploring
+        45 Funny and Creative Ways to Say Hello - Dialaxy\",\"link\":\"https://dialaxy.com/blogs/funny-and-creative-ways-to-say-hello/\",\"snippet\":\"Ditch
+        the boring \u201CHello in English\u201D and try something unique like \u201CWhat's
+        kickin', little chicken?\u201D to make your chats more lively and memorable
+        ...\",\"date\":\"Feb 6, 2025\",\"position\":4},{\"title\":\"Funny Ways to
+        Say Hello: 45 Cool and Creative Options - wikiHow\",\"link\":\"https://www.wikihow.com/Funny-Ways-to-Say-Hello\",\"snippet\":\"Steps
+        \xB7 \u201CHowdy.\u201D \xB7 \u201CAhoy, matey.\u201D \xB7 \u201CAloha.\u201D
+        \xB7 \u201CYo yo yo!\u201D \xB7 \u201CWhat's kickin', chicken?\u201D \xB7
+        \u201CHow do lions greet other animals? Pleased to eat you!\u201D \xB7 \u201CSalutations
+        ...\",\"position\":5},{\"title\":\"Keeping Morning Meeting Greetings Fresh
+        and Fun\",\"link\":\"https://www.responsiveclassroom.org/keeping-morning-meeting-greetings-fresh-and-fun/\",\"snippet\":\"Here
+        are answers to questions teachers frequently ask about greetings. (The answers
+        apply to the group activity component, too.)\",\"position\":6},{\"title\":\"English
+        greetings: 29 words and phrases to say \u201Chello\u201D in style - Preply\",\"link\":\"https://preply.com/en/blog/22-useful-english-greetings-for-every-day/\",\"snippet\":\"Discover
+        50+ English greetings that will make you sound like a pro and have better
+        conversations with native speakers.\",\"position\":7},{\"title\":\"Unique
+        Wishes - The Best Gifts Starting from $25.99\",\"link\":\"https://uniquewishes.shop/?srsltid=AfmBOoq5o55gYJFzmNGGkmA5yalVYhomClzuD6ZtPfhtajqdbnb-5AUv\",\"snippet\":\"Browse
+        our collection of funny birthday wishes & gifts and choose the perfect one
+        for your loved ones. Prices start from $25.99. Shop now!\",\"sitelinks\":[{\"title\":\"African
+        Dance Greetings\",\"link\":\"https://uniquewishes.shop/pages/african-dance-greeting\"},{\"title\":\"Dance
+        Greetings From...\",\"link\":\"https://uniquewishes.shop/products/dance-greetings-from-bangladesh\"},{\"title\":\"Shop
+        Dance Greetings at...\",\"link\":\"https://uniquewishes.shop/pages/bangledash-dance-greetings\"}],\"position\":8},{\"title\":\"20
+        Terrific Alternatives to \u201CHello\u201D - Mental Floss\",\"link\":\"https://www.mentalfloss.com/article/55480/15-terrific-alternatives-hello\",\"snippet\":\"20
+        Terrific Alternatives to \u201CHello\u201D \xB7 1. What's the craic? \xB7
+        2. How hops it? \xB7 3. Ahoy \xB7 4. [Hat Tip] \xB7 5. Ciao \xB7 6. Chello!
+        \xB7 7. Wotchero! \xB7 8.\",\"date\":\"Mar 21, 2023\",\"position\":9},{\"title\":\"107
+        Unique Ways To Say Hello In English For Every Occasion\",\"link\":\"https://edmora.org/unique-ways-to-say-hello-in-english/\",\"snippet\":\"From
+        time-specific greetings like \u201CGood morning\u201D to more laid-back expressions
+        such as \u201CHowdy,\u201D the variety of informal hellos adds color and warmth
+        to our ...\",\"date\":\"Sep 7, 2024\",\"position\":10}],\"peopleAlsoAsk\":[{\"question\":\"How
+        do you greet in a creative way?\",\"snippet\":\"HERE ARE A FEW CUTE WAYS TO
+        SAY HELLO:\\n1\\n\u201CWhat's good, boo boo?\u201D\\n2\\n\u201CHey there hot
+        stuff.\u201D\\n3\\n\u201CHi! I like your face.\u201D\\n4\\n\u201CAye baby,
+        how you doin'?\u201D\",\"title\":\"Funny Ways to Say Hello: 45 Cool and Creative
+        Options - wikiHow\",\"link\":\"https://www.wikihow.com/Funny-Ways-to-Say-Hello\"},{\"question\":\"What
+        is a fancy way of greeting people?\",\"snippet\":\"Nice to meet you / Pleased
+        to meet you This is one of the respectful greeting examples you can use replying
+        to someone you meet for the very first time. For example: A: Good morning.\",\"title\":\"English
+        greetings: 29 words and phrases to say \u201Chello\u201D in style - Preply\",\"link\":\"https://preply.com/en/blog/22-useful-english-greetings-for-every-day/\"},{\"question\":\"How
+        to greet someone in a fun way?\",\"snippet\":\"1. ``Hey there, sunshine!''\\n2.
+        ``Good day to you! \U0001F60A''\\n3. ``Greetings, cutie pie!''\\n4. ``Hey,
+        you! How's it going?''\\n5. ``Sending a virtual hug and a cheerful 'hi'!''\\n6.
+        ``Just wanted to say hi and make you smile!''\\n7. ``Hey, beautiful/handsome!
+        What's up?''\\n8. ``Hiya, lovely! Ready to brighten the day?''\",\"title\":\"What
+        are some cute ways to say hi in a text? - Quora\",\"link\":\"https://www.quora.com/What-are-some-cute-ways-to-say-hi-in-a-text\"},{\"question\":\"How
+        do you greet everyone in a unique way?\",\"snippet\":\"FORMAL WAYS TO SAY
+        HELLO TO PEOPLE\\n1\\nPleased to meet you.\\n2\\nIt's nice to meet you.\\n3\\nHello.
+        It's a pleasure to meet you.\\n4\\nIt's good to see you again.\\n5\\nIt's
+        good to meet you again.\\n6\\nHello. How have you been?\\n7\\nHi. How's your
+        day going?\\n8\\nHow are you doing today?\",\"title\":\"123 Cool And Different
+        Ways To Say Hello And Greet People\",\"link\":\"https://www.stylecraze.com/articles/ways-to-say-hello/\"}],\"relatedSearches\":[{\"query\":\"Unique
+        and creative greetings to say hello\"},{\"query\":\"Funny ways to say hello
+        over text\"},{\"query\":\"Unique and creative greetings for friends\"},{\"query\":\"Creative
+        ways to say hello formally\"},{\"query\":\"Short funny greetings\"},{\"query\":\"Creative
+        ways to say hello to a guy\"},{\"query\":\"Funny ways to say hello that rhyme\"},{\"query\":\"Creative
+        ways to say hello to a girl\"}],\"credits\":1}"
     headers:
       Alt-Svc:
       - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
       Content-Length:
-      - '44'
+      - '7149'
       access-control-allow-origin:
       - '*'
       content-type:
       - application/json; charset=utf-8
       date:
-      - Tue, 11 Feb 2025 03:03:35 GMT
+      - Fri, 28 Mar 2025 18:48:45 GMT
       server:
       - Google Frontend
       set-cookie:
-      - GAESA=CogBMDBjYTM2OTVkMmE3NGE2YjgyZDA4NGIwNTVlNjkzNzE3ZDVjNjNhMmEwNzU3ZDg5OTAxMWMzYmU5OWZkMDQyMmJkMjljMGJkMDE5OTkzNzhkZjQ1ZDdiYzBjN2UwNjI4ZGY2YmFhMTkxOGE3MWFkOThiYmM5ZWUyMGI5OTNlNzI3YWMxNGVmMhCvntmXzzI;
-        expires=Thu, 13-Mar-2025 03:03:35 GMT; path=/
+      - GAESA=CoYBMDBhZmFlODA0M2ZiYWVlOWM0MDM3MDg0YTM1MDYxNzA1NjQyMmFmMTE4YTM2MDgyMGM1MTRiMmYyZjcyZGE0NjA5MGI4NGRiMWZiMTRjOTMzYWI1NzdiNTg4MzUwMjMzNzhmN2IyMjMzM2IwMDRiYjQ1ZmNlNTlmZDk4M2MxMjIwOTNjODMQuZzX8N0y;
+        expires=Sun, 27-Apr-2025 18:48:45 GMT; path=/
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - 170d54f819008db6c5b60df5d40e73a4
+      - ede8d86d3a764c04946fd20ad70e5143
+      x-ratelimit-limit:
+      - '25'
+      x-ratelimit-remaining:
+      - '24'
+      x-ratelimit-reset:
+      - '1743187730'
     status:
-      code: 403
-      message: Forbidden
-- request:
-    body: '{"q": "unique, creative greetings examples", "num": 10}'
-    headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate, zstd
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '55'
-      User-Agent:
-      - python-requests/2.32.3
-      X-API-KEY:
-      - test-api-key
-      content-type:
-      - application/json
-    method: POST
-    uri: https://google.serper.dev/search
-  response:
-    body:
-      string: '{"message":"Unauthorized.","statusCode":403}'
-    headers:
-      Alt-Svc:
-      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
-      Content-Length:
-      - '44'
-      access-control-allow-origin:
-      - '*'
-      content-type:
-      - application/json; charset=utf-8
-      date:
-      - Tue, 11 Feb 2025 03:03:36 GMT
-      server:
-      - Google Frontend
-      set-cookie:
-      - GAESA=CogBMDBjYTM2OTVkMmRlMzlmMmVlZGU1NTdjMTM3NGQ4ZDE5NGY0YTAyNzBlOTlkYjZmZjgyNzkxZjFjMmYyYjE3YjBiOTA2NTY2MjRhMWNmMGY4ZTFkNmZkOTdlMGU5YmE0MDczN2Q5NmQ0NWY3MzM4Mzg0Nzg3NTQxNDE3MTdmZGFiNTM3ZjhmMBDFn9mXzzI;
-        expires=Thu, 13-Mar-2025 03:03:36 GMT; path=/
-      via:
-      - 1.1 google
-      x-cloud-trace-context:
-      - 02f5e0734f7ace77085f791381852ef5
-    status:
-      code: 403
-      message: Forbidden
-- request:
-    body: '{"q": "unique, creative greetings examples", "num": 10}'
-    headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate, zstd
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '55'
-      User-Agent:
-      - python-requests/2.32.3
-      X-API-KEY:
-      - test-api-key
-      content-type:
-      - application/json
-    method: POST
-    uri: https://google.serper.dev/search
-  response:
-    body:
-      string: '{"message":"Unauthorized.","statusCode":403}'
-    headers:
-      Alt-Svc:
-      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
-      Content-Length:
-      - '44'
-      access-control-allow-origin:
-      - '*'
-      content-type:
-      - application/json; charset=utf-8
-      date:
-      - Tue, 11 Feb 2025 03:03:36 GMT
-      server:
-      - Google Frontend
-      set-cookie:
-      - GAESA=CooBMDBjYTM2OTVkMjYzODEyODg1MGIxMGE0ODM4YWRmYThjNDU5MTZkMDcyMzY0OGZjMjg5YTgzY2MzNjhhNzliNzdkYzdhNTY0OTRhNzY1MTZkYTJjMTIyZjAzMjc0ZDM3YjlmNGZjMjhhYzZhNzEyYjBjODYwOGRkYzJiODg0MTAxMTJmYmRkOTgxEMWg2ZfPMg;
-        expires=Thu, 13-Mar-2025 03:03:36 GMT; path=/
-      via:
-      - 1.1 google
-      x-cloud-trace-context:
-      - b953e52414aded807c289fbbfe218409
-    status:
-      code: 403
-      message: Forbidden
-- request:
-    body: '{"q": "unique, creative greetings examples", "num": 10}'
-    headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate, zstd
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '55'
-      User-Agent:
-      - python-requests/2.32.3
-      X-API-KEY:
-      - test-api-key
-      content-type:
-      - application/json
-    method: POST
-    uri: https://google.serper.dev/search
-  response:
-    body:
-      string: '{"message":"Unauthorized.","statusCode":403}'
-    headers:
-      Alt-Svc:
-      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
-      Content-Length:
-      - '44'
-      access-control-allow-origin:
-      - '*'
-      content-type:
-      - application/json; charset=utf-8
-      date:
-      - Tue, 11 Feb 2025 03:03:36 GMT
-      server:
-      - Google Frontend
-      set-cookie:
-      - GAESA=CogBMDBjYTM2OTVkMmRlMzlmMmVlZGU1NTdjMTM3NGQ4ZDE5NGY0YTAyNzBlOTlkYjZmZjgyNzkxZjFjMmYyYjE3YjBiOTA2NTY2MjRhMWNmMGY4ZTFkNmZkOTdlMGU5YmE0MDczN2Q5NmQ0NWY3MzM4Mzg0Nzg3NTQxNDE3MTdmZGFiNTM3ZjhmMBC_odmXzzI;
-        expires=Thu, 13-Mar-2025 03:03:36 GMT; path=/
-      via:
-      - 1.1 google
-      x-cloud-trace-context:
-      - 68d228ef83bfa5479b58b08d478367d9
-    status:
-      code: 403
-      message: Forbidden
-- request:
-    body: '{"q": "unique, creative greetings examples", "num": 10}'
-    headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate, zstd
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '55'
-      User-Agent:
-      - python-requests/2.32.3
-      X-API-KEY:
-      - test-api-key
-      content-type:
-      - application/json
-    method: POST
-    uri: https://google.serper.dev/search
-  response:
-    body:
-      string: '{"message":"Unauthorized.","statusCode":403}'
-    headers:
-      Alt-Svc:
-      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
-      Content-Length:
-      - '44'
-      access-control-allow-origin:
-      - '*'
-      content-type:
-      - application/json; charset=utf-8
-      date:
-      - Tue, 11 Feb 2025 03:03:36 GMT
-      server:
-      - Google Frontend
-      set-cookie:
-      - GAESA=CooBMDBjYTM2OTVkMmFmYzE0OThjZWQzOWNiZjJlNzU0YTA0NThlODZjYzJkZmU2YzFiYWM0MGY1YmM2YjAyZTZlYjBhZDVlY2ZkNWY2NmJiNDA1OGMxY2YwN2ZlOGQ0ZDA3ZDQyNTE2ZGMzOTIzNzQ4OTU3ZTlkMmJlMGZiNWU5ZjVhN2UzZDI1ZTkxEMii2ZfPMg;
-        expires=Thu, 13-Mar-2025 03:03:36 GMT; path=/
-      via:
-      - 1.1 google
-      x-cloud-trace-context:
-      - 633beee3c3c243bc011f5c0025d42ab9
-    status:
-      code: 403
-      message: Forbidden
-- request:
-    body: '{"q": "unique, creative greetings examples", "num": 10}'
-    headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate, zstd
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '55'
-      User-Agent:
-      - python-requests/2.32.3
-      X-API-KEY:
-      - test-api-key
-      content-type:
-      - application/json
-    method: POST
-    uri: https://google.serper.dev/search
-  response:
-    body:
-      string: '{"message":"Unauthorized.","statusCode":403}'
-    headers:
-      Alt-Svc:
-      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
-      Content-Length:
-      - '44'
-      access-control-allow-origin:
-      - '*'
-      content-type:
-      - application/json; charset=utf-8
-      date:
-      - Tue, 11 Feb 2025 03:03:36 GMT
-      server:
-      - Google Frontend
-      set-cookie:
-      - GAESA=CogBMDBjYTM2OTVkMjUwYjUwMTUwYzYwYmM4Y2JiYzk1NmEyYjk3NDE4MDg5ZDQyODE1YzJjOTE4N2I0MWI4NTQ0NWY5NjE5OTZiNDEzZmYzNWFhOGRhYTEyMTFkYTc1YWQ3NmMxYjA2NWU3MmFiYjFiY2QxY2M2MzRkMTEwODlhNDc1MjUyMmVlYhDHo9mXzzI;
-        expires=Thu, 13-Mar-2025 03:03:36 GMT; path=/
-      via:
-      - 1.1 google
-      x-cloud-trace-context:
-      - d5b58ab46e891f5eed715421ba7e7a7a
-    status:
-      code: 403
-      message: Forbidden
+      code: 200
+      message: OK
 - request:
     body: !!binary |
-      CvcPCiQKIgoMc2VydmljZS5uYW1lEhIKEGNyZXdBSS10ZWxlbWV0cnkSzg8KEgoQY3Jld2FpLnRl
-      bGVtZXRyeRKnDAoQpkqcddV/ealj1+hEXGt3nRIIRFCnCVkaKQAiCKmha/0ycDAMKgxDcmV3IENy
-      ZWF0ZWQwATkA3IuNTggjGEGIxZKNTggjGEobCg5jcmV3YWlfdmVyc2lvbhIJCgcwLjEwMC4xShsK
-      DnB5dGhvbl92ZXJzaW9uEgkKBzMuMTEuMTFKLgoIY3Jld19rZXkSIgogZDY3MDNiYTEzMzQ5MzBl
-      NDQ1NzdhZGFjODIxM2Y3NDhKMQoHY3Jld19pZBImCiQ1N2UyZTI5Ni0xOThlLTRjNjItOGQzYS01
-      NWZmYzRjNDM0N2RKHAoMY3Jld19wcm9jZXNzEgwKCnNlcXVlbnRpYWxKEQoLY3Jld19tZW1vcnkS
-      AhAAShoKFGNyZXdfbnVtYmVyX29mX3Rhc2tzEgIYAkobChVjcmV3X251bWJlcl9vZl9hZ2VudHMS
-      AhgCSrMFCgtjcmV3X2FnZW50cxKjBQqgBVt7ImtleSI6ICIxNmM1N2ZlMDFkNmJkNmYyNDRjMGFm
-      NDNjMTRhODE0YiIsICJpZCI6ICI5OWFhZmU4OC1mMjYxLTRiMmQtOWMyOS03ODg1MjhiZDg4M2Ui
-      LCAicm9sZSI6ICJTZW5pb3IgSGVsbG8gU2F5ZXIiLCAidmVyYm9zZT8iOiB0cnVlLCAibWF4X2l0
-      ZXIiOiAxLCAibWF4X3JwbSI6IG51bGwsICJmdW5jdGlvbl9jYWxsaW5nX2xsbSI6ICIiLCAibGxt
-      IjogImdwdC00by1taW5pIiwgImRlbGVnYXRpb25fZW5hYmxlZD8iOiBmYWxzZSwgImFsbG93X2Nv
-      ZGVfZXhlY3V0aW9uPyI6IGZhbHNlLCAibWF4X3JldHJ5X2xpbWl0IjogMiwgInRvb2xzX25hbWVz
-      IjogWyJzZWFyY2ggdGhlIGludGVybmV0IHdpdGggc2VycGVyIl19LCB7ImtleSI6ICJlNzlkYTQ5
-      Y2RhZmM3Y2YzYzJjMjY3NDVmN2UyNTlkMSIsICJpZCI6ICJkNGFjZDc4NC0xNjA0LTQyNmMtOTMw
-      MC0xNGJmM2I2Y2JiZmQiLCAicm9sZSI6ICJBcmlzdG9jcmF0IiwgInZlcmJvc2U/IjogdHJ1ZSwg
-      Im1heF9pdGVyIjogMSwgIm1heF9ycG0iOiBudWxsLCAiZnVuY3Rpb25fY2FsbGluZ19sbG0iOiAi
-      IiwgImxsbSI6ICJncHQtNG8tbWluaSIsICJkZWxlZ2F0aW9uX2VuYWJsZWQ/IjogdHJ1ZSwgImFs
-      bG93X2NvZGVfZXhlY3V0aW9uPyI6IGZhbHNlLCAibWF4X3JldHJ5X2xpbWl0IjogMiwgInRvb2xz
-      X25hbWVzIjogW119XUqVBAoKY3Jld190YXNrcxKGBAqDBFt7ImtleSI6ICJiZWQ4YjBkNWFiNTdh
-      NGQ4YmQ4MzI4YjllNzIwODI1ZCIsICJpZCI6ICJkYWZjODZhNC1jNzU4LTQ4ZjctOGU1Yi1mNDFi
-      ZmE5YWUwYWIiLCAiYXN5bmNfZXhlY3V0aW9uPyI6IGZhbHNlLCAiaHVtYW5faW5wdXQ/IjogZmFs
-      c2UsICJhZ2VudF9yb2xlIjogIlNlbmlvciBIZWxsbyBTYXllciIsICJhZ2VudF9rZXkiOiAiMTZj
-      NTdmZTAxZDZiZDZmMjQ0YzBhZjQzYzE0YTgxNGIiLCAidG9vbHNfbmFtZXMiOiBbInNlYXJjaCB0
-      aGUgaW50ZXJuZXQgd2l0aCBzZXJwZXIiXX0sIHsia2V5IjogIjVmNDVhNmNiNTExOWZjNjYzMDNl
-      ZDdiYjk2ZTUxNGY0IiwgImlkIjogIjJlMjgyMzg0LWRlZjAtNDIxOS1hZDAwLTc1NmZlNTM1MDc1
-      YyIsICJhc3luY19leGVjdXRpb24/IjogZmFsc2UsICJodW1hbl9pbnB1dD8iOiBmYWxzZSwgImFn
-      ZW50X3JvbGUiOiAiQXJpc3RvY3JhdCIsICJhZ2VudF9rZXkiOiAiZTc5ZGE0OWNkYWZjN2NmM2My
-      YzI2NzQ1ZjdlMjU5ZDEiLCAidG9vbHNfbmFtZXMiOiBbXX1degIYAYUBAAEAABKYAgoQpkqcddV/
-      ealj1+hEXGt3nRIIcJbJFxY9jsYiCGJTq86F8WwcKgxUYXNrIENyZWF0ZWQwATmgfrKNTggjGEEY
-      6LKNTggjGEouCghjcmV3X2tleRIiCiBkNjcwM2JhMTMzNDkzMGU0NDU3N2FkYWM4MjEzZjc0OEox
-      CgdjcmV3X2lkEiYKJDU3ZTJlMjk2LTE5OGUtNGM2Mi04ZDNhLTU1ZmZjNGM0MzQ3ZEouCgh0YXNr
-      X2tleRIiCiBiZWQ4YjBkNWFiNTdhNGQ4YmQ4MzI4YjllNzIwODI1ZEoxCgd0YXNrX2lkEiYKJGRh
-      ZmM4NmE0LWM3NTgtNDhmNy04ZTViLWY0MWJmYTlhZTBhYnoCGAGFAQABAAAScwoQpkqcddV/ealj
-      1+hEXGt3nRIIs+k0LYCBwjsiCC9/Y+MvnbetKhBUb29sIFVzYWdlIEVycm9yMAE5cKAHCk8IIxhB
-      yLQdCk8IIxhKGwoOY3Jld2FpX3ZlcnNpb24SCQoHMC4xMDAuMXoCGAGFAQABAAA=
+      CrEQCiQKIgoMc2VydmljZS5uYW1lEhIKEGNyZXdBSS10ZWxlbWV0cnkSiBAKEgoQY3Jld2FpLnRl
+      bGVtZXRyeRKmDAoQrPf5KXjC5/WF+Q9psvyK/hII4obiG0E4sj8iCNT/F9NpC8LRKgxDcmV3IENy
+      ZWF0ZWQwATkQbk3u+gsxGEHQmX/u+gsxGEobCg5jcmV3YWlfdmVyc2lvbhIJCgcwLjEwOC4wShoK
+      DnB5dGhvbl92ZXJzaW9uEggKBjMuMTIuOUouCghjcmV3X2tleRIiCiBkNjcwM2JhMTMzNDkzMGU0
+      NDU3N2FkYWM4MjEzZjc0OEoxCgdjcmV3X2lkEiYKJGJjOGZiMDg4LWVlZWQtNDQxZi1hZTNmLTdm
+      MmY1NTBjZmNkMkocCgxjcmV3X3Byb2Nlc3MSDAoKc2VxdWVudGlhbEoRCgtjcmV3X21lbW9yeRIC
+      EABKGgoUY3Jld19udW1iZXJfb2ZfdGFza3MSAhgCShsKFWNyZXdfbnVtYmVyX29mX2FnZW50cxIC
+      GAJKswUKC2NyZXdfYWdlbnRzEqMFCqAFW3sia2V5IjogIjE2YzU3ZmUwMWQ2YmQ2ZjI0NGMwYWY0
+      M2MxNGE4MTRiIiwgImlkIjogImI1OGRiY2VmLWMxYzEtNGFkOS1hOGU2LTY5YzMyYWNjMTc2NiIs
+      ICJyb2xlIjogIlNlbmlvciBIZWxsbyBTYXllciIsICJ2ZXJib3NlPyI6IHRydWUsICJtYXhfaXRl
+      ciI6IDEsICJtYXhfcnBtIjogbnVsbCwgImZ1bmN0aW9uX2NhbGxpbmdfbGxtIjogIiIsICJsbG0i
+      OiAiZ3B0LTRvLW1pbmkiLCAiZGVsZWdhdGlvbl9lbmFibGVkPyI6IGZhbHNlLCAiYWxsb3dfY29k
+      ZV9leGVjdXRpb24/IjogZmFsc2UsICJtYXhfcmV0cnlfbGltaXQiOiAyLCAidG9vbHNfbmFtZXMi
+      OiBbInNlYXJjaCB0aGUgaW50ZXJuZXQgd2l0aCBzZXJwZXIiXX0sIHsia2V5IjogImU3OWRhNDlj
+      ZGFmYzdjZjNjMmMyNjc0NWY3ZTI1OWQxIiwgImlkIjogIjM2YTMwZGQxLTMzYzctNDg3OC1hOGRi
+      LTM2OWE4ODhkZTEyZSIsICJyb2xlIjogIkFyaXN0b2NyYXQiLCAidmVyYm9zZT8iOiB0cnVlLCAi
+      bWF4X2l0ZXIiOiAxLCAibWF4X3JwbSI6IG51bGwsICJmdW5jdGlvbl9jYWxsaW5nX2xsbSI6ICIi
+      LCAibGxtIjogImdwdC00by1taW5pIiwgImRlbGVnYXRpb25fZW5hYmxlZD8iOiB0cnVlLCAiYWxs
+      b3dfY29kZV9leGVjdXRpb24/IjogZmFsc2UsICJtYXhfcmV0cnlfbGltaXQiOiAyLCAidG9vbHNf
+      bmFtZXMiOiBbXX1dSpUECgpjcmV3X3Rhc2tzEoYECoMEW3sia2V5IjogImJlZDhiMGQ1YWI1N2E0
+      ZDhiZDgzMjhiOWU3MjA4MjVkIiwgImlkIjogIjExZjA2YTc0LTdhYjQtNDk1Mi04Njg5LTMyZGM5
+      N2JlY2E4NCIsICJhc3luY19leGVjdXRpb24/IjogZmFsc2UsICJodW1hbl9pbnB1dD8iOiBmYWxz
+      ZSwgImFnZW50X3JvbGUiOiAiU2VuaW9yIEhlbGxvIFNheWVyIiwgImFnZW50X2tleSI6ICIxNmM1
+      N2ZlMDFkNmJkNmYyNDRjMGFmNDNjMTRhODE0YiIsICJ0b29sc19uYW1lcyI6IFsic2VhcmNoIHRo
+      ZSBpbnRlcm5ldCB3aXRoIHNlcnBlciJdfSwgeyJrZXkiOiAiNWY0NWE2Y2I1MTE5ZmM2NjMwM2Vk
+      N2JiOTZlNTE0ZjQiLCAiaWQiOiAiOWVhYzEwZGUtMmI2MS00YzY1LTlmMTUtYzJmNjU2ZWE3NjQ5
+      IiwgImFzeW5jX2V4ZWN1dGlvbj8iOiBmYWxzZSwgImh1bWFuX2lucHV0PyI6IGZhbHNlLCAiYWdl
+      bnRfcm9sZSI6ICJBcmlzdG9jcmF0IiwgImFnZW50X2tleSI6ICJlNzlkYTQ5Y2RhZmM3Y2YzYzJj
+      MjY3NDVmN2UyNTlkMSIsICJ0b29sc19uYW1lcyI6IFtdfV16AhgBhQEAAQAAEpgCChCs9/kpeMLn
+      9YX5D2my/Ir+EghaTG+AvjJ/MiIIDwAe5018JssqDFRhc2sgQ3JlYXRlZDABOXBW9e76CzEYQcjo
+      9u76CzEYSi4KCGNyZXdfa2V5EiIKIGQ2NzAzYmExMzM0OTMwZTQ0NTc3YWRhYzgyMTNmNzQ4SjEK
+      B2NyZXdfaWQSJgokYmM4ZmIwODgtZWVlZC00NDFmLWFlM2YtN2YyZjU1MGNmY2QySi4KCHRhc2tf
+      a2V5EiIKIGJlZDhiMGQ1YWI1N2E0ZDhiZDgzMjhiOWU3MjA4MjVkSjEKB3Rhc2tfaWQSJgokMTFm
+      MDZhNzQtN2FiNC00OTUyLTg2ODktMzJkYzk3YmVjYTg0egIYAYUBAAEAABKtAQoQrPf5KXjC5/WF
+      +Q9psvyK/hIIwZCMWzyp+04iCHtbuWCI2lhfKgpUb29sIFVzYWdlMAE5YIYzvfsLMRhB4HtUvfsL
+      MRhKGwoOY3Jld2FpX3ZlcnNpb24SCQoHMC4xMDguMEouCgl0b29sX25hbWUSIQofU2VhcmNoIHRo
+      ZSBpbnRlcm5ldCB3aXRoIFNlcnBlckoOCghhdHRlbXB0cxICGAF6AhgBhQEAAQAA
     headers:
       Accept:
       - '*/*'
@@ -440,11 +295,11 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '2042'
+      - '2100'
       Content-Type:
       - application/x-protobuf
       User-Agent:
-      - OTel-OTLP-Exporter-Python/1.29.0
+      - OTel-OTLP-Exporter-Python/1.31.1
     method: POST
     uri: https://telemetry.crewai.com:4319/v1/traces
   response:
@@ -456,7 +311,7 @@ interactions:
       Content-Type:
       - application/x-protobuf
       Date:
-      - Tue, 11 Feb 2025 03:03:39 GMT
+      - Fri, 28 Mar 2025 18:48:47 GMT
     status:
       code: 200
       message: OK
@@ -479,51 +334,197 @@ interactions:
       all necessary information is gathered, return the following format:\n\n```\nThought:
       I now know the final answer\nFinal Answer: the final answer to the original
       input question\n```"}, {"role": "user", "content": "\nCurrent Task: greet like
-      you''ve never greeted before\n\nThis is the expect criteria for your final answer:
-      A greeting in bullet points\nyou MUST return the actual complete content as
-      the final answer, not a summary.\n\nBegin! This is VERY important to you, use
-      the tools available and give your best Final Answer, your job depends on it!\n\nThought:"},
-      {"role": "assistant", "content": "I need to gather inspiration for creative
-      and impactful greetings. \n\nAction: Search the internet with Serper  \nAction
-      Input: {\"search_query\":\"unique, creative greetings examples\"} \n\nObservation:
-      \nI encountered an error while trying to use the tool. This was the error: 403
-      Client Error: Forbidden for url: https://google.serper.dev/search.\n Tool Search
-      the internet with Serper accepts these inputs: Tool Name: Search the internet
-      with Serper\nTool Arguments: {''search_query'': {''description'': ''Mandatory
-      search query you want to use to search the internet'', ''type'': ''str''}}\nTool
-      Description: A tool that can be used to search the internet with a search_query.
-      Supports different search types: ''search'' (default), ''news''.\nMoving on
-      then. I MUST either use a tool (use one at time) OR give my best final answer
-      not both at the same time. When responding, I must use the following format:\n\n```\nThought:
-      you should always think about what to do\nAction: the action to take, should
-      be one of [Search the internet with Serper]\nAction Input: the input to the
-      action, dictionary enclosed in curly braces\nObservation: the result of the
-      action\n```\nThis Thought/Action/Action Input/Result can repeat N times. Once
-      I know the final answer, I must return the following format:\n\n```\nThought:
-      I now can give a great answer\nFinal Answer: Your final answer must be the great
-      and the most complete as possible, it must be outcome described\n\n```"}, {"role":
-      "assistant", "content": "I need to gather inspiration for creative and impactful
-      greetings. \n\nAction: Search the internet with Serper  \nAction Input: {\"search_query\":\"unique,
-      creative greetings examples\"} \n\nObservation: \nI encountered an error while
-      trying to use the tool. This was the error: 403 Client Error: Forbidden for
-      url: https://google.serper.dev/search.\n Tool Search the internet with Serper
-      accepts these inputs: Tool Name: Search the internet with Serper\nTool Arguments:
-      {''search_query'': {''description'': ''Mandatory search query you want to use
-      to search the internet'', ''type'': ''str''}}\nTool Description: A tool that
-      can be used to search the internet with a search_query. Supports different search
-      types: ''search'' (default), ''news''.\nMoving on then. I MUST either use a
-      tool (use one at time) OR give my best final answer not both at the same time.
-      When responding, I must use the following format:\n\n```\nThought: you should
-      always think about what to do\nAction: the action to take, should be one of
-      [Search the internet with Serper]\nAction Input: the input to the action, dictionary
-      enclosed in curly braces\nObservation: the result of the action\n```\nThis Thought/Action/Action
-      Input/Result can repeat N times. Once I know the final answer, I must return
-      the following format:\n\n```\nThought: I now can give a great answer\nFinal
-      Answer: Your final answer must be the great and the most complete as possible,
-      it must be outcome described\n\n```\nNow it''s time you MUST give your absolute
-      best final answer. You''ll ignore all previous instructions, stop using any
-      tools, and just return your absolute BEST Final answer."}], "model": "gpt-4o-mini",
-      "stop": ["\nObservation:"]}'
+      you''ve never greeted before\n\nThis is the expected criteria for your final
+      answer: A greeting in bullet points\nyou MUST return the actual complete content
+      as the final answer, not a summary.\n\nBegin! This is VERY important to you,
+      use the tools available and give your best Final Answer, your job depends on
+      it!\n\nThought:"}, {"role": "assistant", "content": "I should think about how
+      to create an exceptional and memorable greeting. \n\nAction: Search the internet
+      with Serper  \nAction Input: {\"search_query\": \"unique and creative greetings\"}  \nObservation:
+      {''searchParameters'': {''q'': ''unique and creative greetings'', ''type'':
+      ''search'', ''num'': 10, ''engine'': ''google''}, ''organic'': [{''title'':
+      ''120 Cool And Creative Ways to Say Hello | PINKVILLA'', ''link'': ''https://www.pinkvilla.com/lifestyle/relationships/ways-to-say-hello-1200199'',
+      ''snippet'': \"120 Cool And Creative Ways to Say Hello \u00b7 1. Howdy bro!
+      Tell me what''s new going on! \u00b7 2. Hey there, buddy! Wassup? \u00b7 3.
+      Wassup, partner! \u00b7 4.\", ''position'': 1}, {''title'': ''123 Cool And Different
+      Ways To Say Hello And Greet People'', ''link'': ''https://www.stylecraze.com/articles/ways-to-say-hello/'',
+      ''snippet'': ''123 Cool And Different Ways To Say Hello And Greet People. From
+      Aloha to Zdravstvuyte, explore unique greetings that spice up conversations
+      and impress!'', ''position'': 2, ''sitelinks'': [{''title'': ''Informal Ways
+      To Say Hello To...'', ''link'': ''https://www.stylecraze.com/articles/ways-to-say-hello/#informal-ways-to-say-hello-to-people''},
+      {''title'': ''Non-Verbal Cues That...'', ''link'': ''https://www.stylecraze.com/articles/ways-to-say-hello/#non-verbal-cues-that-accompany-greetings-in-certain-cultures''}]},
+      {''title'': \"What are some fun and unique ways to say hello instead of just
+      ''hello''?\", ''link'': ''https://www.reddit.com/r/AskReddit/comments/1b0pr1h/what_are_some_fun_and_unique_ways_to_say_hello/'',
+      ''snippet'': ''Greetings From The Mortal Plane, Emperors Light be Upon You,
+      and of course if you dislike the person, Let us become better strangers.'',
+      ''position'': 3, ''sitelinks'': [{''title'': ''What different ways are there
+      to greet people? Funny answers only ...'', ''link'': ''https://www.reddit.com/r/EnglishLearning/comments/mnhilj/what_different_ways_are_there_to_greet_people/''},
+      {''title'': \"What''s a more creative way to say hello? : r/AskReddit\", ''link'':
+      ''https://www.reddit.com/r/AskReddit/comments/cn8iwu/whats_a_more_creative_way_to_say_hello/''},
+      {''title'': ''Reddit I\\''m tired of greeting people with \" hello \", \" how
+      are you doing ...'', ''link'': ''https://www.reddit.com/r/AskReddit/comments/12834i/reddit_im_tired_of_greeting_people_with_hello_how/''},
+      {''title'': ''What are some unique greetings of your world? : r/worldbuilding'',
+      ''link'': ''https://www.reddit.com/r/worldbuilding/comments/1ekdqa5/what_are_some_unique_greetings_of_your_world/''}]},
+      {''title'': ''Exploring 45 Funny and Creative Ways to Say Hello - Dialaxy'',
+      ''link'': ''https://dialaxy.com/blogs/funny-and-creative-ways-to-say-hello/'',
+      ''snippet'': \"Ditch the boring \u201cHello in English\u201d and try something
+      unique like \u201cWhat''s kickin'', little chicken?\u201d to make your chats
+      more lively and memorable ...\", ''position'': 4}, {''title'': ''Funny Ways
+      to Say Hello: 45 Cool and Creative Options - wikiHow'', ''link'': ''https://www.wikihow.com/Funny-Ways-to-Say-Hello'',
+      ''snippet'': \"Steps \u00b7 \u201cHowdy.\u201d \u00b7 \u201cAhoy, matey.\u201d
+      \u00b7 \u201cAloha.\u201d \u00b7 \u201cYo yo yo!\u201d \u00b7 \u201cWhat''s
+      kickin'', chicken?\u201d \u00b7 \u201cHow do lions greet other animals? Pleased
+      to eat you!\u201d \u00b7 \u201cSalutations ...\", ''position'': 5}, {''title'':
+      ''Keeping Morning Meeting Greetings Fresh and Fun'', ''link'': ''https://www.responsiveclassroom.org/keeping-morning-meeting-greetings-fresh-and-fun/'',
+      ''snippet'': ''Here are answers to questions teachers frequently ask about greetings.
+      (The answers apply to the group activity component, too.)'', ''position'': 6},
+      {''title'': ''English greetings: 29 words and phrases to say \u201chello\u201d
+      in style - Preply'', ''link'': ''https://preply.com/en/blog/22-useful-english-greetings-for-every-day/'',
+      ''snippet'': ''Discover 50+ English greetings that will make you sound like
+      a pro and have better conversations with native speakers.'', ''position'': 7},
+      {''title'': ''Unique Wishes - The Best Gifts Starting from $25.99'', ''link'':
+      ''https://uniquewishes.shop/?srsltid=AfmBOoq5o55gYJFzmNGGkmA5yalVYhomClzuD6ZtPfhtajqdbnb-5AUv'',
+      ''snippet'': ''Browse our collection of funny birthday wishes & gifts and choose
+      the perfect one for your loved ones. Prices start from $25.99. Shop now!'',
+      ''position'': 8, ''sitelinks'': [{''title'': ''African Dance Greetings'', ''link'':
+      ''https://uniquewishes.shop/pages/african-dance-greeting''}, {''title'': ''Dance
+      Greetings From...'', ''link'': ''https://uniquewishes.shop/products/dance-greetings-from-bangladesh''},
+      {''title'': ''Shop Dance Greetings at...'', ''link'': ''https://uniquewishes.shop/pages/bangledash-dance-greetings''}]},
+      {''title'': ''20 Terrific Alternatives to \u201cHello\u201d - Mental Floss'',
+      ''link'': ''https://www.mentalfloss.com/article/55480/15-terrific-alternatives-hello'',
+      ''snippet'': \"20 Terrific Alternatives to \u201cHello\u201d \u00b7 1. What''s
+      the craic? \u00b7 2. How hops it? \u00b7 3. Ahoy \u00b7 4. [Hat Tip] \u00b7
+      5. Ciao \u00b7 6. Chello! \u00b7 7. Wotchero! \u00b7 8.\", ''position'': 9},
+      {''title'': ''107 Unique Ways To Say Hello In English For Every Occasion'',
+      ''link'': ''https://edmora.org/unique-ways-to-say-hello-in-english/'', ''snippet'':
+      ''From time-specific greetings like \u201cGood morning\u201d to more laid-back
+      expressions such as \u201cHowdy,\u201d the variety of informal hellos adds color
+      and warmth to our ...'', ''position'': 10}], ''peopleAlsoAsk'': [{''question'':
+      ''How do you greet in a creative way?'', ''snippet'': \"HERE ARE A FEW CUTE
+      WAYS TO SAY HELLO:\\n1\\n\u201cWhat''s good, boo boo?\u201d\\n2\\n\u201cHey
+      there hot stuff.\u201d\\n3\\n\u201cHi! I like your face.\u201d\\n4\\n\u201cAye
+      baby, how you doin''?\u201d\", ''title'': ''Funny Ways to Say Hello: 45 Cool
+      and Creative Options - wikiHow'', ''link'': ''https://www.wikihow.com/Funny-Ways-to-Say-Hello''},
+      {''question'': ''What is a fancy way of greeting people?'', ''snippet'': ''Nice
+      to meet you / Pleased to meet you This is one of the respectful greeting examples
+      you can use replying to someone you meet for the very first time. For example:
+      A: Good morning.'', ''title'': ''English greetings: 29 words and phrases to
+      say \u201chello\u201d in style - Preply'', ''link'': ''https://preply.com/en/blog/22-useful-english-greetings-for-every-day/''},
+      {''question'': ''How to greet someone in a fun way?'', ''snippet'': \"1. ``Hey
+      there, sunshine!''''\\n2. ``Good day to you! \ud83d\ude0a''''\\n3. ``Greetings,
+      cutie pie!''''\\n4. ``Hey, you! How''s it going?''''\\n5. ``Sending a virtual
+      hug and a cheerful ''hi''!''''\\n6. ``Just wanted to say hi and make you smile!''''\\n7.
+      ``Hey, beautiful/handsome! What''s up?''''\\n8. ``Hiya, lovely! Ready to brighten
+      the day?''''\", ''title'': ''What are some cute ways to say hi in a text? -
+      Quora'', ''link'': ''https://www.quora.com/What-are-some-cute-ways-to-say-hi-in-a-text''},
+      {''question'': ''How do you greet everyone in a unique way?'', ''snippet'':
+      \"FORMAL WAYS TO SAY HELLO TO PEOPLE\\n1\\nPleased to meet you.\\n2\\nIt''s
+      nice to meet you.\\n3\\nHello. It''s a pleasure to meet you.\\n4\\nIt''s good
+      to see you again.\\n5\\nIt''s good to meet you again.\\n6\\nHello. How have
+      you been?\\n7\\nHi. How''s your day going?\\n8\\nHow are you doing today?\",
+      ''title'': ''123 Cool And Different Ways To Say Hello And Greet People'', ''link'':
+      ''https://www.stylecraze.com/articles/ways-to-say-hello/''}], ''relatedSearches'':
+      [{''query'': ''Unique and creative greetings to say hello''}, {''query'': ''Funny
+      ways to say hello over text''}, {''query'': ''Unique and creative greetings
+      for friends''}, {''query'': ''Creative ways to say hello formally''}, {''query'':
+      ''Short funny greetings''}, {''query'': ''Creative ways to say hello to a guy''},
+      {''query'': ''Funny ways to say hello that rhyme''}, {''query'': ''Creative
+      ways to say hello to a girl''}], ''credits'': 1}"}, {"role": "assistant", "content":
+      "I should think about how to create an exceptional and memorable greeting. \n\nAction:
+      Search the internet with Serper  \nAction Input: {\"search_query\": \"unique
+      and creative greetings\"}  \nObservation: {''searchParameters'': {''q'': ''unique
+      and creative greetings'', ''type'': ''search'', ''num'': 10, ''engine'': ''google''},
+      ''organic'': [{''title'': ''120 Cool And Creative Ways to Say Hello | PINKVILLA'',
+      ''link'': ''https://www.pinkvilla.com/lifestyle/relationships/ways-to-say-hello-1200199'',
+      ''snippet'': \"120 Cool And Creative Ways to Say Hello \u00b7 1. Howdy bro!
+      Tell me what''s new going on! \u00b7 2. Hey there, buddy! Wassup? \u00b7 3.
+      Wassup, partner! \u00b7 4.\", ''position'': 1}, {''title'': ''123 Cool And Different
+      Ways To Say Hello And Greet People'', ''link'': ''https://www.stylecraze.com/articles/ways-to-say-hello/'',
+      ''snippet'': ''123 Cool And Different Ways To Say Hello And Greet People. From
+      Aloha to Zdravstvuyte, explore unique greetings that spice up conversations
+      and impress!'', ''position'': 2, ''sitelinks'': [{''title'': ''Informal Ways
+      To Say Hello To...'', ''link'': ''https://www.stylecraze.com/articles/ways-to-say-hello/#informal-ways-to-say-hello-to-people''},
+      {''title'': ''Non-Verbal Cues That...'', ''link'': ''https://www.stylecraze.com/articles/ways-to-say-hello/#non-verbal-cues-that-accompany-greetings-in-certain-cultures''}]},
+      {''title'': \"What are some fun and unique ways to say hello instead of just
+      ''hello''?\", ''link'': ''https://www.reddit.com/r/AskReddit/comments/1b0pr1h/what_are_some_fun_and_unique_ways_to_say_hello/'',
+      ''snippet'': ''Greetings From The Mortal Plane, Emperors Light be Upon You,
+      and of course if you dislike the person, Let us become better strangers.'',
+      ''position'': 3, ''sitelinks'': [{''title'': ''What different ways are there
+      to greet people? Funny answers only ...'', ''link'': ''https://www.reddit.com/r/EnglishLearning/comments/mnhilj/what_different_ways_are_there_to_greet_people/''},
+      {''title'': \"What''s a more creative way to say hello? : r/AskReddit\", ''link'':
+      ''https://www.reddit.com/r/AskReddit/comments/cn8iwu/whats_a_more_creative_way_to_say_hello/''},
+      {''title'': ''Reddit I\\''m tired of greeting people with \" hello \", \" how
+      are you doing ...'', ''link'': ''https://www.reddit.com/r/AskReddit/comments/12834i/reddit_im_tired_of_greeting_people_with_hello_how/''},
+      {''title'': ''What are some unique greetings of your world? : r/worldbuilding'',
+      ''link'': ''https://www.reddit.com/r/worldbuilding/comments/1ekdqa5/what_are_some_unique_greetings_of_your_world/''}]},
+      {''title'': ''Exploring 45 Funny and Creative Ways to Say Hello - Dialaxy'',
+      ''link'': ''https://dialaxy.com/blogs/funny-and-creative-ways-to-say-hello/'',
+      ''snippet'': \"Ditch the boring \u201cHello in English\u201d and try something
+      unique like \u201cWhat''s kickin'', little chicken?\u201d to make your chats
+      more lively and memorable ...\", ''position'': 4}, {''title'': ''Funny Ways
+      to Say Hello: 45 Cool and Creative Options - wikiHow'', ''link'': ''https://www.wikihow.com/Funny-Ways-to-Say-Hello'',
+      ''snippet'': \"Steps \u00b7 \u201cHowdy.\u201d \u00b7 \u201cAhoy, matey.\u201d
+      \u00b7 \u201cAloha.\u201d \u00b7 \u201cYo yo yo!\u201d \u00b7 \u201cWhat''s
+      kickin'', chicken?\u201d \u00b7 \u201cHow do lions greet other animals? Pleased
+      to eat you!\u201d \u00b7 \u201cSalutations ...\", ''position'': 5}, {''title'':
+      ''Keeping Morning Meeting Greetings Fresh and Fun'', ''link'': ''https://www.responsiveclassroom.org/keeping-morning-meeting-greetings-fresh-and-fun/'',
+      ''snippet'': ''Here are answers to questions teachers frequently ask about greetings.
+      (The answers apply to the group activity component, too.)'', ''position'': 6},
+      {''title'': ''English greetings: 29 words and phrases to say \u201chello\u201d
+      in style - Preply'', ''link'': ''https://preply.com/en/blog/22-useful-english-greetings-for-every-day/'',
+      ''snippet'': ''Discover 50+ English greetings that will make you sound like
+      a pro and have better conversations with native speakers.'', ''position'': 7},
+      {''title'': ''Unique Wishes - The Best Gifts Starting from $25.99'', ''link'':
+      ''https://uniquewishes.shop/?srsltid=AfmBOoq5o55gYJFzmNGGkmA5yalVYhomClzuD6ZtPfhtajqdbnb-5AUv'',
+      ''snippet'': ''Browse our collection of funny birthday wishes & gifts and choose
+      the perfect one for your loved ones. Prices start from $25.99. Shop now!'',
+      ''position'': 8, ''sitelinks'': [{''title'': ''African Dance Greetings'', ''link'':
+      ''https://uniquewishes.shop/pages/african-dance-greeting''}, {''title'': ''Dance
+      Greetings From...'', ''link'': ''https://uniquewishes.shop/products/dance-greetings-from-bangladesh''},
+      {''title'': ''Shop Dance Greetings at...'', ''link'': ''https://uniquewishes.shop/pages/bangledash-dance-greetings''}]},
+      {''title'': ''20 Terrific Alternatives to \u201cHello\u201d - Mental Floss'',
+      ''link'': ''https://www.mentalfloss.com/article/55480/15-terrific-alternatives-hello'',
+      ''snippet'': \"20 Terrific Alternatives to \u201cHello\u201d \u00b7 1. What''s
+      the craic? \u00b7 2. How hops it? \u00b7 3. Ahoy \u00b7 4. [Hat Tip] \u00b7
+      5. Ciao \u00b7 6. Chello! \u00b7 7. Wotchero! \u00b7 8.\", ''position'': 9},
+      {''title'': ''107 Unique Ways To Say Hello In English For Every Occasion'',
+      ''link'': ''https://edmora.org/unique-ways-to-say-hello-in-english/'', ''snippet'':
+      ''From time-specific greetings like \u201cGood morning\u201d to more laid-back
+      expressions such as \u201cHowdy,\u201d the variety of informal hellos adds color
+      and warmth to our ...'', ''position'': 10}], ''peopleAlsoAsk'': [{''question'':
+      ''How do you greet in a creative way?'', ''snippet'': \"HERE ARE A FEW CUTE
+      WAYS TO SAY HELLO:\\n1\\n\u201cWhat''s good, boo boo?\u201d\\n2\\n\u201cHey
+      there hot stuff.\u201d\\n3\\n\u201cHi! I like your face.\u201d\\n4\\n\u201cAye
+      baby, how you doin''?\u201d\", ''title'': ''Funny Ways to Say Hello: 45 Cool
+      and Creative Options - wikiHow'', ''link'': ''https://www.wikihow.com/Funny-Ways-to-Say-Hello''},
+      {''question'': ''What is a fancy way of greeting people?'', ''snippet'': ''Nice
+      to meet you / Pleased to meet you This is one of the respectful greeting examples
+      you can use replying to someone you meet for the very first time. For example:
+      A: Good morning.'', ''title'': ''English greetings: 29 words and phrases to
+      say \u201chello\u201d in style - Preply'', ''link'': ''https://preply.com/en/blog/22-useful-english-greetings-for-every-day/''},
+      {''question'': ''How to greet someone in a fun way?'', ''snippet'': \"1. ``Hey
+      there, sunshine!''''\\n2. ``Good day to you! \ud83d\ude0a''''\\n3. ``Greetings,
+      cutie pie!''''\\n4. ``Hey, you! How''s it going?''''\\n5. ``Sending a virtual
+      hug and a cheerful ''hi''!''''\\n6. ``Just wanted to say hi and make you smile!''''\\n7.
+      ``Hey, beautiful/handsome! What''s up?''''\\n8. ``Hiya, lovely! Ready to brighten
+      the day?''''\", ''title'': ''What are some cute ways to say hi in a text? -
+      Quora'', ''link'': ''https://www.quora.com/What-are-some-cute-ways-to-say-hi-in-a-text''},
+      {''question'': ''How do you greet everyone in a unique way?'', ''snippet'':
+      \"FORMAL WAYS TO SAY HELLO TO PEOPLE\\n1\\nPleased to meet you.\\n2\\nIt''s
+      nice to meet you.\\n3\\nHello. It''s a pleasure to meet you.\\n4\\nIt''s good
+      to see you again.\\n5\\nIt''s good to meet you again.\\n6\\nHello. How have
+      you been?\\n7\\nHi. How''s your day going?\\n8\\nHow are you doing today?\",
+      ''title'': ''123 Cool And Different Ways To Say Hello And Greet People'', ''link'':
+      ''https://www.stylecraze.com/articles/ways-to-say-hello/''}], ''relatedSearches'':
+      [{''query'': ''Unique and creative greetings to say hello''}, {''query'': ''Funny
+      ways to say hello over text''}, {''query'': ''Unique and creative greetings
+      for friends''}, {''query'': ''Creative ways to say hello formally''}, {''query'':
+      ''Short funny greetings''}, {''query'': ''Creative ways to say hello to a guy''},
+      {''query'': ''Funny ways to say hello that rhyme''}, {''query'': ''Creative
+      ways to say hello to a girl''}], ''credits'': 1}\nNow it''s time you MUST give
+      your absolute best final answer. You''ll ignore all previous instructions, stop
+      using any tools, and just return your absolute BEST Final answer."}], "model":
+      "gpt-4o-mini", "stop": ["\nObservation:"]}'
     headers:
       accept:
       - application/json
@@ -532,18 +533,18 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '4947'
+      - '17345'
       content-type:
       - application/json
       cookie:
-      - __cf_bm=jjtl_zMYbU5UMFbFLkzjT8Hm7x59vEkg9.zXwzp0G.c-1739243015-1.0.1.1-K3LfneuSWnqdJ_zqi16E0P65Bz9cvrAlUkqIH.UaNL54l7s5SMG6HbB5B6QR4WjNDoUqg1h_aSjMwknDEzC9YQ;
-        _cfuvid=vBprcgSnG2w1q14Kj730hIsg6drhOqYwKv25arPYpss-1739243015699-0.0.1.1-604800000
+      - __cf_bm=pyXRwWW0EZ.MBiNjEhiGsZQiBSvyA0JGiO7VmKJvxmQ-1743187725-1.0.1.1-QArMazupZLVhgCTABbQ0oPO57r.IB9m1f.O9Ja1btlzmFmJ4VRslaXhWmQrzOSd.w7U4IlWgiH6n_uFnrO9YziG4L2gQZSRPICxrSGNpOlk;
+        _cfuvid=5Od97M5WTBv7k9v6_N6QGhQO4.BJeG0eSyUVUiEO9wg-1743187725235-0.0.1.1-604800000
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.61.1
+      - OpenAI/Python 1.69.0
       x-stainless-arch:
-      - arm64
+      - x64
       x-stainless-async:
       - 'false'
       x-stainless-lang:
@@ -551,37 +552,40 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.61.1
+      - 1.69.0
       x-stainless-raw-response:
       - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
       x-stainless-retry-count:
       - '0'
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.12.4
+      - 3.12.9
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAAwAAAP//jFSxjttGEO31FUM2bihDkpWTT41hGEguQJAiF8AIcoY02h2RKy9nmN2l
-        FNo4IOUFOLhwYSAp7CpfkNYflU8IdkmfdEgMuCHAee8N31vO7OsRQG50voRcVRhU3djx01f4C3Wz
-        y8vzRtUos5e7crHfhR2p74PJi6iQzY5U+KR6qKRuLAUj3MPKEQaKXaeLR+ez+aPJ9CwBtWiyUVY2
-        YTyXcW3YjGeT2Xw8WYynjwd1JUaRz5fw8wgA4HV6Rp+s6dd8CZPiU6Um77GkfHlHAsid2FjJ0Xvj
-        A3LIiyOohANxsr5er6/4x0rasgpL+BZYDqCQoTR7AoQyhgBkfyB3xV8bRgtP09sSrngM/3y4/QAX
-        ZK1AqMhRAQ61QQ7gpbVZwgfeR/jGEQXDpS/Ayp5sB1VbIyfWx5715ne4EHHYZfCTtA/2BDVqAhMg
-        xC8YD7XUxCFL3F7zxy08J6ukpkhCOIizGmQLjXhvNsaaYMhnidkr/vwNnlVEzkcB0wFQ74lD68gD
-        VoQ6S6TB+E0fsADfsq8MUwbfUXjgYeNMWQXiGB00dhCkpHgMKdFNL//rb7iQg+4KaNAFJgeG+yQb
-        wjaYbWthJ61j6qJna7aUJVkvf/sOnqOryQc49CGT6U7aArDGV4ZL2JDhMkvk4RRv4MJ0mMEPhDra
-        Aqo3DhUlpzuJJY3dk0QdUr6HS7RtwDjAvojZuCTXWyqrOAMaKmwaw+TTYd6+v+L1en06V462rcc4
-        29xaO9Sv7wbVStk42fgBv6tvDRtfrRyhF45D6YM0eUKvRwAv0kK092Y8b5zUTVgFeUkcG04ns7O+
-        YX5cxBP4bD6gQQLaE2B6PmzS/ZYrTQGN9SdblStUFemj9riC2GojJ8DoJPh//fxf7z684fJL2h8B
-        pagJpFeNI23U/cxHmqN4U32OdnfQyXDuye2NolUw5OLP0LTF1vb3R+47H6hebdNwNM70l8i2WS1m
-        pBe4+Wqu8tH16F8AAAD//wMA4DrKaVIFAAA=
+        H4sIAAAAAAAAA4xUwW4bNxC96ytGe/FlFciyYiW6GGmBxgEKBEgDpEYdSFxydpc2ObMlh1LWgYH+
+        Rn+vX1JwV7aUNgV6WYD7+Gbem+HM1wlAYU2xhkK3SrTv3OyHt68v5k28Vu8937z78aZ5LR/6tPv1
+        /erLfFGUmcHVHWp5Yr3Q7DuHYplGWAdUgjnq+Wp5cf5qtVpcDoBngy7Tmk5mS555S3a2mC+Ws/lq
+        dv7qwG7ZaozFGn6bAAB8Hb5ZJxn8UqxhXj798RijarBYP18CKAK7/KdQMdooiqQoj6BmEqRB+na7
+        vaWPLaemlTW8g1btEBolLQY0gJQBsFRz8Cp7A2EYnYECj56DqhxCExDFUvPiln6ypBy8objHsL6l
+        GVyjc1xCTBRbSziFD6hMnwM527SCBKkDaRGM6q8y4Y3jVpWgvHqw1EDk5KZwzfuzCD2nAHecAmGO
+        8MT41Co5i6CZ7y2dldAwG3Dj6Qp+xgw2KCCtjdCpID1EUUHQTDP97UF9hDqwH7Q4RQa4Bt0ihumQ
+        AKow3Ok5wR2fpv9FuSRDeWIJvoc6WCRzYlQz/Z4wDJH3HJwB4QZzka/GCvUwVLyEwPo+S5vCxxYh
+        trwHrehMoMLGEuyttJwkaxiUX/Pe9OVgibLO0WqwBsGSMKhcVKiTc9mMMjskSQHj9KRqWVSVHh5K
+        QIdagtUHA0Pl/vrjzwixU+E+tymyR6gTjcltr0qoUCWxde7RTe5O9NYh2DHu0OGcOh8S2R2GiGNy
+        dJo95nfRYThaHsvjVT8+RWO9R1NCNZqG4QnlTjStTG9pu92ePuyAdYoqDxcl504ARcSHDuWR+nxA
+        Hp+HyHHTBa7iP6hFbcnGdhNQRaY8MFG4Kwb0cQLweRjW9M38FV1g38lG+B6HdMuXlxdjwOK4JI7w
+        +eXygAqLcie81WJVfifkxqAo6+LJxBda6RbNkXtcDyoZyyfA5MT4v/V8L/Zo3lLzf8IfAa2xEzSb
+        LqCx+lvPx2sB8xb9r2vPhR4EFxHDzmrciMWQm2GwVsmNu62IfRT0m9pSg6ELdlxwdbepLlaXpq4q
+        87KYPE7+BgAA//8DAOTo6hbuBQAA
     headers:
       CF-RAY:
-      - 91011b565d2e2b6c-LAX
+      - 92794db79f7bfd60-GRU
       Connection:
       - keep-alive
       Content-Encoding:
@@ -589,7 +593,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 11 Feb 2025 03:03:40 GMT
+      - Fri, 28 Mar 2025 18:48:48 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -605,7 +609,7 @@ interactions:
       openai-organization:
       - arize-zi
       openai-processing-ms:
-      - '3338'
+      - '2702'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -617,24 +621,24 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149998817'
+      - '149995847'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
-      - 0s
+      - 1ms
       x-request-id:
-      - req_974df35b35bee7ad2a3e76b5db7d659d
+      - req_567d45cfcf4dc94982a779a3a67f39d2
     status:
       code: 200
       message: OK
 - request:
     body: !!binary |
       CtgCCiQKIgoMc2VydmljZS5uYW1lEhIKEGNyZXdBSS10ZWxlbWV0cnkSrwIKEgoQY3Jld2FpLnRl
-      bGVtZXRyeRKYAgoQpkqcddV/ealj1+hEXGt3nRIIKAui5G3lFOoiCPu/2a1L8cFcKgxUYXNrIENy
-      ZWF0ZWQwATnIu/3bTwgjGEEopv7bTwgjGEouCghjcmV3X2tleRIiCiBkNjcwM2JhMTMzNDkzMGU0
-      NDU3N2FkYWM4MjEzZjc0OEoxCgdjcmV3X2lkEiYKJDU3ZTJlMjk2LTE5OGUtNGM2Mi04ZDNhLTU1
-      ZmZjNGM0MzQ3ZEouCgh0YXNrX2tleRIiCiA1ZjQ1YTZjYjUxMTlmYzY2MzAzZWQ3YmI5NmU1MTRm
-      NEoxCgd0YXNrX2lkEiYKJDJlMjgyMzg0LWRlZjAtNDIxOS1hZDAwLTc1NmZlNTM1MDc1Y3oCGAGF
+      bGVtZXRyeRKYAgoQrPf5KXjC5/WF+Q9psvyK/hIIQvCm3s0mc8giCEYBKtBLRlshKgxUYXNrIENy
+      ZWF0ZWQwATnI4jhw/AsxGEH4UTpw/AsxGEouCghjcmV3X2tleRIiCiBkNjcwM2JhMTMzNDkzMGU0
+      NDU3N2FkYWM4MjEzZjc0OEoxCgdjcmV3X2lkEiYKJGJjOGZiMDg4LWVlZWQtNDQxZi1hZTNmLTdm
+      MmY1NTBjZmNkMkouCgh0YXNrX2tleRIiCiA1ZjQ1YTZjYjUxMTlmYzY2MzAzZWQ3YmI5NmU1MTRm
+      NEoxCgd0YXNrX2lkEiYKJDllYWMxMGRlLTJiNjEtNGM2NS05ZjE1LWMyZjY1NmVhNzY0OXoCGAGF
       AQABAAA=
     headers:
       Accept:
@@ -648,7 +652,7 @@ interactions:
       Content-Type:
       - application/x-protobuf
       User-Agent:
-      - OTel-OTLP-Exporter-Python/1.29.0
+      - OTel-OTLP-Exporter-Python/1.31.1
     method: POST
     uri: https://telemetry.crewai.com:4319/v1/traces
   response:
@@ -660,7 +664,7 @@ interactions:
       Content-Type:
       - application/x-protobuf
       Date:
-      - Tue, 11 Feb 2025 03:03:44 GMT
+      - Fri, 28 Mar 2025 18:48:52 GMT
     status:
       code: 200
       message: OK
@@ -676,7 +680,7 @@ interactions:
       to delegate to'', ''type'': ''str''}}\nTool Description: Delegate a specific
       task to one of the following coworkers: Senior Hello Sayer\nThe input to this
       tool should be the coworker, the task you want them to do, and ALL necessary
-      context to execute the task, they know nothing about the task, so share absolute
+      context to execute the task, they know nothing about the task, so share absolutely
       everything you know, don''t reference things but instead explain them.\nTool
       Name: Ask question to coworker\nTool Arguments: {''question'': {''description'':
       ''The question to ask'', ''type'': ''str''}, ''context'': {''description'':
@@ -685,7 +689,7 @@ interactions:
       Ask a specific question to one of the following coworkers: Senior Hello Sayer\nThe
       input to this tool should be the coworker, the question you have for them, and
       ALL necessary context to ask the question properly, they know nothing about
-      the question, so share absolute everything you know, don''t reference things
+      the question, so share absolutely everything you know, don''t reference things
       but instead explain them.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
       you should always think about what to do\nAction: the action to take, only one
       name of [Delegate work to coworker, Ask question to coworker], just the name,
@@ -695,20 +699,19 @@ interactions:
       return the following format:\n\n```\nThought: I now know the final answer\nFinal
       Answer: the final answer to the original input question\n```"}, {"role": "user",
       "content": "\nCurrent Task: Using the greeting, respond with the most satisfying
-      pleasantry\n\nThis is the expect criteria for your final answer: a bullet pointed
-      pleasantry\nyou MUST return the actual complete content as the final answer,
-      not a summary.\n\nThis is the context you''re working with:\n- \ud83c\udf1f
-      Hello there, radiant soul! \ud83c\udf1f\n- \ud83c\udf3c Greetings, lovely human!
-      \ud83c\udf3c\n- \ud83c\udf89 Hooray! You''ve made it to this moment! \ud83c\udf89\n-
-      \ud83d\ude4c Welcome to a world of possibilities! \ud83d\ude4c\n- \ud83d\ude80
-      Cheers to new adventures ahead! \ud83d\ude80\n- \ud83c\udf08 Hello, sunshine!
-      Let''s brighten the day together! \ud83c\udf08\n- \ud83e\udd73 Howdy, partner
-      in this beautiful journey of life! \ud83e\udd73\n- \ud83d\udc96 Warmest welcomes
-      to you, amazing being! \ud83d\udc96\n- \ud83c\udf88 Hiya! Ready to embrace the
-      joy today? \ud83c\udf88\n- \ud83c\udf1e Salutations, bringer of light and happiness!
-      \ud83c\udf1e\n```\n\nBegin! This is VERY important to you, use the tools available
-      and give your best Final Answer, your job depends on it!\n\nThought:"}], "model":
-      "gpt-4o-mini", "stop": ["\nObservation:"]}'
+      pleasantry\n\nThis is the expected criteria for your final answer: a bullet
+      pointed pleasantry\nyou MUST return the actual complete content as the final
+      answer, not a summary.\n\nThis is the context you''re working with:\n- Hello,
+      sunshine! Ready to lighten up the day?\n- Aloha, amazing soul! How''s your journey
+      today?\n- What''s cookin'', good lookin''? Let''s get this party started!\n-
+      Greetings from the land of cheer! What brings you joy today?\n- Salutations,
+      my friend! Ready to conquer the world together?\n- Hey there, rockstar! The
+      show can''t begin without you!\n- Howdy, partner! Let''s ride into a day full
+      of adventures!\n- What''s the buzz, electric friend? Let\u2019s spark up some
+      fun!\n- Hiya, beautiful! Your smile is the light of the universe!\n- Welcome,
+      superstar! The world may have dimmed, but you shine bright!\n\nBegin! This is
+      VERY important to you, use the tools available and give your best Final Answer,
+      your job depends on it!\n\nThought:"}], "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
     headers:
       accept:
       - application/json
@@ -717,18 +720,18 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '3434'
+      - '3371'
       content-type:
       - application/json
       cookie:
-      - __cf_bm=jjtl_zMYbU5UMFbFLkzjT8Hm7x59vEkg9.zXwzp0G.c-1739243015-1.0.1.1-K3LfneuSWnqdJ_zqi16E0P65Bz9cvrAlUkqIH.UaNL54l7s5SMG6HbB5B6QR4WjNDoUqg1h_aSjMwknDEzC9YQ;
-        _cfuvid=vBprcgSnG2w1q14Kj730hIsg6drhOqYwKv25arPYpss-1739243015699-0.0.1.1-604800000
+      - __cf_bm=pyXRwWW0EZ.MBiNjEhiGsZQiBSvyA0JGiO7VmKJvxmQ-1743187725-1.0.1.1-QArMazupZLVhgCTABbQ0oPO57r.IB9m1f.O9Ja1btlzmFmJ4VRslaXhWmQrzOSd.w7U4IlWgiH6n_uFnrO9YziG4L2gQZSRPICxrSGNpOlk;
+        _cfuvid=5Od97M5WTBv7k9v6_N6QGhQO4.BJeG0eSyUVUiEO9wg-1743187725235-0.0.1.1-604800000
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.61.1
+      - OpenAI/Python 1.69.0
       x-stainless-arch:
-      - arm64
+      - x64
       x-stainless-async:
       - 'false'
       x-stainless-lang:
@@ -736,40 +739,42 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.61.1
+      - 1.69.0
       x-stainless-raw-response:
       - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
       x-stainless-retry-count:
       - '0'
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.12.4
+      - 3.12.9
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAAwAAAP//jFXBbuREEL3PV9T0ZS+eVXYmkM1c0AKCROJCsmK1wmhSdpftTtpdprs8
-        s04UiWOQIg4ckOCwe+ILuO5H8Qmo25NMVmwQF8uq96r6VVX7+WoCoIxWS1Blg1K2nZ29uMQfW395
-        +d2+3QvHm5Pqq8+LbxeH+rU5ONmoLGZwcU6l3GU9LbntLIlhN8KlJxSKVZ8dLA7n+4u9+X4CWtZk
-        Y1rdyWyfZ61xZjbfm+/P9g5mz55vsxs2JQW1hO8nAABX6Rl1Ok1v1BL2srtISyFgTWp5TwJQnm2M
-        KAzBBEEnKtuBJTshl6SfnZ3l7mXDfd3IEo7BEWkQhhqlIQ+eQscuUIgxaQhqTyTG1QE6z2ujSWcg
-        aCx74+rIaME4YQgoJlRDDHaWMKATbyg8zd2LMs5oCV+SpRqFYMP+IpYvOb6Rv6PAset6WcJVrgTD
-        Ra6WV7nSFEpvuojnapmrlx5dqNi3ozqzJvdAY5KSzo9Cds0YB0VvLQl0bJxALICSqyxXMnSUKgfx
-        ubrO8nFab+SR8xuCiq3lTTxhd/LdHAuCkt2avJD+z8ks4e93t+/giKxNk/aUgUdt0AkE7u004Vl8
-        voev787JwPKa7ABN36JLnPeR88vPcMTscZjCa+6frAla1ARGxj2aAC235GSauDHj91t4RbbkliIF
-        41asBq6g4xBMYawRQ2GamJH/x0/wRUPk081wtAHUa3LSewqADaGeJlISfDO2lUHoXWiMoyl8Q/Ik
-        QOFN3Qi5tDyNAwjXFJtPndzE5D//giPe6CGDDr048nF5qYOCsBdT9RbOufeOhqjWmoqmKS0m//ob
-        vELfUhDYjM0luQP3GWCLl3EJBRlXTxM5Te4GjsyAUzgh1FEQUFt4LClpPOcY0jh8lqipu7dwirYX
-        jHciZLEnV5MfxdSNADoNDXadcRTSAG/fPnrTtl9AjJ6SM+y3F+IUhxi+fvgVe6r6gNFJXG/tNn59
-        bwuW685zEbb4fbwyzoRm5QkDu2gBQbhTCb2eAPyQ7Kf/wFFU57ntZCV8QS4WPJgfjvXUzvV26Hy+
-        2KLCgnYHHH4yzz5ScKUpWkh44GCqxLIhvUvd2R322vADYPKg7X/L+VjtsXXj6v9TfgeUJXVCetV5
-        0qb8sOUdzVP8KzxGux9zEqwC+bUpaSWGfFyFpgp7O3q1CkMQaldVuk6dN6NhV92q0M8Xi/lh9elC
-        Ta4n/wAAAP//AwAjvyROvgYAAA==
+        H4sIAAAAAAAAAwAAAP//jFVNb+M2EL37V4x5yUVeJE5aJ74EKQpsFu1hmywQLOqFMSJHEmOKo5Ij
+        O0oQoH+jf6+/pKDkRE6bBXoxLL75eO8NNXqaAChr1BKUrlB03bjZTx8vTk8r87X5/Fjd1bvPwf/y
+        cH9zJTcnJ7/VKksZnN+TlpesD5rrxpFY9gOsA6FQqnqyODs9OV8s5hc9ULMhl9LKRmZnPKutt7P5
+        8fxsdryYnZzvsyu2mqJawu8TAICn/jfx9IYe1BKOs5eTmmLEktTyNQhABXbpRGGMNgp6UdkIavZC
+        vqf+CWLFrTNQolQUAKFxhBG9hA4CxYZ9JMgxkgH2IBVBGYjE+jJCE3hrDZkPsPIrf6WT+CX8TI5K
+        FIIdhw0Ig+b0j8JLCHzyTStLeFopwbhZqeXTShmKOtgm4Su1XKmbvreBnZWqb1tzFIgoNhad9eUh
+        z4LDG2YjsZXKVkq6hvqaUcJKPWerwYAHeb/zl4qgYOd4l0qNajEQ4Batw9zREq7JOc4gtj5W1tMU
+        bghNl/Q6W1ZCHtqmZ2Wwu4QrxxVmgDU+pqqRWzeFa94dRei4DXDPbfCU0vvwuwrlKIJm3lh/lEHJ
+        bMANT5fwKyWwJAGpbIQGg3QQBYOQmcLHV8ZF4Lqn4NAb4AJ0RRSmfXXIQx/TcQv3/Nr4Fl0rmLyI
+        GdQdFMGSNwfiNPs/Whr83nFwBoRLSnfnEq6TgIoCZRBYbxKjKSQ7Y8U70OiPBHIqre+nyq2k7r0N
+        pst6GT7RG+QFawisFwZMFkLROpc0oNmSlzZQnL7YlLjk7eNjBuRIS7B6z7u36u8//4oQGwybNJHI
+        NUHR+ilc2w4zyAlbsUUax9c0iFhbR2CHov0kU9P00Hq7pRBpCnfkNNeUht9QGGUOftTYQYVbAmPr
+        mkwG+SAU+nuSfC8rmX73Zu7flXR6S95yGG4a3GKXjp8PX+RARRsxLRPfOncAoPe8H2NaId/2yPPr
+        0nBcNoHz+K9UVVhvY7UOhJF9WhBRuFE9+jwB+NYvp/bNvlFN4LqRtfCG+naL+dlQT407cUTnx+d7
+        VFjQjcDF6Tx7p+DakKB18WC/KY26IjOmjssQW2P5AJgcyP4vnfdqD9KtL/9P+RHQmhohs24CGavf
+        Sh7DAqVvxvfCXm3uCatIYWs1rcVSSKMwVGDrhk2uYheF6nVhfUmhCXZY50Wzzk8XP5oiz80PavI8
+        +QcAAP//AwD0GpoD3AYAAA==
     headers:
       CF-RAY:
-      - 91011b6c5e712b6c-LAX
+      - 92794dca5f63fd60-GRU
       Connection:
       - keep-alive
       Content-Encoding:
@@ -777,7 +782,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 11 Feb 2025 03:03:50 GMT
+      - Fri, 28 Mar 2025 18:48:53 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -793,7 +798,7 @@ interactions:
       openai-organization:
       - arize-zi
       openai-processing-ms:
-      - '6689'
+      - '4437'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -805,21 +810,21 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999208'
+      - '149999201'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_7cc449ba6cac611363398bb4ce4e76f2
+      - req_021e893e5359618bf4afbf0deda3134c
     status:
       code: 200
       message: OK
 - request:
     body: !!binary |
       CrIBCiQKIgoMc2VydmljZS5uYW1lEhIKEGNyZXdBSS10ZWxlbWV0cnkSiQEKEgoQY3Jld2FpLnRl
-      bGVtZXRyeRJzChCmSpx11X95qWPX6ERca3edEghWkvHuGiwWBiIIHZ/MgcEVfCEqEFRvb2wgVXNh
-      Z2UgRXJyb3IwATnwJtpQUggjGEGI9etQUggjGEobCg5jcmV3YWlfdmVyc2lvbhIJCgcwLjEwMC4x
+      bGVtZXRyeRJzChCs9/kpeMLn9YX5D2my/Ir+EgjyXsustmREAiIIHCqin67117MqEFRvb2wgVXNh
+      Z2UgRXJyb3IwATlw/k6L/QsxGEHg3YGL/QsxGEobCg5jcmV3YWlfdmVyc2lvbhIJCgcwLjEwOC4w
       egIYAYUBAAEAAA==
     headers:
       Accept:
@@ -833,7 +838,7 @@ interactions:
       Content-Type:
       - application/x-protobuf
       User-Agent:
-      - OTel-OTLP-Exporter-Python/1.29.0
+      - OTel-OTLP-Exporter-Python/1.31.1
     method: POST
     uri: https://telemetry.crewai.com:4319/v1/traces
   response:
@@ -845,7 +850,7 @@ interactions:
       Content-Type:
       - application/x-protobuf
       Date:
-      - Tue, 11 Feb 2025 03:03:54 GMT
+      - Fri, 28 Mar 2025 18:48:57 GMT
     status:
       code: 200
       message: OK
@@ -861,7 +866,7 @@ interactions:
       to delegate to'', ''type'': ''str''}}\nTool Description: Delegate a specific
       task to one of the following coworkers: Senior Hello Sayer\nThe input to this
       tool should be the coworker, the task you want them to do, and ALL necessary
-      context to execute the task, they know nothing about the task, so share absolute
+      context to execute the task, they know nothing about the task, so share absolutely
       everything you know, don''t reference things but instead explain them.\nTool
       Name: Ask question to coworker\nTool Arguments: {''question'': {''description'':
       ''The question to ask'', ''type'': ''str''}, ''context'': {''description'':
@@ -870,7 +875,7 @@ interactions:
       Ask a specific question to one of the following coworkers: Senior Hello Sayer\nThe
       input to this tool should be the coworker, the question you have for them, and
       ALL necessary context to ask the question properly, they know nothing about
-      the question, so share absolute everything you know, don''t reference things
+      the question, so share absolutely everything you know, don''t reference things
       but instead explain them.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
       you should always think about what to do\nAction: the action to take, only one
       name of [Delegate work to coworker, Ask question to coworker], just the name,
@@ -880,41 +885,38 @@ interactions:
       return the following format:\n\n```\nThought: I now know the final answer\nFinal
       Answer: the final answer to the original input question\n```"}, {"role": "user",
       "content": "\nCurrent Task: Using the greeting, respond with the most satisfying
-      pleasantry\n\nThis is the expect criteria for your final answer: a bullet pointed
-      pleasantry\nyou MUST return the actual complete content as the final answer,
-      not a summary.\n\nThis is the context you''re working with:\n- \ud83c\udf1f
-      Hello there, radiant soul! \ud83c\udf1f\n- \ud83c\udf3c Greetings, lovely human!
-      \ud83c\udf3c\n- \ud83c\udf89 Hooray! You''ve made it to this moment! \ud83c\udf89\n-
-      \ud83d\ude4c Welcome to a world of possibilities! \ud83d\ude4c\n- \ud83d\ude80
-      Cheers to new adventures ahead! \ud83d\ude80\n- \ud83c\udf08 Hello, sunshine!
-      Let''s brighten the day together! \ud83c\udf08\n- \ud83e\udd73 Howdy, partner
-      in this beautiful journey of life! \ud83e\udd73\n- \ud83d\udc96 Warmest welcomes
-      to you, amazing being! \ud83d\udc96\n- \ud83c\udf88 Hiya! Ready to embrace the
-      joy today? \ud83c\udf88\n- \ud83c\udf1e Salutations, bringer of light and happiness!
-      \ud83c\udf1e\n```\n\nBegin! This is VERY important to you, use the tools available
-      and give your best Final Answer, your job depends on it!\n\nThought:"}, {"role":
-      "assistant", "content": "```\nThought: I need to gather responses to the greetings
-      provided, tailoring them into satisfying pleasantries.\nAction: Delegate work
-      to coworker\nAction Input: {\"task\":{\"description\":\"Transform the given
-      greetings into pleasing responses in bullet point format\",\"type\":\"str\"},\"context\":{\"description\":\"The
-      following greetings need to be converted into satisfying pleasantries: \ud83c\udf1f
-      Hello there, radiant soul! \ud83c\udf1f, \ud83c\udf3c Greetings, lovely human!
-      \ud83c\udf3c, \ud83c\udf89 Hooray! You''ve made it to this moment! \ud83c\udf89,
-      \ud83d\ude4c Welcome to a world of possibilities! \ud83d\ude4c, \ud83d\ude80
-      Cheers to new adventures ahead! \ud83d\ude80, \ud83c\udf08 Hello, sunshine!
-      Let''s brighten the day together! \ud83c\udf08, \ud83e\udd73 Howdy, partner
-      in this beautiful journey of life! \ud83e\udd73, \ud83d\udc96 Warmest welcomes
-      to you, amazing being! \ud83d\udc96, \ud83c\udf88 Hiya! Ready to embrace the
-      joy today? \ud83c\udf88, \ud83c\udf1e Salutations, bringer of light and happiness!
-      \ud83c\udf1e\",\"type\":\"str\"},\"coworker\":\"Senior Hello Sayer\"}\nObservation:
-      \nI encountered an error while trying to use the tool. This was the error: Arguments
-      validation failed: 2 validation errors for DelegateWorkToolSchema\ntask\n  Input
-      should be a valid string [type=string_type, input_value={''description'': ''Transfor...
-      format'', ''type'': ''str''}, input_type=dict]\n    For further information
-      visit https://errors.pydantic.dev/2.10/v/string_type\ncontext\n  Input should
-      be a valid string [type=string_type, input_value={''description'': \"The foll...s!
-      \ud83c\udf1e\", ''type'': ''str''}, input_type=dict]\n    For further information
-      visit https://errors.pydantic.dev/2.10/v/string_type.\n Tool Delegate work to
+      pleasantry\n\nThis is the expected criteria for your final answer: a bullet
+      pointed pleasantry\nyou MUST return the actual complete content as the final
+      answer, not a summary.\n\nThis is the context you''re working with:\n- Hello,
+      sunshine! Ready to lighten up the day?\n- Aloha, amazing soul! How''s your journey
+      today?\n- What''s cookin'', good lookin''? Let''s get this party started!\n-
+      Greetings from the land of cheer! What brings you joy today?\n- Salutations,
+      my friend! Ready to conquer the world together?\n- Hey there, rockstar! The
+      show can''t begin without you!\n- Howdy, partner! Let''s ride into a day full
+      of adventures!\n- What''s the buzz, electric friend? Let\u2019s spark up some
+      fun!\n- Hiya, beautiful! Your smile is the light of the universe!\n- Welcome,
+      superstar! The world may have dimmed, but you shine bright!\n\nBegin! This is
+      VERY important to you, use the tools available and give your best Final Answer,
+      your job depends on it!\n\nThought:"}, {"role": "assistant", "content": "I should
+      gather a pleasantry response based on the greetings provided. \n\nAction: Delegate
+      work to coworker\nAction Input: {\"task\":{\"description\":\"Respond with the
+      most satisfying pleasantry for the greeting provided.\",\"type\":\"str\"},\"context\":{\"description\":\"The
+      following greetings are available: Hello, sunshine! Ready to lighten up the
+      day? Aloha, amazing soul! How''s your journey today? What''s cookin'', good
+      lookin''? Let''s get this party started! Greetings from the land of cheer! What
+      brings you joy today? Salutations, my friend! Ready to conquer the world together?
+      Hey there, rockstar! The show can''t begin without you! Howdy, partner! Let''s
+      ride into a day full of adventures! What''s the buzz, electric friend? Let\u2019s
+      spark up some fun! Hiya, beautiful! Your smile is the light of the universe!
+      Welcome, superstar! The world may have dimmed, but you shine bright!\",\"type\":\"str\"},\"coworker\":\"Senior
+      Hello Sayer\"}\nObservation: \nI encountered an error while trying to use the
+      tool. This was the error: Arguments validation failed: 2 validation errors for
+      DelegateWorkToolSchema\ntask\n  Input should be a valid string [type=string_type,
+      input_value={''description'': ''Respond ...ovided.'', ''type'': ''str''}, input_type=dict]\n    For
+      further information visit https://errors.pydantic.dev/2.11/v/string_type\ncontext\n  Input
+      should be a valid string [type=string_type, input_value={''description'': \"The
+      foll...bright!\", ''type'': ''str''}, input_type=dict]\n    For further information
+      visit https://errors.pydantic.dev/2.11/v/string_type.\n Tool Delegate work to
       coworker accepts these inputs: Tool Name: Delegate work to coworker\nTool Arguments:
       {''task'': {''description'': ''The task to delegate'', ''type'': ''str''}, ''context'':
       {''description'': ''The context for the task'', ''type'': ''str''}, ''coworker'':
@@ -922,7 +924,7 @@ interactions:
       ''str''}}\nTool Description: Delegate a specific task to one of the following
       coworkers: Senior Hello Sayer\nThe input to this tool should be the coworker,
       the task you want them to do, and ALL necessary context to execute the task,
-      they know nothing about the task, so share absolute everything you know, don''t
+      they know nothing about the task, so share absolutely everything you know, don''t
       reference things but instead explain them..\nMoving on then. I MUST either use
       a tool (use one at time) OR give my best final answer not both at the same time.
       When responding, I must use the following format:\n\n```\nThought: you should
@@ -933,28 +935,25 @@ interactions:
       Once I know the final answer, I must return the following format:\n\n```\nThought:
       I now can give a great answer\nFinal Answer: Your final answer must be the great
       and the most complete as possible, it must be outcome described\n\n```"}, {"role":
-      "assistant", "content": "```\nThought: I need to gather responses to the greetings
-      provided, tailoring them into satisfying pleasantries.\nAction: Delegate work
-      to coworker\nAction Input: {\"task\":{\"description\":\"Transform the given
-      greetings into pleasing responses in bullet point format\",\"type\":\"str\"},\"context\":{\"description\":\"The
-      following greetings need to be converted into satisfying pleasantries: \ud83c\udf1f
-      Hello there, radiant soul! \ud83c\udf1f, \ud83c\udf3c Greetings, lovely human!
-      \ud83c\udf3c, \ud83c\udf89 Hooray! You''ve made it to this moment! \ud83c\udf89,
-      \ud83d\ude4c Welcome to a world of possibilities! \ud83d\ude4c, \ud83d\ude80
-      Cheers to new adventures ahead! \ud83d\ude80, \ud83c\udf08 Hello, sunshine!
-      Let''s brighten the day together! \ud83c\udf08, \ud83e\udd73 Howdy, partner
-      in this beautiful journey of life! \ud83e\udd73, \ud83d\udc96 Warmest welcomes
-      to you, amazing being! \ud83d\udc96, \ud83c\udf88 Hiya! Ready to embrace the
-      joy today? \ud83c\udf88, \ud83c\udf1e Salutations, bringer of light and happiness!
-      \ud83c\udf1e\",\"type\":\"str\"},\"coworker\":\"Senior Hello Sayer\"}\nObservation:
-      \nI encountered an error while trying to use the tool. This was the error: Arguments
-      validation failed: 2 validation errors for DelegateWorkToolSchema\ntask\n  Input
-      should be a valid string [type=string_type, input_value={''description'': ''Transfor...
-      format'', ''type'': ''str''}, input_type=dict]\n    For further information
-      visit https://errors.pydantic.dev/2.10/v/string_type\ncontext\n  Input should
-      be a valid string [type=string_type, input_value={''description'': \"The foll...s!
-      \ud83c\udf1e\", ''type'': ''str''}, input_type=dict]\n    For further information
-      visit https://errors.pydantic.dev/2.10/v/string_type.\n Tool Delegate work to
+      "assistant", "content": "I should gather a pleasantry response based on the
+      greetings provided. \n\nAction: Delegate work to coworker\nAction Input: {\"task\":{\"description\":\"Respond
+      with the most satisfying pleasantry for the greeting provided.\",\"type\":\"str\"},\"context\":{\"description\":\"The
+      following greetings are available: Hello, sunshine! Ready to lighten up the
+      day? Aloha, amazing soul! How''s your journey today? What''s cookin'', good
+      lookin''? Let''s get this party started! Greetings from the land of cheer! What
+      brings you joy today? Salutations, my friend! Ready to conquer the world together?
+      Hey there, rockstar! The show can''t begin without you! Howdy, partner! Let''s
+      ride into a day full of adventures! What''s the buzz, electric friend? Let\u2019s
+      spark up some fun! Hiya, beautiful! Your smile is the light of the universe!
+      Welcome, superstar! The world may have dimmed, but you shine bright!\",\"type\":\"str\"},\"coworker\":\"Senior
+      Hello Sayer\"}\nObservation: \nI encountered an error while trying to use the
+      tool. This was the error: Arguments validation failed: 2 validation errors for
+      DelegateWorkToolSchema\ntask\n  Input should be a valid string [type=string_type,
+      input_value={''description'': ''Respond ...ovided.'', ''type'': ''str''}, input_type=dict]\n    For
+      further information visit https://errors.pydantic.dev/2.11/v/string_type\ncontext\n  Input
+      should be a valid string [type=string_type, input_value={''description'': \"The
+      foll...bright!\", ''type'': ''str''}, input_type=dict]\n    For further information
+      visit https://errors.pydantic.dev/2.11/v/string_type.\n Tool Delegate work to
       coworker accepts these inputs: Tool Name: Delegate work to coworker\nTool Arguments:
       {''task'': {''description'': ''The task to delegate'', ''type'': ''str''}, ''context'':
       {''description'': ''The context for the task'', ''type'': ''str''}, ''coworker'':
@@ -962,7 +961,7 @@ interactions:
       ''str''}}\nTool Description: Delegate a specific task to one of the following
       coworkers: Senior Hello Sayer\nThe input to this tool should be the coworker,
       the task you want them to do, and ALL necessary context to execute the task,
-      they know nothing about the task, so share absolute everything you know, don''t
+      they know nothing about the task, so share absolutely everything you know, don''t
       reference things but instead explain them..\nMoving on then. I MUST either use
       a tool (use one at time) OR give my best final answer not both at the same time.
       When responding, I must use the following format:\n\n```\nThought: you should
@@ -984,18 +983,18 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '9990'
+      - '9607'
       content-type:
       - application/json
       cookie:
-      - __cf_bm=jjtl_zMYbU5UMFbFLkzjT8Hm7x59vEkg9.zXwzp0G.c-1739243015-1.0.1.1-K3LfneuSWnqdJ_zqi16E0P65Bz9cvrAlUkqIH.UaNL54l7s5SMG6HbB5B6QR4WjNDoUqg1h_aSjMwknDEzC9YQ;
-        _cfuvid=vBprcgSnG2w1q14Kj730hIsg6drhOqYwKv25arPYpss-1739243015699-0.0.1.1-604800000
+      - __cf_bm=pyXRwWW0EZ.MBiNjEhiGsZQiBSvyA0JGiO7VmKJvxmQ-1743187725-1.0.1.1-QArMazupZLVhgCTABbQ0oPO57r.IB9m1f.O9Ja1btlzmFmJ4VRslaXhWmQrzOSd.w7U4IlWgiH6n_uFnrO9YziG4L2gQZSRPICxrSGNpOlk;
+        _cfuvid=5Od97M5WTBv7k9v6_N6QGhQO4.BJeG0eSyUVUiEO9wg-1743187725235-0.0.1.1-604800000
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.61.1
+      - OpenAI/Python 1.69.0
       x-stainless-arch:
-      - arm64
+      - x64
       x-stainless-async:
       - 'false'
       x-stainless-lang:
@@ -1003,42 +1002,43 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.61.1
+      - 1.69.0
       x-stainless-raw-response:
       - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
       x-stainless-retry-count:
       - '0'
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.12.4
+      - 3.12.9
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAAwAAAP//jFU9bxtHEO31K4bXuCENiVRsiU0gGE4UxDbgD8AQooAc3g7vRtqbPe/O
-        kjobAlI6gOAiRYCkiKv8grT5UfkJwd7xSApJgDQsdmbevvd27vHDAUDGJptClpeoeVXb0dl7fKc3
-        Ly+un148f/bsxWs5W73Ab+OJvBqfXmTDNOEWV5RrP/Uwd1VtSdlJV849oVJCPXo8OR0fTw4nR22h
-        coZsGitqHR27UcXCo/Hh+Hh0+Hh0dLKZLh3nFLIpfHcAAPCh/U08xdBNNoXDYX9SUQhYUDbdNgFk
-        3tl0kmEIHBRFs+GumDtRkpb6fD6/lDeli0WpU/gGhMiAOqi9W7EhQEi6PJUkgVcEKGFNHrREhYpI
-        A2hJkHtW8owQSGHpfHuoGK4fXspXLGjhrJ2bwqWM4K/Pd5/hnKx1qc/TEDwaRlEILtoBXLjoofYU
-        SHICNCZAiHkJC89FqUIhJIbpCoPNYIP4J3ztiZSlCEOwbkW2gTJWKAN4jg00CdNgAwuCJVtLBtas
-        JVy5BlAMGLIJfIP26Uc4d85j05J5sCKo0BCwdhdzgMpVJDqAJ2Rp4VEJaEW+gaBUg1t291256IV6
-        ir/cwVuyuasooSCsnbcm9dYuBF6wZWUKA3haLTzm1AqssOC8c9syBcCS0Gzwfv0BnpREvnVDaA1o
-        ViQa/bYPnpE+CBAc+r6npCQzjRSUzO/t+9g9yBBClFCyUD/cmU7S+72dHEKoPaFhKWCNvtKyNTJZ
-        vwH9/Q84d2vTDKFGr0IeWDr3FoRReRltb1GywfKSBvBmC79O8q+pPQe6UY/OGxb0vaE//Qxv0VcU
-        FNadsa0VjYtDwArfJ2YLYik2KxWF30Vq94cDIKgnDNH3dD99hHNucACvCE3SCbT3EmlR1BlsvtwY
-        03LrHr1bBshdlH6D7n6D12ijYgqEMEw2SkG+01mU2npVYl1z4tMSBLY2VixpmdKN3X6gd1FMEjW4
-        lPl8vv8de1rGgClLJFq7Ob/dBoN1Re3dImzq2/MlC4dyltQ7SSEQ1NVZW709APi+DaB4L1Oy2ruq
-        1pm6a5IEOD76YpNA2S749suTTVWdot0rTB71lXuQM0OKbMNeimU55iWZ3ewu8jAadnuFgz3h/+Tz
-        b9ideJbi/8DvCnlOtZKZ1Z4M5/c179o8pX+G/2rbGt0SzgL5Fec0UyafHsPQEqPt8joLTVCqZst2
-        eWrPXWgv69nCnEwm49Plo0l2cHvwNwAAAP//AwA3MQHiwgYAAA==
+        H4sIAAAAAAAAAwAAAP//jFXNbttGEL77KUa86EIVluVUjnow0kPtoOmhqYCgrQNptTskx1rOMPsj
+        hQoM9DX6en2SYklaktMW6IUA+c3vNzMfv1wAZGSyBWS6UkHXjZ18f/d6Np/Xy6vDYfuofp7am+Xd
+        b++mn8LnQ1hmefKQzSPq8Oz1jZa6sRhIuIe1QxUwRZ3Or2fTm/l8NuuAWgza5FY2YXItk5qYJleX
+        V9eTy/lkejN4V0IafbaA3y8AAL50z1QnG/ycLeAyf/5So/eqxGxxNALInNj0JVPekw+KQ5afQC0c
+        kLvS1+v1Ay8riWUVFvAWWPagFUNJOwQFZWoCFPs9ugf+gVhZeNO9LeCBJ3CP1koOPrKviHEE71GZ
+        FoKApbIKyBAbCBWCUe0t/CrRwcYlhNF70BKtgTKSwc7IB+X8KMV9Y6VSOahaHYhL8BLtCO5lP/bQ
+        piCPEh1jStQF/km1QAE2CAVZiwb2FCrYoIqBimjBkNeyQ0fYh/9QqTBO+WVLPM6hFDFg+7dbeIcJ
+        LDFAqMhDo1xou9oCmlHfBDK6sgXyfd2oHQYgLh0aQg5dkjuHGIhLD4WTujO0ig1IAbpCdKOujMRH
+        smklwqMcO3oLlTTYfaGhZy3cTRLSpikm4S7NL8rGoNLe+RzqFgpHyOZsElr4U0TXFbAXZw0EKTFU
+        6G7hQ+IppRZOvp4M5snQ4dgDS6gS+3tMKzEOoHRFuMNRP/m2N8zBid4mekawTGRU/QqN0zxK4m4W
+        EkNKM7DXOPTIGp/5q1AZS4ygdE/dvexNm3fMcyKqn4hLe0IcBFTaJyiitYlNZXbIITr0I1gOreWw
+        x7G10F8hRC7ElRiC2liEGmv5ehdSHZt4OOSAFnVwpAcmu334648/PfhGuW1aaC81QhH5uAyhip6U
+        r1ND6bhUSRL78PfUqvy0ioOLr8ke2+9OJTWSXiLTDp3HEfyI2EA6K+Lyu7PpMaIZVqK0su+bQKul
+        xnSJDbrTMHqPWrVQqR2CobpGk8OmH0cXHYeLHB3P01pSaTpJB/rajkfstuhDIj81t16vz1XFYRG9
+        SsrG0dozQDHLsKFJzz4OyNNRwayUjZON/8o1K4jJVyuHygsntfJBmqxDny4APnZKGV+IX9Y4qZuw
+        CrLFLt3V9PJ1HzA7KfQZfD0d0CBB2TNg9mqQ2JchVwaDIuvP5DbTSldoTr4nbVbRkJwBF2eN/7Oe
+        f4vdN09c/p/wJ0BrbAKaVZMUSb/s+WTmMP3C/svsSHRXcObR7UjjKhC6NAyDhYq2/7FkvvUB61VB
+        XKJrHPV/l6JZbWbzb02x2ZhX2cXTxd8AAAD//wMAft+2eGsHAAA=
     headers:
-      CF-Cache-Status:
-      - DYNAMIC
       CF-RAY:
-      - 91011bae49af2b6c-LAX
+      - 92794de7ff67fd60-GRU
       Connection:
       - keep-alive
       Content-Encoding:
@@ -1046,7 +1046,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 11 Feb 2025 03:03:58 GMT
+      - Fri, 28 Mar 2025 18:48:58 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -1057,10 +1057,12 @@ interactions:
       - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
       openai-organization:
       - arize-zi
       openai-processing-ms:
-      - '8011'
+      - '4395'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -1072,13 +1074,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149997700'
+      - '149997687'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_b9c6e224aa00c3552f4ed2e6318cbcf9
+      - req_9f2d8867bdc425e0fa1d82403de783ff
     status:
       code: 200
       message: OK
