@@ -44,15 +44,15 @@ jobs:
     outputs:
       list: ${{ steps.testenv.outputs.list }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Find tox environments to run
+        uses: actions/checkout@v4
         with:
           sparse-checkout: python
       - uses: astral-sh/setup-uv@v5
         with:
           version: 0.6.3
           enable-cache: false
-      - name: Find tox environments to run
-        run: |
+      - run: |
           DIFF_FILES='${{ needs.changes.outputs.diff_files }}'
           echo "$DIFF_FILES"
           TOX_ENVIRONMENTS=$(uvx --with tox-uv tox list | grep ^py | awk '{print $1}' | jq -R . | jq -sc .)
