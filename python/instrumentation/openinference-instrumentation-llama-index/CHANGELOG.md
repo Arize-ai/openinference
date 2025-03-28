@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.3.3...python-openinference-instrumentation-llama-index-v4.0.0) (2025-03-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* support chat message content blocks for llama-index >= 0.12.3 ([#1446](https://github.com/Arize-ai/openinference/issues/1446))
+
+### Features
+
+* support chat message content blocks for llama-index &gt;= 0.12.3 ([#1446](https://github.com/Arize-ai/openinference/issues/1446)) ([291dc0a](https://github.com/Arize-ai/openinference/commit/291dc0a8d071f6b3a25b5b5cd8a5fe2d756a3cda))
+
 ## [3.3.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.3.2...python-openinference-instrumentation-llama-index-v3.3.3) (2025-03-18)
 
 
