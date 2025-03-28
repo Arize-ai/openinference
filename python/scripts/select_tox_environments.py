@@ -49,7 +49,7 @@ def find_diffs(diff_files: list[str]) -> tuple[bool, bool, set[str]]:
     instrumentors_with_diff = set()
     for diff_file in diff_files:
         if match := re.match(
-            "^python/instrumentation/openinference-instrumentation-([^/]+)/+*$", diff_file
+            "^python/instrumentation/openinference-instrumentation-([^/]+)/.+$", diff_file
         ):
             instrumentors_with_diff.add(match.group(1))
     return (
