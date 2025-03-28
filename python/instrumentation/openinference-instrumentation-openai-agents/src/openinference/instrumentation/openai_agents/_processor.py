@@ -64,7 +64,7 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 
 
-class OpenInferenceTracingProcessor(TracingProcessor):  # type: ignore[misc]
+class OpenInferenceTracingProcessor(TracingProcessor):
     def __init__(self, tracer: Tracer) -> None:
         self._tracer = tracer
         self._root_spans: dict[str, OtelSpan] = {}
@@ -182,7 +182,7 @@ def _as_utc_nano(dt: datetime) -> int:
     return int(dt.astimezone(timezone.utc).timestamp() * 1_000_000_000)
 
 
-def _get_span_name(obj: Span) -> str:
+def _get_span_name(obj: Span[Any]) -> str:
     if hasattr(data := obj.span_data, "name") and isinstance(name := data.name, str):
         return name
     if isinstance(obj.span_data, HandoffSpanData) and obj.span_data.to_agent:
