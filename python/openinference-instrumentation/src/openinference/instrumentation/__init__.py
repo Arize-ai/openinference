@@ -1,5 +1,6 @@
 from ._attributes import (
     get_input_attributes,
+    get_llm_attributes,
     get_output_attributes,
     get_span_kind_attributes,
     get_tool_attributes,
@@ -42,6 +43,7 @@ __all__ = [
     "REDACTED_VALUE",
     "TracerProvider",
     "get_input_attributes",
+    "get_llm_attributes",
     "get_output_attributes",
     "get_span_kind_attributes",
     "get_tool_attributes",

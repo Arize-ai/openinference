@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Any, Callable, Dict, Optional, Union, cast
 
 import wrapt  # type: ignore[import-untyped]
@@ -11,10 +12,18 @@ from openinference.semconv.trace import (
 
 from ._attributes import (
     get_input_attributes,
+    get_llm_attributes,
     get_output_attributes,
     get_tool_attributes,
 )
-from ._types import OpenInferenceMimeType
+from ._types import (
+    Message,
+    OpenInferenceLLMProvider,
+    OpenInferenceLLMSystem,
+    OpenInferenceMimeType,
+    TokenCount,
+    Tool,
+)
 from .config import (
     TraceConfig,
 )
@@ -90,8 +99,36 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
             )
         )
 
+    def set_llm(
+        self,
+        *,
+        provider: Optional[OpenInferenceLLMProvider] = None,
+        system: Optional[OpenInferenceLLMSystem] = None,
+        model_name: Optional[str] = None,
+        invocation_parameters: Optional[Union[str, Dict[str, Any]]] = None,
+        input_messages: Optional["Sequence[Message]"] = None,
+        output_messages: Optional["Sequence[Message]"] = None,
+        token_count: Optional[TokenCount] = None,
+        tools: Optional["Sequence[Tool]"] = None,
+    ) -> None:
+        if self._self_important_attributes.get(OPENINFERENCE_SPAN_KIND) != LLM:
+            raise ValueError("Cannot set LLM attributes on a non-LLM span")
+        self.set_attributes(
+            get_llm_attributes(
+                provider=provider,
+                system=system,
+                model_name=model_name,
+                invocation_parameters=invocation_parameters,
+                input_messages=input_messages,
+                output_messages=output_messages,
+                token_count=token_count,
+                tools=tools,
+            )
+        )
+
 
 # span kinds
+LLM = OpenInferenceSpanKindValues.LLM.value
 TOOL = OpenInferenceSpanKindValues.TOOL.value
 
 
