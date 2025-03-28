@@ -51,7 +51,8 @@ def find_diffs(diff_files: list[str]) -> tuple[bool, bool, set[str]]:
         if match := re.match(
             "^python/instrumentation/openinference-instrumentation-([^/]+)/.+$", diff_file
         ):
-            instrumentors_with_diff.add(match.group(1))
+            instrumentor_name = match.group(1).replace("-", "_")
+            instrumentors_with_diff.add(instrumentor_name)
     return (
         semconv_has_diff,
         instrumentation_has_diff,
