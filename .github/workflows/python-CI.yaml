@@ -28,9 +28,11 @@ jobs:
           filters: |
             diff:
               - "python/instrumentation/**/*.py"
+              - "python/instrumentation/**/*.pyi"
               - "python/instrumentation/**/*.toml"
               - "python/instrumentation/**/*.yaml"
               - "python/openinference-*/**/*.py"
+              - "python/openinference-*/**/*.pyi"
               - "python/openinference-*/**/*.toml"
               - "python/openinference-*/**/*.yaml"
 
@@ -42,6 +44,9 @@ jobs:
     outputs:
       list: ${{ steps.testenv.outputs.list }}
     steps:
+      - name: Convert JSON list to regex
+        run: >-
+          echo "hello world"
       - uses: actions/checkout@v4
         with:
           sparse-checkout: python
