@@ -48,7 +48,9 @@ def setup_crewai_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="crewai")
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="crewai"
+        )
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, CrewAIInstrumentor)
 
@@ -62,7 +64,9 @@ def test_crewai_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_crewai_instrumentation: Any,
 ) -> None:
-    with test_vcr.use_cassette("crew_session.yaml", filter_headers=["authorization"]):
+    with test_vcr.use_cassette(
+        "crew_session.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
         import os
 
         os.environ["OPENAI_API_KEY"] = "fake_key"
@@ -76,7 +80,6 @@ def test_crewai_instrumentation(
             Your parents were greeters, your grand parents were greeters.
             You were born. Nay, destined to be a greeter""",
             verbose=True,
-            allow_delegation=False,
             tools=[search_tool],
             max_iter=1,
         )
@@ -87,7 +90,6 @@ def test_crewai_instrumentation(
           You transform greetings into pleasantries that you graciously
           give to greeters.""",
             verbose=True,
-            allow_delegation=True,
             max_iter=1,
         )
         # Create tasks for your agents
@@ -109,7 +111,7 @@ def test_crewai_instrumentation(
         )
         crew.kickoff()
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 9
+    assert len(spans) == 4
     checked_spans = 0
     for span in spans:
         attributes = dict(span.attributes or dict())
@@ -127,6 +129,7 @@ def test_crewai_instrumentation(
         elif span.name == "ToolUsage._use":
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "TOOL"
+            assert attributes.get("output.value")
             assert attributes.get("tool.name") in (
                 "Search the internet with Serper",
                 "Ask question to coworker",
@@ -135,10 +138,11 @@ def test_crewai_instrumentation(
             assert span.status.is_ok
         elif span.name == "Task._execute_core":
             checked_spans += 1
+            assert attributes.get("output.value")
             assert attributes["openinference.span.kind"] == "AGENT"
             assert attributes.get("input.value")
             assert span.status.is_ok
-    assert checked_spans == 9
+    assert checked_spans == 4
 
 
 def test_crewai_instrumentation_context_attributes(
@@ -163,7 +167,8 @@ def test_crewai_instrumentation_context_attributes(
         prompt_template_variables=prompt_template_variables,
     ):
         with test_vcr.use_cassette(
-            "crew_session_context_attributes.yaml", filter_headers=["authorization"]
+            "crew_session_context_attributes.yaml",
+            filter_headers=["authorization", "X-API-KEY"],
         ):
             import os
 
@@ -189,7 +194,6 @@ def test_crewai_instrumentation_context_attributes(
               You transform greetings into pleasantries that you graciously
               give to greeters.""",
                 verbose=True,
-                allow_delegation=True,
                 max_iter=1,
             )
             # Create tasks for your agents
@@ -249,11 +253,12 @@ def _check_context_attributes(
     assert list(attr_tags) == tags
     assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
     assert (
-        attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) == prompt_template_version
+        attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None)
+        == prompt_template_version
     )
-    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
-        prompt_template_variables
-    )
+    assert attributes.pop(
+        SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None
+    ) == json.dumps(prompt_template_variables)
 
 
 @pytest.fixture()
