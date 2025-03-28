@@ -409,6 +409,17 @@ def _get_attributes_from_chat_completions_usage(
         yield LLM_TOKEN_COUNT_COMPLETION, output_tokens
 
 
+# convert dict, tuple, etc into one of these types ['bool', 'str', 'bytes', 'int', 'float']
+def _convert_to_primitive(value: Any) -> Union[bool, str, bytes, int, float]:
+    if isinstance(value, (bool, str, bytes, int, float)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return safe_json_dumps(value)
+    if isinstance(value, dict):
+        return safe_json_dumps(value)
+    return str(value)
+
+
 def _get_attributes_from_function_span_data(
     obj: FunctionSpanData,
 ) -> Iterator[tuple[str, AttributeValue]]:
@@ -417,7 +428,7 @@ def _get_attributes_from_function_span_data(
         yield INPUT_VALUE, obj.input
         yield INPUT_MIME_TYPE, JSON
     if obj.output is not None:
-        yield OUTPUT_VALUE, obj.output
+        yield OUTPUT_VALUE, _convert_to_primitive(obj.output)
         if isinstance(obj.output, str) and obj.output[0] == "{" and obj.output[-1] == "}":
             yield OUTPUT_MIME_TYPE, JSON
 
