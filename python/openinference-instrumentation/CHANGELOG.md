@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.25...python-openinference-instrumentation-v0.1.26) (2025-03-28)
+
+
+### Bug Fixes
+
+* ensure `OpenInferenceSpan` is an instance of `opentelemetry.trace.Span` for type checks ([#1441](https://github.com/Arize-ai/openinference/issues/1441)) ([b2c8959](https://github.com/Arize-ai/openinference/commit/b2c895967e881444ff339d28b440375f6edaec74))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.24...python-openinference-instrumentation-v0.1.25) (2025-03-24)
 
 
