@@ -54,12 +54,10 @@ jobs:
           enable-cache: false
       - run: |
           DIFF_FILES='${{ needs.changes.outputs.diff_files }}'
-          echo "$DIFF_FILES"
           TOX_ENVIRONMENTS=$(uvx --with tox-uv tox list | grep ^py | awk '{print $1}' | jq -R . | jq -sc .)
-          echo "$TOX_ENVIRONMENTS"
           SELECTED_TOX_ENVIRONMENTS=$(python3 scripts/find_tox_environments.py "$DIFF_FILES" "$TOX_ENVIRONMENTS")
-          echo "$SELECTED_TOX_ENVIRONMENTS"
-          echo "list=$SELECTED_TOX_ENVIRONMENTS" >> "$GITHUB_OUTPUT"
+          echo "SELECTED_TOX_ENVIRONMENTS=$SELECTED_TOX_ENVIRONMENTS"
+          echo "list=$SELECTED_TOX_ENVIRONMENTS" >> $GITHUB_OUTPUT
         working-directory: python
       - name: Fail if no testenv is found
         if: ${{ steps.testenv.outputs.list == '[]' }}
