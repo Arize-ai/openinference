@@ -28,9 +28,11 @@ jobs:
           filters: |
             diff:
               - "python/instrumentation/**/*.py"
+              - "python/instrumentation/**/*.pyi"
               - "python/instrumentation/**/*.toml"
               - "python/instrumentation/**/*.yaml"
               - "python/openinference-*/**/*.py"
+              - "python/openinference-*/**/*.pyi"
               - "python/openinference-*/**/*.toml"
               - "python/openinference-*/**/*.yaml"
 
@@ -42,32 +44,19 @@ jobs:
     outputs:
       list: ${{ steps.testenv.outputs.list }}
     steps:
-      - name: Convert JSON list to regex
-        run: >-
-          echo "list=$(echo '${{ needs.changes.outputs.diff_files }}'
-          | jq -r '.[]'
-          | sed -n
-          -e 's/^python\/instrumentation\/openinference-instrumentation-\([^/]*\)\/.*/\1/p'
-          -e 's/^python\/openinference-\(instrumentation\)\/.*/\1/p'
-          -e 's/^python\/openinference-\(semantic-conventions\)\/.*/\1/p'
-          | sort -u
-          | sed -e 's/semantic-conventions/semconv/' -e 's/-/_/' -e 's/^/\\b/'
-          | paste -sd "|" -)"
-          >> "$GITHUB_OUTPUT"
-        id: packages
-      - uses: actions/checkout@v4
+      - name: Find tox environments to run
+        uses: actions/checkout@v4
         with:
           sparse-checkout: python
       - uses: astral-sh/setup-uv@v5
         with:
           version: 0.6.3
           enable-cache: false
-      - name: Extract testenv into JSON list
-        run: >-
-          echo "list=$(uvx --with tox-uv tox -l
-          | egrep -e '${{ steps.packages.outputs.list }}'
-          | jq -R -s -c 'split("\n")[:-1]')"
-          >> $GITHUB_OUTPUT
+      - run: |
+          DIFF_FILES='${{ needs.changes.outputs.diff_files }}'
+          TOX_ENVIRONMENTS=$(uvx --with tox-uv tox list | grep ^py | awk '{print $1}' | jq -R . | jq -sc .)
+          SELECTED_TOX_ENVIRONMENTS=$(python3 scripts/select_tox_environments.py "$DIFF_FILES" "$TOX_ENVIRONMENTS")
+          echo "list=$SELECTED_TOX_ENVIRONMENTS" >> $GITHUB_OUTPUT
         working-directory: python
         id: testenv
       - name: Fail if no testenv is found
