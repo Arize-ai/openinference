@@ -25,7 +25,6 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 
-
 [project.optional-dependencies]
 test = []
 
