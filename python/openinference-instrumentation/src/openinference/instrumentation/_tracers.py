@@ -127,7 +127,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             set_status_on_exception=set_status_on_exception,
         )
         with use_span(
-            span,  # type: ignore[arg-type]
+            span,
             end_on_exit=end_on_exit,
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,

@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Dict, Mapping, Optional, Type, Union
 
 from opentelemetry.trace import Span, SpanContext, Status, StatusCode
 from opentelemetry.util.types import Attributes, AttributeValue
@@ -8,11 +8,11 @@ from typing_extensions import Self
 from ._types import OpenInferenceMimeType
 from .config import TraceConfig
 
-class OpenInferenceSpan:
+class OpenInferenceSpan(Span):
     # methods from opentelemetry.trace.Span interface
     def end(self, end_time: Optional[int] = None) -> None: ...
     def get_span_context(self) -> SpanContext: ...
-    def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None: ...
+    def set_attributes(self, attributes: Mapping[str, AttributeValue]) -> None: ...
     def set_attribute(self, key: str, value: AttributeValue) -> None: ...
     def add_event(
         self,
