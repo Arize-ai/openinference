@@ -59,6 +59,7 @@ jobs:
           echo "SELECTED_TOX_ENVIRONMENTS=$SELECTED_TOX_ENVIRONMENTS"
           echo "list=$SELECTED_TOX_ENVIRONMENTS" >> $GITHUB_OUTPUT
         working-directory: python
+        id: testenv
       - name: Fail if no testenv is found
         if: ${{ steps.testenv.outputs.list == '[]' }}
         run: exit 1
