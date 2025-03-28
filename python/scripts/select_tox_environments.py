@@ -23,15 +23,12 @@ def select_tox_environments(
         split_tox_environments(tox_environments)
     )
 
-    selected_environments = []
     if semconv_has_diff:
-        selected_environments.extend(semconv_environments)
+        return semconv_environments + instrumentation_environments + instrumentor_environments
     if instrumentation_has_diff:
-        selected_environments.extend(instrumentation_environments)
-    if semconv_has_diff or instrumentation_has_diff:
-        selected_environments.extend(instrumentor_environments)
-        return selected_environments
+        return instrumentation_environments + instrumentor_environments
 
+    selected_environments = []
     for instrumentor in instrumentors_with_diff:
         selected_environments.extend(
             [env for env in instrumentor_environments if instrumentor in env]

@@ -96,11 +96,11 @@ def test_attribute_priority(k: str, in_memory_span_exporter: InMemorySpanExporte
             span5.set_attributes(extra_attributes)
             raise RuntimeError
     with suppress(RuntimeError):
-        with use_span(tracer.start_span("6", attributes=attributes), True) as span6:  # type:ignore[arg-type]
+        with use_span(tracer.start_span("6", attributes=attributes), True) as span6:
             span6.set_attributes(extra_attributes)
             raise RuntimeError
     with suppress(RuntimeError):
-        with use_span(tracer.start_span("7"), True) as span7:  # type:ignore[arg-type]
+        with use_span(tracer.start_span("7"), True) as span7:
             span7.set_attributes(extra_attributes)
             span7.set_attributes(attributes)
             span7.set_attributes(extra_attributes)
