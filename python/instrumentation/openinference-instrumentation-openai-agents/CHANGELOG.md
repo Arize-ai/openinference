@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.4...python-openinference-instrumentation-openai-agents-v0.1.5) (2025-03-28)
+
+
+### Bug Fixes
+
+* handle error: invalid type dict in attribute 'output.value' value sequence ([#1443](https://github.com/Arize-ai/openinference/issues/1443)) ([34bacfd](https://github.com/Arize-ai/openinference/commit/34bacfd9369dfb098e931cf20982b286fcb7fbea))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.3...python-openinference-instrumentation-openai-agents-v0.1.4) (2025-03-25)
 
 
