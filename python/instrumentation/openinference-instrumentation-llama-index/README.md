@@ -15,6 +15,7 @@ pip install openinference-instrumentation-llama-index
 
 | llama-index version | openinference-instrumentation-llama-index version |
 |---------------------|---------------------------------------------------|
+| \>=0.12.3           | \>=4.0                                            |
 | \>=0.11.0           | \>=3.0                                            |
 | \>=0.10.43          | \>=2.0, <3.0                                      |
 | \>=0.10.0, <0.10.43 | \>=1.0, <0.2                                      |

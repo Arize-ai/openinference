@@ -36,12 +36,12 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "llama-index-core >= 0.11.0",
+  "llama-index-core >= 0.12.3",
   "llama-index-multi-modal-llms-openai>=0.1.7",
 ]
 test = [
-  "llama-index == 0.11.0",
-  "llama-index-core >= 0.11.0",
+  "llama-index == 0.12.3",
+  "llama-index-core == 0.12.3",
   "llama-index-llms-openai",
   "llama_index.llms.anthropic",
   "llama-index-llms-groq",
