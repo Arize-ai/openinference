@@ -1,4 +1,4 @@
-import * as openai from "openai";
+import openai from "openai";
 import {
   InstrumentationBase,
   InstrumentationConfig,
