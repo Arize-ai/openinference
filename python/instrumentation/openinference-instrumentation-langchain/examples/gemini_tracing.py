@@ -1,6 +1,7 @@
-from phoenix.otel import register
 import os
+
 from langchain_google_genai import ChatGoogleGenerativeAI
+from phoenix.otel import register
 
 # Set Environment Variables
 os.environ["GEMINI_API_KEY"] = ""
