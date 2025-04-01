@@ -36,6 +36,7 @@ from openai.types.responses.response_input_item_param import (
     Message,
 )
 from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
+
 from openinference.instrumentation.openai_agents._processor import (
     _get_attributes_from_chat_completions_input,
     _get_attributes_from_chat_completions_message_content,
@@ -1522,6 +1523,90 @@ def test_get_attributes_from_response(
                 ),
             },
             id="multiple_tools",
+        ),
+        pytest.param(
+            [
+                FunctionTool(
+                    name="test_func",
+                    description="test",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "arg1": {
+                                "type": "string",
+                                "description": "First argument",
+                            },
+                            "arg2": {
+                                "type": "number",
+                                "description": "Second argument",
+                            },
+                        },
+                        "required": ["arg1"],
+                    },
+                    strict=True,
+                    type="function",
+                )
+            ],
+            {
+                "llm.tools.0.tool.json_schema": json.dumps(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "test_func",
+                            "description": "test",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "arg1": {
+                                        "type": "string",
+                                        "description": "First argument",
+                                    },
+                                    "arg2": {
+                                        "type": "number",
+                                        "description": "Second argument",
+                                    },
+                                },
+                                "required": ["arg1"],
+                            },
+                            "strict": True,
+                        },
+                    }
+                ),
+            },
+            id="function_tool_with_complex_parameters",
+        ),
+        pytest.param(
+            [
+                FunctionTool(
+                    name="test_func",
+                    description="test",
+                    parameters={
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    },
+                    strict=False,
+                    type="function",
+                )
+            ],
+            {
+                "llm.tools.0.tool.json_schema": json.dumps(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "test_func",
+                            "description": "test",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "additionalProperties": False,
+                            },
+                            "strict": False,
+                        },
+                    }
+                ),
+            },
+            id="function_tool_with_additional_properties",
         ),
     ],
 )
