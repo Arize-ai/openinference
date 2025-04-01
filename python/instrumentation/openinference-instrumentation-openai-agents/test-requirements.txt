@@ -1,5 +1,5 @@
 openai
-openai_agents
+openai_agents==0.0.7
 openinference-instrumentation-openai
 opentelemetry-sdk
 respx
