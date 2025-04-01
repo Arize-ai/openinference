@@ -522,13 +522,13 @@ def _get_attributes_from_response_output(
             yield from _get_attributes_from_function_tool_call(item, prefix)
             tool_call_idx += 1
         elif isinstance(item, ResponseFileSearchToolCall):
-            ...
+            ...  # TODO
         elif isinstance(item, ResponseFunctionWebSearch):
-            ...
+            ...  # TODO
         elif isinstance(item, ResponseComputerToolCall):
-            ...
+            ...  # TODO
         elif isinstance(item, ResponseReasoningItem):
-            ...
+            ...  # TODO
         elif TYPE_CHECKING:
             assert_never(item)
 

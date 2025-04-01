@@ -388,6 +388,30 @@ def test_get_attributes_from_response_function_tool_call_param(
             },
             id="simple_output",
         ),
+        pytest.param(
+            {
+                "call_id": "123",
+                "output": "",
+            },
+            {
+                "message.content": "",
+                "message.role": "tool",
+                "message.tool_call_id": "123",
+            },
+            id="empty_output",
+        ),
+        pytest.param(
+            {
+                "call_id": "123",
+                "output": None,
+            },
+            {
+                "message.content": None,
+                "message.role": "tool",
+                "message.tool_call_id": "123",
+            },
+            id="none_output",
+        ),
     ],
 )
 def test_get_attributes_from_function_call_output(
@@ -425,6 +449,68 @@ def test_get_attributes_from_function_call_output(
             },
             id="complete_generation",
         ),
+        pytest.param(
+            GenerationSpanData(
+                model="gpt-4",
+                model_config=None,
+                input=None,
+                output=None,
+                usage=None,
+            ),
+            {
+                "llm.model_name": "gpt-4",
+            },
+            id="minimal_generation",
+        ),
+        pytest.param(
+            GenerationSpanData(
+                model="gpt-4",
+                model_config={"temperature": 0.7, "base_url": "https://api.openai.com/v1"},
+                input=[{"role": "user", "content": "Hello"}],
+                output=[{"role": "assistant", "content": "Hi"}],
+                usage={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+            ),
+            {
+                "input.mime_type": "application/json",
+                "input.value": '[{"role": "user", "content": "Hello"}]',
+                "llm.input_messages.0.message.content": "Hello",
+                "llm.input_messages.0.message.role": "user",
+                "llm.invocation_parameters": '{"temperature": 0.7, "base_url": "https://api.openai.com/v1"}',
+                "llm.model_name": "gpt-4",
+                "llm.provider": "openai",
+                "llm.output_messages.0.message.content": "Hi",
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.token_count.completion": 5,
+                "llm.token_count.prompt": 10,
+                "output.mime_type": "application/json",
+                "output.value": '[{"role": "assistant", "content": "Hi"}]',
+            },
+            id="generation_with_provider",
+        ),
+        pytest.param(
+            GenerationSpanData(
+                model="gpt-4",
+                model_config={"temperature": 0.7, "base_url": "https://other-api.com"},
+                input=[{"role": "user", "content": "Hello"}],
+                output=[{"role": "assistant", "content": "Hi"}],
+                usage={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+            ),
+            {
+                "input.mime_type": "application/json",
+                "input.value": '[{"role": "user", "content": "Hello"}]',
+                "llm.input_messages.0.message.content": "Hello",
+                "llm.input_messages.0.message.role": "user",
+                "llm.invocation_parameters": '{"temperature": 0.7, "base_url": "https://other-api.com"}',
+                "llm.model_name": "gpt-4",
+                "llm.output_messages.0.message.content": "Hi",
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.token_count.completion": 5,
+                "llm.token_count.prompt": 10,
+                "output.mime_type": "application/json",
+                "output.value": '[{"role": "assistant", "content": "Hi"}]',
+            },
+            id="generation_with_other_provider",
+        ),
     ],
 )
 def test_get_attributes_from_generation_span_data(
@@ -445,6 +531,22 @@ def test_get_attributes_from_generation_span_data(
                 "output.mime_type": "application/json",
             },
             id="complete_tools_list",
+        ),
+        pytest.param(
+            MCPListToolsSpanData(server="test-server", result=[]),
+            {
+                "output.value": "[]",
+                "output.mime_type": "application/json",
+            },
+            id="empty_tools_list",
+        ),
+        pytest.param(
+            MCPListToolsSpanData(server="test-server", result=None),
+            {
+                "output.value": "null",
+                "output.mime_type": "application/json",
+            },
+            id="none_tools_list",
         ),
     ],
 )
@@ -469,6 +571,33 @@ def test_get_attributes_from_mcp_list_tool_span_data(
             },
             id="simple_input",
         ),
+        pytest.param(
+            [],
+            {},
+            id="empty_input",
+        ),
+        pytest.param(
+            None,
+            {},
+            id="none_input",
+        ),
+        pytest.param(
+            [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi"}],
+            {
+                "input.value": json.dumps(
+                    [
+                        {"role": "user", "content": "Hello"},
+                        {"role": "assistant", "content": "Hi"},
+                    ]
+                ),
+                "input.mime_type": "application/json",
+                "llm.input_messages.0.message.role": "user",
+                "llm.input_messages.0.message.content": "Hello",
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.content": "Hi",
+            },
+            id="multiple_messages",
+        ),
     ],
 )
 def test_get_attributes_from_chat_completions_input(
@@ -485,12 +614,43 @@ def test_get_attributes_from_chat_completions_input(
         pytest.param(
             [{"role": "assistant", "content": "Hi"}],
             {
-                "output.value": '[{"role": "assistant", "content": "Hi"}]',
+                "output.value": json.dumps(
+                    [
+                        {"role": "assistant", "content": "Hi"},
+                    ]
+                ),
                 "output.mime_type": "application/json",
                 "llm.output_messages.0.message.role": "assistant",
                 "llm.output_messages.0.message.content": "Hi",
             },
             id="simple_output",
+        ),
+        pytest.param(
+            [],
+            {},
+            id="empty_output",
+        ),
+        pytest.param(
+            None,
+            {},
+            id="none_output",
+        ),
+        pytest.param(
+            [{"role": "assistant", "content": "Hi"}, {"role": "user", "content": "Thanks"}],
+            {
+                "output.value": json.dumps(
+                    [
+                        {"role": "assistant", "content": "Hi"},
+                        {"role": "user", "content": "Thanks"},
+                    ]
+                ),
+                "output.mime_type": "application/json",
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.content": "Hi",
+                "llm.output_messages.1.message.role": "user",
+                "llm.output_messages.1.message.content": "Thanks",
+            },
+            id="multiple_messages",
         ),
     ],
 )
@@ -574,6 +734,34 @@ def test_get_attributes_from_chat_completions_output(
             },
             id="multiple_messages_with_tool_calls",
         ),
+        pytest.param(
+            [{"role": "user"}],
+            {
+                "llm.input_messages.0.message.role": "user",
+            },
+            id="message_without_content",
+        ),
+        pytest.param(
+            [{"content": "Hello"}],
+            {
+                "llm.input_messages.0.message.content": "Hello",
+            },
+            id="message_without_role",
+        ),
+        pytest.param(
+            [
+                {
+                    "role": "assistant",
+                    "tool_calls": [{"id": "123", "function": {"name": "test_func"}}],
+                }
+            ],
+            {
+                "llm.input_messages.0.message.role": "assistant",
+                "llm.input_messages.0.message.tool_calls.0.tool_call.id": "123",
+                "llm.input_messages.0.message.tool_calls.0.tool_call.function.name": "test_func",
+            },
+            id="message_without_content_but_with_tool_calls",
+        ),
     ],
 )
 def test_get_attributes_from_chat_completions_message_dicts(
@@ -602,6 +790,26 @@ def test_get_attributes_from_chat_completions_message_dicts(
             },
             id="content_list",
         ),
+        pytest.param(
+            None,
+            {},
+            id="none_content",
+        ),
+        pytest.param(
+            [],
+            {},
+            id="empty_content",
+        ),
+        pytest.param(
+            [{"type": "text", "text": "Hello"}, {"type": "text", "text": "World"}],
+            {
+                "llm.input_messages.0.message.contents.0.message_content.type": "text",
+                "llm.input_messages.0.message.contents.0.message_content.text": "Hello",
+                "llm.input_messages.0.message.contents.1.message_content.type": "text",
+                "llm.input_messages.0.message.contents.1.message_content.text": "World",
+            },
+            id="multiple_content_items",
+        ),
     ],
 )
 def test_get_attributes_from_chat_completions_message_content(
@@ -628,6 +836,21 @@ def test_get_attributes_from_chat_completions_message_content(
             },
             id="text_content",
         ),
+        pytest.param(
+            {"type": "text", "text": None},
+            {},
+            id="empty_text",
+        ),
+        pytest.param(
+            {"type": "text"},
+            {},
+            id="no_text",
+        ),
+        pytest.param(
+            {"type": "other"},
+            {},
+            id="other_type",
+        ),
     ],
 )
 def test_get_attributes_from_chat_completions_message_content_item(
@@ -653,6 +876,46 @@ def test_get_attributes_from_chat_completions_message_content_item(
             },
             id="complete_tool_call",
         ),
+        pytest.param(
+            {
+                "id": "123",
+                "function": {"name": "test_func", "arguments": "{}"},
+            },
+            {
+                "tool_call.id": "123",
+                "tool_call.function.name": "test_func",
+            },
+            id="empty_arguments",
+        ),
+        pytest.param(
+            {
+                "id": "123",
+                "function": {"name": "test_func"},
+            },
+            {
+                "tool_call.id": "123",
+                "tool_call.function.name": "test_func",
+            },
+            id="no_arguments",
+        ),
+        pytest.param(
+            {
+                "id": "123",
+            },
+            {
+                "tool_call.id": "123",
+            },
+            id="no_function",
+        ),
+        pytest.param(
+            {
+                "function": {"name": "test_func"},
+            },
+            {
+                "tool_call.function.name": "test_func",
+            },
+            id="no_id",
+        ),
     ],
 )
 def test_get_attributes_from_chat_completions_tool_call_dict(
@@ -674,6 +937,35 @@ def test_get_attributes_from_chat_completions_tool_call_dict(
             },
             id="complete_usage",
         ),
+        pytest.param(
+            None,
+            {},
+            id="none_usage",
+        ),
+        pytest.param(
+            {},
+            {},
+            id="empty_usage",
+        ),
+        pytest.param(
+            {"input_tokens": 10},
+            {
+                "llm.token_count.prompt": 10,
+            },
+            id="only_input_tokens",
+        ),
+        pytest.param(
+            {"output_tokens": 5},
+            {
+                "llm.token_count.completion": 5,
+            },
+            id="only_output_tokens",
+        ),
+        pytest.param(
+            {"input_tokens": 0, "output_tokens": 0},
+            {},
+            id="zero_tokens",
+        ),
     ],
 )
 def test_get_attributes_from_chat_completions_usage(
@@ -691,16 +983,45 @@ def test_get_attributes_from_chat_completions_usage(
             FunctionSpanData(
                 name="test_func",
                 input=json.dumps({"k": "v"}),
-                output="output",
+                output=json.dumps({"result": "success"}),
                 mcp_data={"key": "value"},
             ),
             {
                 "tool.name": "test_func",
                 "input.value": '{"k": "v"}',
                 "input.mime_type": "application/json",
-                "output.value": "output",
+                "output.value": '{"result": "success"}',
+                "output.mime_type": "application/json",
             },
             id="complete_function",
+        ),
+        pytest.param(
+            FunctionSpanData(
+                name="test_func",
+                input=None,
+                output=None,
+                mcp_data=None,
+            ),
+            {
+                "tool.name": "test_func",
+            },
+            id="minimal_function",
+        ),
+        pytest.param(
+            FunctionSpanData(
+                name="test_func",
+                input=json.dumps({"complex": {"nested": "data"}}),
+                output=json.dumps({"result": "success"}),
+                mcp_data={"metadata": "value"},
+            ),
+            {
+                "tool.name": "test_func",
+                "input.value": '{"complex": {"nested": "data"}}',
+                "input.mime_type": "application/json",
+                "output.value": '{"result": "success"}',
+                "output.mime_type": "application/json",
+            },
+            id="complex_json_data",
         ),
     ],
 )
@@ -730,6 +1051,45 @@ def test_get_attributes_from_function_span_data(
                 "message.contents.0.message_content.text": "Hi",
             },
             id="output_text",
+        ),
+        pytest.param(
+            [],
+            {},
+            id="empty_content_list",
+        ),
+        pytest.param(
+            [
+                {"type": "input_text", "text": "Hello"},
+                {"type": "output_text", "text": "Hi"},
+            ],
+            {
+                "message.contents.0.message_content.type": "text",
+                "message.contents.0.message_content.text": "Hello",
+                "message.contents.1.message_content.type": "text",
+                "message.contents.1.message_content.text": "Hi",
+            },
+            id="multiple_content_items",
+        ),
+        pytest.param(
+            [{"type": "refusal", "refusal": "I cannot help with that"}],
+            {
+                "message.contents.0.message_content.type": "text",
+                "message.contents.0.message_content.text": "I cannot help with that",
+            },
+            id="refusal_content",
+        ),
+        pytest.param(
+            [
+                {"type": "input_text", "text": "Hello"},
+                {"type": "refusal", "refusal": "I cannot help with that"},
+            ],
+            {
+                "message.contents.0.message_content.type": "text",
+                "message.contents.0.message_content.text": "Hello",
+                "message.contents.1.message_content.type": "text",
+                "message.contents.1.message_content.text": "I cannot help with that",
+            },
+            id="mixed_content_types",
         ),
     ],
 )
@@ -920,6 +1280,59 @@ def test_get_attributes_from_response(
             },
             id="function_tool_no_description",
         ),
+        pytest.param(
+            [],
+            {},
+            id="empty_tools",
+        ),
+        pytest.param(
+            None,
+            {},
+            id="none_tools",
+        ),
+        pytest.param(
+            [
+                FunctionTool(
+                    name="test_func1",
+                    description="test1",
+                    parameters={"type": "object", "properties": {}},
+                    strict=True,
+                    type="function",
+                ),
+                FunctionTool(
+                    name="test_func2",
+                    description="test2",
+                    parameters={"type": "object", "properties": {}},
+                    strict=True,
+                    type="function",
+                ),
+            ],
+            {
+                "llm.tools.0.tool.json_schema": json.dumps(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "test_func1",
+                            "description": "test1",
+                            "parameters": {"type": "object", "properties": {}},
+                            "strict": True,
+                        },
+                    }
+                ),
+                "llm.tools.1.tool.json_schema": json.dumps(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "test_func2",
+                            "description": "test2",
+                            "parameters": {"type": "object", "properties": {}},
+                            "strict": True,
+                        },
+                    }
+                ),
+            },
+            id="multiple_tools",
+        ),
     ],
 )
 def test_get_attributes_from_tools(
@@ -1028,6 +1441,50 @@ def test_get_attributes_from_tools(
             },
             id="multiple_function_calls",
         ),
+        pytest.param(
+            [
+                ResponseOutputMessage(
+                    id="msg-123",
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text",
+                            text="Hi",
+                            annotations=[],
+                        )
+                    ],
+                    status="completed",
+                    type="message",
+                ),
+                ResponseOutputMessage(
+                    id="msg-124",
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text",
+                            text="World",
+                            annotations=[],
+                        )
+                    ],
+                    status="completed",
+                    type="message",
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.contents.0.message_content.type": "text",
+                "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
+                "llm.output_messages.1.message.role": "assistant",
+                "llm.output_messages.1.message.contents.0.message_content.type": "text",
+                "llm.output_messages.1.message.contents.0.message_content.text": "World",
+            },
+            id="multiple_messages",
+        ),
+        pytest.param(
+            [],
+            {},
+            id="empty_output",
+        ),
     ],
 )
 def test_get_attributes_from_response_output(
@@ -1053,6 +1510,19 @@ def test_get_attributes_from_response_output(
             None,
             {},
             id="no_instructions",
+        ),
+        pytest.param(
+            "",
+            {},
+            id="empty_instructions",
+        ),
+        pytest.param(
+            "Be helpful\nAnd friendly",
+            {
+                "llm.input_messages.0.message.role": "system",
+                "llm.input_messages.0.message.content": "Be helpful\nAnd friendly",
+            },
+            id="multiline_instructions",
         ),
     ],
 )
@@ -1188,6 +1658,34 @@ def test_get_attributes_from_function_tool_call(
             },
             id="empty_content_message",
         ),
+        pytest.param(
+            ResponseOutputMessage(
+                id="msg-130",
+                role="assistant",
+                content=[
+                    ResponseOutputText(
+                        text="Hello",
+                        type="output_text",
+                        annotations=[],
+                    ),
+                    ResponseOutputText(
+                        text="World",
+                        type="output_text",
+                        annotations=[],
+                    ),
+                ],
+                status="completed",
+                type="message",
+            ),
+            {
+                "message.role": "assistant",
+                "message.contents.0.message_content.type": "text",
+                "message.contents.0.message_content.text": "Hello",
+                "message.contents.1.message_content.type": "text",
+                "message.contents.1.message_content.text": "World",
+            },
+            id="multiple_text_messages",
+        ),
     ],
 )
 def test_get_attributes_from_message(
@@ -1224,6 +1722,44 @@ def test_get_attributes_from_message(
             None,
             {},
             id="no_usage",
+        ),
+        pytest.param(
+            ResponseUsage(
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+                input_tokens_details=InputTokensDetails(
+                    cached_tokens=0,
+                ),
+                output_tokens_details=OutputTokensDetails(
+                    reasoning_tokens=0,
+                ),
+            ),
+            {
+                "llm.token_count.prompt": 0,
+                "llm.token_count.completion": 0,
+                "llm.token_count.total": 0,
+            },
+            id="zero_tokens",
+        ),
+        pytest.param(
+            ResponseUsage(
+                input_tokens=1000,
+                output_tokens=500,
+                total_tokens=1500,
+                input_tokens_details=InputTokensDetails(
+                    cached_tokens=100,
+                ),
+                output_tokens_details=OutputTokensDetails(
+                    reasoning_tokens=50,
+                ),
+            ),
+            {
+                "llm.token_count.prompt": 1000,
+                "llm.token_count.completion": 500,
+                "llm.token_count.total": 1500,
+            },
+            id="large_token_counts",
         ),
     ],
 )
