@@ -1,6 +1,5 @@
 from phoenix.otel import register
 import os
-from openinference.instrumentation.langchain import LangChainInstrumentor
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 # Set Environment Variables
@@ -9,6 +8,7 @@ os.environ["PHOENIX_CLIENT_HEADERS"] = "api_key="
 os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = "https://app.phoenix.arize.com"
 
 # Register Phoenix Tracer
+# (be sure the openinference-instrumentation-langchain package is installed)
 tracer_provider = register(project_name="gemini-responses-demo", auto_instrument=True)
 tracer = tracer_provider.get_tracer(__name__)
 
