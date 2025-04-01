@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
 
+from agents import MCPListToolsSpanData
 from agents.tracing import Span, Trace, TracingProcessor
 from agents.tracing.span_data import (
     AgentSpanData,
@@ -159,6 +160,9 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         elif isinstance(data, FunctionSpanData):
             for k, v in _get_attributes_from_function_span_data(data):
                 otel_span.set_attribute(k, v)
+        elif isinstance(data, MCPListToolsSpanData):
+            for k, v in _get_attributes_from_mcp_list_tool_span_data(data):
+                otel_span.set_attribute(k, v)
         end_time: Optional[int] = None
         if span.ended_at:
             try:
@@ -212,8 +216,8 @@ def _get_attributes_from_input(
     obj: Iterable[ResponseInputItemParam],
     msg_idx: int = 1,
 ) -> Iterator[tuple[str, AttributeValue]]:
-    for item in obj:
-        prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
+    for i, item in enumerate(obj, msg_idx):
+        prefix = f"{LLM_INPUT_MESSAGES}.{i}."
         if "type" not in item:
             if "role" in item and "content" in item:
                 yield from _get_attributes_from_message_param(
@@ -224,28 +228,30 @@ def _get_attributes_from_input(
                     },
                     prefix,
                 )
-            continue
-        if item["type"] == "message":
+        elif item["type"] == "message":
             yield from _get_attributes_from_message_param(item, prefix)
         elif item["type"] == "file_search_call":
-            continue
+            continue  # TODO
         elif item["type"] == "computer_call":
-            continue
+            continue  # TODO
         elif item["type"] == "computer_call_output":
-            continue
+            continue  # TODO
         elif item["type"] == "web_search_call":
-            continue
+            continue  # TODO
         elif item["type"] == "function_call":
-            yield from _get_attributes_from_response_function_tool_call_param(item, prefix)
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_function_tool_call_param(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
         elif item["type"] == "function_call_output":
             yield from _get_attributes_from_function_call_output(item, prefix)
         elif item["type"] == "reasoning":
-            continue
+            continue  # TODO
         elif item["type"] == "item_reference":
-            continue
+            continue  # TODO
         elif TYPE_CHECKING:
             assert_never(item["type"])
-        msg_idx += 1
 
 
 def _get_attributes_from_message_param(
@@ -266,9 +272,8 @@ def _get_attributes_from_message_param(
 
 def _get_attributes_from_response_function_tool_call_param(
     obj: ResponseFunctionToolCallParam,
-    prefix: str,
+    prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
-    yield f"{prefix}{MESSAGE_ROLE}", "assistant"
     yield f"{prefix}{TOOL_CALL_ID}", obj["call_id"]
     yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", obj["name"]
     if obj["arguments"] != "{}":
@@ -277,7 +282,7 @@ def _get_attributes_from_response_function_tool_call_param(
 
 def _get_attributes_from_function_call_output(
     obj: FunctionCallOutput,
-    prefix: str,
+    prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_ROLE}", "tool"
     yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", obj["call_id"]
@@ -301,8 +306,15 @@ def _get_attributes_from_generation_span_data(
     yield from _get_attributes_from_chat_completions_usage(obj.usage)
 
 
+def _get_attributes_from_mcp_list_tool_span_data(
+    obj: MCPListToolsSpanData,
+) -> Iterator[tuple[str, AttributeValue]]:
+    yield OUTPUT_VALUE, safe_json_dumps(obj.result)
+    yield OUTPUT_MIME_TYPE, JSON
+
+
 def _get_attributes_from_chat_completions_input(
-    obj: Optional[Sequence[Mapping[str, Any]]],
+    obj: Optional[Iterable[Mapping[str, Any]]],
 ) -> Iterator[tuple[str, AttributeValue]]:
     if not obj:
         return
@@ -318,7 +330,7 @@ def _get_attributes_from_chat_completions_input(
 
 
 def _get_attributes_from_chat_completions_output(
-    obj: Optional[Sequence[Mapping[str, Any]]],
+    obj: Optional[Iterable[Mapping[str, Any]]],
 ) -> Iterator[tuple[str, AttributeValue]]:
     if not obj:
         return
@@ -335,7 +347,7 @@ def _get_attributes_from_chat_completions_output(
 
 def _get_attributes_from_chat_completions_message_dicts(
     obj: Iterable[Mapping[str, Any]],
-    prefix: str,
+    prefix: str = "",
     msg_idx: int = 0,
     tool_call_idx: int = 0,
 ) -> Iterator[tuple[str, AttributeValue]]:
@@ -362,13 +374,15 @@ def _get_attributes_from_chat_completions_message_dicts(
 
 
 def _get_attributes_from_chat_completions_message_content(
-    obj: Union[str, list[Mapping[str, Any]]],
-    prefix: str,
+    obj: Union[str, Iterable[Mapping[str, Any]]],
+    prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     if isinstance(obj, str):
         yield f"{prefix}{MESSAGE_CONTENT}", obj
-    elif isinstance(obj, list):
+    elif isinstance(obj, Iterable):
         for i, item in enumerate(obj):
+            if not isinstance(item, Mapping):
+                continue
             yield from _get_attributes_from_chat_completions_message_content_item(
                 item,
                 f"{prefix}{MESSAGE_CONTENTS}.{i}.",
@@ -377,7 +391,7 @@ def _get_attributes_from_chat_completions_message_content(
 
 def _get_attributes_from_chat_completions_message_content_item(
     obj: Mapping[str, Any],
-    prefix: str,
+    prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     if obj.get("type") == "text" and (text := obj.get("text")):
         yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "text"
@@ -386,7 +400,7 @@ def _get_attributes_from_chat_completions_message_content_item(
 
 def _get_attributes_from_chat_completions_tool_call_dict(
     obj: Mapping[str, Any],
-    prefix: str,
+    prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     if id_ := obj.get("id"):
         yield f"{prefix}{TOOL_CALL_ID}", id_
@@ -448,8 +462,8 @@ def _get_attributes_from_message_content_list(
             # TODO
             ...
         elif item["type"] == "refusal":
-            # TODO
-            ...
+            yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
+            yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item["refusal"]
         elif TYPE_CHECKING:
             assert_never(item["type"])
 
@@ -460,10 +474,10 @@ def _get_attributes_from_response(obj: Response) -> Iterator[tuple[str, Attribut
     yield from _get_attributes_from_response_output(obj.output)
     yield from _get_attributes_from_response_instruction(obj.instructions)
     yield LLM_MODEL_NAME, obj.model
-    param = obj.model_dump(exclude_none=True)
-    param.pop("tools", None)
-    param.pop("usage", None)
-    param.pop("output", None)
+    param = obj.model_dump(
+        exclude_none=True,
+        exclude={"object", "tools", "usage", "output", "error", "status"},
+    )
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(param)
 
 
@@ -508,13 +522,13 @@ def _get_attributes_from_response_output(
             yield from _get_attributes_from_function_tool_call(item, prefix)
             tool_call_idx += 1
         elif isinstance(item, ResponseFileSearchToolCall):
-            ...
+            ...  # TODO
         elif isinstance(item, ResponseFunctionWebSearch):
-            ...
+            ...  # TODO
         elif isinstance(item, ResponseComputerToolCall):
-            ...
+            ...  # TODO
         elif isinstance(item, ResponseReasoningItem):
-            ...
+            ...  # TODO
         elif TYPE_CHECKING:
             assert_never(item)
 
@@ -548,7 +562,8 @@ def _get_attributes_from_message(
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item.text
         elif isinstance(item, ResponseOutputRefusal):
-            ...
+            yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
+            yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item.refusal
         elif TYPE_CHECKING:
             assert_never(item)
 
@@ -558,8 +573,8 @@ def _get_attributes_from_usage(
 ) -> Iterator[tuple[str, AttributeValue]]:
     if not obj:
         return
-    yield LLM_TOKEN_COUNT_COMPLETION, obj.input_tokens
-    yield LLM_TOKEN_COUNT_PROMPT, obj.output_tokens
+    yield LLM_TOKEN_COUNT_COMPLETION, obj.output_tokens
+    yield LLM_TOKEN_COUNT_PROMPT, obj.input_tokens
     yield LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
 
 
@@ -571,9 +586,9 @@ def _flatten(
         if isinstance(value, dict):
             yield from _flatten(value, f"{prefix}{key}.")
         elif isinstance(value, (str, int, float, bool, str)):
-            yield key, value
+            yield f"{prefix}{key}", value
         else:
-            yield key, str(value)
+            yield f"{prefix}{key}", str(value)
 
 
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
