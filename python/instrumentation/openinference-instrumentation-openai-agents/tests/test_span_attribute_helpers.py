@@ -12,6 +12,7 @@ from openai.types.responses import (
     Response,
     ResponseComputerToolCallOutputScreenshotParam,
     ResponseComputerToolCallParam,
+    ResponseError,
     ResponseFileSearchToolCallParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
@@ -35,7 +36,6 @@ from openai.types.responses.response_input_item_param import (
     Message,
 )
 from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
-
 from openinference.instrumentation.openai_agents._processor import (
     _get_attributes_from_chat_completions_input,
     _get_attributes_from_chat_completions_message_content,
@@ -1165,14 +1165,12 @@ def test_get_attributes_from_message_content_list(
                         "created_at": 1234567890.0,
                         "instructions": "Be helpful",
                         "model": "gpt-4",
-                        "object": "response",
                         "parallel_tool_calls": True,
                         "temperature": 0.7,
                         "tool_choice": "auto",
                         "top_p": 0.9,
                         "max_output_tokens": 100,
                         "previous_response_id": "prev-id",
-                        "status": "completed",
                         "truncation": "auto",
                         "user": "test-user",
                     }
@@ -1208,15 +1206,195 @@ def test_get_attributes_from_message_content_list(
                         "id": "incomplete-id",
                         "created_at": 1234567890.0,
                         "model": "gpt-4",
-                        "object": "response",
                         "parallel_tool_calls": True,
                         "tool_choice": "auto",
-                        "status": "incomplete",
                     }
                 ),
                 "llm.model_name": "gpt-4",
             },
             id="incomplete_response",
+        ),
+        pytest.param(
+            Response(
+                id="minimal-id",
+                created_at=1234567890.0,
+                model="gpt-4",
+                object="response",
+                output=[],
+                parallel_tool_calls=False,
+                tool_choice="none",
+                tools=[],
+                status="completed",
+            ),
+            {
+                "llm.invocation_parameters": json.dumps(
+                    {
+                        "id": "minimal-id",
+                        "created_at": 1234567890.0,
+                        "model": "gpt-4",
+                        "parallel_tool_calls": False,
+                        "tool_choice": "none",
+                    }
+                ),
+                "llm.model_name": "gpt-4",
+            },
+            id="minimal_response",
+        ),
+        pytest.param(
+            Response(
+                id="error-id",
+                created_at=1234567890.0,
+                model="gpt-4",
+                object="response",
+                output=[],
+                parallel_tool_calls=False,
+                tool_choice="none",
+                tools=[],
+                status="failed",
+                error=ResponseError(
+                    code="rate_limit_exceeded",
+                    message="Rate limit exceeded",
+                ),
+            ),
+            {
+                "llm.invocation_parameters": json.dumps(
+                    {
+                        "id": "error-id",
+                        "created_at": 1234567890.0,
+                        "model": "gpt-4",
+                        "parallel_tool_calls": False,
+                        "tool_choice": "none",
+                    }
+                ),
+                "llm.model_name": "gpt-4",
+            },
+            id="error_response",
+        ),
+        pytest.param(
+            Response(
+                id="complex-id",
+                created_at=1234567890.0,
+                model="gpt-4",
+                object="response",
+                output=[
+                    ResponseOutputMessage(
+                        id=token_hex(8),
+                        type="message",
+                        status="completed",
+                        role="assistant",
+                        content=[
+                            ResponseOutputText(
+                                text="Hi",
+                                type="output_text",
+                                annotations=[],
+                            ),
+                            ResponseOutputRefusal(
+                                type="refusal",
+                                refusal="I cannot help with that",
+                            ),
+                        ],
+                    ),
+                    ResponseFunctionToolCall(
+                        type="function_call",
+                        call_id="123",
+                        name="test_func",
+                        arguments='{"arg": "value"}',
+                    ),
+                ],
+                parallel_tool_calls=True,
+                tool_choice="auto",
+                tools=[
+                    FunctionTool(
+                        type="function",
+                        name="test_func1",
+                        description="test1",
+                        parameters={"type": "object", "properties": {}},
+                        strict=True,
+                    ),
+                    FunctionTool(
+                        type="function",
+                        name="test_func2",
+                        description="test2",
+                        parameters={"type": "object", "properties": {}},
+                        strict=True,
+                    ),
+                ],
+                usage=ResponseUsage(
+                    input_tokens=1000,
+                    output_tokens=500,
+                    total_tokens=1500,
+                    input_tokens_details=InputTokensDetails(
+                        cached_tokens=100,
+                    ),
+                    output_tokens_details=OutputTokensDetails(
+                        reasoning_tokens=50,
+                    ),
+                ),
+                instructions="Be helpful\nAnd friendly",
+                temperature=0.7,
+                top_p=0.9,
+                max_output_tokens=100,
+                previous_response_id="prev-id",
+                status="completed",
+                truncation="auto",
+                user="test-user",
+            ),
+            {
+                "llm.input_messages.0.message.content": "Be helpful\nAnd friendly",
+                "llm.input_messages.0.message.role": "system",
+                "llm.invocation_parameters": json.dumps(
+                    {
+                        "id": "complex-id",
+                        "created_at": 1234567890.0,
+                        "instructions": "Be helpful\nAnd friendly",
+                        "model": "gpt-4",
+                        "parallel_tool_calls": True,
+                        "temperature": 0.7,
+                        "tool_choice": "auto",
+                        "top_p": 0.9,
+                        "max_output_tokens": 100,
+                        "previous_response_id": "prev-id",
+                        "truncation": "auto",
+                        "user": "test-user",
+                    }
+                ),
+                "llm.model_name": "gpt-4",
+                "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
+                "llm.output_messages.0.message.contents.0.message_content.type": "text",
+                "llm.output_messages.0.message.contents.1.message_content.text": "I cannot help with that",  # noqa: E501
+                "llm.output_messages.0.message.contents.1.message_content.type": "text",
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.1.message.role": "assistant",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.id": "123",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.function.name": "test_func",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.function.arguments": '{"arg": "value"}',  # noqa: E501
+                "llm.token_count.completion": 500,
+                "llm.token_count.prompt": 1000,
+                "llm.token_count.total": 1500,
+                "llm.tools.0.tool.json_schema": json.dumps(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "test_func1",
+                            "description": "test1",
+                            "parameters": {"type": "object", "properties": {}},
+                            "strict": True,
+                        },
+                    }
+                ),
+                "llm.tools.1.tool.json_schema": json.dumps(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "test_func2",
+                            "description": "test2",
+                            "parameters": {"type": "object", "properties": {}},
+                            "strict": True,
+                        },
+                    }
+                ),
+            },
+            id="complex_response",
         ),
     ],
 )
@@ -1295,14 +1473,20 @@ def test_get_attributes_from_response(
                 FunctionTool(
                     name="test_func1",
                     description="test1",
-                    parameters={"type": "object", "properties": {}},
+                    parameters={
+                        "type": "object",
+                        "properties": {},
+                    },
                     strict=True,
                     type="function",
                 ),
                 FunctionTool(
                     name="test_func2",
                     description="test2",
-                    parameters={"type": "object", "properties": {}},
+                    parameters={
+                        "type": "object",
+                        "properties": {},
+                    },
                     strict=True,
                     type="function",
                 ),
@@ -1314,7 +1498,10 @@ def test_get_attributes_from_response(
                         "function": {
                             "name": "test_func1",
                             "description": "test1",
-                            "parameters": {"type": "object", "properties": {}},
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                            },
                             "strict": True,
                         },
                     }
@@ -1325,7 +1512,10 @@ def test_get_attributes_from_response(
                         "function": {
                             "name": "test_func2",
                             "description": "test2",
-                            "parameters": {"type": "object", "properties": {}},
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                            },
                             "strict": True,
                         },
                     }
