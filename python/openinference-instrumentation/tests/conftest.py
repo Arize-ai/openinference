@@ -1,5 +1,5 @@
 import pytest
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -37,5 +37,10 @@ def otel_sdk_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def openai_client() -> OpenAI:
+def sync_openai_client() -> OpenAI:
     return OpenAI()
+
+
+@pytest.fixture
+def async_openai_client() -> AsyncOpenAI:
+    return AsyncOpenAI()
