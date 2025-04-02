@@ -137,7 +137,7 @@ def test_anthropic_instrumentation_completions_streaming(
     )
 
     stream = client.completions.create(
-        model="claude-3-5-sonnet-20241022",
+        model="claude-2.1",
         prompt=prompt,
         max_tokens_to_sample=1000,
         stream=True,
