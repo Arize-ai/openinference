@@ -1554,6 +1554,56 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
 
+    async def test_async_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        async_openai_client: AsyncOpenAI,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> OTelAttributesType:
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(output_message: ChatCompletion) -> OTelAttributesType:
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            get_attributes_from_inputs=get_input_attributes,
+            get_attributes_from_outputs=get_output_attributes,
+        )
+        async def async_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
+            return await async_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+            )
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+            )
+        ]
+        response = await async_llm_function(input_messages)
+        output_message = response.choices[0].message
+        assert output_message.content == "Argentina"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
 
 def test_infer_tool_parameters() -> None:
     class PydanticModel(pydantic.BaseModel):
