@@ -6,6 +6,12 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple,
 import jsonschema
 import pydantic
 import pytest
+from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletion,
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+)
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Status, StatusCode, get_current_span
 from pydantic import BaseModel
@@ -1309,6 +1315,48 @@ class TestTracerToolDecorator:
         assert attributes[SESSION_ID] == session_id
 
 
+class TestTracerLLMDecorator:
+    def test_sync_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        openai_client: OpenAI,
+    ) -> None:
+        @tracer.llm
+        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+            return openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+            )
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+            )
+        ]
+        response = sync_llm_function(input_messages)
+        output_message = response.choices[0].message
+        assert output_message.content == "Argentina"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "sync_llm_function"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == response.model_dump()
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+
 def test_infer_tool_parameters() -> None:
     class PydanticModel(pydantic.BaseModel):
         string_param: str
@@ -1662,6 +1710,7 @@ JSON = OpenInferenceMimeTypeValues.JSON.value
 # span kinds
 AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
+LLM = OpenInferenceSpanKindValues.LLM.value
 TOOL = OpenInferenceSpanKindValues.TOOL.value
 
 # span attributes
