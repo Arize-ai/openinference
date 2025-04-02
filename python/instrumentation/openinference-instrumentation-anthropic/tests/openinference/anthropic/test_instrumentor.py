@@ -3,6 +3,8 @@ from typing import Any, Dict, Generator, Optional
 
 import anthropic
 import pytest
+import random
+import string
 from anthropic import Anthropic, AsyncAnthropic
 from anthropic.resources.completions import AsyncCompletions, Completions
 from anthropic.resources.messages import (
@@ -135,7 +137,7 @@ def test_anthropic_instrumentation_completions_streaming(
     )
 
     stream = client.completions.create(
-        model="claude-2.1",
+        model="claude-3-5-sonnet-20241022",
         prompt=prompt,
         max_tokens_to_sample=1000,
         stream=True,
@@ -578,7 +580,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                    "description": "The unit of temperature, either 'celsius' or 'fahrenheit'",
                 },
             },
             "required": ["location"],
@@ -681,7 +683,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                    "description": "The unit of temperature, either 'celsius' or 'fahrenheit'",
                 },
             },
             "required": ["location"],
@@ -951,6 +953,74 @@ def test_anthropic_instrumentation_context_attributes_existence(
         assert att.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_messages_token_counts(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = Anthropic(api_key="sk-")
+    random_1024_token = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
+    cached_text = """It was a bright and sunny morning when Elizabeth Bennet stepped out into the gardens of Longbourn. The flowers were in full bloom, their sweet fragrance filling the air with the promise of spring. As she walked along the winding paths, her mind wandered to the events of the previous evening at the Meryton assembly. Mr. Darcy's proud demeanor and apparent slight had not gone unnoticed, yet she found herself curiously drawn to unravel the mystery of his character. Her sister Jane's growing attachment to Mr. Bingley provided a welcome distraction from these thoughts. The gentle breeze carried the distant sounds of life from the estate - servants going about their daily tasks, birds singing in the hedgerows, and the occasional clip-clop of horses' hooves on the nearby road. Elizabeth's keen wit and lively intelligence found much to observe and contemplate in these simple country pleasures. She thought of her family - her beloved father in his library, her mother's endless concerns about marriages and social connections, and her sisters' various pursuits and personalities. The morning air was crisp and invigorating, matching her spirited temperament as she considered the social intricacies of their small community. Her thoughts returned to Mr. Darcy's penetrating gaze and his friend Mr. Bingley's amiable nature - such contrasts in character! The surrounding countryside stretched out before her, its rolling hills and well-tended fields a testament to the agricultural prosperity of Hertfordshire. Elizabeth's appreciation for nature's beauty was matched only by her enjoyment of human nature's peculiarities. She recalled the conversations and dancing from the assembly, the subtle interplay of personalities and social expectations that made such gatherings both entertaining and occasionally vexing. Her father's words about the follies and inconsistencies of others rang true, yet she maintained her own capacity for joy and amusement in observing them. The morning walk had refreshed her spirits and sharpened her observations. As she turned back toward Longbourn, Elizabeth contemplated the upcoming weeks with anticipation. Surely there would be more opportunities to study the mysterious Mr. Darcy, to support Jane's blossoming romance, and to find amusement in the social circus that surrounded them. The sun climbed higher in the sky as she walked, casting dappled shadows through the trees and highlighting the dew that still clung to the grass. Her steps were light and purposeful, much like her approach to life itself. She thought of Charlotte Lucas's practical views on marriage, so different from her own romantic ideals. The complexity of social expectations and personal desires provided endless material for reflection. Elizabeth's mind was as active as her feet as she traversed the familiar paths, each step bringing new thoughts and observations. The morning's exercise had brought color to her cheeks and clarity to her thoughts. She could hear the household stirring more actively now, signaling the true start of the day. Soon there would be letters to write, calls to make, and all the small duties that filled the days of a gentleman's daughter. Yet Elizabeth knew that even in these routine tasks, she would find opportunities for wit and wisdom. The world was full of interesting characters and situations, requiring only the right perspective to appreciate them fully. As she approached the house, she resolved to maintain her good humor and sharp observations, regardless of what the day might bring. The morning's solitary walk had reinforced her confidence in her own judgment and her ability to face whatever social challenges lay ahead."""
+    response = client.messages.create(
+        model="claude-3-7-sonnet-20250219",
+        max_tokens=2048,
+        system=[
+            {
+                "type": "text",
+                "text": "You are an AI assistant tasked with analyzing literary works. Your goal is to provide insightful commentary on themes, characters, and writing style.\n",
+            },
+            {
+                "type": "text",
+                "text": cached_text + random_1024_token,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ],
+        messages=[
+            {"role": "user", "content": "Analyze the major themes in 'Pride and Prejudice'."}
+        ],
+    )
+    response2 = client.messages.create(
+        model="claude-3-7-sonnet-20250219",
+        max_tokens=2048,
+        system=[
+            {
+                "type": "text",
+                "text": "You are an AI assistant tasked with analyzing literary works. Your goal is to provide insightful commentary on themes, characters, and writing style.\n",
+            },
+            {
+                "type": "text",
+                "text": cached_text + random_1024_token,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ],
+        messages=[
+            {"role": "user", "content": "Analyze the major themes in 'Pride and Prejudice'."}
+        ],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    s1, s2 = spans
+    att1 = dict(s1.attributes or {})
+    att2 = dict(s2.attributes or {})
+    # Two requests have identical requests/prompts
+    assert att1.pop(LLM_TOKEN_COUNT_PROMPT) == att2.pop(LLM_TOKEN_COUNT_PROMPT)
+    # first request's cache write is 2nd request's cache read
+    assert (
+        att1.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE)
+        == att2.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ)
+        == 2503
+    )
+    # first request doesn't hit cache
+    assert att1.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) is None
+    # second request doesn't write cache
+    assert att2.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) is None
+
+
 def test_anthropic_uninstrumentation(
     tracer_provider: TracerProvider,
 ) -> None:
@@ -1001,6 +1071,10 @@ LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS

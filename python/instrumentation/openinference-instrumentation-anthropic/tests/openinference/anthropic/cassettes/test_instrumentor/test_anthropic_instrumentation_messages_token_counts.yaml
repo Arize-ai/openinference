@@ -1,0 +1,197 @@
+interactions:
+- request:
+    body: '{"max_tokens": 2048, "messages": [{"role": "user", "content": "Analyze
+      the major themes in ''Pride and Prejudice''."}], "model": "claude-3-7-sonnet-20250219",
+      "system": [{"type": "text", "text": "You are an AI assistant tasked with analyzing
+      literary works. Your goal is to provide insightful commentary on themes, characters,
+      and writing style.\n"}, {"type": "text", "text": "It was a bright and sunny
+      morning when Elizabeth Bennet stepped out into the gardens of Longbourn. The
+      flowers were in full bloom, their sweet fragrance filling the air with the promise
+      of spring. As she walked along the winding paths, her mind wandered to the events
+      of the previous evening at the Meryton assembly. Mr. Darcy''s proud demeanor
+      and apparent slight had not gone unnoticed, yet she found herself curiously
+      drawn to unravel the mystery of his character. Her sister Jane''s growing attachment
+      to Mr. Bingley provided a welcome distraction from these thoughts. The gentle
+      breeze carried the distant sounds of life from the estate - servants going about
+      their daily tasks, birds singing in the hedgerows, and the occasional clip-clop
+      of horses'' hooves on the nearby road. Elizabeth''s keen wit and lively intelligence
+      found much to observe and contemplate in these simple country pleasures. She
+      thought of her family - her beloved father in his library, her mother''s endless
+      concerns about marriages and social connections, and her sisters'' various pursuits
+      and personalities. The morning air was crisp and invigorating, matching her
+      spirited temperament as she considered the social intricacies of their small
+      community. Her thoughts returned to Mr. Darcy''s penetrating gaze and his friend
+      Mr. Bingley''s amiable nature - such contrasts in character! The surrounding
+      countryside stretched out before her, its rolling hills and well-tended fields
+      a testament to the agricultural prosperity of Hertfordshire. Elizabeth''s appreciation
+      for nature''s beauty was matched only by her enjoyment of human nature''s peculiarities.
+      She recalled the conversations and dancing from the assembly, the subtle interplay
+      of personalities and social expectations that made such gatherings both entertaining
+      and occasionally vexing. Her father''s words about the follies and inconsistencies
+      of others rang true, yet she maintained her own capacity for joy and amusement
+      in observing them. The morning walk had refreshed her spirits and sharpened
+      her observations. As she turned back toward Longbourn, Elizabeth contemplated
+      the upcoming weeks with anticipation. Surely there would be more opportunities
+      to study the mysterious Mr. Darcy, to support Jane''s blossoming romance, and
+      to find amusement in the social circus that surrounded them. The sun climbed
+      higher in the sky as she walked, casting dappled shadows through the trees and
+      highlighting the dew that still clung to the grass. Her steps were light and
+      purposeful, much like her approach to life itself. She thought of Charlotte
+      Lucas''s practical views on marriage, so different from her own romantic ideals.
+      The complexity of social expectations and personal desires provided endless
+      material for reflection. Elizabeth''s mind was as active as her feet as she
+      traversed the familiar paths, each step bringing new thoughts and observations.
+      The morning''s exercise had brought color to her cheeks and clarity to her thoughts.
+      She could hear the household stirring more actively now, signaling the true
+      start of the day. Soon there would be letters to write, calls to make, and all
+      the small duties that filled the days of a gentleman''s daughter. Yet Elizabeth
+      knew that even in these routine tasks, she would find opportunities for wit
+      and wisdom. The world was full of interesting characters and situations, requiring
+      only the right perspective to appreciate them fully. As she approached the house,
+      she resolved to maintain her good humor and sharp observations, regardless of
+      what the day might bring. The morning''s solitary walk had reinforced her confidence
+      in her own judgment and her ability to face whatever social challenges lay ahead.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",
+      "cache_control": {"type": "ephemeral"}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"id":"msg_01FQo5wQKZKjZJG3GNxRY9fb","type":"message","role":"assistant","model":"claude-3-7-sonnet-20250219","content":[{"type":"text","text":"#
+        Major Themes in Pride and Prejudice\n\nBased on the excerpt and my knowledge
+        of Jane Austen''s novel, here are the central themes in \"Pride and Prejudice\":\n\n##
+        Social Class and Hierarchy\nThe novel explores the rigid social structure
+        of Regency England, where characters navigate complex social expectations.
+        The Bennets occupy a precarious position as genteel but not wealthy, creating
+        tension throughout the narrative. Social standing influences nearly every
+        relationship, particularly seen in characters'' preoccupation with \"good
+        matches\" in marriage.\n\n## Pride and Prejudice\nThe title themes manifest
+        primarily through Darcy and Elizabeth:\n- **Pride**: Darcy''s elevated social
+        position creates an initial haughtiness that alienates others\n- **Prejudice**:
+        Elizabeth forms hasty judgments based on first impressions and limited information\nBoth
+        characters must overcome these flaws to achieve personal growth and happiness.\n\n##
+        Marriage and Economic Security\nMarriage represents both social advancement
+        and financial necessity, especially for women without inheritance. The novel
+        presents various approaches to marriage:\n- Strategic alliances for security
+        (Charlotte Lucas''s pragmatism)\n- Romantic idealism (Elizabeth''s desire
+        for respect and affection)\n- Thoughtless passion (Lydia''s elopement)\n\n##
+        Personal Growth and Self-Knowledge\nElizabeth''s internal journey demonstrates
+        the importance of recognizing one''s own biases and limitations. Her morning
+        walks (as depicted in the excerpt) provide opportunities for reflection and
+        self-examination, allowing her character to develop beyond initial impressions.\n\n##
+        Family Dynamics and Reputation\nThe Bennet family''s behavior causes Elizabeth
+        both affection and mortification. The novel examines how individual conduct
+        affects family reputation, and how a family''s standing influences social
+        opportunities.\n\n## Women''s Limited Agency\nDespite her independent spirit,
+        Elizabeth operates within significant social constraints. The novel subtly
+        critiques the limited options available to women while acknowledging the reality
+        of these limitations.\n\nThrough these interconnected themes, Austen creates
+        a nuanced portrait of her society while telling a compelling story of personal
+        growth and authentic connection."}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":21,"cache_creation_input_tokens":2503,"cache_read_input_tokens":0,"output_tokens":443}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"max_tokens": 2048, "messages": [{"role": "user", "content": "Analyze
+      the major themes in ''Pride and Prejudice''."}], "model": "claude-3-7-sonnet-20250219",
+      "system": [{"type": "text", "text": "You are an AI assistant tasked with analyzing
+      literary works. Your goal is to provide insightful commentary on themes, characters,
+      and writing style.\n"}, {"type": "text", "text": "It was a bright and sunny
+      morning when Elizabeth Bennet stepped out into the gardens of Longbourn. The
+      flowers were in full bloom, their sweet fragrance filling the air with the promise
+      of spring. As she walked along the winding paths, her mind wandered to the events
+      of the previous evening at the Meryton assembly. Mr. Darcy''s proud demeanor
+      and apparent slight had not gone unnoticed, yet she found herself curiously
+      drawn to unravel the mystery of his character. Her sister Jane''s growing attachment
+      to Mr. Bingley provided a welcome distraction from these thoughts. The gentle
+      breeze carried the distant sounds of life from the estate - servants going about
+      their daily tasks, birds singing in the hedgerows, and the occasional clip-clop
+      of horses'' hooves on the nearby road. Elizabeth''s keen wit and lively intelligence
+      found much to observe and contemplate in these simple country pleasures. She
+      thought of her family - her beloved father in his library, her mother''s endless
+      concerns about marriages and social connections, and her sisters'' various pursuits
+      and personalities. The morning air was crisp and invigorating, matching her
+      spirited temperament as she considered the social intricacies of their small
+      community. Her thoughts returned to Mr. Darcy''s penetrating gaze and his friend
+      Mr. Bingley''s amiable nature - such contrasts in character! The surrounding
+      countryside stretched out before her, its rolling hills and well-tended fields
+      a testament to the agricultural prosperity of Hertfordshire. Elizabeth''s appreciation
+      for nature''s beauty was matched only by her enjoyment of human nature''s peculiarities.
+      She recalled the conversations and dancing from the assembly, the subtle interplay
+      of personalities and social expectations that made such gatherings both entertaining
+      and occasionally vexing. Her father''s words about the follies and inconsistencies
+      of others rang true, yet she maintained her own capacity for joy and amusement
+      in observing them. The morning walk had refreshed her spirits and sharpened
+      her observations. As she turned back toward Longbourn, Elizabeth contemplated
+      the upcoming weeks with anticipation. Surely there would be more opportunities
+      to study the mysterious Mr. Darcy, to support Jane''s blossoming romance, and
+      to find amusement in the social circus that surrounded them. The sun climbed
+      higher in the sky as she walked, casting dappled shadows through the trees and
+      highlighting the dew that still clung to the grass. Her steps were light and
+      purposeful, much like her approach to life itself. She thought of Charlotte
+      Lucas''s practical views on marriage, so different from her own romantic ideals.
+      The complexity of social expectations and personal desires provided endless
+      material for reflection. Elizabeth''s mind was as active as her feet as she
+      traversed the familiar paths, each step bringing new thoughts and observations.
+      The morning''s exercise had brought color to her cheeks and clarity to her thoughts.
+      She could hear the household stirring more actively now, signaling the true
+      start of the day. Soon there would be letters to write, calls to make, and all
+      the small duties that filled the days of a gentleman''s daughter. Yet Elizabeth
+      knew that even in these routine tasks, she would find opportunities for wit
+      and wisdom. The world was full of interesting characters and situations, requiring
+      only the right perspective to appreciate them fully. As she approached the house,
+      she resolved to maintain her good humor and sharp observations, regardless of
+      what the day might bring. The morning''s solitary walk had reinforced her confidence
+      in her own judgment and her ability to face whatever social challenges lay ahead.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",
+      "cache_control": {"type": "ephemeral"}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"id":"msg_01Y7AXnBTpbGGYYkkPo5jjjC","type":"message","role":"assistant","model":"claude-3-7-sonnet-20250219","content":[{"type":"text","text":"#
+        Analysis of Major Themes in \"Pride and Prejudice\"\n\n## Pride and Prejudice\nThe
+        titular theme forms the narrative backbone of Austen''s masterpiece. Mr. Darcy''s
+        excessive pride in his social position initially manifests as aloofness and
+        apparent disdain for those of lower status. Elizabeth''s prejudice stems from
+        her quick judgment of Darcy''s character based on first impressions and Wickham''s
+        deceptive account. The novel tracks their parallel journeys of self-discovery
+        as both characters recognize their flaws and overcome them. Darcy learns humility
+        while Elizabeth develops a more measured approach to judging character, demonstrating
+        Austen''s belief in personal growth and self-awareness.\n\n## Marriage and
+        Social Class\nAusten critically examines marriage as both a social construct
+        and an economic necessity for women. The novel presents multiple marriage
+        models:\n- Charlotte Lucas''s practical union with Mr. Collins for security\n-
+        Lydia and Wickham''s impulsive, passion-based match\n- Jane and Bingley''s
+        compatible temperaments and mutual affection\n- Elizabeth and Darcy''s intellectual
+        and emotional connection that transcends class barriers\n\nThrough these contrasts,
+        Austen advocates for marriages based on mutual respect and affection while
+        acknowledging the pragmatic considerations of her era.\n\n## Individual and
+        Society\nThe tension between personal desire and social expectation permeates
+        the novel. Elizabeth''s individualism and willingness to defy convention (refusing
+        both Collins and initially Darcy) stands in contrast to characters who prioritize
+        social norms. Austen explores how individuals navigate societal expectations
+        while maintaining personal integrity, suggesting that true fulfillment comes
+        from balancing social responsibility with authentic self-expression.\n\n##
+        Personal Growth and Self-Knowledge\nThe transformative power of self-recognition
+        drives character development throughout the narrative. Elizabeth''s pivotal
+        moment occurs when reading Darcy''s letter, forcing her to confront her own
+        prejudices. Similarly, Darcy''s rejection prompts painful self-examination
+        of his pride. Austen presents personal growth as essential to moral development
+        and happiness, contrasting evolving characters with static ones like Mrs.
+        Bennet or Lady Catherine who remain imprisoned by their limitations.\n\n##
+        Family and Reputation\nThe novel demonstrates how individual actions affect
+        family standing, particularly through Lydia''s elopement threatening the entire
+        Bennet family''s reputation. The contrast between the well-governed Pemberley
+        and the chaotic Longbourn household underscores Austen''s belief in the importance
+        of proper family governance and parental responsibility in shaping both character
+        and social prospects.\n\nIn constructing these interconnected themes, Austen
+        crafts a complex social commentary that remains remarkably relevant, examining
+        timeless questions about love, self-knowledge, and navigating societal expectations
+        while remaining true to oneself."}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":21,"cache_creation_input_tokens":0,"cache_read_input_tokens":2503,"output_tokens":605}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
