@@ -44,6 +44,38 @@ from openinference.semconv.trace import (
 )
 
 
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
+
+
 class TestStartAsCurrentSpanContextManager:
     def test_chain_with_plain_text_input_and_output(
         self,
@@ -1330,8 +1362,14 @@ class TestTracerToolDecorator:
 
 
 class TestTracerLLMDecorator:
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     def test_sync_function_with_unapplied_decorator(
         self,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
         sync_openai_client: OpenAI,
@@ -1370,8 +1408,14 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     async def test_async_function_with_unapplied_decorator(
         self,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
         async_openai_client: AsyncOpenAI,
@@ -1412,8 +1456,14 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     def test_sync_generator_with_unapplied_decorator(
         self,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
         sync_openai_client: OpenAI,
@@ -1458,8 +1508,14 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     async def test_async_generator_with_unapplied_decorator(
         self,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
         async_openai_client: AsyncOpenAI,
@@ -1506,8 +1562,14 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     def test_sync_function_with_applied_decorator(
         self,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
         sync_openai_client: OpenAI,
@@ -1554,8 +1616,14 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     async def test_async_function_with_applied_decorator(
         self,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
         async_openai_client: AsyncOpenAI,
@@ -1604,8 +1672,14 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     def test_sync_generator_with_applied_decorator(
         self,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
         sync_openai_client: OpenAI,
@@ -1658,8 +1732,14 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
 
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
     async def test_async_generator_with_custom_attributes(
         self,
+        openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
         async_openai_client: AsyncOpenAI,

@@ -37,6 +37,7 @@ test = [
   "pydantic>=2.0.0",
   "jsonschema",
   "types-jsonschema",
+  "pytest-recording",
 ]
 
 [project.urls]
