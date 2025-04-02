@@ -391,7 +391,6 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
 
     # Type hints for @tracer.llm usage with no explicit application of the decorator
-
     @overload  # sync generator function
     def llm(
         self,
@@ -437,8 +436,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
     ) -> Callable[ParametersType, SyncReturnType]: ...
 
     # Type hints for @tracer.llm(...) usage with explicit application of the decorator
-
-    @overload  # sync generator function
+    @overload
     def llm(
         self,
         wrapped_function: None = None,
@@ -446,39 +444,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         name: Optional[str] = None,
         get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
-        get_attributes_from_outputs: Optional[
-            Callable[[Sequence[YieldType]], OTelAttributesType]
-        ] = None,
-    ) -> Callable[
-        [Callable[ParametersType, Generator[YieldType, None, None]]],
-        Callable[ParametersType, Generator[YieldType, None, None]],
-    ]: ...
-
-    @overload  # async generator function
-    def llm(
-        self,
-        wrapped_function: None = None,
-        /,
-        *,
-        name: Optional[str] = None,
-        get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
-        get_attributes_from_outputs: Optional[
-            Callable[[Sequence[AsyncYieldType]], OTelAttributesType]
-        ] = None,
-    ) -> Callable[
-        [Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]]],
-        Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]],
-    ]: ...
-
-    @overload  # sync and async functions
-    def llm(
-        self,
-        wrapped_function: None = None,
-        /,
-        *,
-        name: Optional[str] = None,
-        get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
-        get_attributes_from_outputs: Optional[Callable[[ReturnType], OTelAttributesType]] = None,
+        get_attributes_from_outputs: Optional[Callable[..., OTelAttributesType]] = None,
     ) -> Callable[
         [Callable[ParametersType, ReturnType]],
         Callable[ParametersType, ReturnType],
