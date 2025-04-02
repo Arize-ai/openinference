@@ -68,10 +68,15 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
         else:
             from llama_index.core.instrumentation import get_dispatcher
 
-            from ._handler import EventHandler
+            from ._handler import EventHandler, _SpanHandler
 
-            self._event_handler = EventHandler(tracer=tracer)
-            self._span_handler = self._event_handler._span_handler
+            self._span_handler = _SpanHandler(
+                tracer=tracer,
+                separate_trace_from_runtime_context=bool(
+                    kwargs.get("separate_trace_from_runtime_context")
+                ),
+            )
+            self._event_handler = EventHandler(span_handler=self._span_handler)
             dispatcher = get_dispatcher()
             for span_handler in dispatcher.span_handlers:
                 if isinstance(span_handler, type(self._span_handler)):

@@ -115,15 +115,26 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
 
 
 class OpenInferenceTracer(BaseTracer):
-    __slots__ = ("_tracer", "_spans_by_run")
+    __slots__ = (
+        "_tracer",
+        "_separate_trace_from_runtime_context",
+        "_spans_by_run",
+    )
 
-    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        separate_trace_from_runtime_context: bool,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         if TYPE_CHECKING:
             # check that `run_map` still exists in parent class
             assert self.run_map
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
+        self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
         self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
@@ -140,7 +151,7 @@ class OpenInferenceTracer(BaseTracer):
                 trace_api.set_span_in_context(parent)
                 if (parent_run_id := run.parent_run_id)
                 and (parent := self._spans_by_run.get(parent_run_id))
-                else None
+                else (context_api.Context() if self._separate_trace_from_runtime_context else None)
             )
         # We can't use real time because the handler may be
         # called in a background thread.
