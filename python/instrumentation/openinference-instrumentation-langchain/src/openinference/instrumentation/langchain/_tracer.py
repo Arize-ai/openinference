@@ -32,14 +32,6 @@ import wrapt  # type: ignore
 from langchain_core.messages import BaseMessage
 from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
-from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
-from wrapt import ObjectProxy
-
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -53,6 +45,13 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.trace import Span
+from opentelemetry.util.types import AttributeValue
+from wrapt import ObjectProxy
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -128,6 +127,15 @@ class OpenInferenceTracer(BaseTracer):
         *args: Any,
         **kwargs: Any,
     ) -> None:
+        """Initialize the OpenInferenceTracer.
+
+        Args:
+            tracer (trace_api.Tracer): The OpenTelemetry tracer for creating spans.
+            separate_trace_from_runtime_context (bool): When True, always start a new trace for each
+                span without a parent, isolating it from any existing trace in the runtime context.
+            *args (Any): Positional arguments for BaseTracer.
+            **kwargs (Any): Keyword arguments for BaseTracer.
+        """
         super().__init__(*args, **kwargs)
         if TYPE_CHECKING:
             # check that `run_map` still exists in parent class
