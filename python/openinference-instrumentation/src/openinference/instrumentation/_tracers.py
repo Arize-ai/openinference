@@ -2,7 +2,6 @@ import asyncio
 import collections
 import inspect
 import warnings
-from collections.abc import Sequence
 from contextlib import contextmanager
 from datetime import datetime
 from secrets import randbits
@@ -11,14 +10,15 @@ from typing import (  # type: ignore[attr-defined]
     TYPE_CHECKING,
     Any,
     AsyncGenerator,
-    Awaitable,
     Callable,
+    Coroutine,
     Dict,
     Generator,
     Iterator,
     Literal,
     Mapping,
     Optional,
+    Sequence,
     Tuple,
     Union,
     _TypedDictMeta,
@@ -70,7 +70,7 @@ ReturnType = TypeVar("ReturnType")
 SyncReturnType = TypeVar("SyncReturnType")
 YieldType = TypeVar("YieldType")
 AsyncYieldType = TypeVar("AsyncYieldType")
-AwaitableType = TypeVar("AwaitableType")
+CoroutineReturnType = TypeVar("CoroutineReturnType")
 
 OTelAttributesType: TypeAlias = Mapping[str, AttributeValue]
 
@@ -281,7 +281,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         @wrapt.decorator  #  type: ignore[misc]
         async def async_wrapper(
-            wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+            wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
@@ -364,7 +364,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         @wrapt.decorator  #  type: ignore[misc]
         async def async_wrapper(
-            wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+            wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
@@ -417,13 +417,13 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
     @overload  # async function
     def llm(
         self,
-        wrapped_function: Callable[ParametersType, Awaitable[AwaitableType]],
+        wrapped_function: Callable[ParametersType, Coroutine[None, None, CoroutineReturnType]],
         /,
         *,
         name: None = None,
         get_attributes_from_inputs: None = None,
         get_attributes_from_outputs: None = None,
-    ) -> Callable[ParametersType, Awaitable[AwaitableType]]: ...
+    ) -> Callable[ParametersType, Coroutine[None, None, CoroutineReturnType]]: ...
 
     @overload  # sync function
     def llm(
@@ -470,7 +470,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]],
     ]: ...
 
-    @overload  # async function
+    @overload  # sync and async functions
     def llm(
         self,
         wrapped_function: None = None,
@@ -478,25 +478,10 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         name: Optional[str] = None,
         get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
-        get_attributes_from_outputs: Optional[Callable[[AwaitableType], OTelAttributesType]] = None,
+        get_attributes_from_outputs: Optional[Callable[[ReturnType], OTelAttributesType]] = None,
     ) -> Callable[
-        [Callable[ParametersType, Awaitable[AwaitableType]]],
-        Callable[ParametersType, Awaitable[AwaitableType]],
-    ]: ...
-
-    @overload  # sync function
-    def llm(
-        self,
-        wrapped_function: None = None,
-        /,
-        *,
-        name: Optional[str] = None,
-        get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
-        get_attributes_from_outputs: Optional[
-            Callable[[SyncReturnType], OTelAttributesType]
-        ] = None,
-    ) -> Callable[
-        [Callable[ParametersType, SyncReturnType]], Callable[ParametersType, SyncReturnType]
+        [Callable[ParametersType, ReturnType]],
+        Callable[ParametersType, ReturnType],
     ]: ...
 
     def llm(  # type: ignore[no-untyped-def]
@@ -504,9 +489,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         wrapped_function,
         /,
         *,
-        name,
-        get_attributes_from_inputs,
-        get_attributes_from_outputs,
+        name=None,
+        get_attributes_from_inputs=None,
+        get_attributes_from_outputs=None,
     ):
         @wrapt.decorator  # type: ignore[misc]
         def sync_function_wrapper(
@@ -532,11 +517,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         @wrapt.decorator  #  type: ignore[misc]
         async def async_function_wrapper(
-            wrapped: Callable[ParametersType, Awaitable[AwaitableType]],
+            wrapped: Callable[ParametersType, Coroutine[None, None, CoroutineReturnType]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
-        ) -> AwaitableType:
+        ) -> CoroutineReturnType:
             tracer = self
             with _llm_context(
                 tracer=tracer,
