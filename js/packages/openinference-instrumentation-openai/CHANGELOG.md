@@ -1,5 +1,17 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 2.1.0
+
+### Minor Changes
+
+- 5aa6511: fix(openai): Rewrite namespace import to default import in support of ESM projects
+
+### Patch Changes
+
+- Updated dependencies [ae5cd15]
+  - @arizeai/openinference-semantic-conventions@1.1.0
+  - @arizeai/openinference-core@1.0.2
+
 ## 2.0.3
 
 ### Patch Changes
