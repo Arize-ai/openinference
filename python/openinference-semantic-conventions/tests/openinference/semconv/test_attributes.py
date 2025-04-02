@@ -44,11 +44,13 @@ class TestSpanAttributes:
                     "completion": "LLM_TOKEN_COUNT_COMPLETION",
                     "completion_details": {
                         "reasoning": "LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING",
+                        "audio": "LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO",
                     },
                     "prompt": "LLM_TOKEN_COUNT_PROMPT",
                     "prompt_details": {
                         "cache_write": "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE",
                         "cache_read": "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ",
+                        "audio": "LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO",
                     },
                     "total": "LLM_TOKEN_COUNT_TOTAL",
                 },
