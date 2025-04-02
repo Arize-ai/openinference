@@ -7,7 +7,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { suppressTracing } from "@opentelemetry/core";
 import { context } from "@opentelemetry/api";
 
-import * as OpenAI from "openai";
+import OpenAI from "openai";
 import { Stream } from "openai/streaming";
 import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
 
@@ -27,7 +27,7 @@ describe("OpenAIInstrumentation", () => {
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation();
   instrumentation.disable();
-  let openai: OpenAI.OpenAI;
+  let openai: OpenAI;
 
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
@@ -36,7 +36,7 @@ describe("OpenAIInstrumentation", () => {
 
   beforeAll(() => {
     instrumentation.enable();
-    openai = new OpenAI.OpenAI({
+    openai = new OpenAI({
       apiKey: "fake-api-key",
     });
   });
@@ -923,7 +923,7 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
     traceConfig: { hideInputs: true },
   });
   instrumentation.disable();
-  let openai: OpenAI.OpenAI;
+  let openai: OpenAI;
 
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
@@ -932,7 +932,7 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
 
   beforeAll(() => {
     instrumentation.enable();
-    openai = new OpenAI.OpenAI({
+    openai = new OpenAI({
       apiKey: "fake-api-key",
     });
   });
