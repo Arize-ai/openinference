@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.6...python-openinference-instrumentation-openai-agents-v0.1.7) (2025-04-02)
+
+
+### Features
+
+* cached and reasoning tokens from response api ([#1461](https://github.com/Arize-ai/openinference/issues/1461)) ([a9f257c](https://github.com/Arize-ai/openinference/commit/a9f257c1dee46eb18ed32f463bdc50cc7cab60fe))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.5...python-openinference-instrumentation-openai-agents-v0.1.6) (2025-04-02)
 
 
