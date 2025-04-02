@@ -22,6 +22,7 @@ import pytest
 from openai import AsyncOpenAI, OpenAI
 from openai.types.chat import (
     ChatCompletion,
+    ChatCompletionChunk,
     ChatCompletionMessageParam,
     ChatCompletionUserMessageParam,
 )
@@ -35,7 +36,7 @@ from openinference.instrumentation import (
     suppress_tracing,
     using_session,
 )
-from openinference.instrumentation._tracers import _infer_tool_parameters
+from openinference.instrumentation._tracers import OTelAttributesType, _infer_tool_parameters
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -1420,7 +1421,7 @@ class TestTracerLLMDecorator:
         @tracer.llm
         def sync_llm_generator_function(
             input_messages: List[ChatCompletionMessageParam],
-        ) -> Generator[ChatCompletion, None, None]:
+        ) -> Generator[ChatCompletionChunk, None, None]:
             stream = sync_openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=input_messages,
@@ -1466,7 +1467,7 @@ class TestTracerLLMDecorator:
         @tracer.llm
         async def async_llm_generator_function(
             input_messages: List[ChatCompletionMessageParam],
-        ) -> AsyncGenerator[ChatCompletion, None]:
+        ) -> AsyncGenerator[ChatCompletionChunk, None]:
             stream = await async_openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=input_messages,
@@ -1503,6 +1504,54 @@ class TestTracerLLMDecorator:
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert json.loads(output_value) == [chunk.model_dump() for chunk in chunks]
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    def test_sync_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        sync_openai_client: OpenAI,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> OTelAttributesType:
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(output_message: ChatCompletion) -> OTelAttributesType:
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            get_attributes_from_inputs=get_input_attributes,
+            get_attributes_from_outputs=get_output_attributes,
+        )
+        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+            return sync_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+            )
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+            )
+        ]
+        response = sync_llm_function(input_messages)
+        output_message = response.choices[0].message
+        assert output_message.content == "Argentina"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
 
 

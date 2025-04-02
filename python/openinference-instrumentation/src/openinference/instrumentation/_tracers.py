@@ -486,7 +486,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
     def llm(  # type: ignore[no-untyped-def]
         self,
-        wrapped_function,
+        wrapped_function=None,
         /,
         *,
         name=None,
