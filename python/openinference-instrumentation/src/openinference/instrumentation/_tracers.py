@@ -17,6 +17,7 @@ from typing import (  # type: ignore[attr-defined]
     Generator,
     Iterator,
     Literal,
+    Mapping,
     Optional,
     Tuple,
     Union,
@@ -41,8 +42,8 @@ from opentelemetry.trace import (
     Tracer,
     use_span,
 )
-from opentelemetry.util.types import Attributes
-from typing_extensions import ParamSpec, TypeVar, _AnnotatedAlias, overload
+from opentelemetry.util.types import Attributes, AttributeValue
+from typing_extensions import ParamSpec, TypeAlias, TypeVar, _AnnotatedAlias, overload
 
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
@@ -66,6 +67,13 @@ if TYPE_CHECKING:
 
 ParametersType = ParamSpec("ParametersType")
 ReturnType = TypeVar("ReturnType")
+SyncReturnType = TypeVar("SyncReturnType")
+YieldType = TypeVar("YieldType")
+AsyncYieldType = TypeVar("AsyncYieldType")
+AwaitableType = TypeVar("AwaitableType")
+
+OTelAttributesType: TypeAlias = Mapping[str, AttributeValue]
+
 
 pydantic: Optional[ModuleType]
 try:
@@ -382,47 +390,131 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
         return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
 
-    @overload  # for @tracer.llm usage (no parameters)
+    # Type hints for @tracer.llm usage with no explicit application of the decorator
+
+    @overload  # sync generator function
     def llm(
         self,
-        wrapped_function: Callable[ParametersType, ReturnType],
+        wrapped_function: Callable[ParametersType, Generator[YieldType, None, None]],
         /,
         *,
         name: None = None,
         get_attributes_from_inputs: None = None,
         get_attributes_from_outputs: None = None,
-    ) -> Callable[ParametersType, ReturnType]: ...
+    ) -> Callable[ParametersType, Generator[YieldType, None, None]]: ...
 
-    @overload  # for @tracer.llm(name="name") usage (with parameters)
+    @overload  # async generator function
+    def llm(
+        self,
+        wrapped_function: Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]],
+        /,
+        *,
+        name: None = None,
+        get_attributes_from_inputs: None = None,
+        get_attributes_from_outputs: None = None,
+    ) -> Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]]: ...
+
+    @overload  # async function
+    def llm(
+        self,
+        wrapped_function: Callable[ParametersType, Awaitable[AwaitableType]],
+        /,
+        *,
+        name: None = None,
+        get_attributes_from_inputs: None = None,
+        get_attributes_from_outputs: None = None,
+    ) -> Callable[ParametersType, Awaitable[AwaitableType]]: ...
+
+    @overload  # sync function
+    def llm(
+        self,
+        wrapped_function: Callable[ParametersType, SyncReturnType],
+        /,
+        *,
+        name: None = None,
+        get_attributes_from_inputs: None = None,
+        get_attributes_from_outputs: None = None,
+    ) -> Callable[ParametersType, SyncReturnType]: ...
+
+    # Type hints for @tracer.llm(...) usage with explicit application of the decorator
+
+    @overload  # sync generator function
     def llm(
         self,
         wrapped_function: None = None,
         /,
         *,
         name: Optional[str] = None,
-        get_attributes_from_inputs: Optional[Callable[ParametersType, Attributes]] = None,
-        get_attributes_from_outputs: Optional[Callable[[ReturnType], Attributes]] = None,
-    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+        get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
+        get_attributes_from_outputs: Optional[
+            Callable[[Sequence[YieldType]], OTelAttributesType]
+        ] = None,
+    ) -> Callable[
+        [Callable[ParametersType, Generator[YieldType, None, None]]],
+        Callable[ParametersType, Generator[YieldType, None, None]],
+    ]: ...
 
+    @overload  # async generator function
     def llm(
         self,
-        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        wrapped_function: None = None,
         /,
         *,
         name: Optional[str] = None,
-        get_attributes_from_inputs: Optional[Callable[ParametersType, Attributes]] = None,
-        get_attributes_from_outputs: Optional[Callable[[ReturnType], Attributes]] = None,
-    ) -> Union[
-        Callable[ParametersType, ReturnType],
-        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
-    ]:
+        get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
+        get_attributes_from_outputs: Optional[
+            Callable[[Sequence[AsyncYieldType]], OTelAttributesType]
+        ] = None,
+    ) -> Callable[
+        [Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]]],
+        Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]],
+    ]: ...
+
+    @overload  # async function
+    def llm(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+        get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
+        get_attributes_from_outputs: Optional[Callable[[AwaitableType], OTelAttributesType]] = None,
+    ) -> Callable[
+        [Callable[ParametersType, Awaitable[AwaitableType]]],
+        Callable[ParametersType, Awaitable[AwaitableType]],
+    ]: ...
+
+    @overload  # sync function
+    def llm(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+        get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
+        get_attributes_from_outputs: Optional[
+            Callable[[SyncReturnType], OTelAttributesType]
+        ] = None,
+    ) -> Callable[
+        [Callable[ParametersType, SyncReturnType]], Callable[ParametersType, SyncReturnType]
+    ]: ...
+
+    def llm(  # type: ignore[no-untyped-def]
+        self,
+        wrapped_function,
+        /,
+        *,
+        name,
+        get_attributes_from_inputs,
+        get_attributes_from_outputs,
+    ):
         @wrapt.decorator  # type: ignore[misc]
         def sync_function_wrapper(
-            wrapped: Callable[ParametersType, ReturnType],
+            wrapped: Callable[ParametersType, SyncReturnType],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
-        ) -> ReturnType:
+        ) -> SyncReturnType:
             tracer = self
             with _llm_context(
                 tracer=tracer,
@@ -440,11 +532,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         @wrapt.decorator  #  type: ignore[misc]
         async def async_function_wrapper(
-            wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+            wrapped: Callable[ParametersType, Awaitable[AwaitableType]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
-        ) -> ReturnType:
+        ) -> AwaitableType:
             tracer = self
             with _llm_context(
                 tracer=tracer,
@@ -462,11 +554,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         @wrapt.decorator  # type: ignore[misc]
         def sync_generator_function_wrapper(
-            wrapped: Callable[ParametersType, Generator[ReturnType, None, None]],
+            wrapped: Callable[ParametersType, Generator[YieldType, None, None]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
-        ) -> Generator[ReturnType, None, None]:
+        ) -> Generator[YieldType, None, None]:
             tracer = self
             with _llm_context(
                 tracer=tracer,
@@ -486,11 +578,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         @wrapt.decorator  # type: ignore[misc]
         async def async_generator_function_wrapper(
-            wrapped: Callable[ParametersType, AsyncGenerator[ReturnType, None]],
+            wrapped: Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
-        ) -> AsyncGenerator[ReturnType, None]:
+        ) -> AsyncGenerator[AsyncYieldType, None]:
             tracer = self
             with _llm_context(
                 tracer=tracer,
@@ -509,15 +601,15 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 llm_context.process_output(outputs)
 
         def select_wrapper(
-            wrapped: Callable[ParametersType, ReturnType],
-        ) -> Callable[ParametersType, ReturnType]:
+            wrapped: Any,
+        ) -> Any:
             if inspect.isgeneratorfunction(wrapped):
                 return sync_generator_function_wrapper(wrapped)
             elif inspect.isasyncgenfunction(wrapped):
                 return async_generator_function_wrapper(wrapped)
             elif asyncio.iscoroutinefunction(wrapped):
                 return async_function_wrapper(wrapped)
-            return sync_function_wrapper(wrapped)  # type: ignore[no-any-return]
+            return sync_function_wrapper(wrapped)
 
         if wrapped_function is not None:
             return select_wrapper(wrapped_function)
@@ -571,13 +663,13 @@ class _LLMContext:
     def __init__(
         self,
         span: "OpenInferenceSpan",
-        get_attributes_from_outputs: Optional[Callable[[ReturnType], Attributes]],
+        get_attributes_from_outputs: Optional[Callable[[Any], OTelAttributesType]],
     ) -> None:
         self._span = span
         self._get_attributes_from_outputs = get_attributes_from_outputs
 
-    def process_output(self, output: ReturnType) -> None:
-        attributes = getattr(self._span, "attributes", {})
+    def process_output(self, output: Any) -> None:
+        attributes: OTelAttributesType = getattr(self._span, "attributes", {}) or {}
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
             if callable(self._get_attributes_from_outputs):
@@ -596,8 +688,8 @@ def _llm_context(
     *,
     tracer: "OITracer",
     name: Optional[str],
-    get_attributes_from_inputs: Optional[Callable[ParametersType, Attributes]],
-    get_attributes_from_outputs: Optional[Callable[[ReturnType], Attributes]],
+    get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]],
+    get_attributes_from_outputs: Optional[Callable[[ReturnType], OTelAttributesType]],
     wrapped: Callable[ParametersType, ReturnType],
     instance: Any,
     args: Tuple[Any, ...],
@@ -607,7 +699,7 @@ def _llm_context(
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
-    input_attributes: Attributes = {}
+    input_attributes: OTelAttributesType = {}
     if callable(get_attributes_from_inputs):
         try:
             input_attributes = get_attributes_from_inputs(*args, **kwargs)

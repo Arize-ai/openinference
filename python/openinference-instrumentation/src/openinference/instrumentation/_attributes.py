@@ -310,11 +310,11 @@ def _llm_messages_attributes(
                         f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_TYPE}",
                         type,
                     )
-                if (text := content_block.get("text")) is not None:
-                    yield (
-                        f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_TEXT}",
-                        text,
-                    )
+                    if isinstance(text := content_block.get("text"), str):
+                        yield (
+                            f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_TEXT}",
+                            text,
+                        )
                 if isinstance(image := content_block.get("image"), dict):
                     if isinstance(url := image.get("url"), str):
                         yield (
