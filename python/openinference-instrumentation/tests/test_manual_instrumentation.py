@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple,
 import jsonschema
 import pydantic
 import pytest
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessageParam,
@@ -1320,11 +1320,11 @@ class TestTracerLLMDecorator:
         self,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
-        openai_client: OpenAI,
+        sync_openai_client: OpenAI,
     ) -> None:
         @tracer.llm
         def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
-            return openai_client.chat.completions.create(
+            return sync_openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=input_messages,
                 temperature=0.5,
@@ -1345,6 +1345,48 @@ class TestTracerLLMDecorator:
         span = spans[0]
 
         assert span.name == "sync_llm_function"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == response.model_dump()
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    async def test_async_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        async_openai_client: AsyncOpenAI,
+    ) -> None:
+        @tracer.llm
+        async def async_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
+            return await async_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+            )
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+            )
+        ]
+        response = await async_llm_function(input_messages)
+        output_message = response.choices[0].message
+        assert output_message.content == "Argentina"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "async_llm_function"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
