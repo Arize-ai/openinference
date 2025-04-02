@@ -3,7 +3,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import (
     Any,
+    AsyncGenerator,
     Dict,
+    Generator,
     List,
     Literal,
     Mapping,
@@ -12,7 +14,6 @@ from typing import (
     Tuple,
     TypedDict,
     Union,
-    Generator,
 )
 
 import jsonschema
@@ -1417,7 +1418,7 @@ class TestTracerLLMDecorator:
         sync_openai_client: OpenAI,
     ) -> None:
         @tracer.llm
-        def sync_llm_generator(
+        def sync_llm_generator_function(
             input_messages: List[ChatCompletionMessageParam],
         ) -> Generator[ChatCompletion, None, None]:
             stream = sync_openai_client.chat.completions.create(
@@ -1432,18 +1433,67 @@ class TestTracerLLMDecorator:
         input_messages: List[ChatCompletionMessageParam] = [
             ChatCompletionUserMessageParam(
                 role="user",
-                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+                content="Who won the World Cup in 2022? Answer with a sentence of the form: "
+                "'The winner of the World Cup in 2022 was <country>.'.",
             )
         ]
-        chunks = list(sync_llm_generator(input_messages))
+        chunks = list(sync_llm_generator_function(input_messages))
         content = "".join(chunk.choices[0].delta.content or "" for chunk in chunks)
-        assert content == "Argentina"
+        assert content == "The winner of the World Cup in 2022 was Argentina."
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
 
-        assert span.name == "sync_llm_generator"
+        assert span.name == "sync_llm_generator_function"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == [chunk.model_dump() for chunk in chunks]
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    async def test_async_generator_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        async_openai_client: AsyncOpenAI,
+    ) -> None:
+        @tracer.llm
+        async def async_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> AsyncGenerator[ChatCompletion, None]:
+            stream = await async_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+                stream=True,
+            )
+            async for chunk in stream:
+                yield chunk
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer with a sentence of the form: "
+                "'The winner of the World Cup in 2022 was <country>.'.",
+            )
+        ]
+        chunks = []
+        async for chunk in async_llm_generator_function(input_messages):
+            chunks.append(chunk)
+        content = "".join(chunk.choices[0].delta.content or "" for chunk in chunks)
+        assert content == "The winner of the World Cup in 2022 was Argentina."
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "async_llm_generator_function"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
