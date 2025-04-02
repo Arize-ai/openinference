@@ -1181,11 +1181,21 @@ def test_get_attributes_from_message_content_list(
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
                 "llm.output_messages.0.message.role": "assistant",
                 "llm.token_count.completion": 5,
+                "llm.token_count.completion_details.reasoning": 0,
                 "llm.token_count.prompt": 10,
+                "llm.token_count.prompt_details.cache_read": 0,
                 "llm.token_count.total": 15,
-                "llm.tools.0.tool.json_schema": '{"type": "function", "function": {"name": '
-                '"test_func", "description": "test", '
-                '"parameters": {}, "strict": true}}',
+                "llm.tools.0.tool.json_schema": json.dumps(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "test_func",
+                            "description": "test",
+                            "parameters": {},
+                            "strict": True,
+                        },
+                    }
+                ),
             },
             id="complete_response",
         ),
@@ -1370,7 +1380,9 @@ def test_get_attributes_from_message_content_list(
                 "llm.output_messages.1.message.tool_calls.0.tool_call.function.name": "test_func",
                 "llm.output_messages.1.message.tool_calls.0.tool_call.function.arguments": '{"arg": "value"}',  # noqa: E501
                 "llm.token_count.completion": 500,
+                "llm.token_count.completion_details.reasoning": 50,
                 "llm.token_count.prompt": 1000,
+                "llm.token_count.prompt_details.cache_read": 100,
                 "llm.token_count.total": 1500,
                 "llm.tools.0.tool.json_schema": json.dumps(
                     {
@@ -1988,7 +2000,9 @@ def test_get_attributes_from_message(
             ),
             {
                 "llm.token_count.prompt": 10,
+                "llm.token_count.completion_details.reasoning": 0,
                 "llm.token_count.completion": 5,
+                "llm.token_count.prompt_details.cache_read": 0,
                 "llm.token_count.total": 15,
             },
             id="complete_usage",
@@ -2012,7 +2026,9 @@ def test_get_attributes_from_message(
             ),
             {
                 "llm.token_count.prompt": 0,
+                "llm.token_count.completion_details.reasoning": 0,
                 "llm.token_count.completion": 0,
+                "llm.token_count.prompt_details.cache_read": 0,
                 "llm.token_count.total": 0,
             },
             id="zero_tokens",
@@ -2030,8 +2046,10 @@ def test_get_attributes_from_message(
                 ),
             ),
             {
-                "llm.token_count.prompt": 1000,
                 "llm.token_count.completion": 500,
+                "llm.token_count.completion_details.reasoning": 50,
+                "llm.token_count.prompt": 1000,
+                "llm.token_count.prompt_details.cache_read": 100,
                 "llm.token_count.total": 1500,
             },
             id="large_token_counts",
