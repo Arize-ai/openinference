@@ -1,7 +1,19 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, TypedDict, Union
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TypedDict,
+    Union,
+    Generator,
+)
 
 import jsonschema
 import pydantic
@@ -1395,6 +1407,51 @@ class TestTracerLLMDecorator:
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert json.loads(output_value) == response.model_dump()
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    def test_sync_generator_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        sync_openai_client: OpenAI,
+    ) -> None:
+        @tracer.llm
+        def sync_llm_generator(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> Generator[ChatCompletion, None, None]:
+            stream = sync_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+                stream=True,
+            )
+            for chunk in stream:
+                yield chunk
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+            )
+        ]
+        chunks = list(sync_llm_generator(input_messages))
+        content = "".join(chunk.choices[0].delta.content or "" for chunk in chunks)
+        assert content == "Argentina"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "sync_llm_generator"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == [chunk.model_dump() for chunk in chunks]
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
 
