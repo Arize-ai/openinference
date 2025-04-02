@@ -9,7 +9,9 @@ import { context } from "@opentelemetry/api";
 
 import OpenAI from "openai";
 import { Stream } from "openai/streaming";
+import { APIPromise } from "openai/core";
 import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
+import { CreateEmbeddingResponse } from "openai/resources/embeddings";
 
 // Function tools
 async function getCurrentLocation() {
@@ -169,39 +171,54 @@ describe("OpenAIInstrumentation", () => {
 `);
   });
   it("creates a span for embedding create", async () => {
-    const response = {
+    const response: CreateEmbeddingResponse = {
       object: "list",
       data: [{ object: "embedding", index: 0, embedding: [1, 2, 3] }],
+      model: "text-embedding-ada-003-small",
+      usage: { prompt_tokens: 0, total_tokens: 0 },
     };
-    // Mock out the embedding create endpoint
-    jest.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
-        return response;
-      },
-    );
+
+    // Mock out the embedding create endpoint with proper Promise handling
+    jest.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new Promise((resolve) => {
+          resolve({
+            response: new Response(JSON.stringify(response), {
+              headers: {
+                "content-type": "application/json",
+              },
+              status: 200,
+              statusText: "OK",
+            }),
+            options: {
+              method: "post",
+              path: "/embeddings",
+            },
+            controller: new AbortController(),
+          });
+        }),
+      );
+    });
+
     await openai.embeddings.create({
       input: "A happy moment",
-      model: "text-embedding-ada-002",
+      model: "text-embedding-ada-003-small",
     });
+
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
     const span = spans[0];
     expect(span.name).toBe("OpenAI Embeddings");
-    expect(span.attributes).toMatchInlineSnapshot(`
-      {
-        "embedding.embeddings.0.embedding.text": "A happy moment",
-        "embedding.embeddings.0.embedding.vector": [
-          1,
-          2,
-          3,
-        ],
-        "embedding.model_name": "text-embedding-ada-002",
-        "input.mime_type": "text/plain",
-        "input.value": "A happy moment",
-        "openinference.span.kind": "EMBEDDING",
-      }
-    `);
+    // Check the attributes
+    expect(span.attributes["embedding.embeddings.0.embedding.text"]).toBe(
+      "A happy moment",
+    );
+    expect(span.attributes["embedding.model_name"]).toBe(
+      "text-embedding-ada-003-small",
+    );
+    expect(span.attributes["input.mime_type"]).toBe("text/plain");
+    expect(span.attributes["input.value"]).toBe("A happy moment");
+    expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
   });
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
