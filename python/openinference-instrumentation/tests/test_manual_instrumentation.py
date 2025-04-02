@@ -1604,6 +1604,60 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
 
+    def test_sync_generator_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        sync_openai_client: OpenAI,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> OTelAttributesType:
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(outputs: Sequence[ChatCompletionChunk]) -> OTelAttributesType:
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            get_attributes_from_inputs=get_input_attributes,
+            get_attributes_from_outputs=get_output_attributes,
+        )
+        def sync_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> Generator[ChatCompletionChunk, None, None]:
+            stream = sync_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+                stream=True,
+            )
+            for chunk in stream:
+                yield chunk
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer with a sentence of the form: "
+                "'The winner of the World Cup in 2022 was <country>.'.",
+            )
+        ]
+        chunks = list(sync_llm_generator_function(input_messages))
+        content = "".join(chunk.choices[0].delta.content or "" for chunk in chunks)
+        assert content == "The winner of the World Cup in 2022 was Argentina."
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
 
 def test_infer_tool_parameters() -> None:
     class PydanticModel(pydantic.BaseModel):
