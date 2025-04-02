@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.5...python-openinference-instrumentation-openai-agents-v0.1.6) (2025-04-02)
+
+
+### Features
+
+* capture result from MCPListToolsSpanData ([#1458](https://github.com/Arize-ai/openinference/issues/1458)) ([66abe50](https://github.com/Arize-ai/openinference/commit/66abe50f187a45ce11fb64f3399b52a3139fe115))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.4...python-openinference-instrumentation-openai-agents-v0.1.5) (2025-03-28)
 
 
