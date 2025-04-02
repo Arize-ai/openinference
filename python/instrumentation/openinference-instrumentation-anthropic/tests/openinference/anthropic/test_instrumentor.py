@@ -1,10 +1,10 @@
 import json
+import random
+import string
 from typing import Any, Dict, Generator, Optional
 
 import anthropic
 import pytest
-import random
-import string
 from anthropic import Anthropic, AsyncAnthropic
 from anthropic.resources.completions import AsyncCompletions, Completions
 from anthropic.resources.messages import (
@@ -966,13 +966,13 @@ def test_anthropic_instrumentation_messages_token_counts(
     client = Anthropic(api_key="sk-")
     random_1024_token = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
     novel_text = """Full Text of Novel <Pride and Prejudice>""" + random_1024_token
-    response = client.messages.create(
+    client.messages.create(
         model="claude-3-7-sonnet-20250219",
         max_tokens=2048,
         system=[
             {
                 "type": "text",
-                "text": "You are an AI assistant tasked with analyzing literary works. Your goal is to provide insightful commentary on themes, characters, and writing style.\n",
+                "text": "You are an AI assistant tasked with analyzing literary works.\n",
             },
             {
                 "type": "text",
@@ -990,7 +990,7 @@ def test_anthropic_instrumentation_messages_token_counts(
         system=[
             {
                 "type": "text",
-                "text": "You are an AI assistant tasked with analyzing literary works. Your goal is to provide insightful commentary on themes, characters, and writing style.\n",
+                "text": "You are an AI assistant tasked with analyzing literary works.\n",
             },
             {
                 "type": "text",
@@ -1013,7 +1013,7 @@ def test_anthropic_instrumentation_messages_token_counts(
     assert (
         att1.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE)
         == att2.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ)
-        == 1765
+        == 1733
     )
     # first request doesn't hit cache
     assert att1.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) is None
