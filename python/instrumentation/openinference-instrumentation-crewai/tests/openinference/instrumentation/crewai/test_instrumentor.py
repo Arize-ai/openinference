@@ -48,9 +48,7 @@ def setup_crewai_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(
-            group="opentelemetry_instrumentor", name="crewai"
-        )
+        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="crewai")
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, CrewAIInstrumentor)
 
@@ -64,9 +62,7 @@ def test_crewai_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_crewai_instrumentation: Any,
 ) -> None:
-    with test_vcr.use_cassette(
-        "crew_session.yaml", filter_headers=["authorization", "X-API-KEY"]
-    ):
+    with test_vcr.use_cassette("crew_session.yaml", filter_headers=["authorization", "X-API-KEY"]):
         import os
 
         os.environ["OPENAI_API_KEY"] = "fake_key"
@@ -253,12 +249,11 @@ def _check_context_attributes(
     assert list(attr_tags) == tags
     assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
     assert (
-        attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None)
-        == prompt_template_version
+        attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) == prompt_template_version
     )
-    assert attributes.pop(
-        SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None
-    ) == json.dumps(prompt_template_variables)
+    assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
+        prompt_template_variables
+    )
 
 
 @pytest.fixture()
