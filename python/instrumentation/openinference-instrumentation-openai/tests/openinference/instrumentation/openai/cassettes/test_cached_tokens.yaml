@@ -1,0 +1,58 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "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
+      Write me a haiku."}], "model": "gpt-4o-mini"}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BHhIDcvFoWetDBmuGRxfooF3NLCmL\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1743557693,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Whispers in the breeze,  \\nAutumn
+        leaves dance gracefully,  \\nNature\u2019s soft embrace.\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        1393,\n    \"completion_tokens\": 20,\n    \"total_tokens\": 1413,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_b376dfbbd5\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "user", "content": "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
+      Write me a sonnet."}], "model": "gpt-4o-mini"}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BHhIEErhX7F6V54LfYUyhiSMGPMtd\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1743557694,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"In twilight's glow, the world begins
+        to fade,  \\nAs whispers dance upon the evening breeze.  \\nThe shadows stretch,
+        a soft serenade,  \\nWhile starlit secrets linger among trees.  \\n\\nThe
+        moon, a lantern in the night\u2019s embrace,  \\nIlluminates the path for
+        weary souls,  \\nRevealing dreams that time cannot erase,  \\nAnd weaving
+        tales only the heart controls.  \\n\\nIn gardens where the flowers gently
+        sigh,  \\nEach petal tells a story of its own,  \\nOf love that blooms and
+        peace that will not die,  \\nIn nature\u2019s arms, we\u2019ve never walked
+        alone.  \\n\\nSo let us tread where silver rivers flow,  \\nAnd find our hearts
+        in moments soft and slow.  \",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 1393,\n    \"completion_tokens\":
+        148,\n    \"total_tokens\": 1541,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        1280,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_b376dfbbd5\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
