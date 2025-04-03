@@ -905,9 +905,10 @@ def test_token_counts(
     oai_model.invoke(messages)
     anthropic_model.invoke(messages)
 
-    ## The token counts in the mocked responses in "cassettes/test_instrumentor/test_token_counts.yaml"
-    ## are not accurate representations of the actual token counts fro API calls.
-    ## They were manually altered/hard coded for test assertions.
+    # The token counts in the mocked responses in the file
+    # "cassettes/test_instrumentor/test_token_counts.yaml"
+    # are not accurate representations of the actual token counts fro API calls.
+    # They were manually altered/hard coded for test assertions.
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
