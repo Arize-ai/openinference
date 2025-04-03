@@ -43,7 +43,7 @@ from opentelemetry.trace import (
     use_span,
 )
 from opentelemetry.util.types import Attributes, AttributeValue
-from typing_extensions import ParamSpec, TypeAlias, TypeVar, _AnnotatedAlias, overload
+from typing_extensions import ParamSpec, TypeVar, _AnnotatedAlias, overload
 
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
@@ -71,8 +71,6 @@ SyncReturnType = TypeVar("SyncReturnType")
 YieldType = TypeVar("YieldType")
 AsyncYieldType = TypeVar("AsyncYieldType")
 CoroutineReturnType = TypeVar("CoroutineReturnType")
-
-OTelAttributesType: TypeAlias = Mapping[str, AttributeValue]
 
 
 pydantic: Optional[ModuleType]
@@ -443,8 +441,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name: Optional[str] = None,
-        process_input: Optional[Callable[ParametersType, OTelAttributesType]] = None,
-        process_output: Optional[Callable[..., OTelAttributesType]] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
     ) -> Callable[
         [Callable[ParametersType, ReturnType]],
         Callable[ParametersType, ReturnType],
@@ -614,13 +612,13 @@ class _LLMContext:
     def __init__(
         self,
         span: "OpenInferenceSpan",
-        process_output: Optional[Callable[[Any], OTelAttributesType]],
+        process_output: Optional[Callable[[Any], "Mapping[str, AttributeValue]"]],
     ) -> None:
         self._span = span
         self._process_output = process_output
 
     def process_output(self, output: Any) -> None:
-        attributes: OTelAttributesType = getattr(self._span, "attributes", {}) or {}
+        attributes: "Mapping[str, AttributeValue]" = getattr(self._span, "attributes", {}) or {}
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
             if callable(self._process_output):
@@ -639,8 +637,8 @@ def _llm_context(
     *,
     tracer: "OITracer",
     name: Optional[str],
-    process_input: Optional[Callable[ParametersType, OTelAttributesType]],
-    process_output: Optional[Callable[[ReturnType], OTelAttributesType]],
+    process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]],
+    process_output: Optional[Callable[[ReturnType], "Mapping[str, AttributeValue]"]],
     wrapped: Callable[ParametersType, ReturnType],
     instance: Any,
     args: Tuple[Any, ...],
@@ -650,7 +648,7 @@ def _llm_context(
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
-    input_attributes: OTelAttributesType = {}
+    input_attributes: "Mapping[str, AttributeValue]" = {}
     if callable(process_input):
         try:
             input_attributes = process_input(*args, **kwargs)

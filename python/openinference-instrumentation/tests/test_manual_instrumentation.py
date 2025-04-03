@@ -28,6 +28,7 @@ from openai.types.chat import (
 )
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Status, StatusCode, get_current_span
+from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
 from typing_extensions import Annotated, TypeAlias
 
@@ -37,7 +38,7 @@ from openinference.instrumentation import (
     suppress_tracing,
     using_session,
 )
-from openinference.instrumentation._tracers import OTelAttributesType, _infer_tool_parameters
+from openinference.instrumentation._tracers import _infer_tool_parameters
 from openinference.instrumentation._types import (
     Image,
     ImageMessageContent,
@@ -1592,10 +1593,10 @@ class TestTracerLLMDecorator:
     ) -> None:
         def get_input_attributes(
             input_messages: List[ChatCompletionMessageParam],
-        ) -> OTelAttributesType:
+        ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> OTelAttributesType:
+        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -1646,10 +1647,10 @@ class TestTracerLLMDecorator:
     ) -> None:
         def get_input_attributes(
             input_messages: List[ChatCompletionMessageParam],
-        ) -> OTelAttributesType:
+        ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> OTelAttributesType:
+        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -1702,10 +1703,12 @@ class TestTracerLLMDecorator:
     ) -> None:
         def get_input_attributes(
             input_messages: List[ChatCompletionMessageParam],
-        ) -> OTelAttributesType:
+        ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(outputs: Sequence[ChatCompletionChunk]) -> OTelAttributesType:
+        def get_output_attributes(
+            outputs: Sequence[ChatCompletionChunk],
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -1762,10 +1765,12 @@ class TestTracerLLMDecorator:
     ) -> None:
         def get_input_attributes(
             input_messages: List[ChatCompletionMessageParam],
-        ) -> OTelAttributesType:
+        ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(outputs: Sequence[ChatCompletionChunk]) -> OTelAttributesType:
+        def get_output_attributes(
+            outputs: Sequence[ChatCompletionChunk],
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(

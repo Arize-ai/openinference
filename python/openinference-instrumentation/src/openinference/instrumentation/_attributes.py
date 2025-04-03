@@ -230,7 +230,7 @@ def get_llm_attributes(
 
 def get_llm_provider_attributes(
     provider: Optional[OpenInferenceLLMProvider],
-) -> Mapping[str, AttributeValue]:
+) -> "Mapping[str, AttributeValue]":
     if isinstance(provider, OpenInferenceLLMProviderValues):
         return {LLM_PROVIDER: provider.value}
     if isinstance(provider, str):
@@ -240,7 +240,7 @@ def get_llm_provider_attributes(
 
 def get_llm_system_attributes(
     system: Optional[OpenInferenceLLMSystem],
-) -> Mapping[str, AttributeValue]:
+) -> "Mapping[str, AttributeValue]":
     if isinstance(system, OpenInferenceLLMSystemValues):
         return {LLM_SYSTEM: system.value}
     if isinstance(system, str):
@@ -250,7 +250,7 @@ def get_llm_system_attributes(
 
 def get_llm_model_name_attributes(
     model_name: Optional[str],
-) -> Mapping[str, AttributeValue]:
+) -> "Mapping[str, AttributeValue]":
     if isinstance(model_name, str):
         return {LLM_MODEL_NAME: model_name}
     return {}
@@ -258,7 +258,7 @@ def get_llm_model_name_attributes(
 
 def get_llm_invocation_parameter_attributes(
     invocation_parameters: Optional[Union[str, Dict[str, Any]]],
-) -> Mapping[str, AttributeValue]:
+) -> "Mapping[str, AttributeValue]":
     if isinstance(invocation_parameters, str):
         return {LLM_INVOCATION_PARAMETERS: invocation_parameters}
     elif isinstance(invocation_parameters, Dict):
@@ -268,7 +268,7 @@ def get_llm_invocation_parameter_attributes(
 
 def get_llm_input_message_attributes(
     messages: Optional["Sequence[Message]"],
-) -> Mapping[str, AttributeValue]:
+) -> "Mapping[str, AttributeValue]":
     return {
         **dict(_llm_messages_attributes(messages, "input")),
     }
@@ -276,7 +276,7 @@ def get_llm_input_message_attributes(
 
 def get_llm_output_message_attributes(
     messages: Optional["Sequence[Message]"],
-) -> Mapping[str, AttributeValue]:
+) -> "Mapping[str, AttributeValue]":
     return {
         **dict(_llm_messages_attributes(messages, "output")),
     }
@@ -348,7 +348,7 @@ def _llm_messages_attributes(
 
 def get_llm_token_count_attributes(
     token_count: Optional[TokenCount],
-) -> Mapping[str, AttributeValue]:
+) -> "Mapping[str, AttributeValue]":
     attributes: Dict[str, AttributeValue] = {}
     if isinstance(token_count, dict):
         if (prompt := token_count.get("prompt")) is not None:
@@ -362,7 +362,7 @@ def get_llm_token_count_attributes(
 
 def get_llm_tool_attributes(
     tools: Optional["Sequence[Tool]"],
-) -> Mapping[str, AttributeValue]:
+) -> "Mapping[str, AttributeValue]":
     attributes: Dict[str, AttributeValue] = {}
     if not isinstance(tools, Sequence):
         return {}
