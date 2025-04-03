@@ -398,8 +398,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name: None = None,
-        get_attributes_from_inputs: None = None,
-        get_attributes_from_outputs: None = None,
+        process_input: None = None,
+        process_output: None = None,
     ) -> Callable[ParametersType, Generator[YieldType, None, None]]: ...
 
     @overload  # async generator function
@@ -409,8 +409,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name: None = None,
-        get_attributes_from_inputs: None = None,
-        get_attributes_from_outputs: None = None,
+        process_input: None = None,
+        process_output: None = None,
     ) -> Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]]: ...
 
     @overload  # async function
@@ -420,8 +420,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name: None = None,
-        get_attributes_from_inputs: None = None,
-        get_attributes_from_outputs: None = None,
+        process_input: None = None,
+        process_output: None = None,
     ) -> Callable[ParametersType, Coroutine[None, None, CoroutineReturnType]]: ...
 
     @overload  # sync function
@@ -431,8 +431,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name: None = None,
-        get_attributes_from_inputs: None = None,
-        get_attributes_from_outputs: None = None,
+        process_input: None = None,
+        process_output: None = None,
     ) -> Callable[ParametersType, SyncReturnType]: ...
 
     # Type hints for @tracer.llm(...) usage with explicit application of the decorator
@@ -443,8 +443,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name: Optional[str] = None,
-        get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]] = None,
-        get_attributes_from_outputs: Optional[Callable[..., OTelAttributesType]] = None,
+        process_input: Optional[Callable[ParametersType, OTelAttributesType]] = None,
+        process_output: Optional[Callable[..., OTelAttributesType]] = None,
     ) -> Callable[
         [Callable[ParametersType, ReturnType]],
         Callable[ParametersType, ReturnType],
@@ -456,8 +456,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name=None,
-        get_attributes_from_inputs=None,
-        get_attributes_from_outputs=None,
+        process_input=None,
+        process_output=None,
     ):
         @wrapt.decorator  # type: ignore[misc]
         def sync_function_wrapper(
@@ -470,8 +470,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             with _llm_context(
                 tracer=tracer,
                 name=name,
-                get_attributes_from_inputs=get_attributes_from_inputs,
-                get_attributes_from_outputs=get_attributes_from_outputs,
+                process_input=process_input,
+                process_output=process_output,
                 wrapped=wrapped,
                 instance=instance,
                 args=args,
@@ -492,8 +492,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             with _llm_context(
                 tracer=tracer,
                 name=name,
-                get_attributes_from_inputs=get_attributes_from_inputs,
-                get_attributes_from_outputs=get_attributes_from_outputs,
+                process_input=process_input,
+                process_output=process_output,
                 wrapped=wrapped,
                 instance=instance,
                 args=args,
@@ -514,8 +514,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             with _llm_context(
                 tracer=tracer,
                 name=name,
-                get_attributes_from_inputs=get_attributes_from_inputs,
-                get_attributes_from_outputs=get_attributes_from_outputs,
+                process_input=process_input,
+                process_output=process_output,
                 wrapped=wrapped,
                 instance=instance,
                 args=args,
@@ -538,8 +538,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             with _llm_context(
                 tracer=tracer,
                 name=name,
-                get_attributes_from_inputs=get_attributes_from_inputs,
-                get_attributes_from_outputs=get_attributes_from_outputs,
+                process_input=process_input,
+                process_output=process_output,
                 wrapped=wrapped,
                 instance=instance,
                 args=args,
@@ -614,18 +614,18 @@ class _LLMContext:
     def __init__(
         self,
         span: "OpenInferenceSpan",
-        get_attributes_from_outputs: Optional[Callable[[Any], OTelAttributesType]],
+        process_output: Optional[Callable[[Any], OTelAttributesType]],
     ) -> None:
         self._span = span
-        self._get_attributes_from_outputs = get_attributes_from_outputs
+        self._process_output = process_output
 
     def process_output(self, output: Any) -> None:
         attributes: OTelAttributesType = getattr(self._span, "attributes", {}) or {}
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
-            if callable(self._get_attributes_from_outputs):
+            if callable(self._process_output):
                 try:
-                    attributes = self._get_attributes_from_outputs(output)
+                    attributes = self._process_output(output)
                 except Exception as error:
                     warnings.warn(f"Failed to get attributes from outputs: {error}")
                 else:
@@ -639,8 +639,8 @@ def _llm_context(
     *,
     tracer: "OITracer",
     name: Optional[str],
-    get_attributes_from_inputs: Optional[Callable[ParametersType, OTelAttributesType]],
-    get_attributes_from_outputs: Optional[Callable[[ReturnType], OTelAttributesType]],
+    process_input: Optional[Callable[ParametersType, OTelAttributesType]],
+    process_output: Optional[Callable[[ReturnType], OTelAttributesType]],
     wrapped: Callable[ParametersType, ReturnType],
     instance: Any,
     args: Tuple[Any, ...],
@@ -651,9 +651,9 @@ def _llm_context(
     bound_args.apply_defaults()
     arguments = bound_args.arguments
     input_attributes: OTelAttributesType = {}
-    if callable(get_attributes_from_inputs):
+    if callable(process_input):
         try:
-            input_attributes = get_attributes_from_inputs(*args, **kwargs)
+            input_attributes = process_input(*args, **kwargs)
         except Exception as error:
             warnings.warn(f"Failed to get attributes from inputs: {error}")
     else:
@@ -669,7 +669,7 @@ def _llm_context(
     ) as span:
         context = _LLMContext(
             span=span,
-            get_attributes_from_outputs=get_attributes_from_outputs,
+            process_output=process_output,
         )
         yield context
         span.set_status(Status(StatusCode.OK))

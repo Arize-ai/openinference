@@ -1600,8 +1600,8 @@ class TestTracerLLMDecorator:
 
         @tracer.llm(
             name="custom-llm-name",
-            get_attributes_from_inputs=get_input_attributes,
-            get_attributes_from_outputs=get_output_attributes,
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
         )
         def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
             return sync_openai_client.chat.completions.create(
@@ -1654,8 +1654,8 @@ class TestTracerLLMDecorator:
 
         @tracer.llm(
             name="custom-llm-name",
-            get_attributes_from_inputs=get_input_attributes,
-            get_attributes_from_outputs=get_output_attributes,
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
         )
         async def async_llm_function(
             input_messages: List[ChatCompletionMessageParam],
@@ -1710,8 +1710,8 @@ class TestTracerLLMDecorator:
 
         @tracer.llm(
             name="custom-llm-name",
-            get_attributes_from_inputs=get_input_attributes,
-            get_attributes_from_outputs=get_output_attributes,
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
         )
         def sync_llm_generator_function(
             input_messages: List[ChatCompletionMessageParam],
@@ -1770,8 +1770,8 @@ class TestTracerLLMDecorator:
 
         @tracer.llm(
             name="custom-llm-name",
-            get_attributes_from_inputs=get_input_attributes,
-            get_attributes_from_outputs=get_output_attributes,
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
         )
         async def async_llm_generator_function(
             input_messages: List[ChatCompletionMessageParam],
