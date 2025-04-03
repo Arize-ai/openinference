@@ -1,5 +1,4 @@
 import json
-import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from datetime import datetime
@@ -211,8 +210,8 @@ def get_llm_attributes(
     tools: Optional["Sequence[Tool]"] = None,
 ) -> Dict[str, AttributeValue]:
     return {
-        **dict(_llm_provider_attributes(_normalize_llm_provider(provider))),
-        **dict(_llm_system_attributes(_normalize_llm_system(system))),
+        **dict(_llm_provider_attributes(_llm_provider_string(provider))),
+        **dict(_llm_system_attributes(_llm_system_string(system))),
         **dict(_llm_model_name_attributes(model_name)),
         **dict(_llm_invocation_parameters_attributes(invocation_parameters)),
         **dict(_llm_messages_attributes(input_messages, "input")),
@@ -222,55 +221,38 @@ def get_llm_attributes(
     }
 
 
-def _normalize_llm_provider(
+def _llm_provider_string(
     provider: Optional[OpenInferenceLLMProvider],
-) -> Optional[OpenInferenceLLMProviderValues]:
+) -> Optional[str]:
     if isinstance(provider, OpenInferenceLLMProviderValues):
-        return provider
+        return provider.value
     if isinstance(provider, str):
-        try:
-            return OpenInferenceLLMProviderValues(provider)
-        except ValueError:
-            valid_providers = [
-                provider.value.lower() for provider in OpenInferenceLLMProviderValues
-            ]
-            warnings.warn(
-                f"Invalid OpenInference LLM provider: {provider}. "
-                f"Valid providers include: {', '.join(map(_quote_string, valid_providers))}"
-            )
-            return None
+        return provider.lower()
     return None
 
 
 def _llm_provider_attributes(
-    provider: Optional[OpenInferenceLLMProviderValues],
+    provider: Optional[str],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    if isinstance(provider, OpenInferenceLLMProviderValues):
-        yield LLM_PROVIDER, provider.value
+    if isinstance(provider, str):
+        yield LLM_PROVIDER, provider
 
 
-def _normalize_llm_system(
+def _llm_system_string(
     system: Optional[OpenInferenceLLMSystem],
-) -> Optional[OpenInferenceLLMSystemValues]:
+) -> Optional[str]:
     if isinstance(system, OpenInferenceLLMSystemValues):
-        return system
+        return system.value
     if isinstance(system, str):
-        try:
-            return OpenInferenceLLMSystemValues(system)
-        except ValueError:
-            valid_systems = [system.value.lower() for system in OpenInferenceLLMSystemValues]
-            warnings.warn(
-                f"Invalid OpenInference LLM system: {system}. "
-                f"Valid systems include: {', '.join(map(_quote_string, valid_systems))}"
-            )
+        return system.lower()
     return None
 
 
 def _llm_system_attributes(
-    system: Optional[OpenInferenceLLMSystemValues],
+    system: Optional[str],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    if isinstance(system, OpenInferenceLLMSystemValues):
-        yield LLM_SYSTEM, system.value
+    if isinstance(system, str):
+        yield LLM_SYSTEM, system
 
 
 def _llm_model_name_attributes(model_name: Optional[str]) -> Iterator[Tuple[str, AttributeValue]]:
