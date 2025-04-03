@@ -32,12 +32,12 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-  "openai",
-  "pytest-asyncio",
-  "pydantic>=2.0.0",
   "jsonschema",
-  "types-jsonschema",
+  "openai",
+  "pydantic>=2.0.0",
+  "pytest-asyncio",
   "pytest-recording",
+  "types-jsonschema",
 ]
 
 [project.urls]
