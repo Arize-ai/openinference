@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.0.0...python-openinference-instrumentation-llama-index-v4.1.0) (2025-04-03)
+
+
+### Features
+
+* add toggle to separate trace from runtime context ([#1464](https://github.com/Arize-ai/openinference/issues/1464)) ([0865a69](https://github.com/Arize-ai/openinference/commit/0865a69904119676703e5ca26600458dd9fb60f2))
+
 ## [4.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.3.3...python-openinference-instrumentation-llama-index-v4.0.0) (2025-03-28)
 
 
