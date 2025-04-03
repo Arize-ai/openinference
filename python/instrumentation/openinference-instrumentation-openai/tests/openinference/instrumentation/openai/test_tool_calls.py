@@ -206,7 +206,10 @@ def test_cached_tokens(
     assert len(spans) == 2
     span = spans[1]
     attributes = dict(span.attributes or {})
-    print(attributes)
+    assert (
+        attributes.pop("llm.token_count.prompt_details.cache_read")
+        == 1280
+    )
 
 def _openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
