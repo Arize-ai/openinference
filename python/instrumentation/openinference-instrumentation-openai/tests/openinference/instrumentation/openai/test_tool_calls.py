@@ -164,14 +164,15 @@ def test_tool_calls(
         == '{"city": "San Francisco"}'
     )
 
+
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
 def test_cached_tokens(
-        in_memory_span_exporter: InMemorySpanExporter,
-        tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
 ) -> None:
     if _openai_version() < (1, 12, 0):
         pytest.skip("Not supported")
@@ -203,10 +204,8 @@ def test_cached_tokens(
     assert len(spans) == 2
     span = spans[1]
     attributes = dict(span.attributes or {})
-    assert (
-        attributes.pop("llm.token_count.prompt_details.cache_read")
-        == 1280
-    )
+    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 1280
+
 
 def _openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
