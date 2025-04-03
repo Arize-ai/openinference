@@ -67,11 +67,6 @@ if TYPE_CHECKING:
 
 ParametersType = ParamSpec("ParametersType")
 ReturnType = TypeVar("ReturnType")
-SyncReturnType = TypeVar("SyncReturnType")
-YieldType = TypeVar("YieldType")
-AsyncYieldType = TypeVar("AsyncYieldType")
-CoroutineReturnType = TypeVar("CoroutineReturnType")
-
 
 pydantic: Optional[ModuleType]
 try:
@@ -388,53 +383,18 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
         return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
 
-    # Type hints for @tracer.llm usage with no explicit application of the decorator
-    @overload  # sync generator function
+    @overload  # @tracer.llm usage with no explicit application of the decorator
     def llm(
         self,
-        wrapped_function: Callable[ParametersType, Generator[YieldType, None, None]],
+        wrapped_function: Callable[ParametersType, ReturnType],
         /,
         *,
         name: None = None,
         process_input: None = None,
         process_output: None = None,
-    ) -> Callable[ParametersType, Generator[YieldType, None, None]]: ...
+    ) -> Callable[ParametersType, ReturnType]: ...
 
-    @overload  # async generator function
-    def llm(
-        self,
-        wrapped_function: Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]],
-        /,
-        *,
-        name: None = None,
-        process_input: None = None,
-        process_output: None = None,
-    ) -> Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]]: ...
-
-    @overload  # async function
-    def llm(
-        self,
-        wrapped_function: Callable[ParametersType, Coroutine[None, None, CoroutineReturnType]],
-        /,
-        *,
-        name: None = None,
-        process_input: None = None,
-        process_output: None = None,
-    ) -> Callable[ParametersType, Coroutine[None, None, CoroutineReturnType]]: ...
-
-    @overload  # sync function
-    def llm(
-        self,
-        wrapped_function: Callable[ParametersType, SyncReturnType],
-        /,
-        *,
-        name: None = None,
-        process_input: None = None,
-        process_output: None = None,
-    ) -> Callable[ParametersType, SyncReturnType]: ...
-
-    # Type hints for @tracer.llm(...) usage with explicit application of the decorator
-    @overload
+    @overload  # @tracer.llm(...) usage with explicit application of the decorator
     def llm(
         self,
         wrapped_function: None = None,
@@ -448,22 +408,25 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, ReturnType],
     ]: ...
 
-    def llm(  # type: ignore[no-untyped-def]
+    def llm(
         self,
-        wrapped_function=None,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
         /,
         *,
-        name=None,
-        process_input=None,
-        process_output=None,
-    ):
+        name: Optional[str] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
         @wrapt.decorator  # type: ignore[misc]
         def sync_function_wrapper(
-            wrapped: Callable[ParametersType, SyncReturnType],
+            wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
-        ) -> SyncReturnType:
+        ) -> ReturnType:
             tracer = self
             with _llm_context(
                 tracer=tracer,
@@ -481,11 +444,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         @wrapt.decorator  #  type: ignore[misc]
         async def async_function_wrapper(
-            wrapped: Callable[ParametersType, Coroutine[None, None, CoroutineReturnType]],
+            wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
-        ) -> CoroutineReturnType:
+        ) -> ReturnType:
             tracer = self
             with _llm_context(
                 tracer=tracer,
@@ -503,11 +466,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         @wrapt.decorator  # type: ignore[misc]
         def sync_generator_function_wrapper(
-            wrapped: Callable[ParametersType, Generator[YieldType, None, None]],
+            wrapped: Callable[ParametersType, Generator[ReturnType, None, None]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
-        ) -> Generator[YieldType, None, None]:
+        ) -> Generator[ReturnType, None, None]:
             tracer = self
             with _llm_context(
                 tracer=tracer,
@@ -527,11 +490,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         @wrapt.decorator  # type: ignore[misc]
         async def async_generator_function_wrapper(
-            wrapped: Callable[ParametersType, AsyncGenerator[AsyncYieldType, None]],
+            wrapped: Callable[ParametersType, AsyncGenerator[ReturnType, None]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
-        ) -> AsyncGenerator[AsyncYieldType, None]:
+        ) -> AsyncGenerator[ReturnType, None]:
             tracer = self
             with _llm_context(
                 tracer=tracer,
@@ -561,7 +524,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             return sync_function_wrapper(wrapped)
 
         if wrapped_function is not None:
-            return select_wrapper(wrapped_function)
+            return select_wrapper(wrapped_function)  # type: ignore[no-any-return]
         return select_wrapper
 
 
