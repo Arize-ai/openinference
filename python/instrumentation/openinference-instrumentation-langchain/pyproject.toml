@@ -46,6 +46,7 @@ test = [
   "opentelemetry-sdk",
   "respx",
   "pytest-recording",
+  "pytest-rerunfailures",
   "langsmith",
   "portpicker",
   "starlette",
