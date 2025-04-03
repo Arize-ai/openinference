@@ -50,6 +50,7 @@ test = [
   "portpicker",
   "starlette",
   "uvicorn",
+  "vcrpy>=6.0.1",
 ]
 type-check = [
   "langchain_core == 0.2.43",
