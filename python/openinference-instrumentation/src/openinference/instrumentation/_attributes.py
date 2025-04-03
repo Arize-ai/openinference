@@ -371,10 +371,6 @@ def get_llm_tool_attributes(
     return attributes
 
 
-def _quote_string(string: str) -> str:
-    return f'"{string}"'
-
-
 # image attributes
 IMAGE_URL = ImageAttributes.IMAGE_URL
 

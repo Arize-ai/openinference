@@ -33,22 +33,20 @@ from pydantic import BaseModel
 from typing_extensions import Annotated, TypeAlias
 
 from openinference.instrumentation import (
-    OITracer,
-    get_llm_attributes,
-    suppress_tracing,
-    using_session,
-)
-from openinference.instrumentation._tracers import _infer_tool_parameters
-from openinference.instrumentation._types import (
     Image,
     ImageMessageContent,
     Message,
+    OITracer,
     TextMessageContent,
     TokenCount,
     Tool,
     ToolCall,
     ToolCallFunction,
+    get_llm_attributes,
+    suppress_tracing,
+    using_session,
 )
+from openinference.instrumentation._tracers import _infer_tool_parameters
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
