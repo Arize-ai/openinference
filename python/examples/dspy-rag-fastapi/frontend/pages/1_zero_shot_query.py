@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-fastapi_base_url = os.getenv("FASTAPI_BACKEND_URL", "localhost")
+fastapi_base_url = os.getenv("FASTAPI_BACKEND_URL", "http://localhost:8000")
 
 # interact with FastAPI endpoint
 backend = f"{fastapi_base_url}/api/rag/zero-shot-query"

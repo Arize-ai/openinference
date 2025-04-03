@@ -54,19 +54,12 @@ def using_weaviate():
 
 
 def get_lm(vendor_model: str, temperature: float, top_p: float, max_tokens: int, *args, **kwargs):
-    vendor, model = vendor_model.split(":")
-    if vendor == "openai":
-        return dspy.OpenAI(
-            model=model,
+    vendor, _ = vendor_model.split("/")
+    if vendor in ["cohere", "openai"]:
+        return dspy.LM(
+            model=vendor_model,
             temperature=temperature,
             top_p=top_p,
-            max_tokens=max_tokens,
-        )
-    if vendor == "cohere":
-        return dspy.Cohere(
-            model=model,
-            temperature=temperature,
-            p=top_p,
             max_tokens=max_tokens,
         )
     raise ValueError(f"model vendor {vendor} not supported.")
@@ -171,7 +164,7 @@ def get_models():
             cohere_client = cohere.Client()
             cohere_models_response = cohere_client.models.list()
             cohere_models = [model.name for model in cohere_models_response.models]  # type: ignore
-        models_list.extend([f"openai:{model}" for model in openai_models if "gpt" in model])
-        models_list.extend([f"cohere:{model}" for model in cohere_models if "command" in model])
+        models_list.extend([f"openai/{model}" for model in openai_models if "gpt" in model])
+        models_list.extend([f"cohere/{model}" for model in cohere_models if "command" in model])
 
     return {"models": models_list}
