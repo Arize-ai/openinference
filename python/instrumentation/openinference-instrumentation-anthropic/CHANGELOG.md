@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.14...python-openinference-instrumentation-anthropic-v0.1.15) (2025-04-03)
+
+
+### Features
+
+* instrumentation-anthropic cache token counts ([#1465](https://github.com/Arize-ai/openinference/issues/1465)) ([d6765e0](https://github.com/Arize-ai/openinference/commit/d6765e0edd455fb879ccf0b58ea7d3dfaabeabf0))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.13...python-openinference-instrumentation-anthropic-v0.1.14) (2025-03-25)
 
 
