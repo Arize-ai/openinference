@@ -1,7 +1,11 @@
+from typing import Iterator
+
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
 
 @pytest.fixture
@@ -16,3 +20,9 @@ def tracer_provider(
     tracer_provider = TracerProvider()
     tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     return tracer_provider
+
+
+@pytest.fixture(autouse=True)
+def uninstrument() -> Iterator[None]:
+    yield
+    LlamaIndexInstrumentor().uninstrument()
