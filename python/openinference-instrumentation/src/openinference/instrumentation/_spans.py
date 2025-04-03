@@ -30,7 +30,7 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         self._self_config = config
         self._self_important_attributes: Dict[str, AttributeValue] = {}
 
-    def set_attributes(self, attributes: Mapping[str, AttributeValue]) -> None:
+    def set_attributes(self, attributes: "Mapping[str, AttributeValue]") -> None:
         for k, v in attributes.items():
             self.set_attribute(k, v)
 
