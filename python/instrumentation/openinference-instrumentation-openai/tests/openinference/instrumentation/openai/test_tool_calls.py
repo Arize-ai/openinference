@@ -176,9 +176,6 @@ def test_cached_tokens(
     if _openai_version() < (1, 12, 0):
         pytest.skip("Not supported")
     openai = import_module("openai")
-    from openai.types.chat import (  # type: ignore[attr-defined,unused-ignore]
-        ChatCompletionToolParam,
-    )
 
     client = openai.OpenAI(api_key="sk-")
     random_1024_token_prefix = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
