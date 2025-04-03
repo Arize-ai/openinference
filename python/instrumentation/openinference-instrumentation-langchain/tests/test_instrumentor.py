@@ -913,7 +913,8 @@ def test_token_counts(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     (s1, s2) = spans
-    oai_attr, anthropic_attr = dict(s1.attributes), dict(s2.attributes)
+    oai_attr = dict(s1.attributes)
+    anthropic_attr = dict(s2.attributes)
     assert oai_attr.get(LLM_TOKEN_COUNT_PROMPT) == 20
     assert oai_attr.get(LLM_TOKEN_COUNT_COMPLETION) == 4
     assert oai_attr.get(LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO) == 4
