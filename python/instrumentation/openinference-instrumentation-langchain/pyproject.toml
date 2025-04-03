@@ -38,7 +38,7 @@ instruments = [
   "langchain_core >= 0.2.43",
 ]
 test = [
-  "langchain_core == 0.3.31",
+  "langchain_core == 0.3.50",
   "langchain == 0.3.15",
   "langchain_openai == 0.2.14",
   "langchain-community == 0.3.15",
