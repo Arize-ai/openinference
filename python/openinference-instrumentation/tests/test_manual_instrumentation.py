@@ -33,14 +33,30 @@ from typing_extensions import Annotated, TypeAlias
 
 from openinference.instrumentation import (
     OITracer,
+    get_llm_attributes,
     suppress_tracing,
     using_session,
 )
 from openinference.instrumentation._tracers import OTelAttributesType, _infer_tool_parameters
+from openinference.instrumentation._types import (
+    Image,
+    ImageMessageContent,
+    Message,
+    TextMessageContent,
+    TokenCount,
+    Tool,
+    ToolCall,
+    ToolCallFunction,
+)
 from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
 )
 
 
@@ -1793,6 +1809,139 @@ class TestTracerLLMDecorator:
         assert not attributes
 
 
+def test_get_llm_attributes_returns_expected_attributes() -> None:
+    input_messages: Sequence[Message] = [
+        Message(
+            role="user",
+            content="Hello",
+            contents=[
+                TextMessageContent(type="text", text="Hello"),
+                ImageMessageContent(type="image", image=Image(url="https://example.com/image.jpg")),
+            ],
+            tool_call_id="call-123",
+            tool_calls=[
+                ToolCall(
+                    id="call-456",
+                    function=ToolCallFunction(
+                        name="search",
+                        arguments='{"query": "test"}',
+                    ),
+                ),
+                ToolCall(
+                    id="call-789",
+                    function=ToolCallFunction(
+                        name="calculate",
+                        arguments={"operation": "add", "numbers": [1, 2, 3]},
+                    ),
+                ),
+            ],
+        )
+    ]
+    output_messages: Sequence[Message] = [
+        Message(
+            role="assistant",
+            content="Hi there!",
+            contents=[TextMessageContent(type="text", text="Hi there!")],
+        )
+    ]
+    token_count: TokenCount = TokenCount(prompt=10, completion=5, total=15)
+    tools: Sequence[Tool] = [
+        Tool(
+            json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}})
+        ),
+        Tool(json_schema={"type": "object", "properties": {"operation": {"type": "string"}}}),
+    ]
+    attributes = get_llm_attributes(
+        provider="openai",
+        system="openai",
+        model_name="gpt-4",
+        invocation_parameters={"temperature": 0.7, "max_tokens": 100},
+        input_messages=input_messages,
+        output_messages=output_messages,
+        token_count=token_count,
+        tools=tools,
+    )
+
+    assert attributes.pop(LLM_PROVIDER) == "openai"
+    assert attributes.pop(LLM_SYSTEM) == "openai"
+    assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
+    invocation_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
+    assert isinstance(invocation_params, str)
+    params_dict = json.loads(invocation_params)
+    assert params_dict == {"temperature": 0.7, "max_tokens": 100}
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Hello"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "Hello"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
+        )
+        == "https://example.com/image.jpg"
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALL_ID}") == "call-123"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
+        == "call-456"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "search"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        )
+        == '{"query": "test"}'
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_ID}")
+        == "call-789"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "calculate"
+    )
+    function_args = attributes.pop(
+        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert isinstance(function_args, str)
+    assert json.loads(function_args) == {"operation": "add", "numbers": [1, 2, 3]}
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Hi there!"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "Hi there!"
+    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 5
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 15
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}")
+        == '{"type": "object", "properties": {"query": {"type": "string"}}}'
+    )
+    tool_schema = attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}")
+    assert isinstance(tool_schema, str)
+    assert json.loads(tool_schema) == {
+        "type": "object",
+        "properties": {"operation": {"type": "string"}},
+    }
+
+
 def test_infer_tool_parameters() -> None:
     class PydanticModel(pydantic.BaseModel):
         string_param: str
@@ -2139,23 +2288,58 @@ def test_infer_tool_parameters() -> None:
     assert schema == expected_schema
 
 
-# mime types
+# Image attributes
+IMAGE_URL = ImageAttributes.IMAGE_URL
+
+# Message attributes
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+
+# Message content attributes
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+
+# Span attributes
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
+TOOL_NAME = SpanAttributes.TOOL_NAME
+TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+
+# Tool attributes
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+
+# Tool call attributes
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+
+# Mime types
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
 
-# span kinds
+# Span kinds
 AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 TOOL = OpenInferenceSpanKindValues.TOOL.value
 
-# span attributes
-INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
-INPUT_VALUE = SpanAttributes.INPUT_VALUE
-OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
-OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
-OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+# Session ID
 SESSION_ID = SpanAttributes.SESSION_ID
-TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
-TOOL_NAME = SpanAttributes.TOOL_NAME
-TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
