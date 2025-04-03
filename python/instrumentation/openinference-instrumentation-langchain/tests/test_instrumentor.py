@@ -558,7 +558,12 @@ def test_anthropic_token_counts(
                 "content": [{"type": "text", "text": "Argentina."}],
                 "stop_reason": "end_turn",
                 "stop_sequence": None,
-                "usage": {"input_tokens": 22, "output_tokens": 5},
+                "usage": {
+                    "input_tokens": 22,
+                    "output_tokens": 5,
+                    "cache_read_input_tokens": 9,
+                    "cache_creation_input_tokens": 2,
+                },
             },
         )
     )
@@ -571,6 +576,8 @@ def test_anthropic_token_counts(
     assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
     assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == 22
     assert llm_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == 5
+    assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 2
+    assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 9
 
 
 @pytest.mark.parametrize(
@@ -894,16 +901,12 @@ def test_token_counts(
     from langchain.chat_models import init_chat_model
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    oai_model = init_chat_model("gpt-4o-mini", model_provider="openai")
-    anthropic_model = init_chat_model("claude-3-opus-20240229", model_provider="anthropic")
-
+    llm = init_chat_model("gpt-4o-mini", model_provider="openai")
     messages = [
         SystemMessage("Translate the following from English into Italian"),
         HumanMessage("hi!"),
     ]
-
-    oai_model.invoke(messages)
-    anthropic_model.invoke(messages)
+    llm.invoke(messages)
 
     # The token counts in the mocked responses in the file
     # "cassettes/test_instrumentor/test_token_counts.yaml"
@@ -911,22 +914,16 @@ def test_token_counts(
     # They were manually altered/hard coded for test assertions.
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2
-    (s1, s2) = spans
-    oai_attr = dict(s1.attributes or {})
-    anthropic_attr = dict(s2.attributes or {})
-    assert oai_attr.get(LLM_TOKEN_COUNT_PROMPT) == 20
-    assert oai_attr.get(LLM_TOKEN_COUNT_COMPLETION) == 4
-    assert oai_attr.get(LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO) == 4
-    assert oai_attr.get(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 3
-    assert oai_attr.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO) == 2
-    assert oai_attr.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 1
-    assert oai_attr.get(LLM_TOKEN_COUNT_TOTAL) == 24
-
-    assert anthropic_attr.get(LLM_TOKEN_COUNT_PROMPT) == 17
-    assert anthropic_attr.get(LLM_TOKEN_COUNT_COMPLETION) == 7
-    assert anthropic_attr.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 2
-    assert anthropic_attr.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 1
+    assert len(spans) == 1
+    span = spans[0]
+    attr = dict(span.attributes or {})
+    assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == 20
+    assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == 4
+    assert attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO) == 4
+    assert attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 3
+    assert attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO) == 2
+    assert attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 1
+    assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == 24
 
 
 def _check_context_attributes(

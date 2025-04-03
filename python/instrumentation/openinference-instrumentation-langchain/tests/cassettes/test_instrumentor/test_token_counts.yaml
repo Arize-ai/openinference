@@ -21,17 +21,4 @@ interactions:
     status:
       code: 200
       message: OK
-- request:
-    body: '{"max_tokens":1024,"messages":[{"role":"user","content":"hi!"}],"model":"claude-3-opus-20240229","system":"Translate
-      the following from English into Italian"}'
-    headers: {}
-    method: POST
-    uri: https://api.anthropic.com/v1/messages
-  response:
-    body:
-      string: '{"id":"msg_01NbfzR6VBDdzytBuXiyfg2a","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[{"type":"text","text":"Ciao!"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":17,"cache_creation_input_tokens":1,"cache_read_input_tokens":2,"output_tokens":7}}'
-    headers: {}
-    status:
-      code: 200
-      message: OK
 version: 1
