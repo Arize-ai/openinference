@@ -640,9 +640,38 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             ),
         ),
         (LLM_TOKEN_COUNT_TOTAL, ("total_tokens", "total_token_count")),  # Gemini-specific key
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, ("cache_read_input_tokens",)),  # Antrhopic
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, ("cache_creation_input_tokens",)),  # Antrhopic
     ]:
         if (token_count := _get_first_value(token_usage, keys)) is not None:
             yield attribute_name, token_count
+
+    # OpenAI
+    for attribute_name, details_key, keys in [
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+            "completion_tokens_details",
+            ("audio_tokens",),
+        ),
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+            "completion_tokens_details",
+            ("reasoning_tokens",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+            "prompt_tokens_details",
+            ("audio_tokens",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+            "prompt_tokens_details",
+            ("cached_tokens",),
+        ),
+    ]:
+        if (details := token_usage.get(details_key)) is not None:
+            if (token_count := _get_first_value(details, keys)) is not None:
+                yield attribute_name, token_count
 
 
 def _parse_token_usage_for_vertexai(
@@ -880,7 +909,16 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS

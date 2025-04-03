@@ -1,0 +1,24 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"Translate the following from English into Italian","role":"system"},{"content":"hi!","role":"user"}],"model":"gpt-4o-mini","n":1,"stream":false,"temperature":0.7}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BI9zeX5oxGehJnciAiPXRPREeePmY\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1743668018,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Ciao!\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 20,\n    \"completion_tokens\":
+        4,\n    \"total_tokens\": 24,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        1,\n      \"audio_tokens\": 2\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 3,\n      \"audio_tokens\": 4,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_b376dfbbd5\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
