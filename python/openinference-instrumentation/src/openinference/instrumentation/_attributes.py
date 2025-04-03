@@ -210,63 +210,69 @@ def get_llm_attributes(
     tools: Optional["Sequence[Tool]"] = None,
 ) -> Dict[str, AttributeValue]:
     return {
-        **dict(_llm_provider_attributes(_llm_provider_string(provider))),
-        **dict(_llm_system_attributes(_llm_system_string(system))),
-        **dict(_llm_model_name_attributes(model_name)),
-        **dict(_llm_invocation_parameters_attributes(invocation_parameters)),
-        **dict(_llm_messages_attributes(input_messages, "input")),
-        **dict(_llm_messages_attributes(output_messages, "output")),
-        **dict(_llm_token_count_attributes(token_count)),
-        **dict(_llm_tool_attributes(tools)),
+        **get_llm_provider_attributes(provider),
+        **get_llm_system_attributes(system),
+        **get_llm_model_name_attributes(model_name),
+        **get_llm_invocation_parameter_attributes(invocation_parameters),
+        **get_llm_input_message_attributes(input_messages),
+        **get_llm_output_message_attributes(output_messages),
+        **get_llm_token_count_attributes(token_count),
+        **get_llm_tool_attributes(tools),
     }
 
 
-def _llm_provider_string(
+def get_llm_provider_attributes(
     provider: Optional[OpenInferenceLLMProvider],
-) -> Optional[str]:
+) -> Mapping[str, AttributeValue]:
     if isinstance(provider, OpenInferenceLLMProviderValues):
-        return provider.value
+        return {LLM_PROVIDER: provider.value}
     if isinstance(provider, str):
-        return provider.lower()
-    return None
+        return {LLM_PROVIDER: provider.lower()}
+    return {}
 
 
-def _llm_provider_attributes(
-    provider: Optional[str],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    if isinstance(provider, str):
-        yield LLM_PROVIDER, provider
-
-
-def _llm_system_string(
+def get_llm_system_attributes(
     system: Optional[OpenInferenceLLMSystem],
-) -> Optional[str]:
+) -> Mapping[str, AttributeValue]:
     if isinstance(system, OpenInferenceLLMSystemValues):
-        return system.value
+        return {LLM_SYSTEM: system.value}
     if isinstance(system, str):
-        return system.lower()
-    return None
+        return {LLM_SYSTEM: system.lower()}
+    return {}
 
 
-def _llm_system_attributes(
-    system: Optional[str],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    if isinstance(system, str):
-        yield LLM_SYSTEM, system
-
-
-def _llm_model_name_attributes(model_name: Optional[str]) -> Iterator[Tuple[str, AttributeValue]]:
+def get_llm_model_name_attributes(
+    model_name: Optional[str],
+) -> Mapping[str, AttributeValue]:
     if isinstance(model_name, str):
-        yield LLM_MODEL_NAME, model_name
+        return {LLM_MODEL_NAME: model_name}
+    return {}
 
 
-def _llm_invocation_parameters_attributes(
+def get_llm_invocation_parameter_attributes(
     invocation_parameters: Optional[Union[str, Dict[str, Any]]],
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Mapping[str, AttributeValue]:
     if isinstance(invocation_parameters, str):
-        yield LLM_INVOCATION_PARAMETERS, invocation_parameters
+        return {LLM_INVOCATION_PARAMETERS: invocation_parameters}
     elif isinstance(invocation_parameters, Dict):
-        yield LLM_INVOCATION_PARAMETERS, _json_serialize(invocation_parameters)
+        return {LLM_INVOCATION_PARAMETERS: _json_serialize(invocation_parameters)}
+    return {}
+
+
+def get_llm_input_message_attributes(
+    messages: Optional["Sequence[Message]"],
+) -> Mapping[str, AttributeValue]:
+    return {
+        **dict(_llm_messages_attributes(messages, "input")),
+    }
+
+
+def get_llm_output_message_attributes(
+    messages: Optional["Sequence[Message]"],
+) -> Mapping[str, AttributeValue]:
+    return {
+        **dict(_llm_messages_attributes(messages, "output")),
+    }
 
 
 def _llm_messages_attributes(
@@ -333,28 +339,36 @@ def _llm_messages_attributes(
                             )
 
 
-def _llm_token_count_attributes(
+def get_llm_token_count_attributes(
     token_count: Optional[TokenCount],
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Mapping[str, AttributeValue]:
+    attributes: Dict[str, AttributeValue] = {}
     if isinstance(token_count, dict):
         if (prompt := token_count.get("prompt")) is not None:
-            yield LLM_TOKEN_COUNT_PROMPT, prompt
+            attributes[LLM_TOKEN_COUNT_PROMPT] = prompt
         if (completion := token_count.get("completion")) is not None:
-            yield LLM_TOKEN_COUNT_COMPLETION, completion
+            attributes[LLM_TOKEN_COUNT_COMPLETION] = completion
         if (total := token_count.get("total")) is not None:
-            yield LLM_TOKEN_COUNT_TOTAL, total
+            attributes[LLM_TOKEN_COUNT_TOTAL] = total
+    return attributes
 
 
-def _llm_tool_attributes(tools: Optional["Sequence[Tool]"]) -> Iterator[Tuple[str, AttributeValue]]:
+def get_llm_tool_attributes(
+    tools: Optional["Sequence[Tool]"],
+) -> Mapping[str, AttributeValue]:
+    attributes: Dict[str, AttributeValue] = {}
     if not isinstance(tools, Sequence):
-        return
+        return {}
     for tool_index, tool in enumerate(tools):
         if not isinstance(tool, dict):
             continue
         if isinstance(tool_json_schema := tool.get("json_schema"), str):
-            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", tool_json_schema
+            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = tool_json_schema
         elif isinstance(tool_json_schema, dict):
-            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", _json_serialize(tool_json_schema)
+            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = _json_serialize(
+                tool_json_schema
+            )
+    return attributes
 
 
 def _quote_string(string: str) -> str:
