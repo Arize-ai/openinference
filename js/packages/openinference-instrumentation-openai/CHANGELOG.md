@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 2.2.0
+
+### Minor Changes
+
+- e5300f3: support for prompt and completion token count details for langchainjs and openai
+
 ## 2.1.0
 
 ### Minor Changes
