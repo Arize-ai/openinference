@@ -216,7 +216,7 @@ async def test_get_ancestor_spans_async(
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
-@pytest.mark.flaky(returns=5)  # test is flaky when is_stream is true
+@pytest.mark.flaky(reruns=5, reruns_delay=1)  # test is flaky when is_stream is true
 def test_callback_llm(
     is_async: bool,
     is_stream: bool,
