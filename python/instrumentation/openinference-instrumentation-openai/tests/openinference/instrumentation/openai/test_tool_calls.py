@@ -190,7 +190,7 @@ def test_cached_tokens(
             },
         ],
     )
-    resp = client.chat.completions.create(
+    client.chat.completions.create(
         extra_headers={"Accept-Encoding": "gzip"},
         model="gpt-4o-mini",
         messages=[
