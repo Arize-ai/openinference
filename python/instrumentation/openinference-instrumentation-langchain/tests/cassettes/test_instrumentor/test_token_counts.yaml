@@ -6,17 +6,30 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-BI7E9ojRWLKSq3Vqo9fjzoNmraUjt\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1743657385,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-BI9zeX5oxGehJnciAiPXRPREeePmY\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1743668018,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"Ciao!\",\n        \"refusal\": null,\n
         \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
         \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 20,\n    \"completion_tokens\":
         4,\n    \"total_tokens\": 24,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        1,\n      \"audio_tokens\": 2\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 3,\n      \"audio_tokens\": 4,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": \"fp_b376dfbbd5\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"max_tokens":1024,"messages":[{"role":"user","content":"hi!"}],"model":"claude-3-opus-20240229","system":"Translate
+      the following from English into Italian"}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"id":"msg_01NbfzR6VBDdzytBuXiyfg2a","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[{"type":"text","text":"Ciao!"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":17,"cache_creation_input_tokens":1,"cache_read_input_tokens":2,"output_tokens":7}}'
     headers: {}
     status:
       code: 200

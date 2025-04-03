@@ -890,18 +890,41 @@ def test_records_token_counts_for_streaming_openai_llm(
 )
 def test_token_counts(
     in_memory_span_exporter: InMemorySpanExporter,
-    tracer_provider: trace_api.TracerProvider,
 ) -> None:
     from langchain.chat_models import init_chat_model
-
-    model = init_chat_model("gpt-4o-mini", model_provider="openai")
     from langchain_core.messages import HumanMessage, SystemMessage
+
+    oai_model = init_chat_model("gpt-4o-mini", model_provider="openai")
+    anthropic_model = init_chat_model("claude-3-opus-20240229", model_provider="anthropic")
 
     messages = [
         SystemMessage("Translate the following from English into Italian"),
         HumanMessage("hi!"),
     ]
-    model.invoke(messages)
+
+    oai_model.invoke(messages)
+    anthropic_model.invoke(messages)
+
+## The token counts in the mocked responses in "cassettes/test_instrumentor/test_token_counts.yaml"
+## are not accurate representations of the actual token counts fro API calls.
+## They were manually altered/hard coded for test assertions.
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    (s1, s2) = spans
+    oai_attr, anthropic_attr = dict(s1.attributes), dict(s2.attributes)
+    assert oai_attr.get(LLM_TOKEN_COUNT_PROMPT) == 20
+    assert oai_attr.get(LLM_TOKEN_COUNT_COMPLETION) == 4
+    assert oai_attr.get(LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO) == 4
+    assert oai_attr.get(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 3
+    assert oai_attr.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO) == 2
+    assert oai_attr.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 1
+    assert oai_attr.get(LLM_TOKEN_COUNT_TOTAL) == 24
+
+    assert anthropic_attr.get(LLM_TOKEN_COUNT_PROMPT) == 17
+    assert anthropic_attr.get(LLM_TOKEN_COUNT_COMPLETION) == 7
+    assert anthropic_attr.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 2
+    assert anthropic_attr.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 1
 
 
 def _check_context_attributes(
@@ -938,10 +961,6 @@ def _check_context_attributes(
             == prompt_template_version
         )
     if prompt_template_variables and SUPPORTS_TEMPLATES:
-        # print(prompt_template_variables)
-        # x = attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None)
-        # print(x)
-        # assert x == json.dumps(prompt_template_variables)
         x = attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None)
         assert x
 
@@ -1103,8 +1122,6 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
-LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
-LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
 LLM = OpenInferenceSpanKindValues.LLM

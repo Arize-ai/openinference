@@ -620,9 +620,38 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             ),
         ),
         (LLM_TOKEN_COUNT_TOTAL, ("total_tokens", "total_token_count")),  # Gemini-specific key
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, ("cache_read_input_tokens",)),  # Antrhopic
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, ("cache_creation_input_tokens",)),  # Antrhopic
     ]:
         if (token_count := _get_first_value(token_usage, keys)) is not None:
             yield attribute_name, token_count
+
+    # OpenAI
+    for attribute_name, details_key, keys in [
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+            "completion_tokens_details",
+            ("audio_tokens",),
+        ),
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+            "completion_tokens_details",
+            ("reasoning_tokens",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+            "prompt_tokens_details",
+            ("audio_tokens",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+            "prompt_tokens_details",
+            ("cached_tokens",),
+        ),
+    ]:
+        if (details := token_usage.get(details_key)) is not None:
+            if (token_count := _get_first_value(details, keys)) is not None:
+                yield attribute_name, token_count
 
 
 def _parse_token_usage_for_vertexai(
