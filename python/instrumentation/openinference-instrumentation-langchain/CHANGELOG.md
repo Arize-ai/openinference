@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.37...python-openinference-instrumentation-langchain-v0.1.38) (2025-04-03)
+
+
+### Features
+
+* add toggle to separate trace from runtime context ([#1464](https://github.com/Arize-ai/openinference/issues/1464)) ([0865a69](https://github.com/Arize-ai/openinference/commit/0865a69904119676703e5ca26600458dd9fb60f2))
+
 ## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.36...python-openinference-instrumentation-langchain-v0.1.37) (2025-03-19)
 
 

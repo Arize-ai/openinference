@@ -753,11 +753,24 @@ class _ExportQueue:
 
 class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _otel_tracer: Tracer = PrivateAttr()
+    _separate_trace_from_runtime_context: bool = PrivateAttr()
     _export_queue: _ExportQueue = PrivateAttr()
 
-    def __init__(self, tracer: Tracer) -> None:
+    def __init__(
+        self,
+        tracer: Tracer,
+        separate_trace_from_runtime_context: bool = False,
+    ) -> None:
+        """Initialize the span handler.
+
+        Args:
+            tracer (trace_api.Tracer): The OpenTelemetry tracer for creating spans.
+            separate_trace_from_runtime_context (bool): When True, always start a new trace for each
+                span without a parent, isolating it from any existing trace in the runtime context.
+        """
         super().__init__()
         self._otel_tracer = tracer
+        self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
         self._export_queue = _ExportQueue()
 
     def new_span(
@@ -777,7 +790,11 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             name=id_.partition("-")[0],
             start_time=time_ns(),
             attributes=dict(get_attributes_from_context()),
-            context=(parent.context if parent else None),
+            context=(
+                parent.context
+                if parent
+                else (context_api.Context() if self._separate_trace_from_runtime_context else None)
+            ),
         )
         span = _Span(
             otel_span=otel_span,
@@ -843,9 +860,9 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
 class EventHandler(BaseEventHandler, extra="allow"):
     _span_handler: _SpanHandler = PrivateAttr()
 
-    def __init__(self, tracer: Tracer) -> None:
+    def __init__(self, span_handler: _SpanHandler) -> None:
         super().__init__()
-        self._span_handler = _SpanHandler(tracer=tracer)
+        self._span_handler = span_handler
 
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
