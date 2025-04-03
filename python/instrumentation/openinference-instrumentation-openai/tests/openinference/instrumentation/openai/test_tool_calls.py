@@ -1,4 +1,6 @@
 import json
+import random
+import string
 from importlib import import_module
 from importlib.metadata import version
 from typing import Tuple, cast
@@ -162,6 +164,49 @@ def test_tool_calls(
         == '{"city": "San Francisco"}'
     )
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_cached_tokens(
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer_provider: trace_api.TracerProvider,
+) -> None:
+    if _openai_version() < (1, 12, 0):
+        pytest.skip("Not supported")
+    openai = import_module("openai")
+    from openai.types.chat import (  # type: ignore[attr-defined,unused-ignore]
+        ChatCompletionToolParam,
+    )
+
+    client = openai.OpenAI(api_key="sk-")
+    random_1024_token_prefix = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
+    client.chat.completions.create(
+        extra_headers={"Accept-Encoding": "gzip"},
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "user",
+                "content": "{} Write me a haiku.".format(random_1024_token_prefix),
+            },
+        ],
+    )
+    resp = client.chat.completions.create(
+        extra_headers={"Accept-Encoding": "gzip"},
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "user",
+                "content": "{} Write me a sonnet.".format(random_1024_token_prefix),
+            },
+        ],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    span = spans[1]
+    attributes = dict(span.attributes or {})
+    print(attributes)
 
 def _openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
