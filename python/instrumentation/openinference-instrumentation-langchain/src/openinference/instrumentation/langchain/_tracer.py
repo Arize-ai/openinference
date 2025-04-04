@@ -410,6 +410,10 @@ def _input_messages(
         parsed_messages.append(dict(_parse_message_data(first_messages.to_json())))
     elif hasattr(first_messages, "get"):
         parsed_messages.append(dict(_parse_message_data(first_messages)))
+    elif isinstance(first_messages, Sequence) and len(first_messages) == 2:
+        # See e.g. https://github.com/langchain-ai/langchain/blob/18cf457eec106d99e0098b42712299f5d0daa798/libs/core/langchain_core/messages/utils.py#L317  # noqa: E501
+        role, content = first_messages
+        parsed_messages.append({MESSAGE_ROLE: role, MESSAGE_CONTENT: content})
     else:
         raise ValueError(f"failed to parse messages of type {type(first_messages)}")
     if parsed_messages:
