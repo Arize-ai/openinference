@@ -533,23 +533,20 @@ class _Span(BaseSpan):
         self._process_response_text_type(event.response)
 
     def _extract_token_counts(self, response: Union[ChatResponse, CompletionResponse]) -> None:
-        if (
-            (raw := getattr(response, "raw", None))
-            and hasattr(raw, "get")
-            and (usage := raw.get("usage"))
-        ):
-            for k, v in _get_token_counts(usage):
-                self[k] = v
-        if (
-            (raw := getattr(response, "raw", None))
-            and (model_extra := getattr(raw, "model_extra", None))
-            and hasattr(model_extra, "get")
-            and (x_groq := model_extra.get("x_groq"))
-            and hasattr(x_groq, "get")
-            and (usage := x_groq.get("usage"))
-        ):
-            for k, v in _get_token_counts(usage):
-                self[k] = v
+        if raw := getattr(response, "raw", None):
+            usage = raw.get("usage") if isinstance(raw, Mapping) else getattr(raw, "usage", None)
+            if usage:
+                for k, v in _get_token_counts(usage):
+                    self[k] = v
+            if (
+                (model_extra := getattr(raw, "model_extra", None))
+                and hasattr(model_extra, "get")
+                and (x_groq := model_extra.get("x_groq"))
+                and hasattr(x_groq, "get")
+                and (usage := x_groq.get("usage"))
+            ):
+                for k, v in _get_token_counts(usage):
+                    self[k] = v
         # Look for token counts in additional_kwargs of the completion payload
         # This is needed for non-OpenAI models
         if additional_kwargs := getattr(response, "additional_kwargs", None):
@@ -911,19 +908,70 @@ def _get_token_counts(usage: Union[object, Mapping[str, Any]]) -> Iterator[Tuple
 
 
 def _get_token_counts_from_object(usage: object) -> Iterator[Tuple[str, Any]]:
+    # OpenAI
     if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
         try:
             yield LLM_TOKEN_COUNT_PROMPT, int(prompt_tokens)
         except BaseException:
             pass
+    if (prompt_token_details := getattr(usage, "prompt_tokens_details", None)) is not None:
+        if (cached_tokens := getattr(prompt_token_details, "cached_tokens", None)) is not None:
+            try:
+                yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(cached_tokens)
+            except BaseException:
+                pass
+        if (audio_tokens := getattr(prompt_token_details, "audio_tokens", None)) is not None:
+            try:
+                yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, int(audio_tokens)
+            except BaseException:
+                pass
     if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
         try:
             yield LLM_TOKEN_COUNT_COMPLETION, int(completion_tokens)
         except BaseException:
             pass
+    if (completion_tokens_details := getattr(usage, "completion_tokens_details", None)) is not None:
+        if (
+            reasoning_tokens := getattr(completion_tokens_details, "reasoning_tokens", None)
+        ) is not None:
+            try:
+                yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, int(reasoning_tokens)
+            except BaseException:
+                pass
+        if (
+            completion_audio_tokens := getattr(completion_tokens_details, "audio_tokens", None)
+        ) is not None:
+            try:
+                yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, int(completion_audio_tokens)
+            except BaseException:
+                pass
     if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
         try:
             yield LLM_TOKEN_COUNT_TOTAL, int(total_tokens)
+        except BaseException:
+            pass
+
+    # Anthropic
+    if (input_tokens := getattr(usage, "input_tokens", None)) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT, int(input_tokens)
+        except BaseException:
+            pass
+    if (output_tokens := getattr(usage, "output_tokens", None)) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_COMPLETION, int(output_tokens)
+        except BaseException:
+            pass
+    if (
+        cache_creation_input_tokens := getattr(usage, "cache_creation_input_tokens", None)
+    ) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, int(cache_creation_input_tokens)
+        except BaseException:
+            pass
+    if (cache_read_input_tokens := getattr(usage, "cache_read_input_tokens", None)) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(cache_read_input_tokens)
         except BaseException:
             pass
 
@@ -936,14 +984,59 @@ def _get_token_counts_from_mapping(
             yield LLM_TOKEN_COUNT_PROMPT, int(prompt_tokens)
         except BaseException:
             pass
+    if (prompt_token_details := usage_mapping.get("prompt_token_details")) is not None:
+        if (cached_tokens := prompt_token_details.get("cached_tokens")) is not None:
+            try:
+                yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(cached_tokens)
+            except BaseException:
+                pass
+        if (audio_tokens := prompt_token_details.get("audio_tokens")) is not None:
+            try:
+                yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, int(audio_tokens)
+            except BaseException:
+                pass
     if (completion_tokens := usage_mapping.get("completion_tokens")) is not None:
         try:
             yield LLM_TOKEN_COUNT_COMPLETION, int(completion_tokens)
         except BaseException:
             pass
+    if (completion_tokens_details := usage_mapping.get("completion_tokens_details")) is not None:
+        if (reasoning_tokens := completion_tokens_details.get("reasoning_tokens")) is not None:
+            try:
+                yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, int(reasoning_tokens)
+            except BaseException:
+                pass
+        if (completion_audio_tokens := completion_tokens_details.get("audio")) is not None:
+            try:
+                yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, int(completion_audio_tokens)
+            except BaseException:
+                pass
     if (total_tokens := usage_mapping.get("total_tokens")) is not None:
         try:
             yield LLM_TOKEN_COUNT_TOTAL, int(total_tokens)
+        except BaseException:
+            pass
+    # Anthropic
+    if (input_tokens := usage_mapping.get("input_tokens")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT, int(input_tokens)
+        except BaseException:
+            pass
+    if (output_tokens := usage_mapping.get("output_tokens")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_COMPLETION, int(output_tokens)
+        except BaseException:
+            pass
+    if (
+        cache_creation_input_tokens := usage_mapping.get("cache_creation_input_tokens")
+    ) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, int(cache_creation_input_tokens)
+        except BaseException:
+            pass
+    if (cache_read_input_tokens := usage_mapping.get("cache_read_input_tokens")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(cache_read_input_tokens)
         except BaseException:
             pass
 
@@ -1099,7 +1192,17 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
+
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS

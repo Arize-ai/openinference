@@ -619,10 +619,36 @@ def _get_token_counts_from_object(usage: object) -> Iterator[Tuple[str, Any]]:
     """
     if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
         yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    if (prompt_token_details := getattr(usage, "prompt_tokens_details", None)) is not None:
+        if (cached_tokens := getattr(prompt_token_details, "cached_tokens", None)) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+        if (audio_tokens := getattr(prompt_token_details, "audio_tokens", None)) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_tokens
     if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
         yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+    if (completion_tokens_details := getattr(usage, "completion_tokens_details", None)) is not None:
+        if (
+            reasoning_tokens := getattr(completion_tokens_details, "reasoning_tokens", None)
+        ) is not None:
+            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
+        if (
+            completion_audio_tokens := getattr(completion_tokens_details, "audio_tokens", None)
+        ) is not None:
+            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, completion_audio_tokens
     if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+    # Anthropic
+    if (input_tokens := getattr(usage, "input_tokens", None)) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT, input_tokens
+    if (output_tokens := getattr(usage, "output_tokens", None)) is not None:
+        yield LLM_TOKEN_COUNT_COMPLETION, output_tokens
+    if (
+        cache_creation_input_tokens := getattr(usage, "cache_creation_input_tokens", None)
+    ) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
+    if (cache_read_input_tokens := getattr(usage, "cache_read_input_tokens", None)) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
 
 
 def _get_token_counts_from_mapping(
@@ -633,10 +659,34 @@ def _get_token_counts_from_mapping(
     """
     if (prompt_tokens := usage_mapping.get("prompt_tokens")) is not None:
         yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    if (prompt_token_details := usage_mapping.get("prompt_token_details")) is not None:
+        if (cached_tokens := prompt_token_details.get("cached_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+        if (audio_tokens := prompt_token_details.get("audio_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, int(audio_tokens)
     if (completion_tokens := usage_mapping.get("completion_tokens")) is not None:
         yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+        if (
+            completion_tokens_details := usage_mapping.get("completion_tokens_details")
+        ) is not None:
+            if (reasoning_tokens := completion_tokens_details.get("reasoning_tokens")) is not None:
+                yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, int(reasoning_tokens)
+        if (completion_audio_tokens := completion_tokens_details.get("audio")) is not None:
+            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, int(completion_audio_tokens)
     if (total_tokens := usage_mapping.get("total_tokens")) is not None:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+    # Anthropic
+    if (input_tokens := usage_mapping.get("input_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT, input_tokens
+    if (output_tokens := usage_mapping.get("output_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_COMPLETION, int(output_tokens)
+    if (
+        cache_creation_input_tokens := usage_mapping.get("cache_creation_input_tokens")
+    ) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
+    if (cache_read_input_tokens := usage_mapping.get("cache_read_input_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
 
 
 def _template_attributes(payload: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -720,7 +770,16 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
