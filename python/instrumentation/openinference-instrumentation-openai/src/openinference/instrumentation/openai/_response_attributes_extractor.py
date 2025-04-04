@@ -20,6 +20,7 @@ from openinference.instrumentation.openai._utils import _get_openai_version, _ge
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -27,12 +28,12 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
     from openai.types.chat import ChatCompletion
+    from openai.types.responses.response import Response
 
 __all__ = ("_ResponseAttributesExtractor",)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
 
 try:
     _NUMPY: Optional[ModuleType] = import_module("numpy")
@@ -46,12 +47,14 @@ class _ResponseAttributesExtractor:
         "_chat_completion_type",
         "_completion_type",
         "_create_embedding_response_type",
+        "_responses_type",
     )
 
     def __init__(self, openai: ModuleType) -> None:
         self._openai = openai
         self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
         self._completion_type: Type["Completion"] = openai.types.Completion
+        self._responses_type: Type["Response"] = openai.types.responses.response.Response
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
             openai.types.CreateEmbeddingResponse
         )
@@ -66,6 +69,11 @@ class _ResponseAttributesExtractor:
                 completion=response,
                 request_parameters=request_parameters,
             )
+        if isinstance(response, self._responses_type):
+            yield from self._get_attributes_from_responses_response(
+                response=response,
+                request_parameters=request_parameters,
+            )
         elif isinstance(response, self._create_embedding_response_type):
             yield from self._get_attributes_from_create_embedding_response(
                 response=response,
@@ -78,6 +86,21 @@ class _ResponseAttributesExtractor:
             )
         else:
             yield from ()
+
+    def _get_attributes_from_responses_response(
+        self,
+        response: "Response",
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        print(response)
+        if model := getattr(response, "model", None):
+            yield SpanAttributes.LLM_MODEL_NAME, model
+        if usage := getattr(response, "usage", None):
+            yield from self._get_attributes_from_response_usage(usage)
+        if (responses := getattr(response, "output", None)) and isinstance(responses, Iterable):
+            for index, output in enumerate(responses):
+                for key, value in self._get_attributes_from_response_message(output):
+                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
 
     def _get_attributes_from_chat_completion(
         self,
@@ -172,6 +195,50 @@ class _ResponseAttributesExtractor:
             else:
                 yield f"{EmbeddingAttributes.EMBEDDING_VECTOR}", vector
 
+    def _get_attributes_from_response_message(
+        self,
+        message: object,
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if role := getattr(message, "role", None):
+            yield MessageAttributes.MESSAGE_ROLE, role
+        elif getattr(message, "type", None) == "function_call":
+            yield MessageAttributes.MESSAGE_ROLE, "assistant"
+
+        if content := getattr(message, "content", None):
+            for content_index, content_item in enumerate(content):
+                if content_text := getattr(content_item, "text", None):
+                    yield (
+                        f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                        content_text,
+                    )
+                if content_type := getattr(content_item, "type", None):
+                    yield (
+                        f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                        content_type,
+                    )
+
+        if getattr(message, "type", None) == "function_call":
+            if tool_call_id := getattr(message, "id", None):
+                yield (
+                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+                    f"{ToolCallAttributes.TOOL_CALL_ID}",
+                    tool_call_id,
+                )
+            if name := getattr(message, "name", None):
+                yield (
+                    (
+                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+                        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+                    ),
+                    name,
+                )
+            if arguments := getattr(message, "arguments", None):
+                yield (
+                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+                    f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                    arguments,
+                )
+
     def _get_attributes_from_chat_completion_message(
         self,
         message: object,
@@ -230,6 +297,17 @@ class _ResponseAttributesExtractor:
         if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+
+    def _get_attributes_from_response_usage(
+        self,
+        usage: object,
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
+        if (prompt_tokens := getattr(usage, "input_tokens", None)) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+        if (completion_tokens := getattr(usage, "output_tokens", None)) is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
 
     def _get_attributes_from_embedding_usage(
