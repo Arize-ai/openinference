@@ -16,6 +16,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AsyncGenerator,
+    Callable,
     DefaultDict,
     Dict,
     Generator,
@@ -908,138 +909,86 @@ def _get_token_counts(usage: Union[object, Mapping[str, Any]]) -> Iterator[Tuple
 
 
 def _get_token_counts_from_object(usage: object) -> Iterator[Tuple[str, Any]]:
-    # OpenAI
-    if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_PROMPT, int(prompt_tokens)
-        except BaseException:
-            pass
-    if (prompt_token_details := getattr(usage, "prompt_tokens_details", None)) is not None:
-        if (cached_tokens := getattr(prompt_token_details, "cached_tokens", None)) is not None:
-            try:
-                yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(cached_tokens)
-            except BaseException:
-                pass
-        if (audio_tokens := getattr(prompt_token_details, "audio_tokens", None)) is not None:
-            try:
-                yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, int(audio_tokens)
-            except BaseException:
-                pass
-    if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_COMPLETION, int(completion_tokens)
-        except BaseException:
-            pass
-    if (completion_tokens_details := getattr(usage, "completion_tokens_details", None)) is not None:
-        if (
-            reasoning_tokens := getattr(completion_tokens_details, "reasoning_tokens", None)
-        ) is not None:
-            try:
-                yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, int(reasoning_tokens)
-            except BaseException:
-                pass
-        if (
-            completion_audio_tokens := getattr(completion_tokens_details, "audio_tokens", None)
-        ) is not None:
-            try:
-                yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, int(completion_audio_tokens)
-            except BaseException:
-                pass
-    if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_TOTAL, int(total_tokens)
-        except BaseException:
-            pass
+    def get_value(obj: object, key: str) -> Any:
+        return getattr(obj, key, None)
 
-    # Anthropic
-    if (output_tokens := getattr(usage, "output_tokens", None)) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_COMPLETION, int(output_tokens)
-        except BaseException:
-            pass
-    if (
-        cache_creation_input_tokens := getattr(usage, "cache_creation_input_tokens", None)
-    ) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, int(cache_creation_input_tokens)
-        except BaseException:
-            pass
-    if (cache_read_input_tokens := getattr(usage, "cache_read_input_tokens", None)) is not None:
-        try:
-            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(cache_read_input_tokens)
-        except BaseException:
-            pass
-    if (input_tokens := getattr(usage, "input_tokens", None)) is not None:
-        try:
-            input_tokens = int(input_tokens)
-            if cache_creation_input_tokens is not None:
-                input_tokens += int(cache_creation_input_tokens)
-            if cache_read_input_tokens is not None:
-                input_tokens += int(cache_read_input_tokens)
-            yield LLM_TOKEN_COUNT_PROMPT, input_tokens
-        except BaseException:
-            pass
+    yield from _get_token_counts_impl(usage, get_value)
 
 
 def _get_token_counts_from_mapping(
     usage_mapping: Mapping[str, Any],
 ) -> Iterator[Tuple[str, Any]]:
-    if (prompt_tokens := usage_mapping.get("prompt_tokens")) is not None:
+    def get_value(obj: Mapping[str, Any], key: str) -> Any:
+        return obj.get(key)
+
+    yield from _get_token_counts_impl(usage_mapping, get_value)
+
+
+def _get_token_counts_impl(
+    usage: Union[object, Mapping[str, Any]], get_value: Callable[[Any, str], Any]
+) -> Iterator[Tuple[str, Any]]:
+    # OpenAI
+    if (prompt_tokens := get_value(usage, "prompt_tokens")) is not None:
         try:
             yield LLM_TOKEN_COUNT_PROMPT, int(prompt_tokens)
         except BaseException:
             pass
-    if (prompt_token_details := usage_mapping.get("prompt_token_details")) is not None:
-        if (cached_tokens := prompt_token_details.get("cached_tokens")) is not None:
+    if (prompt_token_details := get_value(usage, "prompt_tokens_details")) is not None:
+        if (cached_tokens := get_value(prompt_token_details, "cached_tokens")) is not None:
             try:
                 yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(cached_tokens)
             except BaseException:
                 pass
-        if (audio_tokens := prompt_token_details.get("audio_tokens")) is not None:
+        if (audio_tokens := get_value(prompt_token_details, "audio_tokens")) is not None:
             try:
                 yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, int(audio_tokens)
             except BaseException:
                 pass
-    if (completion_tokens := usage_mapping.get("completion_tokens")) is not None:
+    if (completion_tokens := get_value(usage, "completion_tokens")) is not None:
         try:
             yield LLM_TOKEN_COUNT_COMPLETION, int(completion_tokens)
         except BaseException:
             pass
-    if (completion_tokens_details := usage_mapping.get("completion_tokens_details")) is not None:
-        if (reasoning_tokens := completion_tokens_details.get("reasoning_tokens")) is not None:
+    if (completion_tokens_details := get_value(usage, "completion_tokens_details")) is not None:
+        if (
+            reasoning_tokens := get_value(completion_tokens_details, "reasoning_tokens")
+        ) is not None:
             try:
                 yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, int(reasoning_tokens)
             except BaseException:
                 pass
-        if (completion_audio_tokens := completion_tokens_details.get("audio")) is not None:
+        if (
+            completion_audio_tokens := get_value(
+                completion_tokens_details, "audio_tokens" if isinstance(usage, object) else "audio"
+            )
+        ) is not None:
             try:
                 yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, int(completion_audio_tokens)
             except BaseException:
                 pass
-    if (total_tokens := usage_mapping.get("total_tokens")) is not None:
+    if (total_tokens := get_value(usage, "total_tokens")) is not None:
         try:
             yield LLM_TOKEN_COUNT_TOTAL, int(total_tokens)
         except BaseException:
             pass
+
     # Anthropic
-    if (output_tokens := usage_mapping.get("output_tokens")) is not None:
+    if (output_tokens := get_value(usage, "output_tokens")) is not None:
         try:
             yield LLM_TOKEN_COUNT_COMPLETION, int(output_tokens)
         except BaseException:
             pass
-    if (
-        cache_creation_input_tokens := usage_mapping.get("cache_creation_input_tokens")
-    ) is not None:
+    if (cache_creation_input_tokens := get_value(usage, "cache_creation_input_tokens")) is not None:
         try:
             yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, int(cache_creation_input_tokens)
         except BaseException:
             pass
-    if (cache_read_input_tokens := usage_mapping.get("cache_read_input_tokens")) is not None:
+    if (cache_read_input_tokens := get_value(usage, "cache_read_input_tokens")) is not None:
         try:
             yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(cache_read_input_tokens)
         except BaseException:
             pass
-    if (input_tokens := usage_mapping.get("input_tokens")) is not None:
+    if (input_tokens := get_value(usage, "input_tokens")) is not None:
         try:
             input_tokens = int(input_tokens)
             if cache_creation_input_tokens is not None:
