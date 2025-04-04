@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.22...python-openinference-instrumentation-openai-v0.1.23) (2025-04-04)
+
+
+### Features
+
+* add cached read semantic conventions to openai sdk ([#1485](https://github.com/Arize-ai/openinference/issues/1485)) ([2db5918](https://github.com/Arize-ai/openinference/commit/2db591850259c1ff1fe606151f7f8be1ec1d63a7))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.21...python-openinference-instrumentation-openai-v0.1.22) (2025-03-14)
 
 
