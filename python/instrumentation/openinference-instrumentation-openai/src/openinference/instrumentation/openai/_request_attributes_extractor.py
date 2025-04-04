@@ -97,7 +97,6 @@ class _RequestAttributesExtractor:
         self,
         message: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-
         if not hasattr(message, "get"):
             return
         if role := message.get("role"):

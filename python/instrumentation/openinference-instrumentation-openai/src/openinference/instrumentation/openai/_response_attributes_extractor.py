@@ -92,7 +92,6 @@ class _ResponseAttributesExtractor:
         response: "Response",
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        print(response)
         if model := getattr(response, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model
         if usage := getattr(response, "usage", None):
