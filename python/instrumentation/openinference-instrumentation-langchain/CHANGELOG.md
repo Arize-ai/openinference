@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.38...python-openinference-instrumentation-langchain-v0.1.39) (2025-04-04)
+
+
+### Features
+
+* **langchainpy:** capture reasoning, cache, and audio tokens  ([#1480](https://github.com/Arize-ai/openinference/issues/1480)) ([22d962b](https://github.com/Arize-ai/openinference/commit/22d962b7c07b5293cde02209b6702b77cd8fc0f3))
+
+
+### Bug Fixes
+
+* tuple message type ([#1488](https://github.com/Arize-ai/openinference/issues/1488)) ([6b65b65](https://github.com/Arize-ai/openinference/commit/6b65b656627d7910a82a0c14c70c916b0b454a3b))
+
 ## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.37...python-openinference-instrumentation-langchain-v0.1.38) (2025-04-03)
 
 
