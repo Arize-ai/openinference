@@ -639,8 +639,6 @@ def _get_token_counts_from_object(usage: object) -> Iterator[Tuple[str, Any]]:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
     # Anthropic
-    if (input_tokens := getattr(usage, "input_tokens", None)) is not None:
-        yield LLM_TOKEN_COUNT_PROMPT, input_tokens
     if (output_tokens := getattr(usage, "output_tokens", None)) is not None:
         yield LLM_TOKEN_COUNT_COMPLETION, output_tokens
     if (
@@ -649,6 +647,12 @@ def _get_token_counts_from_object(usage: object) -> Iterator[Tuple[str, Any]]:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
     if (cache_read_input_tokens := getattr(usage, "cache_read_input_tokens", None)) is not None:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
+    if (input_tokens := getattr(usage, "input_tokens", None)) is not None:
+        if cache_creation_input_tokens is not None:
+            input_tokens += cache_creation_input_tokens
+        if cache_read_input_tokens is not None:
+            input_tokens += cache_read_input_tokens
+        yield LLM_TOKEN_COUNT_PROMPT, input_tokens
 
 
 def _get_token_counts_from_mapping(
@@ -677,8 +681,6 @@ def _get_token_counts_from_mapping(
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
     # Anthropic
-    if (input_tokens := usage_mapping.get("input_tokens")) is not None:
-        yield LLM_TOKEN_COUNT_PROMPT, input_tokens
     if (output_tokens := usage_mapping.get("output_tokens")) is not None:
         yield LLM_TOKEN_COUNT_COMPLETION, int(output_tokens)
     if (
@@ -687,6 +689,12 @@ def _get_token_counts_from_mapping(
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
     if (cache_read_input_tokens := usage_mapping.get("cache_read_input_tokens")) is not None:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
+    if (input_tokens := usage_mapping.get("input_tokens")) is not None:
+        if cache_creation_input_tokens is not None:
+            input_tokens += cache_creation_input_tokens
+        if cache_read_input_tokens is not None:
+            input_tokens += cache_read_input_tokens
+        yield LLM_TOKEN_COUNT_PROMPT, input_tokens
 
 
 def _template_attributes(payload: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:

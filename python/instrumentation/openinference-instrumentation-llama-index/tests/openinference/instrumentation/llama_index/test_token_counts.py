@@ -75,7 +75,8 @@ class TestTokenCounts:
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})
         for convention, expected_count in [
-            (LLM_TOKEN_COUNT_PROMPT, 9),
+            # input token 9 + cache_write 1 + cache read 2
+            (LLM_TOKEN_COUNT_PROMPT, (9 + 1 + 2)),
             (LLM_TOKEN_COUNT_COMPLETION, 21),
             (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, 1),
             (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, 2),
