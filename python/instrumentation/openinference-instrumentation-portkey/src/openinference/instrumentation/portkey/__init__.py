@@ -6,10 +6,10 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.portkey._wrappers import _CompletionsWrapper
 from openinference.instrumentation.portkey.version import __version__
 
 from portkey_ai.api_resources.apis.chat_complete import Completions
-from openinference.instrumentation.portkey._wrappers import _CompletionsWrapper
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -45,10 +45,5 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        # TODO: Implement uninstrumentation for Portkey AI
-        # This will involve restoring the original methods
-        # For example:
-        # portkey_module = import_module("portkey_ai.module")
-        # if self._original_method is not None:
-        #     portkey_module.PortkeyClass.method = self._original_method
-        pass 
+        from portkey_ai.api_resources.apis.chat_complete import Completions
+        Completions.create = self._original_completions_create

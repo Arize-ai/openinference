@@ -6,22 +6,22 @@ from enum import Enum
 from inspect import Signature, signature
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
 
-import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
+import opentelemetry.context as context_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation.portkey._request_attributes_extractor import _RequestAttributesExtractor
+from openinference.instrumentation.portkey._response_attributes_extractor import _ResponseAttributesExtractor
+from openinference.instrumentation.portkey._utils import _finish_tracing
+from openinference.instrumentation.portkey._with_span import _WithSpan
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from openinference.instrumentation.portkey._with_span import _WithSpan
-from openinference.instrumentation.portkey._utils import _finish_tracing
-from openinference.instrumentation.portkey._response_attributes_extractor import _ResponseAttributesExtractor
-from openinference.instrumentation.portkey._request_attributes_extractor import _RequestAttributesExtractor
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -141,4 +141,3 @@ class _CompletionsWrapper(_WithTracer):
                 span.finish_tracing()
             finally:
                 return response
-
