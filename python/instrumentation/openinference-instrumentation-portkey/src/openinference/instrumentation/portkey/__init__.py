@@ -3,13 +3,12 @@ from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from portkey_ai.api_resources.apis.chat_complete import Completions
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.portkey._wrappers import _CompletionsWrapper
 from openinference.instrumentation.portkey.version import __version__
-
-from portkey_ai.api_resources.apis.chat_complete import Completions
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

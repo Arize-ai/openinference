@@ -1,8 +1,9 @@
 from importlib import import_module
 
 import pytest
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
 
 @pytest.mark.vcr(
     before_record_request=lambda _: _.headers.clear() or _,

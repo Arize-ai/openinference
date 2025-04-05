@@ -4,6 +4,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+
 @pytest.fixture
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
@@ -23,4 +24,4 @@ def setup_portkey_instrumentation(
     from openinference.instrumentation.portkey import PortkeyInstrumentor
     PortkeyInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
-    PortkeyInstrumentor().uninstrument() 
+    PortkeyInstrumentor().uninstrument()

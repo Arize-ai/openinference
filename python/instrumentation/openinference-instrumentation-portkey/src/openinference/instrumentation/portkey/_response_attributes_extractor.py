@@ -1,14 +1,7 @@
 import logging
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
+from typing import Any, Iterator, Tuple
 
 from opentelemetry.util.types import AttributeValue
-
-from openinference.instrumentation import safe_json_dumps
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    MessageAttributes,
-    SpanAttributes,
-)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
