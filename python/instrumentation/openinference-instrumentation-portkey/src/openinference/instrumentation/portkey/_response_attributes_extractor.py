@@ -3,8 +3,8 @@ from typing import Any, Iterable, Iterator, Mapping, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
 from openinference.instrumentation.portkey._utils import _as_output_attributes, _io_value_and_type
+from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

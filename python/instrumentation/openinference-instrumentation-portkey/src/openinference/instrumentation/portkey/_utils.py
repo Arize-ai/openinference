@@ -80,5 +80,5 @@ def _finish_tracing(
             attributes=attributes_dict,
             extra_attributes=extra_attributes_dict,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to finish tracing")
