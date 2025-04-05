@@ -29,16 +29,30 @@ def test_chat_completion(
     attributes = dict(span.attributes or {})
 
     expected_attributes = {
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+        f"{MessageAttributes.MESSAGE_ROLE}": "user",
+        
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+        f"{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
+        
         SpanAttributes.OUTPUT_MIME_TYPE: 'application/json',
         SpanAttributes.INPUT_MIME_TYPE: 'application/json',
         SpanAttributes.LLM_MODEL_NAME: 'gpt-4o-mini-2024-07-18',
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 63,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 12,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 51,
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "assistant",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "I don't have real-time data access to provide current weather updates. However, you can check a weather website or app for the latest information in your area. If you tell me your location, I can suggest typical weather patterns for this time of year!",
+        
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+        f"{MessageAttributes.MESSAGE_ROLE}": "assistant",
+        
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+        f"{MessageAttributes.MESSAGE_CONTENT}": (
+            "I don't have real-time data access to provide current weather updates. "
+            "However, you can check a weather website or app for the latest information "
+            "in your area. If you tell me your location, I can suggest typical weather "
+            "patterns for this time of year!"
+        ),
+        
         SpanAttributes.OPENINFERENCE_SPAN_KIND: 'LLM',
     }
 
