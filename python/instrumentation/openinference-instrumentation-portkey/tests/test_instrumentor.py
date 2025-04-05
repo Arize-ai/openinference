@@ -23,3 +23,7 @@ def test_chat_completion(
         model="gpt-4o-mini"
     )
     print(resp)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})

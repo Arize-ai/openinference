@@ -18,6 +18,7 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+from openinference.instrumentation.portkey._with_span import _WithSpan
 
 from openinference.instrumentation.portkey._response_attributes_extractor import _ResponseAttributesExtractor
 from openinference.instrumentation.portkey._request_attributes_extractor import _RequestAttributesExtractor
@@ -57,41 +58,26 @@ class _WithTracer(ABC):
         attributes: Iterable[Tuple[str, AttributeValue]],
         context_attributes: Iterable[Tuple[str, AttributeValue]],
         extra_attributes: Iterable[Tuple[str, AttributeValue]],
-    ) -> Iterator[Any]:
+    ) -> Iterator[_WithSpan]:
         # Because OTEL has a default limit of 128 attributes, we split our
         # attributes into two tiers, where "extra_attributes" are added first to
         # ensure that the most important "attributes" are added last and are not
         # dropped.
-        span = self._tracer.start_span(span_name)
-        if span is INVALID_SPAN:
-            yield None
-            return
-
         try:
-            # Add extra attributes first
-            for key, value in extra_attributes:
-                span.set_attribute(key, value)
-
-            # Add context attributes
-            for key, value in context_attributes:
-                span.set_attribute(key, value)
-
-            # Add main attributes last
-            for key, value in attributes:
-                span.set_attribute(key, value)
-
-            # Set span kind
-            span.set_attribute(
-                SpanAttributes.SPAN_KIND,
-                OpenInferenceSpanKindValues.LLM.value,
+            span = self._tracer.start_span(name=span_name, attributes=dict(extra_attributes))
+        except Exception:
+            span = INVALID_SPAN
+        with trace_api.use_span(
+            span,
+            end_on_exit=False,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            yield _WithSpan(
+                span=span,
+                context_attributes=dict(context_attributes),
+                extra_attributes=dict(attributes),
             )
-
-            # Set as current span
-            token = context_api.attach(context_api.set_span_in_context(span))
-            yield span
-        finally:
-            context_api.detach(token)
-            span.end()
 
 
 def _parse_args(
@@ -143,6 +129,8 @@ class _CompletionsWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 raise
-            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
-            span.set_attributes(self._response_extractor.get_attributes(response))
+            # TODO(harrison) figure out how to get this in later
+            #span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+            # TODO(harrison) IMPLEMENT THIS OBVIOUSLY
+            #span.set_attributes(self._response_extractor.get_attributes(response))
             return response

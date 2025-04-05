@@ -1,49 +1,95 @@
 import logging
-from contextlib import contextmanager
-from typing import Any, Iterator, Optional, Tuple
+from typing import Dict, Optional
 
 from opentelemetry import trace as trace_api
-from opentelemetry.trace import Span
+from opentelemetry.util.types import Attributes, AttributeValue
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
 class _WithSpan:
-    """Context manager for managing spans."""
+    __slots__ = (
+        "_span",
+        "_context_attributes",
+        "_extra_attributes",
+        "_is_finished",
+    )
 
-    def __init__(self, span: Optional[Span]) -> None:
-        self.span = span
+    def __init__(
+            self,
+            span: trace_api.Span,
+            context_attributes: Attributes = None,
+            extra_attributes: Attributes = None,
+    ) -> None:
+        self._span = span
+        self._context_attributes = context_attributes
+        self._extra_attributes = extra_attributes
+        try:
+            self._is_finished = not self._span.is_recording()
+        except Exception:
+            logger.exception("Failed to check if span is recording")
+            self._is_finished = True
 
-    def __enter__(self) -> "_WithSpan":
-        return self
+    @property
+    def is_finished(self) -> bool:
+        return self._is_finished
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        if self.span is not None:
-            if exc_type is not None:
-                self.span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
-                self.span.record_exception(exc_val)
-            else:
-                self.span.set_status(trace_api.Status(trace_api.StatusCode.OK))
-            self.span.end()
+    def record_exception(self, exception: Exception) -> None:
+        if self._is_finished:
+            return
+        try:
+            self._span.record_exception(exception)
+        except Exception:
+            logger.exception("Failed to record exception on span")
 
+    def add_event(self, name: str) -> None:
+        if self._is_finished:
+            return
+        try:
+            self._span.add_event(name)
+        except Exception:
+            logger.exception("Failed to add event to span")
 
-@contextmanager
-def _with_span(
-    tracer: trace_api.Tracer,
-    name: str,
-    attributes: Tuple[Tuple[str, Any], ...],
-) -> Iterator[Optional[Span]]:
-    """Create a span with the given name and attributes."""
-    span = tracer.start_span(name)
-    if span is None:
-        yield None
-        return
+    def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
+        if self._is_finished:
+            return
+        try:
+            self._span.set_attributes(attributes)
+        except Exception:
+            logger.exception("Failed to set attributes on span")
 
-    try:
-        for key, value in attributes:
-            if value is not None:
-                span.set_attribute(key, value)
-        yield span
-    finally:
-        span.end() 
+    def finish_tracing(
+            self,
+            status: Optional[trace_api.Status] = None,
+            attributes: Attributes = None,
+            extra_attributes: Attributes = None,
+    ) -> None:
+        if self._is_finished:
+            return
+        for mapping in (
+                attributes,
+                self._context_attributes,
+                self._extra_attributes,
+                extra_attributes,
+        ):
+            if not mapping:
+                continue
+            for key, value in mapping.items():
+                if value is None:
+                    continue
+                try:
+                    self._span.set_attribute(key, value)
+                except Exception:
+                    logger.exception("Failed to set attribute on span")
+        if status is not None:
+            try:
+                self._span.set_status(status=status)
+            except Exception:
+                logger.exception("Failed to set status code on span")
+        try:
+            self._span.end()
+        except Exception:
+            logger.exception("Failed to end span")
+        self._is_finished = True
+
