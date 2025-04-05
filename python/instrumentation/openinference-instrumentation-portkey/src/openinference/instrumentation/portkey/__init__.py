@@ -45,4 +45,5 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
     def _uninstrument(self, **kwargs: Any) -> None:
         from portkey_ai.api_resources.apis.chat_complete import Completions
+
         Completions.create = self._original_completions_create

@@ -117,6 +117,7 @@ class _RequestAttributesExtractor:
                             arguments,
                         )
 
+
 def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(attr_name, default)

@@ -17,11 +17,13 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
     tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     return tracer_provider
 
+
 @pytest.fixture
 def setup_portkey_instrumentation(
     tracer_provider: TracerProvider,
 ) -> None:
     from openinference.instrumentation.portkey import PortkeyInstrumentor
+
     PortkeyInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     PortkeyInstrumentor().uninstrument()

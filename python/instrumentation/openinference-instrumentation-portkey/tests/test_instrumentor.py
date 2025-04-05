@@ -20,8 +20,7 @@ def test_chat_completion(
         virtual_key="REDACTED",
     )
     resp = client.chat.completions.create(
-        messages=[{"role": "user", "content": "What's the weather like?"}],
-        model="gpt-4o-mini"
+        messages=[{"role": "user", "content": "What's the weather like?"}], model="gpt-4o-mini"
     )
     print(resp)
     spans = in_memory_span_exporter.get_finished_spans()
