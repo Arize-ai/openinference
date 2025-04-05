@@ -1,4 +1,5 @@
 import logging
+from importlib import import_module
 from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
@@ -44,6 +45,6 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        from portkey_ai.api_resources.apis.chat_complete import Completions
-
-        Completions.create = self._original_completions_create
+        portkey_module = import_module("portkey_ai.api_resources.apis.chat_complete")
+        if self._original_completions_create is not None:
+            portkey_module.Completions.create = self._original_completions_create
