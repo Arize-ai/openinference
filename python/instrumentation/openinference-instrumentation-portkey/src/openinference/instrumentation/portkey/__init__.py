@@ -1,5 +1,4 @@
 import logging
-from importlib import import_module
 from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
@@ -8,6 +7,9 @@ from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.portkey.version import __version__
+
+from portkey_ai.api_resources.apis.chat_complete import Completions
+from openinference.instrumentation.portkey._wrappers import _CompletionsWrapper
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -18,7 +20,7 @@ _instruments = ("portkey_ai >= 0.1.0",)
 class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     """An instrumentor for the Portkey AI framework."""
 
-    __slots__ = ("_tracer",)
+    __slots__ = ("_original_completions_create", "_tracer")
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -35,15 +37,12 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config=config,
         )
 
-        # TODO: Implement instrumentation for Portkey AI
-        # This will involve wrapping the appropriate methods from the portkey_ai package
-        # For example:
-        # self._original_method = PortkeyClass.method
-        # wrap_function_wrapper(
-        #     module="portkey_ai.module",
-        #     name="PortkeyClass.method",
-        #     wrapper=_MethodWrapper(tracer=self._tracer),
-        # )
+        self._original_completions_create = Completions.create
+        wrap_function_wrapper(
+            module="portkey_ai.api_resources.apis.chat_complete",
+            name="Completions.create",
+            wrapper=_CompletionsWrapper(tracer=self._tracer),
+        )
 
     def _uninstrument(self, **kwargs: Any) -> None:
         # TODO: Implement uninstrumentation for Portkey AI

@@ -1,6 +1,4 @@
-import json
 from importlib import import_module
-from typing import Tuple, cast
 
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -13,6 +11,7 @@ from opentelemetry import trace as trace_api
 def test_chat_completion(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
 ) -> None:
     portkey = import_module("portkey_ai")
     client = portkey.Portkey(

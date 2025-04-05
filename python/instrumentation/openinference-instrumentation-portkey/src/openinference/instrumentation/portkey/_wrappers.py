@@ -19,6 +19,9 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
+from openinference.instrumentation.portkey._response_attributes_extractor import _ResponseAttributesExtractor
+from openinference.instrumentation.portkey._request_attributes_extractor import _RequestAttributesExtractor
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -102,32 +105,44 @@ def _parse_args(
     return dict(bound_args.arguments)
 
 
-# TODO: Implement specific wrappers for Portkey AI methods
-# For example:
-# class _MethodWrapper(_WithTracer):
-#     def __init__(self, *args: Any, **kwargs: Any) -> None:
-#         super().__init__(*args, **kwargs)
-#
-#     def __call__(
-#         self,
-#         wrapped: Callable[..., Any],
-#         instance: Any,
-#         args: Tuple[Any, ...],
-#         kwargs: Mapping[str, Any],
-#     ) -> Any:
-#         # Implementation for synchronous methods
-#         pass
-#
-# class _AsyncMethodWrapper(_WithTracer):
-#     def __init__(self, *args: Any, **kwargs: Any) -> None:
-#         super().__init__(*args, **kwargs)
-#
-#     async def __call__(
-#         self,
-#         wrapped: Callable[..., Any],
-#         instance: Any,
-#         args: Tuple[Any, ...],
-#         kwargs: Mapping[str, Any],
-#     ) -> Any:
-#         # Implementation for asynchronous methods
-#         pass 
+class _CompletionsWrapper(_WithTracer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._request_extractor = _RequestAttributesExtractor()
+        self._response_extractor = _ResponseAttributesExtractor()
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        # Prepare invocation parameters by merging args and kwargs
+        invocation_parameters = {**kwargs}
+        for arg in args:
+            if isinstance(arg, dict):
+                invocation_parameters.update(arg)
+
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "Completions"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
+            context_attributes=get_attributes_from_context(),
+            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
+                request_parameters
+            ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.record_exception(exception)
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                raise
+            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+            span.set_attributes(self._response_extractor.get_attributes(response))
+            return response
