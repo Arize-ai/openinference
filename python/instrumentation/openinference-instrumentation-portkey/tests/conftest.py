@@ -1,3 +1,5 @@
+from typing import Generator
+
 import pytest
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -21,7 +23,7 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
 @pytest.fixture
 def setup_portkey_instrumentation(
     tracer_provider: TracerProvider,
-) -> None:
+) -> Generator[None, None, None]:
     from openinference.instrumentation.portkey import PortkeyInstrumentor
 
     PortkeyInstrumentor().instrument(tracer_provider=tracer_provider)

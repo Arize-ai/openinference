@@ -124,7 +124,11 @@ class _CompletionsWrapper(_WithTracer):
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.record_exception(exception)
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
                 raise
             try:
                 _finish_tracing(
