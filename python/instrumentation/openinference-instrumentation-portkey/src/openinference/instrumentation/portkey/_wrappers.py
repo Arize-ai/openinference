@@ -19,7 +19,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 from openinference.instrumentation.portkey._with_span import _WithSpan
-
+from openinference.instrumentation.portkey._utils import _finish_tracing
 from openinference.instrumentation.portkey._response_attributes_extractor import _ResponseAttributesExtractor
 from openinference.instrumentation.portkey._request_attributes_extractor import _RequestAttributesExtractor
 
@@ -129,8 +129,16 @@ class _CompletionsWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 raise
-            # TODO(harrison) figure out how to get this in later
-            #span.set_status(trace_api.Status(trace_api.StatusCode.OK))
-            # TODO(harrison) IMPLEMENT THIS OBVIOUSLY
-            #span.set_attributes(self._response_extractor.get_attributes(response))
-            return response
+            try:
+                _finish_tracing(
+                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                    with_span=span,
+                    attributes=[],
+                    extra_attributes=[],
+                )
+            except Exception:
+                logger.exception(f"Failed to finalize response of type {type(response)}")
+                span.finish_tracing()
+            finally:
+                return response
+

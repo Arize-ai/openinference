@@ -27,3 +27,4 @@ def test_chat_completion(
     assert len(spans) == 1
     span = spans[0]
     attributes = dict(span.attributes or {})
+    print(attributes)
