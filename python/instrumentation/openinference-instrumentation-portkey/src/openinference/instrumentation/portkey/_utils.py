@@ -3,13 +3,11 @@ import warnings
 from typing import Any, Iterable, Iterator, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 from opentelemetry import trace as trace_api
-from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
-from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
-
 from openinference.instrumentation.portkey._with_span import _WithSpan
+from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
