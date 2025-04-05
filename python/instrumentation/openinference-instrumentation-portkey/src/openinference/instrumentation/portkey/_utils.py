@@ -9,6 +9,8 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
+from openinference.instrumentation.portkey._with_span import _WithSpan
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -60,36 +62,24 @@ def _as_output_attributes(
 
 
 def _finish_tracing(
-    span: Optional[Span],
+    with_span: _WithSpan,
     attributes: Iterable[Tuple[str, AttributeValue]],
     extra_attributes: Iterable[Tuple[str, AttributeValue]],
-    error: Optional[Exception] = None,
+    status: Optional[trace_api.Status] = None,
 ) -> None:
-    if span is None:
-        return
-
     try:
         attributes_dict = dict(attributes)
     except Exception:
         logger.exception("Failed to get attributes")
-        attributes_dict = {}
-
     try:
         extra_attributes_dict = dict(extra_attributes)
     except Exception:
         logger.exception("Failed to get extra attributes")
-        extra_attributes_dict = {}
-
-    if error is not None:
-        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
-        span.record_exception(error)
-        span.set_attribute(SpanAttributes.ERROR_TYPE, type(error).__name__)
-        span.set_attribute(SpanAttributes.ERROR_MESSAGE, str(error))
-    else:
-        span.set_status(trace_api.Status(trace_api.StatusCode.OK))
-
-    for key, value in attributes_dict.items():
-        span.set_attribute(key, value)
-
-    for key, value in extra_attributes_dict.items():
-        span.set_attribute(key, value)
+    try:
+        with_span.finish_tracing(
+            status=status,
+            attributes=attributes_dict,
+            extra_attributes=extra_attributes_dict,
+        )
+    except Exception:
+        logger.exception("Failed to finish tracing")

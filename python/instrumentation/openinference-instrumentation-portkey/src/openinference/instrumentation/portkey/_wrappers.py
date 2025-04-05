@@ -128,10 +128,10 @@ class _CompletionsWrapper(_WithTracer):
                 raise
             try:
                 _finish_tracing(
-                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
                     with_span=span,
                     attributes=[],
                     extra_attributes=[],
+                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
                 )
             except Exception:
                 logger.exception(f"Failed to finalize response of type {type(response)}")
