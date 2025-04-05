@@ -67,7 +67,8 @@ def _finish_tracing(
 ) -> None:
     try:
         attributes_dict = dict(attributes)
-    except Exception:
+    except Exception as e:
+        print(e)
         logger.exception("Failed to get attributes")
     try:
         extra_attributes_dict = dict(extra_attributes)
@@ -79,5 +80,5 @@ def _finish_tracing(
             attributes=attributes_dict,
             extra_attributes=extra_attributes_dict,
         )
-    except Exception:
+    except Exception as e:
         logger.exception("Failed to finish tracing")

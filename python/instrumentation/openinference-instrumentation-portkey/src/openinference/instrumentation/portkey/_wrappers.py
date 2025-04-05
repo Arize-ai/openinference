@@ -133,8 +133,11 @@ class _CompletionsWrapper(_WithTracer):
             try:
                 _finish_tracing(
                     with_span=span,
-                    attributes=[],
-                    extra_attributes=[],
+                    attributes=self._response_extractor.get_attributes(response),
+                    extra_attributes=self._response_extractor.get_extra_attributes(
+                        response=response,
+                        request_parameters=request_parameters,
+                    ),
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
                 )
             except Exception:
