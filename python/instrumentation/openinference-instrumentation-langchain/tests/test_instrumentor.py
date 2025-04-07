@@ -634,8 +634,6 @@ def test_chain_metadata(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    if use_context_attributes:
-        pytest.skip("Merge metadata failing due to #866")
     url = "https://api.openai.com/v1/chat/completions"
     output_val = "nock nock"
     respx_kwargs: Dict[str, Any] = {
@@ -658,6 +656,7 @@ def test_chain_metadata(
         langchain_metadata = {"category": "jokes"}
         llm = LLMChain(llm=ChatOpenAI(), prompt=prompt, metadata=langchain_metadata)
     else:
+        langchain_metadata = {}
         llm = LLMChain(llm=ChatOpenAI(), prompt=prompt)
     langchain_prompt_variables = {
         "adjective": "funny",
@@ -685,7 +684,10 @@ def test_chain_metadata(
     llm_attributes = dict(llm_chain_span.attributes or {})
     assert llm_attributes
     if use_langchain_metadata:
-        check_metadata = langchain_metadata
+        if use_context_attributes:
+            check_metadata = {**metadata, **langchain_metadata}
+        else:
+            check_metadata = langchain_metadata
     else:
         if use_context_attributes:
             check_metadata = metadata
@@ -698,9 +700,11 @@ def test_chain_metadata(
         user_id=user_id if use_context_attributes else None,
         metadata=check_metadata,
         tags=tags if use_context_attributes else None,
-        prompt_template=langchain_prompt_template,
+        prompt_template=langchain_prompt_template
+        if LANGCHAIN_VERSION < (0, 3, 0)
+        else (prompt_template if use_context_attributes else None),
         prompt_template_version=prompt_template_version if use_context_attributes else None,
-        prompt_template_variables=langchain_prompt_variables,
+        prompt_template_variables=langchain_prompt_variables if use_context_attributes else None,
     )
     assert (
         llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.CHAIN.value
@@ -767,9 +771,6 @@ def test_read_session_from_metadata(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    if use_context_attributes:
-        pytest.skip("Merge metadata failing due to #866")
-
     url = "https://api.openai.com/v1/chat/completions"
     output_val = "nock nock"
     respx_kwargs: Dict[str, Any] = {
@@ -821,11 +822,15 @@ def test_read_session_from_metadata(
         attributes=llm_attributes,
         session_id=expected_session_id,
         user_id=user_id if use_context_attributes else None,
-        metadata=langchain_metadata,
+        metadata={**metadata, **langchain_metadata}
+        if use_context_attributes
+        else langchain_metadata,
         tags=tags if use_context_attributes else None,
-        prompt_template=langchain_prompt_template,
+        prompt_template=langchain_prompt_template
+        if LANGCHAIN_VERSION < (0, 3, 0)
+        else (prompt_template if use_context_attributes else None),
         prompt_template_version=prompt_template_version if use_context_attributes else None,
-        prompt_template_variables=langchain_prompt_variables,
+        prompt_template_variables=langchain_prompt_variables if use_context_attributes else None,
     )
     assert (
         llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.CHAIN.value
@@ -952,15 +957,14 @@ def _check_context_attributes(
         assert attr_tags is not None
         assert len(attr_tags) == len(tags)
         assert list(attr_tags) == tags
-    if prompt_template is not None and SUPPORTS_TEMPLATES:
-        # Langchain less than 0.3.0 has templates
+    if prompt_template is not None:
         assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
     if prompt_template_version:
         assert (
             attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None)
             == prompt_template_version
         )
-    if prompt_template_variables and SUPPORTS_TEMPLATES:
+    if prompt_template_variables:
         x = attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None)
         assert x
 
