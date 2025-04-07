@@ -1423,6 +1423,43 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
 
+    def test_unhandled_exception_in_sync_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.llm
+        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Test message")
+        ]
+
+        with pytest.raises(ValueError):
+            sync_llm_function(input_messages)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "sync_llm_function"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        assert event.attributes["exception.type"] == "ValueError"
+        assert event.attributes["exception.message"] == "Something went wrong"
+
     @pytest.mark.vcr(
         decode_compressed_response=True,
         before_record_request=remove_all_vcr_request_headers,
@@ -1470,6 +1507,45 @@ class TestTracerLLMDecorator:
         assert json.loads(output_value) == response.model_dump()
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
+
+    async def test_unhandled_exception_in_async_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.llm
+        async def async_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Test message")
+        ]
+
+        with pytest.raises(ValueError):
+            await async_llm_function(input_messages)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "async_llm_function"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        assert event.attributes["exception.type"] == "ValueError"
+        assert event.attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -1522,6 +1598,53 @@ class TestTracerLLMDecorator:
         assert json.loads(output_value) == [chunk.model_dump() for chunk in chunks]
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
+
+    def test_unhandled_exception_in_sync_generator_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.llm
+        def sync_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> Generator[str, None, None]:
+            yield "Argentina "
+            yield "won"
+            yield "the "
+            yield "World "
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
+        ]
+
+        with pytest.raises(ValueError):
+            for chunk in sync_llm_generator_function(input_messages):
+                pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "sync_llm_generator_function"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == ["Argentina ", "won", "the ", "World "]
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        assert event.attributes["exception.type"] == "ValueError"
+        assert event.attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -1577,6 +1700,53 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
 
+    async def test_unhandled_exception_in_async_generator_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.llm
+        async def async_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> AsyncGenerator[str, None]:
+            yield "Argentina "
+            yield "won"
+            yield "the "
+            yield "World "
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
+        ]
+
+        with pytest.raises(ValueError):
+            async for chunk in async_llm_generator_function(input_messages):
+                pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "async_llm_generator_function"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == ["Argentina ", "won", "the ", "World "]
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        assert event.attributes["exception.type"] == "ValueError"
+        assert event.attributes["exception.message"] == "Something went wrong"
+
     @pytest.mark.vcr(
         decode_compressed_response=True,
         before_record_request=remove_all_vcr_request_headers,
@@ -1630,6 +1800,53 @@ class TestTracerLLMDecorator:
         assert attributes.pop(INPUT_VALUE) == "input-messages"
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
+
+    def test_unhandled_exception_in_sync_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Test message")
+        ]
+
+        with pytest.raises(ValueError):
+            sync_llm_function(input_messages)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        assert event.attributes["exception.type"] == "ValueError"
+        assert event.attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -1686,6 +1903,55 @@ class TestTracerLLMDecorator:
         assert attributes.pop(INPUT_VALUE) == "input-messages"
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
+
+    async def test_unhandled_exception_in_async_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        async def async_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Test message")
+        ]
+
+        with pytest.raises(ValueError):
+            await async_llm_function(input_messages)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        assert event.attributes["exception.type"] == "ValueError"
+        assert event.attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -1749,6 +2015,63 @@ class TestTracerLLMDecorator:
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
 
+    def test_unhandled_exception_in_sync_generator_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(
+            outputs: Sequence[str],
+        ) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "".join(outputs)}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        def sync_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> Generator[str, None, None]:
+            yield "Argentina "
+            yield "won "
+            yield "the "
+            yield "World "
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
+        ]
+
+        with pytest.raises(ValueError):
+            for chunk in sync_llm_generator_function(input_messages):
+                pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "Argentina won the World "
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        assert event.attributes["exception.type"] == "ValueError"
+        assert event.attributes["exception.message"] == "Something went wrong"
+
     @pytest.mark.vcr(
         decode_compressed_response=True,
         before_record_request=remove_all_vcr_request_headers,
@@ -1810,6 +2133,63 @@ class TestTracerLLMDecorator:
         assert attributes.pop(INPUT_VALUE) == "input-messages"
         assert attributes.pop(OUTPUT_VALUE) == "output"
         assert not attributes
+
+    async def test_unhandled_exception_in_async_generator_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(
+            outputs: Sequence[str],
+        ) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "".join(outputs)}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        async def async_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> AsyncGenerator[str, None]:
+            yield "Argentina "
+            yield "won "
+            yield "the "
+            yield "World "
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
+        ]
+
+        with pytest.raises(ValueError):
+            async for chunk in async_llm_generator_function(input_messages):
+                pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "Argentina won the World "
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        assert event.attributes["exception.type"] == "ValueError"
+        assert event.attributes["exception.message"] == "Something went wrong"
 
 
 def test_get_llm_attributes_returns_expected_attributes() -> None:

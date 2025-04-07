@@ -483,7 +483,15 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 kwargs=kwargs,
             ) as llm_context:
                 outputs = []
-                for output in wrapped(*args, **kwargs):
+                generator = wrapped(*args, **kwargs)
+                while True:
+                    try:
+                        output = next(generator)
+                    except StopIteration:
+                        break
+                    except Exception:
+                        llm_context.process_output(outputs)
+                        raise
                     outputs.append(output)
                     yield output
                 llm_context.process_output(outputs)
@@ -507,7 +515,15 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 kwargs=kwargs,
             ) as llm_context:
                 outputs = []
-                async for output in wrapped(*args, **kwargs):
+                generator = wrapped(*args, **kwargs)
+                while True:
+                    try:
+                        output = await generator.__anext__()
+                    except StopAsyncIteration:
+                        break
+                    except Exception:
+                        llm_context.process_output(outputs)
+                        raise
                     outputs.append(output)
                     yield output
                 llm_context.process_output(outputs)
