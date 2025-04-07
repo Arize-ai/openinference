@@ -1,23 +1,21 @@
 # OpenInference Google GenAI Instrumentation 
 
-Python auto-instrumentation library for VertexAI SDK and the Google Cloud AI Platform. Traces are fully OpenTelemetry compatible and can be sent to any OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix).
-
-<!-- [![pypi](https://badge.fury.io/py/openinference-instrumentation-vertexai.svg)](https://pypi.org/project/openinference-instrumentation-vertexai/) -->
+Python auto-instrumentation library for GenAI SDK. Traces are fully OpenTelemetry compatible and can be sent to any OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix).
 
 ## Installation
 
 ```shell
-pip install -Uqqq openinference-instrumentation-vertexai
+pip install -Uqqq openinference-instrumentation-google-genai
 ```
 
 ## Quickstart
 
-Install `openinference-instrumentation-vertexai` and `arize-phoenix`.
+Install `openinference-instrumentation-google-genai` and `arize-phoenix`.
 
 
 ```shell
 pip install -U \
-    openinference-instrumentation-vertexai \
+    openinference-instrumentation-google-genai \
     arize-phoenix \
     opentelemetry-sdk \
     opentelemetry-exporter-otlp \
@@ -31,10 +29,10 @@ The `phoenix` server runs entirely on your machine and does not send data over t
 python -m phoenix.server.main serve
 ```
 
-Instrumenting `vertexai` is simple.
+Instrumenting `genai` is simple.
 
 ```python
-from openinference.instrumentation.vertexai import VertexAIInstrumentor
+from openinference.instrumentation.google-genai import GoogleGenAIInstrumentor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -43,20 +41,10 @@ endpoint = "http://127.0.0.1:4317"
 tracer_provider = TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
-VertexAIInstrumentor().instrument(tracer_provider=tracer_provider)
+GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 ```
 
-Now, all calls by `generative_models` are instrumented and can be viewed in the `phoenix` UI.
-
-```python
-import vertexai
-from vertexai.generative_models import GenerativeModel
-
-vertexai.init(location="us-central1")
-model = GenerativeModel("gemini-1.5-flash")
-
-print(model.generate_content("Why is sky blue?"))
-```
+Now, all calls by `generate_content` are instrumented and can be viewed in the `phoenix` UI.
 
 ## More Info
 
