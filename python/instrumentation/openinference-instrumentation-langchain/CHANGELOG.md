@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.39...python-openinference-instrumentation-langchain-v0.1.40) (2025-04-07)
+
+
+### Bug Fixes
+
+* merge metadata ([#1497](https://github.com/Arize-ai/openinference/issues/1497)) ([793101a](https://github.com/Arize-ai/openinference/commit/793101a74570c0a4611c751ef518879486fdf852))
+
 ## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.38...python-openinference-instrumentation-langchain-v0.1.39) (2025-04-04)
 
 
