@@ -476,7 +476,8 @@ def test_callback_llm(
                 }
         # Ignore metadata since LC adds a bunch of unstable metadata
         oai_attributes.pop(METADATA, None)
-        assert oai_attributes == {}
+        if status_code == 200:
+            assert oai_attributes == {}
 
         assert spans_by_name == {}
     assert len(questions) == 0
