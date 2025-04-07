@@ -83,16 +83,9 @@ def get_output_attributes(
 def _infer_serialized_io_value_and_mime_type(
     value: Any,
 ) -> Tuple[Any, Optional[OpenInferenceMimeTypeValues]]:
-    if isinstance(value, str):
-        return value, OpenInferenceMimeTypeValues.TEXT
-    if isinstance(value, (bool, int, float)):
-        return value, None
-    if isinstance(value, Sequence):
-        for element_type in (str, bool, int, float):
-            if all(isinstance(element, element_type) for element in value):
-                return value, None
-        return _json_serialize(value), OpenInferenceMimeTypeValues.JSON
-    if isinstance(value, Mapping):
+    if isinstance(value, (str, bool, int, float)):
+        return str(value), OpenInferenceMimeTypeValues.TEXT
+    if isinstance(value, (Sequence, Mapping)):
         return _json_serialize(value), OpenInferenceMimeTypeValues.JSON
     if _is_dataclass_instance(value):
         return _json_serialize(value), OpenInferenceMimeTypeValues.JSON
