@@ -8,6 +8,7 @@ from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.google_genai._wrappers import (
+    _AsyncGenerateContentWrapper,
     _SyncGenerateContent,
 )
 from openinference.instrumentation.google_genai.package import _instruments
@@ -22,7 +23,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
     An instrumentor for `google-genai`
     """
 
-    __slots__ = ("_original_generate_content",)
+    __slots__ = ("_original_generate_content", "_original_async_generate_content")
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -53,9 +54,12 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_SyncGenerateContent(tracer=self._tracer),
         )
 
-        # TODO: Instrument sync stream version
-        # TODO: Instrument async version
-        # TODO: Instrument async stream version
+        self._original_async_generate_content = Models.async_generate_content
+        wrap_function_wrapper(
+            module="google.genai.models",
+            name="Models.async_generate_content",
+            wrapper=_AsyncGenerateContentWrapper(tracer=self._tracer),
+        )
 
     def _uninstrument(self, **kwargs: Any) -> None:
         from google.genai.models import Models
@@ -63,3 +67,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_generate_content is not None:
             Models.generate_content = self._original_generate_content
             self._original_generate_content = None
+
+        if self._original_async_generate_content is not None:
+            Models.async_generate_content = self._original_async_generate_content
+            self._original_async_generate_content = None

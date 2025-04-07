@@ -1,4 +1,5 @@
 from google import genai
+from google.genai.types import Content, GenerateContentConfig, Part
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -29,8 +30,12 @@ def generate_ai_response(prompt, model="gemini-2.0-flash"):
         # Initialize the client
         client = genai.Client(api_key=GEMINI_API_KEY)
 
+        config = GenerateContentConfig(
+            system_instruction="You are a helpful assistant that can answer questions and help with tasks."
+        )
+        content = Content(parts=[Part(text=prompt)])
         # Generate the response
-        response = client.models.generate_content(model=model, contents=prompt)
+        response = client.models.generate_content(model=model, contents=content, config=config)
 
         return response.text
 
