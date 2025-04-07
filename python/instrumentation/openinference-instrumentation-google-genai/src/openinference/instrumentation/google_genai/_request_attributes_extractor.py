@@ -2,6 +2,7 @@ import logging
 from enum import Enum
 from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
 
+from google.genai.types import Content, Part
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
@@ -13,7 +14,6 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
-    ToolCallAttributes,
 )
 
 __all__ = ("_RequestAttributesExtractor",)
@@ -46,79 +46,77 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not isinstance(request_parameters, Mapping):
             return
+
         invocation_params = dict(request_parameters)
-        invocation_params.pop("messages", None)  # Remove LLM input messages
-        invocation_params.pop("functions", None)
-
-        if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
-            for i, tool in enumerate(tools):
-                yield f"llm.tools.{i}.tool.json_schema", safe_json_dumps(tool)
-
+        invocation_params.pop("contents", None)  # Remove LLM input contents
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
-        if (input_messages := request_parameters.get("messages")) and isinstance(
-            input_messages, Iterable
-        ):
-            for index, input_message in reversed(list(enumerate(input_messages))):
-                # Use reversed() to get the last message first. This is because OTEL has a default
-                # limit of 128 attributes per span, and flattening increases the number of
-                # attributes very quickly.
-                for key, value in self._get_attributes_from_message_param(input_message):
-                    yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
+        if input_contents := request_parameters.get("contents", None):
+            for attr, value in self._get_attributes_from_message_param(input_contents):
+                yield attr, value
 
     def _get_attributes_from_message_param(
         self,
-        message: Mapping[str, Any],
+        input_contents: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if role := get_attribute(message, "role"):
+        # TODO: Determine what role should be assigned here or if there should be a role
+        # assigned at all. Roles might not be present in input content or there might
+        # be several types of roles for the input content.
+
+        # input_contents can be a File, Part, str, Content, PIL_Image, or a list of any of these types
+        if isinstance(input_contents, str):
+            yield (
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}",
+                input_contents,
+            )
+            yield (
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}",
+                "user",
+            )
+        elif isinstance(input_contents, Content):
+            for key, value in self._get_attributes_from_content(input_contents):
+                yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{key}", value
+        elif isinstance(input_contents, Part):
+            for key, value in self._get_attributes_from_part(input_contents):
+                yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{key}", value
+        elif isinstance(input_contents, list):
+            for index, input_content in reversed(list(enumerate(input_contents))):
+                # Use reversed() to get the last message first. This is because OTEL has a default
+                # limit of 128 attributes per span, and flattening increases the number of
+                # attributes very quickly.
+                for key, value in self._get_attributes_from_message_param(input_content):
+                    yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
+        else:
+            # TODO: Implement for File, PIL_Image
+            logger.exception(f"Unexpected input contents type: {type(input_contents)}")
+
+    # Extract from Content
+    def _get_attributes_from_content(
+        self, content: Content
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if role := get_attribute(content, "role"):
             yield (
                 MessageAttributes.MESSAGE_ROLE,
                 role.value if isinstance(role, Enum) else role,
             )
-        if content := get_attribute(message, "content"):
+        else:
+            yield (
+                MessageAttributes.MESSAGE_ROLE,
+                "user",
+            )
+
+        if parts := get_attribute(content, "parts"):
+            for part in parts:
+                yield from self._get_attributes_from_part(part)
+
+    # Extract from Parts
+    def _get_attributes_from_part(self, part: Part) -> Iterator[Tuple[str, AttributeValue]]:
+        # https://github.com/googleapis/python-genai/blob/main/google/genai/types.py#L566
+        if text := get_attribute(part, "text"):
             yield (
                 MessageAttributes.MESSAGE_CONTENT,
-                content,
+                text,
             )
-        if name := get_attribute(message, "name"):
-            yield MessageAttributes.MESSAGE_NAME, name
-
-        if tool_call_id := get_attribute(message, "tool_call_id"):
-            yield MessageAttributes.MESSAGE_TOOL_CALL_ID, tool_call_id
-
-        # Deprecated by Groq
-        if function_call := get_attribute(message, "function_call"):
-            if function_name := get_attribute(function_call, "name"):
-                yield MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, function_name
-            if function_arguments := get_attribute(function_call, "arguments"):
-                yield (
-                    MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON,
-                    function_arguments,
-                )
-
-        if (tool_calls := get_attribute(message, "tool_calls")) and isinstance(
-            tool_calls, Iterable
-        ):
-            for index, tool_call in enumerate(tool_calls):
-                if (tool_call_id := get_attribute(tool_call, "id")) is not None:
-                    yield (
-                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
-                        f"{ToolCallAttributes.TOOL_CALL_ID}",
-                        tool_call_id,
-                    )
-                if function := get_attribute(tool_call, "function"):
-                    if name := get_attribute(function, "name"):
-                        yield (
-                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
-                            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
-                            name,
-                        )
-                    if arguments := get_attribute(function, "arguments"):
-                        yield (
-                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
-                            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            arguments,
-                        )
 
 
 T = TypeVar("T", bound=type)

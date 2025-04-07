@@ -7,7 +7,7 @@ from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _io_value_and_type,
 )
-from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
+from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 __all__ = ("_ResponseAttributesExtractor",)
 
@@ -36,58 +36,46 @@ class _ResponseAttributesExtractor:
         response: Any,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if model := getattr(response, "model", None):
-            yield SpanAttributes.LLM_MODEL_NAME, model
-        if usage := getattr(response, "usage", None):
-            yield from self._get_attributes_from_generate_content_usage(usage)
-        if (choices := getattr(response, "choices", None)) and isinstance(choices, Iterable):
-            for choice in choices:
-                if (index := getattr(choice, "index", None)) is None:
-                    continue
-                if message := getattr(choice, "message", None):
-                    for key, value in self._get_attributes_from_generate_content_message(message):
+        # https://github.com/googleapis/python-genai/blob/e9e84aa38726e7b65796812684d9609461416b11/google/genai/types.py#L2981  # noqa: E501
+        if model_version := getattr(response, "model_version", None):
+            yield SpanAttributes.LLM_MODEL_NAME, model_version
+        if usage_metadata := getattr(response, "usage_metadata", None):
+            yield from self._get_attributes_from_generate_content_usage(usage_metadata)
+        if (candidates := getattr(response, "candidates", None)) and isinstance(
+            candidates, Iterable
+        ):
+            index = -1
+            for candidate in candidates:
+                # TODO: This is a hack to get the index of the candidate.
+                #       We should find a better way to do this.
+                # Keep track of previous index to increment if index not found
+                index = (
+                    index + 1
+                    if getattr(candidate, "index") is None
+                    else getattr(candidate, "index")
+                )
+                print(f"index: {index}")
+                if content := getattr(candidate, "content", None):
+                    for key, value in self._get_attributes_from_generate_content_content(content):
                         yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
 
-    def _get_attributes_from_generate_content_message(
+    def _get_attributes_from_generate_content_content(
         self,
-        message: object,
+        content: object,
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if role := getattr(message, "role", None):
+        if content_parts := getattr(content, "parts", None):
+            yield from self._get_attributes_from_content_parts(content_parts)
+        if role := getattr(content, "role", None):
             yield MessageAttributes.MESSAGE_ROLE, role
-        if content := getattr(message, "content", None):
-            yield MessageAttributes.MESSAGE_CONTENT, content
-        if function_call := getattr(message, "function_call", None):
-            if name := getattr(function_call, "name", None):
-                yield MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, name
-            if arguments := getattr(function_call, "arguments", None):
-                yield MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
-        if (tool_calls := getattr(message, "tool_calls", None)) and isinstance(
-            tool_calls, Iterable
-        ):
-            for index, tool_call in enumerate(tool_calls):
-                if (tool_call_id := getattr(tool_call, "id", None)) is not None:
-                    # https://github.com/groq/groq-python/blob/fa2e13b5747d18aeb478700f1e5426af2fd087a1/src/groq/types/chat/chat_completion_tool_message_param.py#L17  # noqa: E501
-                    yield (
-                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
-                        f"{ToolCallAttributes.TOOL_CALL_ID}",
-                        tool_call_id,
-                    )
-                if function := getattr(tool_call, "function", None):
-                    # https://github.com/groq/groq-python/blob/fa2e13b5747d18aeb478700f1e5426af2fd087a1/src/groq/types/chat/chat_completion_message_tool_call.py#L10  # noqa: E501
-                    if name := getattr(function, "name", None):
-                        yield (
-                            (
-                                f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
-                                f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
-                            ),
-                            name,
-                        )
-                    if arguments := getattr(function, "arguments", None):
-                        yield (
-                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
-                            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            arguments,
-                        )
+
+    def _get_attributes_from_content_parts(
+        self,
+        content_parts: Iterable[object],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        # https://github.com/googleapis/python-genai/blob/e9e84aa38726e7b65796812684d9609461416b11/google/genai/types.py#L565  # noqa: E501
+        for part in content_parts:
+            if text := getattr(part, "text", None):
+                yield MessageAttributes.MESSAGE_CONTENT, text
 
     def _get_attributes_from_generate_content_usage(
         self,

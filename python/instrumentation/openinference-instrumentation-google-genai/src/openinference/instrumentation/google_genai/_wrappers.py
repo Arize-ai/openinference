@@ -87,6 +87,120 @@ class _WithTracer(ABC):
             )
 
 
+# class _WithGoogleGenAI(ABC):
+#     __slots__ = (
+#         "_request_attributes_extractor",
+#         "_response_attributes_extractor",
+#     )
+
+#     def __init__(self, *args: Any, **kwargs: Any) -> None:
+#         super().__init__(*args, **kwargs)
+#         self._request_attributes_extractor = _RequestAttributesExtractor()
+#         self._response_attributes_extractor = _ResponseAttributesExtractor()
+
+#     def _get_span_kind(self) -> str:
+#         return OpenInferenceSpanKindValues.LLM.value
+
+#     def _get_attributes_from_request(
+#         self,
+#         request_parameters: Dict[str, Any],
+#     ) -> Iterator[Tuple[str, AttributeValue]]:
+#         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind()
+#         try:
+#             yield from _as_input_attributes(_io_value_and_type(request_parameters))
+#         except Exception:
+#             logger.exception(
+#                 f"Failed to get input attributes from request parameters of "
+#                 f"type {type(request_parameters)}"
+#             )
+
+#     def _get_extra_attributes_from_request(
+#         self,
+#         request_parameters: Mapping[str, Any],
+#     ) -> Iterator[Tuple[str, AttributeValue]]:
+#         try:
+#             yield from self._request_attributes_extractor.get_attributes_from_request(
+#                 request_parameters=request_parameters,
+#             )
+#         except Exception:
+#             logger.exception(
+#                 f"Failed to get extra attributes from request options of "
+#                 f"type {type(request_parameters)}"
+#             )
+
+#     def _parse_args(
+#         self,
+#         signature: Signature,
+#         *args: Tuple[Any],
+#         **kwargs: Mapping[str, Any],
+#     ) -> Dict[str, Any]:
+#         """
+#         Serialize parameters to JSON.
+#         """
+#         bound_signature = signature.bind(*args, **kwargs)
+#         bound_signature.apply_defaults()
+#         bound_arguments = bound_signature.arguments
+#         request_data: Dict[str, Any] = {}
+#         for key, value in bound_arguments.items():
+#             try:
+#                 if value is not None:
+#                     try:
+#                         # ensure the value is JSON-serializable
+#                         safe_json_dumps(value)
+#                         request_data[key] = value
+#                     except json.JSONDecodeError:
+#                         request_data[key] = str(value)
+#             except Exception:
+#                 request_data[key] = str(value)
+#         return request_data
+
+#     def _finalize_response(
+#         self,
+#         response: Any,
+#         with_span: _WithSpan,
+#         request_parameters: Mapping[str, Any],
+#     ) -> Any:
+#         """
+#         Monkey-patch the response object to trace the stream, or finish tracing if the response is
+#         not a stream.
+#         """
+#         from mistralai.models.chatcompletionresponse import ChatCompletionResponse
+#         from mistralai.models.completionevent import CompletionEvent
+
+#         if not isinstance(response, ChatCompletionResponse):  # assume it's a stream
+#             response_accumulator = _ChatCompletionAccumulator(
+#                 request_parameters=request_parameters,
+#                 chat_completion_type=CompletionEvent,
+#                 response_attributes_extractor=_StreamResponseAttributesExtractor(),
+#             )
+#             # we need to run this check first because in python 3.9 iterators are
+#             # considered coroutines
+#             if isinstance(response, Iterable):
+#                 return _Stream(
+#                     stream=response,  # type: ignore
+#                     with_span=with_span,
+#                     response_accumulator=response_accumulator,
+#                 )
+#             elif asyncio.iscoroutine(response):
+#                 return _AsyncStream(
+#                     stream=response,
+#                     with_span=with_span,
+#                     response_accumulator=response_accumulator,
+#                 ).stream_async_with_accumulator()
+#             else:
+#                 raise TypeError("Response must be either a coroutine or an iterable")
+#         _finish_tracing(
+#             status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+#             with_span=with_span,
+#             has_attributes=_ResponseAttributes(
+#                 request_parameters=request_parameters,
+#                 response=response,
+#                 response_attributes_extractor=self._response_attributes_extractor,
+#             ),
+#         )
+#         return response
+
+
 def _parse_args(
     signature: Signature,
     *args: Tuple[Any],
