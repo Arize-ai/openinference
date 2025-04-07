@@ -45,6 +45,7 @@ class TestTokenCounts:
     ) -> None:
         llm = OpenAI(model="gpt-4o-mini", api_key="sk-")
         resp = llm.chat([ChatMessage(content="Hello!")])
+        usage = resp.raw.usage
 
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})
@@ -54,19 +55,19 @@ class TestTokenCounts:
         assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == resp.raw.usage.total_tokens
         assert (
             attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ)
-            == resp.raw.usage.prompt_tokens_details.cached_tokens
+            == usage.prompt_tokens_details.cached_tokens
         )
         assert (
             attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO)
-            == resp.raw.usage.prompt_tokens_details.audio_tokens
+            == usage.prompt_tokens_details.audio_tokens
         )
         assert (
             attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO)
-            == resp.raw.usage.completion_tokens_details.audio_tokens
+            == usage.completion_tokens_details.audio_tokens
         )
         assert (
             attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING)
-            == resp.raw.usage.completion_tokens_details.reasoning_tokens
+            == usage.completion_tokens_details.reasoning_tokens
         )
 
     @pytest.mark.vcr(
