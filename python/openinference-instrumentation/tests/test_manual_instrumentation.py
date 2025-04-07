@@ -1457,8 +1457,9 @@ class TestTracerLLMDecorator:
         assert len(events) == 1
         event = events[0]
         assert event.name == "exception"
-        assert event.attributes["exception.type"] == "ValueError"
-        assert event.attributes["exception.message"] == "Something went wrong"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -1544,8 +1545,9 @@ class TestTracerLLMDecorator:
         assert len(events) == 1
         event = events[0]
         assert event.name == "exception"
-        assert event.attributes["exception.type"] == "ValueError"
-        assert event.attributes["exception.message"] == "Something went wrong"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -1643,8 +1645,9 @@ class TestTracerLLMDecorator:
         assert len(events) == 1
         event = events[0]
         assert event.name == "exception"
-        assert event.attributes["exception.type"] == "ValueError"
-        assert event.attributes["exception.message"] == "Something went wrong"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -1744,8 +1747,9 @@ class TestTracerLLMDecorator:
         assert len(events) == 1
         event = events[0]
         assert event.name == "exception"
-        assert event.attributes["exception.type"] == "ValueError"
-        assert event.attributes["exception.message"] == "Something went wrong"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -1845,8 +1849,9 @@ class TestTracerLLMDecorator:
         assert len(events) == 1
         event = events[0]
         assert event.name == "exception"
-        assert event.attributes["exception.type"] == "ValueError"
-        assert event.attributes["exception.message"] == "Something went wrong"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -1950,8 +1955,9 @@ class TestTracerLLMDecorator:
         assert len(events) == 1
         event = events[0]
         assert event.name == "exception"
-        assert event.attributes["exception.type"] == "ValueError"
-        assert event.attributes["exception.message"] == "Something went wrong"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -2069,8 +2075,9 @@ class TestTracerLLMDecorator:
         assert len(events) == 1
         event = events[0]
         assert event.name == "exception"
-        assert event.attributes["exception.type"] == "ValueError"
-        assert event.attributes["exception.message"] == "Something went wrong"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -2188,8 +2195,9 @@ class TestTracerLLMDecorator:
         assert len(events) == 1
         event = events[0]
         assert event.name == "exception"
-        assert event.attributes["exception.type"] == "ValueError"
-        assert event.attributes["exception.message"] == "Something went wrong"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
 
 
 def test_get_llm_attributes_returns_expected_attributes() -> None:

@@ -482,7 +482,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 args=args,
                 kwargs=kwargs,
             ) as llm_context:
-                outputs = []
+                outputs: list[ReturnType] = []
                 generator = wrapped(*args, **kwargs)
                 while True:
                     try:
@@ -514,7 +514,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 args=args,
                 kwargs=kwargs,
             ) as llm_context:
-                outputs = []
+                outputs: list[ReturnType] = []
                 generator = wrapped(*args, **kwargs)
                 while True:
                     try:
