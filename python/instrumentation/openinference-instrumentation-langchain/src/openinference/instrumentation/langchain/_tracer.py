@@ -34,7 +34,7 @@ from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
@@ -814,6 +814,14 @@ def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
         or metadata.get(LANGCHAIN_THREAD_ID)
     ):
         yield SESSION_ID, session_id
+    if isinstance((ctx_metadata_str := get_value(SpanAttributes.METADATA)), str):
+        try:
+            ctx_metadata = json.loads(ctx_metadata_str)
+        except Exception:
+            pass
+        else:
+            if isinstance(ctx_metadata, Mapping):
+                metadata = {**ctx_metadata, **metadata}
     yield METADATA, safe_json_dumps(metadata)
 
 
