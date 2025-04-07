@@ -44,22 +44,30 @@ class TestTokenCounts:
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
         llm = OpenAI(model="gpt-4o-mini", api_key="sk-")
-        llm.chat([ChatMessage(content="Hello!")])
+        resp = llm.chat([ChatMessage(content="Hello!")])
+
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})
 
-        # the token details in recorded response in "TestTokenCounts.test_openai.yaml"
-        # was hard coded/manually altered for test assertion
-        for convention, expected_count in [
-            (LLM_TOKEN_COUNT_PROMPT, 9),
-            (LLM_TOKEN_COUNT_COMPLETION, 10),
-            (LLM_TOKEN_COUNT_TOTAL, 19),
-            (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, 1),
-            (LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, 2),
-            (LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, 3),
-            (LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, 4),
-        ]:
-            assert attr.pop(convention) == expected_count
+        assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == resp.raw.usage.completion_tokens
+        assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == resp.raw.usage.prompt_tokens
+        assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == resp.raw.usage.total_tokens
+        assert (
+            attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ)
+            == resp.raw.usage.prompt_tokens_details.cached_tokens
+        )
+        assert (
+            attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO)
+            == resp.raw.usage.prompt_tokens_details.audio_tokens
+        )
+        assert (
+            attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO)
+            == resp.raw.usage.completion_tokens_details.audio_tokens
+        )
+        assert (
+            attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING)
+            == resp.raw.usage.completion_tokens_details.reasoning_tokens
+        )
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -71,17 +79,23 @@ class TestTokenCounts:
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
         llm = Anthropic(model="claude-3-5-haiku-20241022", api_key="sk-")
-        llm.chat([ChatMessage(content="Hello!")])
+        resp = llm.chat([ChatMessage(content="Hello!")])
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})
-        for convention, expected_count in [
-            # input token 9 + cache_write 1 + cache read 2
-            (LLM_TOKEN_COUNT_PROMPT, (9 + 1 + 2)),
-            (LLM_TOKEN_COUNT_COMPLETION, 21),
-            (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, 1),
-            (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, 2),
-        ]:
-            assert attr.pop(convention) == expected_count
+
+        usage = resp.raw.get("usage")
+        assert (
+            attr.pop(LLM_TOKEN_COUNT_PROMPT)
+            == usage.input_tokens
+            + usage.cache_creation_input_tokens
+            + usage.cache_read_input_tokens
+        )
+        assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == usage.output_tokens
+        assert attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == usage.cache_read_input_tokens
+        assert (
+            attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE)
+            == usage.cache_creation_input_tokens
+        )
 
 
 @pytest.fixture(autouse=True)
