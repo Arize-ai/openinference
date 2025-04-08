@@ -1,27 +1,94 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, TypedDict, Union
+from typing import (
+    Any,
+    AsyncGenerator,
+    Dict,
+    Generator,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 import jsonschema
 import pydantic
 import pytest
+from openai import AsyncOpenAI, OpenAI
+from openai.types.chat import (
+    ChatCompletion,
+    ChatCompletionChunk,
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+)
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Status, StatusCode, get_current_span
+from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
 from typing_extensions import Annotated, TypeAlias
 
 from openinference.instrumentation import (
+    Image,
+    ImageMessageContent,
+    Message,
     OITracer,
+    TextMessageContent,
+    TokenCount,
+    Tool,
+    ToolCall,
+    ToolCallFunction,
+    get_llm_attributes,
     suppress_tracing,
     using_session,
 )
 from openinference.instrumentation._tracers import _infer_tool_parameters
 from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
 )
+
+
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
 
 
 class TestStartAsCurrentSpanContextManager:
@@ -1309,6 +1376,963 @@ class TestTracerToolDecorator:
         assert attributes[SESSION_ID] == session_id
 
 
+class TestTracerLLMDecorator:
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    def test_sync_function_with_unapplied_decorator(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        sync_openai_client: OpenAI,
+    ) -> None:
+        @tracer.llm
+        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+            return sync_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+            )
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+            )
+        ]
+        response = sync_llm_function(input_messages)
+        output_message = response.choices[0].message
+        assert output_message.content == "Argentina"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "sync_llm_function"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == response.model_dump()
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    def test_unhandled_exception_in_sync_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.llm
+        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Test message")
+        ]
+
+        with pytest.raises(ValueError):
+            sync_llm_function(input_messages)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "sync_llm_function"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
+
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    async def test_async_function_with_unapplied_decorator(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        async_openai_client: AsyncOpenAI,
+    ) -> None:
+        @tracer.llm
+        async def async_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
+            return await async_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+            )
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+            )
+        ]
+        response = await async_llm_function(input_messages)
+        output_message = response.choices[0].message
+        assert output_message.content == "Argentina"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "async_llm_function"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == response.model_dump()
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    async def test_unhandled_exception_in_async_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.llm
+        async def async_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Test message")
+        ]
+
+        with pytest.raises(ValueError):
+            await async_llm_function(input_messages)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "async_llm_function"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
+
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    def test_sync_generator_with_unapplied_decorator(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        sync_openai_client: OpenAI,
+    ) -> None:
+        @tracer.llm
+        def sync_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> Generator[ChatCompletionChunk, None, None]:
+            stream = sync_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+                stream=True,
+            )
+            for chunk in stream:
+                yield chunk
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer with a sentence of the form: "
+                "'The winner of the World Cup in 2022 was <country>.'.",
+            )
+        ]
+        chunks = list(sync_llm_generator_function(input_messages))
+        content = "".join(chunk.choices[0].delta.content or "" for chunk in chunks)
+        assert content == "The winner of the World Cup in 2022 was Argentina."
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "sync_llm_generator_function"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == [chunk.model_dump() for chunk in chunks]
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    def test_unhandled_exception_in_sync_generator_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.llm
+        def sync_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> Generator[str, None, None]:
+            yield "Argentina "
+            yield "won"
+            yield "the "
+            yield "World "
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
+        ]
+
+        with pytest.raises(ValueError):
+            for chunk in sync_llm_generator_function(input_messages):
+                pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "sync_llm_generator_function"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == ["Argentina ", "won", "the ", "World "]
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
+
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    async def test_async_generator_with_unapplied_decorator(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        async_openai_client: AsyncOpenAI,
+    ) -> None:
+        @tracer.llm
+        async def async_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> AsyncGenerator[ChatCompletionChunk, None]:
+            stream = await async_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+                stream=True,
+            )
+            async for chunk in stream:
+                yield chunk
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer with a sentence of the form: "
+                "'The winner of the World Cup in 2022 was <country>.'.",
+            )
+        ]
+        chunks = []
+        async for chunk in async_llm_generator_function(input_messages):
+            chunks.append(chunk)
+        content = "".join(chunk.choices[0].delta.content or "" for chunk in chunks)
+        assert content == "The winner of the World Cup in 2022 was Argentina."
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "async_llm_generator_function"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == [chunk.model_dump() for chunk in chunks]
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    async def test_unhandled_exception_in_async_generator_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.llm
+        async def async_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> AsyncGenerator[str, None]:
+            yield "Argentina "
+            yield "won"
+            yield "the "
+            yield "World "
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
+        ]
+
+        with pytest.raises(ValueError):
+            async for chunk in async_llm_generator_function(input_messages):
+                pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "async_llm_generator_function"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"input_messages": input_messages}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == ["Argentina ", "won", "the ", "World "]
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
+
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    def test_sync_function_with_applied_decorator(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        sync_openai_client: OpenAI,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+            return sync_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+            )
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+            )
+        ]
+        response = sync_llm_function(input_messages)
+        output_message = response.choices[0].message
+        assert output_message.content == "Argentina"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_unhandled_exception_in_sync_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Test message")
+        ]
+
+        with pytest.raises(ValueError):
+            sync_llm_function(input_messages)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
+
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    async def test_async_function_with_applied_decorator(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        async_openai_client: AsyncOpenAI,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        async def async_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
+            return await async_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+            )
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer in one word with no punctuation.",
+            )
+        ]
+        response = await async_llm_function(input_messages)
+        output_message = response.choices[0].message
+        assert output_message.content == "Argentina"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    async def test_unhandled_exception_in_async_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        async def async_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Test message")
+        ]
+
+        with pytest.raises(ValueError):
+            await async_llm_function(input_messages)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
+
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    def test_sync_generator_with_applied_decorator(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        sync_openai_client: OpenAI,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(
+            outputs: Sequence[ChatCompletionChunk],
+        ) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        def sync_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> Generator[ChatCompletionChunk, None, None]:
+            stream = sync_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+                stream=True,
+            )
+            for chunk in stream:
+                yield chunk
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer with a sentence of the form: "
+                "'The winner of the World Cup in 2022 was <country>.'.",
+            )
+        ]
+        chunks = list(sync_llm_generator_function(input_messages))
+        content = "".join(chunk.choices[0].delta.content or "" for chunk in chunks)
+        assert content == "The winner of the World Cup in 2022 was Argentina."
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_unhandled_exception_in_sync_generator_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(
+            outputs: Sequence[str],
+        ) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "".join(outputs)}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        def sync_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> Generator[str, None, None]:
+            yield "Argentina "
+            yield "won "
+            yield "the "
+            yield "World "
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
+        ]
+
+        with pytest.raises(ValueError):
+            for chunk in sync_llm_generator_function(input_messages):
+                pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "Argentina won the World "
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
+
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    async def test_async_generator_with_custom_attributes(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+        async_openai_client: AsyncOpenAI,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(
+            outputs: Sequence[ChatCompletionChunk],
+        ) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "output"}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        async def async_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> AsyncGenerator[ChatCompletionChunk, None]:
+            stream = await async_openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=input_messages,
+                temperature=0.5,
+                stream=True,
+            )
+            async for chunk in stream:
+                yield chunk
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(
+                role="user",
+                content="Who won the World Cup in 2022? Answer with a sentence of the form: "
+                "'The winner of the World Cup in 2022 was <country>.'.",
+            )
+        ]
+        chunks = [chunk async for chunk in async_llm_generator_function(input_messages)]
+        content = "".join(chunk.choices[0].delta.content or "" for chunk in chunks)
+        assert content == "The winner of the World Cup in 2022 was Argentina."
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    async def test_unhandled_exception_in_async_generator_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def get_input_attributes(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "input-messages"}
+
+        def get_output_attributes(
+            outputs: Sequence[str],
+        ) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "".join(outputs)}
+
+        @tracer.llm(
+            name="custom-llm-name",
+            process_input=get_input_attributes,
+            process_output=get_output_attributes,
+        )
+        async def async_llm_generator_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> AsyncGenerator[str, None]:
+            yield "Argentina "
+            yield "won "
+            yield "the "
+            yield "World "
+            raise ValueError("Something went wrong")
+
+        input_messages: List[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
+        ]
+
+        with pytest.raises(ValueError):
+            async for chunk in async_llm_generator_function(input_messages):
+                pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "custom-llm-name"
+        assert not span.status.is_ok
+        assert span.status.status_code == StatusCode.ERROR
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_VALUE) == "input-messages"
+        assert attributes.pop(OUTPUT_VALUE) == "Argentina won the World "
+        assert not attributes
+
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        attributes = dict(event.attributes or {})
+        assert attributes["exception.type"] == "ValueError"
+        assert attributes["exception.message"] == "Something went wrong"
+
+
+def test_get_llm_attributes_returns_expected_attributes() -> None:
+    input_messages: Sequence[Message] = [
+        Message(
+            role="user",
+            content="Hello",
+            contents=[
+                TextMessageContent(type="text", text="Hello"),
+                ImageMessageContent(type="image", image=Image(url="https://example.com/image.jpg")),
+            ],
+            tool_call_id="call-123",
+            tool_calls=[
+                ToolCall(
+                    id="call-456",
+                    function=ToolCallFunction(
+                        name="search",
+                        arguments='{"query": "test"}',
+                    ),
+                ),
+                ToolCall(
+                    id="call-789",
+                    function=ToolCallFunction(
+                        name="calculate",
+                        arguments={"operation": "add", "numbers": [1, 2, 3]},
+                    ),
+                ),
+            ],
+        )
+    ]
+    output_messages: Sequence[Message] = [
+        Message(
+            role="assistant",
+            content="Hi there!",
+            contents=[TextMessageContent(type="text", text="Hi there!")],
+        )
+    ]
+    token_count: TokenCount = TokenCount(prompt=10, completion=5, total=15)
+    tools: Sequence[Tool] = [
+        Tool(
+            json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}})
+        ),
+        Tool(json_schema={"type": "object", "properties": {"operation": {"type": "string"}}}),
+    ]
+    attributes = get_llm_attributes(
+        provider="openai",
+        system="openai",
+        model_name="gpt-4",
+        invocation_parameters={"temperature": 0.7, "max_tokens": 100},
+        input_messages=input_messages,
+        output_messages=output_messages,
+        token_count=token_count,
+        tools=tools,
+    )
+
+    assert attributes.pop(LLM_PROVIDER) == "openai"
+    assert attributes.pop(LLM_SYSTEM) == "openai"
+    assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
+    invocation_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
+    assert isinstance(invocation_params, str)
+    params_dict = json.loads(invocation_params)
+    assert params_dict == {"temperature": 0.7, "max_tokens": 100}
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Hello"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "Hello"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
+        )
+        == "https://example.com/image.jpg"
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALL_ID}") == "call-123"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
+        == "call-456"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        == "search"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        )
+        == '{"query": "test"}'
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_ID}")
+        == "call-789"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "calculate"
+    )
+    function_args = attributes.pop(
+        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert isinstance(function_args, str)
+    assert json.loads(function_args) == {"operation": "add", "numbers": [1, 2, 3]}
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Hi there!"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "Hi there!"
+    )
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 5
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 15
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}")
+        == '{"type": "object", "properties": {"query": {"type": "string"}}}'
+    )
+    tool_schema = attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}")
+    assert isinstance(tool_schema, str)
+    assert json.loads(tool_schema) == {
+        "type": "object",
+        "properties": {"operation": {"type": "string"}},
+    }
+
+
 def test_infer_tool_parameters() -> None:
     class PydanticModel(pydantic.BaseModel):
         string_param: str
@@ -1655,22 +2679,58 @@ def test_infer_tool_parameters() -> None:
     assert schema == expected_schema
 
 
-# mime types
-TEXT = OpenInferenceMimeTypeValues.TEXT.value
-JSON = OpenInferenceMimeTypeValues.JSON.value
+# Image attributes
+IMAGE_URL = ImageAttributes.IMAGE_URL
 
-# span kinds
-AGENT = OpenInferenceSpanKindValues.AGENT.value
-CHAIN = OpenInferenceSpanKindValues.CHAIN.value
-TOOL = OpenInferenceSpanKindValues.TOOL.value
+# Message attributes
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 
-# span attributes
+# Message content attributes
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+
+# Span attributes
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
-SESSION_ID = SpanAttributes.SESSION_ID
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+
+# Tool attributes
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+
+# Tool call attributes
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+
+# Mime types
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
+JSON = OpenInferenceMimeTypeValues.JSON.value
+
+# Span kinds
+AGENT = OpenInferenceSpanKindValues.AGENT.value
+CHAIN = OpenInferenceSpanKindValues.CHAIN.value
+LLM = OpenInferenceSpanKindValues.LLM.value
+TOOL = OpenInferenceSpanKindValues.TOOL.value
+
+# Session ID
+SESSION_ID = SpanAttributes.SESSION_ID
