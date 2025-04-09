@@ -17,6 +17,8 @@ from openinference.instrumentation.google_genai.version import __version__
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+from google import genai
+
 
 class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
     """
@@ -41,7 +43,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         try:
-            from google.genai.models import Models
+            from google.genai.models import AsyncModels, Models
         except ImportError as err:
             raise Exception(
                 "Could not import google-genai. Please install with `pip install google-genai`."
@@ -54,10 +56,10 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_SyncGenerateContent(tracer=self._tracer),
         )
 
-        self._original_async_generate_content = Models.async_generate_content
+        self._original_async_generate_content = AsyncModels.generate_content
         wrap_function_wrapper(
             module="google.genai.models",
-            name="Models.async_generate_content",
+            name="AsyncModels.generate_content",
             wrapper=_AsyncGenerateContentWrapper(tracer=self._tracer),
         )
 

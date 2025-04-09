@@ -47,14 +47,13 @@ class _ResponseAttributesExtractor:
             index = -1
             for candidate in candidates:
                 # TODO: This is a hack to get the index of the candidate.
-                #       We should find a better way to do this.
+                #       Might be a better way to do this.
                 # Keep track of previous index to increment if index not found
                 index = (
                     index + 1
                     if getattr(candidate, "index") is None
                     else getattr(candidate, "index")
                 )
-                print(f"index: {index}")
                 if content := getattr(candidate, "content", None):
                     for key, value in self._get_attributes_from_generate_content_content(content):
                         yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
