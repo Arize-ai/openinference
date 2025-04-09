@@ -24,7 +24,6 @@ def test_chat_completion(
     resp = client.chat.completions.create(
         messages=[{"role": "user", "content": "What's the weather like?"}], model="gpt-4o-mini"
     )
-    print(resp)
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
