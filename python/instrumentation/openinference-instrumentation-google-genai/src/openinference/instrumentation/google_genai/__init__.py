@@ -17,8 +17,6 @@ from openinference.instrumentation.google_genai.version import __version__
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-from google import genai
-
 
 class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
     """
