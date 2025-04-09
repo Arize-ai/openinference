@@ -51,46 +51,37 @@ class _RequestAttributesExtractor:
         invocation_params.pop("contents", None)  # Remove LLM input contents
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
-        if input_contents := request_parameters.get("contents", None):
-            for attr, value in self._get_attributes_from_message_param(input_contents):
-                yield attr, value
+        if input_contents := request_parameters.get("contents"):
+            if isinstance(input_contents, list):
+                for index, input_content in reversed(list(enumerate(input_contents))):
+                    # Use reversed() to get the last message first. This is because OTEL has a default
+                    # limit of 128 attributes per span, and flattening increases the number of
+                    # attributes very quickly.
+                    for attr, value in self._get_attributes_from_message_param(input_content):
+                        yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{attr}", value
+            else:
+                for attr, value in self._get_attributes_from_message_param(input_contents):
+                    # Default to index 0 for a single message
+                    yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{attr}", value
 
     def _get_attributes_from_message_param(
         self,
         input_contents: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        # TODO: Determine what role should be assigned here or if there should be a role
-        # assigned at all. Roles might not be present in input content or there might
-        # be several types of roles for the input content.
-
-        # input_contents can be a File, Part, str, Content, PIL_Image, or a list of any of these types
+        # https://github.com/googleapis/python-genai/blob/6e55222895a6639d41e54202e3d9a963609a391f/google/genai/models.py#L3890 # noqa: E501
         if isinstance(input_contents, str):
-            yield (
-                f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}",
-                input_contents,
-            )
-            yield (
-                f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}",
-                "user",
-            )
+            # When provided a string, the GenAI SDK ingests it as a UserContent object with role "user"
+            # https://googleapis.github.io/python-genai/index.html#provide-a-string
+            yield (MessageAttributes.MESSAGE_CONTENT, input_contents)
+            yield (MessageAttributes.MESSAGE_ROLE, "user")
         elif isinstance(input_contents, Content):
-            for key, value in self._get_attributes_from_content(input_contents):
-                yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{key}", value
+            yield from self._get_attributes_from_content(input_contents)
         elif isinstance(input_contents, Part):
-            for key, value in self._get_attributes_from_part(input_contents):
-                yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{key}", value
-        elif isinstance(input_contents, list):
-            for index, input_content in reversed(list(enumerate(input_contents))):
-                # Use reversed() to get the last message first. This is because OTEL has a default
-                # limit of 128 attributes per span, and flattening increases the number of
-                # attributes very quickly.
-                for key, value in self._get_attributes_from_message_param(input_content):
-                    yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
+            yield from self._get_attributes_from_part(input_contents)
         else:
             # TODO: Implement for File, PIL_Image
             logger.exception(f"Unexpected input contents type: {type(input_contents)}")
 
-    # Extract from Content
     def _get_attributes_from_content(
         self, content: Content
     ) -> Iterator[Tuple[str, AttributeValue]]:
@@ -105,18 +96,33 @@ class _RequestAttributesExtractor:
                 "user",
             )
 
+        # Flatten parts into a single message content
         if parts := get_attribute(content, "parts"):
-            for part in parts:
-                yield from self._get_attributes_from_part(part)
+            yield from self._flatten_parts(parts)
 
-    # Extract from Parts
+    def _flatten_parts(self, parts: list[Part]) -> Iterator[Tuple[str, AttributeValue]]:
+        text_values = []
+        for part in parts:
+            attr, value = self._get_attributes_from_part(part)
+            if isinstance(value, str):
+                text_values.append(value)
+            else:
+                # TODO: Handle other types of parts
+                yield attr, value
+
+        if text_values:
+            yield (MessageAttributes.MESSAGE_CONTENT, "\n\n".join(text_values))
+
     def _get_attributes_from_part(self, part: Part) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/main/google/genai/types.py#L566
-        if text := get_attribute(part, "text"):
-            yield (
-                MessageAttributes.MESSAGE_CONTENT,
-                text,
-            )
+        if isinstance(part, Part):
+            if text := get_attribute(part, "text"):
+                yield (
+                    MessageAttributes.MESSAGE_CONTENT,
+                    text,
+                )
+            else:
+                logger.exception("Other field types of parts are not supported yet")
 
 
 T = TypeVar("T", bound=type)
