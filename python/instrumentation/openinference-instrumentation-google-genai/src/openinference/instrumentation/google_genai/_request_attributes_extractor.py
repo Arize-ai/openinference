@@ -2,7 +2,7 @@ import logging
 from enum import Enum
 from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
 
-from google.genai.types import Content, Part
+from google.genai.types import Content, Part, UserContent
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
@@ -74,7 +74,7 @@ class _RequestAttributesExtractor:
             # https://googleapis.github.io/python-genai/index.html#provide-a-string
             yield (MessageAttributes.MESSAGE_CONTENT, input_contents)
             yield (MessageAttributes.MESSAGE_ROLE, "user")
-        elif isinstance(input_contents, Content):
+        elif isinstance(input_contents, Content) or isinstance(input_contents, UserContent):
             yield from self._get_attributes_from_content(input_contents)
         elif isinstance(input_contents, Part):
             yield from self._get_attributes_from_part(input_contents)
@@ -95,7 +95,6 @@ class _RequestAttributesExtractor:
                 MessageAttributes.MESSAGE_ROLE,
                 "user",
             )
-
         # Flatten parts into a single message content
         if parts := get_attribute(content, "parts"):
             yield from self._flatten_parts(parts)
@@ -103,26 +102,24 @@ class _RequestAttributesExtractor:
     def _flatten_parts(self, parts: list[Part]) -> Iterator[Tuple[str, AttributeValue]]:
         text_values = []
         for part in parts:
-            attr, value = self._get_attributes_from_part(part)
-            if isinstance(value, str):
-                text_values.append(value)
+            for attr, value in self._get_attributes_from_part(part):
+                if isinstance(value, str):
+                    text_values.append(value)
             else:
                 # TODO: Handle other types of parts
-                yield attr, value
-
+                logger.debug(f"Non-text part encountered: {part}")
         if text_values:
             yield (MessageAttributes.MESSAGE_CONTENT, "\n\n".join(text_values))
 
     def _get_attributes_from_part(self, part: Part) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/main/google/genai/types.py#L566
-        if isinstance(part, Part):
-            if text := get_attribute(part, "text"):
-                yield (
-                    MessageAttributes.MESSAGE_CONTENT,
-                    text,
-                )
-            else:
-                logger.exception("Other field types of parts are not supported yet")
+        if text := get_attribute(part, "text"):
+            yield (
+                MessageAttributes.MESSAGE_CONTENT,
+                text,
+            )
+        else:
+            logger.exception("Other field types of parts are not supported yet")
 
 
 T = TypeVar("T", bound=type)
