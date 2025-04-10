@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.1.0...python-openinference-instrumentation-llama-index-v4.2.0) (2025-04-10)
+
+
+### Features
+
+* **llama-index py:** capture reasoning, cache, and audio tokens ([#1489](https://github.com/Arize-ai/openinference/issues/1489)) ([9d0ec39](https://github.com/Arize-ai/openinference/commit/9d0ec3991a6adf7932b0b2069f38a6e83bb1b752))
+
 ## [4.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.0.0...python-openinference-instrumentation-llama-index-v4.1.0) (2025-04-03)
 
 
