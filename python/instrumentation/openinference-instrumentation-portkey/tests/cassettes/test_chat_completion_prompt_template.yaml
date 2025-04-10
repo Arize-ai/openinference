@@ -1,0 +1,80 @@
+interactions:
+- request:
+    body: '{"variables":{"question":"what is the meaning of life"},"stream":false}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '71'
+      content-type:
+      - application/json
+      host:
+      - api.portkey.ai
+      user-agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://api.portkey.ai/v1/prompts/pp-my-prompt-376e7b/completions
+  response:
+    content: '{"id":"chatcmpl-BKTfV3PsyONMtPNzwwGkgxybpS4l6","object":"chat.completion","created":1744220305,"model":"gpt-3.5-turbo-0125","choices":[{"index":0,"message":{"role":"assistant","content":"The
+      meaning of life is subjective and can vary from person to person. It often involves
+      finding purpose, happiness, and fulfillment in one''s existence.","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":30,"completion_tokens":30,"total_tokens":60,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":null}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-Ray:
+      - 92dbc72a8e6142ca-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 09 Apr 2025 17:38:25 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=wVKAcHZ1FcNFhH4LuqTLGnks8HRCnbB72ubhsiotgxQ-1744220305-1.0.1.1-hQP9xetZuPO3k_onSKIFnMo._uO2kF_JRgu3HCK0HyVSZITnl8nJ5lAMrQBQIpw781DINRZhnIOCNEoPLovQZPE0xmEf8ErYNUNzjptl1wQ;
+        path=/; expires=Wed, 09-Apr-25 18:08:25 GMT; domain=.api.openai.com; HttpOnly;
+        Secure
+      - _cfuvid=9Fws.tbdu43iLYwOn8gfbuj_n1qVyqRqrPiqYTn4kt0-1744220305991-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '579'
+      openai-version:
+      - '2020-10-01'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '50000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '49999972'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_934340abd15284c278ea3bfdbf4517fe
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1
