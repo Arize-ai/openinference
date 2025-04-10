@@ -21,7 +21,7 @@ def test_chat_completion(
         api_key="REDACTED",
         virtual_key="REDACTED",
     )
-    resp = client.chat.completions.create(
+    client.chat.completions.create(
         messages=[{"role": "user", "content": "What's the weather like?"}], model="gpt-4o-mini"
     )
     spans = in_memory_span_exporter.get_finished_spans()
