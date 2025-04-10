@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.26...python-openinference-instrumentation-v0.1.27) (2025-04-10)
+
+
+### Features
+
+* add manual instrumentation helpers for llm spans ([#1424](https://github.com/Arize-ai/openinference/issues/1424)) ([ee79fa3](https://github.com/Arize-ai/openinference/commit/ee79fa35c247608f21b902b84443427ddf643314))
+
+
+### Bug Fixes
+
+* ensure io attributes output by manual instrumentation helpers are always strings ([#1502](https://github.com/Arize-ai/openinference/issues/1502)) ([43c7f4a](https://github.com/Arize-ai/openinference/commit/43c7f4a41d9d36828d0f45907e7a580ce97dd68e))
+
 ## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.25...python-openinference-instrumentation-v0.1.26) (2025-03-28)
 
 
