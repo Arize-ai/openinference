@@ -1,7 +1,7 @@
 import asyncio
 import collections
 import inspect
-from collections.abc import Sequence
+import warnings
 from contextlib import contextmanager
 from datetime import datetime
 from secrets import randbits
@@ -9,12 +9,16 @@ from types import ModuleType
 from typing import (  # type: ignore[attr-defined]
     TYPE_CHECKING,
     Any,
-    Awaitable,
+    AsyncGenerator,
     Callable,
+    Coroutine,
     Dict,
+    Generator,
     Iterator,
     Literal,
+    Mapping,
     Optional,
+    Sequence,
     Tuple,
     Union,
     _TypedDictMeta,
@@ -38,7 +42,7 @@ from opentelemetry.trace import (
     Tracer,
     use_span,
 )
-from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import ParamSpec, TypeVar, _AnnotatedAlias, overload
 
 from openinference.semconv.trace import (
@@ -48,6 +52,7 @@ from openinference.semconv.trace import (
 
 from ._attributes import (
     get_input_attributes,
+    get_llm_attributes,
     get_span_kind_attributes,
     get_tool_attributes,
 )
@@ -264,11 +269,12 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 kwargs=kwargs,
             ) as chain_context:
                 output = wrapped(*args, **kwargs)
-                return chain_context.process_output(output)
+                chain_context.process_output(output)
+                return output
 
         @wrapt.decorator  #  type: ignore[misc]
         async def async_wrapper(
-            wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+            wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
@@ -284,7 +290,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 kwargs=kwargs,
             ) as chain_context:
                 output = await wrapped(*args, **kwargs)
-                return chain_context.process_output(output)
+                chain_context.process_output(output)
+                return output
 
         if wrapped_function is not None:
             if asyncio.iscoroutinefunction(wrapped_function):
@@ -345,11 +352,12 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 kwargs=kwargs,
             ) as tool_context:
                 output = wrapped(*args, **kwargs)
-                return tool_context.process_output(output)
+                tool_context.process_output(output)
+                return output
 
         @wrapt.decorator  #  type: ignore[misc]
         async def async_wrapper(
-            wrapped: Callable[ParametersType, Awaitable[ReturnType]],
+            wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
@@ -366,7 +374,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 kwargs=kwargs,
             ) as tool_context:
                 output = await wrapped(*args, **kwargs)
-                return tool_context.process_output(output)
+                tool_context.process_output(output)
+                return output
 
         if wrapped_function is not None:
             if asyncio.iscoroutinefunction(wrapped_function):
@@ -374,17 +383,176 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
         return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
 
+    @overload  # @tracer.llm usage with no explicit application of the decorator
+    def llm(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+        process_input: None = None,
+        process_output: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # @tracer.llm(...) usage with explicit application of the decorator
+    def llm(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
+    ) -> Callable[
+        [Callable[ParametersType, ReturnType]],
+        Callable[ParametersType, ReturnType],
+    ]: ...
+
+    def llm(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        @wrapt.decorator  # type: ignore[misc]
+        def sync_function_wrapper(
+            wrapped: Callable[ParametersType, ReturnType],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+        ) -> ReturnType:
+            tracer = self
+            with _llm_context(
+                tracer=tracer,
+                name=name,
+                process_input=process_input,
+                process_output=process_output,
+                wrapped=wrapped,
+                instance=instance,
+                args=args,
+                kwargs=kwargs,
+            ) as llm_context:
+                output = wrapped(*args, **kwargs)
+                llm_context.process_output(output)
+                return output
+
+        @wrapt.decorator  #  type: ignore[misc]
+        async def async_function_wrapper(
+            wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+        ) -> ReturnType:
+            tracer = self
+            with _llm_context(
+                tracer=tracer,
+                name=name,
+                process_input=process_input,
+                process_output=process_output,
+                wrapped=wrapped,
+                instance=instance,
+                args=args,
+                kwargs=kwargs,
+            ) as llm_context:
+                output = await wrapped(*args, **kwargs)
+                llm_context.process_output(output)
+                return output
+
+        @wrapt.decorator  # type: ignore[misc]
+        def sync_generator_function_wrapper(
+            wrapped: Callable[ParametersType, Generator[ReturnType, None, None]],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+        ) -> Generator[ReturnType, None, None]:
+            tracer = self
+            with _llm_context(
+                tracer=tracer,
+                name=name,
+                process_input=process_input,
+                process_output=process_output,
+                wrapped=wrapped,
+                instance=instance,
+                args=args,
+                kwargs=kwargs,
+            ) as llm_context:
+                outputs: list[ReturnType] = []
+                generator = wrapped(*args, **kwargs)
+                while True:
+                    try:
+                        output = next(generator)
+                    except StopIteration:
+                        break
+                    except Exception:
+                        llm_context.process_output(outputs)
+                        raise
+                    outputs.append(output)
+                    yield output
+                llm_context.process_output(outputs)
+
+        @wrapt.decorator  # type: ignore[misc]
+        async def async_generator_function_wrapper(
+            wrapped: Callable[ParametersType, AsyncGenerator[ReturnType, None]],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+        ) -> AsyncGenerator[ReturnType, None]:
+            tracer = self
+            with _llm_context(
+                tracer=tracer,
+                name=name,
+                process_input=process_input,
+                process_output=process_output,
+                wrapped=wrapped,
+                instance=instance,
+                args=args,
+                kwargs=kwargs,
+            ) as llm_context:
+                outputs: list[ReturnType] = []
+                generator = wrapped(*args, **kwargs)
+                while True:
+                    try:
+                        output = await generator.__anext__()
+                    except StopAsyncIteration:
+                        break
+                    except Exception:
+                        llm_context.process_output(outputs)
+                        raise
+                    outputs.append(output)
+                    yield output
+                llm_context.process_output(outputs)
+
+        def select_wrapper(
+            wrapped: Any,
+        ) -> Any:
+            if inspect.isgeneratorfunction(wrapped):
+                return sync_generator_function_wrapper(wrapped)
+            elif inspect.isasyncgenfunction(wrapped):
+                return async_generator_function_wrapper(wrapped)
+            elif asyncio.iscoroutinefunction(wrapped):
+                return async_function_wrapper(wrapped)
+            return sync_function_wrapper(wrapped)
+
+        if wrapped_function is not None:
+            return select_wrapper(wrapped_function)  # type: ignore[no-any-return]
+        return select_wrapper
+
 
 class _ChainContext:
     def __init__(self, span: "OpenInferenceSpan") -> None:
         self._span = span
 
-    def process_output(self, output: ReturnType) -> ReturnType:
+    def process_output(self, output: ReturnType) -> None:
         attributes = getattr(self._span, "attributes", {})
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
             self._span.set_output(value=output)
-        return output
 
 
 @contextmanager
@@ -419,16 +587,80 @@ def _chain_context(
         span.set_status(Status(StatusCode.OK))
 
 
+class _LLMContext:
+    def __init__(
+        self,
+        span: "OpenInferenceSpan",
+        process_output: Optional[Callable[[Any], "Mapping[str, AttributeValue]"]],
+    ) -> None:
+        self._span = span
+        self._process_output = process_output
+
+    def process_output(self, output: Any) -> None:
+        attributes: "Mapping[str, AttributeValue]" = getattr(self._span, "attributes", {}) or {}
+        has_output = OUTPUT_VALUE in attributes
+        if not has_output:
+            if callable(self._process_output):
+                try:
+                    attributes = self._process_output(output)
+                except Exception as error:
+                    warnings.warn(f"Failed to get attributes from outputs: {error}")
+                else:
+                    self._span.set_attributes(attributes)
+            else:
+                self._span.set_output(value=output)
+
+
+@contextmanager
+def _llm_context(
+    *,
+    tracer: "OITracer",
+    name: Optional[str],
+    process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]],
+    process_output: Optional[Callable[[ReturnType], "Mapping[str, AttributeValue]"]],
+    wrapped: Callable[ParametersType, ReturnType],
+    instance: Any,
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
+) -> Iterator[_LLMContext]:
+    llm_span_name = name or _infer_span_name(instance=instance, callable=wrapped)
+    bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
+    bound_args.apply_defaults()
+    arguments = bound_args.arguments
+    input_attributes: "Mapping[str, AttributeValue]" = {}
+    if callable(process_input):
+        try:
+            input_attributes = process_input(*args, **kwargs)
+        except Exception as error:
+            warnings.warn(f"Failed to get attributes from inputs: {error}")
+    else:
+        input_attributes = get_input_attributes(arguments)
+    llm_attributes = get_llm_attributes()
+    with tracer.start_as_current_span(
+        llm_span_name,
+        openinference_span_kind=OpenInferenceSpanKindValues.LLM,
+        attributes={
+            **input_attributes,
+            **llm_attributes,
+        },
+    ) as span:
+        context = _LLMContext(
+            span=span,
+            process_output=process_output,
+        )
+        yield context
+        span.set_status(Status(StatusCode.OK))
+
+
 class _ToolContext:
     def __init__(self, span: "OpenInferenceSpan") -> None:
         self._span = span
 
-    def process_output(self, output: ReturnType) -> ReturnType:
+    def process_output(self, output: ReturnType) -> None:
         attributes = getattr(self._span, "attributes", {})
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
             self._span.set_output(value=output)
-        return output
 
 
 @contextmanager

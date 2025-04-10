@@ -16,7 +16,7 @@ from openinference.instrumentation.smolagents._wrappers import (
 )
 from openinference.instrumentation.smolagents.version import __version__
 
-_instruments = ("smolagents >= 1.2.2",)
+_instruments = ("smolagents >= 1.2.2.dev0",)
 
 
 class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore

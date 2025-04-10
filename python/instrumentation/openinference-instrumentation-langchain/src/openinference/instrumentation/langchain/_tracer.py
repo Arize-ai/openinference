@@ -34,7 +34,7 @@ from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
@@ -410,6 +410,10 @@ def _input_messages(
         parsed_messages.append(dict(_parse_message_data(first_messages.to_json())))
     elif hasattr(first_messages, "get"):
         parsed_messages.append(dict(_parse_message_data(first_messages)))
+    elif isinstance(first_messages, Sequence) and len(first_messages) == 2:
+        # See e.g. https://github.com/langchain-ai/langchain/blob/18cf457eec106d99e0098b42712299f5d0daa798/libs/core/langchain_core/messages/utils.py#L317  # noqa: E501
+        role, content = first_messages
+        parsed_messages.append({MESSAGE_ROLE: role, MESSAGE_CONTENT: content})
     else:
         raise ValueError(f"failed to parse messages of type {type(first_messages)}")
     if parsed_messages:
@@ -810,6 +814,14 @@ def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
         or metadata.get(LANGCHAIN_THREAD_ID)
     ):
         yield SESSION_ID, session_id
+    if isinstance((ctx_metadata_str := get_value(SpanAttributes.METADATA)), str):
+        try:
+            ctx_metadata = json.loads(ctx_metadata_str)
+        except Exception:
+            pass
+        else:
+            if isinstance(ctx_metadata, Mapping):
+                metadata = {**ctx_metadata, **metadata}
     yield METADATA, safe_json_dumps(metadata)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.8...python-openinference-instrumentation-smolagents-v0.1.9) (2025-04-05)
+
+
+### Bug Fixes
+
+* allow prerelease versions of smolagents ([#1416](https://github.com/Arize-ai/openinference/issues/1416)) ([8cd680f](https://github.com/Arize-ai/openinference/commit/8cd680fcb4b7d88a1223f2e07bf1edb038021fac))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.7...python-openinference-instrumentation-smolagents-v0.1.8) (2025-03-21)
 
 
