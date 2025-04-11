@@ -129,6 +129,7 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     RerankerAttributes,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -227,6 +228,13 @@ class _Span(BaseSpan):
         return set_span_in_context(self._otel_span)
 
     def process_input(self, instance: Any, bound_args: inspect.BoundArguments) -> None:
+        from llama_index.core.llms.function_calling import FunctionCallingLLM
+
+        if isinstance(instance, FunctionCallingLLM) and isinstance(
+            (tools := bound_args.kwargs.get("tools")), Iterable
+        ):
+            for i, tool in enumerate(tools):
+                self[f"{LLM_TOOLS}.{i}.{TOOL_JSON_SCHEMA}"] = safe_json_dumps(tool)
         try:
             self[INPUT_VALUE] = safe_json_dumps(bound_args.arguments, cls=_Encoder)
             self[INPUT_MIME_TYPE] = JSON
@@ -1163,6 +1171,7 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
 )
 
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
@@ -1190,6 +1199,8 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 
 JSON = OpenInferenceMimeTypeValues.JSON.value
 

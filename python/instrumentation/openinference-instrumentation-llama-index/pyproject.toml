@@ -39,19 +39,6 @@ instruments = [
   "llama-index-core >= 0.12.3",
   "llama-index-multi-modal-llms-openai>=0.1.7",
 ]
-test = [
-  "llama-index == 0.12.3",
-  "llama-index-core == 0.12.3",
-  "llama-index-llms-openai",
-  "llama_index.llms.anthropic",
-  "llama-index-llms-groq",
-  "pytest-vcr",
-  "anthropic<0.41",
-  "llama-index-multi-modal-llms-openai>=0.1.7",
-  "openinference-instrumentation-openai",
-  "opentelemetry-sdk",
-  "respx",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 llama_index = "openinference.instrumentation.llama_index:LlamaIndexInstrumentor"
