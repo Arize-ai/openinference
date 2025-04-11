@@ -1,0 +1,4 @@
+portkey-ai===1.11.2
+opentelemetry-sdk
+pytest-vcr
+urllib3<2.0.0
