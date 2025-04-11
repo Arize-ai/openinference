@@ -1,3 +1,4 @@
+anthropic<0.41
 llama-index-core==0.12.3
 llama-index-llms-groq
 llama-index-llms-openai
