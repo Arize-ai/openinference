@@ -78,6 +78,10 @@
         "python/instrumentation/openinference-instrumentation-autogen": {
             "package-name": "python-openinference-instrumentation-autogen",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-beeai": {
+            "package-name": "python-openinference-instrumentation-beeai",
+            "release-type": "python"
         }
     }
 }
