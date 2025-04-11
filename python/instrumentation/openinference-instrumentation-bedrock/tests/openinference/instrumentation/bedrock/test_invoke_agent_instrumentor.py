@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 import boto3
@@ -41,8 +40,6 @@ def remove_all_vcr_response_headers(response: dict[str, Any]) -> dict[str, Any]:
     response["headers"] = {}
     return response
 
-    # @vcr.use_cassette("tests/cassettes/test_instrumentor/test_tool_calls_with_input_params.yaml")
-
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -71,20 +68,16 @@ def test_tool_calls_with_input_params(
     events = [event for event in response["completion"]]
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(events) == 10
-    assert len(spans) == 9
+    assert len(spans) == 5
     span_names = [span.name for span in spans]
     assert span_names == [
-        "llm",
-        "rational",
-        "tool_result",
-        "tool_execution",
-        "orchestrationTrace",
-        "llm",
-        "rational",
+        "LLM",
+        "action_group",
+        "LLM",
         "orchestrationTrace",
         "bedrock_agent.invoke_agent",
     ]
-    llm_span = [span for span in spans if span.name == "llm"][0]
+    llm_span = [span for span in spans if span.name == "LLM"][0]
     llm_span_attributes = dict(llm_span.attributes or {})
     tool_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     tool_function_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -93,16 +86,11 @@ def test_tool_calls_with_input_params(
         llm_span_attributes[tool_function_key] == "action_group_quick_start_7jzsu__add_two_numbers"
     )
     assert llm_span_attributes[tool_inputs_key] == '{"number_1": 10, "number_2": 20}'
-    tool_result_span = [span for span in spans if span.name == "tool_result"][0]
+    tool_result_span = [span for span in spans if span.name == "action_group"][0]
     tool_span_attributes = dict(tool_result_span.attributes or {})
-    assert (
-        json.loads(str(tool_span_attributes["metadata"]))["result_type"] == "tool_execution_result"
-    )
-    assert (
-        tool_span_attributes[SpanAttributes.OUTPUT_VALUE]
-        == '{"text": "The result of adding 10 and 20 is 30"}'
-    )
-    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "TOOL"
+    output_value = "The result of adding 10 and 20 is 30"
+    assert tool_span_attributes[SpanAttributes.OUTPUT_VALUE] == output_value
+    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "LLM"
 
 
 @pytest.mark.vcr(
@@ -132,36 +120,27 @@ def test_tool_calls_without_input_params(
     events = [event for event in response["completion"]]
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(events) == 10
-    assert len(spans) == 9
+    assert len(spans) == 5
     span_names = [span.name for span in spans]
     assert span_names == [
-        "llm",
-        "rational",
-        "tool_result",
-        "tool_execution",
-        "orchestrationTrace",
-        "llm",
-        "rational",
+        "LLM",
+        "action_group",
+        "LLM",
         "orchestrationTrace",
         "bedrock_agent.invoke_agent",
     ]
-    llm_span = [span for span in spans if span.name == "llm"][0]
+    llm_span = [span for span in spans if span.name == "LLM"][0]
     llm_span_attributes = dict(llm_span.attributes or {})
     tool_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     tool_function_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
     tool_inputs_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     assert llm_span_attributes[tool_function_key] == "action_group_quick_start_7jzsu__get_time"
     assert llm_span_attributes[tool_inputs_key] == "{}"
-    tool_result_span = [span for span in spans if span.name == "tool_result"][0]
+    tool_result_span = [span for span in spans if span.name == "action_group"][0]
     tool_span_attributes = dict(tool_result_span.attributes or {})
-    assert (
-        json.loads(str(tool_span_attributes["metadata"]))["result_type"] == "tool_execution_result"
-    )
-    assert (
-        tool_span_attributes[SpanAttributes.OUTPUT_VALUE]
-        == '{"text": "The current time is 18:41:58"}'
-    )
-    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "TOOL"
+
+    assert tool_span_attributes[SpanAttributes.OUTPUT_VALUE] == "The current time is 18:41:58"
+    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "LLM"
 
 
 @pytest.mark.vcr(
@@ -192,18 +171,14 @@ def test_knowledge_base_results(
     assert len(events) == 10
     span_names = [span.name for span in spans]
     assert span_names == [
-        "llm",
-        "rational",
-        "knowledge_base_result",
-        "knowledge_base_lookup",
-        "orchestrationTrace",
-        "llm",
-        "rational",
+        "LLM",
+        "knowledge_base",
+        "LLM",
         "orchestrationTrace",
         "bedrock_agent.invoke_agent",
     ]
-    assert len(spans) == 9
-    llm_span = [span for span in spans if span.name == "llm"][0]
+    assert len(spans) == 5
+    llm_span = [span for span in spans if span.name == "LLM"][0]
     llm_span_attributes = dict(llm_span.attributes or {})
     tool_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     tool_function_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -241,14 +216,12 @@ def test_preprocessing_trace(
     events = [event for event in response["completion"]]
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(events) == 7
-    assert len(spans) == 7
+    assert len(spans) == 5
     span_names = [span.name for span in spans]
     assert span_names == [
-        "llm",
-        "final_response",
+        "LLM",
+        "LLM",
         "preProcessingTrace",
-        "llm",
-        "rational",
         "orchestrationTrace",
         "bedrock_agent.invoke_agent",
     ]
@@ -281,14 +254,12 @@ def test_post_processing_trace(
     events = [event for event in response["completion"]]
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(events) == 7
-    assert len(spans) == 7
+    assert len(spans) == 5
     span_names = [span.name for span in spans]
     assert span_names == [
-        "llm",
-        "rational",
+        "LLM",
+        "LLM",
         "orchestrationTrace",
-        "llm",
-        "final_response",
         "postProcessingTrace",
         "bedrock_agent.invoke_agent",
     ]

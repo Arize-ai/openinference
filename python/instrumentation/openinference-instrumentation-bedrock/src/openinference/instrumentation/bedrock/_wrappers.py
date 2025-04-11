@@ -6,10 +6,10 @@ from typing import Any, Callable
 import wrapt
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import Tracer
+from opentelemetry.trace import Status, StatusCode, Tracer
 
+from openinference.instrumentation.bedrock._response_accumulator import _ResponseAccumulator
 from openinference.instrumentation.bedrock.utils import _EventStream, _use_span
-from openinference.instrumentation.bedrock.utils._messages import _MessagesCallback
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _AnthropicMessagesCallback,
 )
@@ -17,6 +17,7 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -81,20 +82,25 @@ class _InvokeAgentWithResponseStream(_WithTracer):
         span = self._tracer.start_span(self._name)
         attributes = {
             SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
-            SpanAttributes.LLM_PROVIDER: "aws",
+            SpanAttributes.LLM_PROVIDER: OpenInferenceLLMProviderValues.AWS.value,
             SpanAttributes.LLM_SYSTEM: "bedrock",
+            # OpenInferenceLLMSystemValues.BEDROCK.value,
             SpanAttributes.INPUT_VALUE: kwargs.get("inputText"),
-            "agent.id": kwargs.get("agentId"),
-            "agent.alias_id": kwargs.get("agentAliasId"),
         }
         span.set_attributes({k: v for k, v in attributes.items() if v is not None})
-        response = wrapped(*args, **kwargs)
-        response["completion"] = _EventStream(
-            response["completion"],
-            _MessagesCallback(span, self._tracer, kwargs),
-            _use_span(span),
-        )
-        return response
+        try:
+            response = wrapped(*args, **kwargs)
+            response["completion"] = _EventStream(
+                response["completion"],
+                _ResponseAccumulator(span, self._tracer, kwargs),
+                _use_span(span),
+            )
+            return response
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(Status(StatusCode.OK))
+            span.end()
+            raise e
 
 
 IMAGE_URL = ImageAttributes.IMAGE_URL

@@ -357,6 +357,7 @@ class OpenInferenceLLMSystemValues(Enum):
     COHERE = "cohere"
     MISTRALAI = "mistralai"
     VERTEXAI = "vertexai"
+    BEDROCK = "bedrock"
 
 
 class OpenInferenceLLMProviderValues(Enum):
