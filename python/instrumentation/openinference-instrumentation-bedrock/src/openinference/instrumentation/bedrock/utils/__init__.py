@@ -33,15 +33,11 @@ class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc]
         self._self_context_manager_factory = context_manager_factory
 
     def __iter__(self) -> Iterator[Any]:
-        try:
-            return _Iterator(
-                iter(self.__wrapped__),
-                self._self_callback,
-                self._self_context_manager_factory,
-            )
-
-        except Exception as e:
-            raise e
+        return _Iterator(
+            iter(self.__wrapped__),
+            self._self_callback,
+            self._self_context_manager_factory,
+        )
 
 
 def _use_span(span: Span) -> Callable[[], ContextManager[Span]]:

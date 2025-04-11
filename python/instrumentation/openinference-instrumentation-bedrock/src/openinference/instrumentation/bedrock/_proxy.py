@@ -275,9 +275,6 @@ class _NoErr(wrapt.ObjectProxy):  # type: ignore[misc]
                 ans = fn(*args, **kwargs)
             except BaseException as exc:
                 logger.exception(exc)
-                if hasattr(fn, "record_exception"):
-                    fn.record_exception(exc)
-
         return ans
 
 
