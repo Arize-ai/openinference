@@ -1,4 +1,5 @@
 from contextlib import suppress
+from importlib.metadata import version
 from random import randint
 from typing import Iterator
 
@@ -9,6 +10,7 @@ from llama_index.llms.anthropic import Anthropic
 from llama_index.llms.openai import OpenAI
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
+from packaging.version import Version
 
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
@@ -17,12 +19,10 @@ llms = [
     Anthropic(max_retries=0),
 ]
 
-try:
+if Version(version("llama-index-llms-openai")) >= Version("0.3.30"):
     from llama_index.llms.openai import OpenAIResponses
 
     llms.append(OpenAIResponses(max_retries=0))
-except Exception:
-    pass
 
 
 @pytest.mark.disable_socket
