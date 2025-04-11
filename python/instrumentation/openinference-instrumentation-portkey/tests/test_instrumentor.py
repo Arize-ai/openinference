@@ -21,7 +21,7 @@ def test_chat_completion(
         api_key="REDACTED",
         virtual_key="REDACTED",
     )
-    client.chat.completions.create(
+    resp = client.chat.completions.create(
         messages=[{"role": "user", "content": "What's the weather like?"}], model="gpt-4o-mini"
     )
     spans = in_memory_span_exporter.get_finished_spans()
@@ -36,16 +36,11 @@ def test_chat_completion(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gpt-4o-mini-2024-07-18",
-        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 63,
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 12,
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 51,
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "assistant",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": (
-            "I don't have real-time data access to provide current weather updates. "
-            "However, you can check a weather website or app for the latest information "
-            "in your area. If you tell me your location, I can suggest typical weather "
-            "patterns for this time of year!"
-        ),
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": resp.choices[0].message.role,
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": resp.choices[0].message.content,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
