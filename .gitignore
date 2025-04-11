@@ -11,6 +11,10 @@ sdist
 **/.DS_Store
 .pnpm-store
 
+# Generated files
+.python-version
+.safety-project.ini
+
 # Data files
 *.csv
 *.parquet

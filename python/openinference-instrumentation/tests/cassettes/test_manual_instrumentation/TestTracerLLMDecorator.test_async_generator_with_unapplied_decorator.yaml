@@ -1,0 +1,72 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Who won the World Cup in 2022? Answer
+      with a sentence of the form: ''The winner of the World Cup in 2022 was <country>.''."}],"model":"gpt-4o","stream":true,"temperature":0.5}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"role":"assistant","content":"","refusal":null},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"The"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"
+        winner"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"
+        of"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"
+        the"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"
+        World"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"
+        Cup"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"
+        in"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"
+        "},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"202"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"2"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"
+        was"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"
+        Argentina"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{"content":"."},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BI1oJ5bh2UUH7M4TZcT7B4Bgy7umZ","object":"chat.completion.chunk","created":1743636563,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6dd05565ef","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}
+
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,5 +1,17 @@
 # @arizeai/openinference-semantic-conventions
 
+## 1.1.0
+
+### Minor Changes
+
+- ae5cd15: add semantic conventions for audio token count
+
+## 1.0.1
+
+### Patch Changes
+
+- c4e2252: add semantic conventions to capture details in llm token counts: cached and reasoning
+
 ## 1.0.0
 
 ### Major Changes

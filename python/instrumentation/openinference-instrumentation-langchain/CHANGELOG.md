@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.40...python-openinference-instrumentation-langchain-v0.1.41) (2025-04-11)
+
+
+### Bug Fixes
+
+* increased minimum supported version of openinference-instrumentation to 0.1.27 ([#1507](https://github.com/Arize-ai/openinference/issues/1507)) ([a55edfa](https://github.com/Arize-ai/openinference/commit/a55edfa8900c1f36a73385c7d03f91cffadd85c4))
+
+## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.39...python-openinference-instrumentation-langchain-v0.1.40) (2025-04-07)
+
+
+### Bug Fixes
+
+* merge metadata ([#1497](https://github.com/Arize-ai/openinference/issues/1497)) ([793101a](https://github.com/Arize-ai/openinference/commit/793101a74570c0a4611c751ef518879486fdf852))
+
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.38...python-openinference-instrumentation-langchain-v0.1.39) (2025-04-04)
+
+
+### Features
+
+* **langchainpy:** capture reasoning, cache, and audio tokens  ([#1480](https://github.com/Arize-ai/openinference/issues/1480)) ([22d962b](https://github.com/Arize-ai/openinference/commit/22d962b7c07b5293cde02209b6702b77cd8fc0f3))
+
+
+### Bug Fixes
+
+* tuple message type ([#1488](https://github.com/Arize-ai/openinference/issues/1488)) ([6b65b65](https://github.com/Arize-ai/openinference/commit/6b65b656627d7910a82a0c14c70c916b0b454a3b))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.37...python-openinference-instrumentation-langchain-v0.1.38) (2025-04-03)
+
+
+### Features
+
+* add toggle to separate trace from runtime context ([#1464](https://github.com/Arize-ai/openinference/issues/1464)) ([0865a69](https://github.com/Arize-ai/openinference/commit/0865a69904119676703e5ca26600458dd9fb60f2))
+
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.36...python-openinference-instrumentation-langchain-v0.1.37) (2025-03-19)
+
+
+### Bug Fixes
+
+* **langchain:** don't treat langgraph agent commands as exceptions ([#1389](https://github.com/Arize-ai/openinference/issues/1389)) ([af48af3](https://github.com/Arize-ai/openinference/commit/af48af39afb002d63e78d77b2d0ec543442410e1))
+
 ## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.35...python-openinference-instrumentation-langchain-v0.1.36) (2025-03-14)
 
 

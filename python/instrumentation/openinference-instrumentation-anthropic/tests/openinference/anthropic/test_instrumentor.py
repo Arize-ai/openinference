@@ -1,4 +1,6 @@
 import json
+import random
+import string
 from typing import Any, Dict, Generator, Optional
 
 import anthropic
@@ -578,7 +580,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                    "description": "The unit of temperature, either 'celsius' or 'fahrenheit'",
                 },
             },
             "required": ["location"],
@@ -681,7 +683,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                    "description": "The unit of temperature, either 'celsius' or 'fahrenheit'",
                 },
             },
             "required": ["location"],
@@ -951,6 +953,74 @@ def test_anthropic_instrumentation_context_attributes_existence(
         assert att.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_messages_token_counts(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = Anthropic(api_key="sk-")
+    random_1024_token = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
+    novel_text = """Full Text of Novel <Pride and Prejudice>""" + random_1024_token
+    client.messages.create(
+        model="claude-3-7-sonnet-20250219",
+        max_tokens=2048,
+        system=[
+            {
+                "type": "text",
+                "text": "You are an AI assistant tasked with analyzing literary works.\n",
+            },
+            {
+                "type": "text",
+                "text": novel_text,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ],
+        messages=[
+            {"role": "user", "content": "Analyze the major themes in 'Pride and Prejudice'."}
+        ],
+    )
+    client.messages.create(
+        model="claude-3-7-sonnet-20250219",
+        max_tokens=2048,
+        system=[
+            {
+                "type": "text",
+                "text": "You are an AI assistant tasked with analyzing literary works.\n",
+            },
+            {
+                "type": "text",
+                "text": novel_text,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ],
+        messages=[
+            {"role": "user", "content": "Analyze the major themes in 'Pride and Prejudice'."}
+        ],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    s1, s2 = spans
+    att1 = dict(s1.attributes or {})
+    att2 = dict(s2.attributes or {})
+    # Two requests have identical requests/prompts
+    assert att1.pop(LLM_TOKEN_COUNT_PROMPT) == att2.pop(LLM_TOKEN_COUNT_PROMPT)
+    # first request's cache write is 2nd request's cache read
+    assert (
+        att1.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE)
+        == att2.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ)
+        == 1733
+    )
+    # first request doesn't hit cache
+    assert att1.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) is None
+    # second request doesn't write cache
+    assert att2.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) is None
+
+
 def test_anthropic_uninstrumentation(
     tracer_provider: TracerProvider,
 ) -> None:
@@ -1001,6 +1071,10 @@ LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS

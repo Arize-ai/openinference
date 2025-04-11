@@ -290,7 +290,7 @@ class TestLM:
         assert isinstance(exception_type := event_attributes["exception.type"], str)
         assert exception_type.startswith("litellm.exceptions")
         assert isinstance(exception_message := event_attributes["exception.message"], str)
-        assert "Connection error" in exception_message or "401" in exception_message
+        assert "Incorrect API key provided" in exception_message
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON

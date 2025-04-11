@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+import re
 import time
 import traceback
 from copy import deepcopy
@@ -33,7 +34,7 @@ from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
@@ -57,6 +58,14 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 _AUDIT_TIMING = False
+
+# Patterns for exception messages that should not be recorded on spans
+# These are exceptions that are expected for stopping agent execution and are not indicative of an
+# error in the application
+IGNORED_EXCEPTION_PATTERNS = [
+    r"^Command\(",
+    r"^ParentCommand\(",
+]
 
 
 @wrapt.decorator  # type: ignore
@@ -106,15 +115,35 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
 
 
 class OpenInferenceTracer(BaseTracer):
-    __slots__ = ("_tracer", "_spans_by_run")
+    __slots__ = (
+        "_tracer",
+        "_separate_trace_from_runtime_context",
+        "_spans_by_run",
+    )
 
-    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        separate_trace_from_runtime_context: bool,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the OpenInferenceTracer.
+
+        Args:
+            tracer (trace_api.Tracer): The OpenTelemetry tracer for creating spans.
+            separate_trace_from_runtime_context (bool): When True, always start a new trace for each
+                span without a parent, isolating it from any existing trace in the runtime context.
+            *args (Any): Positional arguments for BaseTracer.
+            **kwargs (Any): Keyword arguments for BaseTracer.
+        """
         super().__init__(*args, **kwargs)
         if TYPE_CHECKING:
             # check that `run_map` still exists in parent class
             assert self.run_map
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
+        self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
         self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
@@ -131,7 +160,7 @@ class OpenInferenceTracer(BaseTracer):
                 trace_api.set_span_in_context(parent)
                 if (parent_run_id := run.parent_run_id)
                 and (parent := self._spans_by_run.get(parent_run_id))
-                else None
+                else (context_api.Context() if self._separate_trace_from_runtime_context else None)
             )
         # We can't use real time because the handler may be
         # called in a background thread.
@@ -232,7 +261,10 @@ def _record_exception(span: Span, error: BaseException) -> None:
 
 @audit_timing  # type: ignore
 def _update_span(span: Span, run: Run) -> None:
-    if run.error is None:
+    # If there  is no error or if there is an agent control exception, set the span to OK
+    if run.error is None or any(
+        re.match(pattern, run.error) for pattern in IGNORED_EXCEPTION_PATTERNS
+    ):
         span.set_status(trace_api.StatusCode.OK)
     else:
         span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, run.error))
@@ -378,6 +410,10 @@ def _input_messages(
         parsed_messages.append(dict(_parse_message_data(first_messages.to_json())))
     elif hasattr(first_messages, "get"):
         parsed_messages.append(dict(_parse_message_data(first_messages)))
+    elif isinstance(first_messages, Sequence) and len(first_messages) == 2:
+        # See e.g. https://github.com/langchain-ai/langchain/blob/18cf457eec106d99e0098b42712299f5d0daa798/libs/core/langchain_core/messages/utils.py#L317  # noqa: E501
+        role, content = first_messages
+        parsed_messages.append({MESSAGE_ROLE: role, MESSAGE_CONTENT: content})
     else:
         raise ValueError(f"failed to parse messages of type {type(first_messages)}")
     if parsed_messages:
@@ -608,9 +644,38 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             ),
         ),
         (LLM_TOKEN_COUNT_TOTAL, ("total_tokens", "total_token_count")),  # Gemini-specific key
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, ("cache_read_input_tokens",)),  # Antrhopic
+        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, ("cache_creation_input_tokens",)),  # Antrhopic
     ]:
         if (token_count := _get_first_value(token_usage, keys)) is not None:
             yield attribute_name, token_count
+
+    # OpenAI
+    for attribute_name, details_key, keys in [
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+            "completion_tokens_details",
+            ("audio_tokens",),
+        ),
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+            "completion_tokens_details",
+            ("reasoning_tokens",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+            "prompt_tokens_details",
+            ("audio_tokens",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+            "prompt_tokens_details",
+            ("cached_tokens",),
+        ),
+    ]:
+        if (details := token_usage.get(details_key)) is not None:
+            if (token_count := _get_first_value(details, keys)) is not None:
+                yield attribute_name, token_count
 
 
 def _parse_token_usage_for_vertexai(
@@ -749,6 +814,14 @@ def _metadata(run: Run) -> Iterator[Tuple[str, str]]:
         or metadata.get(LANGCHAIN_THREAD_ID)
     ):
         yield SESSION_ID, session_id
+    if isinstance((ctx_metadata_str := get_value(SpanAttributes.METADATA)), str):
+        try:
+            ctx_metadata = json.loads(ctx_metadata_str)
+        except Exception:
+            pass
+        else:
+            if isinstance(ctx_metadata, Mapping):
+                metadata = {**ctx_metadata, **metadata}
     yield METADATA, safe_json_dumps(metadata)
 
 
@@ -848,7 +921,16 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS

@@ -11,9 +11,9 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import TracerProvider, use_span
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import TraceConfig
+from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
 from openinference.instrumentation.config import (
-    _IMPORTANT_ATTRIBUTES,
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
     DEFAULT_HIDE_INPUT_IMAGES,
     DEFAULT_HIDE_INPUT_MESSAGES,
@@ -32,7 +32,6 @@ from openinference.instrumentation.config import (
     OPENINFERENCE_HIDE_OUTPUT_TEXT,
     OPENINFERENCE_HIDE_OUTPUTS,
     REDACTED_VALUE,
-    OITracer,
 )
 from openinference.semconv.trace import SpanAttributes
 

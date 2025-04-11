@@ -28,7 +28,7 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.17",
+  "openinference-instrumentation>=0.1.27",
   "openinference-semantic-conventions>=0.1.9",
   "wrapt",
 ]
@@ -38,7 +38,7 @@ instruments = [
   "langchain_core >= 0.2.43",
 ]
 test = [
-  "langchain_core == 0.3.31",
+  "langchain_core == 0.3.50",
   "langchain == 0.3.15",
   "langchain_openai == 0.2.14",
   "langchain-community == 0.3.15",
@@ -46,10 +46,12 @@ test = [
   "opentelemetry-sdk",
   "respx",
   "pytest-recording",
+  "pytest-rerunfailures",
   "langsmith",
   "portpicker",
   "starlette",
   "uvicorn",
+  "vcrpy>=6.0.1",
 ]
 type-check = [
   "langchain_core == 0.2.43",
@@ -78,6 +80,7 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]

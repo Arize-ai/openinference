@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { BeeCallbacks } from "beeai-framework/agents/bee/types";
+import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
 import { ChatModelEvents } from "beeai-framework/backend/chat";
 import { ToolEvents } from "beeai-framework/tools/base";
 
@@ -25,15 +25,16 @@ export const INSTRUMENTATION_IGNORED_KEYS = process.env
     )
   : [];
 
-export const partialUpdateEventName: keyof BeeCallbacks = "partialUpdate";
-export const updateEventName: keyof BeeCallbacks = "update";
-export const toolErrorEventName: keyof BeeCallbacks = "toolError";
-export const toolStartEventName: keyof BeeCallbacks = "toolStart";
-export const toolSuccessEventName: keyof BeeCallbacks = "toolSuccess";
-export const startEventName: keyof BeeCallbacks = "start";
-export const successEventName: keyof BeeCallbacks = "success";
-export const errorEventName: keyof BeeCallbacks = "error";
-export const retryEventName: keyof BeeCallbacks = "retry";
+export const partialUpdateEventName: keyof ReActAgentCallbacks =
+  "partialUpdate";
+export const updateEventName: keyof ReActAgentCallbacks = "update";
+export const toolErrorEventName: keyof ReActAgentCallbacks = "toolError";
+export const toolStartEventName: keyof ReActAgentCallbacks = "toolStart";
+export const toolSuccessEventName: keyof ReActAgentCallbacks = "toolSuccess";
+export const startEventName: keyof ReActAgentCallbacks = "start";
+export const successEventName: keyof ReActAgentCallbacks = "success";
+export const errorEventName: keyof ReActAgentCallbacks = "error";
+export const retryEventName: keyof ReActAgentCallbacks = "retry";
 
 export const newTokenLLMEventName: keyof ChatModelEvents = `newToken`;
 export const successLLMEventName: keyof ChatModelEvents = `success`;
