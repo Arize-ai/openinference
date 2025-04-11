@@ -39,8 +39,12 @@ def test_chat_completion(
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": resp.choices[0].message.role,
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": resp.choices[0].message.content,
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": resp.choices[
+            0
+        ].message.role,
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": resp.choices[
+            0
+        ].message.content,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
