@@ -26,3 +26,13 @@ def tracer_provider(
 def uninstrument() -> Iterator[None]:
     yield
     LlamaIndexInstrumentor().uninstrument()
+
+
+@pytest.fixture(autouse=True)
+def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-")
+
+
+@pytest.fixture(autouse=True)
+def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-")
