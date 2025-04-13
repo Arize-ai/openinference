@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: '{"max_tokens": 4096, "messages": [{"role": "user", "content": "What is
+      the capital of France?"}], "model": "claude-3-7-sonnet-20250219", "temperature":
+      1.0}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"id":"msg_01JonRqCN8g4V3AVhPCHmgVj","type":"message","role":"assistant","model":"claude-3-7-sonnet-20250219","content":[{"type":"text","text":"The
+        capital of France is Paris. Paris is also the largest city in France and serves
+        as its cultural, economic, and political center. It''s known for landmarks
+        such as the Eiffel Tower, the Louvre Museum, and Notre-Dame Cathedral."}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":14,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":56}}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 92f10c8cba617af8-SJC
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Sat, 12 Apr 2025 07:35:49 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Robots-Tag:
+      - none
+      anthropic-organization-id:
+      - 8a57e064-47c7-4a95-ac37-2283e8cf46d5
+      anthropic-ratelimit-input-tokens-limit:
+      - '1000000'
+      anthropic-ratelimit-input-tokens-remaining:
+      - '1000000'
+      anthropic-ratelimit-input-tokens-reset:
+      - '2025-04-12T07:35:48Z'
+      anthropic-ratelimit-output-tokens-limit:
+      - '400000'
+      anthropic-ratelimit-output-tokens-remaining:
+      - '400000'
+      anthropic-ratelimit-output-tokens-reset:
+      - '2025-04-12T07:35:49Z'
+      anthropic-ratelimit-tokens-limit:
+      - '1400000'
+      anthropic-ratelimit-tokens-remaining:
+      - '1400000'
+      anthropic-ratelimit-tokens-reset:
+      - '2025-04-12T07:35:48Z'
+      content-length:
+      - '529'
+      request-id:
+      - req_01CTfM2o4PYZXM4VbeBpRx5T
+      via:
+      - 1.1 google
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,3 +1,3 @@
-# OpenInference Autogen (ag2) Instrumentation
+# OpenInference Autogen  Instrumentation
 
 EXPERIMENTAL
