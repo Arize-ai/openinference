@@ -1,12 +1,12 @@
 from typing import Iterator
 
+import litellm
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import SpanAttributes
-import litellm
 
 
 class TestTokenCounts:
