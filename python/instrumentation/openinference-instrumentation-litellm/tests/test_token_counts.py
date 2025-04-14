@@ -34,9 +34,9 @@ class TestTokenCounts:
         assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == usage.completion_tokens
         assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == usage.prompt_tokens
         assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == usage.total_tokens
-        
+
         # Check for detailed token stats if available in the response
-        if hasattr(usage, 'prompt_tokens_details'):
+        if hasattr(usage, "prompt_tokens_details"):
             assert (
                 attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ)
                 == usage.prompt_tokens_details.cached_tokens
@@ -45,8 +45,8 @@ class TestTokenCounts:
                 attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO)
                 == usage.prompt_tokens_details.audio_tokens
             )
-        
-        if hasattr(usage, 'completion_tokens_details'):
+
+        if hasattr(usage, "completion_tokens_details"):
             assert (
                 attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO)
                 == usage.completion_tokens_details.audio_tokens
@@ -81,14 +81,16 @@ class TestTokenCounts:
         assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == usage.total_tokens
 
         # Check additional token counts if present
-        if hasattr(usage, 'cache_creation_input_tokens'):
+        if hasattr(usage, "cache_creation_input_tokens"):
             assert (
                 attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE)
                 == usage.cache_creation_input_tokens
             )
 
-        if hasattr(usage, 'cache_read_input_tokens'):
-            assert attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == usage.cache_read_input_tokens
+        if hasattr(usage, "cache_read_input_tokens"):
+            assert (
+                attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == usage.cache_read_input_tokens
+            )
 
 
 @pytest.fixture(autouse=True)

@@ -212,8 +212,9 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                 ):
                     _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
                     _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
-    
+
     _set_token_counts_from_usage(span, result)
+
 
 # Gets values safely from either objects or dictionaries
 def _get_value(obj, key):
@@ -223,6 +224,7 @@ def _get_value(obj, key):
         return getattr(obj, key)
     return None
 
+
 def _set_token_counts_from_usage(span, result):
     """
     Sets token count attributes on a span based on the usage information in result.
@@ -231,51 +233,67 @@ def _set_token_counts_from_usage(span, result):
     # Return early if no usage information
     if not hasattr(result, "usage") and not hasattr(result, "get"):
         return
-    
+
     usage = result.usage if hasattr(result, "usage") else result.get("usage")
     if not usage:
         return
-    
+
     prompt_tokens = _get_value(usage, "prompt_tokens")
     if prompt_tokens is not None:
         _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
-    
+
     prompt_token_details = _get_value(usage, "prompt_tokens_details")
     if prompt_token_details is not None:
         cached_tokens = _get_value(prompt_token_details, "cached_tokens")
         if cached_tokens is not None:
-            _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens)
-        
+            _set_span_attribute(
+                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+            )
+
         audio_tokens = _get_value(prompt_token_details, "audio_tokens")
         if audio_tokens is not None:
-            _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_tokens)
-    
+            _set_span_attribute(
+                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_tokens
+            )
+
     completion_tokens = _get_value(usage, "completion_tokens")
     if completion_tokens is not None:
         _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens)
-    
+
     completion_tokens_details = _get_value(usage, "completion_tokens_details")
     if completion_tokens_details is not None:
         reasoning_tokens = _get_value(completion_tokens_details, "reasoning_tokens")
         if reasoning_tokens is not None:
-            _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens)
-        
+            _set_span_attribute(
+                span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
+            )
+
         completion_audio_tokens = _get_value(completion_tokens_details, "audio_tokens")
         if completion_audio_tokens is not None:
-            _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, completion_audio_tokens)
-    
+            _set_span_attribute(
+                span,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+                completion_audio_tokens,
+            )
+
     total_tokens = _get_value(usage, "total_tokens")
     if total_tokens is not None:
         _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens)
-    
+
     cache_creation_input_tokens = _get_value(usage, "cache_creation_input_tokens")
     if cache_creation_input_tokens is not None:
-        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens)
-    
+        _set_span_attribute(
+            span,
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+            cache_creation_input_tokens,
+        )
+
     cache_read_input_tokens = _get_value(usage, "cache_read_input_tokens")
     if cache_read_input_tokens is not None:
-        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens)
-    
+        _set_span_attribute(
+            span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
+        )
+
 
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: CustomStreamWrapper) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
@@ -347,7 +365,7 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: CustomStreamWra
                 )
 
         if usage_stats:
-           _set_token_counts_from_usage(span, usage_stats)
+            _set_token_counts_from_usage(span, usage_stats)
     except Exception as e:
         span.record_exception(e)
         raise
