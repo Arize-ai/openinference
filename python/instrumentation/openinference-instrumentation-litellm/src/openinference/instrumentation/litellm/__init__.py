@@ -216,25 +216,22 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
     _set_token_counts_from_usage(span, result)
 
 
-# Gets values safely from either objects or dictionaries
-def _get_value(obj, key):
-    if hasattr(obj, "get"):
-        return obj.get(key)
-    elif hasattr(obj, key):
+# Gets values safely from an object
+def _get_value(obj: object, key: str) -> Any:
+    if hasattr(obj, key):
         return getattr(obj, key)
     return None
 
 
-def _set_token_counts_from_usage(span, result):
+def _set_token_counts_from_usage(span: trace_api.Span, result: Any) -> None:
     """
     Sets token count attributes on a span based on the usage information in result.
-    Handles both dictionary-style and object-style access patterns.
     """
     # Return early if no usage information
-    if not hasattr(result, "usage") and not hasattr(result, "get"):
+    if not hasattr(result, "usage"):
         return
 
-    usage = result.usage if hasattr(result, "usage") else result.get("usage")
+    usage = result.usage
     if not usage:
         return
 
@@ -313,8 +310,9 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: CustomStreamWrap
                             output_messages[idx]["role"] = role
                         if content is not None:
                             output_messages[idx]["content"] += content
-            if getattr(token, "usage", None):
-                usage_stats = token.usage
+            usage_attrs = getattr(token, "usage", None)
+            if usage_attrs:
+                usage_stats = usage_attrs
             yield token
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
@@ -352,8 +350,9 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: CustomStreamWra
                             output_messages[idx]["role"] = role
                         if content is not None:
                             output_messages[idx]["content"] += content
-            if getattr(token, "usage", None):
-                usage_stats = token.usage
+            usage_attrs = getattr(token, "usage", None)
+            if usage_attrs:
+                usage_stats = usage_attrs
             yield token
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
@@ -363,7 +362,6 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: CustomStreamWra
                 _set_span_attribute(
                     span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
                 )
-
         if usage_stats:
             _set_token_counts_from_usage(span, usage_stats)
     except Exception as e:
