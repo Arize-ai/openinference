@@ -39,6 +39,7 @@ test = [
   "litellm",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
+  "pytest-vcr",
   "tenacity",
   "tokenizers==0.20.3; python_version == '3.8'"
 ]

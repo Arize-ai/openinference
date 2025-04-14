@@ -1,0 +1,18 @@
+interactions:
+    - request:
+          body:
+              '{"model": "claude-3-5-haiku-20241022", "messages": [{"role": "user", "content":
+              [{"type": "text", "text": "Hello!"}]}], "max_tokens": 4096}'
+          headers: {}
+          method: POST
+          uri: https://api.anthropic.com/v1/messages
+      response:
+          body:
+              string:
+                  '{"id":"msg_01DVteM3nnSHbb43ErkL7NH2","type":"message","role":"assistant","model":"claude-3-5-haiku-20241022","content":[{"type":"text","text":"Hi
+                  there! How are you doing today? Is there anything I can help you with?"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":100,"cache_creation_input_tokens":5,"cache_read_input_tokens":2,"output_tokens":21}}'
+          headers: {}
+          status:
+              code: 200
+              message: OK
+version: 1
