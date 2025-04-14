@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.2.0...python-openinference-instrumentation-llama-index-v4.2.1) (2025-04-11)
+
+
+### Bug Fixes
+
+* capture tools from chat kwargs ([#1509](https://github.com/Arize-ai/openinference/issues/1509)) ([2083836](https://github.com/Arize-ai/openinference/commit/2083836872dd9b3f4c40bcf66a2c3054f30aa59a))
+* increased minimum supported version of openinference-instrumentation to 0.1.27 ([#1507](https://github.com/Arize-ai/openinference/issues/1507)) ([a55edfa](https://github.com/Arize-ai/openinference/commit/a55edfa8900c1f36a73385c7d03f91cffadd85c4))
+
+## [4.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.1.0...python-openinference-instrumentation-llama-index-v4.2.0) (2025-04-10)
+
+
+### Features
+
+* **llama-index py:** capture reasoning, cache, and audio tokens ([#1489](https://github.com/Arize-ai/openinference/issues/1489)) ([9d0ec39](https://github.com/Arize-ai/openinference/commit/9d0ec3991a6adf7932b0b2069f38a6e83bb1b752))
+
 ## [4.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.0.0...python-openinference-instrumentation-llama-index-v4.1.0) (2025-04-03)
 
 
