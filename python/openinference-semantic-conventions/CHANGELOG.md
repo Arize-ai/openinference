@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.16...python-openinference-semantic-conventions-v0.1.17) (2025-04-02)
+
+
+### Features
+
+* **semcov:** add audio token counts to semantic convention  ([#1453](https://github.com/Arize-ai/openinference/issues/1453)) ([ae5cd15](https://github.com/Arize-ai/openinference/commit/ae5cd15d0a702f976908d84a6d87847859c4685a))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.15...python-openinference-semantic-conventions-v0.1.16) (2025-03-26)
+
+
+### Features
+
+* **semcov:** token counts for cached prompts and reasoning steps in the completion ([#1393](https://github.com/Arize-ai/openinference/issues/1393)) ([c4e2252](https://github.com/Arize-ai/openinference/commit/c4e225244adc287b9b011972bc980550939e126a))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.14...python-openinference-semantic-conventions-v0.1.15) (2025-03-14)
 
 

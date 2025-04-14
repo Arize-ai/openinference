@@ -1,5 +1,37 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 2.2.0
+
+### Minor Changes
+
+- e5300f3: support for prompt and completion token count details for langchainjs and openai
+
+## 2.1.0
+
+### Minor Changes
+
+- 5aa6511: fix(openai): Rewrite namespace import to default import in support of ESM projects
+
+### Patch Changes
+
+- Updated dependencies [ae5cd15]
+  - @arizeai/openinference-semantic-conventions@1.1.0
+  - @arizeai/openinference-core@1.0.2
+
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [c4e2252]
+  - @arizeai/openinference-semantic-conventions@1.0.1
+  - @arizeai/openinference-core@1.0.1
+
+## 2.0.2
+
+### Patch Changes
+
+- f1c1a3c: place image attributes under the right path
+
 ## 2.0.1
 
 ### Patch Changes

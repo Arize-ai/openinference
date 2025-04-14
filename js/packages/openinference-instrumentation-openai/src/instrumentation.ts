@@ -1,4 +1,4 @@
-import * as openai from "openai";
+import openai from "openai";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -490,7 +490,7 @@ function getChatCompletionInputMessageAttributes(
           `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
         ] = "image";
         attributes[
-          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}`
+          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
         ] = part.image_url.url;
       }
     });
@@ -576,14 +576,23 @@ function getUsageAttributes(
   completion: ChatCompletion | Completion,
 ): Attributes {
   if (completion.usage) {
-    return {
+    const usageAttributes: Attributes = {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
         completion.usage.completion_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
         completion.usage.prompt_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
         completion.usage.total_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]:
+        completion.usage.prompt_tokens_details?.cached_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO]:
+        completion.usage.prompt_tokens_details?.audio_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO]:
+        completion.usage.completion_tokens_details?.audio_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]:
+        completion.usage.completion_tokens_details?.reasoning_tokens,
     };
+    return usageAttributes;
   }
   return {};
 }

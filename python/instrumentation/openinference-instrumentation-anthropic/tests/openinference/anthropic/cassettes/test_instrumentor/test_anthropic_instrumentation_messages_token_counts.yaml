@@ -1,0 +1,106 @@
+interactions:
+- request:
+    body: '{"max_tokens": 2048, "messages": [{"role": "user", "content": "Analyze
+      the major themes in ''Pride and Prejudice''."}], "model": "claude-3-7-sonnet-20250219",
+      "system": [{"type": "text", "text": "You are an AI assistant tasked with analyzing
+      literary works.\n"}, {"type": "text", "text": "Full Text of Novel <Pride and
+      Prejudice>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",
+      "cache_control": {"type": "ephemeral"}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"id":"msg_0113wKbwdaCctqgSQ6yhkjSw","type":"message","role":"assistant","model":"claude-3-7-sonnet-20250219","content":[{"type":"text","text":"#
+        Major Themes in \"Pride and Prejudice\"\n\n## Pride and Prejudice\nThe title
+        themes are central to the novel. Elizabeth Bennet''s prejudice against Darcy
+        stems from his proud behavior at their first meeting, while Darcy''s pride
+        leads him to initially judge Elizabeth and her family as socially inferior.
+        Throughout the novel, both characters undergo transformations:\n- Darcy learns
+        to temper his pride and recognize its negative impact on others\n- Elizabeth
+        confronts her tendency to make hasty judgments based on first impressions\n-
+        Their mutual growth enables their relationship to develop once these barriers
+        are overcome\n\n## Social Class and Wealth\nAusten provides a nuanced examination
+        of class structures in Regency England:\n- The importance of property, income,
+        and family connections in determining social standing\n- Marriage as an economic
+        arrangement, particularly for women without inheritance rights\n- The tension
+        between \"old money\" (landed gentry like Darcy) and \"new money\" (self-made
+        men like Mr. Gardiner)\n- How wealth influences behavior and perception (contrast
+        between Bingley''s genuine good nature and Lady Catherine''s entitled arrogance)\n\n##
+        Marriage and Relationships\nThe novel presents various marriage models:\n-
+        Charlotte Lucas and Mr. Collins: marriage of convenience and economic security\n-
+        Lydia and Wickham: passion without prudence or mutual respect\n- Jane and
+        Bingley: mutual affection and compatibility\n- Elizabeth and Darcy: intellectual
+        equality and deep respect that develops into love\n- Mr. and Mrs. Bennet:
+        the consequences of a mismatched marriage based on initial attraction\n\n##
+        Gender and Women''s Position\nAusten subtly critiques women''s limited options
+        in early 19th century England:\n- The financial vulnerability of the Bennet
+        sisters due to the entailment of their father''s estate\n- Education and accomplishments
+        as primarily serving to attract husbands\n- The narrow paths available to
+        women (marriage or precarious employment as governesses)\n- Elizabeth''s uncommon
+        independence of mind within these constraints\n\n## Individual Morality vs.
+        Social Expectations\nAusten explores the balance between societal norms and
+        personal principles:\n- Elizabeth''s refusal to marry without affection despite
+        economic pressures\n- Darcy''s inner conflict between love and family expectations\n-
+        The consequences of disregarding social conventions (Lydia''s elopement)\n-
+        The tension between propriety and authenticity in various characters\n\nThrough
+        these themes, Austen creates a penetrating social commentary while telling
+        an engaging love story that continues to resonate with readers today."}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":21,"cache_creation_input_tokens":1733,"cache_read_input_tokens":0,"output_tokens":561}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"max_tokens": 2048, "messages": [{"role": "user", "content": "Analyze
+      the major themes in ''Pride and Prejudice''."}], "model": "claude-3-7-sonnet-20250219",
+      "system": [{"type": "text", "text": "You are an AI assistant tasked with analyzing
+      literary works.\n"}, {"type": "text", "text": "Full Text of Novel <Pride and
+      Prejudice>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",
+      "cache_control": {"type": "ephemeral"}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: "{\"id\":\"msg_013DqfNvyw9TE1JkWYnBBoYw\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-3-7-sonnet-20250219\",\"content\":[{\"type\":\"text\",\"text\":\"#
+        Major Themes in \\\"Pride and Prejudice\\\"\\n\\n## Pride and Prejudice\\nThe
+        novel's title directly points to its central theme. Elizabeth Bennet's prejudice
+        against Darcy stems from his initial prideful behavior at the Meryton ball
+        (\\\"she is tolerable, but not handsome enough to tempt me\\\"). Throughout
+        the narrative, both characters must overcome these flaws:\\n- Darcy must temper
+        his social pride and recognize worth beyond class distinctions\\n- Elizabeth
+        must overcome her prejudiced first impressions and recognize her own hasty
+        judgments\\n\\nTheir mutual growth and self-awareness becomes the emotional
+        core of the novel, demonstrating how personal development enables true connection.\\n\\n##
+        Marriage and Economic Security\\nAusten explores various motivations for marriage
+        in Regency England:\\n- Charlotte Lucas's practical marriage to Mr. Collins
+        represents security over love\\n- Lydia and Wickham's impulsive union reveals
+        the dangers of passion without prudence\\n- Jane and Bingley embody affectionate
+        compatibility\\n- Elizabeth and Darcy achieve the ideal: emotional connection
+        with financial security\\n\\nThe opening line\u2014\\\"It is a truth universally
+        acknowledged, that a single man in possession of a good fortune, must be in
+        want of a wife\\\"\u2014ironically establishes marriage as both economic necessity
+        and social expectation.\\n\\n## Social Class and Mobility\\nThe novel examines
+        rigid class structures and possibilities for movement within them:\\n- The
+        Bennets occupy an uncomfortable middle position (landed gentry with questionable
+        connections)\\n- Lady Catherine embodies aristocratic entitlement and resistance
+        to class flexibility\\n- The Gardiners demonstrate that trade connections
+        need not preclude true refinement\\n- Darcy's eventual acceptance of Elizabeth
+        represents a progressive view that personal merit can transcend class boundaries\\n\\n##
+        Personal Growth and Self-Knowledge\\nThe narrative charts significant character
+        development:\\n- Elizabeth's recognition of her own blindness: \\\"Till this
+        moment I never knew myself\\\"\\n- Darcy's humbling after Elizabeth's rejection
+        leads to profound change\\n- Mr. Bennet's failure to change and recognize
+        his parental responsibilities\\n- Jane's maintained goodness despite challenges\\n\\n##
+        Family and Reputation\\nThe novel examines how individual actions reflect
+        on family standing:\\n- Lydia's elopement threatens the entire Bennet family's
+        reputation\\n- The contrast between the dignified Gardiners and vulgar Mrs.
+        Bennet shows family connections as both liability and asset\\n- Mr. Bennet's
+        neglect of his daughters' moral education has lasting consequences\\n\\nThese
+        interlinked themes create a rich social commentary that remains relevant beyond
+        its Regency-era setting.\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":21,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":1733,\"output_tokens\":568}}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

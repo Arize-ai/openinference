@@ -16,7 +16,7 @@ from openinference.instrumentation.smolagents._wrappers import (
 )
 from openinference.instrumentation.smolagents.version import __version__
 
-_instruments = ("smolagents >= 1.2.2",)
+_instruments = ("smolagents >= 1.2.2.dev0",)
 
 
 class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
@@ -32,7 +32,8 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        from smolagents import CodeAgent, Model, MultiStepAgent, Tool, ToolCallingAgent
+        import smolagents
+        from smolagents import CodeAgent, MultiStepAgent, Tool, ToolCallingAgent, models
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
@@ -63,9 +64,15 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 wrapper=step_wrapper,
             )
 
-        model_subclasses = Model.__subclasses__()
         self._original_model_call_methods: Optional[dict[type, Callable[..., Any]]] = {}
-        for model_subclass in model_subclasses:
+
+        exported_model_subclasses = [
+            attr
+            for _, attr in vars(smolagents).items()
+            if isinstance(attr, type) and issubclass(attr, models.Model)
+        ]
+
+        for model_subclass in exported_model_subclasses:
             model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
             self._original_model_call_methods[model_subclass] = getattr(model_subclass, "__call__")
             wrap_function_wrapper(

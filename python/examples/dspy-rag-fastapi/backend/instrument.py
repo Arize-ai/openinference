@@ -10,7 +10,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 load_dotenv()
 
-collector_endpoint = os.getenv("COLLECTOR_ENDPOINT", "localhost")
+collector_endpoint = os.getenv("COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces")
 
 
 def instrument():

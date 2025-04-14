@@ -7,7 +7,11 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    get_output_attributes,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
@@ -133,7 +137,7 @@ class _ExecuteCoreWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
+            span.set_attributes(dict(get_output_attributes(response)))
             span.set_attributes(dict(get_attributes_from_context()))
         return response
 
@@ -219,11 +223,8 @@ class _KickoffWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            if crew_output_dict := crew_output.to_dict():
-                span.set_attribute(OUTPUT_VALUE, json.dumps(crew_output_dict))
-                span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
-            else:
-                span.set_attribute(OUTPUT_VALUE, str(crew_output))
+
+            span.set_attributes(dict(get_output_attributes(crew_output)))
             span.set_attributes(dict(get_attributes_from_context()))
         return crew_output
 
@@ -275,7 +276,7 @@ class _ToolUseWrapper:
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
+            span.set_attributes(dict(get_output_attributes(response)))
             span.set_attributes(dict(get_attributes_from_context()))
         return response
 

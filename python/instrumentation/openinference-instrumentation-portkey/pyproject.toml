@@ -1,0 +1,103 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-portkey"
+dynamic = ["version"]
+description = "OpenInference Portkey AI Instrumentation"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9, <3.14"
+authors = [
+    { name = "OpenInference Authors", email = "oss@arize.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "opentelemetry-api",
+    "opentelemetry-instrumentation",
+    "opentelemetry-semantic-conventions",
+    "openinference-instrumentation>=0.1.17",
+    "openinference-semantic-conventions",
+    "wrapt",
+    "typing-extensions",
+]
+
+
+[project.optional-dependencies]
+instruments = [
+    "portkey_ai >= 0.1.0",
+]
+test = [
+    "portkey_ai >= 0.1.0",
+    "opentelemetry-sdk",
+    "responses",
+]
+
+[project.entry-points.opentelemetry_instrumentor]
+portkey = "openinference.instrumentation.portkey:PortkeyInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+portkey = "openinference.instrumentation.portkey:PortkeyInstrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-portkey"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/portkey/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+    "tests",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+    "examples",
+    "dist",
+    "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+    "portkey_ai.*",
+    "datasets",
+    "openinference.instrumentation.portkey.*",
+    "wrapt",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false 

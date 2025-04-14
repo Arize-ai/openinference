@@ -48,8 +48,12 @@ def instrument(
 ) -> Iterator[None]:
     LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
+
+
+@pytest.fixture(autouse=True)
+def uninstrument() -> Iterator[None]:
+    yield
     LangChainInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
 
 
 @pytest.fixture(autouse=True)

@@ -1,12 +1,12 @@
 import "./instrumentation";
-import { BeeAgent } from "beeai-framework/agents/bee/agent";
+import { ReActAgent } from "beeai-framework/agents/react/agent";
 import { OllamaChatModel } from "beeai-framework/adapters/ollama/backend/chat";
 import { TokenMemory } from "beeai-framework/memory/tokenMemory";
 import { DuckDuckGoSearchTool } from "beeai-framework/tools/search/duckDuckGoSearch";
 import { OpenMeteoTool } from "beeai-framework/tools/weather/openMeteo";
 
 const llm = new OllamaChatModel("llama3.1"); // default is llama3.1 (8B), it is recommended to use 70B model
-const agent = new BeeAgent({
+const agent = new ReActAgent({
   llm, // for more explore 'beeai-framework/adapters'
   memory: new TokenMemory(), // for more explore 'beeai-framework/memory'
   tools: [new DuckDuckGoSearchTool(), new OpenMeteoTool()], // for more explore 'beeai-framework/tools'

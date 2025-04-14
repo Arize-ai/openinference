@@ -1,4 +1,5 @@
 import pytest
+from openai import AsyncOpenAI, OpenAI
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -28,3 +29,25 @@ def tracer_provider(
 @pytest.fixture
 def tracer(tracer_provider: TracerProvider) -> OITracer:
     return tracer_provider.get_tracer(__name__)
+
+
+@pytest.fixture
+def otel_sdk_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
+
+
+@pytest.fixture
+def sync_openai_client() -> OpenAI:
+    return OpenAI()
+
+
+@pytest.fixture
+def async_openai_client() -> AsyncOpenAI:
+    return AsyncOpenAI()
+
+
+@pytest.fixture
+def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
+    api_key = "sk-0123456789"
+    monkeypatch.setenv("OPENAI_API_KEY", api_key)
+    return api_key

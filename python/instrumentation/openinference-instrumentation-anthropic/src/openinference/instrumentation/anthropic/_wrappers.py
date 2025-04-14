@@ -324,8 +324,22 @@ def _get_llm_system() -> Iterator[Tuple[str, Any]]:
 
 
 def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
-    yield LLM_TOKEN_COUNT_PROMPT, usage.input_tokens
-    yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
+    # See https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#tracking-cache-performance
+    # cache_creation_input_tokens: Number of tokens written to the cache when creating a new entry.
+    # cache_read_input_tokens: Number of tokens retrieved from the cache for this request.
+    # input_tokens: Number of input tokens which were not read from or used to create a cache.
+    if prompt_tokens := (
+        usage.input_tokens
+        + (usage.cache_creation_input_tokens or 0)
+        + (usage.cache_read_input_tokens or 0)
+    ):
+        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    if usage.output_tokens:
+        yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
+    if usage.cache_read_input_tokens:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, usage.cache_read_input_tokens
+    if usage.cache_creation_input_tokens:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, usage.cache_creation_input_tokens
 
 
 def _get_llm_model_name_from_input(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -499,6 +513,10 @@ LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
