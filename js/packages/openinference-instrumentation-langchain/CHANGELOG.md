@@ -1,5 +1,15 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 3.2.0
+
+### Minor Changes
+
+- 6892184: feat(langchain-js): Instrument tool messages in langchain js instrumentation
+
+### Patch Changes
+
+- 4b296d2: properly record exceptions on spans for langchain runs
+
 ## 3.1.0
 
 ### Minor Changes
