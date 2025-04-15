@@ -37,7 +37,6 @@ class TestOpenInferenceLLMSystemValues:
             "COHERE": "cohere",
             "MISTRALAI": "mistralai",
             "OPENAI": "openai",
-            "BEDROCK": "bedrock",
             "VERTEXAI": "vertexai",
         }
 
