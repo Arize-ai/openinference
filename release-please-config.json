@@ -79,6 +79,10 @@
             "package-name": "python-openinference-instrumentation-autogen",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-beeai": {
+            "package-name": "python-openinference-instrumentation-beeai",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-portkey": {
             "package-name": "python-openinference-instrumentation-portkey",
             "release-type": "python"
