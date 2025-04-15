@@ -18,5 +18,6 @@
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.10",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.8",
     "python/instrumentation/openinference-instrumentation-openai-agents": "0.1.8",
-    "python/instrumentation/openinference-instrumentation-portkey": "0.1.0"
+    "python/instrumentation/openinference-instrumentation-portkey": "0.1.0",
+    "python/instrumentation/openinference-instrumentation-beeai": "0.1.0"
 }
