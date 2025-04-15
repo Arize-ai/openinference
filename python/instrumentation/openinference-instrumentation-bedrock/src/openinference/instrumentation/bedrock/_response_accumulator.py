@@ -10,6 +10,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import Span, Status, StatusCode, Tracer
 from opentelemetry.util.types import AttributeValue
 
+from openinference.instrumentation import Message, get_llm_input_message_attributes
 from openinference.instrumentation.bedrock.utils import _finish
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -92,7 +93,7 @@ class _ResponseAccumulator:
                         output_text = obj["chunk"]["bytes"].decode("utf-8")
                         span.set_attribute(SpanAttributes.OUTPUT_VALUE, output_text)
                 elif "trace" in obj:
-                    self._proces_trace_event(obj["trace"]["trace"])
+                    self._process_trace_event(obj["trace"]["trace"])
             elif isinstance(obj, (StopIteration, StopAsyncIteration)):
                 self._finish_tracing()
             elif isinstance(obj, BaseException):
@@ -120,11 +121,11 @@ class _ResponseAccumulator:
         ):
             yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, input_tokens + output_tokens
 
-    def _get_messages_object(self, input_text: str) -> list[dict[str, Any]]:
+    def _get_messages_object(self, input_text: str) -> list[Message]:
         messages = list()
         input_messages = safe_json_loads(input_text)
         if system_message := input_messages.get("system"):
-            messages.append(dict(content=system_message, role="system"))
+            messages.append(Message(content=system_message, role="system"))
 
         for message in input_messages.get("messages", []):
             role = message.get("role")
@@ -135,18 +136,21 @@ class _ResponseAccumulator:
                     if isinstance(parsed_content, dict):
                         if parsed_content_type := parsed_content.get("type"):
                             message_content = parsed_content.get(parsed_content_type)
-                    messages.append(dict(content=message_content, role=role))
+                    messages.append(Message(content=message_content, role=role))
         return messages
 
     def _get_attributes_from_model_invocation_input_data(
         self, input_text: str
     ) -> Iterator[Tuple[str, Any]]:
         try:
-            for idx, message in enumerate(self._get_messages_object(input_text) or []):
-                yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENT}", message.get("content")
-                yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", message.get("role")
+            for k, v in get_llm_input_message_attributes(
+                self._get_messages_object(input_text)
+            ).items():
+                yield k, v
         except Exception:
-            yield SpanAttributes.INPUT_VALUE, input_text
+            messages = [Message(role="assistant", content=input_text)]
+            for k, v in get_llm_input_message_attributes(messages).items():
+                yield k, v
 
     def _get_attributes_from_model_invocation_input(
         self, trace_data: dict[str, Any]
@@ -212,6 +216,7 @@ class _ResponseAccumulator:
 
         if metadata := model_invocation_output_parameters.get("metadata"):
             yield from self._get_attributes_from_usage(metadata.get("usage"))
+
         if inference_configuration := model_invocation_output_parameters.get(
             "inferenceConfiguration"
         ):
@@ -258,7 +263,8 @@ class _ResponseAccumulator:
     def _get_attributes_from_action_group_invocation_input(
         self, action_input: dict[str, Any]
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        yield OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
+        yield OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.TOOL.value
+
         prefix = f"{LLM_INPUT_MESSAGES}.{0}.{MESSAGE_TOOL_CALLS}.0"
         yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", action_input.get("function", "")
         yield (
@@ -271,7 +277,6 @@ class _ResponseAccumulator:
             ),
         )
         yield f"{LLM_INPUT_MESSAGES}.{0}.{MESSAGE_ROLE}", "assistant"
-
         yield TOOL_NAME, action_input.get("function", "")
         yield TOOL_DESCRIPTION, action_input.get("description", "")
         yield TOOL_PARAMETERS, json.dumps(action_input.get("parameters", []))
@@ -427,14 +432,16 @@ class _ResponseAccumulator:
             self.trace_values[trace_event]["modelInvocationInput"] = trace_data
         if "modelInvocationOutput" in trace_data:
             self.trace_values[trace_event]["modelInvocationOutput"] = trace_data
-            self._set_attributes_to_model_invocation_span(trace_data, trace_event)
+            self._create_model_invocation_span(trace_data, trace_event)
 
         if "rationale" in trace_data:
             preprocessing_span = self._initialize_chain_span(trace_event)
             if rationale_text := trace_data.get("rationale", {}).get("text"):
                 preprocessing_span.set_attribute(SpanAttributes.OUTPUT_VALUE, rationale_text)
 
-    def _set_parent_trace_input(self, trace_event: str, event_type: str) -> None:
+    def _add_model_invocation_attributes_to_parent_span(
+        self, trace_event: str, event_type: str
+    ) -> None:
         self.trace_inputs_flags.setdefault(trace_event, {})
         model_output = self.trace_values[trace_event].get(event_type, {}).get(event_type)
         if model_output and not self.trace_inputs_flags.get(trace_event, {}).get("has_input_value"):
@@ -449,7 +456,7 @@ class _ResponseAccumulator:
                 parent_trace.set_attribute(INPUT_VALUE, model_output.get("text"))
                 self.trace_inputs_flags[trace_event]["has_input_value"] = True
 
-    def _set_parent_trace_input_using_invocation_input(
+    def _add_invocation_attributes_to_parent_span(
         self, trace_event: str, trace_data: dict[str, Any]
     ) -> None:
         self.trace_inputs_flags.setdefault(trace_event, {})
@@ -484,9 +491,7 @@ class _ResponseAccumulator:
             # This block will be executed for Pre Processing trace
             parent_trace.set_attribute(OUTPUT_VALUE, output_text)
 
-    def _set_attributes_to_model_invocation_span(
-        self, trace_data: dict[str, Any], trace_event: str
-    ) -> None:
+    def _create_model_invocation_span(self, trace_data: dict[str, Any], trace_event: str) -> None:
         """
         Creates child traces for preProcessing, orchestration, and postProcessing LLM traces.
 
@@ -524,13 +529,13 @@ class _ResponseAccumulator:
                 OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
             )
             model_invocation_span.set_status(Status(StatusCode.OK))
-            self._set_parent_trace_input(trace_event, "modelInvocationInput")
+            self._add_model_invocation_attributes_to_parent_span(
+                trace_event, "modelInvocationInput"
+            )
             self._set_parent_trace_output(trace_event, "modelInvocationOutput")
             self.trace_values[trace_event] = dict()
 
-    def _set_attributes_to_invocation_span(
-        self, trace_data: dict[str, Any], trace_event: str
-    ) -> None:
+    def _create_invocation_span(self, trace_data: dict[str, Any], trace_event: str) -> None:
         orchestration_trace_values = self.trace_values[trace_event]
         if "observation" not in trace_data or not orchestration_trace_values.get("invocationInput"):
             return
@@ -551,7 +556,7 @@ class _ResponseAccumulator:
                 self._get_attributes_from_observation(orchestration_trace_values["observation"])
             )
             invocation_span.set_attributes(response_attributes)
-            self._set_parent_trace_input_using_invocation_input(
+            self._add_invocation_attributes_to_parent_span(
                 trace_event, orchestration_trace_values["invocationInput"]
             )
             invocation_span.set_status(Status(StatusCode.OK))
@@ -571,8 +576,8 @@ class _ResponseAccumulator:
             if event not in trace_data:
                 continue
             self.trace_values[trace_event][event] = trace_data
-        self._set_attributes_to_invocation_span(trace_data, trace_event)
-        self._set_attributes_to_model_invocation_span(trace_data, trace_event)
+        self._create_invocation_span(trace_data, trace_event)
+        self._create_model_invocation_span(trace_data, trace_event)
         if final_response := trace_data.get("observation", {}).get("finalResponse"):
             orchestration_span = self._initialize_chain_span(trace_event)
             orchestration_span.set_attribute(OUTPUT_VALUE, final_response.get("text"))
@@ -601,7 +606,7 @@ class _ResponseAccumulator:
             )
         return self.chain_spans[trace_type]
 
-    def _proces_trace_event(self, trace_data: dict[str, Any]) -> None:
+    def _process_trace_event(self, trace_data: dict[str, Any]) -> None:
         """
         Processes a trace event and delegates it to the appropriate handler
         based on the event type.
@@ -640,17 +645,13 @@ class _ResponseAccumulator:
             chain_span.set_status(Status(StatusCode.OK))
             chain_span.end()
 
-    def record_exception(self, exc: Exception) -> None:
-        self._span.record_exception(exc)
-        self._span.set_status(Status(StatusCode.ERROR, str(exc)))
-        self._finish_tracing()
-
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 METADATA = SpanAttributes.METADATA
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT

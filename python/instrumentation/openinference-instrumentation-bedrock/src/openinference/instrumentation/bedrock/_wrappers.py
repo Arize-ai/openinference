@@ -79,28 +79,30 @@ class _InvokeAgentWithResponseStream(_WithTracer):
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        span = self._tracer.start_span(self._name)
-        attributes = {
-            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
-            SpanAttributes.LLM_PROVIDER: OpenInferenceLLMProviderValues.AWS.value,
-            SpanAttributes.LLM_SYSTEM: "bedrock",
-            # OpenInferenceLLMSystemValues.BEDROCK.value,
-            SpanAttributes.INPUT_VALUE: kwargs.get("inputText"),
-        }
-        span.set_attributes({k: v for k, v in attributes.items() if v is not None})
-        try:
-            response = wrapped(*args, **kwargs)
-            response["completion"] = _EventStream(
-                response["completion"],
-                _ResponseAccumulator(span, self._tracer, kwargs),
-                _use_span(span),
-            )
-            return response
-        except Exception as e:
-            span.record_exception(e)
-            span.set_status(Status(StatusCode.OK))
-            span.end()
-            raise e
+        # span = self._tracer.start_span(self._name)
+        with self._tracer.start_as_current_span(
+            self._name,
+            end_on_exit=False,
+        ) as span:
+            attributes = {
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+                SpanAttributes.LLM_PROVIDER: OpenInferenceLLMProviderValues.AWS.value,
+            }
+            if input_text := kwargs.get("inputText"):
+                attributes[SpanAttributes.INPUT_VALUE] = input_text
+            span.set_attributes({k: v for k, v in attributes.items() if v is not None})
+            try:
+                response = wrapped(*args, **kwargs)
+                response["completion"] = _EventStream(
+                    response["completion"],
+                    _ResponseAccumulator(span, self._tracer, kwargs),
+                    _use_span(span),
+                )
+                return response
+            except Exception as e:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise e
 
 
 IMAGE_URL = ImageAttributes.IMAGE_URL

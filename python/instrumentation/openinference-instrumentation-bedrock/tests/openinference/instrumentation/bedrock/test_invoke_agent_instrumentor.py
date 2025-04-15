@@ -90,7 +90,7 @@ def test_tool_calls_with_input_params(
     tool_span_attributes = dict(tool_result_span.attributes or {})
     output_value = "The result of adding 10 and 20 is 30"
     assert tool_span_attributes[SpanAttributes.OUTPUT_VALUE] == output_value
-    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "LLM"
+    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "TOOL"
 
 
 @pytest.mark.vcr(
@@ -140,7 +140,7 @@ def test_tool_calls_without_input_params(
     tool_span_attributes = dict(tool_result_span.attributes or {})
 
     assert tool_span_attributes[SpanAttributes.OUTPUT_VALUE] == "The current time is 18:41:58"
-    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "LLM"
+    assert tool_span_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "TOOL"
 
 
 @pytest.mark.vcr(
