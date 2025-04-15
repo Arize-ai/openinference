@@ -117,7 +117,7 @@ def create_telemetry_middleware(
                         "prompt": prompt,
                         "history": history,
                         "generatedMessage": generated_message,
-                        "spans": list(spans_map.values()),  ## TODO:
+                        "spans": list(spans_map.values()),
                         "traceId": trace_id,
                         "version": Version,
                         "startTime": start_time_perf,
