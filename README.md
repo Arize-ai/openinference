@@ -42,6 +42,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`openinference-instrumentation-groq`](./python/instrumentation/openinference-instrumentation-groq)                   | OpenInference Instrumentation for Groq.              | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-groq.svg)](https://pypi.python.org/pypi/openinference-instrumentation-groq)                   |
 | [`openinference-instrumentation-instructor`](./python/instrumentation/openinference-instrumentation-instructor)       | OpenInference Instrumentation for Instructor.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-instructor.svg)](https://pypi.python.org/pypi/openinference-instrumentation-instructor)       |
 | [`openinference-instrumentation-anthropic`](./python/instrumentation/openinference-instrumentation-anthropic)         | OpenInference Instrumentation for Anthropic.         | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-anthropic.svg)](https://pypi.python.org/pypi/openinference-instrumentation-anthropic)         |
+| [`openinference-instrumentation-beeai`](./python/instrumentation/openinference-instrumentation-beeai)         | OpenInference Instrumentation for BeeAI.         | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-beeai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-beeai)         |
 
 ### Examples
 
@@ -58,6 +59,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [LiteLLM Proxy](python/instrumentation/openinference-instrumentation-litellm/examples/litellm-proxy/) | LiteLLM Proxy to log OpenAI, Azure, Vertex, Bedrock                                          | Beginner         |
 | [Groq](python/instrumentation/openinference-instrumentation-groq/examples/)                           | Groq and AsyncGroq chat completions                                                          | Beginner         |
 | [Anthropic](python/instrumentation/openinference-instrumentation-anthropic/examples/)                 | Anthropic Messages client                                                                    | Beginner         |
+| [BeeAI](python/instrumentation/openinference-instrumentation-beeai/examples/)                         | Agentic instrumentation in the BeeAI framework                                               | Beginner         |
 | [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                          | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
 | [LangServe](python/examples/langserve/)                                                               | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
 | [DSPy](python/examples/dspy-rag-fastapi/)                                                             | A DSPy RAG application using FastAPI, Weaviate, and Cohere                                   | Intermediate     |
