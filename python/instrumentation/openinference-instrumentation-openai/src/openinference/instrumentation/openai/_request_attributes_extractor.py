@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from enum import Enum
 from types import ModuleType
@@ -11,11 +13,13 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
+    cast,
 )
 
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -28,6 +32,8 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
     from openai.types.chat import ChatCompletion
+    from openai.types.responses.response import Response
+    from openai.types.responses.response_create_params import ResponseCreateParamsBase
 
 __all__ = ("_RequestAttributesExtractor",)
 
@@ -40,6 +46,7 @@ class _RequestAttributesExtractor:
         "_openai",
         "_chat_completion_type",
         "_completion_type",
+        "_responses_type",
         "_create_embedding_response_type",
     )
 
@@ -47,6 +54,7 @@ class _RequestAttributesExtractor:
         self._openai = openai
         self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
         self._completion_type: Type["Completion"] = openai.types.Completion
+        self._responses_type: Type["Response"] = openai.types.responses.response.Response
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
             openai.types.CreateEmbeddingResponse
         )
@@ -60,6 +68,10 @@ class _RequestAttributesExtractor:
             return
         if cast_to is self._chat_completion_type:
             yield from self._get_attributes_from_chat_completion_create_param(request_parameters)
+        elif cast_to is self._responses_type:
+            yield from _ResponsesApiAttributes._get_attributes_from_response_create_param_base(
+                cast("ResponseCreateParamsBase", request_parameters)
+            )
         elif cast_to is self._create_embedding_response_type:
             yield from _get_attributes_from_embedding_create_param(request_parameters)
         elif cast_to is self._completion_type:

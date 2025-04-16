@@ -22,6 +22,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._utils import (
     _as_output_attributes,
+    _io_value_and_type,
     _ValueAndType,
 )
 from openinference.semconv.trace import OpenInferenceMimeTypeValues
@@ -29,10 +30,13 @@ from openinference.semconv.trace import OpenInferenceMimeTypeValues
 if TYPE_CHECKING:
     from openai.types import Completion
     from openai.types.chat import ChatCompletion, ChatCompletionChunk
+    from openai.types.responses.response import Response
+    from openai.types.responses.response_completed_event import ResponseCompletedEvent
 
 __all__ = (
     "_CompletionAccumulator",
     "_ChatCompletionAccumulator",
+    "_ResponsesAccumulator",
 )
 
 
@@ -42,6 +46,58 @@ class _CanGetAttributesFromResponse(Protocol):
         response: Any,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]: ...
+
+
+class _ResponsesAccumulator:
+    __slots__ = (
+        "_is_null",
+        "_values",
+        "_cached_result",
+        "_request_parameters",
+        "_response_attributes_extractor",
+        "_chat_completion_type",
+    )
+
+    def __init__(
+        self,
+        request_parameters: Mapping[str, Any],
+        chat_completion_type: Type["Response"],
+        response_attributes_extractor: Optional[_CanGetAttributesFromResponse] = None,
+    ) -> None:
+        self._chat_completion_type = chat_completion_type
+        self._request_parameters = request_parameters
+        self._response_attributes_extractor = response_attributes_extractor
+        self._is_null = True
+        self._cached_result: Optional[Dict[str, Any]] = None
+        self._values: Optional["ResponseCompletedEvent"] = None
+
+    def process_chunk(self, chunk: Any) -> None:
+        if type(chunk).__name__ == "ResponseCompletedEvent":
+            self._is_null = False
+            self._cached_result = None
+            self._values = chunk
+
+    def _result(self) -> Any:
+        if self._is_null:
+            return None
+        if self._values:
+            return self._values.response
+
+    def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+        if not (result := self._result()):
+            return
+        yield from _as_output_attributes(
+            _io_value_and_type(result),
+        )
+
+    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+        if not (result := self._result()):
+            return
+        if self._response_attributes_extractor:
+            yield from self._response_attributes_extractor.get_attributes_from_response(
+                response=result,
+                request_parameters=self._request_parameters,
+            )
 
 
 class _ChatCompletionAccumulator:
