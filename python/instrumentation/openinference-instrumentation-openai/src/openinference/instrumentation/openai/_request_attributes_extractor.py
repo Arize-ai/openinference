@@ -182,17 +182,10 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         content = dict(content)
         type_ = content.pop("type")
-        if type_ in ["text", "input_text"]:
+        if type_ == "text":
             yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
             if text := content.pop("text"):
                 yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
-        elif type_ == "input_image":
-            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
-            if image := content.pop("image_url"):
-                yield (
-                    f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
-                    image,
-                )
         elif type_ == "image_url":
             yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
             if image := content.pop("image_url"):

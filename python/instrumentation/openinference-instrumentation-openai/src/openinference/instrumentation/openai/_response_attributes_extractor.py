@@ -23,7 +23,6 @@ from openinference.instrumentation.openai._utils import _get_openai_version, _ge
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
-    MessageContentAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -187,50 +186,6 @@ class _ResponseAttributesExtractor:
                 pass
             else:
                 yield f"{EmbeddingAttributes.EMBEDDING_VECTOR}", vector
-
-    def _get_attributes_from_response_message(
-        self,
-        message: object,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        if role := getattr(message, "role", None):
-            yield MessageAttributes.MESSAGE_ROLE, role
-        elif getattr(message, "type", None) == "function_call":
-            yield MessageAttributes.MESSAGE_ROLE, "assistant"
-
-        if content := getattr(message, "content", None):
-            for content_index, content_item in enumerate(content):
-                if content_text := getattr(content_item, "text", None):
-                    yield (
-                        f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
-                        content_text,
-                    )
-                if content_type := getattr(content_item, "type", None):
-                    yield (
-                        f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
-                        content_type,
-                    )
-
-        if getattr(message, "type", None) == "function_call":
-            if tool_call_id := getattr(message, "id", None):
-                yield (
-                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
-                    f"{ToolCallAttributes.TOOL_CALL_ID}",
-                    tool_call_id,
-                )
-            if name := getattr(message, "name", None):
-                yield (
-                    (
-                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
-                        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
-                    ),
-                    name,
-                )
-            if arguments := getattr(message, "arguments", None):
-                yield (
-                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
-                    f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                    arguments,
-                )
 
     def _get_attributes_from_chat_completion_message(
         self,
