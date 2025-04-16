@@ -1,5 +1,6 @@
 from contextlib import ContextDecorator
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
+from functools import wraps
 
 from opentelemetry.context import (
     attach,
@@ -106,10 +107,23 @@ class using_session(_UsingAttributesContextManager):
             # Tracing within this block will include the span attribute:
             # "session.id" = "my-session-id"
             ...
+
+        @using_session("my-session-id")
+        def my_function(session_id=None):
+            # Can override session_id at runtime
+            ...
     """
 
     def __init__(self, session_id: str) -> None:
         super().__init__(session_id=session_id)
+        
+    def __call__(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            dynamic_session_id = kwargs.pop('session_id', self._session_id)
+            with using_session(dynamic_session_id):
+                return func(*args, **kwargs)
+        return wrapper
 
 
 class using_user(_UsingAttributesContextManager):
@@ -145,10 +159,23 @@ class using_metadata(_UsingAttributesContextManager):
             # Tracing within this block will include the span attribute:
             # "metadata" = "{\"key-1\": value_1, \"key-2\": value_2, ... }"
             ...
+
+        @using_metadata({"key": "value"})
+        def my_function(metadata=None):
+            # Can override metadata at runtime
+            ...
     """
 
     def __init__(self, metadata: Dict[str, Any]) -> None:
         super().__init__(metadata=metadata)
+        
+    def __call__(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            dynamic_metadata = kwargs.pop('metadata', self._metadata)
+            with using_metadata(dynamic_metadata):
+                return func(*args, **kwargs)
+        return wrapper
 
 
 class using_tags(_UsingAttributesContextManager):

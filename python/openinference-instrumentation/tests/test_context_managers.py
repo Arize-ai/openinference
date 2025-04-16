@@ -115,6 +115,26 @@ def test_using_session_decorator(session_id: str) -> None:
     assert get_value(SpanAttributes.SESSION_ID) is None
 
 
+def test_using_session_decorator_with_dynamic_value(session_id: str) -> None:
+    dynamic_session_id = "dynamic-session-id"
+    
+    @using_session(session_id)
+    def f(session_id=None) -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == dynamic_session_id
+    
+    f(session_id=dynamic_session_id)
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+def test_using_session_decorator_with_default_value(session_id: str) -> None:
+    @using_session(session_id)
+    def f(session_id=None) -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+    
+    f()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
 def test_using_user_decorator(user_id: str) -> None:
     @using_user(user_id)
     def f() -> None:
@@ -129,6 +149,26 @@ def test_using_metadata_decorator(metadata: Dict[str, Any]) -> None:
     def f() -> None:
         assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
 
+    f()
+    assert get_value(SpanAttributes.METADATA) is None
+
+
+def test_using_metadata_decorator_with_dynamic_value(metadata: Dict[str, Any]) -> None:
+    dynamic_metadata = {"dynamic": "value", "key": "new-value"}
+    
+    @using_metadata(metadata)
+    def f(metadata=None) -> None:
+        assert get_value(SpanAttributes.METADATA) == json.dumps(dynamic_metadata)
+    
+    f(metadata=dynamic_metadata)
+    assert get_value(SpanAttributes.METADATA) is None
+
+
+def test_using_metadata_decorator_with_default_value(metadata: Dict[str, Any]) -> None:
+    @using_metadata(metadata)
+    def f(metadata=None) -> None:
+        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
+    
     f()
     assert get_value(SpanAttributes.METADATA) is None
 
