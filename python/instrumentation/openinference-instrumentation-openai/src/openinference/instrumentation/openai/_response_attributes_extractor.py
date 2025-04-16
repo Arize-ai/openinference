@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import logging
 from importlib import import_module
@@ -16,6 +18,7 @@ from typing import (
 
 from opentelemetry.util.types import AttributeValue
 
+from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._utils import _get_openai_version, _get_texts
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -69,7 +72,7 @@ class _ResponseAttributesExtractor:
                 completion=response,
                 request_parameters=request_parameters,
             )
-        if isinstance(response, self._responses_type):
+        elif isinstance(response, self._responses_type):
             yield from self._get_attributes_from_responses_response(
                 response=response,
                 request_parameters=request_parameters,
@@ -84,22 +87,13 @@ class _ResponseAttributesExtractor:
                 completion=response,
                 request_parameters=request_parameters,
             )
-        else:
-            yield from ()
 
     def _get_attributes_from_responses_response(
         self,
-        response: "Response",
+        response: Response,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if model := getattr(response, "model", None):
-            yield SpanAttributes.LLM_MODEL_NAME, model
-        if usage := getattr(response, "usage", None):
-            yield from self._get_attributes_from_response_usage(usage)
-        if (responses := getattr(response, "output", None)) and isinstance(responses, Iterable):
-            for index, output in enumerate(responses):
-                for key, value in self._get_attributes_from_response_message(output):
-                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+        yield from _ResponsesApiAttributes._get_attributes_from_response(response)
 
     def _get_attributes_from_chat_completion(
         self,
@@ -302,17 +296,6 @@ class _ResponseAttributesExtractor:
                 cached_tokens := getattr(prompt_completion_tokens, "cached_tokens", None)
             ) is not None:
                 yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
-
-    def _get_attributes_from_response_usage(
-        self,
-        usage: object,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
-            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
-        if (prompt_tokens := getattr(usage, "input_tokens", None)) is not None:
-            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-        if (completion_tokens := getattr(usage, "output_tokens", None)) is not None:
-            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
 
     def _get_attributes_from_embedding_usage(
         self,

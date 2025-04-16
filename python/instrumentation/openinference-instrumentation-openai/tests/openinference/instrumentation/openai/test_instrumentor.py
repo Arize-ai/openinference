@@ -631,12 +631,10 @@ def get_response_messages() -> (
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"{randstr()}"},
+                        {"type": "input_text", "text": f"{randstr()}"},
                         {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": "https:///cdn.pixabay.com/photo/2015/04/23/22/00/boardwalk.jpg"
-                            },
+                            "type": "input_image",
+                            "image_url": "https:///cdn.pixabay.com/photo/2015/04/23/22/00/boardwalk.jpg",
                         },
                     ],
                 }
@@ -705,10 +703,11 @@ def test_responses(
     output_messages: List[Dict[str, Any]] = message_data[2][1] if is_stream else message_data[1]
     invocation_parameters = {
         "stream": is_stream,
-        "model": randstr(),
+        "model": model_name,
         "temperature": random.random(),
     }
     url = urljoin(base_url, "responses")
+    response_model_name = randstr()
     respx_kwargs: Dict[str, Any] = {
         **(
             {"stream": MockAsyncByteStream(message_data[2][0])}
@@ -719,7 +718,7 @@ def test_responses(
                     "status": "completed",
                     "object": "response",
                     "output": output_messages,
-                    "model": model_name,
+                    "model": response_model_name,
                     "usage": responses_usage,
                 }
             }
@@ -810,7 +809,7 @@ def test_responses(
         json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
     )
-    for i, message in enumerate(input_messages):
+    for i, message in enumerate(input_messages, 1):
         _check_llm_message(LLM_INPUT_MESSAGES, i, attributes, message)
 
     if status_code == 200:
@@ -819,7 +818,7 @@ def test_responses(
             if message.get("type") == "function_call":
                 assert attributes.pop(
                     f"llm.output_messages.{i}.message.tool_calls.0.tool_call.id"
-                ) == message.get("id")
+                ) == message.get("call_id")
                 assert attributes.pop(
                     f"llm.output_messages.{i}.message.tool_calls.0.tool_call.function.arguments"
                 ) == message.get("arguments")
@@ -837,12 +836,19 @@ def test_responses(
             assert (
                 attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == responses_usage["output_tokens"]
             )
-            assert attributes.pop(LLM_MODEL_NAME, None) == model_name
+            assert attributes.pop(LLM_MODEL_NAME, None) == response_model_name
+            assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, None) is not None
         else:
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) is not None
             assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) is not None
             assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) is not None
             assert attributes.pop(LLM_MODEL_NAME, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, None) is not None
+            attributes.pop("llm.tools.0.tool.json_schema", None)
+    else:
+        assert attributes.pop(LLM_MODEL_NAME, None) == model_name
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1262,8 +1268,11 @@ def _check_llm_message(
     if isinstance(expected_content, list):
         for j, expected_content_item in enumerate(expected_content):
             content_item_type = attributes.pop(message_contents_type(prefix, i, j), None)
-            expected_content_item_type = expected_content_item.get("type")
-            if expected_content_item_type == "image_url":
+            if expected_content_item.get("type") in ("input_text", "output_text"):
+                expected_content_item_type = "text"
+            else:
+                expected_content_item_type = expected_content_item.get("type")
+            if expected_content_item_type in ("image_url", "input_image"):
                 expected_content_item_type = "image"
             assert content_item_type == expected_content_item_type
             if content_item_type == "text":
@@ -1285,7 +1294,10 @@ def _check_llm_message(
                 if hide_images:
                     assert content_item_image_url is None
                 else:
-                    expected_url = expected_content_item.get("image_url").get("url")
+                    expected_url = expected_content_item.get("image_url")
+                    if isinstance(expected_url, dict):
+                        expected_url = expected_url.get("url")
+                    assert isinstance(expected_url, str)
                     if image_limit is not None and len(expected_url) > image_limit:
                         assert content_item_image_url == REDACTED_VALUE
                     else:
@@ -1721,6 +1733,10 @@ LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS

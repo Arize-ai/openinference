@@ -37,7 +37,7 @@ class _ValueAndType(NamedTuple):
     type: OpenInferenceMimeTypeValues
 
 
-def _io_value_and_type(obj: Any, cast_to: Optional[type] = None) -> _ValueAndType:
+def _io_value_and_type(obj: Any) -> _ValueAndType:
     if hasattr(obj, "model_dump_json") and callable(obj.model_dump_json):
         try:
             with warnings.catch_warnings():
@@ -49,19 +49,6 @@ def _io_value_and_type(obj: Any, cast_to: Optional[type] = None) -> _ValueAndTyp
             logger.exception("Failed to get model dump json")
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
-
-    if cast_to and cast_to.__name__ == "Response":
-        if isinstance(obj.get("input"), str):
-            return _ValueAndType(str(obj.get("input")), OpenInferenceMimeTypeValues.TEXT)
-        if not isinstance(obj.get("input"), str) and isinstance(
-            obj.get("input"), (Sequence, Mapping)
-        ):
-            return _ValueAndType(
-                safe_json_dumps({"messages": obj.get("input"), "model": obj["model"]}),
-                OpenInferenceMimeTypeValues.JSON,
-            )
-        return _ValueAndType(safe_json_dumps(obj), OpenInferenceMimeTypeValues.JSON)
-
     if not isinstance(obj, str) and isinstance(obj, (Sequence, Mapping)):
         try:
             value = safe_json_dumps(obj)

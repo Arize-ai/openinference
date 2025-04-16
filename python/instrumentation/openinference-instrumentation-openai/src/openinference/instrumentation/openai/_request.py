@@ -154,9 +154,7 @@ class _WithOpenAI(ABC):
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
         yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
-            yield from _as_input_attributes(
-                _io_value_and_type(request_parameters, cast_to=cast_to),
-            )
+            yield from _as_input_attributes(_io_value_and_type(request_parameters))
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request parameters of "

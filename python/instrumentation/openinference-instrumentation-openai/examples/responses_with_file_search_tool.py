@@ -6,7 +6,6 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 
-from openinference.instrumentation import using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
@@ -39,35 +38,12 @@ def create_vector_store(client, file_id):
     return vector_store.id
 
 
-def file_search_tool_test():
-    client = openai.OpenAI()
-    file_id = create_file(client, "https://cdn.openai.com/API/docs/deep_research_blog.pdf")
-    vector_store_id = create_vector_store(client, file_id)
-    # vector_store_id = "vs_67f02004bad081918f8d3149ca066e3b"
-    response = client.responses.create(
-        model="gpt-4o",
-        tools=[
-            {"type": "file_search", "vector_store_ids": [vector_store_id], "max_num_results": 20}
-        ],
-        input=[{"role": "user", "content": "What are limitations of deep research?"}],
-    )
-
-    print(response)
-
-
-if __name__ == "__main__":
-    with using_attributes(
-        session_id="my-test-session",
-        user_id="my-test-user",
-        metadata={
-            "test-int": 1,
-            "test-str": "string",
-            "test-list": [1, 2, 3],
-            "test-dict": {
-                "key-1": "val-1",
-                "key-2": "val-2",
-            },
-        },
-        tags=["tag-1", "tag-2"],
-    ):
-        file_search_tool_test()
+client = openai.OpenAI()
+file_id = create_file(client, "https://cdn.openai.com/API/docs/deep_research_blog.pdf")
+vector_store_id = create_vector_store(client, file_id)
+response = client.responses.create(
+    model="gpt-4o-mini",
+    tools=[{"type": "file_search", "vector_store_ids": [vector_store_id], "max_num_results": 20}],
+    input=[{"role": "user", "content": "What are limitations of deep research?"}],
+)
+print(response)

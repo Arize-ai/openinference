@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from enum import Enum
 from types import ModuleType
@@ -11,11 +13,13 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
+    cast,
 )
 
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -29,7 +33,7 @@ if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
     from openai.types.chat import ChatCompletion
     from openai.types.responses.response import Response
-
+    from openai.types.responses.response_create_params import ResponseCreateParamsBase
 
 __all__ = ("_RequestAttributesExtractor",)
 
@@ -65,7 +69,9 @@ class _RequestAttributesExtractor:
         if cast_to is self._chat_completion_type:
             yield from self._get_attributes_from_chat_completion_create_param(request_parameters)
         elif cast_to is self._responses_type:
-            yield from self._get_attributes_from_responses_create_param(request_parameters)
+            yield from _ResponsesApiAttributes._get_attributes_from_response_create_param_base(
+                cast("ResponseCreateParamsBase", request_parameters)
+            )
         elif cast_to is self._create_embedding_response_type:
             yield from _get_attributes_from_embedding_create_param(request_parameters)
         elif cast_to is self._completion_type:
@@ -75,79 +81,6 @@ class _RequestAttributesExtractor:
                 yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_parameters)
             except Exception:
                 logger.exception("Failed to serialize request options")
-
-    def _get_attributes_from_responses_create_param(
-        self,
-        params: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        if not isinstance(params, Mapping):
-            return
-        invocation_params = dict(params)
-        invocation_params.pop("input", None)
-        if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
-            for i, tool in enumerate(tools):
-                yield f"llm.tools.{i}.tool.json_schema", safe_json_dumps(tool)
-        yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
-        if (input_messages := params.get("input")) and isinstance(input_messages, Iterable):
-            for index, input_message in list(enumerate(input_messages)):
-                for key, value in self._get_attributes_from_responses_message_param(input_message):
-                    yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
-
-    def _get_attributes_from_responses_message_param(
-        self,
-        message: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        if not hasattr(message, "get"):
-            return
-        if role := message.get("role"):
-            yield (
-                MessageAttributes.MESSAGE_ROLE,
-                role.value if isinstance(role, Enum) else role,
-            )
-        elif message.get("type") == "function_call":
-            yield MessageAttributes.MESSAGE_ROLE, "assistant"
-        elif message.get("type") == "function_call_output":
-            yield MessageAttributes.MESSAGE_ROLE, "tool"
-
-        if tool_call_id := message.get("call_id"):
-            yield MessageAttributes.MESSAGE_TOOL_CALL_ID, tool_call_id
-
-        if message.get("type") == "function_call_output" and (content := message.get("output")):
-            yield MessageAttributes.MESSAGE_CONTENT, content
-
-        if content := message.get("content"):
-            if isinstance(content, str):
-                yield MessageAttributes.MESSAGE_CONTENT, content
-            elif is_iterable_of(content, dict):
-                for index, c in list(enumerate(content)):
-                    for key, value in self._get_attributes_from_message_content(c):
-                        yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
-            elif isinstance(content, List):
-                try:
-                    value = safe_json_dumps(content)
-                except Exception:
-                    logger.exception("Failed to serialize message content")
-                yield MessageAttributes.MESSAGE_CONTENT, value
-
-        if name := message.get("name"):
-            yield MessageAttributes.MESSAGE_NAME, name
-        if message.get("type") == "function_call":
-            if (tool_call_id := message.get("call_id")) is not None:
-                yield (
-                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}",
-                    tool_call_id,
-                )
-            if function_name := message.get("name"):
-                yield (
-                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
-                    function_name,
-                )
-                if arguments := message.get("arguments"):
-                    yield (
-                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
-                        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                        arguments,
-                    )
 
     def _get_attributes_from_chat_completion_create_param(
         self,
