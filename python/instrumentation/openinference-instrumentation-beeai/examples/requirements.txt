@@ -1,3 +1,3 @@
-beeai-framework == 0.1.14
+beeai-framework == 0.1.15
 opentelemetry-sdk
 opentelemetry-exporter-otlp

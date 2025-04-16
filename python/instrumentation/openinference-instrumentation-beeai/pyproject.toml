@@ -11,7 +11,7 @@ authors = [
     {name = "Milan Gallas",email = "gallas.milan@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.11,<3.14"
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
@@ -27,15 +27,16 @@ dependencies = [
     "opentelemetry-api>=1.31.1",
     "opentelemetry-instrumentation>=0.52b1",
     "opentelemetry-semantic-conventions>=0.52b1",
+    "openinference-instrumentation>=0.1.27",
     "wrapt>=1.17.2",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "beeai-framework==0.1.14",
+  "beeai-framework==0.1.15",
 ]
 test = [
-  "beeai-framework==0.1.14",
+  "beeai-framework==0.1.15",
   "opentelemetry-sdk"
 ]
 

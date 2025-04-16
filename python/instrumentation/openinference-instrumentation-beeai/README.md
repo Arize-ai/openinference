@@ -24,9 +24,12 @@ Start Phoenix in the background as a collector. By default, it listens on http:/
 python -m phoenix.server.main serve
 ```
 
-Set up **BeeAIInstrumentor** to trace your crew and send the traces to Phoenix at the endpoint defined below.
+Set up **BeeAIInstrumentor** to trace your crew and send the traces to Phoenix at the endpoint defined below. 
+The `openinference_setup.py` file. 
 
 ```python
+import logging
+
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -35,15 +38,21 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 
 from openinference.instrumentation.beeai import BeeAIInstrumentor
 
- """
-Sets up OpenTelemetry with OTLP HTTP exporter and instruments the beeai framework.
-"""
-resource = Resource(attributes={})
-tracer_provider = trace_sdk.TracerProvider(resource=resource)
-tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-trace_api.set_tracer_provider(tracer_provider)
+logging.basicConfig(level=logging.DEBUG)
 
-BeeAIInstrumentor().instrument()
+
+def setup_observability(endpoint: str = "http://localhost:6006/v1/traces") -> None:
+    """
+    Sets up OpenTelemetry with OTLP HTTP exporter and instruments the beeai framework.
+    """
+    resource = Resource(attributes={})
+    tracer_provider = trace_sdk.TracerProvider(resource=resource)
+    tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
+    tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+    trace_api.set_tracer_provider(tracer_provider)
+
+    BeeAIInstrumentor().instrument()
+
 ```
 
 Set up a simple ReActAgent to get the current weather in Las Vegas. 
