@@ -8,7 +8,7 @@ from beeai_framework.backend.chat import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
 from beeai_framework.errors import FrameworkError
 from beeai_framework.memory import TokenMemory
-from beeai_framework.tools.search import DuckDuckGoSearchTool, WikipediaTool
+from beeai_framework.tools.search.duckduckgo import DuckDuckGoSearchTool
 from beeai_framework.tools.tool import AnyTool
 from beeai_framework.tools.weather.openmeteo import OpenMeteoTool
 from openinference_setup import setup_observability
@@ -21,7 +21,6 @@ llm = ChatModel.from_name(
 )
 
 tools: list[AnyTool] = [
-    WikipediaTool(),
     OpenMeteoTool(),
     DuckDuckGoSearchTool(),
 ]
