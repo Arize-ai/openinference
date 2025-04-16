@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.24...python-openinference-instrumentation-openai-v0.1.25) (2025-04-16)
+
+
+### Features
+
+* instrument OpenAI responses API ([#1521](https://github.com/Arize-ai/openinference/issues/1521)) ([64cde2b](https://github.com/Arize-ai/openinference/commit/64cde2b7230bfae3e7f7fb1141708a86ceea6b1a))
+
 ## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.23...python-openinference-instrumentation-openai-v0.1.24) (2025-04-11)
 
 
