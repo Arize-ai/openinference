@@ -1,5 +1,8 @@
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
-import { Attributes, Span } from "@opentelemetry/api";
+import {
+  MimeType,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+import { Attributes, Span, SpanStatusCode } from "@opentelemetry/api";
 import {
   ResponseCreateParamsBase,
   ResponseInputItem,
@@ -270,14 +273,56 @@ export async function consumeResponseStreamEvents(
   stream: Stream<ResponseStreamEvent>,
   span: Span,
 ) {
-  let events = 0;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  type ToolCallId = string;
+  const accumulatedToolCalls: Record<
+    ToolCallId,
+    Partial<Extract<ResponseOutputItem, { type: "function_call" }>>
+  > = {};
+  const attributes: Attributes = {};
+  let streamResponse = "";
+
   for await (const event of stream) {
-    events++;
+    switch (event.type) {
+      case "response.output_text.delta": {
+        streamResponse += event.delta;
+        break;
+      }
+      case "response.output_item.added": {
+        if (event.item.type === "function_call" && event.item.id) {
+          accumulatedToolCalls[event.item.id] = {
+            ...event.item,
+          };
+        }
+        break;
+      }
+      case "response.function_call_arguments.delta": {
+        if (accumulatedToolCalls[event.item_id]) {
+          accumulatedToolCalls[event.item_id].arguments =
+            accumulatedToolCalls[event.item_id].arguments + event.delta;
+        }
+        break;
+      }
+    }
   }
-  // eslint-disable-next-line no-console
-  console.warn(
-    `Consumed ${events} events from stream. These events were not instrumented.`,
-  );
+  // set output attributes
+  const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
+  attributes[SemanticConventions.OUTPUT_VALUE] = streamResponse;
+  attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.TEXT;
+  attributes[`${messageIndexPrefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+    streamResponse;
+  attributes[`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`] =
+    "assistant";
+  // create tool call attributes
+  const toolCalls = Object.values(accumulatedToolCalls) as ResponseOutputItem[];
+  const toolCallAttributes = toolCalls.reduce((acc, curr) => {
+    const attrs = getResponseItemMessageAttributes(curr, messageIndexPrefix);
+    return {
+      ...acc,
+      ...attrs,
+    };
+  }, {} as Attributes);
+  // combine them all together and finish the span
+  span.setAttributes({ ...attributes, ...toolCallAttributes });
+  span.setStatus({ code: SpanStatusCode.OK });
   span.end();
 }

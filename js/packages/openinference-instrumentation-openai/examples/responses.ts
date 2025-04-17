@@ -27,8 +27,23 @@ async function main() {
   await openai.responses
     .create({
       model: "gpt-4.1",
-      input: "Write a one-sentence bedtime story about a unicorn.",
+      input: "Get the weather in los angeles california",
       stream: true,
+      tools: [
+        {
+          name: "get_weather",
+          type: "function",
+          parameters: {
+            type: "object",
+            properties: {
+              location: { type: "string" },
+            },
+            additionalProperties: false,
+            required: ["location"],
+          },
+          strict: true,
+        },
+      ],
     })
     .then(async (stream) => {
       for await (const event of stream) {
