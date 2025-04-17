@@ -53,7 +53,7 @@ import {
 
 import {
   consumeResponseStreamEvents,
-  getResponsesInputAttributes,
+  getResponsesInputMessagesAttributes,
   getResponsesOutputMessagesAttributes,
   getResponsesUsageAttributes,
 } from "./responsesAttributes";
@@ -409,7 +409,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                     JSON.stringify(invocationParameters),
                   [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
                   [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
-                  ...getLLMInputMessagesAttributes(body),
+                  ...getResponsesInputMessagesAttributes(body),
                   ...getLLMToolsJSONSchema(body),
                 },
               },
@@ -497,16 +497,10 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   }
 }
 
-function isResponseCreateBody(
-  body: ChatCompletionCreateParamsBase | ResponseCreateParamsBase,
-): body is ResponseCreateParamsBase {
-  return "input" in body;
-}
-
 function isResponseCreateResponse(
   response: Stream<ResponseStreamEvent> | ResponseType,
 ): response is ResponseType {
-  return "output" in response;
+  return "object" in response && response.object === "response";
 }
 
 /**
@@ -542,11 +536,8 @@ function isPromptStringArray(
  * Converts the body of a chat completions request to LLM input messages
  */
 function getLLMInputMessagesAttributes(
-  body: ChatCompletionCreateParamsBase | ResponseCreateParamsBase,
+  body: ChatCompletionCreateParamsBase,
 ): Attributes {
-  if (isResponseCreateBody(body)) {
-    return getResponsesInputAttributes(body);
-  }
   return body.messages.reduce((acc, message, index) => {
     const messageAttributes = getChatCompletionInputMessageAttributes(message);
     const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;

@@ -166,6 +166,7 @@ class _ResponsesApiAttributes:
         yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
         if (call_id := obj.get("call_id")) is not None:
             yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
+        # TODO: should the role be "assistant" and args be obj.get("action")?
 
     @classmethod
     @stop_on_exception
@@ -558,6 +559,8 @@ class _ResponsesApiAttributes:
         obj: responses.response_reasoning_item_param.Summary,
         prefix: str = "",
     ) -> Iterator[Tuple[str, AttributeValue]]:
+        # TODO: in typescript, type is "summary_text" and the field with content is "text"
+        # validate that its actually different in python
         if (text := obj.get("text")) is not None:
             yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
             yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
