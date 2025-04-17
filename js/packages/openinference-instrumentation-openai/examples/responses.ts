@@ -1,0 +1,42 @@
+/* eslint-disable no-console */
+import "./instrumentation";
+import { isPatched } from "../src";
+import OpenAI from "openai";
+
+// Check if OpenAI has been patched
+if (!isPatched()) {
+  throw new Error("OpenAI instrumentation failed");
+}
+
+// Initialize OpenAI
+const openai = new OpenAI();
+
+async function main() {
+  // non-streaming response
+  await openai.responses
+    .create({
+      model: "gpt-4.1",
+      input: "Write a one-sentence bedtime story about a unicorn.",
+      stream: false,
+    })
+    .then((response) => {
+      console.log(response.output_text);
+    });
+
+  // streaming response
+  await openai.responses
+    .create({
+      model: "gpt-4.1",
+      input: "Write a one-sentence bedtime story about a unicorn.",
+      stream: true,
+    })
+    .then(async (stream) => {
+      for await (const event of stream) {
+        if (event.type === "response.output_text.delta") {
+          process.stdout.write(event.delta);
+        }
+      }
+    });
+}
+
+main();

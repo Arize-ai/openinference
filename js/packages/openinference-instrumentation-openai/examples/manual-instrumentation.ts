@@ -3,7 +3,7 @@
  * This file shows an example of how if openai is already imported, you can manually instrument it after it's been imported.
  */
 
-import * as openai from "openai"; // Note that openai is imported before the instrumentation
+import openai from "openai"; // Note that openai is imported before the instrumentation
 import { isPatched, OpenAIInstrumentation } from "../src";
 import {
   NodeTracerProvider,

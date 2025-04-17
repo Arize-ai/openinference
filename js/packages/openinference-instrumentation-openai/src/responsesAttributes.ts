@@ -143,11 +143,12 @@ function getResponseItemMessageAttributes(
   }
   const role = message.role;
   const attributes: Attributes = {
-    [SemanticConventions.MESSAGE_ROLE]: role,
+    [`${prefix}${SemanticConventions.MESSAGE_ROLE}`]: role,
   };
   // add contents from message
   if (typeof message.content === "string") {
-    attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
+    attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+      message.content;
   } else if (Array.isArray(message.content)) {
     message.content.forEach((part, index) => {
       const contentsIndexPrefix = `${prefix}${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
