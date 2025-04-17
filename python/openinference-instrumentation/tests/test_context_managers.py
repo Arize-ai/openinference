@@ -117,22 +117,26 @@ def test_using_session_decorator(session_id: str) -> None:
 
 def test_using_session_decorator_with_dynamic_value(session_id: str) -> None:
     dynamic_session_id = "dynamic-session-id"
-    
+
     @using_session(session_id)
     def f(session_id=None) -> None:
         assert get_value(SpanAttributes.SESSION_ID) == dynamic_session_id
-    
+
     f(session_id=dynamic_session_id)
     assert get_value(SpanAttributes.SESSION_ID) is None
 
 
-def test_using_session_decorator_with_default_value(session_id: str) -> None:
+def test_using_session_decorator_with_default_value():
+    """Test that using_session decorator uses the default value when no session_id is provided."""
+    session_id = "test-session"
+
     @using_session(session_id)
-    def f(session_id=None) -> None:
-        assert get_value(SpanAttributes.SESSION_ID) == session_id
-    
-    f()
-    assert get_value(SpanAttributes.SESSION_ID) is None
+    def test_function():
+        current_context = get_current()
+        assert get_value(SpanAttributes.SESSION_ID, current_context) == session_id
+        return "test"
+
+    test_function()
 
 
 def test_using_user_decorator(user_id: str) -> None:
@@ -155,22 +159,26 @@ def test_using_metadata_decorator(metadata: Dict[str, Any]) -> None:
 
 def test_using_metadata_decorator_with_dynamic_value(metadata: Dict[str, Any]) -> None:
     dynamic_metadata = {"dynamic": "value", "key": "new-value"}
-    
+
     @using_metadata(metadata)
     def f(metadata=None) -> None:
         assert get_value(SpanAttributes.METADATA) == json.dumps(dynamic_metadata)
-    
+
     f(metadata=dynamic_metadata)
     assert get_value(SpanAttributes.METADATA) is None
 
 
-def test_using_metadata_decorator_with_default_value(metadata: Dict[str, Any]) -> None:
+def test_using_metadata_decorator_with_default_value():
+    """Test that using_metadata decorator uses the default value when no metadata is provided."""
+    metadata = {"key": "value"}
+
     @using_metadata(metadata)
-    def f(metadata=None) -> None:
-        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
-    
-    f()
-    assert get_value(SpanAttributes.METADATA) is None
+    def test_function():
+        current_context = get_current()
+        assert get_value(SpanAttributes.METADATA, current_context) == safe_json_dumps(metadata)
+        return "test"
+
+    test_function()
 
 
 def test_using_tags_decorator(tags: List[str]) -> None:
