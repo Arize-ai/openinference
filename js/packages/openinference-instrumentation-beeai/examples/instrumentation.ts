@@ -12,7 +12,7 @@ import * as beeaiFramework from "beeai-framework";
 import { BeeAIInstrumentation } from "../src/index";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 /////////////////// instrumentation ///////////////////
 const provider = new NodeTracerProvider({
