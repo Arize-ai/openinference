@@ -17,7 +17,6 @@ async function main() {
     .create({
       model: "gpt-4.1",
       input: "Write a one-sentence bedtime story about a unicorn.",
-      stream: false,
     })
     .then((response) => {
       console.log(response.output_text);
@@ -47,8 +46,12 @@ async function main() {
     })
     .then(async (stream) => {
       for await (const event of stream) {
-        if (event.type === "response.output_text.delta") {
-          process.stdout.write(event.delta);
+        if (
+          event.type === "response.output_item.added" &&
+          event.item.type === "function_call"
+        ) {
+          console.log("function call\n----------");
+          console.log(event.item.name);
         }
       }
     });

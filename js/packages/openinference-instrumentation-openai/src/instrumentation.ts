@@ -436,8 +436,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               },
             );
             const wrappedPromise = execPromise.then((result) => {
-              if (isResponseCreateResponse(result)) {
-                // Record the results
+              const recordSpan = (result?: ResponseType) => {
+                if (!result) {
+                  span.setStatus({ code: SpanStatusCode.ERROR });
+                  span.end();
+                  return;
+                }
                 span.setAttributes({
                   [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
                   [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
@@ -448,12 +452,18 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 });
                 span.setStatus({ code: SpanStatusCode.OK });
                 span.end();
+              };
+              if (isResponseCreateResponse(result)) {
+                // Record the results, as we have the final result
+                recordSpan(result);
               } else {
                 // This is a streaming response
-                // handle the chunks and add them to the span
                 // First split the stream via tee
                 const [leftStream, rightStream] = result.tee();
-                consumeResponseStreamEvents(rightStream, span);
+                // take the right stream, consuming it and then recording the final chunk
+                // into the span
+                consumeResponseStreamEvents(rightStream).then(recordSpan);
+                // give the left stream back to the caller
                 result = leftStream;
               }
 
