@@ -46,6 +46,7 @@ Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumen
 
 [tool.hatch.version]
 path = "src/openinference/instrumentation/mcp/version.py"
+
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
