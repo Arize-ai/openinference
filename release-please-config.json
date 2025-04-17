@@ -86,6 +86,11 @@
         "python/instrumentation/openinference-instrumentation-portkey": {
             "package-name": "python-openinference-instrumentation-portkey",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-mcp": {
+            "package-name": "python-openinference-instrumentation-mcp",
+            "release-type": "python"
         }
+
     }
 }
