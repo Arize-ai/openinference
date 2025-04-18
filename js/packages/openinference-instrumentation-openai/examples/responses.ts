@@ -2,7 +2,7 @@
 import "./instrumentation";
 import { isPatched } from "../src";
 import OpenAI from "openai";
-
+import { Response as ResponseType } from "openai/resources/responses/responses";
 // Check if OpenAI has been patched
 if (!isPatched()) {
   throw new Error("OpenAI instrumentation failed");
@@ -23,11 +23,17 @@ async function main() {
     });
 
   // streaming response
-  await openai.responses
+  const stream = await openai.responses
     .create({
+      instructions: "You are a helpful weather assistant.",
+      input: [
+        {
+          type: "message",
+          content: "What's the weather in Boston?",
+          role: "user",
+        },
+      ],
       model: "gpt-4.1",
-      input: "Get the weather in los angeles california",
-      stream: true,
       tools: [
         {
           name: "get_weather",
@@ -43,8 +49,10 @@ async function main() {
           strict: true,
         },
       ],
+      stream: true,
     })
     .then(async (stream) => {
+      let response: ResponseType | undefined;
       for await (const event of stream) {
         if (
           event.type === "response.output_item.added" &&
@@ -53,8 +61,41 @@ async function main() {
           console.log("function call\n----------");
           console.log(event.item.name);
         }
+        if (event.type === "response.completed") {
+          response = event.response;
+        }
       }
+      return response;
     });
+
+  // respond to function call
+  if (stream) {
+    const id = stream.id;
+    const fn = stream.output.find((o) => o.type === "function_call");
+    if (fn) {
+      const args = JSON.parse(fn.arguments);
+      if (fn.name === "get_weather") {
+        const weather = `The weather in ${args.location} is sunny with a temperature of 70 degrees.`;
+        await openai.responses.create({
+          previous_response_id: id,
+          stream: false,
+          input: [
+            {
+              type: "function_call_output",
+              output: weather,
+              call_id: fn.call_id,
+            },
+            {
+              type: "message",
+              content: "What should I wear?",
+              role: "user",
+            },
+          ],
+          model: "gpt-4.1",
+        });
+      }
+    }
+  }
 }
 
 main();
