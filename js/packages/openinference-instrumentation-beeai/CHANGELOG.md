@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.3.0
+
+### Minor Changes
+
+- 8629b32: Strict framework version detection
+
 ## 1.2.1
 
 ### Patch Changes
