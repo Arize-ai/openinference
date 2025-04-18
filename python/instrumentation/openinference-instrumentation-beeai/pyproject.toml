@@ -33,10 +33,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "beeai-framework==0.1.15",
+  "beeai-framework==0.1.16",
 ]
 test = [
-  "beeai-framework==0.1.15",
+  "beeai-framework==0.1.16",
   "opentelemetry-sdk"
 ]
 

@@ -151,7 +151,7 @@ wheels = [
 
 [[package]]
 name = "beeai-framework"
-version = "0.1.15"
+version = "0.1.16"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "acp-sdk" },
@@ -164,9 +164,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/e6/e73f84f9b5416bc95ea343e85827263399e1510b5fbba23e21dcd55b8531/beeai_framework-0.1.15.tar.gz", hash = "sha256:3a9667c8e20e1fe94086923d9df1dd09d5e4216319cd18a3520e2d731dd1ccc4", size = 79798 }
+sdist = { url = "https://files.pythonhosted.org/packages/45/07/e6b23df789021b09de90485f1228d38df261f6522852e2758d71c993ac97/beeai_framework-0.1.16.tar.gz", hash = "sha256:18c1744583fab0443c1a39eeea5286f1eebe7d49d9c1f3f4648e6ed887f6f795", size = 81457 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/10/ce2d0e68f46596411390a037bbf4841bd5ef1af83cd6be2ca33b6fce37a1/beeai_framework-0.1.15-py3-none-any.whl", hash = "sha256:cd95f47b54ca1bb84af4853a67e7a8671b0ec41ddcaf7db890e79ed8a3c63fbf", size = 171213 },
+    { url = "https://files.pythonhosted.org/packages/6c/69/7df55c52973770b9e994e37989ef0745fab573e2c0ade956a42314d91ef4/beeai_framework-0.1.16-py3-none-any.whl", hash = "sha256:2b920d3ef0ad4ae970fd5d25c57e164b7ca0e438ced1fa8770b5446e18ef8976", size = 173918 },
 ]
 
 [[package]]
@@ -721,7 +721,7 @@ wheels = [
 
 [[package]]
 name = "openinference-instrumentation-beeai"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "openinference-instrumentation" },
@@ -743,8 +743,8 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "beeai-framework", marker = "extra == 'instruments'", specifier = "==0.1.15" },
-    { name = "beeai-framework", marker = "extra == 'test'", specifier = "==0.1.15" },
+    { name = "beeai-framework", marker = "extra == 'instruments'", specifier = "==0.1.16" },
+    { name = "beeai-framework", marker = "extra == 'test'", specifier = "==0.1.16" },
     { name = "openinference-instrumentation", specifier = ">=0.1.27" },
     { name = "openinference-semantic-conventions", specifier = ">=0.1.16" },
     { name = "opentelemetry-api", specifier = ">=1.31.1" },
