@@ -51,12 +51,12 @@ describe("MCPInstrumentation", () => {
     instrumentation.disable();
     await tracerProvider.shutdown();
 
-    await new Promise((reject, resolve) => {
+    await new Promise<void>((resolve, reject) => {
       collector.close((err) => {
         if (err) {
           reject(err);
         } else {
-          resolve(true);
+          resolve();
         }
       });
     });
