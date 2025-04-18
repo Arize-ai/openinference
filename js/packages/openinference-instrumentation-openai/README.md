@@ -29,4 +29,15 @@ registerInstrumentations({
 });
 ```
 
+## Examples
+
+To run an example, run the following commands:
+
+```shell
+cd js/packages/openinference-instrumentation-openai
+pnpm install
+pnpm -r build
+npx -y tsx examples/chat.ts # or responses.ts, embed.ts, etc
+```
+
 For more information on OpenTelemetry Node.js SDK, see the [OpenTelemetry Node.js SDK documentation](https://opentelemetry.io/docs/instrumentation/js/getting-started/nodejs/).

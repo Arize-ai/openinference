@@ -45,6 +45,18 @@ import {
   safelyJSONStringify,
   TraceConfigOptions,
 } from "@arizeai/openinference-core";
+import {
+  ResponseCreateParamsBase,
+  ResponseStreamEvent,
+  Response as ResponseType,
+} from "openai/resources/responses/responses";
+
+import {
+  consumeResponseStreamEvents,
+  getResponsesInputMessagesAttributes,
+  getResponsesOutputMessagesAttributes,
+  getResponsesUsageAttributes,
+} from "./responsesAttributes";
 
 const MODULE_NAME = "openai";
 
@@ -141,10 +153,10 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: OpenAIInstrumentation = this;
 
+    // Patch create chat completions
     type ChatCompletionCreateType =
       typeof module.OpenAI.Chat.Completions.prototype.create;
 
-    // Patch create chat completions
     this._wrap(
       module.OpenAI.Chat.Completions.prototype,
       "create",
@@ -367,6 +379,102 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       },
     );
 
+    // Patch responses (if the patched module contains the Responses interface)
+    if (module.OpenAI.Responses) {
+      type ResponsesCreateType =
+        typeof module.OpenAI.Responses.prototype.create;
+
+      this._wrap(
+        module.OpenAI.Responses.prototype,
+        "create",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ResponsesCreateType): any => {
+          return function patchedCreate(
+            this: unknown,
+            ...args: Parameters<ResponsesCreateType>
+          ) {
+            const body = args[0];
+            const { input: _messages, ...invocationParameters } = body;
+            const span = instrumentation.oiTracer.startSpan(
+              `OpenAI Responses`,
+              {
+                kind: SpanKind.INTERNAL,
+                attributes: {
+                  [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                    OpenInferenceSpanKind.LLM,
+                  [SemanticConventions.LLM_MODEL_NAME]: body.model,
+                  [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
+                  [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+                  [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+                    JSON.stringify(invocationParameters),
+                  [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
+                  [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
+                  ...getResponsesInputMessagesAttributes(body),
+                  ...getLLMToolsJSONSchema(body),
+                },
+              },
+            );
+            const execContext = getExecContext(span);
+            const execPromise = safeExecuteInTheMiddle<
+              ReturnType<ResponsesCreateType>
+            >(
+              () => {
+                return context.with(trace.setSpan(execContext, span), () => {
+                  return original.apply(this, args);
+                });
+              },
+              (error) => {
+                // Push the error to the span
+                if (error) {
+                  span.recordException(error);
+                  span.setStatus({
+                    code: SpanStatusCode.ERROR,
+                    message: error.message,
+                  });
+                  span.end();
+                }
+              },
+            );
+            const wrappedPromise = execPromise.then((result) => {
+              const recordSpan = (result?: ResponseType) => {
+                if (!result) {
+                  span.setStatus({ code: SpanStatusCode.ERROR });
+                  span.end();
+                  return;
+                }
+                span.setAttributes({
+                  [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
+                  [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                  // Override the model from the value sent by the server
+                  [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                  ...getResponsesOutputMessagesAttributes(result),
+                  ...getResponsesUsageAttributes(result),
+                });
+                span.setStatus({ code: SpanStatusCode.OK });
+                span.end();
+              };
+              if (isResponseCreateResponse(result)) {
+                // Record the results, as we have the final result
+                recordSpan(result);
+              } else {
+                // This is a streaming response
+                // First split the stream via tee
+                const [leftStream, rightStream] = result.tee();
+                // take the right stream, consuming it and then recording the final chunk
+                // into the span
+                consumeResponseStreamEvents(rightStream).then(recordSpan);
+                // give the left stream back to the caller
+                result = leftStream;
+              }
+
+              return result;
+            });
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+    }
+
     _isOpenInferencePatched = true;
     try {
       // This can fail if the module is made immutable via the runtime or bundler
@@ -397,6 +505,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
   }
+}
+
+function isResponseCreateResponse(
+  response: Stream<ResponseStreamEvent> | ResponseType,
+): response is ResponseType {
+  return "object" in response && response.object === "response";
 }
 
 /**
@@ -449,7 +563,7 @@ function getLLMInputMessagesAttributes(
  * Converts each tool definition into a json schema
  */
 function getLLMToolsJSONSchema(
-  body: ChatCompletionCreateParamsBase,
+  body: ChatCompletionCreateParamsBase | ResponseCreateParamsBase,
 ): Attributes {
   if (!body.tools) {
     // If tools is undefined, return an empty object
