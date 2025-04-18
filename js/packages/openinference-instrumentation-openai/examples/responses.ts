@@ -96,6 +96,17 @@ async function main() {
       }
     }
   }
+
+  // built-in tools
+  await openai.responses
+    .create({
+      model: "gpt-4.1",
+      tools: [{ type: "web_search_preview" }],
+      input: "What was a positive news story from today?",
+    })
+    .then((response) => {
+      console.log(response.output_text);
+    });
 }
 
 main();

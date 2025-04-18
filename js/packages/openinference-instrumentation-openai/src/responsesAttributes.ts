@@ -117,6 +117,8 @@ function getResponseItemAttributes(
       attributes[
         `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
       ] = item.type;
+      // web search call does not share its arguments with the caller
+      // it will show "undefined" in the arguments when traced
       break;
     }
   }
