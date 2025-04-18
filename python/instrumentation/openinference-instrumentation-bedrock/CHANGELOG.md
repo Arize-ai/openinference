@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.19...python-openinference-instrumentation-bedrock-v0.1.20) (2025-04-18)
+
+
+### Features
+
+* Add bedrock-agent instrumentation ([#1363](https://github.com/Arize-ai/openinference/issues/1363)) ([e174240](https://github.com/Arize-ai/openinference/commit/e174240a09db59c74b816efb3bc3176cc581d31e))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.18...python-openinference-instrumentation-bedrock-v0.1.19) (2025-04-11)
 
 
