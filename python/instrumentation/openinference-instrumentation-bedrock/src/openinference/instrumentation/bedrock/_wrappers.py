@@ -6,8 +6,9 @@ from typing import Any, Callable
 import wrapt
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import Tracer
+from opentelemetry.trace import Status, StatusCode, Tracer
 
+from openinference.instrumentation.bedrock._response_accumulator import _ResponseAccumulator
 from openinference.instrumentation.bedrock.utils import _EventStream, _use_span
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
     _AnthropicMessagesCallback,
@@ -16,6 +17,7 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -62,6 +64,45 @@ class _InvokeModelWithResponseStream(_WithTracer):
             span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
             span.end()
             return response
+
+
+class _InvokeAgentWithResponseStream(_WithTracer):
+    _name = "bedrock_agent.invoke_agent"
+
+    @wrapt.decorator  # type: ignore[misc]
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        # span = self._tracer.start_span(self._name)
+        with self._tracer.start_as_current_span(
+            self._name,
+            end_on_exit=False,
+        ) as span:
+            attributes = {
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+                SpanAttributes.LLM_PROVIDER: OpenInferenceLLMProviderValues.AWS.value,
+            }
+            if input_text := kwargs.get("inputText"):
+                attributes[SpanAttributes.INPUT_VALUE] = input_text
+            span.set_attributes({k: v for k, v in attributes.items() if v is not None})
+            try:
+                response = wrapped(*args, **kwargs)
+                response["completion"] = _EventStream(
+                    response["completion"],
+                    _ResponseAccumulator(span, self._tracer, kwargs),
+                    _use_span(span),
+                )
+                return response
+            except Exception as e:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise e
 
 
 IMAGE_URL = ImageAttributes.IMAGE_URL
