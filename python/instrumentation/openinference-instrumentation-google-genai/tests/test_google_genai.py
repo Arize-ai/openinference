@@ -207,11 +207,11 @@ def test_multi_turn_conversation(
     }
     
     # Check if token counts are available in the response
-    if hasattr(response1, "usage") and response1.usage:
+    if hasattr(response1, "usage_metadata") and response1.usage_metadata:
         expected_attributes1.update({
-            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response1.usage.total_tokens,
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response1.usage.prompt_tokens,
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response1.usage.completion_tokens,
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response1.usage_metadata.total_token_count,
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response1.usage_metadata.prompt_token_count,
+            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response1.usage_metadata.candidates_token_count,
         })
     
     # Verify attributes for first span
@@ -234,11 +234,11 @@ def test_multi_turn_conversation(
     }
     
     # Check if token counts are available in the response
-    if hasattr(response2, "usage") and response2.usage:
+    if hasattr(response2, "usage_metadata") and response2.usage_metadata:
         expected_attributes2.update({
-            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response2.usage.total_tokens,
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response2.usage.prompt_tokens,
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response2.usage.completion_tokens,
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response2.usage_metadata.total_token_count,
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response2.usage_metadata.prompt_token_count,
+            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response2.usage_metadata.candidates_token_count,
         })
     
     # Verify attributes for second span

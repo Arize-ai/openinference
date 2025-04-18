@@ -80,9 +80,9 @@ class _ResponseAttributesExtractor:
         self,
         usage: object,
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
-            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
-        if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
-            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-        if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
-            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+        if (total_token_count := getattr(usage, "total_token_count", None)) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
+        if (prompt_token_count := getattr(usage, "prompt_token_count", None)) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_token_count
+        if (candidates_token_count := getattr(usage, "candidates_token_count", None)) is not None:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, candidates_token_count
