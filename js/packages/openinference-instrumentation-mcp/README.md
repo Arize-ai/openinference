@@ -13,7 +13,7 @@ npm install --save @arizeai/openinference-instrumentation-mcp
 
 ## Usage
 
-To load the MCP instrumentation, manually instrument the `@modelcontextprotocol/sdk/client/index` and/or `@modelcontextprotocol/sdk/server/index` module. 
+To load the MCP instrumentation, manually instrument the `@modelcontextprotocol/sdk/client/index` and/or `@modelcontextprotocol/sdk/server/index` module.
 The client and server must be manually instrumented due to the non-traditional module structure in `@modelcontextprotocol/sdk`. Additional instrumentations can
 be registered as usual using the `registerInstrumentations` function.
 
@@ -30,7 +30,7 @@ const mcpInstrumentation = new MCPInstrumentation();
 // MCP must be manually instrumented as it doesn't have a traditional module structure
 mcpInstrumentation.manuallyInstrument({
   clientModule: MCPClientModule,
-  serverModule: MCPServerModule
+  serverModule: MCPServerModule,
 });
 ```
 

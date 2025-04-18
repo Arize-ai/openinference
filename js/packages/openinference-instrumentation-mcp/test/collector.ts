@@ -46,13 +46,13 @@ export async function startCollector(
     res.end("{}");
   });
 
-  const { promise, reject, resolve } = Promise.withResolvers<http.Server>();
-  const server = app.listen(0, (err) => {
-    if (err) {
-      reject(err);
-    } else {
-      resolve(server);
-    }
+  return new Promise((resolve, reject) => {
+    const server = app.listen(0, (err) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(server);
+      }
+    });
   });
-  return promise;
 }

@@ -96,15 +96,19 @@ async function main() {
         await transport.handlePostMessage(req, res);
       });
 
-      const { promise, resolve } = Promise.withResolvers();
-      httpServer = app.listen(0, () => {
-        // eslint-disable-next-line no-console
-        console.log(
-          `Server running on http://localhost:${(httpServer?.address() as AddressInfo).port}/sse`,
-        );
-        resolve(httpServer);
+      await new Promise<void>((resolve, reject) => {
+        httpServer = app.listen(0, (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            // eslint-disable-next-line no-console
+            console.log(
+              `Server running on http://localhost:${(httpServer?.address() as AddressInfo).port}/sse`,
+            );
+            resolve();
+          }
+        });
       });
-      await promise;
 
       break;
     }

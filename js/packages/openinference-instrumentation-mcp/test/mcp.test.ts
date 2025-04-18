@@ -51,15 +51,15 @@ describe("MCPInstrumentation", () => {
     instrumentation.disable();
     await tracerProvider.shutdown();
 
-    const { promise, reject, resolve } = Promise.withResolvers();
-    collector.close((err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(true);
-      }
+    await new Promise((reject, resolve) => {
+      collector.close((err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(true);
+        }
+      });
     });
-    await promise;
   });
 
   beforeEach(() => {
@@ -150,21 +150,20 @@ describe("MCPInstrumentation", () => {
       },
       stdio: ["ignore", "pipe", "ignore"],
     });
-    const { promise: childClosedPromise, resolve: resolveChildClosed } =
-      Promise.withResolvers<void>();
-    child.on("close", () => {
-      resolveChildClosed();
+    const childClosedPromise = new Promise<void>((resolve) => {
+      child.on("close", () => {
+        resolve();
+      });
     });
-    const { promise: sseUrlPromise, resolve: resolveSseUrl } =
-      Promise.withResolvers<string>();
-    child.stdout.on("data", (data: Buffer) => {
-      const line = data.toString().trim();
-      if (line.startsWith("Server running on ")) {
-        const endpoint = line.substring("Server running on ".length);
-        resolveSseUrl(endpoint);
-      }
+    const sseUrl = await new Promise<string>((resolve) => {
+      child.stdout.on("data", (data: Buffer) => {
+        const line = data.toString().trim();
+        if (line.startsWith("Server running on ")) {
+          const endpoint = line.substring("Server running on ".length);
+          resolve(endpoint);
+        }
+      });
     });
-    const sseUrl = await sseUrlPromise;
     try {
       const transport = new SSEClientTransport(new URL(sseUrl));
       const client = new MCPClientModule.Client({
