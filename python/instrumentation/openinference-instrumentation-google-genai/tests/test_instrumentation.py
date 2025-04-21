@@ -110,7 +110,7 @@ async def test_async_generate_content(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = os.environ.get("GOOGLE_GENAI_API_KEY", "REDACTED")
+    api_key = "REDACTED"
     
     # Initialize the async client
     client = genai.Client(api_key=api_key).aio
@@ -173,7 +173,7 @@ def test_multi_turn_conversation(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = os.environ.get("GOOGLE_GENAI_API_KEY", "REDACTED")
+    api_key = "REDACTED"
     
     # Initialize the client
     client = genai.Client(api_key=api_key)
