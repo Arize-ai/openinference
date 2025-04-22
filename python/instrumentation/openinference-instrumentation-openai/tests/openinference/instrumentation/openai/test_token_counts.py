@@ -20,9 +20,7 @@ class TestTokenCounts:
         self,
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
-        client = openai.OpenAI(
-            api_key="sk-"
-        )
+        client = openai.OpenAI(api_key="sk-")
         resp = client.chat.completions.create(
             extra_headers={"Accept-Encoding": "gzip"},
             model="gpt-4o-mini",
@@ -60,6 +58,7 @@ class TestTokenCounts:
                 attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING)
                 == usage.completion_tokens_details.reasoning_tokens
             )
+
 
 @pytest.fixture(autouse=True)
 def instrument(
