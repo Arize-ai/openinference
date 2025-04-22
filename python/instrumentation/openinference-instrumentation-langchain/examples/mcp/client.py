@@ -6,6 +6,14 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from phoenix.otel import register
+
+from openinference.instrumentation.mcp import MCPInstrumentor
+from openinference.instrumentation.langchain import LangChainInstrumentor
+
+tracer_provider = register(project_name="langchain-mcp-adapters")
+MCPInstrumentor().instrument(tracer_provider=tracer_provider)
+LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 async def main():
