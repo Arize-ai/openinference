@@ -251,6 +251,19 @@ class _ResponseAttributesExtractor:
                 cached_tokens := getattr(prompt_completion_tokens, "cached_tokens", None)
             ) is not None:
                 yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+            if (
+                audio_tokens := getattr(prompt_completion_tokens, "audio_tokens", None)
+            ) is not None:
+                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_tokens
+        if (completion_completion_tokens := getattr(usage, "completion_tokens_details", None)) is not None:
+            if (
+                reasoning_tokens := getattr(completion_completion_tokens, "reasoning_tokens", None)
+            ) is not None:
+                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
+            if (
+                audio_tokens := getattr(completion_completion_tokens, "audio_tokens", None)
+            ) is not None:
+                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, audio_tokens
 
     def _get_attributes_from_embedding_usage(
         self,
