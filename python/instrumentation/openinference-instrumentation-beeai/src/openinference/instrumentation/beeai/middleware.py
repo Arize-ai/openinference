@@ -280,7 +280,6 @@ def create_telemetry_middleware(
                         }
                         for m in react_agent_typed_data.memory.messages
                     ]
-                print("2")
             except Exception as e:
                 print("Instrumentation error: failed to extract success message", e)
 
