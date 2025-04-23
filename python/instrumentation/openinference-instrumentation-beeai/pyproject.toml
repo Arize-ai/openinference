@@ -33,10 +33,12 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "beeai-framework==0.1.16",
+  "beeai-framework[duckduckgo,wikipedia]==0.1.17",
+  "pydantic-settings>=2.9.1",
 ]
 test = [
-  "beeai-framework==0.1.16",
+  "beeai-framework[duckduckgo,wikipedia]==0.1.17",
+  "pydantic-settings>=2.9.1",
   "opentelemetry-sdk"
 ]
 

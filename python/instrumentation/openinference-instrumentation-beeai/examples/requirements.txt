@@ -1,3 +1,4 @@
-beeai-framework == 0.1.16
+beeai-framework[duckduckgo,wikipedia,mcp]==0.1.17
 opentelemetry-sdk
 opentelemetry-exporter-otlp
+pydantic-settings
