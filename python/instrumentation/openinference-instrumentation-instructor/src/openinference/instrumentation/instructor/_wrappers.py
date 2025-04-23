@@ -98,8 +98,6 @@ class _PatchWrapper:
                 for idx, message in enumerate(messages):
                     llm_messages[f"{prefix}.{idx}.{MESSAGE_CONTENT}"] = message["content"]
                     llm_messages[f"{prefix}.{idx}.{MESSAGE_ROLE}"] = message["role"]
-            elif isinstance(messages, str):
-                llm_messages[f"{prefix}.0.{MESSAGE_CONTENT}"] = messages
         return llm_messages
 
     @classmethod
