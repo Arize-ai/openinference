@@ -18,19 +18,16 @@ The client and server must be manually instrumented due to the non-traditional m
 be registered as usual using the `registerInstrumentations` function.
 
 ```typescript
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+// First, configure and start your OpenTelemetry NodeSDK per documentation.
+
+// Then, import and initialize MCPInstrumentation before importing the MCP modules.
 import { MCPInstrumentation } from "@arizeai/openinference-instrumentation-mcp";
-import * as MCPClientModule from "@modelcontextprotocol/sdk/client/index";
-import * as MCPServerModule from "@modelcontextprotocol/sdk/server/index";
-
-const provider = new NodeTracerProvider();
-provider.register();
-
 const mcpInstrumentation = new MCPInstrumentation();
-// MCP must be manually instrumented as it doesn't have a traditional module structure
+
+// Finally, manually instrument MCP, as it doesn't have a traditional module structure.
 mcpInstrumentation.manuallyInstrument({
-  clientModule: MCPClientModule,
-  serverModule: MCPServerModule,
+	clientModule: require("@modelcontextprotocol/sdk/client/index.js"),
+	serverModule: require("@modelcontextprotocol/sdk/server/index.js"),
 });
 ```
 
