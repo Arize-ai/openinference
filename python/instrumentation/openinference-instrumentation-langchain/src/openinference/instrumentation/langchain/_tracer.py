@@ -4,6 +4,7 @@ import math
 import re
 import time
 import traceback
+from contextvars import Context, Token
 from copy import deepcopy
 from datetime import datetime, timezone
 from enum import Enum
@@ -118,13 +119,15 @@ class OpenInferenceTracer(BaseTracer):
     __slots__ = (
         "_tracer",
         "_separate_trace_from_runtime_context",
+        "_attach_otel_context",
         "_spans_by_run",
     )
 
     def __init__(
         self,
         tracer: trace_api.Tracer,
-        separate_trace_from_runtime_context: bool,
+        separate_trace_from_runtime_context: bool = False,
+        attach_otel_context: bool = False,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -132,8 +135,12 @@ class OpenInferenceTracer(BaseTracer):
 
         Args:
             tracer (trace_api.Tracer): The OpenTelemetry tracer for creating spans.
-            separate_trace_from_runtime_context (bool): When True, always start a new trace for each
-                span without a parent, isolating it from any existing trace in the runtime context.
+            separate_trace_from_runtime_context (bool, optional): When True, always start a new
+                trace for each span without a parent, isolating it from any existing trace in the
+                runtime context. Defaults to True.
+            attach_otel_context (bool, optional): When True, attach the OpenTelemetry context to the
+                spans. This defaults to False due to LangChain's callback manager design and should
+                be used with caution until a wholistic solution is implemented within LangChain.
             *args (Any): Positional arguments for BaseTracer.
             **kwargs (Any): Keyword arguments for BaseTracer.
         """
@@ -144,7 +151,9 @@ class OpenInferenceTracer(BaseTracer):
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
         self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
+        self._attach_otel_context = attach_otel_context
         self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
+        self._context_tokens_by_run: Dict[UUID, Token] = _DictWithLock[UUID, Token]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[Span]:
@@ -171,15 +180,24 @@ class OpenInferenceTracer(BaseTracer):
             start_time=start_time_utc_nano,
         )
 
-        # The following line of code is commented out to serve as a reminder that in a system
-        # of callbacks, attaching the context can be hazardous because there is no guarantee
+        # The following line of code is disabled by default due to LangChain's callback manager design
+        # and should be used with caution until a wholistic solution is implemented.
+        #
+        # Note: attaching the context can be hazardous because there is no guarantee
         # that the context will be detached. An error could happen between callbacks leaving
         # the context attached forever, and all future spans will use it as parent. What's
         # worse is that the error could have also prevented the span from being exported,
         # leaving all future spans as orphans. That is a very bad scenario.
-        # token = context_api.attach(context)
+        token = None
+        if self._attach_otel_context:
+            print("attaching otel context")
+            context = trace_api.set_span_in_context(span)
+            token = context_api.attach(context)
         with self._lock:
             self._spans_by_run[run.id] = span
+            if token:
+                print("attaching token")
+                self._context_tokens_by_run[run.id] = token
 
     @audit_timing  # type: ignore
     def _end_trace(self, run: Run) -> None:
@@ -196,6 +214,11 @@ class OpenInferenceTracer(BaseTracer):
             # called in a background thread.
             end_time_utc_nano = _as_utc_nano(run.end_time) if run.end_time else None
             span.end(end_time=end_time_utc_nano)
+
+        # Detach the context token if it exists
+        token = self._context_tokens_by_run.pop(run.id, None)
+        if token:
+            context_api.detach(token)
 
     def _persist_run(self, run: Run) -> None:
         pass
