@@ -1,0 +1,91 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Tell me a short story about a cat."}],
+      "role": "user"}]}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:streamGenerateContent?alt=sse
+  response:
+    body:
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"C\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 10,\"totalTokenCount\":
+        10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\":
+        \"gemini-2.0-flash-001\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \"lementine, a calico with a perpetually grumpy face, ruled the
+        window sill with an iron paw\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \". Sunlight was her
+        domain, dust motes her loyal subjects, and the world outside a reality\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 10,\"totalTokenCount\":
+        10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\":
+        \"gemini-2.0-flash-001\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\":
+        [{\"text\": \" show she judged with unwavering cynicism. Birds? Clumsy, feathered
+        fools. Squirrels? Fluffy-tailed delinquents. Humans? Well, tolerable, mostly
+        because\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata: {\"candidates\":
+        [{\"content\": {\"parts\": [{\"text\": \" they provided food.\\n\\nOne blustery
+        autumn day, a new program premiered on Clementine's screen. A tiny, shivering
+        ball of fur, a\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata: {\"candidates\":
+        [{\"content\": {\"parts\": [{\"text\": \" kitten no bigger than her paw, huddled
+        beneath the sprawling oak tree. Clementine narrowed her emerald eyes. A usurper?
+        An interloper daring to intrude on her televised drama?\\n\\nNormally, she
+        would have simply ignored it. Let\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" the wind and the
+        cold sort things out. But something about the kitten\u2019s pathetic mew,
+        a tiny, desperate sound lost in the gusts, tugged at a long-dormant part of
+        her.\\n\\nShe hopped down from the sill\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \", a rare occurrence
+        outside of mealtimes. Her human, a gentle woman named Mrs. Gable, noticed
+        immediately. \\\"What is it, Clementine? You never go outside.\\\"\\n\\nClementine,
+        ignoring Mrs. Gable, stalked to the back door and let out a sharp, insistent
+        meow. She repeated\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata: {\"candidates\":
+        [{\"content\": {\"parts\": [{\"text\": \" it, adding a dramatic flick of her
+        tail for emphasis. Mrs. Gable, ever observant, understood.\\n\\n\\\"Oh, a
+        friend? Is someone out there?\\\"\\n\\nMrs. Gable opened the door, and Clementine,
+        with a surprising burst of speed, darted into the crisp autumn air. She marched
+        straight to the shivering\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata: {\"candidates\":
+        [{\"content\": {\"parts\": [{\"text\": \" kitten, who looked up with wide,
+        terrified eyes.\\n\\nClementine didn't purr. She didn't lick. She simply nudged
+        the kitten with her head, a small, almost imperceptible gesture of comfort.
+        Then, she turned and headed back to the house, stopping every few feet to
+        make sure the kitten was\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata: {\"candidates\":
+        [{\"content\": {\"parts\": [{\"text\": \" following.\\n\\nMrs. Gable, watching
+        from the doorway, gasped. She scooped up the kitten, a skinny grey tabby,
+        and brought it inside. After a warm bath and a bowl of kitten food, the tabby
+        was purring contentedly, curled up on a soft blanket.\\n\\nClementine, meanwhile,
+        resumed her post\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata: {\"candidates\":
+        [{\"content\": {\"parts\": [{\"text\": \" on the window sill. She watched
+        the kitten, now warm and safe, through half-closed eyes. The world outside
+        still had its clumsy birds and delinquent squirrels, but something had changed.
+        The reality show had gained a new character, a fluffy-tailed prot\xE9g\xE9.
+        And Clementine, the grumpy queen of the window sill,\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" found that perhaps,
+        just perhaps, she didn't mind so much. Her cynical heart, after all, wasn\u2019t
+        entirely made of stone. It just needed a tiny, shivering ball of fur to melt
+        it a little.\\n\"}],\"role\": \"model\"},\"finishReason\": \"STOP\"}],\"usageMetadata\":
+        {\"promptTokenCount\": 9,\"candidatesTokenCount\": 569,\"totalTokenCount\":
+        578,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 9}],\"candidatesTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 569}]},\"modelVersion\": \"gemini-2.0-flash-001\"}\r\n\r\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
