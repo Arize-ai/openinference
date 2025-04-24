@@ -5,42 +5,46 @@ import {
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
 import type {
+  JSONRPCMessage,
   JSONRPCRequest,
-  Notification,
-  Request,
-  Result,
 } from "@modelcontextprotocol/sdk/types";
-import type { Client } from "@modelcontextprotocol/sdk/client/index";
-import type * as ClientModule from "@modelcontextprotocol/sdk/client/index";
-import type { Server } from "@modelcontextprotocol/sdk/server/index";
-import type * as ServerModule from "@modelcontextprotocol/sdk/server/index";
+import type * as ClientSSEModule from "@modelcontextprotocol/sdk/client/sse";
+import type * as ClientStdioModule from "@modelcontextprotocol/sdk/client/stdio";
+import type * as ClientStreamableHTTPModule from "@modelcontextprotocol/sdk/client/streamableHttp";
+import type * as ServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
+import type * as ServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
+import type * as ServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport";
 
 import { VERSION } from "./version";
 
-const CLIENT_MODULE_NAME = "@modelcontextprotocol/sdk/client/index";
-const SERVER_MODULE_NAME = "@modelcontextprotocol/sdk/server/index";
+const CLIENT_SSE_MODULE_NAME = "@modelcontextprotocol/sdk/client/sse";
+const SERVER_SSE_MODULE_NAME = "@modelcontextprotocol/sdk/server/sse";
+const CLIENT_STDIO_MODULE_NAME = "@modelcontextprotocol/sdk/client/stdio";
+const SERVER_STDIO_MODULE_NAME = "@modelcontextprotocol/sdk/server/stdio";
+const CLIENT_STREAMABLE_HTTP_MODULE_NAME =
+  "@modelcontextprotocol/sdk/client/streamableHttp";
+const SERVER_STREAMABLE_HTTP_MODULE_NAME =
+  "@modelcontextprotocol/sdk/server/streamableHttp";
 
 /**
- * Flag to check if the client module has been patched
+ * Flags to check if a module has already been patched.
  * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
  */
-let _isClientOpenInferencePatched = false;
+const patchedModules = {
+  [CLIENT_SSE_MODULE_NAME]: false,
+  [SERVER_SSE_MODULE_NAME]: false,
+  [CLIENT_STDIO_MODULE_NAME]: false,
+  [SERVER_STDIO_MODULE_NAME]: false,
+  [CLIENT_STREAMABLE_HTTP_MODULE_NAME]: false,
+  [SERVER_STREAMABLE_HTTP_MODULE_NAME]: false,
+};
+
 /**
- * function to check if client instrumentation is enabled / disabled
+ * function to check if instrumentation is enabled / disabled for the module
  */
-export function isClientPatched() {
-  return _isClientOpenInferencePatched;
-}
-/**
- * Flag to check if the server module has been patched
- * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
- */
-let _isServerOpenInferencePatched = false;
-/**
- * function to check if server instrumentation is enabled / disabled
- */
-export function isServerPatched() {
-  return _isServerOpenInferencePatched;
+export function isPatched(moduleName: keyof typeof patchedModules) {
+  return patchedModules[moduleName];
 }
 
 /**
@@ -69,170 +73,337 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
    * Manually instruments the MCP client and/or server modules. Currently, auto-instrumentation does not work
    * with the MCP SDK and this method must be used to enable instrumentation.
    * @param {Object} modules - The modules to manually instrument.
-   * @param {typeof ClientModule} modules.clientModule - The MCP client module, e.g. require('@modelcontextprotocol/sdk/client/index.js')
+   * @param {typeof ClientSSEModule} modules.clientSSEModule - The MCP client SSE module, e.g. require('@modelcontextprotocol/sdk/client/sse.js')
+   * @param {typeof ServerSSEModule} modules.serverSSEModule - The MCP server SSE module, e.g. require('@modelcontextprotocol/sdk/server/sse.js')
+   * @param {typeof ClientStdioModule} modules.clientStdioModule - The MCP client stdio module, e.g. require('@modelcontextprotocol/sdk/server/stdio.js')
+   * @param {typeof ServerStdioModule} modules.serverStdioModule - The MCP server stdio module, e.g. require('@modelcontextprotocol/sdk/client/stdio.js')
+   * @param {typeof ClientStreamableHTTPModule} modules.clientStreamableHTTPModule - The MCP client streamable HTTP module, e.g. require('@modelcontextprotocol/sdk/client/streamableHttp.js')
+   * @param {typeof ServerStreamableHTTPModule} modules.serverStreamableHTTPModule - The MCP server streamable HTTP module, e.g. require('@modelcontextprotocol/sdk/server/streamableHttp.js')
    */
   public manuallyInstrument({
-    clientModule,
-    serverModule,
+    clientSSEModule,
+    serverSSEModule,
+    clientStdioModule,
+    serverStdioModule,
+    clientStreamableHTTPModule,
+    serverStreamableHTTPModule,
   }: {
-    clientModule?: typeof ClientModule;
-    serverModule?: typeof ServerModule;
+    clientSSEModule?: typeof ClientSSEModule;
+    serverSSEModule?: typeof ServerSSEModule;
+    clientStdioModule?: typeof ClientStdioModule;
+    serverStdioModule?: typeof ServerStdioModule;
+    clientStreamableHTTPModule?: typeof ClientStreamableHTTPModule;
+    serverStreamableHTTPModule?: typeof ServerStreamableHTTPModule;
   }) {
-    if (clientModule) {
-      diag.debug(`Manually instrumenting ${CLIENT_MODULE_NAME}`);
-      this._patchClientModule(clientModule);
+    if (clientSSEModule) {
+      diag.debug(`Manually instrumenting ${CLIENT_SSE_MODULE_NAME}`);
+      this._patchClientSSEModule(clientSSEModule);
     }
-    if (serverModule) {
-      diag.debug(`Manually instrumenting ${SERVER_MODULE_NAME}`);
-      this._patchServerModule(serverModule);
+    if (serverSSEModule) {
+      diag.debug(`Manually instrumenting ${SERVER_SSE_MODULE_NAME}`);
+      this._patchServerSSEModule(serverSSEModule);
+    }
+    if (clientStdioModule) {
+      diag.debug(`Manually instrumenting ${CLIENT_STDIO_MODULE_NAME}`);
+      this._patchClientStdioModule(clientStdioModule);
+    }
+    if (serverStdioModule) {
+      diag.debug(`Manually instrumenting ${SERVER_STDIO_MODULE_NAME}`);
+      this._patchServerStdioModule(serverStdioModule);
+    }
+    if (clientStreamableHTTPModule) {
+      diag.debug(
+        `Manually instrumenting ${CLIENT_STREAMABLE_HTTP_MODULE_NAME}`,
+      );
+      this._patchClientStreamableHTTPModule(clientStreamableHTTPModule);
+    }
+    if (serverStreamableHTTPModule) {
+      diag.debug(
+        `Manually instrumenting ${SERVER_STREAMABLE_HTTP_MODULE_NAME}`,
+      );
+      this._patchServerStreamableHTTPModule(serverStreamableHTTPModule);
     }
   }
 
   protected override init() {
     return [
       new InstrumentationNodeModuleDefinition(
-        "@modelcontextprotocol/sdk/client/index.js",
+        "@modelcontextprotocol/sdk/client/sse.js",
         [">=1.0.0"],
-        this._patchClientModule.bind(this),
-        this._unpatchClientModule.bind(this),
+        this._patchClientSSEModule.bind(this),
+        this._unpatchClientSSEModule.bind(this),
       ),
       new InstrumentationNodeModuleDefinition(
-        "@modelcontextprotocol/sdk/server/index.js",
+        "@modelcontextprotocol/sdk/server/sse.js",
         [">=1.0.0"],
-        this._patchServerModule.bind(this),
-        this._unpatchServerModule.bind(this),
+        this._patchServerSSEModule.bind(this),
+        this._unpatchServerSSEModule.bind(this),
+      ),
+      new InstrumentationNodeModuleDefinition(
+        "@modelcontextprotocol/sdk/client/stdio.js",
+        [">=1.0.0"],
+        this._patchClientStdioModule.bind(this),
+        this._unpatchClientStdioModule.bind(this),
+      ),
+      new InstrumentationNodeModuleDefinition(
+        "@modelcontextprotocol/sdk/server/stdio.js",
+        [">=1.0.0"],
+        this._patchServerStdioModule.bind(this),
+        this._unpatchServerStdioModule.bind(this),
+      ),
+      new InstrumentationNodeModuleDefinition(
+        "@modelcontextprotocol/sdk/client/streamableHttp.js",
+        [">=1.10.0"],
+        this._patchClientStreamableHTTPModule.bind(this),
+        this._unpatchClientStreamableHTTPModule.bind(this),
+      ),
+      new InstrumentationNodeModuleDefinition(
+        "@modelcontextprotocol/sdk/server/streamableHttp.js",
+        [">=1.10.0"],
+        this._patchServerStreamableHTTPModule.bind(this),
+        this._unpatchServerStreamableHTTPModule.bind(this),
       ),
     ];
   }
 
-  private _patchClientModule(
-    module: typeof ClientModule & { openInferencePatched?: boolean },
+  private _patchClientSSEModule(
+    module: typeof ClientSSEModule,
     moduleVersion?: string,
   ) {
-    diag.debug(`Applying patch for ${CLIENT_MODULE_NAME}@${moduleVersion}`);
-    if (module?.openInferencePatched || _isClientOpenInferencePatched) {
+    return this._patchTransport(
+      module,
+      CLIENT_SSE_MODULE_NAME,
+      moduleVersion,
+      module.SSEClientTransport,
+    );
+  }
+
+  private _unpatchClientSSEModule(module: typeof ClientSSEModule) {
+    return this._unpatchTransport(
+      module,
+      CLIENT_SSE_MODULE_NAME,
+      module.SSEClientTransport,
+    );
+  }
+
+  private _patchServerSSEModule(
+    module: typeof ServerSSEModule,
+    moduleVersion?: string,
+  ) {
+    return this._patchTransport(
+      module,
+      SERVER_SSE_MODULE_NAME,
+      moduleVersion,
+      module.SSEServerTransport,
+    );
+  }
+
+  private _unpatchServerSSEModule(module: typeof ServerSSEModule) {
+    return this._unpatchTransport(
+      module,
+      SERVER_SSE_MODULE_NAME,
+      module.SSEServerTransport,
+    );
+  }
+
+  private _patchClientStdioModule(
+    module: typeof ClientStdioModule,
+    moduleVersion?: string,
+  ) {
+    return this._patchTransport(
+      module,
+      CLIENT_STDIO_MODULE_NAME,
+      moduleVersion,
+      module.StdioClientTransport,
+    );
+  }
+
+  private _unpatchClientStdioModule(module: typeof ClientStdioModule) {
+    return this._unpatchTransport(
+      module,
+      CLIENT_STDIO_MODULE_NAME,
+      module.StdioClientTransport,
+    );
+  }
+
+  private _patchServerStdioModule(
+    module: typeof ServerStdioModule,
+    moduleVersion?: string,
+  ) {
+    return this._patchTransport(
+      module,
+      SERVER_STDIO_MODULE_NAME,
+      moduleVersion,
+      module.StdioServerTransport,
+    );
+  }
+
+  private _unpatchServerStdioModule(module: typeof ServerStdioModule) {
+    return this._unpatchTransport(
+      module,
+      SERVER_STDIO_MODULE_NAME,
+      module.StdioServerTransport,
+    );
+  }
+
+  private _patchClientStreamableHTTPModule(
+    module: typeof ClientStreamableHTTPModule,
+    moduleVersion?: string,
+  ) {
+    return this._patchTransport(
+      module,
+      CLIENT_STREAMABLE_HTTP_MODULE_NAME,
+      moduleVersion,
+      module.StreamableHTTPClientTransport,
+    );
+  }
+
+  private _unpatchClientStreamableHTTPModule(
+    module: typeof ClientStreamableHTTPModule,
+  ) {
+    return this._unpatchTransport(
+      module,
+      CLIENT_STREAMABLE_HTTP_MODULE_NAME,
+      module.StreamableHTTPClientTransport,
+    );
+  }
+
+  private _patchServerStreamableHTTPModule(
+    module: typeof ServerStreamableHTTPModule,
+    moduleVersion?: string,
+  ) {
+    return this._patchTransport(
+      module,
+      SERVER_STREAMABLE_HTTP_MODULE_NAME,
+      moduleVersion,
+      module.StreamableHTTPServerTransport,
+    );
+  }
+
+  private _unpatchServerStreamableHTTPModule(
+    module: typeof ServerStreamableHTTPModule,
+  ) {
+    return this._unpatchTransport(
+      module,
+      SERVER_STREAMABLE_HTTP_MODULE_NAME,
+      module.StreamableHTTPServerTransport,
+    );
+  }
+
+  private _patchTransport<M, U extends Transport>(
+    module: M & { openInferencePatched?: boolean },
+    moduleName: keyof typeof patchedModules,
+    moduleVersion: string | undefined,
+    transportClass: { prototype: U },
+  ) {
+    diag.debug(`Applying patch for ${moduleName}@${moduleVersion}`);
+    if (module?.openInferencePatched || patchedModules[moduleName]) {
       return module;
     }
 
+    this._wrap(transportClass.prototype, "send", this._getTransportSendPatch());
+
     this._wrap(
-      module.Client.prototype,
-      "request",
-      this._getClientRequestPatch(),
+      transportClass.prototype,
+      "start",
+      this._getTransportStartPatch(),
     );
 
-    _isClientOpenInferencePatched = true;
+    patchedModules[moduleName] = true;
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       module.openInferencePatched = true;
     } catch (e) {
-      diag.debug(
-        `Failed to set ${CLIENT_MODULE_NAME} patched flag on the module`,
-        e,
-      );
+      diag.debug(`Failed to set ${moduleName} patched flag on the module`, e);
     }
 
     return module;
   }
 
-  private _unpatchClientModule(moduleExports: typeof ClientModule) {
-    this._unwrap(moduleExports.Client.prototype, "request");
-    return moduleExports;
+  private _unpatchTransport<M, U extends Transport>(
+    module: M & { openInferencePatched?: boolean },
+    moduleName: keyof typeof patchedModules,
+    transportClass: { prototype: U },
+  ) {
+    this._unwrap(transportClass.prototype, "send");
+    this._unwrap(transportClass.prototype, "start");
+
+    patchedModules[moduleName] = false;
+    try {
+      // This can fail if the module is made immutable via the runtime or bundler
+      module.openInferencePatched = false;
+    } catch (e) {
+      diag.warn(`Failed to unset ${moduleName} patched flag on the module`, e);
+    }
+
+    return module;
   }
 
-  private _getClientRequestPatch<
-    SendRequestT extends Request,
-    SendNotificationT extends Notification,
-    SendResultT extends Result,
-  >() {
-    return (
-      original: Client<SendRequestT, SendNotificationT, SendResultT>["request"],
-    ) => {
-      return function request(
-        this: Client<SendRequestT, SendNotificationT, SendResultT>,
-        ...args: Parameters<
-          Client<SendRequestT, SendNotificationT, SendResultT>["request"]
-        >
+  private _getTransportSendPatch() {
+    return (original: Transport["send"]) => {
+      return function send(
+        this: Transport,
+        ...args: Parameters<Transport["send"]>
       ) {
-        const [request] = args;
-        request.method;
-        if (!request.params) {
-          request.params = {};
+        const message = args[0];
+        if (!MCPInstrumentation._isJSONRPCRequest(message)) {
+          return original.apply(this, args);
         }
-        if (!request.params._meta) {
-          request.params._meta = {};
+        if (!message.params) {
+          message.params = {};
         }
-        propagation.inject(context.active(), request.params._meta);
+        if (!message.params._meta) {
+          message.params._meta = {};
+        }
+        propagation.inject(context.active(), message.params._meta);
         return original.apply(this, args);
       };
     };
   }
 
-  private _patchServerModule(
-    module: typeof ServerModule & { openInferencePatched?: boolean },
-    moduleVersion?: string,
-  ) {
-    diag.debug(`Applying patch for ${SERVER_MODULE_NAME}@${moduleVersion}`);
-    if (module?.openInferencePatched || _isServerOpenInferencePatched) {
-      return module;
-    }
-    this._wrap(
-      module.Server.prototype as unknown as {
-        _onrequest: (...args: object[]) => void;
-      },
-      "_onrequest",
-      this._getServerOnRequestPatch(),
-    );
-
-    _isServerOpenInferencePatched = true;
-    try {
-      // This can fail if the module is made immutable via the runtime or bundler
-      module.openInferencePatched = true;
-    } catch (e) {
-      diag.debug(
-        `Failed to set ${SERVER_MODULE_NAME} patched flag on the module`,
-        e,
-      );
-    }
-    return module;
-  }
-
-  private _unpatchServerModule(moduleExports: typeof ServerModule) {
-    this._unwrap(
-      moduleExports.Server.prototype as unknown as {
-        _onrequest: (...args: object[]) => void;
-      },
-      "_onrequest",
-    );
-    return moduleExports;
-  }
-
-  private _getServerOnRequestPatch<
-    SendRequestT extends Request,
-    SendNotificationT extends Notification,
-    SendResultT extends Result,
-  >() {
-    return (
-      original: Server<
-        SendRequestT,
-        SendNotificationT,
-        SendResultT
-      >["_onrequest"],
-    ) => {
-      return function request(
-        this: Server<SendRequestT, SendNotificationT, SendResultT>,
-        ...args: Parameters<
-          Server<SendRequestT, SendNotificationT, SendResultT>["_onrequest"]
-        >
+  private _getTransportStartPatch() {
+    return (original: Transport["start"]) => {
+      return function start(
+        this: Transport,
+        ...args: Parameters<Transport["start"]>
       ) {
-        const [request] = args as [JSONRPCRequest];
-        const ctx = propagation.extract(
-          context.active(),
-          request.params?._meta,
-        );
-        return context.with(ctx, () => {
+        const onmessage = this.onmessage;
+        if (!onmessage) {
           return original.apply(this, args);
-        });
+        }
+
+        this.onmessage = (...args) => {
+          const message = args[0] as JSONRPCRequest;
+          if (!MCPInstrumentation._isJSONRPCRequest(message)) {
+            return onmessage.apply(this, args);
+          }
+
+          const ctx = propagation.extract(
+            context.active(),
+            message.params?._meta,
+          );
+          return context.with(ctx, () => {
+            return onmessage.apply(this, args);
+          });
+        };
+
+        return original.apply(this, args);
       };
     };
+  }
+
+  // A request has a method and request id. We check both primarily to differentiate from
+  // a notification which only has method. If in the future we find we should propagate context
+  // on notifications too, we can loosen the check.
+  private static _isJSONRPCRequest(
+    message: JSONRPCMessage,
+  ): message is JSONRPCRequest {
+    return (
+      typeof message === "object" &&
+      !!message &&
+      "method" in message &&
+      typeof message.method === "string" &&
+      "id" in message
+    );
   }
 }

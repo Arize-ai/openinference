@@ -1,18 +1,24 @@
+import { randomUUID } from "crypto";
 import http from "http";
 import { AddressInfo } from "net";
 
 import express from "express";
-import * as MCPServerModule from "@modelcontextprotocol/sdk/server/index";
 import { McpServer, ToolCallback } from "@modelcontextprotocol/sdk/server/mcp";
+import * as MCPServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse";
+import * as MCPServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
+import * as MCPServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { Tracer } from "@opentelemetry/api";
 import {
   BatchSpanProcessor,
   NodeTracerProvider,
 } from "@opentelemetry/sdk-trace-node";
+import { z } from "zod";
 
 import { MCPInstrumentation } from "../src";
 
@@ -23,13 +29,19 @@ function newMcpServer(tracer: Tracer) {
   });
 
   server.tool("hello", () => {
-    return tracer.startActiveSpan("hello", (span) => {
+    return tracer.startActiveSpan("hello", async (span) => {
+      const result = await server.server.request(
+        {
+          method: "whoami",
+        },
+        z.object({ name: z.string() }),
+      );
       try {
         return {
           content: [
             {
               type: "text",
-              text: "World!",
+              text: `Hello ${result.name}!`,
             },
           ],
         };
@@ -38,6 +50,7 @@ function newMcpServer(tracer: Tracer) {
       }
     }) as ReturnType<ToolCallback>;
   });
+
   return server;
 }
 
@@ -57,7 +70,9 @@ async function main() {
   const instrumentation = new MCPInstrumentation();
   instrumentation.setTracerProvider(tracerProvider);
   instrumentation.manuallyInstrument({
-    serverModule: MCPServerModule,
+    serverSSEModule: MCPServerSSEModule,
+    serverStdioModule: MCPServerStdioModule,
+    serverStreamableHTTPModule: MCPServerStreamableHTTPModule,
   });
 
   let transport: Transport;
@@ -116,6 +131,84 @@ async function main() {
       const server = newMcpServer(tracer);
       transport = new StdioServerTransport();
       await server.connect(transport!);
+      break;
+    }
+    case "streamableHttp": {
+      const app = express();
+      app.use(express.json());
+
+      const server = newMcpServer(tracer);
+      const transports: { [sessionId: string]: StreamableHTTPServerTransport } =
+        {};
+
+      app.post("/mcp", async (req, res) => {
+        try {
+          const sessionId = req.headers["mcp-session-id"] as string | undefined;
+          let transport: StreamableHTTPServerTransport;
+
+          if (sessionId && transports[sessionId]) {
+            transport = transports[sessionId];
+          } else if (!sessionId && isInitializeRequest(req.body)) {
+            transport = new StreamableHTTPServerTransport({
+              sessionIdGenerator: () => randomUUID(),
+              onsessioninitialized: (sessionId: string) => {
+                transports[sessionId] = transport;
+              },
+            });
+            await server.connect(transport);
+            await transport.handleRequest(req, res, req.body);
+            return;
+          } else {
+            res.status(400).json({
+              jsonrpc: "2.0",
+              error: {
+                code: -32000,
+                message: "Bad Request: No valid session ID provided",
+              },
+              id: null,
+            });
+            return;
+          }
+
+          await transport.handleRequest(req, res, req.body);
+        } catch (error) {
+          if (!res.headersSent) {
+            res.status(500).json({
+              jsonrpc: "2.0",
+              error: {
+                code: -32603,
+                message: "Internal server error",
+              },
+              id: null,
+            });
+          }
+        }
+      });
+
+      app.get("/mcp", async (req, res) => {
+        const sessionId = req.headers["mcp-session-id"] as string | undefined;
+        if (!sessionId || !transports[sessionId]) {
+          res.status(400).send("Invalid or missing session ID");
+          return;
+        }
+        const transport = transports[sessionId];
+        await transport.handleRequest(req, res);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        httpServer = app.listen(0, (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            // eslint-disable-next-line no-console
+            console.log(
+              `Server running on http://localhost:${(httpServer?.address() as AddressInfo).port}/mcp`,
+            );
+            resolve();
+          }
+        });
+      });
+
       break;
     }
   }
