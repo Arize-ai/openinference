@@ -151,7 +151,7 @@ async function main() {
           } else if (!sessionId && isInitializeRequest(req.body)) {
             transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: () => randomUUID(),
-              onsessioninitialized: (sessionId) => {
+              onsessioninitialized: (sessionId: string) => {
                 transports[sessionId] = transport;
               },
             });
