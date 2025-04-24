@@ -17,11 +17,13 @@ To load the MCP instrumentation, manually instrument the `@modelcontextprotocol/
 The client and server must be manually instrumented due to the non-traditional module structure in `@modelcontextprotocol/sdk`. Additional instrumentations can
 be registered as usual using the `registerInstrumentations` function.
 
+For example, if using stdio transport,
+
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { MCPInstrumentation } from "@arizeai/openinference-instrumentation-mcp";
-import * as MCPClientModule from "@modelcontextprotocol/sdk/client/index";
-import * as MCPServerModule from "@modelcontextprotocol/sdk/server/index";
+import * as MCPClientStdioModule from "@modelcontextprotocol/sdk/client/stdio";
+import * as MCPServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
 
 const provider = new NodeTracerProvider();
 provider.register();
@@ -29,8 +31,8 @@ provider.register();
 const mcpInstrumentation = new MCPInstrumentation();
 // MCP must be manually instrumented as it doesn't have a traditional module structure
 mcpInstrumentation.manuallyInstrument({
-  clientModule: MCPClientModule,
-  serverModule: MCPServerModule,
+  clientStdioModule: MCPClientStdioModule,
+  serverStdioModule: MCPServerStdioModule,
 });
 ```
 
