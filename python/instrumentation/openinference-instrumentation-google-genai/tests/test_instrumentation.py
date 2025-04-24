@@ -207,7 +207,7 @@ def test_multi_turn_conversation(
     }
     
     # Check if token counts are available in the response
-    if hasattr(response1, "usage_metadata") and response1.usage_metadata:
+    if hasattr(response1, "usage_metadata"):
         expected_attributes1.update({
             SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response1.usage_metadata.total_token_count,
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response1.usage_metadata.prompt_token_count,
@@ -234,7 +234,7 @@ def test_multi_turn_conversation(
     }
     
     # Check if token counts are available in the response
-    if hasattr(response2, "usage_metadata") and response2.usage_metadata:
+    if hasattr(response2, "usage_metadata"):
         expected_attributes2.update({
             SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response2.usage_metadata.total_token_count,
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response2.usage_metadata.prompt_token_count,
