@@ -8,7 +8,7 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 
 from openinference.instrumentation.beeai import BeeAIInstrumentor
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 def setup_observability(endpoint: str = "http://localhost:6006/v1/traces") -> None:

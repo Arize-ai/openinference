@@ -28,7 +28,7 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues
 
 from .middleware import create_telemetry_middleware
 
-_instruments = ("beeai-framework >= 0.1.10, < 0.1.17",)
+_instruments = ("beeai-framework >= 0.1.10, < 0.1.19",)
 try:
     __version__ = version("beeai-framework")
 except PackageNotFoundError:
