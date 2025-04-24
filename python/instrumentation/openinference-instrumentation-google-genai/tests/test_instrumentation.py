@@ -247,4 +247,64 @@ def test_multi_turn_conversation(
     
     # Verify attributes for second span
     for key, expected_value in expected_attributes2.items():
-        assert attributes2.get(key) == expected_value, f"Attribute {key} does not match expected value for second span" 
+        assert attributes2.get(key) == expected_value, f"Attribute {key} does not match expected value for second span"
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}}
+)
+def test_streaming_text_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Initialize the client
+    client = genai.Client(api_key="REDACTED")
+    
+    # Make the streaming API call
+    stream = client.models.generate_content_stream(
+        model="gemini-2.0-flash-001",
+        contents=Content(
+            role="user",
+            parts=[Part.from_text(text="Tell me a short story about a cat.")],
+        )
+    )
+
+    # Collect all chunks from the stream
+    full_response = ""
+    chunks = []
+    for chunk in stream:
+        chunks.append(chunk)
+        full_response += chunk.text
+    
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    
+    # Define expected attributes
+    expected_attributes = {
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat.",
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+    
+    # Check if token counts are available in the response
+    if hasattr(chunks[0], "usage_metadata") and chunks[0].usage_metadata:
+        expected_attributes.update({
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[0].usage_metadata.total_token_count,
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[0].usage_metadata.prompt_token_count,
+            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[0].usage_metadata.candidates_token_count,
+        })
+    
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, f"Attribute {key} does not match expected value" 
+
