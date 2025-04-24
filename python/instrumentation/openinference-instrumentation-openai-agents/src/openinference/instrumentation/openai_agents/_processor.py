@@ -584,8 +584,7 @@ def _get_attributes_from_usage(
 def _get_span_status(obj: Span[Any]) -> Status:
     if error := getattr(obj, "error", None):
         return Status(
-            status_code=StatusCode.ERROR,
-            description=f"{error.get('message')}: {error.get('data')}"
+            status_code=StatusCode.ERROR, description=f"{error.get('message')}: {error.get('data')}"
         )
     else:
         return Status(StatusCode.OK)
