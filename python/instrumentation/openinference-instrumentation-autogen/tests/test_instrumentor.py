@@ -54,17 +54,46 @@ class TestInstrumentor:
 async def test_autogen_chat_agent(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-    setup_autogen_instrumentation: AutogenInstrumentor,
+    setup_autogen_instrumentation: Any,
 ) -> None:
-    from autogen_core.models import UserMessage
-    from autogen_ext.models.anthropic import AnthropicChatCompletionClient
+    from autogen_agentchat.agents import AssistantAgent
+    from autogen_agentchat.ui import Console
+    from autogen_ext.models.openai import OpenAIChatCompletionClient
 
-    model_client = AnthropicChatCompletionClient(model="claude-3-7-sonnet-20250219", api_key="sk-")
-
-    result = await model_client.create(
-        [UserMessage(content="What is the capital of France?", source="user")]
+    # Define a model client with a real API key for recording
+    model_client = OpenAIChatCompletionClient(
+        model="gpt-3.5-turbo",  # Use a real model for recording
+        api_key="sk-",  # Use a test key that will be filtered by vcr
     )
-    print(result)
+
+    # Define a simple function tool that the agent can use
+    async def get_weather(city: str) -> str:
+        """Get the weather for a given city."""
+        return f"The weather in {city} is 73 degrees and Sunny."
+
+    # Define an AssistantAgent with the model, tool, system message, and reflection enabled
+    agent = AssistantAgent(
+        name="weather_agent",
+        model_client=model_client,
+        tools=[get_weather],
+        system_message="You are a helpful assistant that can check the weather.",
+        reflect_on_tool_use=True,
+        model_client_stream=True,
+    )
+
+    # Run the agent and stream the messages to the console
+    async def main() -> None:
+        result = await Console(agent.run_stream(task="What is the weather in New York?"))
+        return result
+
+    # Run the test and verify results
+    result = await main()
     await model_client.close()
+
+    # Verify that spans were created
     spans = in_memory_span_exporter.get_finished_spans()
-    print(spans)
+    assert len(spans) > 0, "Expected spans to be created"
+    
+    # Verify the weather tool was called
+    weather_spans = [span for span in spans if span.name == "get_weather"]
+    assert len(weather_spans) > 0, "Expected weather tool to be called"   

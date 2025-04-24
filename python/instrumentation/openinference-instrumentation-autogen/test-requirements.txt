@@ -1,5 +1,6 @@
-autogen-agentchat==0.5.1
-autogen-ext==0.5.1
+autogen-agentchat==0.5.4
+autogen-core==0.5.4
+autogen-ext[openai, anthropic]==0.5.4
 opentelemetry-sdk
 pytest-asyncio
 pytest-vcr

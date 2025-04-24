@@ -6,10 +6,12 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
     BaseInstrumentor,
 )
 
+from wrapt import wrap_function_wrapper
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
 )
+
 from openinference.instrumentation.autogen.version import __version__
 
 _instruments = ("autogen-agentchat >= 0.5.1",)
@@ -34,6 +36,7 @@ class AutogenInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
+
 
     def _uninstrument(self, **kwargs: Any) -> None:
         return
