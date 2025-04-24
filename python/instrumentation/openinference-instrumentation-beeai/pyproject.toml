@@ -33,20 +33,18 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "beeai-framework[duckduckgo,wikipedia]==0.1.17",
-  "pydantic-settings>=2.9.1",
+  "beeai-framework[duckduckgo,wikipedia]==0.1.18",
 ]
 test = [
-  "beeai-framework[duckduckgo,wikipedia]==0.1.17",
-  "pydantic-settings>=2.9.1",
+  "beeai-framework[duckduckgo,wikipedia]==0.1.18",
   "opentelemetry-sdk"
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
-beeai = "openinference.instrumentation.crewai:BeeAIInstrumentor"
+beeai = "openinference.instrumentation.beeai:BeeAIInstrumentor"
 
 [project.entry-points.openinference_instrumentor]
-beeai = "openinference.instrumentation.crewai:BeeAIInstrumentor"
+beeai = "openinference.instrumentation.beeai:BeeAIInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-beeai"

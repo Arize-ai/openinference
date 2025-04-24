@@ -130,7 +130,7 @@ wheels = [
 
 [[package]]
 name = "beeai-framework"
-version = "0.1.17"
+version = "0.1.18"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -140,11 +140,12 @@ dependencies = [
     { name = "jsonref" },
     { name = "litellm" },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/51/55/e37c6db6d32f6a851cc6ebd517f19cad19832d7e2b566ec9e352c95af0b6/beeai_framework-0.1.17.tar.gz", hash = "sha256:40580080585df73964a329cf363cc2bdebb31a23be5eca985837cf69b0a2ec81", size = 81782 }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/b7/1fe4051968bf6cd654a9e2ce759dc61611bcea6a8028ee7f325f11e41717/beeai_framework-0.1.18.tar.gz", hash = "sha256:c4de4398efdf9b6862b00767f4bcb87c9a55011b156227db47bb64643cd1ded1", size = 80728 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/41/d7/289f37245fc34e635ddde51dafd0ed92b7628ca29b0fb2d9318f154dca47/beeai_framework-0.1.17-py3-none-any.whl", hash = "sha256:770485578072d0f760beeb06f2445f7bd5d68bdec3b22b24d786a466747659b7", size = 174255 },
+    { url = "https://files.pythonhosted.org/packages/f7/45/ba9cffe0bec0c1c99106305ed378aab6a0e01ddb0b03eaa92398d726066a/beeai_framework-0.1.18-py3-none-any.whl", hash = "sha256:230e4fd52fd21d25179e6760bcb26b8616f387a4741a70e7b6660686e67b444d", size = 173217 },
 ]
 
 [package.optional-dependencies]
@@ -274,16 +275,16 @@ wheels = [
 
 [[package]]
 name = "duckduckgo-search"
-version = "7.5.5"
+version = "8.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "lxml" },
     { name = "primp" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/13/dc/919d3d51ed702890a3e6e736e1e152d5d90856393200306e82fb54fde39e/duckduckgo_search-7.5.5.tar.gz", hash = "sha256:44ef03bfa5484bada786590f2d4c213251131765721383a177a0da6fa5c5e41a", size = 24768 }
+sdist = { url = "https://files.pythonhosted.org/packages/66/1f/8a66088ae1d7a68f40db9890642435cfff2b54701f47f19d5cc9404d5f65/duckduckgo_search-8.0.1.tar.gz", hash = "sha256:1d40d4425062a33dc72d19603e25ebf36b212bd8ef0662bff39fd47598226f6f", size = 21932 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/da/8376678b4a9ae0f9418d93df9c9cf851dced49c95ceb38daac6651e38f7a/duckduckgo_search-7.5.5-py3-none-any.whl", hash = "sha256:c71a0661aa436f215d9a05d653af424affb58825ab3e79f3b788053cbdee9ebc", size = 20421 },
+    { url = "https://files.pythonhosted.org/packages/83/a2/66adca41164860dee6d2d47b506fef3262c8879aab727b687c798d67313f/duckduckgo_search-8.0.1-py3-none-any.whl", hash = "sha256:87ea18d9abb1cd5dc8f63fc70ac867996acce2cb5e0129d191b9491c202420be", size = 18125 },
 ]
 
 [[package]]
@@ -785,26 +786,22 @@ dependencies = [
 [package.optional-dependencies]
 instruments = [
     { name = "beeai-framework", extra = ["duckduckgo", "wikipedia"] },
-    { name = "pydantic-settings" },
 ]
 test = [
     { name = "beeai-framework", extra = ["duckduckgo", "wikipedia"] },
     { name = "opentelemetry-sdk" },
-    { name = "pydantic-settings" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "beeai-framework", extras = ["duckduckgo", "wikipedia"], marker = "extra == 'instruments'", specifier = "==0.1.17" },
-    { name = "beeai-framework", extras = ["duckduckgo", "wikipedia"], marker = "extra == 'test'", specifier = "==0.1.17" },
+    { name = "beeai-framework", extras = ["duckduckgo", "wikipedia"], marker = "extra == 'instruments'", specifier = "==0.1.18" },
+    { name = "beeai-framework", extras = ["duckduckgo", "wikipedia"], marker = "extra == 'test'", specifier = "==0.1.18" },
     { name = "openinference-instrumentation", specifier = ">=0.1.27" },
     { name = "openinference-semantic-conventions", specifier = ">=0.1.16" },
     { name = "opentelemetry-api", specifier = ">=1.31.1" },
     { name = "opentelemetry-instrumentation", specifier = ">=0.52b1" },
     { name = "opentelemetry-sdk", marker = "extra == 'test'" },
     { name = "opentelemetry-semantic-conventions", specifier = ">=0.52b1" },
-    { name = "pydantic-settings", marker = "extra == 'instruments'", specifier = ">=2.9.1" },
-    { name = "pydantic-settings", marker = "extra == 'test'", specifier = ">=2.9.1" },
     { name = "wrapt", specifier = ">=1.17.2" },
 ]
 
