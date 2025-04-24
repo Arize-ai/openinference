@@ -178,9 +178,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
     );
   }
 
-  private _unpatchClientSSEModule(
-    module: typeof ClientSSEModule & { openInferencePatched?: boolean },
-  ) {
+  private _unpatchClientSSEModule(module: typeof ClientSSEModule) {
     return this._unpatchTransport(
       module,
       CLIENT_SSE_MODULE_NAME,
@@ -200,9 +198,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
     );
   }
 
-  private _unpatchServerSSEModule(
-    module: typeof ServerSSEModule & { openInferencePatched?: boolean },
-  ) {
+  private _unpatchServerSSEModule(module: typeof ServerSSEModule) {
     return this._unpatchTransport(
       module,
       SERVER_SSE_MODULE_NAME,
@@ -211,7 +207,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
   }
 
   private _patchClientStdioModule(
-    module: typeof ClientStdioModule & { openInferencePatched?: boolean },
+    module: typeof ClientStdioModule,
     moduleVersion?: string,
   ) {
     return this._patchTransport(
@@ -222,9 +218,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
     );
   }
 
-  private _unpatchClientStdioModule(
-    module: typeof ClientStdioModule & { openInferencePatched?: boolean },
-  ) {
+  private _unpatchClientStdioModule(module: typeof ClientStdioModule) {
     return this._unpatchTransport(
       module,
       CLIENT_STDIO_MODULE_NAME,
@@ -244,9 +238,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
     );
   }
 
-  private _unpatchServerStdioModule(
-    module: typeof ServerStdioModule & { openInferencePatched?: boolean },
-  ) {
+  private _unpatchServerStdioModule(module: typeof ServerStdioModule) {
     return this._unpatchTransport(
       module,
       SERVER_STDIO_MODULE_NAME,
@@ -255,9 +247,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
   }
 
   private _patchClientStreamableHTTPModule(
-    module: typeof ClientStreamableHTTPModule & {
-      openInferencePatched?: boolean;
-    },
+    module: typeof ClientStreamableHTTPModule,
     moduleVersion?: string,
   ) {
     return this._patchTransport(
@@ -269,9 +259,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
   }
 
   private _unpatchClientStreamableHTTPModule(
-    module: typeof ClientStreamableHTTPModule & {
-      openInferencePatched?: boolean;
-    },
+    module: typeof ClientStreamableHTTPModule,
   ) {
     return this._unpatchTransport(
       module,
@@ -293,9 +281,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
   }
 
   private _unpatchServerStreamableHTTPModule(
-    module: typeof ServerStreamableHTTPModule & {
-      openInferencePatched?: boolean;
-    },
+    module: typeof ServerStreamableHTTPModule,
   ) {
     return this._unpatchTransport(
       module,
