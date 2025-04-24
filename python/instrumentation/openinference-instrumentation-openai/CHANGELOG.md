@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.25...python-openinference-instrumentation-openai-v0.1.26) (2025-04-24)
+
+
+### Features
+
+* Openai audio + reasoning token counts ([#1547](https://github.com/Arize-ai/openinference/issues/1547)) ([cbae31b](https://github.com/Arize-ai/openinference/commit/cbae31b2838234a3fe388a1501caadd281ac545e))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.24...python-openinference-instrumentation-openai-v0.1.25) (2025-04-16)
 
 
