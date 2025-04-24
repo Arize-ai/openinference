@@ -1,5 +1,3 @@
-beeai-framework[duckduckgo] ~= 0.1.17
+beeai-framework[duckduckgo] ~= 0.1.18
 opentelemetry-sdk
 opentelemetry-exporter-otlp
-# required until https://github.com/i-am-bee/beeai-framework/issues/789
-pydantic-settings
