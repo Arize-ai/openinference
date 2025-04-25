@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import time
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
@@ -42,6 +43,8 @@ except PackageNotFoundError:
 
 id_name_manager = IdNameManager()
 active_traces_map: Dict[str, str] = {}
+
+logger = logging.getLogger(__name__)
 
 
 def create_telemetry_middleware(
@@ -127,7 +130,7 @@ def create_telemetry_middleware(
                     },
                 )
             except Exception as e:
-                print("Instrumentation send data error", e)
+                logger.error("Instrumentation send data error", exc_info=e)
             finally:
                 del active_traces_map[trace_id]
 
@@ -232,7 +235,7 @@ def create_telemetry_middleware(
                         }
 
             except Exception as e:
-                print("Instrumentation build data error", e)
+                logger.error("Instrumentation build data error", exc_info=e)
 
         emitter.match("*.*", on_any_event)
 
@@ -280,9 +283,8 @@ def create_telemetry_middleware(
                         }
                         for m in react_agent_typed_data.memory.messages
                     ]
-                print("2")
             except Exception as e:
-                print("Instrumentation error: failed to extract success message", e)
+                logger.error("Instrumentation error: failed to extract success message", exc_info=e)
 
         emitter.match(is_success_event, on_success)
 
