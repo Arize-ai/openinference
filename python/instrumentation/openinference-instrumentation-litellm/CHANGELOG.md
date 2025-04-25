@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.16...python-openinference-instrumentation-litellm-v0.1.17) (2025-04-25)
+
+
+### Bug Fixes
+
+* Start span before API call ([#1562](https://github.com/Arize-ai/openinference/issues/1562)) ([7d9306b](https://github.com/Arize-ai/openinference/commit/7d9306b2f0654600b0a19c06319895470368fdde))
+
 ## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.15...python-openinference-instrumentation-litellm-v0.1.16) (2025-04-16)
 
 
