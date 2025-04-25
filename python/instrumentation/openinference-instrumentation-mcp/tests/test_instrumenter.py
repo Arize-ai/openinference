@@ -7,35 +7,63 @@ from typing import AsyncGenerator
 
 import pytest
 from mcp import ClientSession
-from mcp.client.sse import sse_client
-from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.types import TextContent
+from mcp.shared.session import RequestResponder
+from mcp.types import ClientResult, ServerNotification, ServerRequest, TextContent
 from opentelemetry.trace import Tracer
 
 from tests.collector import OTLPServer, Telemetry
+from tests.whoami import TestClientResult, TestServerRequest, WhoamiResult
 
 
 # The way MCP SDK creates async tasks means we need this to be called inline with the test,
 # not as a fixture.
 @asynccontextmanager
-async def mcp_client(transport: str, otlp_endpoint: str) -> AsyncGenerator[ClientSession, None]:
+async def mcp_client(
+    transport: str, tracer: Tracer, otlp_endpoint: str
+) -> AsyncGenerator[ClientSession, None]:
+    # Lazy import to get instrumented versions. Users will use opentelemetry-instrument or otherwise
+    # initialize instrumentation as early as possible and should not run into issues, but we control
+    # instrumentation through fixtures instead.
+    from mcp.client.sse import sse_client
+    from mcp.client.stdio import StdioServerParameters, stdio_client
+
+    async def message_handler(
+        message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
+    ) -> None:
+        if not isinstance(message, RequestResponder) or message.request.root.method != "whoami":
+            return
+        with message as responder, tracer.start_as_current_span("whoami"):
+            await responder.respond(TestClientResult(WhoamiResult(name="OpenInference")))  # type: ignore
+
     server_script = str(Path(__file__).parent / "mcpserver.py")
+    pythonpath = str(Path(__file__).parent.parent)
     match transport:
         case "stdio":
             async with stdio_client(
                 StdioServerParameters(
                     command=sys.executable,
                     args=[server_script],
-                    env={"MCP_TRANSPORT": "stdio", "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint},
+                    env={
+                        "MCP_TRANSPORT": "stdio",
+                        "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint,
+                        "PYTHONPATH": pythonpath,
+                    },
                 )
-            ) as (reader, writer), ClientSession(reader, writer) as client:
+            ) as (reader, writer), ClientSession(
+                reader, writer, message_handler=message_handler
+            ) as client:
+                client._receive_request_type = TestServerRequest
                 await client.initialize()
                 yield client
         case "sse":
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
                 server_script,
-                env={"MCP_TRANSPORT": "sse", "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint},
+                env={
+                    "MCP_TRANSPORT": "sse",
+                    "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint,
+                    "PYTHONPATH": pythonpath,
+                },
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
@@ -50,7 +78,8 @@ async def mcp_client(transport: str, otlp_endpoint: str) -> AsyncGenerator[Clien
                         async with sse_client(f"http://localhost:{port}/sse") as (
                             reader,
                             writer,
-                        ), ClientSession(reader, writer) as client:
+                        ), ClientSession(reader, writer, message_handler=message_handler) as client:
+                            client._receive_request_type = TestServerRequest
                             await client.initialize()
                             yield client
                         break
@@ -63,7 +92,9 @@ async def mcp_client(transport: str, otlp_endpoint: str) -> AsyncGenerator[Clien
 async def test_hello(
     transport: str, tracer: Tracer, telemetry: Telemetry, otlp_collector: OTLPServer
 ) -> None:
-    async with mcp_client(transport, f"http://localhost:{otlp_collector.server_port}/") as client:
+    async with mcp_client(
+        transport, tracer, f"http://localhost:{otlp_collector.server_port}/"
+    ) as client:
         with tracer.start_as_current_span("root"):
             tools_res = await client.list_tools()
             assert len(tools_res.tools) == 1
@@ -71,19 +102,24 @@ async def test_hello(
             tool_res = await client.call_tool("hello")
             content = tool_res.content[0]
             assert isinstance(content, TextContent)
-            assert content.text == "World!"
+            assert content.text == "Hello OpenInference!"
 
-    assert len(telemetry.traces) == 2
     for resource_spans in telemetry.traces:
-        assert len(resource_spans.scope_spans) == 1
         for scope_spans in resource_spans.scope_spans:
-            assert len(scope_spans.spans) == 1
             match scope_spans.scope.name:
                 case "mcp-test-client":
-                    client_span = scope_spans.spans[0]
+                    for span in scope_spans.spans:
+                        match span.name:
+                            case "root":
+                                root_span = span
+                            case "whoami":
+                                whoami_span = span
                 case "mcp-test-server":
                     server_span = scope_spans.spans[0]
-    assert client_span.name == "root"
+    assert root_span.name == "root"
     assert server_span.name == "hello"
-    assert server_span.trace_id == client_span.trace_id
-    assert server_span.parent_span_id == client_span.span_id
+    assert whoami_span.name == "whoami"
+    assert server_span.trace_id == root_span.trace_id
+    assert server_span.parent_span_id == root_span.span_id
+    assert whoami_span.trace_id == root_span.trace_id
+    assert whoami_span.parent_span_id == server_span.span_id

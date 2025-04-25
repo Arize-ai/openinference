@@ -1,7 +1,6 @@
 import os
 from typing import Literal, cast
 
-from mcp.server.fastmcp import FastMCP
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -19,13 +18,20 @@ tracer = tracer_provider.get_tracer("mcp-test-server")
 
 MCPInstrumentor().instrument(tracer_provider=tracer_provider)
 
+# Make sure instrumentation is loaded before MCP.
+from mcp.server.fastmcp import Context, FastMCP  # noqa: E402
+
+from tests.whoami import TestClientResult, WhoamiRequest  # noqa: E402
+
 server = FastMCP(port=0)
 
 
 @server.tool()
-def hello() -> str:
+async def hello(ctx: Context) -> str:  # type: ignore
     with tracer.start_as_current_span("hello"):
-        return "World!"
+        response = await ctx.session.send_request(WhoamiRequest(method="whoami"), TestClientResult)
+        name = response.root.name
+        return f"Hello {name}!"
 
 
 try:
