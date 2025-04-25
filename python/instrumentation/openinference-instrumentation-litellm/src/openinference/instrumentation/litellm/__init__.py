@@ -445,7 +445,6 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
         result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
 
-        # Start span before the await
         with self._tracer.start_as_current_span(
             name="acompletion", attributes=dict(get_attributes_from_context())
         ) as span:
