@@ -424,17 +424,21 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return self.original_litellm_funcs["completion"](*args, **kwargs)  # type:ignore
 
-        with self._tracer.start_as_current_span(
-            name="completion", attributes=dict(get_attributes_from_context())
-        ) as span:
-            _instrument_func_type_completion(span, kwargs)
-            result = self.original_litellm_funcs["completion"](*args, **kwargs)
+        result = self.original_litellm_funcs["completion"](*args, **kwargs)
 
-            if isinstance(result, CustomStreamWrapper) and kwargs.get("stream", False):
-                return _finalize_sync_streaming_span(span, result)  # type:ignore
-            else:
+        if isinstance(result, CustomStreamWrapper) and kwargs.get("stream", False):
+            span = self._tracer.start_span(
+                name="completion", attributes=dict(get_attributes_from_context())
+            )
+            _instrument_func_type_completion(span, kwargs)
+            return _finalize_sync_streaming_span(span, result)  # type:ignore
+        else:
+            with self._tracer.start_as_current_span(
+                name="completion", attributes=dict(get_attributes_from_context())
+            ) as span:
+                _instrument_func_type_completion(span, kwargs)
                 _finalize_span(span, result)
-                return result  # type:ignore
+            return result  # type:ignore
 
     @wraps(litellm.acompletion)
     async def _acompletion_wrapper(
@@ -445,16 +449,17 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
         result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
 
-        # Start span before the await
-        with self._tracer.start_as_current_span(
-            name="acompletion", attributes=dict(get_attributes_from_context())
-        ) as span:
+        if hasattr(result, "__aiter__"):
+            span = self._tracer.start_span(
+                name="acompletion", attributes=dict(get_attributes_from_context())
+            )
             _instrument_func_type_completion(span, kwargs)
-            result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
-
-            if hasattr(result, "__aiter__"):
-                return _finalize_streaming_span(span, result)  # type:ignore
-            else:
+            return _finalize_streaming_span(span, result)  # type:ignore
+        else:
+            with self._tracer.start_as_current_span(
+                name="acompletion", attributes=dict(get_attributes_from_context())
+            ) as span:
+                _instrument_func_type_completion(span, kwargs)
                 _finalize_span(span, result)
                 return result  # type:ignore
 
