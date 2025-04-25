@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.3...python-openinference-instrumentation-beeai-v0.1.4) (2025-04-25)
+
+
+### Bug Fixes
+
+* removes spurious print(2) from python beeai and converts rest to loggers ([#1560](https://github.com/Arize-ai/openinference/issues/1560)) ([038209a](https://github.com/Arize-ai/openinference/commit/038209ab6be0d95181db19c1ae15b244ec7afe0a))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.2...python-openinference-instrumentation-beeai-v0.1.3) (2025-04-24)
 
 
