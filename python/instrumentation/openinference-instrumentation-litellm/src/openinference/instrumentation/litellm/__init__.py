@@ -443,8 +443,6 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await self.original_litellm_funcs["acompletion"](*args, **kwargs)  # type:ignore
 
-        result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
-
         with self._tracer.start_as_current_span(
             name="acompletion", attributes=dict(get_attributes_from_context())
         ) as span:
