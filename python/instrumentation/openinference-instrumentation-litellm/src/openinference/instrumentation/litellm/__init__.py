@@ -202,7 +202,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                 json.dumps(first_embedding.get("embedding", [])),
             )
     elif isinstance(result, ImageResponse):
-        if len(result.data) > 0:
+        if result.data and len(result.data) > 0:
             if img_data := result.data[0]:
                 if isinstance(img_data, Image) and (url := (img_data.url or img_data.b64_json)):
                     _set_span_attribute(span, ImageAttributes.IMAGE_URL, url)
@@ -424,15 +424,26 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return self.original_litellm_funcs["completion"](*args, **kwargs)  # type:ignore
 
-        with self._tracer.start_as_current_span(
-            name="completion", attributes=dict(get_attributes_from_context())
-        ) as span:
+        if kwargs.get("stream", False):
+            span = self._tracer.start_span(
+                name="completion", attributes=dict(get_attributes_from_context())
+            )
             _instrument_func_type_completion(span, kwargs)
+
             result = self.original_litellm_funcs["completion"](*args, **kwargs)
 
-            if isinstance(result, CustomStreamWrapper) and kwargs.get("stream", False):
+            if isinstance(result, CustomStreamWrapper):
                 return _finalize_sync_streaming_span(span, result)  # type:ignore
-            else:
+
+            _finalize_span(span, result)
+            span.end()
+            return result  # type:ignore
+        else:
+            with self._tracer.start_as_current_span(
+                name="completion", attributes=dict(get_attributes_from_context())
+            ) as span:
+                _instrument_func_type_completion(span, kwargs)
+                result = self.original_litellm_funcs["completion"](*args, **kwargs)
                 _finalize_span(span, result)
                 return result  # type:ignore
 
@@ -443,15 +454,26 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await self.original_litellm_funcs["acompletion"](*args, **kwargs)  # type:ignore
 
-        with self._tracer.start_as_current_span(
-            name="acompletion", attributes=dict(get_attributes_from_context())
-        ) as span:
+        if kwargs.get("stream", False):
+            span = self._tracer.start_span(
+                name="acompletion", attributes=dict(get_attributes_from_context())
+            )
             _instrument_func_type_completion(span, kwargs)
+
             result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
 
             if hasattr(result, "__aiter__"):
                 return _finalize_streaming_span(span, result)  # type:ignore
-            else:
+
+            _finalize_span(span, result)
+            span.end()
+            return result  # type:ignore
+        else:
+            with self._tracer.start_as_current_span(
+                name="acompletion", attributes=dict(get_attributes_from_context())
+            ) as span:
+                _instrument_func_type_completion(span, kwargs)
+                result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
                 _finalize_span(span, result)
                 return result  # type:ignore
 
