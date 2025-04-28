@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.20...python-openinference-instrumentation-dspy-v0.1.21) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.19...python-openinference-instrumentation-dspy-v0.1.20) (2025-04-11)
 
 
