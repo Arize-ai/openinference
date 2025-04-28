@@ -286,6 +286,62 @@ class _SyncGenerateContent(_WithTracer):
         return response
 
 
+class _SyncGenerateContentStream(_WithTracer):
+    """
+    Wrapper for the pipeline processing
+    Captures all calls to the pipeline
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._request_extractor = _RequestAttributesExtractor()
+
+    def __call__(
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        # Prepare invocation parameters by merging args and kwargs
+        invocation_parameters = {}
+        for arg in args:
+            if arg and isinstance(arg, dict):
+                invocation_parameters.update(arg)
+        invocation_parameters.update(kwargs)
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "GenerateContentStream"
+        with self._start_as_current_span(
+                span_name=span_name,
+                attributes=self._request_extractor.get_attributes_from_request(request_parameters),
+                context_attributes=get_attributes_from_context(),
+                extra_attributes=self._request_extractor.get_extra_attributes_from_request(
+                    request_parameters
+                ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
+                raise
+            try:
+                _finish_tracing(
+                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                    with_span=span,
+                )
+            except Exception:
+                logger.exception(f"Failed to finalize response of type {type(response)}")
+                span.finish_tracing()
+        return response
+
 class _AsyncGenerateContentWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
