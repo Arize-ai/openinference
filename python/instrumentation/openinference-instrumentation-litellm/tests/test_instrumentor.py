@@ -247,7 +247,13 @@ def test_completion_with_parameters(
     )
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {"mock_response": "Beijing", "temperature": 0.7, "top_p": 0.9}
+        {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"content": "What's the capital of China?", "role": "user"}],
+            "mock_response": "Beijing",
+            "temperature": 0.7,
+            "top_p": 0.9,
+        }
     )
 
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
@@ -271,6 +277,7 @@ def test_completion_with_multiple_messages(
         model="gpt-3.5-turbo",
         messages=input_messages,
         mock_response="Got it! What kind of pie would you like to make?",
+        api_key="sk-",
     )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -285,8 +292,17 @@ def test_completion_with_multiple_messages(
     for i, message in enumerate(input_messages):
         _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {"mock_response": "Got it! What kind of pie would you like to make?"}
+        {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"content": "Hello, I want to bake a cake", "role": "user"},
+                {"content": "Hello, I can pull up some recipes for cakes.", "role": "assistant"},
+                {"content": "No actually I want to make a pie", "role": "user"},
+            ],
+            "mock_response": "Got it! What kind of pie would you like to make?",
+        }
     )
+
     assert (
         attributes.get(SpanAttributes.OUTPUT_VALUE)
         == "Got it! What kind of pie would you like to make?"
@@ -331,9 +347,21 @@ def test_completion_image_support(
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     for i, message in enumerate(input_messages):
         _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
-    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {"mock_response": "That's an image of a pasture"}
-    )
+    params_str = attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS)
+    assert isinstance(params_str, str)  # Type narrowing for mypy
+    assert json.loads(params_str) == {
+        "model": "gpt-4o",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What's in this image?"},
+                    {"type": "image_url", "image_url": {"url": "https://dummy_image.jpg"}},
+                ],
+            }
+        ],
+        "mock_response": "That's an image of a pasture",
+    }
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "That's an image of a pasture"
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20

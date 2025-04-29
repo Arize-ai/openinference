@@ -23,15 +23,8 @@ from opentelemetry.util.types import AttributeValue
 
 import litellm
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
-from litellm.types.utils import (
-    Choices,
-    EmbeddingResponse,
-    ImageResponse,
-    ModelResponse,
-)
-from litellm.types.utils import (
-    Message as LitellmMessage,
-)
+from litellm.types.utils import Choices, EmbeddingResponse, ImageResponse, ModelResponse
+from litellm.types.utils import Message as LitellmMessage
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
@@ -48,6 +41,9 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+
+# Skip capture
+KEYS_TO_REDACT = ["api_key"]
 
 
 # Helper functions to set span attributes
@@ -140,7 +136,7 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
             )
             _set_span_attribute(span, SpanAttributes.INPUT_MIME_TYPE, "application/json")
 
-    invocation_params = {k: v for k, v in kwargs.items() if k not in ["model", "messages"]}
+    invocation_params = {k: v for k, v in kwargs.items() if k not in KEYS_TO_REDACT}
     _set_span_attribute(
         span, SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
     )
