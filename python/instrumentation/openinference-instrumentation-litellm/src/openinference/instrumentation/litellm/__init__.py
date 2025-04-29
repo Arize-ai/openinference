@@ -42,6 +42,9 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
+# Skip capture
+KEYS_TO_REDACT = ["api_key"]
+
 
 # Helper functions to set span attributes
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
