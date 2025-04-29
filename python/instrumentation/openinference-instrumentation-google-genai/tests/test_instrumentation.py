@@ -24,6 +24,7 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
     tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     return tracer_provider
 
+
 @pytest.fixture
 def setup_google_genai_instrumentation(tracer_provider):
     instrumentor = GoogleGenAIInstrumentor()
@@ -60,9 +61,7 @@ def test_generate_content(
 
     # Make the API call
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=content,
-        config=config
+        model="gemini-2.0-flash", contents=content, config=config
     )
 
     # Get the spans
@@ -85,15 +84,19 @@ def test_generate_content(
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata:
-        expected_attributes.update({
-            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
-        })
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+            }
+        )
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, f"Attribute {key} does not match expected value"
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
 
 
 @pytest.mark.vcr(
@@ -125,9 +128,7 @@ async def test_async_generate_content(
 
     # Make the API call
     response = await client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=content,
-        config=config
+        model="gemini-2.0-flash", contents=content, config=config
     )
 
     # Get the spans
@@ -150,14 +151,18 @@ async def test_async_generate_content(
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata:
-        expected_attributes.update({
-            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
-        })
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+            }
+        )
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, f"Attribute {key} does not match expected value"
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
 
 
 @pytest.mark.vcr(
@@ -205,15 +210,19 @@ def test_multi_turn_conversation(
 
     # Check if token counts are available in the response
     if hasattr(response1, "usage_metadata"):
-        expected_attributes1.update({
-            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response1.usage_metadata.total_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response1.usage_metadata.prompt_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response1.usage_metadata.candidates_token_count,
-        })
+        expected_attributes1.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response1.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response1.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response1.usage_metadata.candidates_token_count,
+            }
+        )
 
     # Verify attributes for first span
     for key, expected_value in expected_attributes1.items():
-        assert attributes1.get(key) == expected_value, f"Attribute {key} does not match expected value for first span"
+        assert attributes1.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value for first span"
+        )
 
     # Check second span
     span2 = spans[1]
@@ -236,20 +245,25 @@ def test_multi_turn_conversation(
 
     # Check if token counts are available in the response
     if hasattr(response2, "usage_metadata"):
-        expected_attributes2.update({
-            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response2.usage_metadata.total_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response2.usage_metadata.prompt_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response2.usage_metadata.candidates_token_count,
-        })
+        expected_attributes2.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response2.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response2.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response2.usage_metadata.candidates_token_count,
+            }
+        )
 
     # Verify attributes for second span
     for key, expected_value in expected_attributes2.items():
-        assert attributes2.get(key) == expected_value, f"Attribute {key} does not match expected value for second span"
+        assert attributes2.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value for second span"
+        )
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}}
+    before_record_response=lambda _: {**_, "headers": {}},
 )
 def test_streaming_text_content(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -265,7 +279,7 @@ def test_streaming_text_content(
         contents=Content(
             role="user",
             parts=[Part.from_text(text="Tell me a short story about a cat.")],
-        )
+        ),
     )
 
     # Collect all chunks from the stream
@@ -296,13 +310,18 @@ def test_streaming_text_content(
     # Check if token counts are available in the response. Complete usage metadata should be taken from the very last
     # chunk
     if hasattr(chunks[0], "usage_metadata") and chunks[-1].usage_metadata:
-        expected_attributes.update({
-            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[-1].usage_metadata.candidates_token_count,
-        })
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[
+                    -1
+                ].usage_metadata.candidates_token_count,
+            }
+        )
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, f"Attribute {key} does not match expected value"
-
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )

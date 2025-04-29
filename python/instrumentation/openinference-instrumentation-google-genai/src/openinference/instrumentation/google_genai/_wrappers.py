@@ -184,11 +184,11 @@ class _SyncGenerateContentStream(_WithTracer):
         self._request_extractor = _RequestAttributesExtractor()
 
     def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any],
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
@@ -202,12 +202,12 @@ class _SyncGenerateContentStream(_WithTracer):
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "GenerateContentStream"
         with self._start_as_current_span(
-                span_name=span_name,
-                attributes=self._request_extractor.get_attributes_from_request(request_parameters),
-                context_attributes=get_attributes_from_context(),
-                extra_attributes=self._request_extractor.get_extra_attributes_from_request(
-                    request_parameters
-                ),
+            span_name=span_name,
+            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
+            context_attributes=get_attributes_from_context(),
+            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
+                request_parameters
+            ),
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -228,6 +228,7 @@ class _SyncGenerateContentStream(_WithTracer):
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
                 return response
+
 
 class _AsyncGenerateContentWrapper(_WithTracer):
     """

@@ -268,6 +268,7 @@ class _StringAccumulator:
             self._fragments.append(str(value))
         return self
 
+
 class _IndexedAccumulator:
     __slots__ = ("_indexed",)
 
