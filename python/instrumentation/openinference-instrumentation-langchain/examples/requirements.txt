@@ -3,6 +3,7 @@ langchain-experimental >=0.0.63
 langchain_community >=0.2.10
 langchain-openai >=0.1.19
 langchain-google-vertexai >=1.0.7
+langchain-anthropic >=0.1.1
 langgraph >=0.1.16
 openinference-instrumentation-langchain >=0.1.24
 opentelemetry-api >=1.25.0
