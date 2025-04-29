@@ -126,11 +126,7 @@ class _ResponseAccumulator:
                     finish_reason=_SimpleStringReplace(),
                 ),
             ),
-            usage_metadata=_ValuesAccumulator(
-                prompt_token_count=_SimpleStringReplace(),
-                candidates_token_count=_SimpleStringReplace(),
-                total_token_count=_SimpleStringReplace(),
-            ),
+            usage_metadata=_DictReplace(),
             model_version=_SimpleStringReplace(),
         )
 
@@ -307,4 +303,17 @@ class _SimpleStringReplace:
         if not value:
             return self
         self._str_val = value
+        return self
+
+
+class _DictReplace:
+    __slots__ = ("_val",)
+
+    def __init__(self) -> None:
+        self._val: Mapping = {}
+
+    def __iadd__(self, value: Optional[str]) -> "_DictReplace":
+        if not value:
+            return self
+        self._val = value
         return self
