@@ -327,3 +327,71 @@ def test_streaming_text_content(
         assert (
             attributes.get(key) == expected_value
         ), f"Attribute {key} does not match expected value"
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+@pytest.mark.asyncio
+async def test_async_streaming_text_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Initialize the async client
+    client = genai.Client(api_key="REDACTED").aio
+
+    # Make the streaming API call
+    stream = await client.models.generate_content_stream(
+        model="gemini-2.0-flash-001",
+        contents=Content(
+            role="user",
+            parts=[Part.from_text(text="Tell me a short story about a cat within 20 words.")],
+        ),
+    )
+
+    # Collect all chunks from the stream
+    full_response = ""
+    chunks = []
+    async for chunk in stream:
+        chunks.append(chunk)
+        full_response += chunk.text or ""
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat within 20 words.",
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash-001",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # Check if token counts are available in the response. Complete usage metadata should be taken from the very last
+    # chunk
+    if chunks and hasattr(chunks[-1], "usage_metadata") and chunks[-1].usage_metadata is not None:
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[
+                    -1
+                ].usage_metadata.candidates_token_count,
+            }
+        )
+
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"

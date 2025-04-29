@@ -8,6 +8,7 @@ from wrapt import wrap_function_wrapper
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.google_genai._wrappers import (
     _AsyncGenerateContentWrapper,
+    _AsyncGenerateContentStream,
     _SyncGenerateContent,
     _SyncGenerateContentStream,
 )
@@ -27,6 +28,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_generate_content",
         "_original_async_generate_content",
         "_original_generate_content_stream",
+        "_original_async_generate_content_stream",
         "_tracer",
     )
 
@@ -73,6 +75,13 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_SyncGenerateContentStream(tracer=self._tracer),
         )
 
+        self._original_async_generate_content_stream = AsyncModels.generate_content_stream
+        wrap_function_wrapper(
+            module="google.genai.models",
+            name="AsyncModels.generate_content_stream",
+            wrapper=_AsyncGenerateContentStream(tracer=self._tracer),
+        )
+
     def _uninstrument(self, **kwargs: Any) -> None:
         from google.genai.models import AsyncModels, Models
 
@@ -84,3 +93,6 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         if self._original_generate_content_stream is not None:
             setattr(Models, "generate_content_stream", self._original_generate_content_stream)
+
+        if self._original_async_generate_content_stream is not None:
+            setattr(AsyncModels, "generate_content_stream", self._original_async_generate_content_stream)
