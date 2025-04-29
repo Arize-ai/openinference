@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any, Callable, Collection, TypeVar
@@ -28,7 +29,9 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues
 
 from .middleware import create_telemetry_middleware
 
-_instruments = ("beeai-framework >= 0.1.10, < 0.1.15",)
+logger = logging.getLogger(__name__)
+
+_instruments = ("beeai-framework >= 0.1.10, < 0.1.19",)
 try:
     __version__ = version("beeai-framework")
 except PackageNotFoundError:
@@ -113,9 +116,9 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
             setattr(Tool, "run", run_wrapper(Tool.run))
 
         except ImportError as e:
-            print("ImportError during instrumentation:", e)
+            logger.error("ImportError during instrumentation", exc_info=e)
         except Exception as e:
-            print("Instrumentation error:", e)
+            logger.error("Instrumentation error", exc_info=e)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_react_agent_run is not None:

@@ -29,14 +29,14 @@ dependencies = [
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
   "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.12",
+  "openinference-semantic-conventions>=0.1.17",
   "typing-extensions",
   "wrapt",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "openai >= 1.0.0",
+  "openai >= 1.69.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]

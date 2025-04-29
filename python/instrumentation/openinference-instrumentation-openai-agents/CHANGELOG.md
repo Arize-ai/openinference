@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.9...python-openinference-instrumentation-openai-agents-v0.1.10) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.8...python-openinference-instrumentation-openai-agents-v0.1.9) (2025-04-24)
+
+
+### Bug Fixes
+
+* **openai_agents:** Set status `on_span_end`. ([#1556](https://github.com/Arize-ai/openinference/issues/1556)) ([2b53efa](https://github.com/Arize-ai/openinference/commit/2b53efa491d81ab5852387f5a4d2e87972262616))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.7...python-openinference-instrumentation-openai-agents-v0.1.8) (2025-04-11)
 
 

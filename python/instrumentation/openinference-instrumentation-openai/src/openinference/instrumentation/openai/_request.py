@@ -19,6 +19,7 @@ from openinference.instrumentation.openai._request_attributes_extractor import (
 from openinference.instrumentation.openai._response_accumulator import (
     _ChatCompletionAccumulator,
     _CompletionAccumulator,
+    _ResponsesAccumulator,
 )
 from openinference.instrumentation.openai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
@@ -42,6 +43,7 @@ __all__ = (
     "_Request",
     "_AsyncRequest",
 )
+
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -99,6 +101,14 @@ class _WithOpenAI(ABC):
         self._stream_types = (openai.Stream, openai.AsyncStream)
         self._request_attributes_extractor = _RequestAttributesExtractor(openai=openai)
         self._response_attributes_extractor = _ResponseAttributesExtractor(openai=openai)
+
+        def responses_accumulator(request_parameters: _RequestParameters) -> Any:
+            return _ResponsesAccumulator(
+                request_parameters=request_parameters,
+                chat_completion_type=openai.types.responses.response.Response,
+                response_attributes_extractor=self._response_attributes_extractor,
+            )
+
         self._response_accumulator_factories: Mapping[
             type, Callable[[_RequestParameters], _ResponseAccumulator]
         ] = {
@@ -112,6 +122,7 @@ class _WithOpenAI(ABC):
                 chat_completion_type=openai.types.chat.ChatCompletion,
                 response_attributes_extractor=self._response_attributes_extractor,
             ),
+            openai.types.responses.response.Response: responses_accumulator,
         }
 
     def _get_span_kind(self, cast_to: type) -> str:
@@ -143,9 +154,7 @@ class _WithOpenAI(ABC):
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
         yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
-            yield from _as_input_attributes(
-                _io_value_and_type(request_parameters),
-            )
+            yield from _as_input_attributes(_io_value_and_type(request_parameters))
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request parameters of "

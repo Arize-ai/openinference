@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.8...python-openinference-instrumentation-instructor-v0.1.9) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.7...python-openinference-instrumentation-instructor-v0.1.8) (2025-04-24)
+
+
+### Bug Fixes
+
+* instructor output bug fix ([#1549](https://github.com/Arize-ai/openinference/issues/1549)) ([905325f](https://github.com/Arize-ai/openinference/commit/905325f324dd1d8079cebbb169b0b7fc933a8e0c))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.6...python-openinference-instrumentation-instructor-v0.1.7) (2025-04-11)
 
 

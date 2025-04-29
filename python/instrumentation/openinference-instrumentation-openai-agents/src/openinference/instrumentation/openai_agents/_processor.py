@@ -169,6 +169,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):
                 end_time = _as_utc_nano(datetime.fromisoformat(span.ended_at))
             except ValueError:
                 pass
+        otel_span.set_status(status=_get_span_status(span))
         otel_span.end(end_time)
 
     def force_flush(self) -> None:
@@ -578,6 +579,15 @@ def _get_attributes_from_usage(
     yield LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
     yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, obj.input_tokens_details.cached_tokens
     yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, obj.output_tokens_details.reasoning_tokens
+
+
+def _get_span_status(obj: Span[Any]) -> Status:
+    if error := getattr(obj, "error", None):
+        return Status(
+            status_code=StatusCode.ERROR, description=f"{error.get('message')}: {error.get('data')}"
+        )
+    else:
+        return Status(StatusCode.OK)
 
 
 def _flatten(

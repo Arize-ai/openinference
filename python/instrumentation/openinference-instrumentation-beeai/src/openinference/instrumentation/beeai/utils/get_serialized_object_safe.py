@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import logging
 from typing import Any, Dict, List, cast
 
 from beeai_framework.agents.base import BaseAgent
@@ -50,6 +51,8 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def parse_llm_input_messages(messages: List[Any]) -> Dict[str, str]:
@@ -295,5 +298,5 @@ def get_serialized_object_safe(data_object: Any, meta: EventMeta) -> Any:
             return output
         return None
     except Exception as e:
-        print("Failed to parse event data", e)
+        logger.error("Failed to parse event data", exc_info=e)
         return None

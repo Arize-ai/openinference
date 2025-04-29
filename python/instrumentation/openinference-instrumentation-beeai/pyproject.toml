@@ -11,7 +11,7 @@ authors = [
     {name = "Milan Gallas",email = "gallas.milan@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.11,<3.14"
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
@@ -23,27 +23,28 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "openinference-semantic-conventions>=0.1.16",
+    "openinference-semantic-conventions>=0.1.17",
     "opentelemetry-api>=1.31.1",
     "opentelemetry-instrumentation>=0.52b1",
     "opentelemetry-semantic-conventions>=0.52b1",
+    "openinference-instrumentation>=0.1.27",
     "wrapt>=1.17.2",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "beeai-framework==0.1.14",
+  "beeai-framework[duckduckgo,wikipedia]==0.1.18",
 ]
 test = [
-  "beeai-framework==0.1.14",
+  "beeai-framework[duckduckgo,wikipedia]==0.1.18",
   "opentelemetry-sdk"
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
-beeai = "openinference.instrumentation.crewai:BeeAIInstrumentor"
+beeai = "openinference.instrumentation.beeai:BeeAIInstrumentor"
 
 [project.entry-points.openinference_instrumentor]
-beeai = "openinference.instrumentation.crewai:BeeAIInstrumentor"
+beeai = "openinference.instrumentation.beeai:BeeAIInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-beeai"

@@ -10,8 +10,11 @@ import * as bee from "beeai-framework";
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 import { createTelemetryMiddleware } from "./middleware";
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import { satisfies } from "semver";
 
 const MODULE_NAME = "beeai-framework";
+
+const INSTRUMENTS = [">=0.1.9 <0.1.12"];
 
 /**
  * Flag to check if the openai module has been patched
@@ -55,7 +58,7 @@ export class BeeAIInstrumentation extends InstrumentationBase {
   protected init() {
     const module = new InstrumentationNodeModuleDefinition(
       MODULE_NAME,
-      ["0.*"],
+      INSTRUMENTS,
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -68,6 +71,16 @@ export class BeeAIInstrumentation extends InstrumentationBase {
    * @param {openai} module
    */
   manuallyInstrument(module: typeof bee) {
+    if (
+      !INSTRUMENTS.some((instrument) => satisfies(module.Version, instrument))
+    ) {
+      const supportedVersionsString = `beeai-framework ["${INSTRUMENTS.join(',"')}"]`;
+      diag.warn(
+        `DependencyConflict: requested: '${supportedVersionsString}' but found: 'beeai-framework "${module.Version}"'`,
+      );
+      return;
+    }
+
     diag.debug(`[BeeaiInstrumentation] Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
   }

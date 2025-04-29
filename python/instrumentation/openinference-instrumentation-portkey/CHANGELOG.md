@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.0...python-openinference-instrumentation-portkey-v0.1.1) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
 ## 0.1.0 (2025-04-14)
 
 

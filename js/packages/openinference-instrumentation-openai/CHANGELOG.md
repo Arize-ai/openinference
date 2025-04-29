@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 2.3.0
+
+### Minor Changes
+
+- 5207deb: feat(openai-js): Instrument OpenAI responses sdk
+
 ## 2.2.0
 
 ### Minor Changes
