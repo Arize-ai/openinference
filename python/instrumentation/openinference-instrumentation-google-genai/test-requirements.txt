@@ -1,6 +1,5 @@
 google-genai
 opentelemetry-sdk
 pytest-asyncio
-pytest.recording
 httpx<0.28
 pytest-vcr>=1.0.2
