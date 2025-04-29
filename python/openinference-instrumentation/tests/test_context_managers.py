@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 from opentelemetry.context import (
@@ -119,19 +119,19 @@ def test_using_session_decorator_with_dynamic_value(session_id: str) -> None:
     dynamic_session_id = "dynamic-session-id"
 
     @using_session(session_id)
-    def f(session_id=None) -> None:
+    def f(session_id: Optional[str] = None) -> None:
         assert get_value(SpanAttributes.SESSION_ID) == dynamic_session_id
 
     f(session_id=dynamic_session_id)
     assert get_value(SpanAttributes.SESSION_ID) is None
 
 
-def test_using_session_decorator_with_default_value():
+def test_using_session_decorator_with_default_value() -> None:
     """Test that using_session decorator uses the default value when no session_id is provided."""
     session_id = "test-session"
 
     @using_session(session_id)
-    def test_function():
+    def test_function() -> str:
         current_context = get_current()
         assert get_value(SpanAttributes.SESSION_ID, current_context) == session_id
         return "test"
@@ -161,19 +161,19 @@ def test_using_metadata_decorator_with_dynamic_value(metadata: Dict[str, Any]) -
     dynamic_metadata = {"dynamic": "value", "key": "new-value"}
 
     @using_metadata(metadata)
-    def f(metadata=None) -> None:
+    def f(metadata: Optional[Dict[str, Any]] = None) -> None:
         assert get_value(SpanAttributes.METADATA) == json.dumps(dynamic_metadata)
 
     f(metadata=dynamic_metadata)
     assert get_value(SpanAttributes.METADATA) is None
 
 
-def test_using_metadata_decorator_with_default_value():
+def test_using_metadata_decorator_with_default_value() -> None:
     """Test that using_metadata decorator uses the default value when no metadata is provided."""
     metadata = {"key": "value"}
 
     @using_metadata(metadata)
-    def test_function():
+    def test_function() -> str:
         current_context = get_current()
         assert get_value(SpanAttributes.METADATA, current_context) == safe_json_dumps(metadata)
         return "test"

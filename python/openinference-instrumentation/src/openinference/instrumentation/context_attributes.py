@@ -1,6 +1,6 @@
 from contextlib import ContextDecorator
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
 from functools import wraps
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
 
 from opentelemetry.context import (
     attach,
@@ -116,13 +116,14 @@ class using_session(_UsingAttributesContextManager):
 
     def __init__(self, session_id: str) -> None:
         super().__init__(session_id=session_id)
-        
-    def __call__(self, func):
+
+    def __call__(self, func: Any) -> Any:
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            dynamic_session_id = kwargs.pop('session_id', self._session_id)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            dynamic_session_id = kwargs.pop("session_id", self._session_id)
             with using_session(dynamic_session_id):
                 return func(*args, **kwargs)
+
         return wrapper
 
 
@@ -168,13 +169,14 @@ class using_metadata(_UsingAttributesContextManager):
 
     def __init__(self, metadata: Dict[str, Any]) -> None:
         super().__init__(metadata=metadata)
-        
-    def __call__(self, func):
+
+    def __call__(self, func: Any) -> Any:
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            dynamic_metadata = kwargs.pop('metadata', self._metadata)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            dynamic_metadata = kwargs.pop("metadata", self._metadata)
             with using_metadata(dynamic_metadata):
                 return func(*args, **kwargs)
+
         return wrapper
 
 
