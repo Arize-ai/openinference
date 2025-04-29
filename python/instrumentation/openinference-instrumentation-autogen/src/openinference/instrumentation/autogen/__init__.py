@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Collection
+from typing import Any, Collection, Tuple, Dict
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
@@ -12,7 +12,8 @@ from openinference.instrumentation import (
     TraceConfig,
 )
 
-from openinference.instrumentation.autogen.version import __version__
+from ._wrappers import _AssistantAgentWrapper
+from .version import __version__
 
 _instruments = ("autogen-agentchat >= 0.5.1",)
 
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 
 class AutogenInstrumentor(BaseInstrumentor):  # type: ignore[misc]
+    """An instrumentor for the Autogen framework."""
+
     __slots__ = ("_tracer",)
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -36,7 +39,36 @@ class AutogenInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
+        from autogen_agentchat.agents import AssistantAgent
+        self._original_on_messages = AssistantAgent.on_messages
+        self._original_call_llm = AssistantAgent._call_llm
+        self._original_execute_tool = AssistantAgent._execute_tool_call
 
+        # Create wrapper instance
+        wrapper = _AssistantAgentWrapper(tracer=self._tracer)
+
+        # Wrap AssistantAgent methods
+        wrap_function_wrapper(
+            module="autogen_agentchat.agents",
+            name="AssistantAgent.on_messages",
+            wrapper=wrapper.on_messages_wrapper,
+        )
+        wrap_function_wrapper(
+            module="autogen_agentchat.agents",
+            name="AssistantAgent._execute_tool_call",
+            wrapper=wrapper.execute_tool_wrapper,
+        )
+        wrap_function_wrapper(
+            module="autogen_agentchat.agents",
+            name="AssistantAgent._call_llm",
+            wrapper=wrapper.call_llm_wrapper,
+        )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        return
+        from autogen_agentchat.agents import AssistantAgent
+        if self._original_on_messages is not None:
+            AssistantAgent.on_messages = self._original_on_messages
+        if self._original_call_llm is not None:
+            AssistantAgent.call_llm = self._original_call_llm
+        if self._original_execute_tool is not None:
+            AssistantAgent.execute_tool = self._original_execute_tool
