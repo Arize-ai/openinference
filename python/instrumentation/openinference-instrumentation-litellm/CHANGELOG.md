@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.18...python-openinference-instrumentation-litellm-v0.1.19) (2025-04-29)
+
+
+### Bug Fixes
+
+* **litellm:** remove sensitive info from invocation params ([#1571](https://github.com/Arize-ai/openinference/issues/1571)) ([fe4f784](https://github.com/Arize-ai/openinference/commit/fe4f784a020db96f41a2a1f49b1fe8a497369933))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.17...python-openinference-instrumentation-litellm-v0.1.18) (2025-04-28)
 
 
