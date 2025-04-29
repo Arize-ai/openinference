@@ -32,9 +32,10 @@ class TestTokenCounts:
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})
         # make sure we are not leaking any sensitive information
-        invocation_parameters = attr.pop(LLM_INVOCATION_PARAMETERS)
-        params = json.loads(invocation_parameters)
-        if params:
+        params_str = attr.get(LLM_INVOCATION_PARAMETERS)
+        if params_str is not None:
+            params = json.loads(str(params_str))
+            assert isinstance(params, dict)
             assert "api_key" not in params
 
         assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == usage.completion_tokens
@@ -81,9 +82,10 @@ class TestTokenCounts:
         attr = dict(span.attributes or {})
 
         # make sure we are not leaking any sensitive information
-        invocation_parameters = attr.pop(LLM_INVOCATION_PARAMETERS)
-        params = json.loads(invocation_parameters)
-        if params:
+        params_str = attr.get(LLM_INVOCATION_PARAMETERS)
+        if params_str is not None:
+            params = json.loads(str(params_str))
+            assert isinstance(params, dict)
             assert "api_key" not in params
 
         usage = resp.usage
