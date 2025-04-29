@@ -290,18 +290,19 @@ def test_streaming_text_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat.",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash-001",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
     
-    # Check if token counts are available in the response
-    if hasattr(chunks[0], "usage_metadata") and chunks[0].usage_metadata:
+    # Check if token counts are available in the response. Complete usage metadata should be taken from the very last
+    # chunk
+    if hasattr(chunks[0], "usage_metadata") and chunks[-1].usage_metadata:
         expected_attributes.update({
-            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[0].usage_metadata.total_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[0].usage_metadata.prompt_token_count,
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[0].usage_metadata.candidates_token_count,
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
+            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[-1].usage_metadata.candidates_token_count,
         })
     
     # Verify attributes
