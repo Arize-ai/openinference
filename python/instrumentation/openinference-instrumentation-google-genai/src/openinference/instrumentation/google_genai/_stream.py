@@ -279,7 +279,7 @@ class _IndexedAccumulator:
         for _, values in sorted(self._indexed.items()):
             yield dict(values)
 
-    def __iadd__(self, values: Optional[Mapping[str, Any]]) -> "_IndexedAccumulator":
+    def __iadd__(self, values: Optional[Mapping[str, Any] | List[Any]]) -> "_IndexedAccumulator":
         if not values:
             return self
         if isinstance(values, Mapping):
@@ -310,9 +310,9 @@ class _DictReplace:
     __slots__ = ("_val",)
 
     def __init__(self) -> None:
-        self._val: Mapping = {}
+        self._val: Mapping[Any, Any] = {}
 
-    def __iadd__(self, value: Optional[str]) -> "_DictReplace":
+    def __iadd__(self, value: Optional[Mapping[Any, Any]]) -> "_DictReplace":
         if not value:
             return self
         self._val = value
