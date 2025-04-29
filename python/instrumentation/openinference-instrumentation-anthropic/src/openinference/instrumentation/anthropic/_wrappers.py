@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC
 from contextlib import contextmanager
 from itertools import chain
@@ -6,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Mapping, 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
+from wrapt import ObjectProxy
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.anthropic._stream import (
@@ -29,6 +32,7 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
+    from anthropic.lib.streaming import MessageStream, MessageStreamManager
     from anthropic.types import Message, Usage
 
 
@@ -293,6 +297,65 @@ class _AsyncMessagesWrapper(_WithTracer):
                 )
                 span.finish_tracing()
                 return response
+
+
+class _MessagesStreamWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        arguments = kwargs
+        llm_input_messages = dict(arguments).pop("messages", None)
+        invocation_parameters = _get_invocation_parameters(arguments)
+
+        with self._start_as_current_span(
+            span_name="MessagesStream",
+            attributes=dict(
+                chain(
+                    get_attributes_from_context(),
+                    _get_llm_model_name_from_input(arguments),
+                    _get_llm_provider(),
+                    _get_llm_system(),
+                    _get_llm_span_kind(),
+                    _get_llm_input_messages(llm_input_messages),
+                    _get_llm_invocation_parameters(invocation_parameters),
+                    _get_llm_tools(invocation_parameters),
+                    _get_inputs(arguments),
+                )
+            ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+
+            return _MessageStreamManager(response, span)
+
+
+class _MessageStreamManager(ObjectProxy): 
+    def __init__(
+        self,
+        manager: MessageStreamManager,
+        with_span: _WithSpan,
+    ) -> None:
+        super().__init__(manager)
+        self._self_with_span = with_span
+
+    def __enter__(self) -> MessageStream:
+        raw_stream = self.__api_request()
+        raw_stream = _MessagesStream(raw_stream, self._self_with_span)
+        from anthropic.lib.streaming import MessageStream
+
+        self.__stream = MessageStream(raw_stream)
+        return self.__stream
 
 
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
