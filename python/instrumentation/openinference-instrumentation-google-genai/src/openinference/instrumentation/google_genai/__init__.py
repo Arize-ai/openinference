@@ -7,8 +7,8 @@ from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.google_genai._wrappers import (
-    _AsyncGenerateContentWrapper,
     _AsyncGenerateContentStream,
+    _AsyncGenerateContentWrapper,
     _SyncGenerateContent,
     _SyncGenerateContentStream,
 )
