@@ -213,6 +213,8 @@ class _ValuesAccumulator:
             elif isinstance(value, _StringAccumulator):
                 if str_value := str(value):
                     yield key, str_value
+            elif isinstance(value, _IndexedAccumulator):
+                yield key, list(value)
             else:
                 yield key, value
 
@@ -260,9 +262,16 @@ class _StringAccumulator:
     def __iadd__(self, value: Optional[str]) -> "_StringAccumulator":
         if not value:
             return self
-        self._fragments.append(value)
+        # If the value is a list of strings, extend with all of them
+        if isinstance(value, list):
+            self._fragments.extend(value)
+        # If the value is a dict with a text field, add just the text
+        elif isinstance(value, dict) and "text" in value:
+            self._fragments.append(value["text"])
+        # Otherwise treat as a string
+        else:
+            self._fragments.append(str(value))
         return self
-
 
 class _IndexedAccumulator:
     __slots__ = ("_indexed",)
@@ -275,9 +284,13 @@ class _IndexedAccumulator:
             yield dict(values)
 
     def __iadd__(self, values: Optional[Mapping[str, Any]]) -> "_IndexedAccumulator":
-        if not values or not hasattr(values, "get") or (index := values.get("index")) is None:
+        if not values:
             return self
-        self._indexed[index] += values
+        if isinstance(values, Mapping):
+            values = [values]
+        for v in values:
+            if v and hasattr(v, "get"):
+                self._indexed[v.get("index") or 0] += v
         return self
 
 
