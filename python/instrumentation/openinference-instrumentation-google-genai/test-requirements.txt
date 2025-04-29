@@ -1,5 +1,4 @@
-google-genai
+google-genai==1.12.1
 opentelemetry-sdk
 pytest-asyncio
-httpx<0.28
 pytest-vcr>=1.0.2
