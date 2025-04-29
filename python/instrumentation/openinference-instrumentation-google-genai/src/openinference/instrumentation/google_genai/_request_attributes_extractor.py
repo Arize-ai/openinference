@@ -54,9 +54,9 @@ class _RequestAttributesExtractor:
         if input_contents := request_parameters.get("contents"):
             if isinstance(input_contents, list):
                 for index, input_content in reversed(list(enumerate(input_contents))):
-                    # Use reversed() to get the last message first. This is because OTEL has a default
-                    # limit of 128 attributes per span, and flattening increases the number of
-                    # attributes very quickly.
+                    # Use reversed() to get the last message first. This is because OTEL has
+                    # a default limit of 128 attributes per span, and flattening increases the
+                    # number of attributes very quickly.
                     for attr, value in self._get_attributes_from_message_param(input_content):
                         yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{attr}", value
             else:
@@ -70,7 +70,8 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/6e55222895a6639d41e54202e3d9a963609a391f/google/genai/models.py#L3890 # noqa: E501
         if isinstance(input_contents, str):
-            # When provided a string, the GenAI SDK ingests it as a UserContent object with role "user"
+            # When provided a string, the GenAI SDK ingests it as
+            # a UserContent object with role "user"
             # https://googleapis.github.io/python-genai/index.html#provide-a-string
             yield (MessageAttributes.MESSAGE_CONTENT, input_contents)
             yield (MessageAttributes.MESSAGE_ROLE, "user")

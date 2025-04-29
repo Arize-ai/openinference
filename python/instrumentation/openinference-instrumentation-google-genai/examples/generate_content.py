@@ -21,7 +21,9 @@ def generate_content_sync(model="gemini-2.0-flash"):
         client = genai.Client(api_key=GEMINI_API_KEY)
 
         config = GenerateContentConfig(
-            system_instruction="You are a helpful assistant that can answer questions and help with tasks."
+            system_instruction=(
+                "You are a helpful assistant that can answer questions and help with tasks."
+            )
         )
         content = Content(
             role="user",
@@ -30,7 +32,11 @@ def generate_content_sync(model="gemini-2.0-flash"):
                 Part.from_text(text="What is the capital of France?"),
             ],
         )
-        response = client.models.generate_content(model=model, contents=content, config=config)
+        response = client.models.generate_content(
+            model=model,
+            contents=content,
+            config=config,
+        )
 
         return response.text
 
@@ -43,7 +49,9 @@ async def generate_content_async(model="gemini-2.0-flash"):
         client = genai.Client(api_key=GEMINI_API_KEY).aio
 
         config = GenerateContentConfig(
-            system_instruction="You are a helpful assistant that can answer questions and help with tasks."
+            system_instruction=(
+                "You are a helpful assistant that can answer questions and help with tasks."
+            )
         )
         content = Content(
             role="user",

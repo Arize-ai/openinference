@@ -1,5 +1,4 @@
 import logging
-from importlib import import_module
 from typing import Any, Collection
 
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
