@@ -1,3 +1,4 @@
+import json
 from typing import Iterator
 
 import litellm
@@ -10,7 +11,6 @@ from openinference.semconv.trace import SpanAttributes
 
 
 class TestTokenCounts:
-    # @pytest.mark.
     @pytest.mark.vcr(
         decode_compressed_response=True,
         before_record_request=lambda _: _.headers.clear() or _,
@@ -25,11 +25,17 @@ class TestTokenCounts:
             model="openai/gpt-4o-mini",
             messages=messages,
             api_key="sk-",
+            temperature=0.7,
         )
         usage = resp.usage
 
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})
+        # make sure we are not leaking any sensitive information
+        invocation_parameters = attr.pop(LLM_INVOCATION_PARAMETERS)
+        params = json.loads(invocation_parameters)
+        if params:
+            assert "api_key" not in params
 
         assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == usage.completion_tokens
         assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == usage.prompt_tokens
@@ -74,6 +80,12 @@ class TestTokenCounts:
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})
 
+        # make sure we are not leaking any sensitive information
+        invocation_parameters = attr.pop(LLM_INVOCATION_PARAMETERS)
+        params = json.loads(invocation_parameters)
+        if params:
+            assert "api_key" not in params
+
         usage = resp.usage
         # Check the token counts litellm always returns
         assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == usage.prompt_tokens
@@ -115,3 +127,4 @@ LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLE
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
     SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
 )
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
