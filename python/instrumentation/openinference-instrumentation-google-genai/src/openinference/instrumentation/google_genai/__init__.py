@@ -27,6 +27,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_generate_content",
         "_original_async_generate_content",
         "_original_generate_content_stream",
+        "_tracer",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -73,16 +74,16 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        from google.genai.models import Models
+        from google.genai.models import AsyncModels, Models
 
         if self._original_generate_content is not None:
-            Models.generate_content = self._original_generate_content
+            setattr(Models, "generate_content", self._original_generate_content)
             self._original_generate_content = None
 
         if self._original_async_generate_content is not None:
-            Models.async_generate_content = self._original_async_generate_content
+            setattr(AsyncModels, "generate_content", self._original_async_generate_content)
             self._original_async_generate_content = None
 
         if self._original_generate_content_stream is not None:
-            Models.generate_content_stream = self._original_generate_content_stream
+            setattr(Models, "generate_content_stream", self._original_generate_content_stream)
             self._original_generate_content_stream = None
