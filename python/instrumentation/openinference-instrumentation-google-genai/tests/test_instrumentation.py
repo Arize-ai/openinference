@@ -1,4 +1,6 @@
 # ruff: noqa: E501
+from typing import Any, Dict, Iterator
+
 import pytest
 from google import genai
 from google.genai.types import Content, GenerateContentConfig, Part
@@ -12,7 +14,7 @@ from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 
 @pytest.fixture
-def in_memory_span_exporter():
+def in_memory_span_exporter() -> InMemorySpanExporter:
     exporter = InMemorySpanExporter()
     return exporter
 
@@ -26,7 +28,7 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
 
 
 @pytest.fixture
-def setup_google_genai_instrumentation(tracer_provider):
+def setup_google_genai_instrumentation(tracer_provider: TracerProvider) -> Iterator[None]:
     instrumentor = GoogleGenAIInstrumentor()
     instrumentor.instrument(tracer_provider=tracer_provider)
     yield
@@ -71,7 +73,7 @@ def test_generate_content(
     attributes = dict(span.attributes or {})
 
     # Define expected attributes
-    expected_attributes = {
+    expected_attributes: Dict[str, Any] = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
@@ -83,7 +85,7 @@ def test_generate_content(
     }
 
     # Check if token counts are available in the response
-    if hasattr(response, "usage_metadata") and response.usage_metadata:
+    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
         expected_attributes.update(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
@@ -138,7 +140,7 @@ async def test_async_generate_content(
     attributes = dict(span.attributes or {})
 
     # Define expected attributes
-    expected_attributes = {
+    expected_attributes: Dict[str, Any] = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
@@ -150,7 +152,7 @@ async def test_async_generate_content(
     }
 
     # Check if token counts are available in the response
-    if hasattr(response, "usage_metadata") and response.usage_metadata:
+    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
         expected_attributes.update(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
@@ -197,7 +199,7 @@ def test_multi_turn_conversation(
     span1 = spans[0]
     attributes1 = dict(span1.attributes or {})
 
-    expected_attributes1 = {
+    expected_attributes1: Dict[str, Any] = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What is the capital of France?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
@@ -209,7 +211,7 @@ def test_multi_turn_conversation(
     }
 
     # Check if token counts are available in the response
-    if hasattr(response1, "usage_metadata"):
+    if hasattr(response1, "usage_metadata") and response1.usage_metadata is not None:
         expected_attributes1.update(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response1.usage_metadata.total_token_count,
@@ -228,7 +230,7 @@ def test_multi_turn_conversation(
     span2 = spans[1]
     attributes2 = dict(span2.attributes or {})
 
-    expected_attributes2 = {
+    expected_attributes2: Dict[str, Any] = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What is the capital of France?",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "model",
@@ -244,7 +246,7 @@ def test_multi_turn_conversation(
     }
 
     # Check if token counts are available in the response
-    if hasattr(response2, "usage_metadata"):
+    if hasattr(response2, "usage_metadata") and response2.usage_metadata is not None:
         expected_attributes2.update(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response2.usage_metadata.total_token_count,
@@ -287,7 +289,7 @@ def test_streaming_text_content(
     chunks = []
     for chunk in stream:
         chunks.append(chunk)
-        full_response += chunk.text
+        full_response += chunk.text or ""
 
     # Get the spans
     spans = in_memory_span_exporter.get_finished_spans()
@@ -296,7 +298,7 @@ def test_streaming_text_content(
     attributes = dict(span.attributes or {})
 
     # Define expected attributes
-    expected_attributes = {
+    expected_attributes: Dict[str, Any] = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat.",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
@@ -309,7 +311,11 @@ def test_streaming_text_content(
 
     # Check if token counts are available in the response. Complete usage metadata should be taken from the very last
     # chunk
-    if hasattr(chunks[0], "usage_metadata") and chunks[-1].usage_metadata:
+    if (
+        chunks
+        and hasattr(chunks[-1], "usage_metadata")
+        and chunks[-1].usage_metadata is not None
+    ):
         expected_attributes.update(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
