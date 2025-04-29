@@ -13,7 +13,6 @@ from typing import (
     Mapping,
     Optional,
     Tuple,
-    Union,
 )
 
 from opentelemetry import trace as trace_api

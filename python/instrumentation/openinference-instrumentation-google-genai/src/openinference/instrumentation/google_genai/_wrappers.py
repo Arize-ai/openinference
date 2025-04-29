@@ -18,9 +18,9 @@ from openinference.instrumentation.google_genai._request_attributes_extractor im
 from openinference.instrumentation.google_genai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
+from openinference.instrumentation.google_genai._stream import _Stream
 from openinference.instrumentation.google_genai._utils import _finish_tracing
 from openinference.instrumentation.google_genai._with_span import _WithSpan
-from openinference.instrumentation.google_genai._stream import _Stream
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,

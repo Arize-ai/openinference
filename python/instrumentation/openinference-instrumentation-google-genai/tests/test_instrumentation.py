@@ -1,6 +1,3 @@
-import os
-import asyncio
-from importlib import import_module
 
 import pytest
 from google import genai
@@ -46,34 +43,34 @@ def test_generate_content(
 ) -> None:
     # Get API key from environment variable
     api_key = "REDACTED"
-    
+
     # Initialize the client
     client = genai.Client(api_key=api_key)
-    
+
     # Create content for the request
     content = Content(
         role="user",
         parts=[Part.from_text(text="What's the weather like?")],
     )
-    
+
     # Create config
     config = GenerateContentConfig(
         system_instruction="You are a helpful assistant that can answer questions and help with tasks."
     )
-    
+
     # Make the API call
     response = client.models.generate_content(
         model="gemini-2.0-flash",
         contents=content,
         config=config
     )
-    
+
     # Get the spans
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
     attributes = dict(span.attributes or {})
-    
+
     # Define expected attributes
     expected_attributes = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
@@ -85,7 +82,7 @@ def test_generate_content(
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
-    
+
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata:
         expected_attributes.update({
@@ -93,7 +90,7 @@ def test_generate_content(
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
             SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
         })
-    
+
     # Verify attributes
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value, f"Attribute {key} does not match expected value"
@@ -111,34 +108,34 @@ async def test_async_generate_content(
 ) -> None:
     # Get API key from environment variable
     api_key = "REDACTED"
-    
+
     # Initialize the async client
     client = genai.Client(api_key=api_key).aio
-    
+
     # Create content for the request
     content = Content(
         role="user",
         parts=[Part.from_text(text="What's the weather like?")],
     )
-    
+
     # Create config
     config = GenerateContentConfig(
         system_instruction="You are a helpful assistant that can answer questions and help with tasks."
     )
-    
+
     # Make the API call
     response = await client.models.generate_content(
         model="gemini-2.0-flash",
         contents=content,
         config=config
     )
-    
+
     # Get the spans
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
     attributes = dict(span.attributes or {})
-    
+
     # Define expected attributes
     expected_attributes = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
@@ -150,7 +147,7 @@ async def test_async_generate_content(
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
-    
+
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata:
         expected_attributes.update({
@@ -174,27 +171,27 @@ def test_multi_turn_conversation(
 ) -> None:
     # Get API key from environment variable
     api_key = "REDACTED"
-    
+
     # Initialize the client
     client = genai.Client(api_key=api_key)
-    
+
     # Create a chat session
     chat = client.chats.create(model="gemini-2.0-flash")
-    
+
     # Send first message
     response1 = chat.send_message("What is the capital of France?")
-    
+
     # Send second message
     response2 = chat.send_message("Why is the sky blue?")
-    
+
     # Get the spans
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2  # We should have two spans, one for each message
-    
+
     # Check first span
     span1 = spans[0]
     attributes1 = dict(span1.attributes or {})
-    
+
     expected_attributes1 = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What is the capital of France?",
@@ -205,7 +202,7 @@ def test_multi_turn_conversation(
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response1.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
-    
+
     # Check if token counts are available in the response
     if hasattr(response1, "usage_metadata"):
         expected_attributes1.update({
@@ -213,15 +210,15 @@ def test_multi_turn_conversation(
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response1.usage_metadata.prompt_token_count,
             SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response1.usage_metadata.candidates_token_count,
         })
-    
+
     # Verify attributes for first span
     for key, expected_value in expected_attributes1.items():
         assert attributes1.get(key) == expected_value, f"Attribute {key} does not match expected value for first span"
-    
+
     # Check second span
     span2 = spans[1]
     attributes2 = dict(span2.attributes or {})
-    
+
     expected_attributes2 = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What is the capital of France?",
@@ -236,7 +233,7 @@ def test_multi_turn_conversation(
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response2.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
-    
+
     # Check if token counts are available in the response
     if hasattr(response2, "usage_metadata"):
         expected_attributes2.update({
@@ -244,7 +241,7 @@ def test_multi_turn_conversation(
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response2.usage_metadata.prompt_token_count,
             SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response2.usage_metadata.candidates_token_count,
         })
-    
+
     # Verify attributes for second span
     for key, expected_value in expected_attributes2.items():
         assert attributes2.get(key) == expected_value, f"Attribute {key} does not match expected value for second span"
@@ -261,7 +258,7 @@ def test_streaming_text_content(
 ) -> None:
     # Initialize the client
     client = genai.Client(api_key="REDACTED")
-    
+
     # Make the streaming API call
     stream = client.models.generate_content_stream(
         model="gemini-2.0-flash-001",
@@ -277,13 +274,13 @@ def test_streaming_text_content(
     for chunk in stream:
         chunks.append(chunk)
         full_response += chunk.text
-    
+
     # Get the spans
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
     attributes = dict(span.attributes or {})
-    
+
     # Define expected attributes
     expected_attributes = {
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
@@ -295,7 +292,7 @@ def test_streaming_text_content(
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
-    
+
     # Check if token counts are available in the response. Complete usage metadata should be taken from the very last
     # chunk
     if hasattr(chunks[0], "usage_metadata") and chunks[-1].usage_metadata:
@@ -304,8 +301,8 @@ def test_streaming_text_content(
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
             SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[-1].usage_metadata.candidates_token_count,
         })
-    
+
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, f"Attribute {key} does not match expected value" 
+        assert attributes.get(key) == expected_value, f"Attribute {key} does not match expected value"
 
