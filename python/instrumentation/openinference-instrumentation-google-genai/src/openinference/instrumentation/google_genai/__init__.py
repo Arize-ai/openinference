@@ -95,4 +95,6 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             setattr(Models, "generate_content_stream", self._original_generate_content_stream)
 
         if self._original_async_generate_content_stream is not None:
-            setattr(AsyncModels, "generate_content_stream", self._original_async_generate_content_stream)
+            setattr(
+                AsyncModels, "generate_content_stream", self._original_async_generate_content_stream
+            )
