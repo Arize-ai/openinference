@@ -13,6 +13,7 @@ from typing import (
     Mapping,
     Optional,
     Tuple,
+    Union,
 )
 
 from opentelemetry import trace as trace_api
@@ -278,8 +279,7 @@ class _IndexedAccumulator:
     def __iter__(self) -> Iterator[Dict[str, Any]]:
         for _, values in sorted(self._indexed.items()):
             yield dict(values)
-
-    def __iadd__(self, values: Optional[Mapping[str, Any] | List[Any]]) -> "_IndexedAccumulator":
+    def __iadd__(self, values: Optional[Union[Mapping[str, Any], List[Any]]]) -> "_IndexedAccumulator":
         if not values:
             return self
         if isinstance(values, Mapping):
