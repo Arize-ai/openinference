@@ -1,4 +1,4 @@
-
+# ruff: noqa: E501
 import pytest
 from google import genai
 from google.genai.types import Content, GenerateContentConfig, Part
