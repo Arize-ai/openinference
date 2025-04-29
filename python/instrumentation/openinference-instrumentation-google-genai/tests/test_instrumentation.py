@@ -311,11 +311,7 @@ def test_streaming_text_content(
 
     # Check if token counts are available in the response. Complete usage metadata should be taken from the very last
     # chunk
-    if (
-        chunks
-        and hasattr(chunks[-1], "usage_metadata")
-        and chunks[-1].usage_metadata is not None
-    ):
+    if chunks and hasattr(chunks[-1], "usage_metadata") and chunks[-1].usage_metadata is not None:
         expected_attributes.update(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
