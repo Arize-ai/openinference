@@ -14,7 +14,7 @@ pip install openinference-instrumentation-google-adk
 
 ## Quickstart
 
-In this example we will instrument a small program that uses OpenAI and observe the traces via [`arize-phoenix`](https://github.com/Arize-ai/phoenix).
+In this example we will instrument a small program that uses Gemini and observe the traces via [`arize-phoenix`](https://github.com/Arize-ai/phoenix).
 
 Install packages.
 

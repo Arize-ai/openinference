@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "openinference-instrumentation-google-adk"
 dynamic = ["version"]
-description = "OpenInference OpenAI Agents Instrumentation"
+description = "OpenInference Google ADK Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9, <3.14"
