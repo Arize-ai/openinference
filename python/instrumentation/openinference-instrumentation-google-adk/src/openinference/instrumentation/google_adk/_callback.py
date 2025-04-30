@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from google.adk.models.llm_response import LlmResponse
     from google.adk.tools.base_tool import BaseTool
     from google.adk.tools.tool_context import ToolContext
+
     from openinference.instrumentation import OITracer
 
 
