@@ -2,8 +2,8 @@ import logging
 from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import (
-    BaseInstrumentor,  # type: ignore[attr-defined]
+from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
+    BaseInstrumentor,
 )
 from wrapt import wrap_object_attribute
 
