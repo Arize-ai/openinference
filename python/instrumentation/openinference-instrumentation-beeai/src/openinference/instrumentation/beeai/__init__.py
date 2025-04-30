@@ -31,7 +31,7 @@ from .middleware import create_telemetry_middleware
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("beeai-framework >= 0.1.10, < 0.1.19",)
+_instruments = ("beeai-framework >= 0.1.10, < 0.1.20",)
 try:
     __version__ = version("beeai-framework")
 except PackageNotFoundError:
