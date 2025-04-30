@@ -71,7 +71,6 @@ def test_tool_calls_with_input_params(
     assert len(events) == 10
     assert len(spans) == 5
     span_names = [span.name for span in spans]
-    print(span_names)
     assert span_names == [
         "orchestrationTrace",
         "LLM",
@@ -314,7 +313,12 @@ def test_multi_agent_collaborator(
     agent_alias_id = "KUXISKYLTT"
     session_id = "123456"
     session = boto3.session.Session()
-    client = session.client("bedrock-agent-runtime", "us-east-1")
+    client = session.client(
+        "bedrock-agent-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
     attributes = dict(
         inputText="Find the sum of 1, 2, 3, 4, 5, 6, 7, 8, 9, and 10.",
         agentId=agent_id,
