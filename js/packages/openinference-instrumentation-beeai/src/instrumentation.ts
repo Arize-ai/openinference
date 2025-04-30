@@ -14,7 +14,7 @@ import { satisfies } from "semver";
 
 const MODULE_NAME = "beeai-framework";
 
-const INSTRUMENTS = [">=0.1.9 <0.1.12"];
+const INSTRUMENTS = [">=0.1.9 <0.1.14"];
 
 /**
  * Flag to check if the openai module has been patched
