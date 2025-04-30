@@ -3,11 +3,11 @@ import asyncio
 from google.adk.agents import Agent
 from google.adk.runners import InMemoryRunner
 from google.genai import types
-
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
