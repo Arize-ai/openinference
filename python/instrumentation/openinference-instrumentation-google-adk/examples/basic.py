@@ -18,11 +18,12 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
 
 agent = Agent(
-   name="Assistant",
-   model="gemini-2.0-flash-exp",
-   description="A helpful assistant.",
-   instruction="You are a helpful assistant.",
+    name="Assistant",
+    model="gemini-2.0-flash-exp",
+    description="A helpful assistant.",
+    instruction="You are a helpful assistant.",
 )
+
 
 async def main():
     app_name = "test_instrumentation"
@@ -30,20 +31,17 @@ async def main():
     session_id = "test_session"
     runner = InMemoryRunner(agent=agent, app_name=app_name)
     session_service = runner.session_service
-    session_service.create_session(
-        app_name=app_name,
-        user_id=user_id,
-        session_id=session_id
-    )
+    session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
     async for event in runner.run_async(
         user_id=user_id,
         session_id=session_id,
-        new_message=types.Content(role="user", parts=[
-            types.Part(text="Write a haiku about recursion in programming.")]
-        )
+        new_message=types.Content(
+            role="user", parts=[types.Part(text="Write a haiku about recursion in programming.")]
+        ),
     ):
         if event.is_final_response():
             print(event.content.parts[0].text.strip())
+
 
 if __name__ == "__main__":
     asyncio.run(main())

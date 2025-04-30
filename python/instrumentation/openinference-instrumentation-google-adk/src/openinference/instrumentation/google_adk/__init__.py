@@ -2,7 +2,7 @@ import logging
 from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  #type: ignore[attr-defined]
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore[attr-defined]
 from wrapt import wrap_object_attribute
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -41,7 +41,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
         callback = GoogleADKTracingCallback(tracer=self._tracer)
 
-        def callback_factory(value, *args, **kwargs):  #type: ignore[no-untyped-def]
+        def callback_factory(value, *args, **kwargs):  # type: ignore[no-untyped-def]
             # Honor any callback passed by the user
             kwargs["callback_parent"]._original_value = value
             return kwargs["callback_wrapper"]
