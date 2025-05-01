@@ -33,10 +33,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "beeai-framework[duckduckgo,wikipedia]==0.1.19",
+  "beeai-framework >= 0.1.10",
 ]
 test = [
-  "beeai-framework[duckduckgo,wikipedia]==0.1.19",
+  "beeai-framework >= 0.1.19",
   "opentelemetry-sdk"
 ]
 
