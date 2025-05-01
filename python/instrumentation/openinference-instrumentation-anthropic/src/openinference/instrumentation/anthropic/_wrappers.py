@@ -340,7 +340,7 @@ class _MessagesStreamWrapper(_WithTracer):
             return _MessageStreamManager(response, span)
 
 
-class _MessageStreamManager(ObjectProxy): 
+class _MessageStreamManager(ObjectProxy):
     def __init__(
         self,
         manager: MessageStreamManager,

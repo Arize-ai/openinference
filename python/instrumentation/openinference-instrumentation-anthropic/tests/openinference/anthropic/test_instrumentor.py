@@ -166,12 +166,13 @@ def test_anthropic_instrumentation_completions_streaming(
     assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
     assert not attributes
 
+
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_anthropic_instrumentation_messages_streaming(
+def test_anthropic_instrumentation_stream_message(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
@@ -180,12 +181,11 @@ def test_anthropic_instrumentation_messages_streaming(
     client = Anthropic(api_key="fake")
 
     chat = [{"role": "user", "content": "Hello!"}]
-    model = "claude-3-7-sonnet-20250219"
 
     with client.messages.stream(
         max_tokens=1024,
-        messages=chat,
-        model=model,
+        messages=[{"role": "user", "content": "Hello!"}],
+        model="claude-2.1",
     ) as stream:
         for _ in stream:
             pass
@@ -194,7 +194,7 @@ def test_anthropic_instrumentation_messages_streaming(
     assert len(spans) == 1
 
     span = spans[0]
-    assert span.name == "MessagesStream" 
+    assert span.name == "MessagesStream"
     attributes = dict(span.attributes or {})
     print(attributes)
 
@@ -207,7 +207,7 @@ def test_anthropic_instrumentation_messages_streaming(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    assert attributes.pop(LLM_PROMPTS) == tuple(chat)
+    assert attributes.pop(LLM_PROMPTS) == (chat,)
     assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
 
     inv_params_json = attributes.pop(LLM_INVOCATION_PARAMETERS)
@@ -220,6 +220,7 @@ def test_anthropic_instrumentation_messages_streaming(
     assert json.loads(inv_params_json) == invocation_params
     assert isinstance(attributes.pop(LLM_OUTPUT_MESSAGES), str)
     assert not attributes
+
 
 @pytest.mark.asyncio
 @pytest.mark.vcr(

@@ -1,5 +1,3 @@
-import os
-
 from anthropic import Anthropic
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
