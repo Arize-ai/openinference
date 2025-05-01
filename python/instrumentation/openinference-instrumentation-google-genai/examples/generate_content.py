@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from google import genai
 from google.genai.types import Content, GenerateContentConfig, Part
@@ -8,17 +9,22 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 
-endpoint = "http://0.0.0.0:6006/v1/traces"
+endpoint = "http://localhost:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
-GEMINI_API_KEY = "*REPLACE_WITH_YOUR_API_KEY*"
+GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
+# Make sure to set the GEMINI_API_KEY environment variable
 
 
-def generate_content_sync(model="gemini-2.0-flash"):
+def generate_content_sync(model_name: str = "gemini-2.0-flash-001") -> str:
     try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        client = genai.Client(
+            api_key=os.getenv("GEMINI_API_KEY"),
+        )
+        response = client.models.generate_content(model=model_name, contents="Why is the sky blue?")
+        print(response.text)
 
         config = GenerateContentConfig(
             system_instruction=(
@@ -33,20 +39,22 @@ def generate_content_sync(model="gemini-2.0-flash"):
             ],
         )
         response = client.models.generate_content(
-            model=model,
+            model=model_name,
             contents=content,
             config=config,
         )
 
-        return response.text
+        return response.text or ""
 
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
 
-async def generate_content_async(model="gemini-2.0-flash"):
+async def generate_content_async(model_name: str = "gemini-2.0-flash-001") -> str:
     try:
-        client = genai.Client(api_key=GEMINI_API_KEY).aio
+        client = genai.Client(
+            api_key=os.getenv("GEMINI_API_KEY"),
+        ).aio
 
         config = GenerateContentConfig(
             system_instruction=(
@@ -62,17 +70,16 @@ async def generate_content_async(model="gemini-2.0-flash"):
         )
 
         async_response = await client.models.generate_content(
-            model=model, contents=content, config=config
+            model=model_name, contents=content, config=config
         )
-        return async_response.text
+        return async_response.text or ""
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
 
 if __name__ == "__main__":
-    GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
-    response = generate_content_sync("Why is the sky blue?")
+    response = generate_content_sync("gemini-2.0-flash-001")
     print(response)
 
-    async_response = asyncio.run(generate_content_async("Why is the sky blue?"))
+    async_response = asyncio.run(generate_content_async("gemini-2.0-flash-001"))
     print(async_response)
