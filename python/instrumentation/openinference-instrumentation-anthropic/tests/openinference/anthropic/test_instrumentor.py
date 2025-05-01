@@ -633,7 +633,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                    "description": "The unit of temperature, either 'celsius' or 'fahrenheit'",
                 },
             },
             "required": ["location"],
@@ -736,7 +736,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                    "description": "The unit of temperature, either 'celsius' or 'fahrenheit'",
                 },
             },
             "required": ["location"],
