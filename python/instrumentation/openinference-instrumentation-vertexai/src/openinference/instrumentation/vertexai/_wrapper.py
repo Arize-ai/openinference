@@ -404,18 +404,24 @@ def _parse_content(
     yield f"{prefix}{MESSAGE_ROLE}", role_override or _role(content.role)
     parts = cast(Iterable[Part], content.parts)
     for part in parts:
-        if part.function_response.name:
-            # FIXME: It's unclear whether multiple `function_response` can
-            # coexist, but currently we can retain only one.
-            yield f"{prefix}{MESSAGE_ROLE}", "tool"
-            yield f"{prefix}{MESSAGE_NAME}", part.function_response.name
-            cls = part.function_response.__class__
-            # Maybe there's an easier way to do this.
-            function_response = cls.to_dict(part.function_response)
-            yield (
-                f"{prefix}{MESSAGE_CONTENT}",
-                safe_json_dumps(function_response.get("response") or {}),
-            )
+        # Safely check if function_response exists and has a name
+        if hasattr(part, "function_response"):
+            function_response = getattr(part, "function_response", None)
+            if (function_response is not None and 
+                hasattr(function_response, "name") and
+                getattr(function_response, "name", None)):
+                
+                # FIXME: It's unclear whether multiple `function_response` can
+                # coexist, but currently we can retain only one.
+                yield f"{prefix}{MESSAGE_ROLE}", "tool"
+                yield f"{prefix}{MESSAGE_NAME}", getattr(function_response, "name")
+                cls = function_response.__class__
+                # Maybe there's an easier way to do this.
+                function_response_dict = cls.to_dict(function_response)
+                yield (
+                    f"{prefix}{MESSAGE_CONTENT}",
+                    safe_json_dumps(function_response_dict.get("response") or {}),
+                )
     yield from _parse_parts(parts, prefix)
     yield from _parse_tool_calls(parts, prefix)
 
@@ -438,17 +444,23 @@ def _parse_tool_calls(
     """
     idx = -1
     for part in parts:
-        if part.function_call.name:
-            idx += 1
-            inner_prefix = f"{prefix}{MESSAGE_TOOL_CALLS}.{idx}."
-            yield f"{inner_prefix}{TOOL_CALL_FUNCTION_NAME}", part.function_call.name
-            cls = part.function_call.__class__
-            # Maybe there's an easier way to do this.
-            function_call = cls.to_dict(part.function_call)
-            yield (
-                f"{inner_prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                safe_json_dumps(function_call.get("args") or {}),
-            )
+        # Safely check if function_call attribute exists and has a name
+        if hasattr(part, "function_call"):
+            function_call = getattr(part, "function_call", None)
+            if (function_call is not None and 
+                hasattr(function_call, "name") and
+                getattr(function_call, "name", None)):
+                
+                idx += 1
+                inner_prefix = f"{prefix}{MESSAGE_TOOL_CALLS}.{idx}."
+                yield f"{inner_prefix}{TOOL_CALL_FUNCTION_NAME}", getattr(function_call, "name")
+                cls = function_call.__class__
+                # Maybe there's an easier way to do this.
+                function_call_dict = cls.to_dict(function_call)
+                yield (
+                    f"{inner_prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                    safe_json_dumps(function_call_dict.get("args") or {}),
+                )
 
 
 @stop_on_exception
@@ -489,16 +501,40 @@ def _parse_part(
     Returns:
         Iterator: semantic convention key-value pairs for span attributes.
     """
-    if part.text:
+    # Handle each possible field in the Part message individually
+    # instead of assuming only one will be present
+    if hasattr(part, "text") and part.text:
         yield f"{prefix}{MESSAGE_CONTENT_TEXT}", part.text
-    elif part.inline_data.mime_type.startswith("image"):
-        yield (
-            f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
-            f"data:{part.inline_data.mime_type};"
-            f"base64,{base64.b64encode(part.inline_data.data).decode()}",
-        )
-    elif part.file_data.mime_type.startswith("image"):
-        yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", part.file_data.file_uri
+
+    # Handle inline_data if present - check each nested property safely
+    if hasattr(part, "inline_data"):
+        inline_data = getattr(part, "inline_data", None)
+        if (inline_data is not None and 
+            hasattr(inline_data, "mime_type") and 
+            hasattr(inline_data, "data") and
+            getattr(inline_data, "mime_type", None) and
+            getattr(inline_data, "data", None)):
+            
+            mime_type = getattr(inline_data, "mime_type")
+            if mime_type and mime_type.startswith("image"):
+                yield (
+                    f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+                    f"data:{mime_type};"
+                    f"base64,{base64.b64encode(getattr(inline_data, 'data')).decode()}",
+                )
+    
+    # Handle file_data if present - check each nested property safely
+    if hasattr(part, "file_data"):
+        file_data = getattr(part, "file_data", None)
+        if (file_data is not None and
+            hasattr(file_data, "mime_type") and
+            hasattr(file_data, "file_uri") and
+            getattr(file_data, "mime_type", None) and
+            getattr(file_data, "file_uri", None)):
+            
+            mime_type = getattr(file_data, "mime_type")
+            if mime_type and mime_type.startswith("image"):
+                yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", getattr(file_data, "file_uri")
 
 
 def _role(role: str) -> str:
