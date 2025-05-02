@@ -312,8 +312,7 @@ def test_multi_agent_collaborator(
     agent_id = "2X9SRVPLWB"
     agent_alias_id = "KUXISKYLTT"
     session_id = "123456"
-    session = boto3.session.Session()
-    client = session.client(
+    client = boto3.client(
         "bedrock-agent-runtime",
         region_name="us-east-1",
         aws_access_key_id="123",
@@ -334,5 +333,6 @@ def test_multi_agent_collaborator(
     span_name_counter = Counter([span.name for span in spans])
     assert span_name_counter["orchestrationTrace"] == 3
     assert span_name_counter["LLM"] == 9
-    assert span_name_counter["agent_collaborator"] == 2
+    assert span_name_counter['agent_collaborator[MathSolverAgent]'] == 1
+    assert span_name_counter['agent_collaborator[SimpleSupervisor]'] == 1
     assert span_name_counter["bedrock_agent.invoke_agent"] == 1
