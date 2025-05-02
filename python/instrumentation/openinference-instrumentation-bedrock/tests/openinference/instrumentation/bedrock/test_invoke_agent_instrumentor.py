@@ -333,6 +333,6 @@ def test_multi_agent_collaborator(
     span_name_counter = Counter([span.name for span in spans])
     assert span_name_counter["orchestrationTrace"] == 3
     assert span_name_counter["LLM"] == 9
-    assert span_name_counter['agent_collaborator[MathSolverAgent]'] == 1
-    assert span_name_counter['agent_collaborator[SimpleSupervisor]'] == 1
+    assert span_name_counter["agent_collaborator[MathSolverAgent]"] == 1
+    assert span_name_counter["agent_collaborator[SimpleSupervisor]"] == 1
     assert span_name_counter["bedrock_agent.invoke_agent"] == 1
