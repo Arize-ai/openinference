@@ -104,7 +104,7 @@ async def chat(
         attributes[SpanAttributes.SESSION_ID] = session_id
     if (user_id := request.headers.get("X-User-Id", None)) is not None:
         attributes[SpanAttributes.USER_ID] = user_id
-    with tracer.start_as_current_span("chat", attributes=attributes,end_on_exit=False) as span:
+    with tracer.start_as_current_span("chat", attributes=attributes, end_on_exit=False) as span:
         last_message_content, messages = await parse_chat_data(data)
         span.set_attribute(SpanAttributes.INPUT_VALUE, last_message_content)
         response = await chat_engine.astream_chat(last_message_content, messages)

@@ -1,9 +1,7 @@
 import os
+
 import requests
-
 import streamlit as st
-
-from typing import List
 from dotenv import load_dotenv
 
 load_dotenv()
