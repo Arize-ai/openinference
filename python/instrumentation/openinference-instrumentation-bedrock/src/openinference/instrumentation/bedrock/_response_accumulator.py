@@ -170,10 +170,14 @@ class _ResponseAccumulator:
         # Get the invocation input
         invocation_input = trace_data.get("invocationInput", {})
         if "agentCollaboratorInvocationInput" in invocation_input:
+            agent_collaborator_name = invocation_input.get(
+                "agentCollaboratorInvocationInput", {}
+            ).get("agentCollaboratorName", "")
             invocation_span = self.span_manager.create_chain_span(
                 trace_id=f"{trace_id}_agent",
                 trace_event=trace_event,
-                trace_name=invocation_input.get("invocationType", "").lower(),
+                trace_name=f'{invocation_input.get("invocationType", "").lower()}'
+                f'[{agent_collaborator_name}]',
                 span_kind=OpenInferenceSpanKindValues.AGENT,
             )
         else:
