@@ -407,10 +407,11 @@ def _parse_content(
         # Safely check if function_response exists and has a name
         if hasattr(part, "function_response"):
             function_response = getattr(part, "function_response", None)
-            if (function_response is not None and 
-                hasattr(function_response, "name") and
-                getattr(function_response, "name", None)):
-                
+            if (
+                function_response is not None
+                and hasattr(function_response, "name")
+                and getattr(function_response, "name", None)
+            ):
                 # FIXME: It's unclear whether multiple `function_response` can
                 # coexist, but currently we can retain only one.
                 yield f"{prefix}{MESSAGE_ROLE}", "tool"
@@ -447,10 +448,11 @@ def _parse_tool_calls(
         # Safely check if function_call attribute exists and has a name
         if hasattr(part, "function_call"):
             function_call = getattr(part, "function_call", None)
-            if (function_call is not None and 
-                hasattr(function_call, "name") and
-                getattr(function_call, "name", None)):
-                
+            if (
+                function_call is not None
+                and hasattr(function_call, "name")
+                and getattr(function_call, "name", None)
+            ):
                 idx += 1
                 inner_prefix = f"{prefix}{MESSAGE_TOOL_CALLS}.{idx}."
                 yield f"{inner_prefix}{TOOL_CALL_FUNCTION_NAME}", getattr(function_call, "name")
@@ -509,12 +511,13 @@ def _parse_part(
     # Handle inline_data if present - check each nested property safely
     if hasattr(part, "inline_data"):
         inline_data = getattr(part, "inline_data", None)
-        if (inline_data is not None and 
-            hasattr(inline_data, "mime_type") and 
-            hasattr(inline_data, "data") and
-            getattr(inline_data, "mime_type", None) and
-            getattr(inline_data, "data", None)):
-            
+        if (
+            inline_data is not None
+            and hasattr(inline_data, "mime_type")
+            and hasattr(inline_data, "data")
+            and getattr(inline_data, "mime_type", None)
+            and getattr(inline_data, "data", None)
+        ):
             mime_type = getattr(inline_data, "mime_type")
             if mime_type and mime_type.startswith("image"):
                 yield (
@@ -522,16 +525,17 @@ def _parse_part(
                     f"data:{mime_type};"
                     f"base64,{base64.b64encode(getattr(inline_data, 'data')).decode()}",
                 )
-    
+
     # Handle file_data if present - check each nested property safely
     if hasattr(part, "file_data"):
         file_data = getattr(part, "file_data", None)
-        if (file_data is not None and
-            hasattr(file_data, "mime_type") and
-            hasattr(file_data, "file_uri") and
-            getattr(file_data, "mime_type", None) and
-            getattr(file_data, "file_uri", None)):
-            
+        if (
+            file_data is not None
+            and hasattr(file_data, "mime_type")
+            and hasattr(file_data, "file_uri")
+            and getattr(file_data, "mime_type", None)
+            and getattr(file_data, "file_uri", None)
+        ):
             mime_type = getattr(file_data, "mime_type")
             if mime_type and mime_type.startswith("image"):
                 yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", getattr(file_data, "file_uri")
