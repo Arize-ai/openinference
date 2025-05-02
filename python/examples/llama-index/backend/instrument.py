@@ -1,11 +1,12 @@
+import os
+
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from openinference.semconv.resource import ResourceAttributes
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from openinference.semconv.resource import ResourceAttributes
-import os
 
 
 def instrument():

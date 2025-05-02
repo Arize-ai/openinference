@@ -552,9 +552,9 @@ def _get_reranker_request_attributes(arguments: Mapping[str, Any]) -> Iterator[T
     if _is_list_of_documents(documents := arguments.get("documents")):
         for doc_index, doc in enumerate(documents):
             if (id := doc.id) is not None:
-                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_ID}", id
             if (content := doc.content) is not None:
-                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_CONTENT}", content
 
 
 def _get_reranker_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -564,11 +564,11 @@ def _get_reranker_response_attributes(response: Mapping[str, Any]) -> Iterator[T
     if _is_list_of_documents(documents := response.get("documents")):
         for doc_index, doc in enumerate(documents):
             if (id := doc.id) is not None:
-                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_ID}", id
             if (content := doc.content) is not None:
-                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_CONTENT}", content
             if (score := doc.score) is not None:
-                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_SCORE}", score
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_SCORE}", score
 
 
 def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -585,14 +585,14 @@ def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[
         return
     for doc_index, doc in enumerate(documents):
         if (content := doc.content) is not None:
-            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}.{DOCUMENT_CONTENT}", content
         if (id := doc.id) is not None:
-            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}.{DOCUMENT_ID}", id
         if (score := doc.score) is not None:
-            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_SCORE}", score
+            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}.{DOCUMENT_SCORE}", score
         if (metadata := doc.meta) is not None:
             yield (
-                f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_METADATA}",
+                f"{RETRIEVAL_DOCUMENTS}.{doc_index}.{DOCUMENT_METADATA}",
                 safe_json_dumps(metadata),
             )
 

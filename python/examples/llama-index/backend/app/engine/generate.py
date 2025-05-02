@@ -2,14 +2,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import logging
-from llama_index.core.indices import (
+import logging  # noqa
+
+from llama_index.core.indices import (  # noqa
     VectorStoreIndex,
 )
-from app.engine.constants import STORAGE_DIR
-from app.engine.loaders import get_documents
-from app.settings import init_settings
 
+from app.engine.constants import STORAGE_DIR  # noqa
+from app.engine.loaders import get_documents  # noqa
+from app.settings import init_settings  # noqa
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
