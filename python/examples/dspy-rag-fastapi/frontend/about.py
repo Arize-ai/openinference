@@ -15,7 +15,7 @@ st.sidebar.info("Select a demo above.")
 st.markdown(
     """
     ## Description
-    
+
     This project introduces a [Streamlit](https://streamlit.io)
     application designed to interface seamlessly with the
     [DSPy](https://github.com/stanfordnlp/dspy) framework by StanfordNLP,
@@ -27,6 +27,6 @@ st.markdown(
 
     In a notable application of this system, the Retrieval-Augmented Generation
     (RAG) process is performed on the insightful essay "What I Worked On" by
-    Paul Graham. 
+    Paul Graham.
 """
 )

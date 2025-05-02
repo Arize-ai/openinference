@@ -151,9 +151,9 @@ def test_guardrails_uninstrumentation(tracer_provider: TracerProvider) -> None:
     GuardrailsInstrumentor().instrument(tracer_provider=tracer_provider)
 
     # Ensure methods are wrapped
-    assert hasattr(
-        guardrails.llm_providers.PromptCallableBase.__call__, "__wrapped__"
-    ), "Expected PromptCallableBase.__call__ to be wrapped"
+    assert hasattr(guardrails.llm_providers.PromptCallableBase.__call__, "__wrapped__"), (
+        "Expected PromptCallableBase.__call__ to be wrapped"
+    )
     assert hasattr(guardrails.run.Runner.step, "__wrapped__"), "Expected Runner.step to be wrapped"
     assert hasattr(
         guardrails.validator_service.ValidatorServiceBase.after_run_validator, "__wrapped__"
@@ -166,9 +166,9 @@ def test_guardrails_uninstrumentation(tracer_provider: TracerProvider) -> None:
     assert (
         guardrails.llm_providers.PromptCallableBase.__call__ is original_prompt_callable_base_call
     ), "Expected PromptCallableBase.__call__ to be unwrapped"
-    assert (
-        guardrails.run.Runner.step is original_runner_step
-    ), "Expected Runner.step to be unwrapped"
+    assert guardrails.run.Runner.step is original_runner_step, (
+        "Expected Runner.step to be unwrapped"
+    )
     assert (
         guardrails.validator_service.ValidatorServiceBase.after_run_validator
         is original_validator_service_base_after_run_validator
