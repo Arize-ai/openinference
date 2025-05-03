@@ -176,8 +176,8 @@ class _ResponseAccumulator:
             invocation_span = self.span_manager.create_chain_span(
                 trace_id=f"{trace_id}_agent",
                 trace_event=trace_event,
-                trace_name=f'{invocation_input.get("invocationType", "").lower()}'
-                f'[{agent_collaborator_name}]',
+                trace_name=f"{invocation_input.get('invocationType', '').lower()}"
+                f"[{agent_collaborator_name}]",
                 span_kind=OpenInferenceSpanKindValues.AGENT,
             )
         else:
