@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.4.0
+
+### Minor Changes
+
+- 6097f52: update to currect framework version
+
 ## 1.3.0
 
 ### Minor Changes
