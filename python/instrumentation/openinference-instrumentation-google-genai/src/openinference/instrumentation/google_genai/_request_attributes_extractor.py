@@ -54,6 +54,12 @@ class _RequestAttributesExtractor:
         request_params_dict = dict(request_parameters)
         request_params_dict.pop("contents", None)  # Remove LLM input contents
         if config := request_params_dict.get("config", None):
+            # Config is a pydantic object, so we need to convert it to a JSON string
+            yield (
+                SpanAttributes.LLM_INVOCATION_PARAMETERS,
+                config.model_dump_json(exclude_none=True),
+            )
+            # We push the system instruction to the first message for replay and consistency
             system_instruction = getattr(config, "system_instruction", None)
             if system_instruction:
                 yield (
@@ -65,7 +71,6 @@ class _RequestAttributesExtractor:
                     "system",
                 )
                 input_messages_index += 1
-        yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_params_dict)
 
         if input_contents := request_parameters.get("contents"):
             if isinstance(input_contents, list):
