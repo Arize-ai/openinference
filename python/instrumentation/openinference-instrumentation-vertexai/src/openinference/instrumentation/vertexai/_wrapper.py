@@ -38,7 +38,7 @@ from openinference.instrumentation.vertexai import _instrumentation_status
 from openinference.instrumentation.vertexai._accumulator import (
     _IndexedAccumulator,
     _KeyValuesAccumulator,
-    _StringAccumulator,
+    _PartsAccumulator,
 )
 from openinference.instrumentation.vertexai._proxy import _proxy
 from openinference.semconv.trace import (
@@ -250,16 +250,7 @@ class _GenerateContentResponseAccumulator:
                 lambda: _KeyValuesAccumulator(
                     # FIXME: It's unclear how to accumulate `safety_ratings` if there are several.
                     content=_KeyValuesAccumulator(
-                        # FIXME: Because `Part` doesn't have `index`, it's unclear what should
-                        # happen during streaming if there are multiple separate parts. The current
-                        # setup just merges all the parts.
-                        parts=_IndexedAccumulator(
-                            lambda: _KeyValuesAccumulator(
-                                # FIXME: It's unclear whether we should have an accumulator for
-                                # `function_call`.
-                                text=_StringAccumulator(),
-                            )
-                        ),
+                        parts=_PartsAccumulator(),
                     ),
                 ),
             ),
