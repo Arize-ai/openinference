@@ -74,8 +74,11 @@ def test_generate_content(
 
     # Define expected attributes
     expected_attributes: Dict[str, Any] = {
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
@@ -96,9 +99,9 @@ def test_generate_content(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 @pytest.mark.vcr(
@@ -141,8 +144,11 @@ async def test_async_generate_content(
 
     # Define expected attributes
     expected_attributes: Dict[str, Any] = {
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
@@ -162,9 +168,9 @@ async def test_async_generate_content(
         )
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 @pytest.mark.vcr(
@@ -222,9 +228,9 @@ def test_multi_turn_conversation(
 
     # Verify attributes for first span
     for key, expected_value in expected_attributes1.items():
-        assert attributes1.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value for first span"
-        )
+        assert (
+            attributes1.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value for first span"
 
     # Check second span
     span2 = spans[1]
@@ -257,9 +263,9 @@ def test_multi_turn_conversation(
 
     # Verify attributes for second span
     for key, expected_value in expected_attributes2.items():
-        assert attributes2.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value for second span"
-        )
+        assert (
+            attributes2.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value for second span"
 
 
 @pytest.mark.vcr(
@@ -324,9 +330,9 @@ def test_streaming_text_content(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 @pytest.mark.vcr(
@@ -392,6 +398,6 @@ async def test_async_streaming_text_content(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
