@@ -99,9 +99,9 @@ def test_generate_content(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert (
-            attributes.get(key) == expected_value
-        ), f"Attribute {key} does not match expected value"
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
 
 
 @pytest.mark.vcr(
@@ -168,9 +168,9 @@ async def test_async_generate_content(
         )
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert (
-            attributes.get(key) == expected_value
-        ), f"Attribute {key} does not match expected value"
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
 
 
 @pytest.mark.vcr(
@@ -228,9 +228,9 @@ def test_multi_turn_conversation(
 
     # Verify attributes for first span
     for key, expected_value in expected_attributes1.items():
-        assert (
-            attributes1.get(key) == expected_value
-        ), f"Attribute {key} does not match expected value for first span"
+        assert attributes1.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value for first span"
+        )
 
     # Check second span
     span2 = spans[1]
@@ -263,9 +263,9 @@ def test_multi_turn_conversation(
 
     # Verify attributes for second span
     for key, expected_value in expected_attributes2.items():
-        assert (
-            attributes2.get(key) == expected_value
-        ), f"Attribute {key} does not match expected value for second span"
+        assert attributes2.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value for second span"
+        )
 
 
 @pytest.mark.vcr(
@@ -330,9 +330,9 @@ def test_streaming_text_content(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert (
-            attributes.get(key) == expected_value
-        ), f"Attribute {key} does not match expected value"
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
 
 
 @pytest.mark.vcr(
@@ -398,6 +398,6 @@ async def test_async_streaming_text_content(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert (
-            attributes.get(key) == expected_value
-        ), f"Attribute {key} does not match expected value"
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
