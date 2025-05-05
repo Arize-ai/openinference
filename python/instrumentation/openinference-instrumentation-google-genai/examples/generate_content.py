@@ -14,7 +14,6 @@ tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
-GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 # Make sure to set the GEMINI_API_KEY environment variable
 
 
@@ -78,6 +77,7 @@ async def generate_content_async(model_name: str = "gemini-2.0-flash-001") -> st
 
 
 if __name__ == "__main__":
+    GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     response = generate_content_sync("gemini-2.0-flash-001")
     print(response)
 

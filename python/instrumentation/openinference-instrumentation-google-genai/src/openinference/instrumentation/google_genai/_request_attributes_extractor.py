@@ -53,35 +53,28 @@ class _RequestAttributesExtractor:
 
         request_params_dict = dict(request_parameters)
         request_params_dict.pop("contents", None)  # Remove LLM input contents
-        # config = request_params_dict.pop("config", None)
-        # system_instruction = config.get("system_instruction", None)
-        system_instruction = "why is this system instruction"
-
-        # TODO: this is not working. mikeldking to fix
-        if system_instruction:
-            yield (
-                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
-                system_instruction,
-            )
-            yield (
-                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_ROLE}",
-                "system",
-            )
-            input_messages_index += 1
-        yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(config)
+        if config := request_params_dict.get("config", None):
+            system_instruction = getattr(config, "system_instruction", None)
+            if system_instruction:
+                yield (
+                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
+                    system_instruction,
+                )
+                yield (
+                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_ROLE}",
+                    "system",
+                )
+                input_messages_index += 1
+        yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_params_dict)
 
         if input_contents := request_parameters.get("contents"):
             if isinstance(input_contents, list):
-                for index, input_content in reversed(list(enumerate(input_contents))):
-                    # Use reversed() to get the last message first. This is because OTEL has
-                    # a default limit of 128 attributes per span, and flattening increases the
-                    # number of attributes very quickly.
+                for input_content in input_contents:
                     for attr, value in self._get_attributes_from_message_param(input_content):
                         yield (
                             f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
                             value,
                         )
-                    input_messages_index += 1
             else:
                 for attr, value in self._get_attributes_from_message_param(input_contents):
                     # Default to index 0 for a single message
@@ -89,7 +82,6 @@ class _RequestAttributesExtractor:
                         f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
                         value,
                     )
-                    input_messages_index += 1
 
     def _get_attributes_from_message_param(
         self,
