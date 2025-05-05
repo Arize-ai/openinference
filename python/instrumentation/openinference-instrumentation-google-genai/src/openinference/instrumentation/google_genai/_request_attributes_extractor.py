@@ -79,6 +79,8 @@ class _RequestAttributesExtractor:
                             f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
                             value,
                         )
+                    # Move on to the next message
+                    input_messages_index += 1
             else:
                 for attr, value in self._get_attributes_from_message_param(input_contents):
                     # Default to index 0 for a single message
