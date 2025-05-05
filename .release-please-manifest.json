@@ -20,5 +20,6 @@
     "python/instrumentation/openinference-instrumentation-openai-agents": "0.1.10",
     "python/instrumentation/openinference-instrumentation-portkey": "0.1.1",
     "python/instrumentation/openinference-instrumentation-beeai": "0.1.6",
-    "python/instrumentation/openinference-instrumentation-mcp": "1.2.0"
+    "python/instrumentation/openinference-instrumentation-mcp": "1.2.0",
+    "python/instrumentation/openinference-instrumentation-google-genai": "0.1.0"
 }
