@@ -44,13 +44,13 @@
     "semver": "^7.7.0"
   },
   "peerDependencies": {
-    "beeai-framework": "^0.1.11"
+    "beeai-framework": "^0.1.13"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.14.11",
     "@types/semver": "7.7.0",
-    "beeai-framework": "^0.1.11",
+    "beeai-framework": "^0.1.13",
     "import-in-the-middle": "^1.13.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
     "@opentelemetry/resources": "^1.30.1",
