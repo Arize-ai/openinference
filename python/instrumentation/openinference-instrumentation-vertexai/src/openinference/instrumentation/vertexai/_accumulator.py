@@ -2,6 +2,8 @@
 Accumulators for streaming responses, e.g. concatenating incremental string fragments.
 """
 
+from __future__ import annotations
+
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
@@ -17,6 +19,8 @@ from typing import (
     Tuple,
     Union,
 )
+
+from typing_extensions import Self
 
 __all__ = (
     "_KeyValuesAccumulator",
@@ -38,7 +42,7 @@ class _KeyValuesAccumulator:
             if isinstance(v, _KeyValuesAccumulator):
                 if dict_value := dict(v):
                     yield k, dict_value
-            elif isinstance(v, _IndexedAccumulator):
+            elif isinstance(v, (_IndexedAccumulator, _PartsAccumulator)):
                 if list_value := list(v):
                     yield k, list_value
             elif isinstance(v, _StringAccumulator):
@@ -47,7 +51,7 @@ class _KeyValuesAccumulator:
             else:
                 yield k, v
 
-    def __iadd__(self, values: Optional[Mapping[str, Any]]) -> "_KeyValuesAccumulator":
+    def __iadd__(self, values: Optional[Mapping[str, Any]]) -> Self:
         if not values:
             return self
         for k in self._kv.keys():
@@ -56,7 +60,7 @@ class _KeyValuesAccumulator:
             self_value = self._kv[k]
             if isinstance(
                 self_value,
-                (_KeyValuesAccumulator, _StringAccumulator, _IndexedAccumulator),
+                (_KeyValuesAccumulator, _StringAccumulator, _IndexedAccumulator, _PartsAccumulator),
             ):
                 self_value += v
             elif isinstance(self_value, List) and isinstance(v, Iterable):
@@ -82,7 +86,7 @@ class _StringAccumulator:
     def __str__(self) -> str:
         return "".join(self._fragments)
 
-    def __iadd__(self, value: Optional[str]) -> "_StringAccumulator":
+    def __iadd__(self, value: Optional[str]) -> Self:
         if not value:
             return self
         self._fragments.append(value)
@@ -102,7 +106,7 @@ class _IndexedAccumulator:
     def __iadd__(
         self,
         values: Optional[Union[Mapping[str, Any], Iterable[Mapping[str, Any]]]],
-    ) -> "_IndexedAccumulator":
+    ) -> Self:
         if not values:
             return self
         if isinstance(values, Mapping):
@@ -111,3 +115,41 @@ class _IndexedAccumulator:
             if v and hasattr(v, "get"):
                 self._indexed[v.get("index") or 0] += v
         return self
+
+
+class _PartsAccumulator:
+    __slots__ = ("_parts",)
+
+    def __init__(self) -> None:
+        self._parts: List[Union[_KeyValuesAccumulator, Mapping[str, Any]]] = []
+
+    def __iter__(self) -> Iterator[Dict[str, Any]]:
+        for part in self._parts:
+            yield dict(part)
+
+    def __iadd__(
+        self,
+        values: Optional[Union[Mapping[str, Any], Iterable[Mapping[str, Any]]]],
+    ) -> "_PartsAccumulator":
+        if not values:
+            return self
+        if isinstance(values, Mapping):
+            values = [values]
+        for v in values:
+            if "text" in v:
+                if self._parts and isinstance(self._parts[-1], _TextPartAccumulator):
+                    tpa = self._parts[-1]
+                else:
+                    tpa = _TextPartAccumulator()
+                    self._parts.append(tpa)
+                tpa += v
+            else:
+                self._parts.append(v)
+        return self
+
+
+class _TextPartAccumulator(_KeyValuesAccumulator):
+    def __init__(self) -> None:
+        super().__init__(
+            text=_StringAccumulator(),
+        )
