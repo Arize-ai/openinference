@@ -290,7 +290,9 @@ class TestLM:
         assert isinstance(exception_type := event_attributes["exception.type"], str)
         assert exception_type.startswith("litellm.exceptions")
         assert isinstance(exception_message := event_attributes["exception.message"], str)
-        assert "Incorrect API key provided" in exception_message
+        assert "Connection error" in exception_message
+        assert isinstance(exception_stacktrace := event_attributes["exception.stacktrace"], str)
+        assert "Incorrect API key provided" in exception_stacktrace
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -410,7 +412,7 @@ def test_rag_module(
     prediction = rag(question=question)
     assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 7
+    assert len(spans) == 8
     it = iter(spans)
 
     span = next(it)
@@ -499,7 +501,7 @@ def test_rag_module(
     assert not attributes
 
     span = next(it)
-    assert span.name == "ChainOfThought.forward"
+    assert span.name == "Predict.forward"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
@@ -516,6 +518,28 @@ def test_rag_module(
     assert "Prediction" in output_value
     assert "reasoning=" in output_value
     assert "answer=" in output_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert not attributes
+
+    span = next(it)
+    assert span.name == "ChainOfThought.forward"
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    # assert json.loads(input_value) == {
+    #     "question": question,
+    # }
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert "Washington, D.C." in output_value
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -676,7 +700,7 @@ def test_context_attributes_are_instrumented(
 
     assert prediction.answer == "Washington, D.C."
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 7
+    assert len(spans) == 8
     for span in spans:
         attributes = dict(span.attributes or {})
         assert attributes.get(SESSION_ID) == session_id
