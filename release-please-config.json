@@ -94,6 +94,10 @@
         "python/instrumentation/openinference-instrumentation-google-genai": {
             "package-name": "python-openinference-instrumentation-google-genai",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-google-adk": {
+            "package-name": "python-openinference-instrumentation-google-adk",
+            "release-type": "python"
         }
     }
 }
