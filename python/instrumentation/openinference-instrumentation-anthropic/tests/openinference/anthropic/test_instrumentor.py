@@ -205,7 +205,7 @@ def test_anthropic_instrumentation_stream_message(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    #assert attributes.pop(LLM_PROMPTS) == (chat,)
+    # assert attributes.pop(LLM_PROMPTS) == (chat,)
     assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
 
     inv_params_json = attributes.pop(LLM_INVOCATION_PARAMETERS)

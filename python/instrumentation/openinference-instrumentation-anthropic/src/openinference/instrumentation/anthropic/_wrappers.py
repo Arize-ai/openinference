@@ -340,7 +340,7 @@ class _MessagesStreamWrapper(_WithTracer):
             return _MessageStreamManager(response, span)
 
 
-class _MessageStreamManager(ObjectProxy): # type: ignore
+class _MessageStreamManager(ObjectProxy):  # type: ignore
     def __init__(
         self,
         manager: MessageStreamManager,
@@ -354,7 +354,7 @@ class _MessageStreamManager(ObjectProxy): # type: ignore
         raw_stream = _MessagesStream(raw_stream, self._self_with_span)
         from anthropic.lib.streaming import MessageStream
 
-        self.__stream = MessageStream(raw_stream) # type: ignore
+        self.__stream = MessageStream(raw_stream)  # type: ignore
         return self.__stream
 
 
