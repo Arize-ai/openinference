@@ -2,6 +2,7 @@ import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import type { ExportResult } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
+
 import {
   addOpenInferenceAttributesToMastraSpan,
   addOpenInferenceResourceAttributesToMastraSpan,
@@ -24,7 +25,7 @@ type ConstructorArgs = {
    * @example
    * ```ts
    * import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
-   * import { isOpenInferenceSpan, OpenInferenceOTLPTraceExporter } from "@arizeai/openinference-vercel";
+   * import { isOpenInferenceSpan, OpenInferenceOTLPTraceExporter } from "@arizeai/openinference-mastra";
    * const spanFilter = (span: ReadableSpan) => {
    *   // add more span filtering logic here if desired
    *   // or just use the default isOpenInferenceSpan filter directly
@@ -43,6 +44,37 @@ type ConstructorArgs = {
   "url"
 >;
 
+/**
+ * A custom OpenTelemetry trace exporter that exports annotated traces to an OpenInference compliant OTEL API.
+ *
+ * This class extends the `OTLPTraceExporter` and adds additional logic to the `export` method to augment the spans with OpenInference attributes.
+ *
+ * @example
+ * ```ts
+ * import { Mastra } from "@mastra/core/mastra";
+ * import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+ * import { isOpenInferenceSpan, OpenInferenceOTLPTraceExporter } from "@arizeai/openinference-mastra";
+ * const spanFilter = (span: ReadableSpan) => {
+ *   // add more span filtering logic here if desired
+ *   // or just use the default isOpenInferenceSpan filter directly
+ *   return isOpenInferenceSpan(span);
+ * };
+ * const exporter = new OpenInferenceOTLPTraceExporter({
+ *   apiKey: "api-key",
+ *   collectorEndpoint: "http://localhost:6006/v1/traces",
+ *   spanFilter,
+ * });
+ * const mastra = new Mastra({
+ *   // ... other config
+ *   telemetry: {
+ *     export: {
+ *       type: "custom",
+ *       exporter,
+ *     },
+ *   },
+ * })
+ * ```
+ */
 export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
   private readonly spanFilter?: (span: ReadableSpan) => boolean;
 
