@@ -18,6 +18,12 @@ A typical Mastra project will already have OpenTelemetry and related packages in
 
 To process your Mastra spans add an `OpenInferenceOTLPTraceExporter` to your `telemetry` configuration within your `Mastra` instance.
 
+```shell
+# Set the Phoenix collector endpoint and API key in your environment
+export PHOENIX_COLLECTOR_ENDPOINT="https://localhost:6006/v1/traces"
+export PHOENIX_API_KEY="your-api-key"
+```
+
 ```typescript
 import { Mastra } from "@mastra/core";
 import { OpenInferenceOTLPTraceExporter } from "@arizeai/openinference-mastra";
@@ -42,4 +48,4 @@ For general details on Mastra's OpenTelemetry support see the [Mastra Observabil
 
 ## Examples
 
-TODO
+TODO: Add examples
