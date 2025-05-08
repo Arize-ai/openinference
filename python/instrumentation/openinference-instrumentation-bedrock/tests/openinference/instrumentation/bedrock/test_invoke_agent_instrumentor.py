@@ -185,7 +185,7 @@ def test_knowledge_base_results(
     tool_inputs_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     assert llm_span_attributes[tool_function_key] == "GET__x_amz_knowledgebase_HFUFBERTZV__Search"
     assert llm_span_attributes[tool_inputs_key] == (
-        '{"searchQuery": "What is task decomposition? Provide a definition' ' and explanation."}'
+        '{"searchQuery": "What is task decomposition? Provide a definition and explanation."}'
     )
 
 
