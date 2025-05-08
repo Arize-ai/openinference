@@ -222,10 +222,10 @@ def _get_attributes_from_input(
         if "type" not in item:
             if "role" in item and "content" in item:
                 yield from _get_attributes_from_message_param(
-                    {
+                    {  # type: ignore[misc, arg-type]
                         "type": "message",
-                        "role": item["role"],
-                        "content": item["content"],
+                        "role": item["role"],  # type: ignore[typeddict-item]
+                        "content": item["content"],  # type: ignore[typeddict-item]
                     },
                     prefix,
                 )
@@ -252,7 +252,7 @@ def _get_attributes_from_input(
         elif item["type"] == "item_reference":
             continue  # TODO
         elif TYPE_CHECKING:
-            assert_never(item["type"])
+            assert_never(item["type"])  # type: ignore[arg-type]
 
 
 def _get_attributes_from_message_param(
