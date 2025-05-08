@@ -5,7 +5,7 @@
     "rootDir": ".",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "types": ["jest"],
+    "types": ["vitest/globals"],
     "lib": ["ESNext"]
   },
   "files": [],
