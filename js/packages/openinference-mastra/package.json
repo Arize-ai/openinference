@@ -15,6 +15,9 @@
   "exports": {
     ".": {
       "import": "./dist/esm/index.js"
+    },
+    "./utils": {
+      "import": "./dist/esm/utils.js"
     }
   },
   "files": [
