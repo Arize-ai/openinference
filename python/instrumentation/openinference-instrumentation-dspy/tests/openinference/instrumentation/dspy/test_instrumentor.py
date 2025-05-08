@@ -492,9 +492,7 @@ async def test_rag_module(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
-    # assert json.loads(input_value) == {
-    #     "question": question,
-    # }
+    assert json.loads(input_value)["question"] == question
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
