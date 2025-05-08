@@ -1,5 +1,17 @@
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+
+export const addOpenInferenceResourceAttributesToMastraSpan = (
+  span: ReadableSpan,
+) => {
+  const attributes = span.resource.attributes;
+  if (ATTR_SERVICE_NAME in attributes) {
+    attributes[SEMRESATTRS_PROJECT_NAME] = attributes[ATTR_SERVICE_NAME];
+  }
+  // eslint-disable-next-line no-console
+  console.log("attributes", attributes);
+};
 
 /**
  * Augments a Mastra span with OpenInference attributes.
@@ -8,9 +20,7 @@ import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
  *
  * @param span - The Mastra span to augment.
  */
-export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
-  const attributes = span.attributes;
-  if (attributes["componentName"]) {
-    span.attributes[SEMRESATTRS_PROJECT_NAME] = attributes["componentName"];
-  }
-};
+export const addOpenInferenceAttributesToMastraSpan = (
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  span: ReadableSpan,
+) => {};
