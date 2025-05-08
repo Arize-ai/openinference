@@ -10,17 +10,13 @@ This package provides a set of utilities to ingest [Mastra](https://github.com/m
 npm install --save @arizeai/openinference-mastra
 ```
 
-You may also need to install OpenTelemetry in addition to the Mastra packages in your project.
-
-```shell
-npm i @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-semantic-conventions
-```
+A typical Mastra project will already have OpenTelemetry and related packages installed, so you will likely not need to install any additional packages.
 
 ## Usage
 
 `@arizeai/openinference-mastra` provides a set of utilities to help you ingest Mastra spans into platforms and works in conjunction with Mastra's OpenTelemetry support. To get started, you will need to add OpenTelemetry support to your Mastra project according to the [Mastra Observability guide](https://mastra.ai/en/reference/observability/providers), or, follow along with the rest of this README.
 
-To process your Mastra spans add an `OpenInferenceSimpleSpanExporter` or `OpenInferenceBatchSpanExporter` to your OpenTelemetry configuration.
+To process your Mastra spans add an `OpenInferenceOTLPTraceExporter` to your `telemetry` configuration within your `Mastra` instance.
 
 ```typescript
 import { Mastra } from "@mastra/core";
