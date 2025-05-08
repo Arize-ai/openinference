@@ -2,6 +2,7 @@ import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import type { ExportResult } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
+import { addOpenInferenceAttributesToMastraSpan } from "./utils.js";
 
 type ConstructorArgs = {
   /**
@@ -63,7 +64,10 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     resultCallback: (result: ExportResult) => void,
   ) {
     let filteredItems = items.map((i) => {
+      // add OpenInference attributes to the span based on Vercel span attributes
       addOpenInferenceAttributesToSpan(i);
+      // add OpenInference attributes to the span based on Mastra span attributes
+      addOpenInferenceAttributesToMastraSpan(i);
       return i;
     });
     if (this.spanFilter) {
