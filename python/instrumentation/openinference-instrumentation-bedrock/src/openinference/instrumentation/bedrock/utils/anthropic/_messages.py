@@ -174,7 +174,7 @@ def _attributes_from_message_param(
             pass  # TODO
         else:
             if TYPE_CHECKING:
-                assert_never(block)
+                assert_never(block)  # type: ignore[arg-type]
 
 
 @_stop_on_exception
