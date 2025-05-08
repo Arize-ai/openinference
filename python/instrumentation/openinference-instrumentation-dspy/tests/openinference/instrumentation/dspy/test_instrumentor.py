@@ -66,7 +66,9 @@ def in_memory_span_exporter() -> InMemorySpanExporter:
 
 
 @pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
+def tracer_provider(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> trace_api.TracerProvider:
     resource = Resource(attributes={})
     tracer_provider = trace_sdk.TracerProvider(resource=resource)
     span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
@@ -226,7 +228,9 @@ class TestLM:
         openai_api_key: str,
     ) -> None:
         lm = dspy.LM(
-            "text-completion-openai/gpt-3.5-turbo-instruct", model_type="text", cache=False
+            "text-completion-openai/gpt-3.5-turbo-instruct",
+            model_type="text",
+            cache=False,
         )
         prompt = "Who won the World Cup in 2018?"
         responses = lm(prompt)  # invoked via messages kwarg
@@ -424,7 +428,10 @@ async def test_rag_module(
         prediction = rag(question=question)
 
     assert prediction.answer == "Washington, D.C."
-    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda span: span.start_time)
+
+    spans = list(in_memory_span_exporter.get_finished_spans())
+    spans.sort(key=lambda span: span.start_time or 0)
+
     assert len(spans) == 8
 
     it = iter(spans)
@@ -576,12 +583,14 @@ async def test_rag_module(
     assert isinstance(attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
     assert isinstance(
-        message_content_1 := attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}"), str
+        message_content_1 := attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}"),
+        str,
     )
     assert question in message_content_1
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(
-        message_content_0 := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+        message_content_0 := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"),
+        str,
     )
     assert "Washington, D.C." in message_content_0
     assert not attributes
