@@ -375,8 +375,10 @@ class TestLM:
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_rag_module(
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_rag_module(
     in_memory_span_exporter: InMemorySpanExporter,
+    is_async: bool,
     openai_api_key: str,
 ) -> None:
     K = 3
@@ -402,6 +404,12 @@ def test_rag_module(
             prediction = self.generate_answer(context=context, question=question)
             return dspy.Prediction(context=context, answer=prediction.answer)
 
+        async def aforward(self, question: str) -> dspy.Prediction:
+            context = self.retrieve(question).passages
+            prediction = await self.generate_answer.acall(context=context, question=question)
+
+            return dspy.Prediction(context=context, answer=prediction.answer)
+
     dspy.settings.configure(
         lm=dspy.LM("openai/gpt-4", cache=False),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
@@ -409,11 +417,54 @@ def test_rag_module(
 
     rag = RAG()
     question = "What's the capital of the United States?"
-    prediction = rag(question=question)
+
+    if is_async:
+        prediction = await rag.acall(question=question)
+    else:
+        prediction = rag(question=question)
+
     assert prediction.answer == "Washington, D.C."
-    spans = in_memory_span_exporter.get_finished_spans()
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda span: span.start_time)
     assert len(spans) == 8
+
     it = iter(spans)
+
+    span = next(it)
+    expected_span_name = "RAG.aforward" if is_async else "RAG.forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert json.loads(input_value) == {
+        "question": question,
+    }
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert "Washington, D.C." in output_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert not attributes
+
+    span = next(it)
+    assert span.name == "Retrieve.forward"
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    assert json.loads(input_value) == {"query": "What's the capital of the United States?"}
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    for i in range(K):
+        assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"), str)
+    assert not attributes
 
     span = next(it)
     attributes = dict(span.attributes or {})
@@ -435,21 +486,78 @@ def test_rag_module(
     assert not attributes
 
     span = next(it)
-    assert span.name == "Retrieve.forward"
+    expected_span_name = "ChainOfThought.aforward" if is_async else "ChainOfThought.forward"
+    assert span.name == expected_span_name
     attributes = dict(span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
-    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
-    assert json.loads(input_value) == {"query": "What's the capital of the United States?"}
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    # assert json.loads(input_value) == {
+    #     "question": question,
+    # }
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
     )
-    for i in range(K):
-        assert isinstance(attributes.pop(f"{RETRIEVAL_DOCUMENTS}.{i}.{DOCUMENT_CONTENT}"), str)
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert "Washington, D.C." in output_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
     assert not attributes
 
     span = next(it)
-    assert span.name == "LM.__call__"
+    expected_span_name = "Predict.aforward" if is_async else "Predict.forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    input_value_data = json.loads(input_value)
+    assert set(input_value_data.keys()) == {"context", "question"}
+    assert question == input_value_data["question"]
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert "Prediction" in output_value
+    assert "reasoning=" in output_value
+    assert "answer=" in output_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "Predict(StringSignature).forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "ChatAdapter.acall" if is_async else "ChatAdapter.__call__"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "LM.acall" if is_async else "LM.__call__"
+    assert span.name == expected_span_name
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -480,101 +588,13 @@ def test_rag_module(
     assert "Washington, D.C." in message_content_0
     assert not attributes
 
-    span = next(it)
-    assert span.name == "ChatAdapter.__call__"
-    attributes = dict(span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
-    assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    assert isinstance(attributes.pop(INPUT_VALUE), str)
-    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert not attributes
-
-    span = next(it)
-    assert span.name == "Predict(StringSignature).forward"
-    attributes = dict(span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
-    assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    assert isinstance(attributes.pop(INPUT_VALUE), str)
-    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert not attributes
-
-    span = next(it)
-    assert span.name == "Predict.forward"
-    attributes = dict(span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
-    input_value = attributes.pop(INPUT_VALUE)
-    assert isinstance(input_value, str)
-    input_value_data = json.loads(input_value)
-    assert set(input_value_data.keys()) == {"context", "question"}
-    assert question == input_value_data["question"]
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    output_value = attributes.pop(OUTPUT_VALUE)
-    assert isinstance(output_value, str)
-    assert "Prediction" in output_value
-    assert "reasoning=" in output_value
-    assert "answer=" in output_value
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    assert not attributes
-
-    span = next(it)
-    assert span.name == "ChainOfThought.forward"
-    attributes = dict(span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
-    input_value = attributes.pop(INPUT_VALUE)
-    assert isinstance(input_value, str)
-    # assert json.loads(input_value) == {
-    #     "question": question,
-    # }
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    output_value = attributes.pop(OUTPUT_VALUE)
-    assert isinstance(output_value, str)
-    assert "Washington, D.C." in output_value
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    assert not attributes
-
-    span = next(it)
-    assert span.name == "RAG.forward"
-    attributes = dict(span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
-    input_value = attributes.pop(INPUT_VALUE)
-    assert isinstance(input_value, str)
-    assert json.loads(input_value) == {
-        "question": question,
-    }
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    output_value = attributes.pop(OUTPUT_VALUE)
-    assert isinstance(output_value, str)
-    assert "Washington, D.C." in output_value
-    assert (
-        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
-        == OpenInferenceMimeTypeValues.JSON
-    )
-    assert not attributes
-
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-@pytest.mark.skipif(VERSION >= (2, 6, 0), reason="requires dspy < 2.6.0")
+@pytest.mark.skipif(VERSION >= (2, 6, 22), reason="requires dspy < 2.6.22")
 def test_compilation(
     in_memory_span_exporter: InMemorySpanExporter,
     openai_api_key: str,
