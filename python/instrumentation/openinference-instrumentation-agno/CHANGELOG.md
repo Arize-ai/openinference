@@ -4,4 +4,4 @@
 
 ### Features
 
-* **agno:** instrumentation ([#1302](https://github.com/Arize-ai/openinference/issues/1302)) ([#10001](https://github.com/Arize-ai/openinference/pull/10001))
+* **agno:** instrumentation ([#1302](https://github.com/Arize-ai/openinference/issues/1302)) ([#1063](https://github.com/Arize-ai/openinference/pull/1063))
