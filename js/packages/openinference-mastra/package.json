@@ -1,28 +1,23 @@
 {
-  "name": "@arizeai/openinference-vercel",
-  "version": "2.0.3",
+  "name": "@arizeai/openinference-mastra",
+  "version": "1.0.0",
   "private": false,
-  "main": "dist/src/index.js",
-  "module": "dist/esm/index.js",
-  "esnext": "dist/esnext/index.js",
-  "types": "dist/src/index.d.ts",
-  "description": "OpenInference utilities for ingesting Vercel AI SDK spans",
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "description": "OpenInference utilities for ingesting Mastra spans",
   "scripts": {
     "prebuild": "rimraf dist",
-    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
+    "build": "tsc --build tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "type:check": "tsc --noEmit",
-    "test": "jest"
+    "test": "vitest"
   },
   "exports": {
     ".": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/src/index.js"
+      "import": "./dist/esm/index.js"
     },
     "./utils": {
-      "import": "./dist/esm/utils.js",
-      "require": "./dist/src/utils.js",
-      "types": "./dist/src/utils.d.ts"
+      "import": "./dist/esm/utils.js"
     }
   },
   "files": [
@@ -33,12 +28,12 @@
     "openinference",
     "llm",
     "opentelemetry",
-    "vercel",
-    "nextjs"
+    "mastra",
+    "agent"
   ],
   "author": "oss-devs@arize.com",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-vercel",
+  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-mastra",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Arize-ai/openinference.git"
@@ -49,12 +44,14 @@
   "dependencies": {
     "@arizeai/openinference-core": "workspace:*",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
-    "@opentelemetry/core": "^1.25.1"
+    "@arizeai/openinference-vercel": "workspace:*",
+    "@opentelemetry/core": "^1.25.1",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
+    "@opentelemetry/semantic-conventions": "^1.33.0"
   },
   "devDependencies": {
     "@opentelemetry/api": ">=1.0.0 <1.9.0",
     "@opentelemetry/sdk-trace-base": "^1.19.0",
-    "@types/jest": "^29.5.12",
-    "jest": "^29.7.0"
+    "vitest": "^3.1.3"
   }
 }
