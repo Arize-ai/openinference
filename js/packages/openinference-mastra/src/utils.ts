@@ -2,6 +2,7 @@ import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 import { isOpenInferenceSpan as isOpenInferenceSpanVercel } from "@arizeai/openinference-vercel/utils";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import { enrichBySpanKind } from "./attributes.js";
 
 /**
  * Augments a Mastra span with OpenInference resource attributes.
@@ -29,7 +30,9 @@ export const addOpenInferenceResourceAttributesToMastraSpan = (
 export const addOpenInferenceAttributesToMastraSpan = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   span: ReadableSpan,
-) => {};
+) => {
+  enrichBySpanKind(span);
+};
 
 /**
  * Checks if a span is an OpenInference span.
