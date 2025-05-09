@@ -1,0 +1,3 @@
+google-adk>=0.3.0
+opentelemetry-sdk
+pytest
