@@ -31,7 +31,7 @@ phoenix serve
 Instrumenting `genai` is simple.
 
 ```python
-from openinference.instrumentation.google-genai import GoogleGenAIInstrumentor
+from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
