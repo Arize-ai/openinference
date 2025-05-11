@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 import dspy
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
