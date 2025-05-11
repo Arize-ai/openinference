@@ -80,6 +80,7 @@ def test_agno_instrumentation(
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "AGENT"
             assert attributes.get("output.value")
+            assert attributes.get("session.id")
             # assert that there are no tokens on the kickoff chain so that we do not
             # double count token when a user is also instrumenting with another instrumentor
             # that provides token counts via the spans.

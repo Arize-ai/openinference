@@ -85,6 +85,9 @@ def _agent_run_attributes(
         if agent.name:
             yield f"agno{key_suffix}.agent", agent.name or ""
 
+        if agent.session_id:
+            yield SESSION_ID, agent.session_id
+
         if agent.knowledge:
             yield f"agno{key_suffix}.knowledge", agent.knowledge.__class__.__name__
 
@@ -538,6 +541,7 @@ class _FunctionCallWrapper:
 # span attributes
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
+SESSION_ID = SpanAttributes.SESSION_ID
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
