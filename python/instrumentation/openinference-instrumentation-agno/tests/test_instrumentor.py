@@ -103,4 +103,10 @@ def test_agno_instrumentation(
             assert attributes["openinference.span.kind"] == "AGENT"
             assert attributes.get("input.value")
             assert span.status.is_ok
+        elif span.name == "OpenAIChat.invoke":
+            checked_spans += 1
+            assert attributes.get("openinference.span.kind") == "LLM"
+            assert attributes.get("llm.model_name") == "gpt-4o-mini"
+            assert attributes.get("llm.provider") == "OpenAI"
+            assert span.status.is_ok
     assert checked_spans == 4

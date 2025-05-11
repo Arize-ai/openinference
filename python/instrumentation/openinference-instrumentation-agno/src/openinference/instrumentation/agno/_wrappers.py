@@ -147,15 +147,19 @@ class _RunWrapper:
                 else:
                     response = wrapped(*args, **kwargs)
                     for run_response in response:
-                        input_tokens = run_response.metrics.get("input_tokens", [])
-                        output_tokens = run_response.metrics.get("output_tokens", [])
-                        total_tokens = run_response.metrics.get("total_tokens", [])
-                        span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
-                        span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
-                        span.set_attribute(
-                            LLM_TOKEN_COUNT_TOTAL,
-                            total_tokens,
-                        )
+                        # We choose not to double-count tokens here
+                        # Because another instrumentor may be providing token counts
+                        # We might want to make this configurable in the future
+
+                        # input_tokens = run_response.metrics.get("input_tokens", [])
+                        # output_tokens = run_response.metrics.get("output_tokens", [])
+                        # total_tokens = run_response.metrics.get("total_tokens", [])
+                        # span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
+                        # span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
+                        # span.set_attribute(
+                        #     LLM_TOKEN_COUNT_TOTAL,
+                        #     total_tokens,
+                        # )
                         span.set_status(trace_api.StatusCode.OK)
                         span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                         yield run_response
