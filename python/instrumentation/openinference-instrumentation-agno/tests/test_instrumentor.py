@@ -78,7 +78,7 @@ def test_agno_instrumentation(
         attributes = dict(span.attributes or dict())
         if span.name == "News_Agent.run":
             checked_spans += 1
-            assert attributes.get("openinference.span.kind") == "CHAIN"
+            assert attributes.get("openinference.span.kind") == "AGENT"
             assert attributes.get("output.value")
             # assert that there are no tokens on the kickoff chain so that we do not
             # double count token when a user is also instrumenting with another instrumentor
