@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.0...python-openinference-instrumentation-google-genai-v0.1.1) (2025-05-11)
+
+
+### Documentation
+
+* fix google genai import in README ([#1605](https://github.com/Arize-ai/openinference/issues/1605)) ([60ee275](https://github.com/Arize-ai/openinference/commit/60ee2755fa99a68debbe5e9d84c25b92e99c5e31))
+
 ## 0.1.0 (2025-05-05)
 
 
