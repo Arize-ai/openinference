@@ -117,7 +117,7 @@ class _RunWrapper:
             return wrapped(*args, **kwargs)
 
         agent = instance
-        if hasattr(agent, "name"):
+        if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
             agent_name = "Agent"

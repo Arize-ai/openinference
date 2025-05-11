@@ -19,20 +19,28 @@ from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from openinference.instrumentation.agno import AgnoInstrumentor
+from openinference.instrumentation.openai import OpenAIInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 
-tracer_provider = TracerProvider()
-tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
+tracer_provider = TracerProvider(
+    resource=Resource(
+        attributes={
+            "openinference.project.name": "agno-basic-agent-with-tools",
+        }
+    ),
+)
+tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
 trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 
 # Start instrumenting agno
 AgnoInstrumentor().instrument()
-
+OpenAIInstrumentor().instrument()
 agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini"),
     tools=[DuckDuckGoTools()],
