@@ -8,7 +8,6 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
-from pytest import MonkeyPatch
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor
@@ -72,20 +71,6 @@ def instrument(
     in_memory_span_exporter.clear()
 
 
-@pytest.fixture
-def openai_api_key(monkeypatch: MonkeyPatch) -> str:
-    api_key = "sk-fake-key"
-    monkeypatch.setenv("OPENAI_API_KEY", api_key)
-    return api_key
-
-
-@pytest.fixture
-def anthropic_api_key(monkeypatch: MonkeyPatch) -> str:
-    api_key = "sk-fake-key"
-    monkeypatch.setenv("ANTHROPIC_API_KEY", api_key)
-    return api_key
-
-
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
         (instrumentor_entrypoint,) = entry_points(
@@ -115,6 +100,7 @@ class TestAssistantAgent:
 
         model_client = OpenAIChatCompletionClient(
             model="gpt-3.5-turbo",
+            api_key="sk-fake-key",
         )
 
         # Define a simple function tool that the agent can use
@@ -171,6 +157,7 @@ class TestTeam:
 
         model_client = OpenAIChatCompletionClient(
             model="gpt-4o-2024-08-06",
+            api_key="sk-fake-key",
         )
 
         # Create two agents: a primary and a critic
