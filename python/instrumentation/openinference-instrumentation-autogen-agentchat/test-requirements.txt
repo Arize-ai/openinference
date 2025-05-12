@@ -1,0 +1,6 @@
+autogen-agentchat==0.5.1
+autogen-ext[openai]==0.5.1
+opentelemetry-sdk
+pytest-asyncio
+pytest-vcr
+httpx<0.28
