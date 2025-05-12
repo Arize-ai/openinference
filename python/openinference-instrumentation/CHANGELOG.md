@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.28...python-openinference-instrumentation-v0.1.29) (2025-05-12)
+
+
+### Features
+
+* Agno instrumentor ([#1603](https://github.com/Arize-ai/openinference/issues/1603)) ([50f30e2](https://github.com/Arize-ai/openinference/commit/50f30e26b5fcc074cc8a7dbbc34e9c11b7af0e41))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.27...python-openinference-instrumentation-v0.1.28) (2025-04-28)
 
 
