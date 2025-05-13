@@ -94,13 +94,6 @@ def openai_api_key(monkeypatch: MonkeyPatch) -> str:
     return api_key
 
 
-@pytest.fixture
-def gemini_api_key(monkeypatch: MonkeyPatch) -> str:
-    api_key = "sk-fake-key"
-    monkeypatch.setenv("GEMINI_API_KEY", api_key)
-    return api_key
-
-
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
         (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="dspy")
@@ -607,7 +600,6 @@ async def test_react(
     is_async: bool,
     openai_api_key: str,
 ) -> None:
-
     dspy.settings.configure(
         lm=dspy.LM("openai/gpt-4o-mini"),
     )
