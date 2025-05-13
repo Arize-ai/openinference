@@ -43,6 +43,16 @@ class _PipelineRunComponentWrapper:
     method invoked by `haystack.Pipeline._run_component`. We dynamically wrap
     the component `run` method if it is not already wrapped from within
     `haystack.Pipeline._run_component`.
+
+    This wrapper handles the static method signature of Pipeline._run_component:
+    @staticmethod
+    def _run_component(
+        component_name: str,
+        component: Dict[str, Any],
+        inputs: Dict[str, Any],
+        component_visits: Dict[str, int],
+        parent_span: Optional[tracing.Span] = None,
+    ) -> Dict[str, Any]:
     """
 
     def __init__(
