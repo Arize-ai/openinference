@@ -41,7 +41,9 @@ trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 # Start instrumenting agno
 AgnoInstrumentor().instrument()
 OpenAIInstrumentor().instrument()
+
 agent = Agent(
+    name="News Agent",
     model=OpenAIChat(id="gpt-4o-mini"),
     tools=[DuckDuckGoTools()],
     markdown=True,
