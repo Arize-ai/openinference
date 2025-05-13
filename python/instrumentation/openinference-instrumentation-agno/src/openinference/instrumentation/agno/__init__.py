@@ -28,7 +28,7 @@ def find_model_subclasses() -> List[Type[Any]]:
 
     from agno.models.base import Model
 
-    model_subclasses = []
+    model_subclasses = set()
 
     # Import the agno.models package
     try:
@@ -45,7 +45,7 @@ def find_model_subclasses() -> List[Type[Any]]:
                 # Find all classes in the module that inherit from Model
                 for _, obj in inspect.getmembers(module):
                     if inspect.isclass(obj) and issubclass(obj, Model) and obj is not Model:
-                        model_subclasses.append(obj)
+                        model_subclasses.add(obj)
             except (ImportError, AttributeError):
                 # Skip modules that can't be imported
                 continue
@@ -53,7 +53,7 @@ def find_model_subclasses() -> List[Type[Any]]:
         # If agno.models can't be imported, return empty list
         pass
 
-    return model_subclasses
+    return list(model_subclasses)
 
 
 class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
