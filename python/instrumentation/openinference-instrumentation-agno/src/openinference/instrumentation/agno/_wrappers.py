@@ -149,12 +149,14 @@ class _RunWrapper:
                     run_response = agent.run_response
                     span.set_status(trace_api.StatusCode.OK)
                     span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 else:
                     response = wrapped(*args, **kwargs)
 
                     for run_response in response:
                         span.set_status(trace_api.StatusCode.OK)
                         span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                        span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                         yield run_response
 
             except Exception as e:
