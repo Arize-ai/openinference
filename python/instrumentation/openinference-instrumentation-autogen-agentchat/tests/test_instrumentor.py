@@ -1,4 +1,4 @@
-from typing import Any, Dict, Generator, Mapping, cast
+from typing import Any, Dict, Generator
 
 import pytest
 from opentelemetry import trace as trace_api
@@ -7,7 +7,6 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor
@@ -124,18 +123,24 @@ class TestAssistantAgent:
 
         # Verify that spans were created
         spans = in_memory_span_exporter.get_finished_spans()
-        span = spans[0]
-        assert span.status.is_ok
-        assert not span.status.description
-        assert len(span.events) == 0
-
-        attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-        print(attributes)
-
-        # assert attributes["task"] == "What is the weather in New York?"
-
-        # # Verify the weather tool was called
-        # weather_spans = [span for span in spans if span.name == "get_weather"]
+        assert len(spans) == 2
+        for span in spans:
+            assert span.status.is_ok
+            attributes = dict(span.attributes or {})
+            if "FunctionTool" in span.name:
+                assert attributes.pop("tool_name") == "get_weather"
+                assert (
+                    attributes.pop("output.value")
+                    == "The weather in New York is 73 degrees and Sunny."
+                )
+                assert attributes.pop("openinference.span.kind") == "TOOL"
+            elif "AssistantAgent" in span.name:
+                assert attributes.pop("agent_name") == "weather_agent"
+                assert (
+                    attributes.pop("agent_description")
+                    == "An agent that provides assistance with ability to use tools."
+                )
+                assert attributes.pop("openinference.span.kind") == "AGENT"
 
 
 class TestTeam:
