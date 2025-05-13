@@ -169,6 +169,20 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             args=(_AdapterAcallWrapper(self._tracer),),
         )
 
+        wrap_object(
+            module=_DSPY_MODULE,
+            name="Tool.__call__",
+            factory=CopyableFunctionWrapper,
+            args=(_ToolCallWrapper(self._tracer),),
+        )
+
+        wrap_object(
+            module=_DSPY_MODULE,
+            name="Tool.acall",
+            factory=CopyableFunctionWrapper,
+            args=(_AsyncToolCallWrapper(self._tracer),),
+        )
+
     def _uninstrument(self, **kwargs: Any) -> None:
         # Restore DSPy constructs
         from dspy import Predict
@@ -775,6 +789,82 @@ class _AdapterAcallWrapper(_WithTracer):
         return response
 
 
+class _ToolCallWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = (instance.name or instance.__class__.__name__) + ".__call__"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: TOOL,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            response = wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            **dict(_output_value_and_mime_type(response)),
+                        }
+                    )
+                )
+            )
+        return response
+
+
+class _AsyncToolCallWrapper(_WithTracer):
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = (instance.name or instance.__class__.__name__) + ".acall"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: TOOL,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            response = await wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            **dict(_output_value_and_mime_type(response)),
+                        }
+                    )
+                )
+            )
+        return response
+
+
 class DSPyJSONEncoder(json.JSONEncoder):
     """
     Provides support for non-JSON-serializable objects in DSPy.
@@ -941,6 +1031,7 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
 JSON = OpenInferenceMimeTypeValues.JSON.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 LLM = OpenInferenceSpanKindValues.LLM
+TOOL = OpenInferenceSpanKindValues.TOOL.value
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
