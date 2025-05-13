@@ -27,7 +27,7 @@ export PHOENIX_API_KEY="your-api-key"
 ```typescript
 import { Mastra } from "@mastra/core";
 import { OpenInferenceOTLPTraceExporter } from "@arizeai/openinference-mastra";
- 
+
 export const mastra = new Mastra({
   // ... other config
   telemetry: {
