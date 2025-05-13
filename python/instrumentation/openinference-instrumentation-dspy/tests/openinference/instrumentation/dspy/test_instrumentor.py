@@ -601,6 +601,434 @@ async def test_rag_module(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_react(
+    in_memory_span_exporter: InMemorySpanExporter,
+    is_async: bool,
+    openai_api_key: str,
+) -> None:
+
+    dspy.settings.configure(
+        lm=dspy.LM("openai/gpt-4o-mini"),
+    )
+
+    def add(x: int, y: int) -> int:
+        return x + y
+
+    react = dspy.ReAct("question -> answer", tools=[add])
+    question = "What is 2 + 2?"
+
+    if is_async:
+        response = await react.acall(question=question)
+    else:
+        response = react(question=question)
+
+    assert response.answer == "4"
+
+    spans = list(in_memory_span_exporter.get_finished_spans())
+    spans.sort(key=lambda span: span.start_time or 0)
+
+    assert len(spans) == 16
+
+    it = iter(spans)
+
+    span = next(it)
+    expected_span_name = "ReAct.aforward" if is_async else "ReAct.forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert json.loads(input_value)["input_args"] == {
+        "question": question,
+    }
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert "4" in output_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "Predict.aforward" if is_async else "Predict.forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert json.loads(input_value) == {"question": question, "trajectory": ""}
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert "next_tool_name='add'" in output_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "Predict(StringSignature).forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert json.loads(input_value) == {"question": question, "trajectory": ""}
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    output_value = json.loads(output_value)
+    assert output_value == {
+        "next_thought": "I need to perform the addition of 2 and 2 to answer the question.",
+        "next_tool_name": "add",
+        "next_tool_args": {
+            "x": 2,
+            "y": 2,
+        },
+    }
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "ChatAdapter.acall" if is_async else "ChatAdapter.__call__"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert (
+        "Given the fields `question`, produce the fields `answer`."
+        in json.loads(input_value)["signature"]
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    output_value = json.loads(output_value)
+    assert isinstance(output_value, list)
+    assert len(output_value) == 1
+    assert output_value[0] == {
+        "next_thought": "I need to perform the addition of 2 and 2 to answer the question.",
+        "next_tool_name": "add",
+        "next_tool_args": {
+            "x": 2,
+            "y": 2,
+        },
+    }
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "LM.acall" if is_async else "LM.__call__"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert "Given the fields `question`, produce the fields `answer`." in input_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    output_value = json.loads(output_value)
+    assert isinstance(output_value, list)
+    assert len(output_value) == 1
+    assert "I need to perform the addition of 2 and 2" in output_value[-1]
+
+    span = next(it)
+    expected_span_name = "add.acall" if is_async else "add.__call__"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    input_value = json.loads(input_value)
+    assert input_value == {"kwargs": {"x": 2, "y": 2}}
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert output_value == "4"
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "Predict.aforward" if is_async else "Predict.forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    input_value = json.loads(input_value)
+    assert input_value["question"] == "What is 2 + 2?"
+    assert input_value["trajectory"].endswith("[[ ## observation_0 ## ]]\n4")
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert "next_tool_name='finish'" in output_value
+    assert "next_tool_args={}" in output_value
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "Predict(StringSignature).forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    input_value = json.loads(input_value)
+    assert input_value["question"] == "What is 2 + 2?"
+    assert input_value["trajectory"].endswith("[[ ## observation_0 ## ]]\n4")
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    output_value = json.loads(output_value)
+    assert output_value.pop("next_tool_name") == "finish"
+    assert output_value.pop("next_tool_args") == {}
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "ChatAdapter.acall" if is_async else "ChatAdapter.__call__"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert (
+        "Given the fields `question`, produce the fields `answer`."
+        in json.loads(input_value)["signature"]
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    output_value = json.loads(output_value)
+    assert isinstance(output_value, list)
+    assert len(output_value) == 1
+    assert output_value[0]["next_tool_name"] == "finish"
+    assert output_value[0]["next_tool_args"] == {}
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "LM.acall" if is_async else "LM.__call__"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert "Given the fields `question`, produce the fields `answer`." in input_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    output_value = json.loads(output_value)
+    assert isinstance(output_value, list)
+    assert len(output_value) == 1
+    assert "[[ ## next_tool_name ## ]]\nfinish" in output_value[-1]
+
+    span = next(it)
+    expected_span_name = "finish.acall" if is_async else "finish.__call__"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    input_value = json.loads(input_value)
+    assert input_value == {"kwargs": {}}
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert output_value == '"Completed."'
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "ChainOfThought.aforward" if is_async else "ChainOfThought.forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert json.loads(input_value)["question"] == question
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert "answer='4'" in output_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "Predict.aforward" if is_async else "Predict.forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert json.loads(input_value)["question"] == question
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert "answer='4'" in output_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "Predict(StringSignature).forward"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    input_value = json.loads(input_value)
+    assert input_value["question"] == "What is 2 + 2?"
+    assert input_value["trajectory"].endswith("[[ ## observation_1 ## ]]\nCompleted.")
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    output_value = json.loads(output_value)
+    assert output_value.pop("answer") == "4"
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "ChatAdapter.acall" if is_async else "ChatAdapter.__call__"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert (
+        "Given the fields `question`, produce the fields `answer`."
+        in json.loads(input_value)["signature"]
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    output_value = json.loads(output_value)
+    assert isinstance(output_value, list)
+    assert len(output_value) == 1
+    print(output_value[0])
+    assert output_value[0]["answer"] == "4"
+    assert not attributes
+
+    span = next(it)
+    expected_span_name = "LM.acall" if is_async else "LM.__call__"
+    assert span.name == expected_span_name
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert "Given the fields `question`, produce the fields `answer`." in input_value
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    output_value = json.loads(output_value)
+    assert isinstance(output_value, list)
+    assert len(output_value) == 1
+    assert "[[ ## answer ## ]]\n4\n\n[[ ## completed ## ]]" in output_value[-1]
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 @pytest.mark.skipif(VERSION >= (2, 6, 22), reason="requires dspy < 2.6.22")
 def test_compilation(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -746,6 +1174,8 @@ CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
+TOOL = OpenInferenceSpanKindValues.TOOL.value
+LLM = OpenInferenceSpanKindValues.LLM.value
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
