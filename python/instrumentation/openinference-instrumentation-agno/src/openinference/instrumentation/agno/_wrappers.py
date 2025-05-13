@@ -147,22 +147,12 @@ class _RunWrapper:
                 if "stream" in kwargs and kwargs["stream"] is True:
                     yield from wrapped(*args, **kwargs)
                     run_response = agent.run_response
+                    span.set_status(trace_api.StatusCode.OK)
+                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                 else:
                     response = wrapped(*args, **kwargs)
-                    for run_response in response:
-                        # We choose not to double-count tokens here
-                        # Because another instrumentor may be providing token counts
-                        # We might want to make this configurable in the future
 
-                        # input_tokens = run_response.metrics.get("input_tokens", [])
-                        # output_tokens = run_response.metrics.get("output_tokens", [])
-                        # total_tokens = run_response.metrics.get("total_tokens", [])
-                        # span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
-                        # span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
-                        # span.set_attribute(
-                        #     LLM_TOKEN_COUNT_TOTAL,
-                        #     total_tokens,
-                        # )
+                    for run_response in response:
                         span.set_status(trace_api.StatusCode.OK)
                         span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                         yield run_response
@@ -213,24 +203,19 @@ class _RunWrapper:
             try:
                 if "stream" in kwargs and kwargs["stream"] is True:
                     span.set_status(trace_api.StatusCode.OK)
-                    async for response in await wrapped(*args, **kwargs):
+                    async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                         yield response
+                    run_response = agent.run_response
+                    span.set_status(trace_api.StatusCode.OK)
+                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                 else:
-                    run_response = await wrapped(*args, **kwargs)
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT, sum(run_response.metrics.get("input_tokens", []))
-                    )
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_COMPLETION,
-                        sum(run_response.metrics.get("output_tokens", [])),
-                    )
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_TOTAL,
-                        sum(run_response.metrics.get("total_tokens", [])),
-                    )
+                    response = wrapped(*args, **kwargs)
+
+                    run_response = await response.__anext__()
                     span.set_status(trace_api.StatusCode.OK)
                     span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                     yield run_response
+
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
@@ -246,6 +231,10 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
         role, content = message.role, message.get_content_string()
         if content:
             yield from process_message(i, role, content)
+
+    tools = arguments.get("tools", [])
+    for tool_index, tool in enumerate(tools):
+        yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
 
 
 def _llm_invocation_parameters(model: Model) -> Iterator[Tuple[str, Any]]:
@@ -542,6 +531,7 @@ class _FunctionCallWrapper:
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 SESSION_ID = SpanAttributes.SESSION_ID
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
@@ -551,7 +541,7 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
-LLM_TOOLS = SpanAttributes.LLM_TOOLS
+LLM_FUNCTION_CALL = SpanAttributes.LLM_FUNCTION_CALL
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
