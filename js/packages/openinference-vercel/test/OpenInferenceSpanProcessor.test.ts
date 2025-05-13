@@ -544,13 +544,12 @@ function setupTraceProvider({
 }) {
   memoryExporter.reset();
   trace.disable();
-  traceProvider = new BasicTracerProvider();
   memoryExporter = new InMemorySpanExporter();
   processor = new Processor({
     exporter: memoryExporter,
     spanFilter,
   });
-  traceProvider.addSpanProcessor(processor);
+  traceProvider = new BasicTracerProvider({ spanProcessors: [processor] });
   trace.setGlobalTracerProvider(traceProvider);
 }
 
