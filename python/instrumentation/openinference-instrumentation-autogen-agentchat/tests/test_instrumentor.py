@@ -102,12 +102,10 @@ class TestAssistantAgent:
             api_key="sk-fake-key",
         )
 
-        # Define a simple function tool that the agent can use
         def get_weather(city: str) -> str:
             """Get the weather for a given city."""
             return f"The weather in {city} is 73 degrees and Sunny."
 
-        # Define an AssistantAgent with the model, tool, system message, and reflection enabled
         agent = AssistantAgent(
             name="weather_agent",
             model_client=model_client,
@@ -117,11 +115,9 @@ class TestAssistantAgent:
             model_client_stream=True,
         )
 
-        # Run the agent and stream the messages to the console
         _ = await agent.run(task="What is the weather in New York?")
         await model_client.close()
 
-        # Verify that spans were created
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 2
         for span in spans:
@@ -165,7 +161,6 @@ class TestTeam:
             api_key="sk-fake-key",
         )
 
-        # Create two agents: a primary and a critic
         primary_agent = AssistantAgent(
             "primary",
             model_client=model_client,
@@ -181,18 +176,14 @@ class TestTeam:
             """,
         )
 
-        # Termination condition: stop when the critic says "APPROVE"
         text_termination = TextMentionTermination("APPROVE")
 
-        # Create a team with both agents
         team = RoundRobinGroupChat(
             [primary_agent, critic_agent], termination_condition=text_termination
         )
 
-        # Run the team on a task
         _ = await team.run(task="Write a short poem about the fall season.")
         await model_client.close()
 
-        # Verify that spans were created
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) > 0
