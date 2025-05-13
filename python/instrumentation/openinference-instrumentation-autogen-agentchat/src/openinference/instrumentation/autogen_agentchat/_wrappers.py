@@ -117,19 +117,10 @@ class _BaseAgentRunWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            # agent = args[0] if args else None
-            # crew = agent.crew if agent else None
-            # task = instance
-            #
-            # if crew:
-            #     span.set_attribute("crew_key", crew.key)
-            #     span.set_attribute("crew_id", str(crew.id))
-            # span.set_attribute("task_key", task.key)
-            # span.set_attribute("task_id", str(task.id))
-            #
-            # if crew and crew.share_crew:
-            #     span.set_attribute("formatted_description", task.description)
-            #     span.set_attribute("formatted_expected_output", task.expected_output)
+            agent = instance
+            if agent:
+                span.set_attribute("agent_name", agent.name)
+                span.set_attribute("agent_description", agent.description)
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
@@ -268,7 +259,7 @@ class _SendMessageWrapper:
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
                         SpanAttributes.INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -312,7 +303,7 @@ class _PublishMessageWrapper:
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
                         SpanAttributes.INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
