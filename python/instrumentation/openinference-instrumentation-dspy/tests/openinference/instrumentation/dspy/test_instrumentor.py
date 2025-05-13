@@ -687,6 +687,7 @@ async def test_react(
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
     output_value = json.loads(output_value)
+    assert isinstance(output_value, dict)
     assert output_value == {
         "next_thought": "I need to perform the addition of 2 and 2 to answer the question.",
         "next_tool_name": "add",
@@ -766,6 +767,7 @@ async def test_react(
         == OpenInferenceMimeTypeValues.JSON
     )
     input_value = json.loads(input_value)
+    assert isinstance(input_value, dict)
     assert input_value == {"kwargs": {"x": 2, "y": 2}}
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
@@ -788,8 +790,9 @@ async def test_react(
         == OpenInferenceMimeTypeValues.JSON
     )
     input_value = json.loads(input_value)
-    assert input_value["question"] == "What is 2 + 2?"
-    assert input_value["trajectory"].endswith("[[ ## observation_0 ## ]]\n4")
+    assert isinstance(input_value, dict)
+    assert input_value.pop("question") == "What is 2 + 2?"
+    assert input_value.pop("trajectory", "").endswith("[[ ## observation_0 ## ]]\n4")
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -812,8 +815,9 @@ async def test_react(
         == OpenInferenceMimeTypeValues.JSON
     )
     input_value = json.loads(input_value)
-    assert input_value["question"] == "What is 2 + 2?"
-    assert input_value["trajectory"].endswith("[[ ## observation_0 ## ]]\n4")
+    assert isinstance(input_value, dict)
+    assert input_value.pop("question") == "What is 2 + 2?"
+    assert input_value.pop("trajectory", "").endswith("[[ ## observation_0 ## ]]\n4")
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -821,6 +825,7 @@ async def test_react(
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
     output_value = json.loads(output_value)
+    assert isinstance(output_value, dict)
     assert output_value.pop("next_tool_name") == "finish"
     assert output_value.pop("next_tool_args") == {}
     assert not attributes
@@ -888,6 +893,7 @@ async def test_react(
         == OpenInferenceMimeTypeValues.JSON
     )
     input_value = json.loads(input_value)
+    assert isinstance(input_value, dict)
     assert input_value == {"kwargs": {}}
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
@@ -952,8 +958,9 @@ async def test_react(
         == OpenInferenceMimeTypeValues.JSON
     )
     input_value = json.loads(input_value)
-    assert input_value["question"] == "What is 2 + 2?"
-    assert input_value["trajectory"].endswith("[[ ## observation_1 ## ]]\nCompleted.")
+    assert isinstance(input_value, dict)
+    assert input_value.pop("question") == "What is 2 + 2?"
+    assert input_value.pop("trajectory").endswith("[[ ## observation_1 ## ]]\nCompleted.")
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -961,6 +968,7 @@ async def test_react(
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
     output_value = json.loads(output_value)
+    assert isinstance(output_value, dict)
     assert output_value.pop("answer") == "4"
     assert not attributes
 
