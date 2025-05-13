@@ -186,4 +186,4 @@ class TestTeam:
         await model_client.close()
 
         spans = in_memory_span_exporter.get_finished_spans()
-        assert len(spans) > 0
+        assert len(spans) == 17
