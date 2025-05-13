@@ -18,6 +18,11 @@
     ".": {
       "import": "./dist/esm/index.js",
       "require": "./dist/src/index.js"
+    },
+    "./utils": {
+      "import": "./dist/esm/utils.js",
+      "require": "./dist/src/utils.js",
+      "types": "./dist/src/utils.d.ts"
     }
   },
   "files": [
