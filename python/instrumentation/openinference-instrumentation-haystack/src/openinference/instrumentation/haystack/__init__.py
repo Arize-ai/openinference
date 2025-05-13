@@ -7,8 +7,6 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 )
 from wrapt import wrap_function_wrapper
 
-import haystack
-from haystack.core.pipeline.pipeline import Pipeline
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.haystack._wrappers import (
     _ComponentRunWrapper,
@@ -46,6 +44,7 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
+        import haystack
 
         self._original_pipeline_run = haystack.Pipeline.run
         wrap_function_wrapper(
@@ -53,13 +52,10 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             name="Pipeline.run",
             wrapper=_PipelineWrapper(tracer=self._tracer),
         )
+        from haystack.core.pipeline.pipeline import Pipeline
 
         original = Pipeline.__dict__["_run_component"]
-        if isinstance(original, staticmethod):
-            self._original_pipeline_run_component = original.__func__
-        else:
-            self._original_pipeline_run_component = original
-
+        self._original_pipeline_run_component = original.__func__
         self._original_component_run_methods: dict[type[Any], Callable[..., Any]] = {}
 
         def wrap_component_run_method(
@@ -88,6 +84,8 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             haystack.Pipeline.run = self._original_pipeline_run
 
         if self._original_pipeline_run_component is not None:
+            from haystack.core.pipeline.pipeline import Pipeline
+
             Pipeline._run_component = staticmethod(self._original_pipeline_run_component)
 
         for component_cls, original_run_method in self._original_component_run_methods.items():
