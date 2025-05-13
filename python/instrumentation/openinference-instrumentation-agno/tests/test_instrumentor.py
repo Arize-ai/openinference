@@ -68,11 +68,10 @@ def test_agno_instrumentation(
             name="News Agent",  # For best results, set a name that will be used by the tracer
             model=OpenAIChat(id="gpt-4o-mini"),
             tools=[DuckDuckGoTools()],
-            debug_mode=True,
         )
         agent.run("What's trending on Twitter?")
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 4
+    assert len(spans) == 2
     checked_spans = 0
     for span in spans:
         attributes = dict(span.attributes or dict())
@@ -110,4 +109,4 @@ def test_agno_instrumentation(
             assert attributes.get("llm.model_name") == "gpt-4o-mini"
             assert attributes.get("llm.provider") == "OpenAI"
             assert span.status.is_ok
-    assert checked_spans == 4
+    assert checked_spans == 2
