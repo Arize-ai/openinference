@@ -52,8 +52,10 @@ export function register() {
       new OpenInferenceSimpleSpanProcessor({
         exporter: new OTLPTraceExporter({
           headers: {
-            // API key if you are sending it to Phoenix
-            api_key: process.env["PHOENIX_API_KEY"],
+            // API key if you are sending it to Phoenix Cloud
+            api_key: process.env["PHOENIX_API_KEY"] || "",
+            // API key if you are sending it to local Phoenix
+            Authorization: `Bearer ${process.env["PHOENIX_API_KEY"]}` || "",
           },
           url:
             process.env["PHOENIX_COLLECTOR_ENDPOINT"] ||
