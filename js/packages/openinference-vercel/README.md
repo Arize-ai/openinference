@@ -28,6 +28,7 @@ To process your Vercel AI SDK Spans add a `OpenInferenceSimpleSpanProcessor` or 
 > The `OpenInferenceSpanProcessor` does not handle the exporting of spans so you will pass it an [exporter](https://opentelemetry.io/docs/languages/js/exporters/) as a parameter.
 
 ```typescript
+// instrumentation.ts
 import { registerOTel } from "@vercel/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import {
