@@ -23,7 +23,7 @@ The core team is monitoring for pull requests. We will review your pull request 
 Before submitting a pull request, please make sure the following is done. We expect code authors to test their pull requests well-enough that they work correctly by the time they get to code review. (Note that `npm` commands below are run under the `./app` directory.)
 
 -   Fork the repository and create your branch from `main`.
--   Follow the [development guide](./DEVELOPMENT.md) to setup your local environment.
+-   Follow the development guide in [python](./python/DEVELOPMENT.md) or [javascript](./js/DEVELOPMENT.md) to setup your local environment.
 -   If you've fixed a bug or added code that should be tested, add tests!
 -   Ensure test suite pass.
 -   Make sure your code is formatted by a formatter
