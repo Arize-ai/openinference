@@ -18,9 +18,9 @@
     "python/instrumentation/openinference-instrumentation-anthropic": "0.1.17",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.11",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.9",
-    "python/instrumentation/openinference-instrumentation-openai-agents": "0.1.11",
+    "python/instrumentation/openinference-instrumentation-openai-agents": "0.1.12",
     "python/instrumentation/openinference-instrumentation-portkey": "0.1.1",
     "python/instrumentation/openinference-instrumentation-beeai": "0.1.6",
-    "python/instrumentation/openinference-instrumentation-mcp": "1.2.0",
+    "python/instrumentation/openinference-instrumentation-mcp": "1.2.1",
     "python/instrumentation/openinference-instrumentation-google-genai": "0.1.1"
 }
