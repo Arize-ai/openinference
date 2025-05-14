@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.2.0...python-openinference-instrumentation-mcp-v1.2.1) (2025-05-14)
+
+
+### Bug Fixes
+
+* **mcp:** support mcp&gt;=1.8.0 with new SessionMessage structure ([#1634](https://github.com/Arize-ai/openinference/issues/1634)) ([ba6af47](https://github.com/Arize-ai/openinference/commit/ba6af477e97585a41f4a58efcb45890e9bb6c89c))
+
 ## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.1.0...python-openinference-instrumentation-mcp-v1.2.0) (2025-04-25)
 
 
