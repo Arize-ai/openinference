@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
 
 from agents import MCPListToolsSpanData
 from agents.tracing import Span, Trace, TracingProcessor
@@ -219,17 +219,14 @@ def _get_attributes_from_input(
 ) -> Iterator[tuple[str, AttributeValue]]:
     for i, item in enumerate(obj, msg_idx):
         prefix = f"{LLM_INPUT_MESSAGES}.{i}."
-        if "type" not in item or item["type"] is None:
+        if "type" not in item:
             if "role" in item and "content" in item:
                 yield from _get_attributes_from_message_param(
-                    cast(
-                        Message,
-                        {
-                            "type": "message",
-                            "role": item["role"],  # type: ignore[typeddict-item]
-                            "content": item["content"],  # type: ignore[typeddict-item]
-                        },
-                    ),
+                    {
+                        "type": "message",
+                        "role": item["role"],
+                        "content": item["content"],
+                    },
                     prefix,
                 )
         elif item["type"] == "message":
