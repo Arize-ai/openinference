@@ -30,10 +30,10 @@ pip install tox-uv==1.11.2
 
 From the root of the repository install development dependencies:
 ```sh
-pip install -e ./python/dev-requirements.txt
+pip install -r ./python/dev-requirements.txt
 ```
 
-To compose the openinference-instrumentation namespace package with all the instrumentation modules, run the following command:
+To compose the `openinference-instrumentation` namespace package with all the instrumentation modules, run the following command:
 ```sh
 tox run -e add_symlinks
 ```
@@ -41,15 +41,6 @@ tox run -e add_symlinks
 From the root of the repository install `openinference-instrumentation` package in editable mode with the `-e` flag:
 ```sh
 pip install -e ./python/openinference-instrumentation
-```
-
-Note: If you are testing this package in another path using VSCode, ensure that syntax highlighting and intellisense works by adding the following path to your VSCode settings:
-```json
-{
-    "python.analysis.extraPaths": [
-        "<INSERT_ROOT>/openinference/python/instrumentation/openinference-instrumentation-openai/src"
-    ]
-}
 ```
 
 ### Testing
