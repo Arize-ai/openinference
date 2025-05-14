@@ -91,8 +91,8 @@ class InstrumentedStreamReader(ObjectProxy):  # type: ignore
         return await self.__wrapped__.__aexit__(exc_type, exc_value, traceback)
 
     async def __aiter__(self) -> AsyncGenerator[Any, None]:
-        from mcp.types import JSONRPCRequest
         from mcp.shared.message import SessionMessage
+        from mcp.types import JSONRPCRequest
 
         async for item in self.__wrapped__:
             session_message = cast(SessionMessage, item)
@@ -124,8 +124,8 @@ class InstrumentedStreamWriter(ObjectProxy):  # type: ignore
         return await self.__wrapped__.__aexit__(exc_type, exc_value, traceback)
 
     async def send(self, item: Any) -> Any:
-        from mcp.types import JSONRPCRequest
         from mcp.shared.message import SessionMessage
+        from mcp.types import JSONRPCRequest
 
         session_message = cast(SessionMessage, item)
         request = session_message.message.root
