@@ -1,192 +1,685 @@
-import json
-from typing import Dict, Any, Optional, List, Tuple
-
+from typing import Any, Dict, Iterator, Mapping, Tuple, Optional, List, Iterable
 from enum import Enum
-    
-# Import the existing OpenInference attribute classes
-from openinference.semconv.trace import SpanAttributes, MessageAttributes, ToolCallAttributes
-from openinference.semconv.trace import ToolAttributes, OpenInferenceMimeTypeValues
+from opentelemetry.util.types import AttributeValue
+from openinference.semconv.trace import (
+    SpanAttributes,
+    MessageAttributes,
+    ToolCallAttributes,
+    ToolAttributes,
+    EmbeddingAttributes,
+    OpenInferenceSpanKindValues,
+)
+import json
+import logging
 
-# GenAI semantic convention constants
-class GenAIAttributes:
-    AGENT_DESCRIPTION = "gen_ai.agent.description"
-    AGENT_ID = "gen_ai.agent.id"
-    AGENT_NAME = "gen_ai.agent.name"
-    OPERATION_NAME = "gen_ai.operation.name"
-    OUTPUT_TYPE = "gen_ai.output.type"
-    REQUEST_CHOICE_COUNT = "gen_ai.request.choice.count"
-    REQUEST_ENCODING_FORMATS = "gen_ai.request.encoding_formats"
-    REQUEST_FREQUENCY_PENALTY = "gen_ai.request.frequency_penalty"
-    REQUEST_MAX_TOKENS = "gen_ai.request.max_tokens"
-    REQUEST_MODEL = "gen_ai.request.model"
-    REQUEST_PRESENCE_PENALTY = "gen_ai.request.presence_penalty"
-    REQUEST_SEED = "gen_ai.request.seed"
-    REQUEST_STOP_SEQUENCES = "gen_ai.request.stop_sequences"
-    REQUEST_TEMPERATURE = "gen_ai.request.temperature"
-    REQUEST_TOP_K = "gen_ai.request.top_k"
-    REQUEST_TOP_P = "gen_ai.request.top_p"
-    RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
-    RESPONSE_ID = "gen_ai.response.id"
-    RESPONSE_MODEL = "gen_ai.response.model"
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+
+class OTELConventions:
+    EVENTS = "events"
+    EVENT_NAME = "event.name"
+
+
+class GenAIOperationName(Enum):
+    CHAT = "chat"
+    CREATE_AGENT = "create_agent"
+    EMBEDDINGS = "embeddings"
+    EXECUTE_TOOL = "execute_tool"
+    GENERATE_CONTENT = "generate_content"
+    INVOKE_AGENT = "invoke_agent"
+    TEXT_COMPLETION = "text_completion"
+
+
+class GenAISystem(Enum):
+    ANTHROPIC = "anthropic"
+    AWS_BEDROCK = "aws.bedrock"
+    AZURE_AI_INFERENCE = "az.ai.inference"
+    AZURE_OPENAI = "az.ai.openai"
+    COHERE = "cohere"
+    DEEPSEEK = "deepseek"
+    GCP_GEMINI = "gcp.gemini"
+    GCP_GEN_AI = "gcp.gen_ai"
+    GCP_VERTEX_AI = "gcp.vertex_ai"
+    GROQ = "groq"
+    IBM_WATSONX_AI = "ibm.watsonx.ai"
+    MISTRAL_AI = "mistral_ai"
+    OPENAI = "openai"
+    PERPLEXITY = "perplexity"
+    XAI = "xai"
+    OTHER = "_OTHER"
+
+
+class GenAIOutputType(Enum):
+    IMAGE = "image"
+    JSON = "json"
+    SPEECH = "speech"
+    TEXT = "text"
+
+
+class GenAIFinishReason(Enum):
+    CONTENT_FILTER = "content_filter"
+    ERROR = "error"
+    LENGTH = "length"
+    STOP = "stop"
+    TOOL_CALLS = "tool_calls"
+
+
+class GenAIToolType(Enum):
+    FUNCTION = "function"
+
+
+class GenAICommonAttributes:
     SYSTEM = "gen_ai.system"
-    TOKEN_TYPE = "gen_ai.token.type"
-    TOOL_CALL_ID = "gen_ai.tool.call.id"
-    TOOL_DESCRIPTION = "gen_ai.tool.description"
-    TOOL_NAME = "gen_ai.tool.name"
-    TOOL_TYPE = "gen_ai.tool.type"
+    OPERATION_NAME = "gen_ai.operation.name"
+    REQUEST_MODEL = "gen_ai.request.model"
+    RESPONSE_MODEL = "gen_ai.response.model"
     USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
     USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
+    SERVER_ADDRESS = "server.address"
+    SERVER_PORT = "server.port"
+    ERROR_TYPE = "error.type"
+    CONVERSATION_ID = "gen_ai.conversation.id"
+    OUTPUT_TYPE = "gen_ai.output.type"
 
 
-# Special handling for input and output values
-def get_input_output_values(eventsStr: str) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Handle input and output values for GenAI semantic conventions.
-    
-    This function checks for input and output values in the GenAI attributes
-    and maps them to the appropriate OpenInference attributes.
+class GenAIRequestAttributes:
+    CHOICE_COUNT = "gen_ai.request.choice.count"
+    FREQUENCY_PENALTY = "gen_ai.request.frequency_penalty"
+    MAX_TOKENS = "gen_ai.request.max_tokens"
+    PRESENCE_PENALTY = "gen_ai.request.presence_penalty"
+    SEED = "gen_ai.request.seed"
+    STOP_SEQUENCES = "gen_ai.request.stop_sequences"
+    TEMPERATURE = "gen_ai.request.temperature"
+    TOP_K = "gen_ai.request.top_k"
+    TOP_P = "gen_ai.request.top_p"
+    ENCODING_FORMATS = "gen_ai.request.encoding_formats"
 
-    Input values are stored in the content of the first event.
-    Output values are stored in the arguments of the final tool call event.
-    """
 
-    # Parse the events
-    events = json.loads(eventsStr)
+class GenAIResponseAttributes:
+    FINISH_REASONS = "gen_ai.response.finish_reasons"
+    ID = "gen_ai.response.id"
+    MODEL = "gen_ai.response.model"
 
-    # Check that we have the input event
-    if len(events) == 0:
-        return None, None
-    
-    # Get the first event which will contain the input value
-    first_event = events[0]
-    input_value = first_event.get("content", None)
-    
-    if len(events) == 1:
-        return input_value, None
 
-    # Get the last event which will contain the output value
-    last_event = events[-1]
-    # Check if the last event has a message
-    if "message" not in last_event:
-        return input_value, None
-    # Check if the last message has tool calls
-    if "tool_calls" not in last_event["message"] or len(last_event["message"]["tool_calls"]) == 0:
-        return input_value, None
-    # Get the last tool call
-    last_tool_call = last_event["message"]["tool_calls"][-1]
-    # Check that the tool call has function arguments
-    if "function" not in last_tool_call or "arguments" not in last_tool_call["function"]:
-        return input_value, None
-    # Get the function arguments
-    function_args = last_tool_call["function"]["arguments"]
-    return input_value, function_args
+class GenAIToolAttributes:
+    NAME = "gen_ai.tool.name"
+    DESCRIPTION = "gen_ai.tool.description"
+    CALL_ID = "gen_ai.tool.call.id"
 
-def map_gen_ai_to_openinference(gen_ai_attrs: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Maps GenAI semantic convention attributes to OpenInference conventions.
-    
-    Args:
-        gen_ai_attrs: Dictionary with keys following the gen_ai.* convention
-        
-    Returns:
-        Dictionary with keys following the OpenInference convention
-    """
-    
-    GenAI = GenAIAttributes
-    open_attrs: Dict[str, Any] = {}
-    
-    # Direct mappings
-    direct_mappings: Dict[str, Optional[str]] = {
-        GenAI.AGENT_DESCRIPTION: SpanAttributes.TOOL_DESCRIPTION,
-        GenAI.AGENT_ID: "tool.id",  # Not in SpanAttributes, keeping string literal
-        GenAI.AGENT_NAME: SpanAttributes.TOOL_NAME,
-        GenAI.OPERATION_NAME: None,  # No direct mapping
-        GenAI.RESPONSE_ID: SpanAttributes.SESSION_ID,  # Approximate mapping
-        GenAI.SYSTEM: SpanAttributes.LLM_SYSTEM,
-        GenAI.TOOL_NAME: SpanAttributes.TOOL_NAME,
-        GenAI.TOOL_DESCRIPTION: SpanAttributes.TOOL_DESCRIPTION,
-        GenAI.TOOL_CALL_ID: ToolCallAttributes.TOOL_CALL_ID,
-        GenAI.USAGE_INPUT_TOKENS: SpanAttributes.LLM_TOKEN_COUNT_PROMPT,
-        GenAI.USAGE_OUTPUT_TOKENS: SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
-    }
-    
-    # Handle mappings where we don't have a direct correspondence
-    incomplete_mappings: List[str] = [
-        GenAI.OUTPUT_TYPE,  # Could be related to output.mime_type but needs specific logic
-        GenAI.REQUEST_CHOICE_COUNT,  # No direct mapping
-        GenAI.REQUEST_ENCODING_FORMATS,  # No direct mapping
-        GenAI.REQUEST_MAX_TOKENS,  # Goes into llm.invocation_parameters
-        GenAI.REQUEST_PRESENCE_PENALTY,  # Goes into llm.invocation_parameters
-        GenAI.REQUEST_SEED,  # Goes into llm.invocation_parameters
-        GenAI.REQUEST_STOP_SEQUENCES,  # Goes into llm.invocation_parameters
-        GenAI.REQUEST_FREQUENCY_PENALTY,  # Goes into llm.invocation_parameters
-        GenAI.TOOL_TYPE,  # No clear mapping
-        GenAI.RESPONSE_FINISH_REASONS,  # No direct mapping
-        GenAI.TOKEN_TYPE  # No direct mapping
-    ]
-    
-    # Process direct mappings
-    for gen_ai_key, open_key in direct_mappings.items():
-        if gen_ai_key in gen_ai_attrs and open_key is not None:
-            open_attrs[open_key] = gen_ai_attrs[gen_ai_key]
 
-    # Special handling for input and output values
-    input_value, output_value = get_input_output_values(gen_ai_attrs.get("events", ""))
-    if input_value is not None:
-        open_attrs[SpanAttributes.INPUT_VALUE] = input_value
-    if output_value is not None:
-        open_attrs[SpanAttributes.OUTPUT_VALUE] = output_value
-    
-    # Special handling for model names
-    if GenAI.REQUEST_MODEL in gen_ai_attrs:
-        open_attrs[SpanAttributes.LLM_MODEL_NAME] = gen_ai_attrs[GenAI.REQUEST_MODEL]
-    
-    if GenAI.RESPONSE_MODEL in gen_ai_attrs:
-        # In case both request and response model are provided, response model takes precedence
-        open_attrs[SpanAttributes.LLM_MODEL_NAME] = gen_ai_attrs[GenAI.RESPONSE_MODEL]
-    
-    # Handle token counts
-    if GenAI.USAGE_INPUT_TOKENS in gen_ai_attrs and GenAI.USAGE_OUTPUT_TOKENS in gen_ai_attrs:
-        input_tokens = gen_ai_attrs[GenAI.USAGE_INPUT_TOKENS]
-        output_tokens = gen_ai_attrs[GenAI.USAGE_OUTPUT_TOKENS]
-        open_attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = input_tokens + output_tokens
-    
-    # Handle invocation parameters (needs to be converted to a JSON string)
-    invocation_params: Dict[str, Any] = {}
-    param_keys: List[Tuple[str, str]] = [
-        (GenAI.REQUEST_TEMPERATURE, "temperature"),
-        (GenAI.REQUEST_TOP_P, "top_p"),
-        (GenAI.REQUEST_TOP_K, "top_k"),
-        (GenAI.REQUEST_MAX_TOKENS, "max_tokens"),
-        (GenAI.REQUEST_FREQUENCY_PENALTY, "frequency_penalty"),
-        (GenAI.REQUEST_PRESENCE_PENALTY, "presence_penalty"),
-        (GenAI.REQUEST_STOP_SEQUENCES, "stop"),
-        (GenAI.REQUEST_SEED, "seed")
-    ]
-    
-    for gen_ai_key, param_name in param_keys:
-        if gen_ai_key in gen_ai_attrs:
-            invocation_params[param_name] = gen_ai_attrs[gen_ai_key]
-    
-    # Add model name to invocation params if available
-    if GenAI.REQUEST_MODEL in gen_ai_attrs:
-        invocation_params["model_name"] = gen_ai_attrs[GenAI.REQUEST_MODEL]
-    
-    # Convert to JSON string if we have any invocation parameters
-    if invocation_params:
-        open_attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS] = json.dumps(invocation_params)
-    
-    # Map output type to mime type (approximate mapping)
-    if GenAI.OUTPUT_TYPE in gen_ai_attrs:
-        output_type = gen_ai_attrs[GenAI.OUTPUT_TYPE]
-        mime_type_map = {
-            "text": OpenInferenceMimeTypeValues.TEXT.value,
-            "json": OpenInferenceMimeTypeValues.JSON.value,
-            "image": "image/png",  # Default image type, not in OpenInferenceMimeTypeValues
-            "speech": "audio/mpeg"  # Default audio type, not in OpenInferenceMimeTypeValues
+class GenAIEventNames:
+    SYSTEM_MESSAGE = "gen_ai.system.message"
+    USER_MESSAGE = "gen_ai.user.message"
+    ASSISTANT_MESSAGE = "gen_ai.assistant.message"
+    TOOL_MESSAGE = "gen_ai.tool.message"
+    CHOICE = "gen_ai.choice"
+
+
+class GenAICommonBodyFields:
+    ROLE = "role"
+    CONTENT = "content"
+
+
+class GenAISystemMessageBodyFields(GenAICommonBodyFields):
+    pass
+
+
+class GenAIUserMessageBodyFields(GenAICommonBodyFields):
+    pass
+
+
+class GenAIAssistantMessageBodyFields(GenAICommonBodyFields):
+    TOOL_CALLS = "tool_calls"
+
+
+class GenAIToolCallFields:
+    FUNCTION = "function"
+    ID = "id"
+    TYPE = "type"
+
+
+class GenAIFunctionFields:
+    NAME = "name"
+    ARGUMENTS = "arguments"
+
+
+class GenAIToolMessageBodyFields(GenAICommonBodyFields):
+    ID = "id"  # Tool call id that this message is responding to
+
+
+class GenAIChoiceBodyFields:
+    INDEX = "index"
+    FINISH_REASON = "finish_reason"
+    MESSAGE = "message"
+    TOOL_CALLS = "tool_calls"
+
+
+class PydanticCustomAttributes:
+    MODEL_REQUEST_PARAMETERS = "model_request_parameters"
+
+
+class PydanticModelRequestParameters:
+    TOOLS = "output_tools"
+    NAME = "name"
+    DESCRIPTION = "description"
+    PARAMETERS = "parameters"
+
+
+class PydanticModelRequestParametersTool:
+    NAME = "name"
+    DESCRIPTION = "description"
+    PARAMETERS = "parameters"
+
+
+class PydanticMessageToolCallFunctionFinalResult:
+    FINAL_RESULT = "final_result"
+
+
+class OpenInferenceAttributesExtractor:
+    """Extracts OpenInference attributes from GenAI attributes."""
+
+    def __init__(self) -> None:
+        pass
+
+    def get_attributes(
+        self, gen_ai_attrs: Mapping[str, Any]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """
+        Main method to extract OpenInference attributes from GenAI attributes.
+
+        Args:
+            gen_ai_attrs: Dictionary with OTEL GenAI semantic convention attributes
+
+        Returns:
+            Iterator of (key, value) pairs for OpenInference attributes
+        """
+        yield from self._extract_common_attributes(gen_ai_attrs)
+
+        operation_name = gen_ai_attrs.get(GenAICommonAttributes.OPERATION_NAME)
+        if operation_name:
+            try:
+                operation = GenAIOperationName(operation_name)
+                if (
+                    operation == GenAIOperationName.CHAT
+                    or operation == GenAIOperationName.TEXT_COMPLETION
+                ):
+                    yield from self._extract_llm_attributes(gen_ai_attrs)
+                elif operation == GenAIOperationName.EMBEDDINGS:
+                    yield from self._extract_embedding_attributes(gen_ai_attrs)
+                elif operation == GenAIOperationName.EXECUTE_TOOL:
+                    yield from self._extract_tool_attributes(gen_ai_attrs)
+                elif operation in (
+                    GenAIOperationName.CREATE_AGENT,
+                    GenAIOperationName.INVOKE_AGENT,
+                ):
+                    yield from self._extract_agent_attributes(gen_ai_attrs)
+                elif operation == GenAIOperationName.GENERATE_CONTENT:
+                    yield from self._extract_llm_attributes(gen_ai_attrs)
+            except ValueError:
+                pass
+
+    def _extract_common_attributes(
+        self, gen_ai_attrs: Mapping[str, Any]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Extract attributes common to all operation types."""
+
+        if GenAICommonAttributes.OPERATION_NAME in gen_ai_attrs:
+            try:
+                operation = GenAIOperationName(gen_ai_attrs[GenAICommonAttributes.OPERATION_NAME])
+                span_kind = self._map_operation_to_span_kind(operation)
+                yield SpanAttributes.OPENINFERENCE_SPAN_KIND, span_kind.value
+            except ValueError:
+                yield (
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                    OpenInferenceSpanKindValues.UNKNOWN.value,
+                )
+
+        if GenAICommonAttributes.SYSTEM in gen_ai_attrs:
+            yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GenAICommonAttributes.SYSTEM]
+
+        if GenAICommonAttributes.REQUEST_MODEL in gen_ai_attrs:
+            yield SpanAttributes.LLM_MODEL_NAME, gen_ai_attrs[GenAICommonAttributes.REQUEST_MODEL]
+
+        if GenAICommonAttributes.USAGE_INPUT_TOKENS in gen_ai_attrs:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT,
+                gen_ai_attrs[GenAICommonAttributes.USAGE_INPUT_TOKENS],
+            )
+
+        if GenAICommonAttributes.USAGE_OUTPUT_TOKENS in gen_ai_attrs:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
+                gen_ai_attrs[GenAICommonAttributes.USAGE_OUTPUT_TOKENS],
+            )
+
+        if (
+            GenAICommonAttributes.USAGE_INPUT_TOKENS in gen_ai_attrs
+            and GenAICommonAttributes.USAGE_OUTPUT_TOKENS in gen_ai_attrs
+        ):
+            total_tokens = (
+                gen_ai_attrs[GenAICommonAttributes.USAGE_INPUT_TOKENS]
+                + gen_ai_attrs[GenAICommonAttributes.USAGE_OUTPUT_TOKENS]
+            )
+            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+        if GenAICommonAttributes.CONVERSATION_ID in gen_ai_attrs:
+            yield SpanAttributes.SESSION_ID, gen_ai_attrs[GenAICommonAttributes.CONVERSATION_ID]
+
+    def _extract_llm_attributes(
+        self, gen_ai_attrs: Mapping[str, Any]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Extract attributes specific to LLM operations (chat, text completion)."""
+
+        invocation_params = self._extract_invocation_parameters(gen_ai_attrs)
+        if invocation_params:
+            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_params)
+
+        yield from self._extract_tools_attributes(gen_ai_attrs)
+
+        if OTELConventions.EVENTS in gen_ai_attrs:
+            events = self._parse_events(gen_ai_attrs[OTELConventions.EVENTS])
+            if events:
+                input_messages = self._extract_llm_input_messages(events)
+                for index, message in enumerate(input_messages):
+                    for key, value in message.items():
+                        yield f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{key}", value
+
+                input_value = self._find_llm_input_value(input_messages)
+                if input_value is not None:
+                    yield SpanAttributes.INPUT_VALUE, input_value
+
+                output_messages = self._extract_llm_output_messages(events)
+                for index, message in enumerate(output_messages):
+                    for key, value in self._flatten_message(message).items():
+                        yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+
+                output_value = self._find_llm_output_value(output_messages)
+                if output_value is not None:
+                    yield SpanAttributes.OUTPUT_VALUE, output_value
+
+    def _flatten_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """Flatten a message dictionary for output, handling nested structures like tool_calls."""
+        flattened = {}
+
+        for key, value in message.items():
+            if key != MessageAttributes.MESSAGE_TOOL_CALLS:
+                flattened[key] = value
+
+        if MessageAttributes.MESSAGE_TOOL_CALLS in message:
+            tool_calls = message[MessageAttributes.MESSAGE_TOOL_CALLS]
+            for idx, tool_call in enumerate(tool_calls):
+                for tc_key, tc_value in tool_call.items():
+                    flattened[f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{idx}.{tc_key}"] = tc_value
+
+        return flattened
+
+    def _extract_embedding_attributes(
+        self, gen_ai_attrs: Mapping[str, Any]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Extract attributes specific to embedding operations."""
+
+        if GenAICommonAttributes.REQUEST_MODEL in gen_ai_attrs:
+            yield (
+                SpanAttributes.EMBEDDING_MODEL_NAME,
+                gen_ai_attrs[GenAICommonAttributes.REQUEST_MODEL],
+            )
+
+        if OTELConventions.EVENTS in gen_ai_attrs:
+            events = self._parse_events(gen_ai_attrs[OTELConventions.EVENTS])
+            embeddings = self._extract_embeddings_from_events(events)
+
+            for idx, embedding in enumerate(embeddings):
+                for key, value in embedding.items():
+                    yield f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{idx}.{key}", value
+
+            input_value = self._find_embedding_input_value(events)
+            if input_value is not None:
+                yield SpanAttributes.INPUT_VALUE, input_value
+
+    def _extract_tool_attributes(
+        self, gen_ai_attrs: Mapping[str, Any]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Extract attributes specific to tool operations."""
+
+        if GenAIToolAttributes.NAME in gen_ai_attrs:
+            yield SpanAttributes.TOOL_NAME, gen_ai_attrs[GenAIToolAttributes.NAME]
+
+        if GenAIToolAttributes.DESCRIPTION in gen_ai_attrs:
+            yield SpanAttributes.TOOL_DESCRIPTION, gen_ai_attrs[GenAIToolAttributes.DESCRIPTION]
+
+        if GenAIToolAttributes.CALL_ID in gen_ai_attrs:
+            yield ToolCallAttributes.TOOL_CALL_ID, gen_ai_attrs[GenAIToolAttributes.CALL_ID]
+
+        if OTELConventions.EVENTS in gen_ai_attrs:
+            events = self._parse_events(gen_ai_attrs[OTELConventions.EVENTS])
+
+            for event in events:
+                if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.TOOL_MESSAGE:
+                    if GenAIToolMessageBodyFields.ID in event:
+                        yield ToolCallAttributes.TOOL_CALL_ID, event[GenAIToolMessageBodyFields.ID]
+                    if GenAIToolMessageBodyFields.CONTENT in event:
+                        yield SpanAttributes.OUTPUT_VALUE, event[GenAIToolMessageBodyFields.CONTENT]
+
+                if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.ASSISTANT_MESSAGE:
+                    if GenAIAssistantMessageBodyFields.TOOL_CALLS in event and isinstance(
+                        event[GenAIAssistantMessageBodyFields.TOOL_CALLS], list
+                    ):
+                        for tool_call in event[GenAIAssistantMessageBodyFields.TOOL_CALLS]:
+                            if GenAIToolCallFields.FUNCTION in tool_call and isinstance(
+                                tool_call[GenAIToolCallFields.FUNCTION], dict
+                            ):
+                                if (
+                                    GenAIFunctionFields.NAME
+                                    in tool_call[GenAIToolCallFields.FUNCTION]
+                                ):
+                                    yield (
+                                        ToolCallAttributes.TOOL_CALL_FUNCTION_NAME,
+                                        tool_call[GenAIToolCallFields.FUNCTION][
+                                            GenAIFunctionFields.NAME
+                                        ],
+                                    )
+                                if (
+                                    GenAIFunctionFields.ARGUMENTS
+                                    in tool_call[GenAIToolCallFields.FUNCTION]
+                                ):
+                                    yield (
+                                        ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+                                        tool_call[GenAIToolCallFields.FUNCTION][
+                                            GenAIFunctionFields.ARGUMENTS
+                                        ],
+                                    )
+                                    yield (
+                                        SpanAttributes.INPUT_VALUE,
+                                        tool_call[GenAIToolCallFields.FUNCTION][
+                                            GenAIFunctionFields.ARGUMENTS
+                                        ],
+                                    )
+
+    def _extract_agent_attributes(
+        self, gen_ai_attrs: Mapping[str, Any]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Extract attributes specific to agent operations."""
+        yield from self._extract_llm_attributes(gen_ai_attrs)
+
+    def _extract_tools_attributes(
+        self, gen_ai_attrs: Mapping[str, Any]
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Extract tool definitions from model request parameters."""
+        if PydanticCustomAttributes.MODEL_REQUEST_PARAMETERS not in gen_ai_attrs:
+            return
+
+        try:
+            params = self._parse_json_value(
+                gen_ai_attrs[PydanticCustomAttributes.MODEL_REQUEST_PARAMETERS]
+            )
+            if not params or not isinstance(params, dict):
+                return
+
+            tools = []
+            if PydanticModelRequestParameters.TOOLS in params and isinstance(
+                params[PydanticModelRequestParameters.TOOLS], list
+            ):
+                for tool in params[PydanticModelRequestParameters.TOOLS]:
+                    if not isinstance(tool, dict):
+                        continue
+
+                    tool_info = {}
+                    if PydanticModelRequestParametersTool.NAME in tool:
+                        tool_info[SpanAttributes.TOOL_NAME] = tool[
+                            PydanticModelRequestParametersTool.NAME
+                        ]
+                    if PydanticModelRequestParametersTool.DESCRIPTION in tool:
+                        tool_info[SpanAttributes.TOOL_DESCRIPTION] = tool[
+                            PydanticModelRequestParametersTool.DESCRIPTION
+                        ]
+                    if PydanticModelRequestParametersTool.PARAMETERS in tool and isinstance(
+                        tool[PydanticModelRequestParametersTool.PARAMETERS], dict
+                    ):
+                        tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = json.dumps(
+                            tool[PydanticModelRequestParametersTool.PARAMETERS]
+                        )
+
+                    if tool_info:
+                        tools.append(tool_info)
+
+            for idx, tool in enumerate(tools):
+                for key, value in tool.items():
+                    yield f"{SpanAttributes.LLM_TOOLS}.{idx}.{key}", value
+        except Exception as e:
+            logger.debug(f"Error parsing model request parameters: {e}")
+
+    def _extract_invocation_parameters(self, gen_ai_attrs: Mapping[str, Any]) -> Dict[str, Any]:
+        """Extract invocation parameters that map to OpenInference."""
+        param_keys = [
+            (GenAIRequestAttributes.TEMPERATURE, "temperature"),
+            (GenAIRequestAttributes.TOP_P, "top_p"),
+            (GenAIRequestAttributes.TOP_K, "top_k"),
+            (GenAIRequestAttributes.MAX_TOKENS, "max_tokens"),
+            (GenAIRequestAttributes.FREQUENCY_PENALTY, "frequency_penalty"),
+            (GenAIRequestAttributes.PRESENCE_PENALTY, "presence_penalty"),
+            (GenAIRequestAttributes.STOP_SEQUENCES, "stop"),
+            (GenAIRequestAttributes.SEED, "seed"),
+        ]
+
+        invocation_params = {}
+        for gen_ai_key, param_name in param_keys:
+            if gen_ai_key in gen_ai_attrs:
+                invocation_params[param_name] = gen_ai_attrs[gen_ai_key]
+
+        return invocation_params
+
+    def _extract_llm_input_messages(self, events: list) -> list:
+        """Extract input messages from events for LLM operations."""
+        input_messages = []
+
+        for event in events:
+            if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.USER_MESSAGE:
+                message = {}
+                if GenAIUserMessageBodyFields.ROLE in event:
+                    message[MessageAttributes.MESSAGE_ROLE] = event[GenAIUserMessageBodyFields.ROLE]
+
+                if GenAIUserMessageBodyFields.CONTENT in event:
+                    message[MessageAttributes.MESSAGE_CONTENT] = event[
+                        GenAIUserMessageBodyFields.CONTENT
+                    ]
+
+                if message:
+                    input_messages.append(message)
+
+            if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.SYSTEM_MESSAGE:
+                message = {}
+                if GenAISystemMessageBodyFields.ROLE in event:
+                    message[MessageAttributes.MESSAGE_ROLE] = event[
+                        GenAISystemMessageBodyFields.ROLE
+                    ]
+
+                if GenAISystemMessageBodyFields.CONTENT in event:
+                    message[MessageAttributes.MESSAGE_CONTENT] = event[
+                        GenAISystemMessageBodyFields.CONTENT
+                    ]
+
+                if message:
+                    input_messages.append(message)
+
+            if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.ASSISTANT_MESSAGE:
+                message = {}
+                if GenAIAssistantMessageBodyFields.ROLE in event:
+                    message[MessageAttributes.MESSAGE_ROLE] = event[
+                        GenAIAssistantMessageBodyFields.ROLE
+                    ]
+
+                if GenAIAssistantMessageBodyFields.CONTENT in event:
+                    message[MessageAttributes.MESSAGE_CONTENT] = event[
+                        GenAIAssistantMessageBodyFields.CONTENT
+                    ]
+
+                if GenAIAssistantMessageBodyFields.TOOL_CALLS in event and isinstance(
+                    event[GenAIAssistantMessageBodyFields.TOOL_CALLS], list
+                ):
+                    tool_calls = []
+                    for tool_call in event[GenAIAssistantMessageBodyFields.TOOL_CALLS]:
+                        tc = self._process_tool_call(tool_call)
+                        if tc:
+                            tool_calls.append(tc)
+
+                    if tool_calls:
+                        message[MessageAttributes.MESSAGE_TOOL_CALLS] = tool_calls
+
+                if message:
+                    input_messages.append(message)
+
+            if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.TOOL_MESSAGE:
+                message = {}
+                if GenAIToolMessageBodyFields.ROLE in event:
+                    message[MessageAttributes.MESSAGE_ROLE] = event[GenAIToolMessageBodyFields.ROLE]
+
+                if GenAIToolMessageBodyFields.CONTENT in event:
+                    message[MessageAttributes.MESSAGE_CONTENT] = event[
+                        GenAIToolMessageBodyFields.CONTENT
+                    ]
+
+                if GenAIToolMessageBodyFields.ID in event:
+                    message[ToolCallAttributes.TOOL_CALL_ID] = event[GenAIToolMessageBodyFields.ID]
+
+                if message:
+                    input_messages.append(message)
+
+        return input_messages
+
+    def _process_tool_call(self, tool_call: dict) -> dict:
+        """Process a tool call and extract relevant information."""
+        if not isinstance(tool_call, dict):
+            return {}
+
+        tc = {}
+        if GenAIToolCallFields.ID in tool_call:
+            tc[ToolCallAttributes.TOOL_CALL_ID] = tool_call[GenAIToolCallFields.ID]
+
+        if GenAIToolCallFields.FUNCTION in tool_call and isinstance(
+            tool_call[GenAIToolCallFields.FUNCTION], dict
+        ):
+            function = tool_call[GenAIToolCallFields.FUNCTION]
+            if GenAIFunctionFields.NAME in function:
+                tc[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME] = function[GenAIFunctionFields.NAME]
+
+            if GenAIFunctionFields.ARGUMENTS in function:
+                tc[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON] = function[
+                    GenAIFunctionFields.ARGUMENTS
+                ]
+
+        return tc
+
+    def _extract_llm_output_messages(self, events: list) -> list:
+        """Extract output messages from events for LLM operations."""
+        output_messages = []
+
+        for event in events:
+            if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.CHOICE:
+                choice = {}
+
+                if GenAIChoiceBodyFields.MESSAGE in event and isinstance(
+                    event[GenAIChoiceBodyFields.MESSAGE], dict
+                ):
+                    message = {}
+                    message_data = event[GenAIChoiceBodyFields.MESSAGE]
+
+                    if GenAICommonBodyFields.ROLE in message_data:
+                        message[MessageAttributes.MESSAGE_ROLE] = message_data[
+                            GenAICommonBodyFields.ROLE
+                        ]
+
+                    if GenAICommonBodyFields.CONTENT in message_data:
+                        message[MessageAttributes.MESSAGE_CONTENT] = message_data[
+                            GenAICommonBodyFields.CONTENT
+                        ]
+
+                    if GenAIChoiceBodyFields.TOOL_CALLS in message_data and isinstance(
+                        message_data[GenAIChoiceBodyFields.TOOL_CALLS], list
+                    ):
+                        tool_calls = []
+                        for tool_call in message_data[GenAIChoiceBodyFields.TOOL_CALLS]:
+                            tc = self._process_tool_call(tool_call)
+                            if tc:
+                                tool_calls.append(tc)
+
+                        if tool_calls:
+                            message[MessageAttributes.MESSAGE_TOOL_CALLS] = tool_calls
+
+                    message.update(choice)
+
+                    if message:
+                        output_messages.append(message)
+
+        return output_messages
+
+    def _extract_embeddings_from_events(self, events: list) -> list:
+        """Extract embeddings from events for embedding operations."""
+        embeddings = []
+
+        return embeddings
+
+    def _find_llm_input_value(self, input_messages: list) -> Optional[str]:
+        """Find input value from first user message for LLM operations."""
+        for message in input_messages:
+            if GenAIUserMessageBodyFields.CONTENT in message:
+                return message[GenAIUserMessageBodyFields.CONTENT]
+
+        return None
+
+    def _find_llm_output_value(self, output_messages: list) -> Optional[str]:
+        """Find output value from message in choice events."""
+        for message in output_messages:
+            if MessageAttributes.MESSAGE_CONTENT in message:
+                return message[MessageAttributes.MESSAGE_CONTENT]
+            if MessageAttributes.MESSAGE_TOOL_CALLS in message and isinstance(
+                message[MessageAttributes.MESSAGE_TOOL_CALLS], list
+            ):
+                for tool_call in message[MessageAttributes.MESSAGE_TOOL_CALLS]:
+                    if (
+                        ToolCallAttributes.TOOL_CALL_FUNCTION_NAME in tool_call
+                        and tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME]
+                        == PydanticMessageToolCallFunctionFinalResult.FINAL_RESULT
+                    ):
+                        if ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON in tool_call:
+                            return tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]
+        return None
+
+    def _find_embedding_input_value(self, events: list) -> Optional[str]:
+        """Find input value from embedding events for embedding operations."""
+        return None
+
+    def _map_operation_to_span_kind(
+        self, operation: GenAIOperationName
+    ) -> OpenInferenceSpanKindValues:
+        """Map GenAIOperationName to OpenInferenceSpanKindValues."""
+        mapping = {
+            GenAIOperationName.CHAT: OpenInferenceSpanKindValues.LLM,
+            GenAIOperationName.TEXT_COMPLETION: OpenInferenceSpanKindValues.LLM,
+            GenAIOperationName.CREATE_AGENT: OpenInferenceSpanKindValues.AGENT,
+            GenAIOperationName.EMBEDDINGS: OpenInferenceSpanKindValues.EMBEDDING,
+            GenAIOperationName.EXECUTE_TOOL: OpenInferenceSpanKindValues.TOOL,
+            GenAIOperationName.INVOKE_AGENT: OpenInferenceSpanKindValues.AGENT,
+            GenAIOperationName.GENERATE_CONTENT: OpenInferenceSpanKindValues.LLM,
         }
-        if output_type in mime_type_map:
-            open_attrs[SpanAttributes.OUTPUT_MIME_TYPE] = mime_type_map[output_type]
-    
-    return open_attrs
+        return mapping.get(operation, OpenInferenceSpanKindValues.UNKNOWN)
 
+    def _parse_events(self, events_value: Any) -> list:
+        """Parse events from string or list."""
+        if isinstance(events_value, str):
+            try:
+                return json.loads(events_value)
+            except json.JSONDecodeError:
+                return []
+        elif isinstance(events_value, list):
+            return events_value
+        return []
+
+    def _parse_json_value(self, json_value: Any) -> Any:
+        """Parse JSON from string or return as is if already parsed."""
+        if isinstance(json_value, str):
+            try:
+                return json.loads(json_value)
+            except json.JSONDecodeError:
+                return None
+        return json_value
