@@ -533,12 +533,22 @@ class TestTracerChainDecorator:
         assert attributes.pop(OUTPUT_VALUE) == json.dumps({"output": "output"})
         assert not attributes
 
-    def test_overridden_name(
+    def test_applied_parameters(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain(name="overridden-name")
+        def process_input(input: str) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "processed-input"}
+
+        def process_output(output: Dict[str, Any]) -> "Mapping[str, AttributeValue]":
+            return {OUTPUT_VALUE: "processed-output"}
+
+        @tracer.chain(
+            name="overridden-name",
+            process_input=process_input,
+            process_output=process_output,
+        )
         def decorated_chain_with_overridden_name(input: str) -> Dict[str, Any]:
             return {"output": "output"}
 
@@ -552,10 +562,8 @@ class TestTracerChainDecorator:
         assert not span.events
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
-        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
-        assert attributes.pop(INPUT_VALUE) == "input"
-        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-        assert attributes.pop(OUTPUT_VALUE) == json.dumps({"output": "output"})
+        assert attributes.pop(INPUT_VALUE) == "processed-input"
+        assert attributes.pop(OUTPUT_VALUE) == "processed-output"
         assert not attributes
 
     def test_pydantic_input_and_output(
