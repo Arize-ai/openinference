@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Any, Dict, Literal, TypedDict, Union
+from typing import Any, Dict, List, Literal, TypedDict, Union
 
 from typing_extensions import Required, TypeAlias
 
@@ -68,11 +68,30 @@ class Message(TypedDict, total=False):
     tool_calls: "Sequence[ToolCall]"
 
 
+class PromptDetails(TypedDict, total=False):
+    audio: int
+    cache_read: int
+    cache_write: int
+
+
 class TokenCount(TypedDict, total=False):
     prompt: int
     completion: int
     total: int
+    prompt_details: PromptDetails
 
 
 class Tool(TypedDict, total=False):
     json_schema: Required[Union[str, Dict[str, Any]]]
+
+
+class Embedding(TypedDict, total=False):
+    text: str
+    vector: List[float]
+
+
+class Document(TypedDict, total=False):
+    content: str
+    id: Union[str, int]
+    metadata: Union[str, Dict[str, Any]]
+    score: float

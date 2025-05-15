@@ -9,6 +9,7 @@ from typing import (
     Any,
     Dict,
     Iterator,
+    List,
     Literal,
     Optional,
     Tuple,
@@ -19,6 +20,8 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeGuard
 
 from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -26,12 +29,15 @@ from openinference.semconv.trace import (
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
+    RerankerAttributes,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
 )
 
 from ._types import (
+    Document,
+    Embedding,
     Message,
     OpenInferenceLLMProvider,
     OpenInferenceLLMSystem,
@@ -40,6 +46,7 @@ from ._types import (
     TokenCount,
     Tool,
 )
+from .helpers import safe_json_dumps
 
 pydantic: Optional[ModuleType]
 try:
@@ -49,6 +56,140 @@ except ImportError:
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
+
+
+def get_reranker_attributes(
+    *,
+    query: Optional[str] = None,
+    model_name: Optional[str] = None,
+    input_documents: Optional[List[Document]] = None,
+    output_documents: Optional[List[Document]] = None,
+    top_k: Optional[int] = None,
+) -> Dict[str, AttributeValue]:
+    attributes: Dict[str, AttributeValue] = {}
+    if query is not None:
+        attributes[RERANKER_QUERY] = query
+    if model_name is not None:
+        attributes[RERANKER_MODEL_NAME] = model_name
+    if top_k is not None:
+        attributes[RERANKER_TOP_K] = top_k
+    if isinstance(input_documents, list):
+        for index, document in enumerate(input_documents):
+            attributes.update(
+                _document_attributes(
+                    document=document,
+                    document_index=index,
+                    key_prefix=RERANKER_INPUT_DOCUMENTS,
+                )
+            )
+    if isinstance(output_documents, list):
+        for index, document in enumerate(output_documents):
+            attributes.update(
+                _document_attributes(
+                    document=document,
+                    document_index=index,
+                    key_prefix=RERANKER_OUTPUT_DOCUMENTS,
+                )
+            )
+    return attributes
+
+
+def get_retriever_attributes(*, documents: List[Document]) -> Dict[str, AttributeValue]:
+    attributes: Dict[str, AttributeValue] = {}
+    if not isinstance(documents, list):
+        return attributes
+    for index, document in enumerate(documents):
+        attributes.update(
+            _document_attributes(
+                document=document,
+                document_index=index,
+                key_prefix=RETRIEVAL_DOCUMENTS,
+            )
+        )
+    return attributes
+
+
+def _document_attributes(
+    *,
+    document: Document,
+    document_index: str,
+    key_prefix: str,
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if not isinstance(document, dict):
+        return
+    if (content := document.get("content")) is not None:
+        yield f"{key_prefix}.{document_index}.{DOCUMENT_CONTENT}", content
+    if (document_id := document.get("id")) is not None:
+        yield f"{key_prefix}.{document_index}.{DOCUMENT_ID}", document_id
+    if (metadata := document.get("metadata")) is not None:
+        key = f"{key_prefix}.{document_index}.{DOCUMENT_METADATA}"
+        serialized_metadata: str
+        if isinstance(metadata, str):
+            serialized_metadata = metadata
+        else:
+            serialized_metadata = safe_json_dumps(metadata)
+        yield key, serialized_metadata
+    if (score := document.get("score")) is not None:
+        return f"{key_prefix}.{document_index}.{DOCUMENT_SCORE}", score
+
+
+def get_embedding_attributes(
+    *,
+    model_name: Optional[str] = None,
+    embeddings: Optional[List[Embedding]] = None,
+) -> Dict[str, AttributeValue]:
+    attributes: Dict[str, AttributeValue] = {}
+    if model_name is not None:
+        attributes[EMBEDDING_MODEL_NAME] = model_name
+    if isinstance(embeddings, list):
+        for index, embedding in enumerate(embeddings):
+            if (text := embedding.get("text")) is not None:
+                key = f"{EMBEDDING_EMBEDDINGS}.{index}.{EMBEDDING_TEXT}"
+                attributes[key] = text
+            if (vector := embedding.get("vector")) is not None:
+                key = f"{EMBEDDING_EMBEDDINGS}.{index}.{EMBEDDING_VECTOR}"
+                attributes[key] = vector
+    return attributes
+
+
+def get_context_attributes(
+    *,
+    session_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    metadata: Optional[Union[str, Dict[str, Any]]] = None,
+    tags: Optional[List[str]] = None,
+) -> Dict[str, AttributeValue]:
+    attributes: Dict[str, AttributeValue] = {}
+    if session_id is not None:
+        attributes.update(get_session_attributes(session_id=session_id))
+    if user_id is not None:
+        attributes.update(get_user_id_attributes(user_id=user_id))
+    if metadata is not None:
+        attributes.update(get_metadata_attributes(metadata=metadata))
+    if tags is not None:
+        attributes.update(get_tag_attributes(tags=tags))
+    return attributes
+
+
+def get_session_attributes(*, session_id: str) -> Dict[str, AttributeValue]:
+    return {SESSION_ID: session_id}
+
+
+def get_tag_attributes(*, tags: List[str]) -> Dict[str, AttributeValue]:
+    return {TAG_TAGS: tags}
+
+
+def get_metadata_attributes(*, metadata: Union[str, Dict[str, Any]]) -> Dict[str, AttributeValue]:
+    serialized_metadata: str
+    if isinstance(metadata, str):
+        serialized_metadata = metadata
+    else:
+        serialized_metadata = safe_json_dumps(metadata)
+    return {METADATA: serialized_metadata}
+
+
+def get_user_id_attributes(*, user_id: str) -> Dict[str, AttributeValue]:
+    return {USER_ID: user_id}
 
 
 def get_span_kind_attributes(kind: "OpenInferenceSpanKind", /) -> Dict[str, AttributeValue]:
@@ -350,6 +491,14 @@ def get_llm_token_count_attributes(
             attributes[LLM_TOKEN_COUNT_COMPLETION] = completion
         if (total := token_count.get("total")) is not None:
             attributes[LLM_TOKEN_COUNT_TOTAL] = total
+        if (prompt_details := token_count.get("prompt_details")) is not None:
+            if isinstance(prompt_details, dict):
+                if (cache_write := prompt_details.get("cache_write")) is not None:
+                    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cache_write
+                if (cache_read := prompt_details.get("cache_read")) is not None:
+                    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read
+                if (audio := prompt_details.get("audio")) is not None:
+                    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO] = audio
     return attributes
 
 
@@ -371,9 +520,18 @@ def get_llm_tool_attributes(
     return attributes
 
 
+# document attributes
+DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
+DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
+DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
+DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
+
+# embedding attributes
+EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
+EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
+
 # image attributes
 IMAGE_URL = ImageAttributes.IMAGE_URL
-
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
@@ -382,14 +540,21 @@ MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 
-
 # message content attributes
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 
+# reranker attributes
+RERANKER_INPUT_DOCUMENTS = RerankerAttributes.RERANKER_INPUT_DOCUMENTS
+RERANKER_MODEL_NAME = RerankerAttributes.RERANKER_MODEL_NAME
+RERANKER_OUTPUT_DOCUMENTS = RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
+RERANKER_QUERY = RerankerAttributes.RERANKER_QUERY
+RERANKER_TOP_K = RerankerAttributes.RERANKER_TOP_K
 
 # span attributes
+EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
+EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
@@ -400,19 +565,27 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
+METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
+SESSION_ID = SpanAttributes.SESSION_ID
+TAG_TAGS = SpanAttributes.TAG_TAGS
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
-
+USER_ID = SpanAttributes.USER_ID
 
 # tool attributes
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
-
 
 # tool call attributes
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
