@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import Any
 
 import boto3
@@ -71,13 +72,13 @@ def test_tool_calls_with_input_params(
     assert len(spans) == 5
     span_names = [span.name for span in spans]
     assert span_names == [
+        "orchestrationTrace",
         "LLM",
         "action_group",
         "LLM",
-        "orchestrationTrace",
         "bedrock_agent.invoke_agent",
     ]
-    llm_span = [span for span in spans if span.name == "LLM"][0]
+    llm_span = [span for span in spans if span.name == "LLM"][-1]
     llm_span_attributes = dict(llm_span.attributes or {})
     tool_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     tool_function_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -123,13 +124,13 @@ def test_tool_calls_without_input_params(
     assert len(spans) == 5
     span_names = [span.name for span in spans]
     assert span_names == [
+        "orchestrationTrace",
         "LLM",
         "action_group",
         "LLM",
-        "orchestrationTrace",
         "bedrock_agent.invoke_agent",
     ]
-    llm_span = [span for span in spans if span.name == "LLM"][0]
+    llm_span = [span for span in spans if span.name == "LLM"][-1]
     llm_span_attributes = dict(llm_span.attributes or {})
     tool_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     tool_function_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -171,14 +172,14 @@ def test_knowledge_base_results(
     assert len(events) == 10
     span_names = [span.name for span in spans]
     assert span_names == [
+        "orchestrationTrace",
         "LLM",
         "knowledge_base",
         "LLM",
-        "orchestrationTrace",
         "bedrock_agent.invoke_agent",
     ]
     assert len(spans) == 5
-    llm_span = [span for span in spans if span.name == "LLM"][0]
+    llm_span = [span for span in spans if span.name == "LLM"][-1]
     llm_span_attributes = dict(llm_span.attributes or {})
     tool_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     tool_function_key = f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -219,10 +220,10 @@ def test_preprocessing_trace(
     assert len(spans) == 5
     span_names = [span.name for span in spans]
     assert span_names == [
-        "LLM",
-        "LLM",
-        "preProcessingTrace",
         "orchestrationTrace",
+        "preProcessingTrace",
+        "LLM",
+        "LLM",
         "bedrock_agent.invoke_agent",
     ]
 
@@ -257,10 +258,10 @@ def test_post_processing_trace(
     assert len(spans) == 5
     span_names = [span.name for span in spans]
     assert span_names == [
-        "LLM",
-        "LLM",
-        "orchestrationTrace",
         "postProcessingTrace",
+        "orchestrationTrace",
+        "LLM",
+        "LLM",
         "bedrock_agent.invoke_agent",
     ]
 
@@ -298,3 +299,41 @@ def test_agent_call_without_traces(
     assert isinstance(attributes.pop(SpanAttributes.INPUT_VALUE), str)
     assert isinstance(attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
     assert spans[0].name == "bedrock_agent.invoke_agent"
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_multi_agent_collaborator(
+    tracer_provider: trace_sdk.TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
+    agent_id = "2X9SRVPLWB"
+    agent_alias_id = "KUXISKYLTT"
+    session_id = "123456"
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    attributes = dict(
+        inputText="Find the sum of 1, 2, 3, 4, 5, 6, 7, 8, 9, and 10.",
+        agentId=agent_id,
+        agentAliasId=agent_alias_id,
+        sessionId=session_id,
+        enableTrace=True,
+    )
+    response = client.invoke_agent(**attributes)
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response["completion"]]
+    assert len(events) == 34
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 15
+    span_name_counter = Counter([span.name for span in spans])
+    assert span_name_counter["orchestrationTrace"] == 3
+    assert span_name_counter["LLM"] == 9
+    # assert span_name_counter["agent_collaborator[MathSolverAgent]"] == 1
+    # assert span_name_counter["agent_collaborator[SimpleSupervisor]"] == 1
+    assert span_name_counter["bedrock_agent.invoke_agent"] == 1
