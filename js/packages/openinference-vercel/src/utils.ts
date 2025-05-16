@@ -368,6 +368,8 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
   const openInferenceAttributes = {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind ?? undefined,
   };
+  console.log("new span attributes");
+  console.table(attributes);
   return AISemanticConventionsList.reduce(
     (openInferenceAttributes: Attributes, convention) => {
       /**
