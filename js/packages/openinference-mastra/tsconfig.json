@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.esm.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["vitest/globals"],
+    "lib": ["ESNext"]
+  },
+  "files": [],
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": []
+}
