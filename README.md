@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/arize-ai-openinference-badge.png)](https://mseep.ai/app/arize-ai-openinference)
+
 <p align="center">
     <img alt="OpenInfence" src="https://raw.githubusercontent.com/Arize-ai/phoenix-assets/main/logos/OpenInference/Full%20color/OI-full-horiz.svg" width="40%" height="100%" />
 </p>
