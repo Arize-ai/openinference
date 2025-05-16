@@ -1,0 +1,163 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Whats trending on Twitter?"}],
+      "model": "gpt-4o-mini"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '1795'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.69.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.69.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFPBbtswDL3nKwidkyJN2jrxrcPQodhpCLYBmwtDlhhbqyyqEt2mCPLv
+        g5ymdrcO2EUHPj6S75HaTwCE0SIHoRrJqvV29uHTerHzmr61arPKbpYfb+h7/Tl+/WG+XJOYJgZV
+        v1DxiXWmqPUW2ZA7wiqgZExVz7OL5fkqyxbLHmhJo0202vPsgmatcWa2mC8uZvNsdr56YTdkFEaR
+        w88JAMC+f9OcTuNO5DCfniItxihrFPlrEoAIZFNEyBhNZOlYTAdQkWN0/ei3EBvqrAZujLsHWVHH
+        0NATMMFRAUgHuFPokzRpQToNLbYUZGUR6oDIxtVnULjCXauUlMMGZVANcINgHGNwyPBkuIENBo8B
+        4JQKt853nMO+ELHnlA8dhudC5FCIzpmHDvuG/SjmcegXC3EAGIsKuO2iTMa6ztoRIJ0jlqlbb+fd
+        C3J4NdBS7QNV8Q+q2BpnYlMGlJFcMisyedGjhwnAXb+o7o33wgdqPZdM99i3W16uj/XEcB8jNHsB
+        mVjaUXx9NX2nXqmRpbFxtGqhpGpQD9ThLmSnDY2AyUj139O8V/uo3Lj6f8oPgErHgrr0AbVRbxUP
+        aQHT9/lX2qvL/cAiYng0Cks2GNImNG5lZ49HLeJzZGzLrXE1Bh/M8bK3vqyW2ZXeVpW+FJPD5DcA
+        AAD//wMABqiMZecDAAA=
+    headers:
+      CF-RAY:
+      - 92794da8fdadfd60-GRU
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 28 Mar 2025 18:48:45 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=pyXRwWW0EZ.MBiNjEhiGsZQiBSvyA0JGiO7VmKJvxmQ-1743187725-1.0.1.1-QArMazupZLVhgCTABbQ0oPO57r.IB9m1f.O9Ja1btlzmFmJ4VRslaXhWmQrzOSd.w7U4IlWgiH6n_uFnrO9YziG4L2gQZSRPICxrSGNpOlk;
+        path=/; expires=Fri, 28-Mar-25 19:18:45 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=5Od97M5WTBv7k9v6_N6QGhQO4.BJeG0eSyUVUiEO9wg-1743187725235-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-zi
+      openai-processing-ms:
+      - '1381'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999589'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_f7837fb1131d98f5349a90f2a557b073
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"run":{"session_id":"3fdf1d89-821d-4fa7-b7bb-a15fbe91563e","run_id":"5c4b7665-bc37-495a-afa6-894a51d03f8a","run_data":{"functions":{"duckduckgo_search":{"name":"duckduckgo_search","description":"Use
+      this function to search DuckDuckGo for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]}},"duckduckgo_news":{"name":"duckduckgo_news","description":"Use
+      this function to get the latest news from DuckDuckGo.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]}}},"metrics":{"input_tokens":[359],"output_tokens":[37],"total_tokens":[396],"audio_tokens":[0],"input_audio_tokens":[0],"output_audio_tokens":[0],"cached_tokens":[0],"reasoning_tokens":[0],"prompt_tokens":[359],"completion_tokens":[37],"prompt_tokens_details":[{"audio_tokens":0,"cached_tokens":0}],"completion_tokens_details":[{"accepted_prediction_tokens":0,"audio_tokens":0,"reasoning_tokens":0,"rejected_prediction_tokens":0}],"time":[0.05340808304026723]}},"agent_data":{"model":{"name":"OpenAIChat","id":"gpt-4o-mini","provider":"OpenAI","functions":{"duckduckgo_search":{"name":"duckduckgo_search","description":"Use
+      this function to search DuckDuckGo for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]}},"duckduckgo_news":{"name":"duckduckgo_news","description":"Use
+      this function to get the latest news from DuckDuckGo.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]}}},"response_format":"None","tools":[{"type":"function","function":{"name":"duckduckgo_search","description":"Use
+      this function to search DuckDuckGo for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]}}},{"type":"function","function":{"name":"duckduckgo_news","description":"Use
+      this function to get the latest news from DuckDuckGo.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]}}}],"tool_choice":"auto"},"created_at":1746989318,"updated_at":null}}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '3029'
+      content-type:
+      - application/json
+      host:
+      - api.agno.com
+      user-agent:
+      - agno/1.4.6
+    method: POST
+    uri: https://api.agno.com/v1/telemetry/agent/run/create
+  response:
+    body:
+      string: '{"status":"success","message":"AgentTelemetryRun creation acknowledged"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '72'
+      Content-Type:
+      - application/json
+      Date:
+      - Sun, 11 May 2025 18:48:39 GMT
+      server:
+      - uvicorn
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-dspy"
+name = "openinference-instrumentation-agno"
 dynamic = ["version"]
-description = "OpenInference DSPy Instrumentation"
+description = "OpenInference Agno Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9, <3.14"
@@ -18,10 +18,10 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
   "opentelemetry-api",
@@ -35,32 +35,31 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "dspy >= 2.6.22",
+  "agno>=1.4.5",
 ]
 test = [
-  "dspy>=2.6.22",
-  "google-generativeai",
+  "agno==1.4.5",
   "opentelemetry-sdk",
   "pytest-recording",
-  "litellm",
+  "openai",
+  "duckduckgo-search",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
-dspy = "openinference.instrumentation.dspy:DSPyInstrumentor"
+agno = "openinference.instrumentation.agno:AgnoInstrumentor"
 
 [project.entry-points.openinference_instrumentor]
-dspy = "openinference.instrumentation.dspy:DSPyInstrumentor"
+agno = "openinference.instrumentation.agno:AgnoInstrumentor"
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-dspy"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agno"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/dspy/version.py"
+path = "src/openinference/instrumentation/agno/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -84,13 +83,13 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "agno",
   "wrapt",
-  "dspy.*",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]

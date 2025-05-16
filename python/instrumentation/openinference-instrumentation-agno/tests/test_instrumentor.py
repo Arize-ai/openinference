@@ -68,11 +68,10 @@ def test_agno_instrumentation(
             name="News Agent",  # For best results, set a name that will be used by the tracer
             model=OpenAIChat(id="gpt-4o-mini"),
             tools=[DuckDuckGoTools()],
-            debug_mode=True,
         )
         agent.run("What's trending on Twitter?")
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 4
+    assert len(spans) == 2
     checked_spans = 0
     for span in spans:
         attributes = dict(span.attributes or dict())
@@ -88,10 +87,26 @@ def test_agno_instrumentation(
             assert attributes.get("llm.token_count.completion") is None
             assert attributes.get("llm.token_count.total") is None
             assert span.status.is_ok
+        elif span.name == "ToolUsage._use":
+            checked_spans += 1
+            assert attributes.get("openinference.span.kind") == "TOOL"
+            assert attributes.get("output.value")
+            assert attributes.get("tool.name") in (
+                "Search the internet with Serper",
+                "Ask question to coworker",
+                "Delegate work to coworker",
+            )
+            assert span.status.is_ok
+        elif span.name == "Task._execute_core":
+            checked_spans += 1
+            assert attributes.get("output.value")
+            assert attributes["openinference.span.kind"] == "AGENT"
+            assert attributes.get("input.value")
+            assert span.status.is_ok
         elif span.name == "OpenAIChat.invoke":
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "LLM"
             assert attributes.get("llm.model_name") == "gpt-4o-mini"
             assert attributes.get("llm.provider") == "OpenAI"
             assert span.status.is_ok
-    assert checked_spans == 4
+    assert checked_spans == 2

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.21...python-openinference-instrumentation-dspy-v0.1.22) (2025-05-11)
+
+
+### Features
+
+* **dspy:** Add initial support for async tracing ([#1597](https://github.com/Arize-ai/openinference/issues/1597)) ([205bdf0](https://github.com/Arize-ai/openinference/commit/205bdf0e3a8da1c86802735112d9eff9f8dd0c5f))
+
 ## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.20...python-openinference-instrumentation-dspy-v0.1.21) (2025-04-28)
 
 
