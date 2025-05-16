@@ -1,16 +1,16 @@
-from dotenv import load_dotenv
-
-load_dotenv()
-
 import logging
 import os
+
 import uvicorn
+from app.api.routers.chat import chat_router
+from app.settings import init_settings
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
-from app.api.routers.chat import chat_router
-from app.settings import init_settings
 from instrument import instrument
+
+load_dotenv()
 
 instrument()
 

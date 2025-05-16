@@ -3,10 +3,12 @@ import {
   BufferConfig,
   ReadableSpan,
   SimpleSpanProcessor,
+  Span,
   SpanExporter,
 } from "@opentelemetry/sdk-trace-base";
 import { addOpenInferenceAttributesToSpan, shouldExportSpan } from "./utils";
 import { SpanFilter } from "./types";
+import { Context } from "@opentelemetry/api";
 
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.
@@ -103,6 +105,18 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   }) {
     super(exporter, config);
     this.spanFilter = spanFilter;
+  }
+
+  forceFlush(): Promise<void> {
+    return super.forceFlush();
+  }
+
+  shutdown(): Promise<void> {
+    return super.shutdown();
+  }
+
+  onStart(_span: Span, _parentContext: Context): void {
+    return super.onStart(_span, _parentContext);
   }
 
   onEnd(span: ReadableSpan): void {

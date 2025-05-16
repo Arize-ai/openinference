@@ -28,6 +28,7 @@ To process your Vercel AI SDK Spans add a `OpenInferenceSimpleSpanProcessor` or 
 > The `OpenInferenceSpanProcessor` does not handle the exporting of spans so you will pass it an [exporter](https://opentelemetry.io/docs/languages/js/exporters/) as a parameter.
 
 ```typescript
+// instrumentation.ts
 import { registerOTel } from "@vercel/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import {
@@ -51,8 +52,10 @@ export function register() {
       new OpenInferenceSimpleSpanProcessor({
         exporter: new OTLPTraceExporter({
           headers: {
-            // API key if you are sending it to Phoenix
-            api_key: process.env["PHOENIX_API_KEY"],
+            // API key if you are sending it to Phoenix Cloud
+            api_key: process.env["PHOENIX_API_KEY"] || "",
+            // API key if you are sending it to local Phoenix
+            Authorization: `Bearer ${process.env["PHOENIX_API_KEY"]}` || "",
           },
           url:
             process.env["PHOENIX_COLLECTOR_ENDPOINT"] ||

@@ -333,8 +333,8 @@ class _ResponsesApiAttributes:
                 yield from cls._get_attributes_from_message_param(
                     {
                         "type": "message",
-                        "role": obj["role"],
-                        "content": obj["content"],
+                        "role": obj["role"],  # type: ignore[typeddict-item]
+                        "content": obj["content"],  # type: ignore[typeddict-item]
                     },
                     prefix,
                 )
@@ -378,7 +378,7 @@ class _ResponsesApiAttributes:
                 f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
             )
         elif TYPE_CHECKING:
-            assert_never(obj["type"])
+            assert_never(obj["type"])  # type: ignore[arg-type]
 
     @classmethod
     @stop_on_exception

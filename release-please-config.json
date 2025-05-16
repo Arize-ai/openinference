@@ -11,6 +11,10 @@
             "package-name": "python-openinference-instrumentation",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-agno": {
+            "package-name": "python-openinference-instrumentation-agno",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-mistralai": {
             "package-name": "python-openinference-instrumentation-mistralai",
             "release-type": "python"
@@ -90,7 +94,10 @@
         "python/instrumentation/openinference-instrumentation-mcp": {
             "package-name": "python-openinference-instrumentation-mcp",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-google-genai": {
+            "package-name": "python-openinference-instrumentation-google-genai",
+            "release-type": "python"
         }
-
     }
 }

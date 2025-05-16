@@ -79,6 +79,13 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             args=(_LMCallWrapper(self._tracer),),
         )
 
+        wrap_object(
+            module="dspy",
+            name="LM.acall",
+            factory=CopyableFunctionWrapper,
+            args=(_LMAcallWrapper(self._tracer),),
+        )
+
         # Predict is a concrete (non-abstract) class that may be invoked
         # directly, but DSPy also has subclasses of Predict that override the
         # forward method. We instrument both the forward methods of the base
@@ -89,6 +96,12 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             factory=CopyableFunctionWrapper,
             args=(_PredictForwardWrapper(self._tracer),),
         )
+        wrap_object(
+            module=_DSPY_MODULE,
+            name="Predict.aforward",
+            factory=CopyableFunctionWrapper,
+            args=(_PredictAforwardWrapper(self._tracer),),
+        )
 
         predict_subclasses = Predict.__subclasses__()
         for predict_subclass in predict_subclasses:
@@ -97,6 +110,12 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 name=predict_subclass.__name__ + ".forward",
                 factory=CopyableFunctionWrapper,
                 args=(_PredictForwardWrapper(self._tracer),),
+            )
+            wrap_object(
+                module=_DSPY_MODULE,
+                name=predict_subclass.__name__ + ".aforward",
+                factory=CopyableFunctionWrapper,
+                args=(_PredictAforwardWrapper(self._tracer),),
             )
 
         wrap_object(
@@ -116,6 +135,16 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             args=(_ModuleForwardWrapper(self._tracer),),
         )
 
+        wrap_object(
+            module=_DSPY_MODULE,
+            # At this time, dspy.Module does not have an abstract forward
+            # method, but assumes that user-defined subclasses implement the
+            # forward method and invokes that method using __call__.
+            name="Module.acall",
+            factory=CopyableFunctionWrapper,
+            args=(_ModuleAforwardWrapper(self._tracer),),
+        )
+
         # At this time, there is no common parent class for retriever models as
         # there is for language models. We instrument the retriever models on a
         # case-by-case basis.
@@ -131,6 +160,27 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             name="Adapter.__call__",
             factory=CopyableFunctionWrapper,
             args=(_AdapterCallWrapper(self._tracer),),
+        )
+
+        wrap_object(
+            module=_DSPY_MODULE,
+            name="Adapter.acall",
+            factory=CopyableFunctionWrapper,
+            args=(_AdapterAcallWrapper(self._tracer),),
+        )
+
+        wrap_object(
+            module=_DSPY_MODULE,
+            name="Tool.__call__",
+            factory=CopyableFunctionWrapper,
+            args=(_ToolCallWrapper(self._tracer),),
+        )
+
+        wrap_object(
+            module=_DSPY_MODULE,
+            name="Tool.acall",
+            factory=CopyableFunctionWrapper,
+            args=(_AsyncToolCallWrapper(self._tracer),),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -240,6 +290,52 @@ class _LMCallWrapper(_WithTracer):
         return response
 
 
+class _LMAcallWrapper(_WithTracer):
+    """
+    Wrapper for acall method on dspy.LM
+    """
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: "LM",
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = instance.__class__.__name__ + ".acall"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: LLM,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(_llm_model_name(instance)),
+                        **dict(_llm_invocation_parameters(instance, arguments)),
+                        **dict(_llm_input_messages(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            response = await wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            **dict(_output_value_and_mime_type(response)),
+                            **dict(_llm_output_messages(response)),
+                        }
+                    )
+                )
+            )
+        return response
+
+
 class _PredictForwardWrapper(_WithTracer):
     """
     A wrapper for the Predict class to have a chain span for each prediction
@@ -325,6 +421,91 @@ class _PredictForwardWrapper(_WithTracer):
         return output
 
 
+class _PredictAforwardWrapper(_WithTracer):
+    """
+    A wrapper for the Predict class to have a chain span for each async prediction
+    """
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        from dspy import Predict
+
+        # At this time, subclasses of Predict override the base class' forward
+        # method and invoke the parent class' forward method from within the
+        # overridden method. The forward method for both Predict and its
+        # subclasses have been instrumented. To avoid creating duplicate spans
+        # for a single invocation, we don't create a span for the base class'
+        # forward method if the instance belongs to a proper subclass of Predict
+        # with an overridden forward method.
+        is_instance_of_predict_subclass = (
+            isinstance(instance, Predict) and (cls := instance.__class__) is not Predict
+        )
+        has_overridden_aforward_method = getattr(cls, "aforward", None) is not getattr(
+            Predict, "aforward", None
+        )
+        wrapped_method_is_base_class_aforward_method = (
+            wrapped.__qualname__ == Predict.aforward.__qualname__
+        )
+        if (
+            is_instance_of_predict_subclass
+            and has_overridden_aforward_method
+            and wrapped_method_is_base_class_aforward_method
+        ):
+            return await wrapped(*args, **kwargs)
+
+        signature = kwargs.get("signature", instance.signature)
+        span_name = _get_predict_span_name(instance)
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        INPUT_MIME_TYPE: JSON,
+                    }
+                )
+            ),
+        ) as span:
+            span.set_attributes(dict(get_attributes_from_context()))
+            prediction = await wrapped(*args, **kwargs)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            OUTPUT_VALUE: safe_json_dumps(
+                                self._prediction_to_output_dict(prediction, signature)
+                            ),
+                            OUTPUT_MIME_TYPE: JSON,
+                        }
+                    )
+                )
+            )
+            span.set_status(StatusCode.OK)
+        return prediction
+
+    def _prediction_to_output_dict(self, prediction: Any, signature: Any) -> Dict[str, Any]:
+        """
+        Parse the prediction to get output fields
+        """
+        output = {}
+        for output_field_name in signature.output_fields:
+            if (prediction_value := prediction.get(output_field_name)) is not None:
+                output[output_field_name] = prediction_value
+        return output
+
+
 class _ModuleForwardWrapper(_WithTracer):
     """
     Instruments the __call__ method of dspy.Module. DSPy end users define custom
@@ -364,6 +545,59 @@ class _ModuleForwardWrapper(_WithTracer):
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             prediction = wrapped(*args, **kwargs)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
+                            OUTPUT_MIME_TYPE: JSON,
+                        }
+                    )
+                )
+            )
+            span.set_status(StatusCode.OK)
+        return prediction
+
+
+class _ModuleAforwardWrapper(_WithTracer):
+    """
+    Instruments the acall method of dspy.Module. DSPy end users define custom
+    subclasses of Module implementing a forward method, loosely resembling the
+    ergonomics of torch.nn.Module. The acall method of dspy.Module invokes
+    the forward method of the user-defined subclass.
+    """
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        span_name = instance.__class__.__name__ + ".aforward"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        # At this time, dspy.Module does not have an abstract forward
+                        # method, but assumes that user-defined subclasses implement the
+                        # forward method.
+                        **(
+                            {INPUT_VALUE: _get_input_value(forward_method, *args, **kwargs)}
+                            if (forward_method := getattr(instance.__class__, "aforward", None))
+                            else {}
+                        ),
+                        INPUT_MIME_TYPE: JSON,
+                    }
+                )
+            ),
+        ) as span:
+            span.set_attributes(dict(get_attributes_from_context()))
+            prediction = await wrapped(*args, **kwargs)
             span.set_attributes(
                 dict(
                     _flatten(
@@ -504,6 +738,120 @@ class _AdapterCallWrapper(_WithTracer):
             ),
         ) as span:
             response = wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            **dict(_output_value_and_mime_type(response)),
+                        }
+                    )
+                )
+            )
+        return response
+
+
+class _AdapterAcallWrapper(_WithTracer):
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = instance.__class__.__name__ + ".acall"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            response = await wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            **dict(_output_value_and_mime_type(response)),
+                        }
+                    )
+                )
+            )
+        return response
+
+
+class _ToolCallWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = (instance.name or instance.__class__.__name__) + ".__call__"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: TOOL,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            response = wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            **dict(_output_value_and_mime_type(response)),
+                        }
+                    )
+                )
+            )
+        return response
+
+
+class _AsyncToolCallWrapper(_WithTracer):
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = (instance.name or instance.__class__.__name__) + ".acall"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: TOOL,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            response = await wrapped(*args, **kwargs)
             span.set_status(StatusCode.OK)
             span.set_attributes(
                 dict(
@@ -683,6 +1031,7 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
 JSON = OpenInferenceMimeTypeValues.JSON.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 LLM = OpenInferenceSpanKindValues.LLM
+TOOL = OpenInferenceSpanKindValues.TOOL.value
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value

@@ -1,11 +1,10 @@
-import os
-import yaml
-import importlib
 import logging
-from typing import Dict
+
+import yaml
+
+from app.engine.loaders.db import DBLoaderConfig, get_db_documents
 from app.engine.loaders.file import FileLoaderConfig, get_file_documents
 from app.engine.loaders.web import WebLoaderConfig, get_web_documents
-from app.engine.loaders.db import DBLoaderConfig, get_db_documents
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +19,7 @@ def get_documents():
     documents = []
     config = load_configs()
     for loader_type, loader_config in config.items():
-        logger.info(
-            f"Loading documents from loader: {loader_type}, config: {loader_config}"
-        )
+        logger.info(f"Loading documents from loader: {loader_type}, config: {loader_config}")
         match loader_type:
             case "file":
                 document = get_file_documents(FileLoaderConfig(**loader_config))

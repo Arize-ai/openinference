@@ -1,0 +1,24 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What''s the weather like?"}], "role":
+      "user"}], "systemInstruction": {"parts": [{"text": "You are a helpful assistant
+      that can answer questions and help with tasks."}], "role": "user"}, "generationConfig":
+      {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    content: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+      [\n          {\n            \"text\": \"To give you the most accurate weather
+      information, I need to know your current location. Could you please tell me
+      where you are?\\n\"\n          }\n        ],\n        \"role\": \"model\"\n
+      \     },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -0.0074538235311154962\n
+      \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 21,\n    \"candidatesTokenCount\":
+      27,\n    \"totalTokenCount\": 48,\n    \"promptTokensDetails\": [\n      {\n
+      \       \"modality\": \"TEXT\",\n        \"tokenCount\": 21\n      }\n    ],\n
+      \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+      \       \"tokenCount\": 27\n      }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\"\n}\n"
+    headers: {}
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

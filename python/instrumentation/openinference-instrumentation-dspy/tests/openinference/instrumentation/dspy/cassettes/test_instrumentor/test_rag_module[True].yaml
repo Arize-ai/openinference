@@ -1,0 +1,72 @@
+interactions:
+- request:
+    body: null
+    headers: {}
+    method: GET
+    uri: http://20.102.90.50:2017/wiki17_abstracts?query=What%27s+the+capital+of+the+United+States%3F&k=3
+  response:
+    body:
+      string: '{"topk":[{"text":"United States capital (disambiguation) | The capital
+        of the United States is Washington, D.C.","pid":1918771,"rank":1,"score":26.81817626953125,"prob":0.7290767171685155,"long_text":"United
+        States capital (disambiguation) | The capital of the United States is Washington,
+        D.C."},{"text":"List of capitals in the United States | Washington, D.C. is
+        the current federal capital city of the United States, as it has been since
+        1800. Each U.S. state has its own capital city, as do many of its Insular
+        areas. Historically, most states have not changed their capital city since
+        becoming a state, but the capital cities of their respective preceding colonies,
+        territories, kingdoms, and republics typically changed multiple times. There
+        have also been other governments within the current borders of the United
+        States with their own capitals, such as the Republic of Texas, Native American
+        nations, and other unrecognized governments.Siva","pid":3377468,"rank":2,"score":25.304840087890625,"prob":0.16052389034616518,"long_text":"List
+        of capitals in the United States | Washington, D.C. is the current federal
+        capital city of the United States, as it has been since 1800. Each U.S. state
+        has its own capital city, as do many of its Insular areas. Historically, most
+        states have not changed their capital city since becoming a state, but the
+        capital cities of their respective preceding colonies, territories, kingdoms,
+        and republics typically changed multiple times. There have also been other
+        governments within the current borders of the United States with their own
+        capitals, such as the Republic of Texas, Native American nations, and other
+        unrecognized governments.Siva"},{"text":"Washington, D.C. | Washington, D.C.,
+        formally the District of Columbia and commonly referred to as \"Washington\",
+        \"the District\", or simply \"D.C.\", is the capital of the United States.","pid":953799,"rank":3,"score":24.93050193786621,"prob":0.11039939248531924,"long_text":"Washington,
+        D.C. | Washington, D.C., formally the District of Columbia and commonly referred
+        to as \"Washington\", \"the District\", or simply \"D.C.\", is the capital
+        of the United States."}],"latency":100.3718376159668}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Your input fields are:\n1.
+      `question` (str)\n\nYour output fields are:\n1. `reasoning` (str)\n2. `answer`
+      (str): often between 1 and 5 words\n\nAll interactions will be structured in
+      the following way, with the appropriate values filled in.\n\n[[ ## question
+      ## ]]\n{question}\n\n[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## answer ## ]]\n{answer}\n\n[[
+      ## completed ## ]]\n\nIn adhering to this structure, your objective is: \n        Answer
+      questions with short factoid answers."}, {"role": "user", "content": "[[ ##
+      question ## ]]\nWhat''s the capital of the United States?\n\nRespond with the
+      corresponding output fields, starting with the field `reasoning`, then `answer`,
+      and then ending with the marker for `completed`."}], "model": "gpt-4", "max_tokens":
+      1000, "temperature": 0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-AGqyvJHZBI7zye3WsMIigDfwvgYhn\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1728580273,\n  \"model\": \"gpt-4-0613\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## reasoning ## ]]\\nThe capital
+        of a country is a well-established fact. The capital of the United States
+        is a widely known piece of information.\\n\\n[[ ## answer ## ]]\\nWashington,
+        D.C.\\n\\n[[ ## completed ## ]]\",\n        \"refusal\": null\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 167,\n    \"completion_tokens\": 45,\n
+        \   \"total_tokens\": 212,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0\n    },\n    \"completion_tokens_details\": {\n      \"reasoning_tokens\":
+        0\n    }\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

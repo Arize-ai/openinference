@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.10...python-openinference-instrumentation-vertexai-v0.1.11) (2025-05-05)
+
+
+### Bug Fixes
+
+* support function call parts when streaming ([#1587](https://github.com/Arize-ai/openinference/issues/1587)) ([43abca2](https://github.com/Arize-ai/openinference/commit/43abca26f75277f1a605389b1e99a19220104820))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.9...python-openinference-instrumentation-vertexai-v0.1.10) (2025-04-28)
 
 
