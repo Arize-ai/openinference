@@ -10,7 +10,9 @@ from openinference.instrumentation.pydanticai.utils import SpanFilter, should_ex
 
 
 class OpenInferenceSpanExporter(SpanExporter):
-    def __init__(self, base_exporter, span_filter: Optional[SpanFilter] = None):
+    def __init__(
+        self, base_exporter: SpanExporter, span_filter: Optional[SpanFilter] = None
+    ) -> None:
         self._base_exporter = base_exporter
         self._extractor = OpenInferenceAttributesExtractor()
         self._span_filter = span_filter
@@ -46,10 +48,12 @@ class OpenInferenceSpanExporter(SpanExporter):
             openinference_spans.append(openinference_span)
 
         # Export the openinference spans
-        return self._base_exporter.export(openinference_spans)
+        result = self._base_exporter.export(openinference_spans)
+        return result
 
-    def shutdown(self):
-        return self._base_exporter.shutdown()
+    def shutdown(self) -> None:
+        self._base_exporter.shutdown()
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
-        return self._base_exporter.force_flush(timeout_millis)
+        result = self._base_exporter.force_flush(timeout_millis)
+        return bool(result)

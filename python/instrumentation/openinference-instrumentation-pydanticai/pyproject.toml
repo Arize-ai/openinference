@@ -39,11 +39,13 @@ instruments = [
   "pydantic>=2.10.0",
   "pydantic-ai>=0.2.0",
 ]
-
-tests = [
+test = [
   "pytest>=7.4.0",
   "pytest-cov>=4.1.0",
   "opentelemetry-sdk>=1.20.0",
+  "pydantic>=2.10.0",
+  "pydantic-ai>=0.2.0",
+  "pytest-vcr",
 ]
 
 [project.urls]
@@ -82,7 +84,11 @@ ignore_missing_imports = true
 module = [
   "wrapt",
   "pydantic",
-  "pydantic-ai",
+  "pydantic_ai",
+  "pydantic_ai.models",
+  "pydantic_ai.models.openai",
+  "pydantic_ai.providers",
+  "pydantic_ai.providers.openai"
 ]
 
 [tool.ruff]

@@ -1,7 +1,7 @@
 import json
 import logging
 from enum import Enum
-from typing import Any, Dict, Iterator, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, cast
 
 from opentelemetry.util.types import AttributeValue
 
@@ -375,7 +375,7 @@ class OpenInferenceAttributesExtractor:
                     if not isinstance(tool, dict):
                         continue
 
-                    tool_info = {}
+                    tool_info: Dict[str, Any] = {}
                     if PydanticModelRequestParametersTool.NAME in tool:
                         tool_info[SpanAttributes.TOOL_NAME] = tool[
                             PydanticModelRequestParametersTool.NAME
@@ -420,13 +420,13 @@ class OpenInferenceAttributesExtractor:
 
         return invocation_params
 
-    def _extract_llm_input_messages(self, events: list) -> list:
+    def _extract_llm_input_messages(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Extract input messages from events for LLM operations."""
-        input_messages = []
+        input_messages: List[Dict[str, Any]] = []
 
         for event in events:
             if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.USER_MESSAGE:
-                message = {}
+                message: Dict[str, Any] = {}
                 if GenAIUserMessageBodyFields.ROLE in event:
                     message[MessageAttributes.MESSAGE_ROLE] = event[GenAIUserMessageBodyFields.ROLE]
 
@@ -498,12 +498,12 @@ class OpenInferenceAttributesExtractor:
 
         return input_messages
 
-    def _process_tool_call(self, tool_call: dict) -> dict:
+    def _process_tool_call(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
         """Process a tool call and extract relevant information."""
         if not isinstance(tool_call, dict):
             return {}
 
-        tc = {}
+        tc: Dict[str, Any] = {}
         if GenAIToolCallFields.ID in tool_call:
             tc[ToolCallAttributes.TOOL_CALL_ID] = tool_call[GenAIToolCallFields.ID]
 
@@ -521,18 +521,18 @@ class OpenInferenceAttributesExtractor:
 
         return tc
 
-    def _extract_llm_output_messages(self, events: list) -> list:
+    def _extract_llm_output_messages(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Extract output messages from events for LLM operations."""
-        output_messages = []
+        output_messages: List[Dict[str, Any]] = []
 
         for event in events:
             if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.CHOICE:
-                choice = {}
+                choice: Dict[str, Any] = {}
 
                 if GenAIChoiceBodyFields.MESSAGE in event and isinstance(
                     event[GenAIChoiceBodyFields.MESSAGE], dict
                 ):
-                    message = {}
+                    message: Dict[str, Any] = {}
                     message_data = event[GenAIChoiceBodyFields.MESSAGE]
 
                     if GenAICommonBodyFields.ROLE in message_data:
@@ -564,28 +564,35 @@ class OpenInferenceAttributesExtractor:
 
         return output_messages
 
-    def _extract_embeddings_from_events(self, events: list) -> list:
+    def _extract_embeddings_from_events(self, events: List[Dict[str, Any]]) -> List[Any]:
         """Extract embeddings from events for embedding operations."""
-        embeddings = []
+        embeddings: List[Any] = []
 
         return embeddings
 
-    def _find_llm_input_value(self, input_messages: list) -> Optional[str]:
+    def _find_llm_input_value(self, input_messages: List[Dict[str, Any]]) -> Optional[str]:
         """Find input value from first user message for LLM operations."""
         for message in input_messages:
             if (
                 message.get(MessageAttributes.MESSAGE_ROLE) == PydanticMessageRoleUser.USER
                 and MessageAttributes.MESSAGE_CONTENT in message
             ):
-                return message[MessageAttributes.MESSAGE_CONTENT]
+                content = message[MessageAttributes.MESSAGE_CONTENT]
+                if isinstance(content, str):
+                    return content
+                return None
 
         return None
 
-    def _find_llm_output_value(self, output_messages: list) -> Optional[str]:
+    def _find_llm_output_value(self, output_messages: List[Dict[str, Any]]) -> Optional[str]:
         """Find output value from message in choice events."""
         for message in output_messages:
             if MessageAttributes.MESSAGE_CONTENT in message:
-                return message[MessageAttributes.MESSAGE_CONTENT]
+                content = message[MessageAttributes.MESSAGE_CONTENT]
+                if isinstance(content, str):
+                    return content
+                return None
+
             if MessageAttributes.MESSAGE_TOOL_CALLS in message and isinstance(
                 message[MessageAttributes.MESSAGE_TOOL_CALLS], list
             ):
@@ -596,7 +603,10 @@ class OpenInferenceAttributesExtractor:
                         == PydanticMessageToolCallFunctionFinalResult.FINAL_RESULT
                     ):
                         if ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON in tool_call:
-                            return tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]
+                            args = tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]
+                            if isinstance(args, str):
+                                return args
+                            return None
         return None
 
     def _map_operation_to_span_kind(
@@ -614,15 +624,18 @@ class OpenInferenceAttributesExtractor:
         }
         return mapping.get(operation, OpenInferenceSpanKindValues.UNKNOWN)
 
-    def _parse_events(self, events_value: Any) -> list:
+    def _parse_events(self, events_value: Any) -> List[Dict[str, Any]]:
         """Parse events from string or list."""
         if isinstance(events_value, str):
             try:
-                return json.loads(events_value)
+                parsed = json.loads(events_value)
+                if isinstance(parsed, list):
+                    return parsed
+                return []
             except json.JSONDecodeError:
                 return []
         elif isinstance(events_value, list):
-            return events_value
+            return cast(List[Dict[str, Any]], events_value)
         return []
 
     def _parse_json_value(self, json_value: Any) -> Any:
