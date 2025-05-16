@@ -116,9 +116,6 @@ class OpenInferenceBatchSpanProcessor(BatchSpanProcessor):
     def on_end(self, span: ReadableSpan) -> None:
         """Process a span when it ends."""
         try:
-            # Add OpenInference attributes to the span
-            # add_openinference_attributes_to_span(span)
-
             # Determine if the span should be exported
             if should_export_span(span, self._span_filter):
                 # Call the parent implementation to export the span

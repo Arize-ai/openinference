@@ -9,6 +9,7 @@ from openinference.semconv.trace import (
     EmbeddingAttributes,
     OpenInferenceSpanKindValues,
 )
+from openinference.instrumentation import safe_json_dumps
 import json
 import logging
 
@@ -175,6 +176,8 @@ class PydanticModelRequestParametersTool:
 class PydanticMessageToolCallFunctionFinalResult:
     FINAL_RESULT = "final_result"
 
+class PydanticMessageRoleUser:
+    USER = "user"
 
 class OpenInferenceAttributesExtractor:
     """Extracts OpenInference attributes from GenAI attributes."""
@@ -194,30 +197,12 @@ class OpenInferenceAttributesExtractor:
         Returns:
             Iterator of (key, value) pairs for OpenInference attributes
         """
+
         yield from self._extract_common_attributes(gen_ai_attrs)
 
-        operation_name = gen_ai_attrs.get(GenAICommonAttributes.OPERATION_NAME)
-        if operation_name:
-            try:
-                operation = GenAIOperationName(operation_name)
-                if (
-                    operation == GenAIOperationName.CHAT
-                    or operation == GenAIOperationName.TEXT_COMPLETION
-                ):
-                    yield from self._extract_llm_attributes(gen_ai_attrs)
-                elif operation == GenAIOperationName.EMBEDDINGS:
-                    yield from self._extract_embedding_attributes(gen_ai_attrs)
-                elif operation == GenAIOperationName.EXECUTE_TOOL:
-                    yield from self._extract_tool_attributes(gen_ai_attrs)
-                elif operation in (
-                    GenAIOperationName.CREATE_AGENT,
-                    GenAIOperationName.INVOKE_AGENT,
-                ):
-                    yield from self._extract_agent_attributes(gen_ai_attrs)
-                elif operation == GenAIOperationName.GENERATE_CONTENT:
-                    yield from self._extract_llm_attributes(gen_ai_attrs)
-            except ValueError:
-                pass
+        yield from self._extract_llm_attributes(gen_ai_attrs)
+
+        yield from self._extract_tool_attributes(gen_ai_attrs)
 
     def _extract_common_attributes(
         self, gen_ai_attrs: Mapping[str, Any]
@@ -273,7 +258,7 @@ class OpenInferenceAttributesExtractor:
 
         invocation_params = self._extract_invocation_parameters(gen_ai_attrs)
         if invocation_params:
-            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(invocation_params)
+            yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
         yield from self._extract_tools_attributes(gen_ai_attrs)
 
@@ -314,28 +299,6 @@ class OpenInferenceAttributesExtractor:
 
         return flattened
 
-    def _extract_embedding_attributes(
-        self, gen_ai_attrs: Mapping[str, Any]
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        """Extract attributes specific to embedding operations."""
-
-        if GenAICommonAttributes.REQUEST_MODEL in gen_ai_attrs:
-            yield (
-                SpanAttributes.EMBEDDING_MODEL_NAME,
-                gen_ai_attrs[GenAICommonAttributes.REQUEST_MODEL],
-            )
-
-        if OTELConventions.EVENTS in gen_ai_attrs:
-            events = self._parse_events(gen_ai_attrs[OTELConventions.EVENTS])
-            embeddings = self._extract_embeddings_from_events(events)
-
-            for idx, embedding in enumerate(embeddings):
-                for key, value in embedding.items():
-                    yield f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{idx}.{key}", value
-
-            input_value = self._find_embedding_input_value(events)
-            if input_value is not None:
-                yield SpanAttributes.INPUT_VALUE, input_value
 
     def _extract_tool_attributes(
         self, gen_ai_attrs: Mapping[str, Any]
@@ -358,8 +321,6 @@ class OpenInferenceAttributesExtractor:
                 if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.TOOL_MESSAGE:
                     if GenAIToolMessageBodyFields.ID in event:
                         yield ToolCallAttributes.TOOL_CALL_ID, event[GenAIToolMessageBodyFields.ID]
-                    if GenAIToolMessageBodyFields.CONTENT in event:
-                        yield SpanAttributes.OUTPUT_VALUE, event[GenAIToolMessageBodyFields.CONTENT]
 
                 if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.ASSISTANT_MESSAGE:
                     if GenAIAssistantMessageBodyFields.TOOL_CALLS in event and isinstance(
@@ -389,18 +350,6 @@ class OpenInferenceAttributesExtractor:
                                             GenAIFunctionFields.ARGUMENTS
                                         ],
                                     )
-                                    yield (
-                                        SpanAttributes.INPUT_VALUE,
-                                        tool_call[GenAIToolCallFields.FUNCTION][
-                                            GenAIFunctionFields.ARGUMENTS
-                                        ],
-                                    )
-
-    def _extract_agent_attributes(
-        self, gen_ai_attrs: Mapping[str, Any]
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        """Extract attributes specific to agent operations."""
-        yield from self._extract_llm_attributes(gen_ai_attrs)
 
     def _extract_tools_attributes(
         self, gen_ai_attrs: Mapping[str, Any]
@@ -436,7 +385,7 @@ class OpenInferenceAttributesExtractor:
                     if PydanticModelRequestParametersTool.PARAMETERS in tool and isinstance(
                         tool[PydanticModelRequestParametersTool.PARAMETERS], dict
                     ):
-                        tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = json.dumps(
+                        tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(
                             tool[PydanticModelRequestParametersTool.PARAMETERS]
                         )
 
@@ -622,8 +571,8 @@ class OpenInferenceAttributesExtractor:
     def _find_llm_input_value(self, input_messages: list) -> Optional[str]:
         """Find input value from first user message for LLM operations."""
         for message in input_messages:
-            if GenAIUserMessageBodyFields.CONTENT in message:
-                return message[GenAIUserMessageBodyFields.CONTENT]
+            if message.get(MessageAttributes.MESSAGE_ROLE) == PydanticMessageRoleUser.USER and MessageAttributes.MESSAGE_CONTENT in message:
+                return message[MessageAttributes.MESSAGE_CONTENT]
 
         return None
 
@@ -645,9 +594,6 @@ class OpenInferenceAttributesExtractor:
                             return tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]
         return None
 
-    def _find_embedding_input_value(self, events: list) -> Optional[str]:
-        """Find input value from embedding events for embedding operations."""
-        return None
 
     def _map_operation_to_span_kind(
         self, operation: GenAIOperationName
