@@ -74,10 +74,10 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
 
         for model_subclass in exported_model_subclasses:
             model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
-            self._original_model_call_methods[model_subclass] = getattr(model_subclass, "__call__")
+            self._original_model_call_methods[model_subclass] = getattr(model_subclass, "generate")
             wrap_function_wrapper(
                 module="smolagents",
-                name=model_subclass.__name__ + ".__call__",
+                name=model_subclass.__name__ + ".generate",
                 wrapper=model_subclass_wrapper,
             )
 
