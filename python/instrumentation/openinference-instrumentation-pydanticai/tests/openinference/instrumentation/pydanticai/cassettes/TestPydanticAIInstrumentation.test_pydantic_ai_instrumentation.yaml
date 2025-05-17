@@ -1,0 +1,29 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"The windy city in the US of A."}],"model":"gpt-4o","n":1,"stream":false,"tool_choice":"required","tools":[{"type":"function","function":{"name":"final_result","description":"The
+      final response which ends this conversation","parameters":{"properties":{"city":{"type":"string"},"country":{"type":"string"}},"required":["city","country"],"type":"object"}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BWrKAzQrIPDqlKCzRAMsSFdSsXXKE\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1747171174,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_bEBvDjNW61SpuxoeWuyKbhSz\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"final_result\",\n
+        \             \"arguments\": \"{\\\"city\\\":\\\"Chicago\\\",\\\"country\\\":\\\"United
+        States of America\\\"}\"\n            }\n          }\n        ],\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        58,\n    \"completion_tokens\": 22,\n    \"total_tokens\": 80,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_90122d973c\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
