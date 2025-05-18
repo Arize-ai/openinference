@@ -26,6 +26,7 @@ async def mcp_client(
     # instrumentation through fixtures instead.
     from mcp.client.sse import sse_client
     from mcp.client.stdio import StdioServerParameters, stdio_client
+    from mcp.client.streamable_http import streamablehttp_client
 
     async def message_handler(
         message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
@@ -86,9 +87,41 @@ async def mcp_client(
             finally:
                 proc.kill()
                 await proc.wait()
+        case "streamable-http":
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                server_script,
+                env={
+                    "MCP_TRANSPORT": "streamable-http",
+                    "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint,
+                    "PYTHONPATH": pythonpath,
+                },
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            try:
+                stderr = proc.stderr
+                assert stderr is not None
+                for i in range(100):
+                    line = str(await stderr.readline())
+                    if "Uvicorn running on http://0.0.0.0:" in line:
+                        _, rest = line.split("http://0.0.0.0:", 1)
+                        port, _ = rest.split(" ", 1)
+                        async with streamablehttp_client(f"http://localhost:{port}/mcp") as (
+                            reader,
+                            writer,
+                            _,
+                        ), ClientSession(reader, writer, message_handler=message_handler) as client:
+                            client._receive_request_type = TestServerRequest
+                            await client.initialize()
+                            yield client
+                        break
+            finally:
+                proc.kill()
+                await proc.wait()
 
 
-@pytest.mark.parametrize("transport", ["sse", "stdio"])
+@pytest.mark.parametrize("transport", ["sse", "stdio", "streamable-http"])
 async def test_hello(
     transport: str, tracer: Tracer, telemetry: Telemetry, otlp_collector: OTLPServer
 ) -> None:

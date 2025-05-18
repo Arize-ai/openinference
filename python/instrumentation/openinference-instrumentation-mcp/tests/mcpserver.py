@@ -7,7 +7,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from openinference.instrumentation.mcp import MCPInstrumentor
 
-transport = cast(Literal["sse", "stdio"], os.environ.get("MCP_TRANSPORT"))
+transport = cast(Literal["sse", "stdio", "streamable-http"], os.environ.get("MCP_TRANSPORT"))
 otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
 span_exporter = OTLPSpanExporter(f"{otlp_endpoint}/v1/traces")
 tracer_provider = trace_sdk.TracerProvider()
