@@ -27,6 +27,7 @@ async def mcp_client(
     from mcp.client.sse import sse_client
     from mcp.client.stdio import StdioServerParameters, stdio_client
     from mcp.client.streamable_http import streamablehttp_client
+
     async def message_handler(
         message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
     ) -> None:
@@ -109,7 +110,7 @@ async def mcp_client(
                         async with streamablehttp_client(f"http://localhost:{port}/mcp") as (
                             reader,
                             writer,
-                            _
+                            _,
                         ), ClientSession(reader, writer, message_handler=message_handler) as client:
                             client._receive_request_type = TestServerRequest
                             await client.initialize()
