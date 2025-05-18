@@ -21,39 +21,39 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
-                "mcp.client.streamable_http", "streamablehttp_client", self._wrap_callback_enabled_transport
+                "mcp.client.streamable_http", "streamablehttp_client", self._wrap_transport_with_callback
             ),
             "mcp.client.streamable_http"
         )
 
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
-                "mcp.server.streamable_http", "StreamableHTTPServerTransport.connect", self._wrap_standard_transport
+                "mcp.server.streamable_http", "StreamableHTTPServerTransport.connect", self._wrap_plain_transport
             ),
             "mcp.server.streamable_http",
         )
 
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
-                "mcp.client.sse", "sse_client", self._wrap_standard_transport
+                "mcp.client.sse", "sse_client", self._wrap_plain_transport
             ),
             "mcp.client.sse",
         )
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
-                "mcp.server.sse", "SseServerTransport.connect_sse", self._wrap_standard_transport
+                "mcp.server.sse", "SseServerTransport.connect_sse", self._wrap_plain_transport
             ),
             "mcp.server.sse",
         )
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
-                "mcp.client.stdio", "stdio_client", self._wrap_standard_transport
+                "mcp.client.stdio", "stdio_client", self._wrap_plain_transport
             ),
             "mcp.client.stdio",
         )
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
-                "mcp.server.stdio", "stdio_server", self._wrap_standard_transport
+                "mcp.server.stdio", "stdio_server", self._wrap_plain_transport
             ),
             "mcp.server.stdio",
         )
@@ -77,7 +77,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         unwrap("mcp.server.stdio", "stdio_server")
 
     @asynccontextmanager
-    async def _wrap_callback_enabled_transport(
+    async def _wrap_transport_with_callback(
             self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
     ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter", Any], None]:
         async with wrapped(*args, **kwargs) as (read_stream, write_stream, get_session_id_callback):
@@ -88,7 +88,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
             )
 
     @asynccontextmanager
-    async def _wrap_standard_transport(
+    async def _wrap_plain_transport(
         self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
     ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter"], None]:
         async with wrapped(*args, **kwargs) as (read_stream, write_stream):
