@@ -1,4 +1,4 @@
-mcp==1.8.0
+mcp==1.8.1
 
 httpx
 opentelemetry-exporter-otlp-proto-http
