@@ -333,7 +333,7 @@ class _MessagesStreamWrapper(_WithTracer):
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
                 span.record_exception(exception)
                 raise
 
