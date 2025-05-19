@@ -1,4 +1,5 @@
 from typing import Any, Dict, Generator, Mapping, cast
+import json
 
 import pytest
 from opentelemetry import trace as trace_api
@@ -138,18 +139,67 @@ class TestAssistantAgent:
 
         # Verify that spans were created
         spans = in_memory_span_exporter.get_finished_spans()
-        span = spans[0]
-        assert span.status.is_ok
-        assert not span.status.description
-        assert len(span.events) == 0
+        assert len(spans) == 2
+        final_span = spans[-1]
+        assert final_span.status.is_ok
 
-        attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
-        print(attributes)
+        attributes = dict(cast(Mapping[str, AttributeValue], final_span.attributes))
+        assert attributes["agent_name"] == "weather_agent"
+        assert (
+            attributes["agent_description"]
+            == "An agent that provides assistance with ability to use tools."
+        )
+        assert json.loads(attributes["input.value"]) == {"task": "What is the weather in New York?"}
+        assert attributes["openinference.span.kind"] == "AGENT"
+        assert attributes["output.mime_type"] == "application/json"
 
-        # assert attributes["task"] == "What is the weather in New York?"
-
-        # # Verify the weather tool was called
-        # weather_spans = [span for span in spans if span.name == "get_weather"]
+        expected_output = {
+            "messages": [
+                {
+                    "source": "user",
+                    "models_usage": None,
+                    "metadata": {},
+                    "content": "What is the weather in New York?",
+                    "type": "TextMessage",
+                },
+                {
+                    "source": "weather_agent",
+                    "models_usage": {"prompt_tokens": 0, "completion_tokens": 0},
+                    "metadata": {},
+                    "content": [
+                        {
+                            "id": "call_rOzPHDXJlI50BqN305vbzckW",
+                            "arguments": '{"city":"New York"}',
+                            "name": "get_weather",
+                        }
+                    ],
+                    "type": "ToolCallRequestEvent",
+                },
+                {
+                    "source": "weather_agent",
+                    "models_usage": None,
+                    "metadata": {},
+                    "content": [
+                        {
+                            "content": "The weather in New York is 73 degrees and Sunny.",
+                            "name": "get_weather",
+                            "call_id": "call_rOzPHDXJlI50BqN305vbzckW",
+                            "is_error": False,
+                        }
+                    ],
+                    "type": "ToolCallExecutionEvent",
+                },
+                {
+                    "source": "weather_agent",
+                    "models_usage": {"prompt_tokens": 0, "completion_tokens": 0},
+                    "metadata": {},
+                    "content": "The weather in New York is 73 degrees and sunny.",
+                    "type": "TextMessage",
+                },
+            ],
+            "stop_reason": None,
+        }
+        assert json.loads(attributes["output.value"]) == expected_output
 
 
 class TestTeam:
