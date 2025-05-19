@@ -96,8 +96,9 @@ class _BaseAgentRunWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        if instance:
-            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
+        agent = instance
+        if agent:
+            span_name = f"{agent.__class__.__name__}.{wrapped.__name__}"
         else:
             span_name = wrapped.__name__
         with self._tracer.start_as_current_span(
@@ -117,7 +118,6 @@ class _BaseAgentRunWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            agent = instance
             if agent:
                 span.set_attribute("agent_name", agent.name)
                 span.set_attribute("agent_description", agent.description)
@@ -259,7 +259,7 @@ class _SendMessageWrapper:
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
                         SpanAttributes.INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -303,7 +303,7 @@ class _PublishMessageWrapper:
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
                         SpanAttributes.INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
