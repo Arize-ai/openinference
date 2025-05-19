@@ -7,179 +7,188 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-BWHK5zWDnPRgjD74tNbfKvZTDUq4n\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1747032785,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+      string: "{\n  \"id\": \"chatcmpl-BYyLLeDhMFrGavW6mUdFHDruJv24r\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1747674811,\n  \"model\": \"gpt-4o-2024-08-06\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Leaves of gold and crimson dance in
-        the breeze,  \\nWhispering secrets among the trees.  \\nChilled air wraps
-        the world in an embrace,  \\nAs autumn paints the earth with grace.  \\n\\nPumpkin
-        patches, a sea of orange delight,  \\nUnder the harvest moon\u2019s gentle
-        light.  \\nSweaters and scarves in layers unfold,  \\nWarm hearts gather as
-        tales are told.  \\n\\nCrisp mornings and the crackle of leaves,  \\nNature\u2019s
-        quilt of a thousand weaves.  \\nIn the fall's embrace, we find our peace,
-        \ \\nAs the year's cycle begins to cease.  \",\n        \"refusal\": null,\n
-        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
-        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 28,\n    \"completion_tokens\":
-        122,\n    \"total_tokens\": 150,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        \"assistant\",\n        \"content\": \"Leaves of amber gently fall,  \\nWhispering
+        secrets to the ground.  \\nCrisp air and golden light enthrall,  \\nAs nature's
+        painted hues astound.  \\n\\nPumpkins perch on doorsteps bright,  \\nHarvest
+        moons in twilight glow.  \\nWarm sweaters ward off the night,  \\nWhile fires
+        crackle, warm, and slow.  \\n\\nMigrating birds in skies take flight,  \\nCarving
+        paths through autumn's chill.  \\nA tapestry in colors alight,  \\nAs the
+        world turns, serene and still.  \",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 28,\n    \"completion_tokens\":
+        107,\n    \"total_tokens\": 135,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
         0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f5bdcc3276\"\n}\n"
+        \"default\",\n  \"system_fingerprint\": \"fp_76544d79cb\"\n}\n"
     headers: {}
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"messages\":[{\"content\":\"\\n            Provide constructive feedback.\\n
-      \           Respond with 'APPROVE' when your feedbacks are addressed.\\n            \",\"role\":\"system\"},{\"name\":\"user\",\"role\":\"user\",\"content\":\"Write
-      a short poem about the fall season.\"},{\"name\":\"primary\",\"role\":\"user\",\"content\":\"Leaves
-      of gold and crimson dance in the breeze,  \\nWhispering secrets among the trees.
-      \ \\nChilled air wraps the world in an embrace,  \\nAs autumn paints the earth
-      with grace.  \\n\\nPumpkin patches, a sea of orange delight,  \\nUnder the harvest
-      moon\u2019s gentle light.  \\nSweaters and scarves in layers unfold,  \\nWarm
-      hearts gather as tales are told.  \\n\\nCrisp mornings and the crackle of leaves,
-      \ \\nNature\u2019s quilt of a thousand weaves.  \\nIn the fall's embrace, we
-      find our peace,  \\nAs the year's cycle begins to cease.  \"}],\"model\":\"gpt-4o-2024-08-06\",\"stream\":false}"
+    body: '{"messages":[{"content":"\n            Provide constructive feedback.\n            Respond
+      with ''APPROVE'' when your feedbacks are addressed.\n            ","role":"system"},{"name":"user","role":"user","content":"Write
+      a short poem about the fall season."},{"name":"primary","role":"user","content":"Leaves
+      of amber gently fall,  \nWhispering secrets to the ground.  \nCrisp air and
+      golden light enthrall,  \nAs nature''s painted hues astound.  \n\nPumpkins perch
+      on doorsteps bright,  \nHarvest moons in twilight glow.  \nWarm sweaters ward
+      off the night,  \nWhile fires crackle, warm, and slow.  \n\nMigrating birds
+      in skies take flight,  \nCarving paths through autumn''s chill.  \nA tapestry
+      in colors alight,  \nAs the world turns, serene and still.  "}],"model":"gpt-4o-2024-08-06","stream":false}'
     headers: {}
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-BWHK85TWh2m2bobEJETFOCHB6EBpp\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1747032788,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+      string: "{\n  \"id\": \"chatcmpl-BYyLOS0He5eDpBmmalPylWmzhhwPa\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1747674814,\n  \"model\": \"gpt-4o-2024-08-06\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"Your poem beautifully captures the
-        essence of the fall season, with vivid imagery and a comforting tone. Here
-        are a few suggestions to enhance it further:\\n\\n1. **Imagery:** You might
-        want to explore even more sensory details. For example, consider mentioning
-        the smell of wet earth or the sound of geese migrating, which could deepen
-        the reader's experience.\\n\\n2. **Consistency in Meter:** The first two lines
-        of the second stanza have a different syllabic rhythm compared to the rest
-        of the poem. To maintain consistency, consider revising them to match the
-        rhythm of the other stanzas.\\n\\n3. **Word Choice:** The word \\\"chilled\\\"
-        in the third line of the first stanza implies a sense of coldness, which might
-        contrast with the warmth suggested by terms like \\\"embrace.\\\" You could
-        explore alternatives like \\\"crisp\\\" to maintain coherence in tone.\\n\\nOverall,
-        this is a lovely reflection on autumn, evoking both its visual splendor and
-        the cozy atmosphere it brings. Well done!\",\n        \"refusal\": null,\n
-        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
-        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 170,\n    \"completion_tokens\":
-        203,\n    \"total_tokens\": 373,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f5bdcc3276\"\n}\n"
-    headers: {}
-    status:
-      code: 200
-      message: OK
-- request:
-    body: "{\"messages\":[{\"content\":\"You are a helpful AI assistant.\",\"role\":\"system\"},{\"name\":\"user\",\"role\":\"user\",\"content\":\"Write
-      a short poem about the fall season.\"},{\"name\":\"primary\",\"role\":\"assistant\",\"content\":\"Leaves
-      of gold and crimson dance in the breeze,  \\nWhispering secrets among the trees.
-      \ \\nChilled air wraps the world in an embrace,  \\nAs autumn paints the earth
-      with grace.  \\n\\nPumpkin patches, a sea of orange delight,  \\nUnder the harvest
-      moon\u2019s gentle light.  \\nSweaters and scarves in layers unfold,  \\nWarm
-      hearts gather as tales are told.  \\n\\nCrisp mornings and the crackle of leaves,
-      \ \\nNature\u2019s quilt of a thousand weaves.  \\nIn the fall's embrace, we
-      find our peace,  \\nAs the year's cycle begins to cease.  \"},{\"name\":\"critic\",\"role\":\"user\",\"content\":\"Your
-      poem beautifully captures the essence of the fall season, with vivid imagery
-      and a comforting tone. Here are a few suggestions to enhance it further:\\n\\n1.
-      **Imagery:** You might want to explore even more sensory details. For example,
-      consider mentioning the smell of wet earth or the sound of geese migrating,
-      which could deepen the reader's experience.\\n\\n2. **Consistency in Meter:**
-      The first two lines of the second stanza have a different syllabic rhythm compared
-      to the rest of the poem. To maintain consistency, consider revising them to
-      match the rhythm of the other stanzas.\\n\\n3. **Word Choice:** The word \\\"chilled\\\"
-      in the third line of the first stanza implies a sense of coldness, which might
-      contrast with the warmth suggested by terms like \\\"embrace.\\\" You could
-      explore alternatives like \\\"crisp\\\" to maintain coherence in tone.\\n\\nOverall,
-      this is a lovely reflection on autumn, evoking both its visual splendor and
-      the cozy atmosphere it brings. Well done!\"}],\"model\":\"gpt-4o-2024-08-06\",\"stream\":false}"
-    headers: {}
-    method: POST
-    uri: https://api.openai.com/v1/chat/completions
-  response:
-    body:
-      string: "{\n  \"id\": \"chatcmpl-BWHKCzAtyrPUyBsY1QmpPxvaeSxPf\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1747032792,\n  \"model\": \"gpt-4o-2024-08-06\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Thank you for the thoughtful feedback!
-        I've made some revisions to incorporate your suggestions:\\n\\nLeaves of gold
-        and crimson twirl in the breeze,  \\nWhispering secrets among the trees.  \\nCrisp
-        air wraps the world with a gentle embrace,  \\nAs autumn paints the earth
-        with grace.  \\n\\nFields of pumpkins in orange delight,  \\nBeneath the harvest
-        moon\u2019s soft, glowing light.  \\nSnug sweaters and scarves in layers unfold,
-        \ \\nWarm hearts gather as tales are retold.  \\n\\nCrisp mornings meet the
-        crackle of leaves,  \\nNature quilts the ground with artful weaves.  \\nIn
-        fall\u2019s embrace, we find our peace,  \\nAs the year whispers its serene
-        release.  \\n\\nI hope this version enhances the autumn experience for you!\",\n
+        essence of the fall season. The imagery of \\\"leaves of amber,\\\" \\\"crisp
+        air,\\\" and \\\"golden light\\\" effectively conveys the season's visual
+        and sensory richness. The structure of the stanzas is consistent, and the
+        rhyme scheme helps maintain a pleasant rhythm. Here are a few suggestions
+        for enhancement:\\n\\n1. Consider adding more sensory details beyond the visual,
+        like the sound of rustling leaves or the scent of fresh rain, to deepen the
+        reader's immersion.\\n\\n2. The phrase \\\"Crisp air and golden light enthrall\\\"
+        is effective, but perhaps exploring a more unique or unexpected metaphor could
+        add an additional layer of depth.\\n\\n3. Explore more variation in verbs
+        or adjectives to enhance the imagery. For example, replacing \\\"warm sweaters\\\"
+        with \\\"cozy knits\\\" could intrigue readers more.\\n\\n4. The poem might
+        benefit from a closing line that leaves a lingering thought or emotion about
+        autumn's transition into winter.\\n\\nOverall, the poem is engaging and successfully
+        evokes the fall season. Addressing these points could further enhance its
+        impact.  \\n\\nFeel free to make revisions, and I'll be happy to review again!\",\n
         \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
         null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        363,\n    \"completion_tokens\": 155,\n    \"total_tokens\": 518,\n    \"prompt_tokens_details\":
+        156,\n    \"completion_tokens\": 231,\n    \"total_tokens\": 387,\n    \"prompt_tokens_details\":
         {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f5bdcc3276\"\n}\n"
+        \"default\",\n  \"system_fingerprint\": \"fp_76544d79cb\"\n}\n"
     headers: {}
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"messages\":[{\"content\":\"\\n            Provide constructive feedback.\\n
-      \           Respond with 'APPROVE' when your feedbacks are addressed.\\n            \",\"role\":\"system\"},{\"name\":\"user\",\"role\":\"user\",\"content\":\"Write
-      a short poem about the fall season.\"},{\"name\":\"primary\",\"role\":\"user\",\"content\":\"Leaves
-      of gold and crimson dance in the breeze,  \\nWhispering secrets among the trees.
-      \ \\nChilled air wraps the world in an embrace,  \\nAs autumn paints the earth
-      with grace.  \\n\\nPumpkin patches, a sea of orange delight,  \\nUnder the harvest
-      moon\u2019s gentle light.  \\nSweaters and scarves in layers unfold,  \\nWarm
-      hearts gather as tales are told.  \\n\\nCrisp mornings and the crackle of leaves,
-      \ \\nNature\u2019s quilt of a thousand weaves.  \\nIn the fall's embrace, we
-      find our peace,  \\nAs the year's cycle begins to cease.  \"},{\"name\":\"critic\",\"role\":\"assistant\",\"content\":\"Your
-      poem beautifully captures the essence of the fall season, with vivid imagery
-      and a comforting tone. Here are a few suggestions to enhance it further:\\n\\n1.
-      **Imagery:** You might want to explore even more sensory details. For example,
-      consider mentioning the smell of wet earth or the sound of geese migrating,
-      which could deepen the reader's experience.\\n\\n2. **Consistency in Meter:**
-      The first two lines of the second stanza have a different syllabic rhythm compared
-      to the rest of the poem. To maintain consistency, consider revising them to
-      match the rhythm of the other stanzas.\\n\\n3. **Word Choice:** The word \\\"chilled\\\"
-      in the third line of the first stanza implies a sense of coldness, which might
-      contrast with the warmth suggested by terms like \\\"embrace.\\\" You could
-      explore alternatives like \\\"crisp\\\" to maintain coherence in tone.\\n\\nOverall,
-      this is a lovely reflection on autumn, evoking both its visual splendor and
-      the cozy atmosphere it brings. Well done!\"},{\"name\":\"primary\",\"role\":\"user\",\"content\":\"Thank
-      you for the thoughtful feedback! I've made some revisions to incorporate your
-      suggestions:\\n\\nLeaves of gold and crimson twirl in the breeze,  \\nWhispering
-      secrets among the trees.  \\nCrisp air wraps the world with a gentle embrace,
-      \ \\nAs autumn paints the earth with grace.  \\n\\nFields of pumpkins in orange
-      delight,  \\nBeneath the harvest moon\u2019s soft, glowing light.  \\nSnug sweaters
-      and scarves in layers unfold,  \\nWarm hearts gather as tales are retold.  \\n\\nCrisp
-      mornings meet the crackle of leaves,  \\nNature quilts the ground with artful
-      weaves.  \\nIn fall\u2019s embrace, we find our peace,  \\nAs the year whispers
-      its serene release.  \\n\\nI hope this version enhances the autumn experience
-      for you!\"}],\"model\":\"gpt-4o-2024-08-06\",\"stream\":false}"
+    body: '{"messages":[{"content":"You are a helpful AI assistant.","role":"system"},{"name":"user","role":"user","content":"Write
+      a short poem about the fall season."},{"name":"primary","role":"assistant","content":"Leaves
+      of amber gently fall,  \nWhispering secrets to the ground.  \nCrisp air and
+      golden light enthrall,  \nAs nature''s painted hues astound.  \n\nPumpkins perch
+      on doorsteps bright,  \nHarvest moons in twilight glow.  \nWarm sweaters ward
+      off the night,  \nWhile fires crackle, warm, and slow.  \n\nMigrating birds
+      in skies take flight,  \nCarving paths through autumn''s chill.  \nA tapestry
+      in colors alight,  \nAs the world turns, serene and still.  "},{"name":"critic","role":"user","content":"Your
+      poem beautifully captures the essence of the fall season. The imagery of \"leaves
+      of amber,\" \"crisp air,\" and \"golden light\" effectively conveys the season''s
+      visual and sensory richness. The structure of the stanzas is consistent, and
+      the rhyme scheme helps maintain a pleasant rhythm. Here are a few suggestions
+      for enhancement:\n\n1. Consider adding more sensory details beyond the visual,
+      like the sound of rustling leaves or the scent of fresh rain, to deepen the
+      reader''s immersion.\n\n2. The phrase \"Crisp air and golden light enthrall\"
+      is effective, but perhaps exploring a more unique or unexpected metaphor could
+      add an additional layer of depth.\n\n3. Explore more variation in verbs or adjectives
+      to enhance the imagery. For example, replacing \"warm sweaters\" with \"cozy
+      knits\" could intrigue readers more.\n\n4. The poem might benefit from a closing
+      line that leaves a lingering thought or emotion about autumn''s transition into
+      winter.\n\nOverall, the poem is engaging and successfully evokes the fall season.
+      Addressing these points could further enhance its impact.  \n\nFeel free to
+      make revisions, and I''ll be happy to review again!"}],"model":"gpt-4o-2024-08-06","stream":false}'
     headers: {}
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-BWHKEoYwHQNgfdE7z58K1fa6MoVzX\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1747032794,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+      string: "{\n  \"id\": \"chatcmpl-BYyLUsrkxWBgnYHxEcOi89hhV9Sza\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1747674820,\n  \"model\": \"gpt-4o-2024-08-06\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"This revised version beautifully enhances
-        the imagery and maintains a consistent rhythm throughout! The additional sensory
-        details evoke a fuller experience of the fall season, and the slight adjustments
-        in word choice align perfectly with the warm and inviting tone of the poem.
-        Excellent work on making those changes; they strengthen the poem's overall
-        impact. \\n\\nAPPROVE\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 538,\n    \"completion_tokens\":
-        66,\n    \"total_tokens\": 604,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        \"assistant\",\n        \"content\": \"Thank you for the insightful feedback!
+        I'll make some revisions to incorporate more sensory details, vivid imagery,
+        and a reflective closing line.\\n\\n---\\n\\nLeaves of amber gently cast,
+        \ \\nMurmuring secrets to the ground,  \\nThe crisp scent of autumn's past,
+        \ \\nRides the breeze without a sound.  \\n\\nHarvest moons in twilight sights,
+        \ \\nCozier knits fend off the chill,  \\nAs whispering rains greet the nights,
+        \ \\nNature's stillness feels surreal.  \\n\\nBirds on journeys trace the
+        skies,  \\nTheir songs a fading farewell,  \\nCrimson fires in hearts arise,
+        \ \\nAs time weaves its subtle spell.  \\n\\nIn the dance from fall to frost,
+        \ \\nA quiet promise softly calls,  \\nIn winter's grip, no warmth is lost,
+        \ \\nFor autumn's flame within us thralls.  \\n\\n---\\n\\nLet me know your
+        thoughts!\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 378,\n    \"completion_tokens\": 173,\n
+        \   \"total_tokens\": 551,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
         0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f5bdcc3276\"\n}\n"
+        \"default\",\n  \"system_fingerprint\": \"fp_76544d79cb\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"content":"\n            Provide constructive feedback.\n            Respond
+      with ''APPROVE'' when your feedbacks are addressed.\n            ","role":"system"},{"name":"user","role":"user","content":"Write
+      a short poem about the fall season."},{"name":"primary","role":"user","content":"Leaves
+      of amber gently fall,  \nWhispering secrets to the ground.  \nCrisp air and
+      golden light enthrall,  \nAs nature''s painted hues astound.  \n\nPumpkins perch
+      on doorsteps bright,  \nHarvest moons in twilight glow.  \nWarm sweaters ward
+      off the night,  \nWhile fires crackle, warm, and slow.  \n\nMigrating birds
+      in skies take flight,  \nCarving paths through autumn''s chill.  \nA tapestry
+      in colors alight,  \nAs the world turns, serene and still.  "},{"name":"critic","role":"assistant","content":"Your
+      poem beautifully captures the essence of the fall season. The imagery of \"leaves
+      of amber,\" \"crisp air,\" and \"golden light\" effectively conveys the season''s
+      visual and sensory richness. The structure of the stanzas is consistent, and
+      the rhyme scheme helps maintain a pleasant rhythm. Here are a few suggestions
+      for enhancement:\n\n1. Consider adding more sensory details beyond the visual,
+      like the sound of rustling leaves or the scent of fresh rain, to deepen the
+      reader''s immersion.\n\n2. The phrase \"Crisp air and golden light enthrall\"
+      is effective, but perhaps exploring a more unique or unexpected metaphor could
+      add an additional layer of depth.\n\n3. Explore more variation in verbs or adjectives
+      to enhance the imagery. For example, replacing \"warm sweaters\" with \"cozy
+      knits\" could intrigue readers more.\n\n4. The poem might benefit from a closing
+      line that leaves a lingering thought or emotion about autumn''s transition into
+      winter.\n\nOverall, the poem is engaging and successfully evokes the fall season.
+      Addressing these points could further enhance its impact.  \n\nFeel free to
+      make revisions, and I''ll be happy to review again!"},{"name":"primary","role":"user","content":"Thank
+      you for the insightful feedback! I''ll make some revisions to incorporate more
+      sensory details, vivid imagery, and a reflective closing line.\n\n---\n\nLeaves
+      of amber gently cast,  \nMurmuring secrets to the ground,  \nThe crisp scent
+      of autumn''s past,  \nRides the breeze without a sound.  \n\nHarvest moons in
+      twilight sights,  \nCozier knits fend off the chill,  \nAs whispering rains
+      greet the nights,  \nNature''s stillness feels surreal.  \n\nBirds on journeys
+      trace the skies,  \nTheir songs a fading farewell,  \nCrimson fires in hearts
+      arise,  \nAs time weaves its subtle spell.  \n\nIn the dance from fall to frost,  \nA
+      quiet promise softly calls,  \nIn winter''s grip, no warmth is lost,  \nFor
+      autumn''s flame within us thralls.  \n\n---\n\nLet me know your thoughts!"}],"model":"gpt-4o-2024-08-06","stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BYyLZwtrua9ikNhaqWg2S3PLv2HWU\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1747674825,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"This revised version of your poem beautifully
+        incorporates the suggestions! \\n\\n1. You've successfully enhanced the sensory
+        experience with phrases like \\\"the crisp scent of autumn's past\\\" and
+        \\\"whispering rains,\\\" adding depth to the poem.\\n\\n2. The imagery is
+        vivid and vivid, elevating the reader's visual and emotional journey through
+        autumn.\\n\\n3. The reflective closing lines, especially \\\"In winter's grip,
+        no warmth is lost,\\\" provide a thoughtful conclusion, leaving the reader
+        with a sense of continuity and warmth.\\n\\n4. \\\"Cozier knits\\\" and \\\"Crimson
+        fires\\\" are evocative word choices that amplify the overall imagery and
+        sentiment of the stanza.\\n\\nWell done! The revisions have enhanced the poem's
+        impact, making it even more immersive and resonant. \\n\\nAPPROVE\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        572,\n    \"completion_tokens\": 157,\n    \"total_tokens\": 729,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_76544d79cb\"\n}\n"
     headers: {}
     status:
       code: 200
