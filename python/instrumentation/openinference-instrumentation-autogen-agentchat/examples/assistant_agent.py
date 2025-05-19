@@ -1,6 +1,5 @@
 import asyncio
 
-import vcr
 from autogen_agentchat.agents import AssistantAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -15,11 +14,6 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
 AutogenAgentChatInstrumentor().instrument(tracer_provider=tracer_provider)
-
-my_vcr = vcr.VCR(
-    cassette_library_dir="cassettes",
-    record_mode="once",
-)
 
 
 async def main() -> None:
@@ -41,10 +35,9 @@ async def main() -> None:
         model_client_stream=True,
     )
 
-    with my_vcr.use_cassette("assistant_agent.yaml"):
-        result = await agent.run(task="What is the weather in New York?")
-        await model_client.close()
-        print(result)
+    result = await agent.run(task="What is the weather in New York?")
+    await model_client.close()
+    print(result)
 
 
 if __name__ == "__main__":
