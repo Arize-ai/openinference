@@ -169,6 +169,66 @@ def test_anthropic_instrumentation_completions_streaming(
     assert not attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_stream_message(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = Anthropic(api_key="fake")
+    input_message = "What's the capital of France?"
+    chat = [{"role": "user", "content": input_message}]
+    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-latest"}
+
+    with client.messages.stream(
+        max_tokens=1024,
+        messages=chat,  # type: ignore
+        model="claude-3-opus-latest",
+    ) as stream:
+        for _ in stream:
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.name == "MessagesStream"
+
+    attributes = dict(span.attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+    msg_out = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+    assert isinstance(msg_out, str)
+    assert "paris" in msg_out.lower()
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop("llm.token_count.total"), int)
+
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-latest"
+    raw_inv = attributes.pop(LLM_INVOCATION_PARAMETERS)
+    assert isinstance(raw_inv, str)
+    assert json.loads(raw_inv) == invocation_params
+
+    assert not attributes
+
+
 @pytest.mark.asyncio
 @pytest.mark.vcr(
     decode_compressed_response=True,
