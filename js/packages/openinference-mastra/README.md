@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-mastra.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-mastra)
 
-This package provides a set of utilities to ingest [Mastra](https://github.com/mastra-ai/mastra) spans into platforms like [Arize](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
+This package provides a set of utilities to ingest [Mastra](https://github.com/mastra-ai/mastra) spans into platforms like [Arize](https://arize.com/) and [Arize Phoenix](https://phoenix.arize.com/).
 
 ## Installation
 
