@@ -32,6 +32,13 @@ nvm install 20
 nvm use 20
 ```
 
+or
+
+```shell
+cd js
+nvm use
+```
+
 Next, you will need to install [pnpm](https://pnpm.io/installation). pnpm is a package manager that is similar to npm, but is much faster and is optimized for workspaces with multiple packages. Once PNPM is installed, you can install the packages in this repo via:
 
 The pnpm version used in this repo is managed in the package.json file. This will allow you to run all commands below with the proper version. In order to take advantage of that make sure your global pnpm version is `>=9.7.0`.
@@ -42,10 +49,9 @@ pnpm install --frozen-lockfile -r
 
 This will install all the packages in the repo and their dependencies.
 
-After the dependencies are installed, you can build the packages via the following two commands:
+After the dependencies are installed, you can build the packages via the following command:
 
 ```shell
-pnpm run -r prebuild
 pnpm run -r build
 ```
 
@@ -145,7 +151,6 @@ In most cases, changes to the packages in this repo will be published automatica
 ```shell
 pnpm changeset # create a changeset
 pnpm changeset version # bump the version of the packages
-pnpm -r prebuild # generate the files needed for the build
 pnpm -r build # build the packages
 pnpm -r publish # publish to npm
 ```

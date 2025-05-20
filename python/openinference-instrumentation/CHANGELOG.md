@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.29...python-openinference-instrumentation-v0.1.30) (2025-05-19)
+
+
+### Documentation
+
+* update readmes for development setup and fixes ([#1629](https://github.com/Arize-ai/openinference/issues/1629)) ([7b211b3](https://github.com/Arize-ai/openinference/commit/7b211b3b1624ab433ba35568112f0a1d8964456f))
+
 ## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.28...python-openinference-instrumentation-v0.1.29) (2025-05-12)
 
 
