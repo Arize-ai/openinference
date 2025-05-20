@@ -200,18 +200,15 @@ def _llm_output_messages(output_message: Any) -> Iterator[Tuple[str, Any]]:
         )
 
     # Add the reasoning_content if available in raw.choices[0].message structure
-    try:
-        if hasattr(output_message, "raw") and output_message.raw:
-            if hasattr(output_message.raw, "choices") and output_message.raw.choices:
-                if hasattr(output_message.raw.choices[0], "message"):
-                    reasoning = getattr(output_message.raw.choices[0].message, "reasoning_content", None)
-                    if reasoning is not None:
+    if (raw := getattr(output_message, "raw", None)) is not None:
+        if(choices := getattr(raw, "choices", None)) is not None:
+            if (type(choices) is list) and len(choices) > 0:
+                if(message := getattr(choices[0], "message", None)) is not None:
+                    if(reasoning := getattr(message, "reasoning_content", None)) is not None:
                         yield (
                             f"{LLM_OUTPUT_MESSAGES}.0.message.reasoning_content",
                             reasoning,
                         )
-    except (AttributeError, IndexError):
-        pass
     
     if isinstance(tool_calls := getattr(output_message, "tool_calls", None), list):
         for tool_call_index, tool_call in enumerate(tool_calls):
