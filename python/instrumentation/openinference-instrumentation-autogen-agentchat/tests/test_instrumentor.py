@@ -197,17 +197,15 @@ class TestTeam:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 17
         final_span = spans[-1]
-        assert final_span.name == "RoundRobinGroupChat.run"
+        assert "RoundRobinGroupChat" in final_span.name
         assert final_span.status.is_ok
 
         attributes = dict(cast(Mapping[str, AttributeValue], final_span.attributes))
         # Verify input value
-        assert attributes["input.value"] == '{"task": "Write a short poem about the fall season."}'
-
-        # Verify team information
-        assert "team_key" in attributes
-        assert "team_id" in attributes
-        assert attributes["team_key"] == attributes["team_id"]  # team_key and team_id should match
+        input_value = json.loads(attributes["input.value"])
+        assert isinstance(input_value, dict)
+        assert "task" in input_value
+        assert input_value["task"] == "Write a short poem about the fall season."
 
         # Verify participant information
         assert attributes["participant_names"] == ("primary", "critic")

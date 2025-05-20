@@ -7,6 +7,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
+from autogen_agentchat.base import TaskResult
 from openinference.instrumentation import (
     get_attributes_from_context,
     get_output_attributes,
@@ -183,7 +184,7 @@ class _ToolsRunJSONWrapper:
         return response
 
 
-class _BaseGroupChatRunWrapper:
+class _BaseGroupChatRunStreamWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -195,48 +196,51 @@ class _BaseGroupChatRunWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
+            async for res in wrapped(*args, **kwargs):
+                yield res
+            return
 
-        span_name = f"{instance.__class__.__name__}.run"
+        span_name = f"{instance.__class__.__name__}.run_stream"
         with self._tracer.start_as_current_span(
             span_name,
-            record_exception=False,
-            set_status_on_exception=False,
             attributes=dict(
                 _flatten(
                     {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
+                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
                     }
                 )
             ),
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
             group_chat = instance
             team_id = getattr(group_chat, "_team_id", None)
             participant_names = getattr(group_chat, "_participant_names", None)
             participant_descriptions = getattr(group_chat, "_participant_descriptions", None)
-            input_value = _get_input_value(
-                wrapped,
-                *args,
-                **kwargs,
-            )
-            span.set_attribute(INPUT_VALUE, input_value)
+
             if team_id:
-                span.set_attribute("team_key", team_id)
+                span.set_attribute("team_id", team_id)
             if participant_names:
                 span.set_attribute("participant_names", participant_names)
             if participant_descriptions:
                 span.set_attribute("participant_descriptions", participant_descriptions)
-            if team_id:
-                span.set_attribute("team_id", team_id)
+
             try:
-                response = await wrapped(*args, **kwargs)
+                async for res in wrapped(*args, **kwargs):
+                    if isinstance(res, TaskResult):
+                        span.set_attributes(dict(get_output_attributes(res)))
+                    yield res
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(get_output_attributes(response)))
-            return response
+            span.set_attributes(dict(get_attributes_from_context()))
 
 
 class _SendMessageWrapper:
@@ -259,7 +263,7 @@ class _SendMessageWrapper:
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
                         SpanAttributes.INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -303,7 +307,7 @@ class _PublishMessageWrapper:
             attributes=dict(
                 _flatten(
                     {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
                         SpanAttributes.INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,

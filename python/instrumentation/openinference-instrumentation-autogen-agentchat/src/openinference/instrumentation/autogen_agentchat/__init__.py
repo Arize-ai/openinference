@@ -11,7 +11,7 @@ from wrapt import wrap_function_wrapper
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.autogen_agentchat._wrappers import (
     _BaseAgentRunWrapper,
-    _BaseGroupChatRunWrapper,
+    _BaseGroupChatRunStreamWrapper,
     _PublishMessageWrapper,
     _SendMessageWrapper,
     _ToolsRunJSONWrapper,
@@ -30,7 +30,7 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
         "_tracer",
         "_original_base_agent_run_method",
         "_original_tools_run_json",
-        "_original_group_chat_run_method",
+        "_original_group_chat_run_stream_method",
         "_original_single_threaded_agent_runtime_send_message",
         "_original_single_threaded_agent_runtime_publish_message",
     )
@@ -68,15 +68,15 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_ToolsRunJSONWrapper(tracer=self._tracer),
         )
 
-        self._original_group_chat_run_method = getattr(
+        self._original_group_chat_run_stream_method = getattr(
             import_module("autogen_agentchat.teams._group_chat._base_group_chat").BaseGroupChat,
-            "run",
+            "run_stream",
             None,
         )
         wrap_function_wrapper(
             module="autogen_agentchat.teams._group_chat._base_group_chat",
-            name="BaseGroupChat.run",
-            wrapper=_BaseGroupChatRunWrapper(tracer=self._tracer),
+            name="BaseGroupChat.run_stream",
+            wrapper=_BaseGroupChatRunStreamWrapper(tracer=self._tracer),
         )
 
         self._original_single_threaded_agent_runtime_send_message = getattr(
@@ -112,12 +112,12 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
             tools_module.BaseTool.run_json = self._original_tools_run_json
             self._original_tools_run_json = None
 
-        if self._original_group_chat_run_method is not None:
+        if self._original_group_chat_run_stream_method is not None:
             group_chat_module = import_module(
                 "autogen_agentchat.teams._group_chat._base_group_chat"
             )
-            group_chat_module.BaseGroupChat.run = self._original_group_chat_run_method
-            self._original_group_chat_run_method = None
+            group_chat_module.BaseGroupChat.run_stream = self._original_group_chat_run_stream_method
+            self._original_group_chat_run_stream_method = None
 
         if self._original_single_threaded_agent_runtime_send_message is not None:
             single_threaded_agent_runtime_module = import_module(
