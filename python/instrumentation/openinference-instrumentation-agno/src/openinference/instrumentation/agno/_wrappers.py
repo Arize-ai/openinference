@@ -144,7 +144,6 @@ class _RunWrapper:
         ) as span:
             try:
                 run_response = wrapped(*args, **kwargs)
-
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
