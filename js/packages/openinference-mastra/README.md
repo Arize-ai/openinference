@@ -26,7 +26,10 @@ export PHOENIX_API_KEY="your-api-key"
 
 ```typescript
 import { Mastra } from "@mastra/core";
-import { OpenInferenceOTLPTraceExporter, isOpenInferenceSpan } from "@arizeai/openinference-mastra";
+import {
+  OpenInferenceOTLPTraceExporter,
+  isOpenInferenceSpan,
+} from "@arizeai/openinference-mastra";
 
 export const mastra = new Mastra({
   // ... other config
@@ -118,7 +121,7 @@ npm run dev
 
 ![weather agent chat](./docs/mastra-weather-agent.png)
 
-- After a few moments, you should see the spans for the agent's request and response in Phoenix. 
+- After a few moments, you should see the spans for the agent's request and response in Phoenix.
   - Not sure how to run the Phoenix collector? [Check out the Phoenix docs](https://docs.arize.com/phoenix/self-hosting/deployment-options/docker#docker).
 
 ![weather agent spans](./docs/mastra-weather-agent-spans.png)
