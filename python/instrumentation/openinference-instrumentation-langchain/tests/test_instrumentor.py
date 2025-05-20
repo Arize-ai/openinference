@@ -943,6 +943,7 @@ def test_tool_call_with_function(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     from langchain.chat_models import init_chat_model
+    from langchain_core.messages import AIMessage
     from langchain_core.tools import tool
 
     @tool
@@ -963,7 +964,9 @@ def test_tool_call_with_function(
     )
     llm_with_tools = llm.bind_tools(tools)
     query = "What is 3 * 12? Also, what is 11 + 49?"
-    _ = llm_with_tools.invoke(query).tool_calls
+    result = llm_with_tools.invoke(query)
+    assert isinstance(result, AIMessage)
+    _ = result.tool_calls
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
@@ -981,30 +984,38 @@ def test_tool_call_with_function(
         attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.name")
         == "multiply"
     )
-    assert json.loads(
-        attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments")
-    ) == {"a": 3, "b": 12}
+    multiply_args = attributes.pop(
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+    )
+    assert isinstance(multiply_args, str)
+    assert json.loads(multiply_args) == {"a": 3, "b": 12}
 
     # Test second tool call (add)
     assert (
         attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.function.name")
         == "add"
     )
-    assert json.loads(
-        attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments")
-    ) == {"a": 11, "b": 49}
+    add_args = attributes.pop(
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments"
+    )
+    assert isinstance(add_args, str)
+    assert json.loads(add_args) == {"a": 11, "b": 49}
 
     # Test tool schemas
     tool1_schema = attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}", None)
     tool2_schema = attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}", None)
     assert tool1_schema is not None
     assert tool2_schema is not None
+    assert isinstance(tool1_schema, str)
+    assert isinstance(tool2_schema, str)
+
     tool1_schema_dict = json.loads(tool1_schema)
     assert tool1_schema_dict["type"] == "function"
     assert tool1_schema_dict["function"]["name"] == "add"
     assert tool1_schema_dict["function"]["description"] == "Adds a and b."
     assert tool1_schema_dict["function"]["parameters"]["properties"]["a"]["type"] == "integer"
     assert tool1_schema_dict["function"]["parameters"]["properties"]["b"]["type"] == "integer"
+
     tool2_schema_dict = json.loads(tool2_schema)
     assert tool2_schema_dict["type"] == "function"
     assert tool2_schema_dict["function"]["name"] == "multiply"
