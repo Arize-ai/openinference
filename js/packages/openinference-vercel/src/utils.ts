@@ -242,10 +242,33 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
 
   return messages.reduce((acc: Attributes, message, index) => {
     const MESSAGE_PREFIX = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}`;
-    if (isArrayOfObjects(message.content)) {
+    if (message.role === "tool") {
+      return {
+        ...acc,
+        ...message,
+        [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: message.role,
+        [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_CALL_ID}`]:
+          typeof message.toolCallId === "string"
+            ? message.toolCallId
+            : undefined,
+        [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]:
+          typeof message.toolName === "string" ? message.toolName : undefined,
+        [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]:
+          Array.isArray(message.content)
+            ? typeof message.content[0]?.result === "string"
+              ? message.content[0].result
+              : message.content[0]?.result
+                ? JSON.stringify(message.content[0].result)
+                : undefined
+            : typeof message.content === "string"
+              ? message.content
+              : undefined,
+      };
+    } else if (isArrayOfObjects(message.content)) {
       const messageAttributes = message.content.reduce(
         (acc: Attributes, content, contentIndex) => {
           const CONTENTS_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
+          const TOOL_CALL_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}`;
           return {
             ...acc,
             [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
@@ -254,6 +277,20 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
               typeof content.text === "string" ? content.text : undefined,
             [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
               typeof content.image === "string" ? content.image : undefined,
+            [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_ID}`]:
+              typeof content.toolCallId === "string"
+                ? content.toolCallId
+                : undefined,
+            [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+              typeof content.toolName === "string"
+                ? content.toolName
+                : undefined,
+            [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+              typeof content.args === "string"
+                ? content.args
+                : typeof content.args === "object"
+                  ? JSON.stringify(content.args)
+                  : undefined,
           };
         },
         {},
@@ -368,8 +405,6 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
   const openInferenceAttributes = {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind ?? undefined,
   };
-  console.log("new span attributes");
-  console.table(attributes);
   return AISemanticConventionsList.reduce(
     (openInferenceAttributes: Attributes, convention) => {
       /**
