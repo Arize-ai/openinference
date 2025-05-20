@@ -47,6 +47,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`openinference-instrumentation-anthropic`](./python/instrumentation/openinference-instrumentation-anthropic)         | OpenInference Instrumentation for Anthropic.         | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-anthropic.svg)](https://pypi.python.org/pypi/openinference-instrumentation-anthropic)         |
 | [`openinference-instrumentation-beeai`](./python/instrumentation/openinference-instrumentation-beeai)                 | OpenInference Instrumentation for BeeAI.             | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-beeai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-beeai)                 |
 | [`openinference-instrumentation-google-genai`](./python/instrumentation/openinference-instrumentation-google-genai)   | OpenInference Instrumentation for Google GenAI.      | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-google-genai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-google-genai)   |
+| [`openinference-instrumentation-google-adk`](./python/instrumentation/openinference-instrumentation-google-adk)       | OpenInference Instrumentation for Google ADK.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-google-adk.svg)](https://pypi.python.org/pypi/openinference-instrumentation-google-adk)       |
 
 ### Examples
 
