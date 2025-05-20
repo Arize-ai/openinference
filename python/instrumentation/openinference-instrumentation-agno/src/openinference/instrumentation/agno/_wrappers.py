@@ -144,7 +144,7 @@ class _RunWrapper:
         ) as span:
             try:
                 run_response = wrapped(*args, **kwargs)
-                
+
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                 return run_response
@@ -277,7 +277,7 @@ class _RunWrapper:
             ),
         ) as span:
             try:
-                async for response in wrapped(*args, **kwargs):
+                async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     yield response
                 run_response = agent.run_response
                 span.set_status(trace_api.StatusCode.OK)
