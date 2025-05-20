@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.2.1...python-openinference-instrumentation-mcp-v1.3.0) (2025-05-19)
+
+
+### Features
+
+* **mcp:** add instrumentation support for Streamable-HTTP transport and bump mcp dependency to ≥1.8.1 ([#1640](https://github.com/Arize-ai/openinference/issues/1640)) ([4df8976](https://github.com/Arize-ai/openinference/commit/4df8976066f1911321ee31f7732854787079e981))
+
 ## [1.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.2.0...python-openinference-instrumentation-mcp-v1.2.1) (2025-05-14)
 
 
