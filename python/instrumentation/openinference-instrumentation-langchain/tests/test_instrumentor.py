@@ -938,6 +938,7 @@ def test_token_counts(
     decode_compressed_response=True,
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
+    cassette_library_dir="tests/cassettes/test_instrumentor",  # Explicitly set the directory
 )
 def test_tool_call_with_function(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -961,6 +962,7 @@ def test_tool_call_with_function(
     llm = init_chat_model(
         "gpt-4o-mini",
         model_provider="openai",
+        api_key="sk-fake-key",
     )
     llm_with_tools = llm.bind_tools(tools)
     query = "What is 3 * 12? Also, what is 11 + 49?"
