@@ -45,7 +45,7 @@ type ConstructorArgs = {
 >;
 
 /**
- * A custom OpenTelemetry trace exporter that exports annotated traces to an OpenInference compliant OTEL API.
+ * A custom OpenTelemetry trace exporter that appends OpenInference semantic conventions to spans prior to export
  *
  * This class extends the `OTLPTraceExporter` and adds additional logic to the `export` method to augment the spans with OpenInference attributes.
  *
