@@ -118,6 +118,50 @@ class _RunWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+        agent = instance
+        if hasattr(agent, "name") and agent.name:
+            agent_name = agent.name.replace(" ", "_").replace("-", "_")
+        else:
+            agent_name = "Agent"
+        span_name = f"{agent_name}.run"
+
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: AGENT,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        **dict(_agent_run_attributes(agent)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            try:
+                run_response = wrapped(*args, **kwargs)
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                return run_response
+
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                raise
+
+    def run_stream(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
 
         agent = instance
         if hasattr(agent, "name") and agent.name:
@@ -144,20 +188,11 @@ class _RunWrapper:
             ),
         ) as span:
             try:
-                if "stream" in kwargs and kwargs["stream"] is True:
-                    yield from wrapped(*args, **kwargs)
-                    run_response = agent.run_response
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-                else:
-                    response = wrapped(*args, **kwargs)
-
-                    for run_response in response:
-                        span.set_status(trace_api.StatusCode.OK)
-                        span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                        span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-                        yield run_response
+                yield from wrapped(*args, **kwargs)
+                run_response = agent.run_response
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -171,11 +206,52 @@ class _RunWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            if "stream" in kwargs and kwargs["stream"] is True:
-                async for response in await wrapped(*args, **kwargs):
-                    yield response
-            else:
-                response = await wrapped(*args, **kwargs)
+            response = await wrapped(*args, **kwargs)
+            return response
+
+        agent = instance
+        if hasattr(agent, "name"):
+            agent_name = agent.name.replace(" ", "_").replace("-", "_")
+        else:
+            agent_name = "Agent"
+        span_name = f"{agent_name}.run"
+
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: AGENT,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        **dict(_agent_run_attributes(agent)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            try:
+                run_response = await wrapped(*args, **kwargs)
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                return run_response
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                raise
+
+    async def arun_stream(
+        self,
+        wrapped: Callable[..., Awaitable[Any]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            async for response in await wrapped(*args, **kwargs):
                 yield response
 
         agent = instance
@@ -203,21 +279,12 @@ class _RunWrapper:
             ),
         ) as span:
             try:
-                if "stream" in kwargs and kwargs["stream"] is True:
-                    span.set_status(trace_api.StatusCode.OK)
-                    async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
-                        yield response
-                    run_response = agent.run_response
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                else:
-                    response = wrapped(*args, **kwargs)
-
-                    run_response = await response.__anext__()
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                    yield run_response
-
+                async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
+                    yield response
+                run_response = agent.run_response
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
