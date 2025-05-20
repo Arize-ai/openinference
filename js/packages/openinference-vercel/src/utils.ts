@@ -247,12 +247,23 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
         ...acc,
         ...message,
         [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: message.role,
-        [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_CALL_ID}`]:
-          typeof message.toolCallId === "string"
-            ? message.toolCallId
+        [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+          Array.isArray(message.content)
+            ? typeof message.content[0]?.toolCallId === "string"
+              ? message.content[0].toolCallId
+              : undefined
+            : typeof message.toolCallId === "string"
+              ? message.toolCallId
+              : undefined,
+        [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]: Array.isArray(
+          message.content,
+        )
+          ? typeof message.content[0]?.toolName === "string"
+            ? message.content[0].toolName
+            : undefined
+          : typeof message.toolName === "string"
+            ? message.toolName
             : undefined,
-        [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]:
-          typeof message.toolName === "string" ? message.toolName : undefined,
         [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]:
           Array.isArray(message.content)
             ? typeof message.content[0]?.result === "string"
