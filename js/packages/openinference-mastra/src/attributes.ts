@@ -78,10 +78,6 @@ const detectOpenInferenceSpanKindFromMastraSpan = (
  * @param span - The Mastra span to enrich.
  */
 export const enrichBySpanKind = (span: ReadableSpan) => {
-  if (getOpenInferenceSpanKind(span)) {
-    // span has been processed already, skip
-    return;
-  }
   const kind = detectOpenInferenceSpanKindFromMastraSpan(span);
   if (kind) {
     addOpenInferenceSpanKind(span, kind);

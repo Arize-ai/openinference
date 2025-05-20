@@ -27,10 +27,7 @@ export const addOpenInferenceResourceAttributesToMastraSpan = (
  *
  * @param span - The Mastra span to augment.
  */
-export const addOpenInferenceAttributesToMastraSpan = (
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  span: ReadableSpan,
-) => {
+export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
   enrichBySpanKind(span);
 };
 
