@@ -147,6 +147,7 @@ class _RunWrapper:
                 
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 return run_response
 
             except Exception as e:
@@ -192,6 +193,7 @@ class _RunWrapper:
                 run_response = agent.run_response
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -236,6 +238,7 @@ class _RunWrapper:
                 run_response = await wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 return run_response
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -253,7 +256,7 @@ class _RunWrapper:
                 yield response
 
         agent = instance
-        if hasattr(agent, "name"):
+        if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
             agent_name = "Agent"
@@ -282,6 +285,7 @@ class _RunWrapper:
                 run_response = agent.run_response
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
@@ -297,6 +301,10 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
         role, content = message.role, message.get_content_string()
         if content:
             yield from process_message(i, role, content)
+
+    tools = arguments.get("tools", [])
+    for tool_index, tool in enumerate(tools):
+        yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
 
 
 def _llm_invocation_parameters(model: Model) -> Iterator[Tuple[str, Any]]:
@@ -593,6 +601,7 @@ class _FunctionCallWrapper:
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 SESSION_ID = SpanAttributes.SESSION_ID
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
@@ -602,7 +611,7 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
-LLM_TOOLS = SpanAttributes.LLM_TOOLS
+LLM_FUNCTION_CALL = SpanAttributes.LLM_FUNCTION_CALL
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE

@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 2.1.0
+
+### Minor Changes
+
+- c301f99: chore: pin peer deps, update readme, fix types
+
 ## 2.0.3
 
 ### Patch Changes

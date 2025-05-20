@@ -1,0 +1,33 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"What is 3 * 12? Also, what is 11 + 49?","role":"user"}],"model":"gpt-4o-mini","stream":false,"tools":[{"type":"function","function":{"name":"add","description":"Adds
+      a and b.","parameters":{"properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"type":"object"}}},{"type":"function","function":{"name":"multiply","description":"Multiplies
+      a and b.","parameters":{"properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"type":"object"}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BZ8blO4x3ynTj8awD7YPWEqaUByIy\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1747714269,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_Kd281qYCh92tVGg73bPsF1HZ\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"multiply\",\n
+        \             \"arguments\": \"{\\\"a\\\": 3, \\\"b\\\": 12}\"\n            }\n
+        \         },\n          {\n            \"id\": \"call_Z3ns3Wjn6WnUADUhPhlommYN\",\n
+        \           \"type\": \"function\",\n            \"function\": {\n              \"name\":
+        \"add\",\n              \"arguments\": \"{\\\"a\\\": 11, \\\"b\\\": 49}\"\n
+        \           }\n          }\n        ],\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 87,\n    \"completion_tokens\":
+        50,\n    \"total_tokens\": 137,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_dbaca60df0\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

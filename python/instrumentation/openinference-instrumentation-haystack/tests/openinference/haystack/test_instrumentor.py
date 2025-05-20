@@ -11,13 +11,13 @@ from haystack.components.generators import OpenAIGenerator
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.components.websearch.serper_dev import SerperDevWebSearch
+from haystack.core.errors import PipelineRuntimeError
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.components.rankers.cohere import (  # type: ignore[import-untyped]
     CohereRanker,
 )
-from openai import AuthenticationError
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -790,7 +790,7 @@ def test_error_status_code_and_exception_events_with_invalid_api_key(
     pipe = Pipeline()
     llm = OpenAIGenerator(model="gpt-4o")
     pipe.add_component("llm", llm)
-    with pytest.raises(AuthenticationError):
+    with pytest.raises(PipelineRuntimeError):
         pipe.run(
             {
                 "llm": {

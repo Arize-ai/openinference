@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.22...python-openinference-instrumentation-dspy-v0.1.23) (2025-05-13)
+
+
+### Features
+
+* **dspy:** Instrument DSPy.Tool ([#1617](https://github.com/Arize-ai/openinference/issues/1617)) ([e1ee8ff](https://github.com/Arize-ai/openinference/commit/e1ee8ff86148a3fe0a8abf69bde675c8e0491cf5))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.21...python-openinference-instrumentation-dspy-v0.1.22) (2025-05-11)
 
 

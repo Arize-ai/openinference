@@ -61,6 +61,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -933,6 +934,98 @@ def test_token_counts(
     assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == 24
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+    cassette_library_dir="tests/cassettes/test_instrumentor",  # Explicitly set the directory
+)
+def test_tool_call_with_function(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from langchain.chat_models import init_chat_model
+    from langchain_core.messages import AIMessage
+    from langchain_core.tools import tool
+
+    @tool
+    def add(a: int, b: int) -> int:
+        """Adds a and b."""
+        return a + b
+
+    @tool
+    def multiply(a: int, b: int) -> int:
+        """Multiplies a and b."""
+        return a * b
+
+    tools = [add, multiply]
+
+    llm = init_chat_model(
+        "gpt-4o-mini",
+        model_provider="openai",
+        api_key="sk-fake-key",
+    )
+    llm_with_tools = llm.bind_tools(tools)
+    query = "What is 3 * 12? Also, what is 11 + 49?"
+    result = llm_with_tools.invoke(query)
+    assert isinstance(result, AIMessage)
+    _ = result.tool_calls
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Test input message
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert attributes.pop("llm.input_messages.0.message.content") == query
+
+    # Test output message and tool calls
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+
+    # Test first tool call (multiply)
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.name")
+        == "multiply"
+    )
+    multiply_args = attributes.pop(
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+    )
+    assert isinstance(multiply_args, str)
+    assert json.loads(multiply_args) == {"a": 3, "b": 12}
+
+    # Test second tool call (add)
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.function.name")
+        == "add"
+    )
+    add_args = attributes.pop(
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments"
+    )
+    assert isinstance(add_args, str)
+    assert json.loads(add_args) == {"a": 11, "b": 49}
+
+    # Test tool schemas
+    tool1_schema = attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}", None)
+    tool2_schema = attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}", None)
+    assert tool1_schema is not None
+    assert tool2_schema is not None
+    assert isinstance(tool1_schema, str)
+    assert isinstance(tool2_schema, str)
+
+    tool1_schema_dict = json.loads(tool1_schema)
+    assert tool1_schema_dict["type"] == "function"
+    assert tool1_schema_dict["function"]["name"] == "add"
+    assert tool1_schema_dict["function"]["description"] == "Adds a and b."
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["a"]["type"] == "integer"
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["b"]["type"] == "integer"
+
+    tool2_schema_dict = json.loads(tool2_schema)
+    assert tool2_schema_dict["type"] == "function"
+    assert tool2_schema_dict["function"]["name"] == "multiply"
+    assert tool2_schema_dict["function"]["description"] == "Multiplies a and b."
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["a"]["type"] == "integer"
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["b"]["type"] == "integer"
+
+
 def _check_context_attributes(
     attributes: Dict[str, Any],
     session_id: Optional[str],
@@ -1127,6 +1220,8 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
 LLM = OpenInferenceSpanKindValues.LLM
