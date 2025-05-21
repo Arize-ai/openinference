@@ -2,7 +2,7 @@
 
 [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-autogen-agentchat.svg)](https://pypi.python.org/pypi/openinference-instrumentation-autogen-agentchat)
 
-Python auto-instrumentation library for Autogen AgentChat, enabling tracing of agent interactions and conversations.
+OpenTelelemetry instrumentation for Autogen AgentChat, enabling tracing of agent interactions and conversations.
 
 The traces emitted by this instrumentation are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix)
 
