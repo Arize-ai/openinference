@@ -26,8 +26,7 @@ Start the phoenix server so that it is ready to collect traces.
 The Phoenix server runs entirely on your machine and does not send data over the internet.
 
 ```shell
-python -m phoenix.server.main serve
-```
+phoenix serve
 
 Here's a simple example using a single assistant agent:
 
