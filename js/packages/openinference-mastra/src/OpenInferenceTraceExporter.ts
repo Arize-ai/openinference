@@ -73,21 +73,21 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     this.spanFilter = spanFilter;
   }
   export(
-    items: ReadableSpan[],
+    spans: ReadableSpan[],
     resultCallback: (result: ExportResult) => void,
   ) {
-    let filteredItems = items.map((i) => {
+    let filteredSpans = spans.map((span) => {
       // add OpenInference resource attributes to the span based on Mastra span attributes
-      addOpenInferenceResourceAttributesToMastraSpan(i);
+      addOpenInferenceResourceAttributesToMastraSpan(span);
       // add OpenInference attributes to the span based on Vercel span attributes
-      addOpenInferenceAttributesToSpan(i);
+      addOpenInferenceAttributesToSpan(span);
       // add OpenInference attributes to the span based on Mastra span attributes
-      addOpenInferenceAttributesToMastraSpan(i);
-      return i;
+      addOpenInferenceAttributesToMastraSpan(span);
+      return span;
     });
     if (this.spanFilter) {
-      filteredItems = filteredItems.filter(this.spanFilter);
+      filteredSpans = filteredSpans.filter(this.spanFilter);
     }
-    super.export(filteredItems, resultCallback);
+    super.export(filteredSpans, resultCallback);
   }
 }

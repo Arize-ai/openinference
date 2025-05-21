@@ -20,30 +20,30 @@ let debugSpans: Pick<
  * Accumulate items across invocations until the item has no parentId, then dump items to json file
  * $HOME/debug-mastra-instrumentation/spans-{new Date().toISOString()}.json
  */
-export const debug = async (items: ReadableSpan[]) => {
+export const debug = async (spans: ReadableSpan[]) => {
   // only import fs if we need it
   // this allows the module to be used in environments that don't have fs
   const fs = await import("node:fs");
   debugSpans.push(
     // @ts-expect-error -just grabbing incomplete fields for testing
-    ...items
-      .map((i) => ({
-        name: i.name,
-        attributes: i.attributes,
-        parentSpanId: i.parentSpanId,
-        kind: i.kind,
-        status: i.status,
+    ...spans
+      .map((span) => ({
+        name: span.name,
+        attributes: span.attributes,
+        parentSpanId: span.parentSpanId,
+        kind: span.kind,
+        status: span.status,
         resource: {},
-        startTime: i.startTime,
-        endTime: i.endTime,
+        startTime: span.startTime,
+        endTime: span.endTime,
       }))
-      .filter((i) =>
+      .filter((span) =>
         ["post", "agent", "ai"].some((prefix) =>
-          i.name.toLocaleLowerCase().startsWith(prefix),
+          span.name.toLocaleLowerCase().startsWith(prefix),
         ),
       ),
   );
-  const root = items.find((i) => i.parentSpanId == null);
+  const root = spans.find((span) => span.parentSpanId == null);
   if (root) {
     fs.mkdirSync("debug-mastra-instrumentation", { recursive: true });
     fs.writeFileSync(
