@@ -18,6 +18,8 @@ A typical Mastra project will already have OpenTelemetry and related packages in
 
 To process your Mastra spans add an `OpenInferenceOTLPTraceExporter` to your `telemetry` configuration within your `Mastra` instance.
 
+Here is an example of how to configure a `Mastra` instance to export spans to Arize Phoenix:
+
 ```shell
 # Set the Phoenix collector endpoint and API key in your environment
 export PHOENIX_COLLECTOR_ENDPOINT="https://localhost:6006/v1/traces"
@@ -39,9 +41,10 @@ export const mastra = new Mastra({
     export: {
       type: "custom",
       exporter: new OpenInferenceOTLPTraceExporter({
-        collectorEndpoint: process.env.PHOENIX_COLLECTOR_ENDPOINT,
-        // optional: add bearer auth token if Phoenix or other platform requires it
-        apiKey: process.env.PHOENIX_API_KEY,
+        url: process.env.PHOENIX_COLLECTOR_ENDPOINT,
+        headers: {
+          Authorization: `Bearer ${process.env.PHOENIX_API_KEY}`,
+        },
         // optional: filter out http, and other node service specific spans
         // they will still be exported to Mastra, but not to the target of
         // this exporter
@@ -58,7 +61,7 @@ For general details on Mastra's OpenTelemetry support see the [Mastra Observabil
 
 ### Weather Agent
 
-To setup the canonical Mastra weather agent example, and then ingest the spans into Phoenix, follow the steps below.
+To setup the canonical Mastra weather agent example, and then ingest the spans into Arize Phoenix (or any other OpenInference-compatible platform), follow the steps below.
 
 - Create a new Mastra project
 
@@ -102,8 +105,10 @@ export const mastra = new Mastra({
     export: {
       type: "custom",
       exporter: new OpenInferenceOTLPTraceExporter({
-        apiKey: process.env.PHOENIX_API_KEY,
-        collectorEndpoint: process.env.PHOENIX_COLLECTOR_ENDPOINT,
+        url: process.env.PHOENIX_COLLECTOR_ENDPOINT,
+        headers: {
+          Authorization: `Bearer ${process.env.PHOENIX_API_KEY}`,
+        },
         spanFilter: isOpenInferenceSpan,
       }),
     },

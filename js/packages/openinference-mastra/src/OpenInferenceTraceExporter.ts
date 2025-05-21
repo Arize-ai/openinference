@@ -10,15 +10,6 @@ import {
 
 type ConstructorArgs = {
   /**
-   * The API key to use for the OpenInference Trace Exporter.
-   * If provided, the `Authorization` header will be added to the request with the value `Bearer ${apiKey}`.
-   */
-  apiKey?: string;
-  /**
-   * The endpoint to send the traces to.
-   */
-  collectorEndpoint: string;
-  /**
    * A function that filters the spans to be exported.
    * If provided, the span will be exported if the function returns `true`.
    *
@@ -32,17 +23,14 @@ type ConstructorArgs = {
    *   return isOpenInferenceSpan(span);
    * };
    * const exporter = new OpenInferenceOTLPTraceExporter({
-   *   apiKey: "...",
-   *   collectorEndpoint: "...",
+   *   url: "...",
+   *   headers: "...",
    *   spanFilter,
    * });
    * ```
    */
   spanFilter?: (span: ReadableSpan) => boolean;
-} & Omit<
-  NonNullable<ConstructorParameters<typeof OTLPTraceExporter>[0]>,
-  "url"
->;
+} & NonNullable<ConstructorParameters<typeof OTLPTraceExporter>[0]>;
 
 /**
  * A custom OpenTelemetry trace exporter that appends OpenInference semantic conventions to spans prior to export
@@ -78,20 +66,9 @@ type ConstructorArgs = {
 export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
   private readonly spanFilter?: (span: ReadableSpan) => boolean;
 
-  constructor({
-    apiKey,
-    collectorEndpoint,
-    headers,
-    spanFilter,
-    ...rest
-  }: ConstructorArgs) {
+  constructor({ spanFilter, ...args }: ConstructorArgs) {
     super({
-      headers: {
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-        ...headers,
-      },
-      url: collectorEndpoint,
-      ...rest,
+      ...args,
     });
     this.spanFilter = spanFilter;
   }
