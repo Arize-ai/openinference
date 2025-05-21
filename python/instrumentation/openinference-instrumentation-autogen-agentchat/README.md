@@ -27,6 +27,7 @@ The Phoenix server runs entirely on your machine and does not send data over the
 
 ```shell
 phoenix serve
+```
 
 Here's a simple example using a single assistant agent:
 
