@@ -28,6 +28,21 @@ This project uses [ruff](https://github.com/astral-sh/ruff) for formatting and l
 pip install tox-uv==1.11.2
 ```
 
+From the root of the repository install development dependencies:
+```sh
+pip install -r ./python/dev-requirements.txt
+```
+
+To compose the `openinference-instrumentation` namespace package with all the instrumentation modules, run the following command:
+```sh
+tox run -e add_symlinks
+```
+
+From the root of the repository install `openinference-instrumentation` package in editable mode with the `-e` flag:
+```sh
+pip install -e ./python/openinference-instrumentation
+```
+
 ### Testing
 
 #### Introduction to `tox`

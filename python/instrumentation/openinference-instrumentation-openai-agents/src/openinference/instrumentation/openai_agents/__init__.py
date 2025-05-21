@@ -24,6 +24,8 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
+        if not (exclusive_processor := kwargs.get("exclusive_processor")):
+            exclusive_processor = False
         if not (config := kwargs.get("config")):
             config = TraceConfig()
         else:
@@ -32,13 +34,19 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
-        from agents import add_trace_processor
 
         from openinference.instrumentation.openai_agents._processor import (
             OpenInferenceTracingProcessor,
         )
 
-        add_trace_processor(OpenInferenceTracingProcessor(cast(Tracer, tracer)))
+        if exclusive_processor:
+            from agents import set_trace_processors
+
+            set_trace_processors([OpenInferenceTracingProcessor(cast(Tracer, tracer))])
+        else:
+            from agents import add_trace_processor
+
+            add_trace_processor(OpenInferenceTracingProcessor(cast(Tracer, tracer)))
 
     def _uninstrument(self, **kwargs: Any) -> None:
         # TODO
