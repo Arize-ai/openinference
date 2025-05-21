@@ -4,8 +4,6 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
-const MASTRA_ROOT_SPAN_NAME_PREFIXES = ["post /api/agents"];
-
 const MASTRA_AGENT_SPAN_NAME_PREFIXES = [
   "agent",
   "mastra.getAgent",
@@ -36,12 +34,12 @@ const getOpenInferenceSpanKind = (span: ReadableSpan) => {
 };
 
 /**
- * Detect the closest OpenInference span kind for the given Mastra span.
+ * Get the closest OpenInference span kind for the given Mastra span.
  *
  * This function will attempt to detect the closest OpenInference span kind for the given Mastra span,
  * based on the span's name and parent span ID.
  */
-const detectOpenInferenceSpanKindFromMastraSpan = (
+const getOpenInferenceSpanKindFromMastraSpan = (
   span: ReadableSpan,
 ): OpenInferenceSpanKind | null => {
   const oiKind = getOpenInferenceSpanKind(span);
@@ -49,18 +47,10 @@ const detectOpenInferenceSpanKindFromMastraSpan = (
     return oiKind;
   }
   const spanName = span.name.toLowerCase();
-  const hasParent = span.parentSpanId != null;
   if (
-    // child spans with an agent prefix in their name are agent spans
-    (hasParent &&
-      MASTRA_AGENT_SPAN_NAME_PREFIXES.some((prefix) =>
-        spanName.startsWith(prefix),
-      )) ||
-    // root spans with a root span prefix in their name are agent spans
-    (!hasParent &&
-      MASTRA_ROOT_SPAN_NAME_PREFIXES.some((prefix) =>
-        spanName.startsWith(prefix),
-      ))
+    MASTRA_AGENT_SPAN_NAME_PREFIXES.some((prefix) =>
+      spanName.startsWith(prefix),
+    )
   ) {
     return OpenInferenceSpanKind.AGENT;
   }
@@ -77,8 +67,8 @@ const detectOpenInferenceSpanKindFromMastraSpan = (
  *
  * @param span - The Mastra span to enrich.
  */
-export const enrichBySpanKind = (span: ReadableSpan) => {
-  const kind = detectOpenInferenceSpanKindFromMastraSpan(span);
+export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
+  const kind = getOpenInferenceSpanKindFromMastraSpan(span);
   if (kind) {
     addOpenInferenceSpanKind(span, kind);
   }

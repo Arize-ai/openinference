@@ -3,10 +3,8 @@ import type { ExportResult } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
 
-import {
-  addOpenInferenceAttributesToMastraSpan,
-  addOpenInferenceResourceAttributesToMastraSpan,
-} from "./utils.js";
+import { addOpenInferenceAttributesToMastraSpan } from "./attributes.js";
+import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
 
 type ConstructorArgs = {
   /**
@@ -78,7 +76,7 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
   ) {
     let filteredSpans = spans.map((span) => {
       // add OpenInference resource attributes to the span based on Mastra span attributes
-      addOpenInferenceResourceAttributesToMastraSpan(span);
+      addOpenInferenceProjectResourceAttributeSpan(span);
       // add OpenInference attributes to the span based on Vercel span attributes
       addOpenInferenceAttributesToSpan(span);
       // add OpenInference attributes to the span based on Mastra span attributes
