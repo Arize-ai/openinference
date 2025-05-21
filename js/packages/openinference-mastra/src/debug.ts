@@ -13,7 +13,9 @@ let debugSpans: Pick<
 >[] = [];
 
 /**
- * DEBUG
+ * Strictly for debugging purposes and not exposed as a package level export.
+ *
+ * You can place this in an exporter export function to capture mastra spans for debugging.
  *
  * Accumulate items across invocations until the item has no parentId, then dump items to json file
  * $HOME/debug-mastra-instrumentation/spans-{new Date().toISOString()}.json
