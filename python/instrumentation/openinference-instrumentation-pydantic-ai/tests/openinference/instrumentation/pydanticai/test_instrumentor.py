@@ -4,6 +4,7 @@ import pytest
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
@@ -14,7 +15,7 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from openinference.instrumentation.pydantic_ai.span_processor import (
-    OpenInferenceSimpleSpanProcessor,
+    OpenInferenceSpanProcessor,
 )
 from openinference.instrumentation.pydantic_ai.utils import is_openinference_span
 from openinference.semconv.trace import (
@@ -37,10 +38,8 @@ class TestPydanticAIInstrumentation:
         in_memory_span_exporter.clear()
         trace.set_tracer_provider(tracer_provider)
         exporter = OTLPSpanExporter()
-        processor = OpenInferenceSimpleSpanProcessor(
-            exporter=exporter, span_filter=is_openinference_span
-        )
-        tracer_provider.add_span_processor(processor)
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
 
         class LocationModel(BaseModel):
             city: str

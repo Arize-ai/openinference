@@ -37,7 +37,8 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
-from openinference.instrumentation.pydantic_ai import OpenInferenceSimpleSpanProcessor
+from openinference.instrumentation.pydantic_ai import OpenInferenceSpanProcessor
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 # Set your OpenAI API key
 os.environ["OPENAI_API_KEY"] = "YOUR_OPENAI_API_KEY"
@@ -49,7 +50,9 @@ trace.set_tracer_provider(tracer_provider)
 # Add the OpenInference span processor
 endpoint = "http://127.0.0.1:6006/v1/traces"
 exporter = OTLPSpanExporter(endpoint=endpoint)
-tracer_provider.add_span_processor(OpenInferenceSimpleSpanProcessor(exporter))
+tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
+
 
 # Define your Pydantic model
 class LocationModel(BaseModel):
