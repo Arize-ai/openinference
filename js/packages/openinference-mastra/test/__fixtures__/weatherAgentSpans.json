@@ -1,0 +1,444 @@
+[
+  {
+    "name": "agent.sanitizeResponseMessages",
+    "attributes": {
+      "agent.sanitizeResponseMessages.argument.0": "[]",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.sanitizeResponseMessages.result": "[]"
+    },
+    "parentSpanId": "4b67da60e06e2e95",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 723000000],
+    "endTime": [1747754793, 723094166]
+  },
+  {
+    "name": "agent.fetchMemory",
+    "attributes": {
+      "agent.fetchMemory.argument.0": "{\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"thread\":{\"id\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"title\":\"New Thread 2025-05-20T15:26:33.719Z\",\"resourceId\":\"weatherAgent\",\"createdAt\":\"2025-05-20T15:26:33.719Z\",\"updatedAt\":\"2025-05-20T15:26:33.719Z\"},\"resourceId\":\"weatherAgent\",\"userMessages\":[{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}],\"systemMessage\":{\"role\":\"system\",\"content\":\"\\n      You are a helpful weather assistant that provides accurate weather information.\\n\\n      Your primary function is to help users get weather details for specific locations. When responding:\\n      - Always ask for a location if none is provided\\n      - If the location name isn’t in English, please translate it\\n      - If giving a location with multiple parts (e.g. \\\"New York, NY\\\"), use the most relevant part (e.g. \\\"New York\\\")\\n      - Include relevant details like humidity, wind conditions, and precipitation\\n      - Keep responses concise but informative\\n\\n      Use the weatherTool to fetch current weather data.\\n\"}}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.fetchMemory.result": "{\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"messages\":[{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}]}"
+    },
+    "parentSpanId": "9afc1ee8e1e9d56d",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 721000000],
+    "endTime": [1747754793, 722524208]
+  },
+  {
+    "name": "agent.preExecute",
+    "attributes": {
+      "agent.preExecute.argument.0": "{\"resourceId\":\"weatherAgent\",\"runId\":\"weatherAgent\",\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"thread\":{\"id\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"title\":\"New Thread 2025-05-20T15:26:33.719Z\",\"resourceId\":\"weatherAgent\",\"createdAt\":\"2025-05-20T15:26:33.719Z\",\"updatedAt\":\"2025-05-20T15:26:33.719Z\"},\"messages\":[{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}],\"systemMessage\":{\"role\":\"system\",\"content\":\"\\n      You are a helpful weather assistant that provides accurate weather information.\\n\\n      Your primary function is to help users get weather details for specific locations. When responding:\\n      - Always ask for a location if none is provided\\n      - If the location name isn’t in English, please translate it\\n      - If giving a location with multiple parts (e.g. \\\"New York, NY\\\"), use the most relevant part (e.g. \\\"New York\\\")\\n      - Include relevant details like humidity, wind conditions, and precipitation\\n      - Keep responses concise but informative\\n\\n      Use the weatherTool to fetch current weather data.\\n\"}}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.preExecute.result": "{\"coreMessages\":[{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}],\"threadIdToUse\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\"}"
+    },
+    "parentSpanId": "236712a8cd85d5c5",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 721000000],
+    "endTime": [1747754793, 722734583]
+  },
+  {
+    "name": "agent.getAssignedTools",
+    "attributes": {
+      "agent.getAssignedTools.argument.0": "{\"runId\":\"weatherAgent\",\"resourceId\":\"weatherAgent\",\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"runtimeContext\":{\"registry\":{}},\"mastraProxy\":{}}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.getAssignedTools.result": "{\"weatherTool\":{\"type\":\"function\",\"description\":\"Get current weather for a location\",\"parameters\":{\"jsonSchema\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name\"}},\"required\":[\"location\"],\"additionalProperties\":false,\"$schema\":\"http://json-schema.org/draft-07/schema#\"}}}}"
+    },
+    "parentSpanId": "5f16b350a179b53e",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 723000000],
+    "endTime": [1747754793, 725576292]
+  },
+  {
+    "name": "agent.getMemoryTools",
+    "attributes": {
+      "agent.getMemoryTools.argument.0": "{\"runId\":\"weatherAgent\",\"resourceId\":\"weatherAgent\",\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"runtimeContext\":{\"registry\":{}},\"mastraProxy\":{}}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.getMemoryTools.result": "{}"
+    },
+    "parentSpanId": "5f16b350a179b53e",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 726000000],
+    "endTime": [1747754793, 726049125]
+  },
+  {
+    "name": "agent.getToolsets",
+    "attributes": {
+      "agent.getToolsets.argument.0": "{\"runId\":\"weatherAgent\",\"resourceId\":\"weatherAgent\",\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"runtimeContext\":{\"registry\":{}},\"mastraProxy\":{}}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.getToolsets.result": "{}"
+    },
+    "parentSpanId": "5f16b350a179b53e",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 726000000],
+    "endTime": [1747754793, 726033875]
+  },
+  {
+    "name": "agent.getClientTools",
+    "attributes": {
+      "agent.getClientTools.argument.0": "{\"runId\":\"weatherAgent\",\"resourceId\":\"weatherAgent\",\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"runtimeContext\":{\"registry\":{}},\"mastraProxy\":{}}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.getClientTools.result": "{}"
+    },
+    "parentSpanId": "5f16b350a179b53e",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 726000000],
+    "endTime": [1747754793, 726017833]
+  },
+  {
+    "name": "agent.getWorkflowTools",
+    "attributes": {
+      "agent.getWorkflowTools.argument.0": "{\"runId\":\"weatherAgent\",\"resourceId\":\"weatherAgent\",\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"runtimeContext\":{\"registry\":{}}}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.getWorkflowTools.result": "{}"
+    },
+    "parentSpanId": "5f16b350a179b53e",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 726000000],
+    "endTime": [1747754793, 726022375]
+  },
+  {
+    "name": "agent.convertTools",
+    "attributes": {
+      "agent.convertTools.argument.0": "{\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"resourceId\":\"weatherAgent\",\"runId\":\"weatherAgent\",\"runtimeContext\":{\"registry\":{}}}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.convertTools.result": "{\"weatherTool\":{\"type\":\"function\",\"description\":\"Get current weather for a location\",\"parameters\":{\"jsonSchema\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name\"}},\"required\":[\"location\"],\"additionalProperties\":false,\"$schema\":\"http://json-schema.org/draft-07/schema#\"}}}}"
+    },
+    "parentSpanId": "236712a8cd85d5c5",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 723000000],
+    "endTime": [1747754793, 725862125]
+  },
+  {
+    "name": "agent.stream",
+    "attributes": {
+      "agent.stream.argument.0": "[{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}]",
+      "agent.stream.argument.1": "{\"runId\":\"weatherAgent\",\"maxRetries\":2,\"maxSteps\":5,\"temperature\":0.5,\"topP\":1,\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"resourceId\":\"weatherAgent\",\"runtimeContext\":{\"registry\":{}}}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.stream.result": "{\"warningsPromise\":{\"status\":{\"type\":\"pending\"}},\"usagePromise\":{\"status\":{\"type\":\"pending\"}},\"finishReasonPromise\":{\"status\":{\"type\":\"pending\"}},\"providerMetadataPromise\":{\"status\":{\"type\":\"pending\"}},\"textPromise\":{\"status\":{\"type\":\"pending\"}},\"reasoningPromise\":{\"status\":{\"type\":\"pending\"}},\"reasoningDetailsPromise\":{\"status\":{\"type\":\"pending\"}},\"sourcesPromise\":{\"status\":{\"type\":\"pending\"}},\"filesPromise\":{\"status\":{\"type\":\"pending\"}},\"toolCallsPromise\":{\"status\":{\"type\":\"pending\"}},\"toolResultsPromise\":{\"status\":{\"type\":\"pending\"}},\"requestPromise\":{\"status\":{\"type\":\"pending\"}},\"responsePromise\":{\"status\":{\"type\":\"pending\"}},\"stepsPromise\":{\"status\":{\"type\":\"pending\"}},\"baseStream\":{}}"
+    },
+    "parentSpanId": "39266a50f6d02d91",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 717000000],
+    "endTime": [1747754793, 729243708]
+  },
+  {
+    "name": "POST",
+    "attributes": {
+      "http.request.method": "POST",
+      "http.request.method_original": "POST"
+    },
+    "parentSpanId": "b252df254059695b",
+    "kind": 2,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 727000000],
+    "endTime": [1747754794, 874990917]
+  },
+  {
+    "name": "ai.toolCall",
+    "attributes": {
+      "operation.name": "ai.toolCall",
+      "ai.operationId": "ai.toolCall",
+      "ai.toolCall.name": "weatherTool",
+      "ai.toolCall.id": "call_jNucVMVoqwhzfOZ1wfx92lXo",
+      "ai.toolCall.args": "{\"location\":\"Ann Arbor\"}",
+      "componentName": "Weather Agent",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "ai.toolCall.result": "{\"temperature\":12.2,\"feelsLike\":8.8,\"humidity\":61,\"windSpeed\":21.6,\"windGust\":35.3,\"conditions\":\"Overcast\",\"location\":\"Ann Arbor\"}"
+    },
+    "parentSpanId": "e754528d3b71ea75",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754794, 873000000],
+    "endTime": [1747754795, 788932042]
+  },
+  {
+    "name": "ai.streamText.doStream",
+    "attributes": {
+      "operation.name": "ai.streamText.doStream",
+      "ai.operationId": "ai.streamText.doStream",
+      "ai.model.provider": "openai.chat",
+      "ai.model.id": "gpt-4o",
+      "ai.settings.temperature": 0.5,
+      "ai.settings.topP": 1,
+      "ai.settings.maxRetries": 2,
+      "ai.prompt.format": "messages",
+      "ai.prompt.messages": "[{\"role\":\"system\",\"content\":\"\\n      You are a helpful weather assistant that provides accurate weather information.\\n\\n      Your primary function is to help users get weather details for specific locations. When responding:\\n      - Always ask for a location if none is provided\\n      - If the location name isn’t in English, please translate it\\n      - If giving a location with multiple parts (e.g. \\\"New York, NY\\\"), use the most relevant part (e.g. \\\"New York\\\")\\n      - Include relevant details like humidity, wind conditions, and precipitation\\n      - Keep responses concise but informative\\n\\n      Use the weatherTool to fetch current weather data.\\n\"},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"what is the weather in ann arbor\"}]}]",
+      "ai.prompt.tools": [
+        "{\"type\":\"function\",\"name\":\"weatherTool\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name\"}},\"required\":[\"location\"],\"additionalProperties\":false,\"$schema\":\"http://json-schema.org/draft-07/schema#\"}}"
+      ],
+      "ai.prompt.toolChoice": "{\"type\":\"auto\"}",
+      "gen_ai.system": "openai.chat",
+      "gen_ai.request.model": "gpt-4o",
+      "gen_ai.request.temperature": 0.5,
+      "gen_ai.request.top_p": 1,
+      "componentName": "Weather Agent",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "ai.response.msToFirstChunk": 1084.9757499999832,
+      "ai.response.msToFinish": 2062.2397920000076,
+      "ai.response.avgCompletionTokensPerSecond": 7.273644926351001,
+      "ai.response.finishReason": "tool-calls",
+      "ai.response.text": "",
+      "ai.response.toolCalls": "[{\"type\":\"tool-call\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"args\":{\"location\":\"Ann Arbor\"}}]",
+      "ai.response.id": "chatcmpl-BZJ9Oz5K5ewqBH2PvYVKyj5qZE8AS",
+      "ai.response.model": "gpt-4o-2024-08-06",
+      "ai.response.timestamp": "2025-05-20T15:26:34.000Z",
+      "ai.usage.promptTokens": 179,
+      "ai.usage.completionTokens": 15,
+      "gen_ai.response.finish_reasons": ["tool-calls"],
+      "gen_ai.response.id": "chatcmpl-BZJ9Oz5K5ewqBH2PvYVKyj5qZE8AS",
+      "gen_ai.response.model": "gpt-4o-2024-08-06",
+      "gen_ai.usage.input_tokens": 179,
+      "gen_ai.usage.output_tokens": 15
+    },
+    "parentSpanId": "e754528d3b71ea75",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 727000000],
+    "endTime": [1747754795, 789569958]
+  },
+  {
+    "name": "POST",
+    "attributes": {
+      "http.request.method": "POST",
+      "http.request.method_original": "POST"
+    },
+    "parentSpanId": "510ea0778c66256d",
+    "kind": 2,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754795, 792000000],
+    "endTime": [1747754797, 187530666]
+  },
+  {
+    "name": "ai.streamText.doStream",
+    "attributes": {
+      "operation.name": "ai.streamText.doStream",
+      "ai.operationId": "ai.streamText.doStream",
+      "ai.model.provider": "openai.chat",
+      "ai.model.id": "gpt-4o",
+      "ai.settings.temperature": 0.5,
+      "ai.settings.topP": 1,
+      "ai.settings.maxRetries": 2,
+      "ai.prompt.format": "messages",
+      "ai.prompt.messages": "[{\"role\":\"system\",\"content\":\"\\n      You are a helpful weather assistant that provides accurate weather information.\\n\\n      Your primary function is to help users get weather details for specific locations. When responding:\\n      - Always ask for a location if none is provided\\n      - If the location name isn’t in English, please translate it\\n      - If giving a location with multiple parts (e.g. \\\"New York, NY\\\"), use the most relevant part (e.g. \\\"New York\\\")\\n      - Include relevant details like humidity, wind conditions, and precipitation\\n      - Keep responses concise but informative\\n\\n      Use the weatherTool to fetch current weather data.\\n\"},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"what is the weather in ann arbor\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"tool-call\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"args\":{\"location\":\"Ann Arbor\"}}]},{\"role\":\"tool\",\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"result\":{\"temperature\":12.2,\"feelsLike\":8.8,\"humidity\":61,\"windSpeed\":21.6,\"windGust\":35.3,\"conditions\":\"Overcast\",\"location\":\"Ann Arbor\"}}]}]",
+      "ai.prompt.tools": [
+        "{\"type\":\"function\",\"name\":\"weatherTool\",\"description\":\"Get current weather for a location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"City name\"}},\"required\":[\"location\"],\"additionalProperties\":false,\"$schema\":\"http://json-schema.org/draft-07/schema#\"}}"
+      ],
+      "ai.prompt.toolChoice": "{\"type\":\"auto\"}",
+      "gen_ai.system": "openai.chat",
+      "gen_ai.request.model": "gpt-4o",
+      "gen_ai.request.temperature": 0.5,
+      "gen_ai.request.top_p": 1,
+      "componentName": "Weather Agent",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "ai.response.msToFirstChunk": 756.9352089999884,
+      "ai.response.msToFinish": 1397.3403749999998,
+      "ai.response.avgCompletionTokensPerSecond": 45.801295908307246,
+      "ai.response.finishReason": "stop",
+      "ai.response.text": "The current weather in Ann Arbor is overcast with a temperature of 12.2°C, though it feels like 8.8°C. The humidity level is at 61%, and there is a wind speed of 21.6 km/h with gusts reaching up to 35.3 km/h.",
+      "ai.response.id": "chatcmpl-BZJ9Qu6EW2xU8oEQAZ7JC2vlUNxFb",
+      "ai.response.model": "gpt-4o-2024-08-06",
+      "ai.response.timestamp": "2025-05-20T15:26:36.000Z",
+      "ai.usage.promptTokens": 246,
+      "ai.usage.completionTokens": 64,
+      "gen_ai.response.finish_reasons": ["stop"],
+      "gen_ai.response.id": "chatcmpl-BZJ9Qu6EW2xU8oEQAZ7JC2vlUNxFb",
+      "gen_ai.response.model": "gpt-4o-2024-08-06",
+      "gen_ai.usage.input_tokens": 246,
+      "gen_ai.usage.output_tokens": 64
+    },
+    "parentSpanId": "e754528d3b71ea75",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754795, 790000000],
+    "endTime": [1747754797, 187845583]
+  },
+  {
+    "name": "agent.getMostRecentUserMessage",
+    "attributes": {
+      "agent.getMostRecentUserMessage.argument.0": "[{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}]",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.getMostRecentUserMessage.result": "{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}"
+    },
+    "parentSpanId": "236712a8cd85d5c5",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754797, 189000000],
+    "endTime": [1747754797, 189135208]
+  },
+  {
+    "name": "agent.sanitizeResponseMessages",
+    "attributes": {
+      "agent.sanitizeResponseMessages.argument.0": "[{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}]",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.sanitizeResponseMessages.result": "[{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}]"
+    },
+    "parentSpanId": "236712a8cd85d5c5",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754797, 189000000],
+    "endTime": [1747754797, 189173375]
+  },
+  {
+    "name": "agent.sanitizeResponseMessages",
+    "attributes": {
+      "agent.sanitizeResponseMessages.argument.0": "[{\"role\":\"assistant\",\"content\":[{\"type\":\"tool-call\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"args\":{\"location\":\"Ann Arbor\"}}],\"id\":\"msg-NR1VI5rKK1BH6BWwFUTyA2UN\"},{\"role\":\"tool\",\"id\":\"msg-AaK5V3CygaWNC9Qcu8MEfW0Q\",\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"result\":{\"temperature\":12.2,\"feelsLike\":8.8,\"humidity\":61,\"windSpeed\":21.6,\"windGust\":35.3,\"conditions\":\"Overcast\",\"location\":\"Ann Arbor\"}}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The current weather in Ann Arbor is overcast with a temperature of 12.2°C, though it feels like 8.8°C. The humidity level is at 61%, and there is a wind speed of 21.6 km/h with gusts reaching up to 35.3 km/h.\"}],\"id\":\"msg-5mfT3Rz7bKnssiEcn235nQta\"}]",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.sanitizeResponseMessages.result": "[{\"role\":\"assistant\",\"content\":[{\"type\":\"tool-call\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"args\":{\"location\":\"Ann Arbor\"}}],\"id\":\"msg-NR1VI5rKK1BH6BWwFUTyA2UN\"},{\"role\":\"tool\",\"id\":\"msg-AaK5V3CygaWNC9Qcu8MEfW0Q\",\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"result\":{\"temperature\":12.2,\"feelsLike\":8.8,\"humidity\":61,\"windSpeed\":21.6,\"windGust\":35.3,\"conditions\":\"Overcast\",\"location\":\"Ann Arbor\"}}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The current weather in Ann Arbor is overcast with a temperature of 12.2°C, though it feels like 8.8°C. The humidity level is at 61%, and there is a wind speed of 21.6 km/h with gusts reaching up to 35.3 km/h.\"}],\"id\":\"msg-5mfT3Rz7bKnssiEcn235nQta\"}]"
+    },
+    "parentSpanId": "654be41a9d75936f",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754797, 190000000],
+    "endTime": [1747754797, 190055541]
+  },
+  {
+    "name": "agent.getResponseMessages",
+    "attributes": {
+      "agent.getResponseMessages.argument.0": "{\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"resourceId\":\"weatherAgent\",\"messages\":[{\"role\":\"assistant\",\"content\":[{\"type\":\"tool-call\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"args\":{\"location\":\"Ann Arbor\"}}],\"id\":\"msg-NR1VI5rKK1BH6BWwFUTyA2UN\"},{\"role\":\"tool\",\"id\":\"msg-AaK5V3CygaWNC9Qcu8MEfW0Q\",\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"result\":{\"temperature\":12.2,\"feelsLike\":8.8,\"humidity\":61,\"windSpeed\":21.6,\"windGust\":35.3,\"conditions\":\"Overcast\",\"location\":\"Ann Arbor\"}}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The current weather in Ann Arbor is overcast with a temperature of 12.2°C, though it feels like 8.8°C. The humidity level is at 61%, and there is a wind speed of 21.6 km/h with gusts reaching up to 35.3 km/h.\"}],\"id\":\"msg-5mfT3Rz7bKnssiEcn235nQta\"}],\"now\":1747754797190}",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "componentName": "Weather Agent",
+      "agent.getResponseMessages.result": "[{\"id\":\"msg-NR1VI5rKK1BH6BWwFUTyA2UN\",\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"resourceId\":\"weatherAgent\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool-call\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"args\":{\"location\":\"Ann Arbor\"}}],\"createdAt\":\"2025-05-20T15:26:37.190Z\",\"toolCallIds\":[\"call_jNucVMVoqwhzfOZ1wfx92lXo\"],\"toolCallArgs\":[{\"location\":\"Ann Arbor\"}],\"toolNames\":[\"weatherTool\"],\"type\":\"tool-call\"},{\"id\":\"msg-AaK5V3CygaWNC9Qcu8MEfW0Q\",\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"resourceId\":\"weatherAgent\",\"role\":\"tool\",\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_jNucVMVoqwhzfOZ1wfx92lXo\",\"toolName\":\"weatherTool\",\"result\":{\"temperature\":12.2,\"feelsLike\":8.8,\"humidity\":61,\"windSpeed\":21.6,\"windGust\":35.3,\"conditions\":\"Overcast\",\"location\":\"Ann Arbor\"}}],\"createdAt\":\"2025-05-20T15:26:37.191Z\",\"toolCallIds\":[\"call_jNucVMVoqwhzfOZ1wfx92lXo\"],\"type\":\"tool-result\"},{\"id\":\"msg-5mfT3Rz7bKnssiEcn235nQta\",\"threadId\":\"93dcfcda-a269-4fb3-99be-8e03e432db24\",\"resourceId\":\"weatherAgent\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The current weather in Ann Arbor is overcast with a temperature of 12.2°C, though it feels like 8.8°C. The humidity level is at 61%, and there is a wind speed of 21.6 km/h with gusts reaching up to 35.3 km/h.\"}],\"createdAt\":\"2025-05-20T15:26:37.192Z\",\"type\":\"text\"}]"
+    },
+    "parentSpanId": "236712a8cd85d5c5",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754797, 190000000],
+    "endTime": [1747754797, 190200291]
+  },
+  {
+    "name": "ai.streamText",
+    "attributes": {
+      "operation.name": "ai.streamText",
+      "ai.operationId": "ai.streamText",
+      "ai.model.provider": "openai.chat",
+      "ai.model.id": "gpt-4o",
+      "ai.settings.temperature": 0.5,
+      "ai.settings.topP": 1,
+      "ai.settings.maxRetries": 2,
+      "ai.prompt": "{\"messages\":[{\"role\":\"system\",\"content\":\"\\n      You are a helpful weather assistant that provides accurate weather information.\\n\\n      Your primary function is to help users get weather details for specific locations. When responding:\\n      - Always ask for a location if none is provided\\n      - If the location name isn’t in English, please translate it\\n      - If giving a location with multiple parts (e.g. \\\"New York, NY\\\"), use the most relevant part (e.g. \\\"New York\\\")\\n      - Include relevant details like humidity, wind conditions, and precipitation\\n      - Keep responses concise but informative\\n\\n      Use the weatherTool to fetch current weather data.\\n\"},{\"role\":\"user\",\"content\":\"what is the weather in ann arbor\"}]}",
+      "ai.settings.maxSteps": 5,
+      "componentName": "Weather Agent",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "ai.response.finishReason": "stop",
+      "ai.response.text": "The current weather in Ann Arbor is overcast with a temperature of 12.2°C, though it feels like 8.8°C. The humidity level is at 61%, and there is a wind speed of 21.6 km/h with gusts reaching up to 35.3 km/h.",
+      "ai.usage.promptTokens": 425,
+      "ai.usage.completionTokens": 79
+    },
+    "parentSpanId": "236712a8cd85d5c5",
+    "kind": 0,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 727000000],
+    "endTime": [1747754797, 190427917]
+  },
+  {
+    "name": "POST /api/agents/weatherAgent/stream",
+    "attributes": {
+      "http.url": "http://localhost:4111/api/agents/weatherAgent/stream",
+      "http.host": "localhost:4111",
+      "net.host.name": "localhost",
+      "http.method": "POST",
+      "http.scheme": "http",
+      "http.target": "/api/agents/weatherAgent/stream",
+      "http.user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+      "http.request_content_length_uncompressed": 251,
+      "http.flavor": "1.1",
+      "net.transport": "ip_tcp",
+      "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
+      "net.host.ip": "::1",
+      "net.host.port": 4111,
+      "net.peer.ip": "::1",
+      "net.peer.port": 51258,
+      "http.status_code": 200,
+      "http.status_text": "OK"
+    },
+    "kind": 1,
+    "status": {
+      "code": 0
+    },
+    "resource": { "attributes": { "service.name": "mock" } },
+    "startTime": [1747754793, 713000000],
+    "endTime": [1747754797, 193654459]
+  }
+]

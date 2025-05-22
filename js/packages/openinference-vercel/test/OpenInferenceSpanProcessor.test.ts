@@ -322,6 +322,18 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
                   "image.com",
                 [`${firstInputMessageContentsPrefix}.1.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
                   undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_ID}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_ID}`]:
+                  undefined,
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
                   OpenInferenceSpanKind.LLM,
               },
