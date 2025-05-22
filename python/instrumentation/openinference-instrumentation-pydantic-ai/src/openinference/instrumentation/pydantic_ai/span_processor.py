@@ -51,8 +51,8 @@ class OpenInferenceSimpleSpanProcessor(SimpleSpanProcessor):
             openinference_attributes_iter = get_attributes(span.attributes)
             openinference_attributes = dict(openinference_attributes_iter)
 
-            # Replace the attributes with the openinference attributes
-            span._attributes = openinference_attributes
+            # combine the attributes with the openinference attributes
+            span._attributes = {**span.attributes, **openinference_attributes}
 
             # Determine if the span should be exported
             if should_export_span(span, self._span_filter):
@@ -126,7 +126,7 @@ class OpenInferenceBatchSpanProcessor(BatchSpanProcessor):
             openinference_attributes = dict(openinference_attributes_iter)
 
             # Replace the attributes with the openinference attributes
-            span._attributes = openinference_attributes
+            span._attributes = {**span.attributes, **openinference_attributes}
 
             # Determine if the span should be exported
             if should_export_span(span, self._span_filter):

@@ -15,6 +15,7 @@ Requirements:
 - openinference-instrumentation-pydantic-ai
 """
 
+import asyncio
 import os
 from dataclasses import dataclass
 from typing import Optional
@@ -33,6 +34,7 @@ resource = Resource.create(
     {
         "service.name": "banking-support-agent",
         "service.version": "1.0.0",
+        "openinference.project.name": "banking-support-agent",
     }
 )
 
@@ -182,24 +184,34 @@ async def handle_customer_query(customer_id: int, query: str) -> SupportOutput:
     return result.output
 
 
-"""Example usage of the support agent."""
-# Example 1: Balance inquiry (low risk)
-result1 = handle_customer_query(123, "What is my current account balance?")
-print("\nQuery: What is my current account balance?")
-print(f"Support Advice: {result1.support_advice}")
-print(f"Block Card: {result1.block_card}")
-print(f"Risk Level: {result1.risk}/10")
+async def main() -> None:
+    """
+    Example usage of the support agent.
+    """
 
-# Example 2: Lost card (high risk)
-result2 = handle_customer_query(123, "I just lost my credit card!")
-print("\nQuery: I just lost my credit card!")
-print(f"Support Advice: {result2.support_advice}")
-print(f"Block Card: {result2.block_card}")
-print(f"Risk Level: {result2.risk}/10")
+    # Example 1: Balance inquiry (low risk)
+    result1 = await handle_customer_query(123, "What is my current account balance?")
+    print("\nQuery: What is my current account balance?")
+    print(f"Support Advice: {result1.support_advice}")
+    print(f"Block Card: {result1.block_card}")
+    print(f"Risk Level: {result1.risk}/10")
 
-# Example 3: General question (medium risk)
-result3 = handle_customer_query(456, "Can someone access my account if they know my email?")
-print("\nQuery: Can someone access my account if they know my email?")
-print(f"Support Advice: {result3.support_advice}")
-print(f"Block Card: {result3.block_card}")
-print(f"Risk Level: {result3.risk}/10")
+    # Example 2: Lost card (high risk)
+    result2 = await handle_customer_query(123, "I just lost my credit card!")
+    print("\nQuery: I just lost my credit card!")
+    print(f"Support Advice: {result2.support_advice}")
+    print(f"Block Card: {result2.block_card}")
+    print(f"Risk Level: {result2.risk}/10")
+
+    # Example 3: General question (medium risk)
+    result3 = await handle_customer_query(
+        456, "Can someone access my account if they know my email?"
+    )
+    print("\nQuery: Can someone access my account if they know my email?")
+    print(f"Support Advice: {result3.support_advice}")
+    print(f"Block Card: {result3.block_card}")
+    print(f"Risk Level: {result3.risk}/10")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
