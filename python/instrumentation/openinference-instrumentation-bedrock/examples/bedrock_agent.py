@@ -9,8 +9,13 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 
 from openinference.instrumentation.bedrock import BedrockInstrumentor
 
-endpoint = "https://app.phoenix.arize.com/v1/traces"
-resource = Resource(attributes={})
+endpoint = "http://localhost:6006/v1/traces"
+resource = Resource(
+    attributes={
+        "service.name": "bedrock-agent",
+        "openinference.project.name": "amazon-bedrock-agent",
+    }
+)
 tracer_provider = trace_sdk.TracerProvider(resource=resource)
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
@@ -19,7 +24,7 @@ trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 BedrockInstrumentor().instrument()
 
 session = boto3.session.Session()
-client = session.client("bedrock-agent-runtime", "us-east-1")
+client = session.client("bedrock-agent-runtime", "us-east-2")
 
 
 def run():
