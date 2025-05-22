@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.42...python-openinference-instrumentation-langchain-v0.1.43) (2025-05-20)
+
+
+### Features
+
+* **langchain:** track tool schemas from LLM invocation parameters ([#1643](https://github.com/Arize-ai/openinference/issues/1643)) ([65d3a82](https://github.com/Arize-ai/openinference/commit/65d3a8219a1a061a4fdea19b17760096b5aca76a))
+
 ## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.41...python-openinference-instrumentation-langchain-v0.1.42) (2025-04-28)
 
 

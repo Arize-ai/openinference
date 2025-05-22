@@ -32,7 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "mcp >= 1.8.0",
+  "mcp >= 1.8.1",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
