@@ -67,6 +67,10 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             # Combine the attributes with the openinference attributes
             span._attributes = {**span.attributes, **openinference_attributes}
 
+            # Determine if the span should be exported
+            if should_export_span(span, self._span_filter):
+                super().on_end(span)
+
         except Exception as e:
             logger.warning(f"Error processing span in OpenInferenceSpanProcessor: {e}")
 

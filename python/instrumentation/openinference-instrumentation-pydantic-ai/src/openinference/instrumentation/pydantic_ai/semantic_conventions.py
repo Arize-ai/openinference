@@ -161,6 +161,8 @@ def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]
 def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract attributes common to all operation types."""
 
+    # We want to ignore token counts on non LLM spans. Pydantic adds token counts to agents
+    ignore_token_counts = PydanticAgentName.AGENT in gen_ai_attrs
     if GEN_AI_OPERATION_NAME in gen_ai_attrs:
         try:
             operation = gen_ai_attrs[GEN_AI_OPERATION_NAME]
@@ -184,19 +186,23 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
     if GEN_AI_REQUEST_MODEL in gen_ai_attrs:
         yield SpanAttributes.LLM_MODEL_NAME, gen_ai_attrs[GEN_AI_REQUEST_MODEL]
 
-    if GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs:
+    if GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs and not ignore_token_counts:
         yield (
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT,
             gen_ai_attrs[GEN_AI_USAGE_INPUT_TOKENS],
         )
 
-    if GEN_AI_USAGE_OUTPUT_TOKENS in gen_ai_attrs:
+    if GEN_AI_USAGE_OUTPUT_TOKENS in gen_ai_attrs and not ignore_token_counts:
         yield (
             SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
             gen_ai_attrs[GEN_AI_USAGE_OUTPUT_TOKENS],
         )
 
-    if GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs and GEN_AI_USAGE_OUTPUT_TOKENS in gen_ai_attrs:
+    if (
+        GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs
+        and GEN_AI_USAGE_OUTPUT_TOKENS in gen_ai_attrs
+        and not ignore_token_counts
+    ):
         total_tokens = (
             gen_ai_attrs[GEN_AI_USAGE_INPUT_TOKENS] + gen_ai_attrs[GEN_AI_USAGE_OUTPUT_TOKENS]
         )
