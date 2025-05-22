@@ -18,6 +18,16 @@
     ".": {
       "import": "./dist/esm/index.js",
       "require": "./dist/src/index.js"
+    },
+    "./utils": {
+      "import": "./dist/esm/utils.js",
+      "require": "./dist/src/utils.js",
+      "types": "./dist/src/utils.d.ts"
+    },
+    "./types": {
+      "import": "./dist/esm/types.js",
+      "require": "./dist/src/types.js",
+      "types": "./dist/src/types.d.ts"
     }
   },
   "files": [
