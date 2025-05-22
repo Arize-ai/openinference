@@ -106,16 +106,20 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         async with wrapped(*args, **kwargs) as (read_stream, write_stream):
             yield InstrumentedStreamReader(read_stream), InstrumentedStreamWriter(write_stream)
 
-    def _wrap_handle_request(
+    async def _wrap_handle_request(
         self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
     ) -> Any:
+        token = None
         try:
             # Message has been deserialized, we need to extract the traceparent
             _meta = {"traceparent": args[1].params.meta.traceparent}
             ctx = propagate.extract(_meta)
-            context.attach(ctx)
+            token = context.attach(ctx)
         finally:
-            return wrapped(*args, **kwargs)
+            res = await wrapped(*args, **kwargs)
+            if token:
+                context.detach(token)
+            return res
 
     def _base_session_init_wrapper(
         self, wrapped: Callable[..., None], instance: Any, args: Any, kwargs: Any
