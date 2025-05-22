@@ -53,6 +53,12 @@ class _RequestAttributesExtractor:
 
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
+        if prompt_id := invocation_params.get("prompt_id"):
+            yield SpanAttributes.PROMPT_ID, prompt_id
+
+        if prompt_variables := invocation_params.get("variables"):
+            yield SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, safe_json_dumps(prompt_variables)
+            
         if (input_messages := request_parameters.get("messages")) and isinstance(
             input_messages, Iterable
         ):

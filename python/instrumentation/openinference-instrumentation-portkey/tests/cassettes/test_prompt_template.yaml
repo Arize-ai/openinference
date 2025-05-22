@@ -1,0 +1,95 @@
+interactions:
+- request:
+    body: '{"variables":{"location":"New York City"},"stream":false}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '57'
+      content-type:
+      - application/json
+      host:
+      - api.portkey.ai
+      user-agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://api.portkey.ai/v1/prompts/pp-weather-pr-b74c4f/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//fFRbbtw4ELxKh182Is374egva2wAB8EEi81i4U2MQQ/ZkpihSIJsjTwx
+        Bsg1cgufwUfJSRachx0vNvkjmlXF6lK37oRWohCyRpaNN/lvOK6/vJ/M/vrw5fbdaHX1fjr7I354
+        N138Mxr9LjLhVp9J8pHRk67xhlg7KzIhAyGTEsVwPpm/Go/ns3EmGqfIiEJUnvNJb5iPBqNpPpjk
+        w0li1E5LiqL4eCe0VXQrikEmGooRKxLFnQjOkCgExqgjo+XEcZbJJgdXoJz9/vUbQ40bgkBoctYN
+        QUfINQVQyJjBqmW4AokWajIetq6FUlsFml/AGxeAa4LGRYbW5+xyhfykoC0sqINrF9ZwqXmb7elJ
+        S9Yk1xDIaFwZgujaICmC0WsqPtlPNoePC0zBoIG/j2p/UthoSbC4vrw5q5l9LPr9rut6x+d6ldv0
+        3fq2f77nH2kp5P9Qni5O5z47hdu+6S+oe5nsvlxc71WuXRugxI0L+oe+0Hs4S17htZTtyd8xjNfe
+        G3o0jd6fp4auytT796/f1L5JQKjIUkADWhFmz3NKwREGs4W3rSXgrdcSjdlCJIrA1HgKyG2gCCvi
+        jsjCbPpw/wbQKrgYpNPZ8OLh/hLYwWj+cH95nkGnuQaERt+CKyG2do92UmI85Bxr11GIPTh4BSZj
+        IM1DjXw0Hwi8QWu1rbLjVFR6Qwe49hGcPcDZpbD2mXiU6xciE4HKNqIRhW2NyQRa63j/idMA3+wy
+        YVzlg1vFE6LUVsd6GQijs6IQkZ0Xu5tMtKf59sE1npfs1pRUxvM036eVeiwPp8NMsGM0T6WLi+w5
+        e6mIUZuYZCXKmtQjeJAJbJV2T4Xd/7zzo8DBsrbVLzQygVKSZ1JLH0hp+czzIOWVfhU/ud7tMhEP
+        +7BkTUEUQlGJrUk7HreRqVmW2lYUfND7dS/9Uko5I/lqNFRi9y8AAAD//wMAkX8y4bkEAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-Ray:
+      - 943debc01e8b1492-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 22 May 2025 17:09:26 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=ILalReAFZQ12QCv6llC35SSidAq4C8gO75z7S5.DN8E-1747933766-1.0.1.1-lkGlgfbaTvbPefRWPJlVN0Z.GpaW7vtQ9j5f.CF2jqSisKp.SbP8K9c9jeDXOEcbC4Dh1kXDdMvjiFQjqrtVPX__.lTckU69D0ygm87edIk;
+        path=/; expires=Thu, 22-May-25 17:39:26 GMT; domain=.api.openai.com; HttpOnly;
+        Secure
+      - _cfuvid=DPeN9WXf1wrTOHFwsuyrQTq4n7tSlRN4DnMf_pOAmD4-1747933766623-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '3213'
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '3221'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999965'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_24c239d275655c5f601e70346c6cd0f6
+    status:
+      code: 200
+      message: OK
+version: 1
