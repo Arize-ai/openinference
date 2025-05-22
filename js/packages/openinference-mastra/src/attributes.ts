@@ -2,7 +2,7 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 const MASTRA_AGENT_SPAN_NAME_PREFIXES = [
   "agent",
@@ -72,16 +72,5 @@ export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
   if (kind) {
     addOpenInferenceSpanKind(span, kind);
   }
-  switch (kind) {
-    case OpenInferenceSpanKind.AGENT: {
-      if (span.parentSpanId == null) {
-        // add input and output attributes to the span
-        // TODO: We need to collect the input and output from the children spans as we process them
-        // and add them to the span attributes here
-      }
-      break;
-    }
-    default:
-      break;
-  }
+  // TODO: Further enrich the span with additional attributes based on the span kind
 };

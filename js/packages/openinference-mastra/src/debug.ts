@@ -1,10 +1,10 @@
-import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 let debugSpans: Pick<
   ReadableSpan,
   | "name"
   | "attributes"
-  | "parentSpanId"
+  | "parentSpanContext"
   | "kind"
   | "status"
   | "resource"
@@ -30,7 +30,7 @@ export const debug = async (spans: ReadableSpan[]) => {
       .map((span) => ({
         name: span.name,
         attributes: span.attributes,
-        parentSpanId: span.parentSpanId,
+        parentSpanId: span.parentSpanContext?.spanId,
         kind: span.kind,
         status: span.status,
         resource: {},
@@ -43,7 +43,7 @@ export const debug = async (spans: ReadableSpan[]) => {
         ),
       ),
   );
-  const root = spans.find((span) => span.parentSpanId == null);
+  const root = spans.find((span) => span.parentSpanContext?.spanId == null);
   if (root) {
     fs.mkdirSync("debug-mastra-instrumentation", { recursive: true });
     fs.writeFileSync(

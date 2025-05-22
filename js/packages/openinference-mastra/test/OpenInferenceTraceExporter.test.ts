@@ -1,4 +1,4 @@
-import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { OpenInferenceOTLPTraceExporter } from "../src/OpenInferenceTraceExporter.js";
 import weatherAgentSpans from "./__fixtures__/weatherAgentSpans.json";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";

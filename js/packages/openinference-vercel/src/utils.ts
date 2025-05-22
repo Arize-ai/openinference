@@ -15,7 +15,6 @@ import {
 import {
   OpenInferenceIOConventionKey,
   OpenInferenceSemanticConventionKey,
-  ReadWriteSpan,
   SpanFilter,
 } from "./types";
 import {
@@ -584,10 +583,13 @@ export const shouldExportSpan = ({
  * @param span - The span to add OpenInference attributes to.
  */
 export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
-  const attributes = { ...span.attributes };
-
-  (span as ReadWriteSpan).attributes = {
-    ...span.attributes,
-    ...safelyGetOpenInferenceAttributes(attributes),
+  const newAttributes = {
+    ...safelyGetOpenInferenceAttributes(span.attributes),
   };
+
+  // newer versions of opentelemetry will not allow you to reassign
+  // the attributes object, so you must edit it by keyname instead
+  Object.entries(newAttributes).forEach(([key, value]) => {
+    span.attributes[key] = value;
+  });
 };

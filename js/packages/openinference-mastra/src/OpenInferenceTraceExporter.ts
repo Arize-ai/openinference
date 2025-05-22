@@ -78,7 +78,13 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
       // add OpenInference resource attributes to the span based on Mastra span attributes
       addOpenInferenceProjectResourceAttributeSpan(span);
       // add OpenInference attributes to the span based on Vercel span attributes
-      addOpenInferenceAttributesToSpan(span);
+      addOpenInferenceAttributesToSpan({
+        ...span,
+        // backwards compatibility with older versions of sdk-trace-base
+        instrumentationLibrary: {
+          name: "@arizeai/openinference-mastra",
+        },
+      });
       // add OpenInference attributes to the span based on Mastra span attributes
       addOpenInferenceAttributesToMastraSpan(span);
       return span;

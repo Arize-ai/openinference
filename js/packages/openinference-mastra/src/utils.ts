@@ -1,7 +1,9 @@
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+import {
+  SemanticConventions,
+  SEMRESATTRS_PROJECT_NAME,
+} from "@arizeai/openinference-semantic-conventions";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
-export { isOpenInferenceSpan } from "@arizeai/openinference-vercel/utils";
 
 /**
  * Augments a span with OpenInference project resource attribute.
@@ -17,4 +19,16 @@ export const addOpenInferenceProjectResourceAttributeSpan = (
   if (ATTR_SERVICE_NAME in attributes) {
     attributes[SEMRESATTRS_PROJECT_NAME] = attributes[ATTR_SERVICE_NAME];
   }
+};
+
+/**
+ * Determines whether a span is an OpenInference span.
+ *
+ * @param span - The span to check.
+ * @returns `true` if the span is an OpenInference span, `false` otherwise.
+ */
+export const isOpenInferenceSpan = (span: ReadableSpan) => {
+  const maybeOpenInferenceSpanKind =
+    span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
+  return typeof maybeOpenInferenceSpanKind === "string";
 };
