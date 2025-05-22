@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.22...python-openinference-instrumentation-bedrock-v0.1.23) (2025-05-22)
+
+
+### Features
+
+* **bedrock:** Multi Agent Support, capturing time metrics from metadata ([#1656](https://github.com/Arize-ai/openinference/issues/1656)) ([ed367a2](https://github.com/Arize-ai/openinference/commit/ed367a2707dd00d1e2fd9b7249deecd08ddd466f))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.21...python-openinference-instrumentation-bedrock-v0.1.22) (2025-05-11)
 
 
