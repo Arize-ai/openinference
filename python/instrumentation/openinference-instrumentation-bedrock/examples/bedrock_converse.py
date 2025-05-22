@@ -20,7 +20,7 @@ trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 BedrockInstrumentor().instrument()
 
 session = boto3.session.Session()
-client = session.client("bedrock-runtime", "us-east-1")
+client = session.client("bedrock-runtime", "us-east-2")
 
 
 def invoke_example():
@@ -47,7 +47,9 @@ def invoke_example():
             "date": "July 11th",
         },
     ):
-        response = client.invoke_model(modelId="anthropic.claude-v2", body=prompt)
+        response = client.invoke_model(
+            modelId="anthropic.claude-3-7-sonnet-20250219-v1:0", body=prompt
+        )
     response_body = json.loads(response.get("body").read())
     print(response_body["completion"])
 
