@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.1...python-openinference-instrumentation-portkey-v0.1.2) (2025-05-22)
+
+
+### Features
+
+* **portkey:** Add support for propmt template calls ([#1663](https://github.com/Arize-ai/openinference/issues/1663)) ([c1e813e](https://github.com/Arize-ai/openinference/commit/c1e813e26c62713229958c625c088ffe46ea1608))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.0...python-openinference-instrumentation-portkey-v0.1.1) (2025-04-28)
 
 
