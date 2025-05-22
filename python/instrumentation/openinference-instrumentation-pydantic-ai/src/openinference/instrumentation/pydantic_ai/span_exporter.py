@@ -3,10 +3,10 @@ from typing import Optional, Sequence
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
-from openinference.instrumentation.pydanticai.semantic_conventions import (
-    OpenInferenceAttributesExtractor,
+from openinference.instrumentation.pydantic_ai.semantic_conventions import (
+    get_attributes,
 )
-from openinference.instrumentation.pydanticai.utils import SpanFilter, should_export_span
+from openinference.instrumentation.pydantic_ai.utils import SpanFilter, should_export_span
 
 
 class OpenInferenceSpanExporter(SpanExporter):
@@ -14,7 +14,6 @@ class OpenInferenceSpanExporter(SpanExporter):
         self, base_exporter: SpanExporter, span_filter: Optional[SpanFilter] = None
     ) -> None:
         self._base_exporter = base_exporter
-        self._extractor = OpenInferenceAttributesExtractor()
         self._span_filter = span_filter
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
@@ -24,7 +23,7 @@ class OpenInferenceSpanExporter(SpanExporter):
             openinference_attributes = {}
 
             if span.attributes is not None:
-                openinference_attributes_iter = self._extractor.get_attributes(span.attributes)
+                openinference_attributes_iter = get_attributes(span.attributes)
                 openinference_attributes = dict(openinference_attributes_iter)
 
             openinference_span = ReadableSpan(
@@ -55,5 +54,4 @@ class OpenInferenceSpanExporter(SpanExporter):
         self._base_exporter.shutdown()
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
-        result = self._base_exporter.force_flush(timeout_millis)
-        return bool(result)
+        return self._base_exporter.force_flush(timeout_millis)

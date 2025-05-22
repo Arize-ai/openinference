@@ -98,6 +98,10 @@
         "python/instrumentation/openinference-instrumentation-google-genai": {
             "package-name": "python-openinference-instrumentation-google-genai",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-pydantic-ai": {
+            "package-name": "python-openinference-instrumentation-pydantic-ai",
+            "release-type": "python"
         }
     }
 }

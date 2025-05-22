@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-pydanticai"
+name = "openinference-instrumentation-pydantic-ai"
 dynamic = ["version"]
 description = "OpenInference PydanticAI Instrumentation"
 readme = "README.md"
@@ -36,23 +36,21 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "pydantic>=2.10.0",
   "pydantic-ai>=0.2.0",
 ]
 test = [
   "pytest>=7.4.0",
   "pytest-cov>=4.1.0",
   "opentelemetry-sdk>=1.20.0",
-  "pydantic>=2.10.0",
   "pydantic-ai>=0.2.0",
   "pytest-vcr",
 ]
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-pydanticai"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-pydantic-ai"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/pydanticai/version.py"
+path = "src/openinference/instrumentation/pydantic_ai/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [

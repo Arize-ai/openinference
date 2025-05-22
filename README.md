@@ -25,7 +25,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 ### Libraries
 
 | Package                                                                                                               | Description                                          | Version                                                                                                                                                                    |
-|-----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`openinference-semantic-conventions`](./python/openinference-semantic-conventions)                                   | Semantic conventions for tracing of LLM Apps.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)                   |
 | [`openinference-instrumentation-agno`](./python/instrumentation/openinference-instrumentation-agno)                   | OpenInference Instrumentation for Agno Agents.       | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-agno.svg)](https://pypi.python.org/pypi/openinference-instrumentation-agno)                   |
 | [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai)               | OpenInference Instrumentation for OpenAI SDK.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai)               |
@@ -47,11 +47,12 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [`openinference-instrumentation-anthropic`](./python/instrumentation/openinference-instrumentation-anthropic)         | OpenInference Instrumentation for Anthropic.         | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-anthropic.svg)](https://pypi.python.org/pypi/openinference-instrumentation-anthropic)         |
 | [`openinference-instrumentation-beeai`](./python/instrumentation/openinference-instrumentation-beeai)                 | OpenInference Instrumentation for BeeAI.             | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-beeai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-beeai)                 |
 | [`openinference-instrumentation-google-genai`](./python/instrumentation/openinference-instrumentation-google-genai)   | OpenInference Instrumentation for Google GenAI.      | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-google-genai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-google-genai)   |
+| [`openinference-instrumentation-pydantic-ai`](./python/instrumentation/openinference-instrumentation-pydantic-ai)     | OpenInference Instrumentation for PydanticAI.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-pydantic-ai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-pydantic-ai)     |
 
 ### Examples
 
 | Name                                                                                                  | Description                                                                                  | Complexity Level |
-|-------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------| ---------------- |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------- |
 | [Agno](python/instrumentation/openinference-instrumentation-agno/examples/)                           | Agno agent examples                                                                          | Beginner         |
 | [OpenAI SDK](python/instrumentation/openinference-instrumentation-openai/examples/)                   | OpenAI Python SDK, including chat completions and embeddings                                 | Beginner         |
 | [MistralAI SDK](python/instrumentation/openinference-instrumentation-mistralai/examples/)             | MistralAI Python SDK                                                                         | Beginner         |
@@ -70,6 +71,7 @@ OpenInference provides a set of instrumentations for popular machine learning SD
 | [DSPy](python/examples/dspy-rag-fastapi/)                                                             | A DSPy RAG application using FastAPI, Weaviate, and Cohere                                   | Intermediate     |
 | [Haystack](python/instrumentation/openinference-instrumentation-haystack/examples/)                   | A Haystack QA RAG application                                                                | Intermediate     |
 | [OpenAI Agents](python/instrumentation/openinference-instrumentation-openai-agents/examples/)         | OpenAI Agents with handoffs                                                                  | Intermediate     |
+| [PydanticAI](python/instrumentation/openinference-instrumentation-pydantic-ai/examples/)              | PydanticAI agent examples                                                                    | Intermediate     |
 
 ## JavaScript
 
