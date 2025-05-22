@@ -93,6 +93,22 @@ class GenAIChoiceBodyFields:
 
 
 # Pydantic-specific constants as they're not part of OTEL
+class PydanticAgentName:
+    AGENT = "agent_name"
+
+
+class PydanticTools:
+    TOOLS = "tools"
+
+
+class PydanticGenAIAttribute:
+    GEN_AI = "gen_ai"
+
+
+class PydanticGenAITool:
+    TOOL = "tool"
+
+
 class PydanticCustomAttributes:
     MODEL_REQUEST_PARAMETERS = "model_request_parameters"
 
@@ -118,6 +134,14 @@ class PydanticMessageRoleUser:
     USER = "user"
 
 
+class PydanticFinalResult:
+    FINAL_RESULT = "final_result"
+
+
+class PydanticAllMessagesEvents:
+    ALL_MESSAGES_EVENTS = "all_messages_events"
+
+
 def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
     Main function to extract OpenInference attributes from GenAI attributes.
@@ -128,6 +152,7 @@ def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]
     Returns:
         Iterator of (key, value) pairs for OpenInference attributes
     """
+    yield from _extract_agent_attributes(gen_ai_attrs)
     yield from _extract_common_attributes(gen_ai_attrs)
     yield from _extract_llm_attributes(gen_ai_attrs)
     yield from _extract_tool_attributes(gen_ai_attrs)
@@ -146,6 +171,12 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
                 SpanAttributes.OPENINFERENCE_SPAN_KIND,
                 OpenInferenceSpanKindValues.UNKNOWN.value,
             )
+    elif GEN_AI_TOOL_NAME in gen_ai_attrs:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.TOOL.value
+    elif PydanticAgentName.AGENT in gen_ai_attrs:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.AGENT.value
+    elif PydanticTools.TOOLS in gen_ai_attrs:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.CHAIN.value
 
     if GEN_AI_SYSTEM in gen_ai_attrs:
         yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GEN_AI_SYSTEM]
@@ -173,6 +204,19 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
 
     if GenAIConversationID.CONVERSATION_ID in gen_ai_attrs:
         yield SpanAttributes.SESSION_ID, gen_ai_attrs[GenAIConversationID.CONVERSATION_ID]
+
+
+def _extract_agent_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """Extract attributes specific to agent operations."""
+    if PydanticFinalResult.FINAL_RESULT in gen_ai_attrs:
+        yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[PydanticFinalResult.FINAL_RESULT]
+    if PydanticAllMessagesEvents.ALL_MESSAGES_EVENTS in gen_ai_attrs:
+        events = _parse_events(gen_ai_attrs[PydanticAllMessagesEvents.ALL_MESSAGES_EVENTS])
+        if events:
+            input_messages = _extract_llm_input_messages(events)
+            input_value = _find_llm_input_value(input_messages)
+            if input_value is not None:
+                yield SpanAttributes.INPUT_VALUE, input_value
 
 
 def _extract_llm_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:

@@ -2,8 +2,8 @@ from typing import Mapping, cast
 
 import pytest
 from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
@@ -13,7 +13,9 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from openinference.instrumentation.pydantic_ai.span_exporter import OpenInferenceSpanExporter
+from openinference.instrumentation.pydantic_ai.span_processor import (
+    OpenInferenceSimpleSpanProcessor,
+)
 from openinference.instrumentation.pydantic_ai.utils import is_openinference_span
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -34,8 +36,11 @@ class TestPydanticAIInstrumentation:
         """Test that Pydantic AI with instrument=True is properly traced."""
         in_memory_span_exporter.clear()
         trace.set_tracer_provider(tracer_provider)
-        exporter = OpenInferenceSpanExporter(in_memory_span_exporter)
-        tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
+        exporter = OTLPSpanExporter()
+        processor = OpenInferenceSimpleSpanProcessor(
+            exporter=exporter, span_filter=is_openinference_span
+        )
+        tracer_provider.add_span_processor(processor)
 
         class LocationModel(BaseModel):
             city: str
@@ -59,6 +64,12 @@ class TestPydanticAIInstrumentation:
         )
         assert attributes.get(SpanAttributes.LLM_SYSTEM) == "openai"
         assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
+
+        assert attributes.get(SpanAttributes.INPUT_VALUE) == "The windy city in the US of A."
+        assert (
+            attributes.get(SpanAttributes.OUTPUT_VALUE)
+            == '{"city":"Chicago","country":"United States of America"}'
+        )
 
         prompt_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT)
         completion_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION)

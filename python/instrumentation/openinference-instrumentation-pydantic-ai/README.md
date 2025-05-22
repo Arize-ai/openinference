@@ -23,7 +23,7 @@ pip install pydantic-ai arize-phoenix opentelemetry-sdk opentelemetry-exporter-o
 Start Phoenix in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address. (Phoenix does not send data over the internet. It only operates locally on your machine.)
 
 ```shell
-python -m phoenix.server.main serve
+phoenix serve
 ```
 
 Here's a simple example that demonstrates how to use PydanticAI with OpenInference instrumentation:
@@ -37,8 +37,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from openinference.instrumentation.pydantic_ai import OpenInferenceSpanExporter
+from openinference.instrumentation.pydantic_ai import OpenInferenceSimpleSpanProcessor
 
 # Set your OpenAI API key
 os.environ["OPENAI_API_KEY"] = "YOUR_OPENAI_API_KEY"
@@ -47,11 +46,10 @@ os.environ["OPENAI_API_KEY"] = "YOUR_OPENAI_API_KEY"
 tracer_provider = TracerProvider()
 trace.set_tracer_provider(tracer_provider)
 
-# Configure the OpenInference span exporter
+# Add the OpenInference span processor
 endpoint = "http://127.0.0.1:6006/v1/traces"
 exporter = OTLPSpanExporter(endpoint=endpoint)
-openInferenceExporter = OpenInferenceSpanExporter(exporter)
-tracer_provider.add_span_processor(SimpleSpanProcessor(openInferenceExporter))
+tracer_provider.add_span_processor(OpenInferenceSimpleSpanProcessor(exporter))
 
 # Define your Pydantic model
 class LocationModel(BaseModel):

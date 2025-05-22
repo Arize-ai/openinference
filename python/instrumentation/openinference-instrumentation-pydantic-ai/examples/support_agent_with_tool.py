@@ -24,11 +24,10 @@ from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
-from openinference.instrumentation.pydantic_ai import OpenInferenceSpanExporter
+from openinference.instrumentation.pydantic_ai import OpenInferenceBatchSpanProcessor
 
 resource = Resource.create(
     {
@@ -44,8 +43,7 @@ trace.set_tracer_provider(tracer_provider)
 # Configure the exporter to send telemetry to Phoenix
 otlp_endpoint = os.getenv("OTLP_ENDPOINT", "http://localhost:6006/v1/traces")
 exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
-openinference_exporter = OpenInferenceSpanExporter(exporter)
-tracer_provider.add_span_processor(BatchSpanProcessor(openinference_exporter))
+tracer_provider.add_span_processor(OpenInferenceBatchSpanProcessor(exporter))
 
 
 class DatabaseConn:
