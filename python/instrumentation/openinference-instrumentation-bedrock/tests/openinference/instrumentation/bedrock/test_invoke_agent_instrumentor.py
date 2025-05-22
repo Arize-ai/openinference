@@ -113,6 +113,7 @@ def test_tool_calls_with_input_params(
         llm_span_attributes.pop("llm.invocation_parameters"), '{"maximumLength": 2048'
     )
     assert llm_span_attributes.pop("llm.model_name") == "claude-3-5-sonnet-20240620"
+    assert llm_span_attributes.pop("llm.provider") == "aws"
     assert starts_with(
         llm_span_attributes.pop("llm.output_messages.0.message.content"),
         "<thinking>The function has returned the result of adding 10 and 20, which is 30",
@@ -234,6 +235,7 @@ def test_tool_calls_without_input_params(
         llm_span_attributes.pop("llm.invocation_parameters"), '{"maximumLength": 2048, "stopSe'
     )
     assert llm_span_attributes.pop("llm.model_name") == "claude-3-5-sonnet-20240620"
+    assert llm_span_attributes.pop("llm.provider") == "aws"
     assert starts_with(
         llm_span_attributes.pop("llm.output_messages.0.message.content"),
         "<thinking>To answer the que",
@@ -332,6 +334,7 @@ def test_knowledge_base_results(
     assert starts_with(llm_span_attributes.pop("input.value"), content)
     assert llm_span_attributes.pop("input.mime_type") == "text/plain"
     assert llm_span_attributes.pop("llm.model_name") == "claude-3-5-sonnet-20240620"
+    assert llm_span_attributes.pop("llm.provider") == "aws"
     assert llm_span_attributes.pop("llm.output_messages.0.message.role") == "assistant"
     assert starts_with(
         llm_span_attributes.pop("llm.output_messages.0.message.content"), "<answer>\n<answer_part>"

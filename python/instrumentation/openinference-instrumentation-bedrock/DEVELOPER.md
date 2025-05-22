@@ -1,6 +1,6 @@
 # Amazon Bedrock Agent Instrumentation
 
-This document provides a detailed technical overview of the OpenInference instrumentation implementation for Amazon Bedrock Agents. The implementation enables tracing and telemetry collection for Bedrock Agent interactions, allowing developers to monitor, debug, and analyze agent behavior.
+This document provides a detailed technical overview of the OpenInference instrumentation implementation for Amazon Bedrock Agents.
 
 ## Architecture Overview
 
@@ -8,16 +8,14 @@ The Bedrock Agent instrumentation consists of three main components:
 
 1. **Response Accumulator**: Processes responses from Bedrock services and creates OpenTelemetry spans
 2. **Trace Manager**: Organizes bedrock trace data into a hierarchical structure
-3. **Attribute Extractor**: Extracts attributes from various types of trace data and converts to opentelemetry compatible.
-
-These components work together to capture telemetry data from Bedrock Agent interactions and transform it into OpenTelemetry spans that can be exported to observability backends.
+3. **Attribute Extractor**: Extracts attributes from various types of trace data and converts to opentelemetry compatible attributes.
 
 ### Execution Flow
 
 1. When `invoke_agent` is called, an initial OpenTelemetry span is created
 2. As the agent streams responses, the Response Accumulator collects all traces from Bedrock
 3. The Trace Collector builds trace nodes in hierarchical order as traces arrive
-4. Once all traces are streamed (indicated by StopIterationException) or a failure occurs, the system starts building telemetry spans using the collected trace hierarchy
+4. Once all traces are streamed (indicated by StopIterationException) or a failure occurs, the system starts building spans using the collected trace hierarchy
 5. The Response Accumulator processes all the traces in hierarchical order using recursion to create the final OpenTelemetry spans
 
 ```mermaid
@@ -38,8 +36,8 @@ The Response Accumulator is the entry point for processing responses from Bedroc
 
 #### Key Classes
 
-- **`_Attributes`**: Container for span attributes and metadata
-- **`_ResponseAccumulator`**: Processes responses and creates spans
+-   **`_Attributes`**: Container for span attributes and metadata
+-   **`_ResponseAccumulator`**: Processes responses and creates spans
 
 #### Main Functionality
 
@@ -49,17 +47,16 @@ The Response Accumulator is the entry point for processing responses from Bedroc
 4. **Span Creation**: Creates OpenTelemetry spans recursively based on the trace hierarchy
 5. **Attribute Extraction**: Extracts attributes from trace data using the `AttributeExtractor`
 
-
 ### Trace Manager (`_trace_manager.py`)
 
 The Trace Manager organizes trace data into a hierarchical structure that represents the execution flow of the Bedrock Agent.
 
 #### Key Classes
 
-- **`TraceSpan`**: Represents a span within a trace that contains chunks of data
-- **`TraceNode`**: Represents a node in the trace tree that can contain multiple spans
-- **`TraceStack`**: Manages a stack of TraceNodes for tracking the current execution context
-- **`TraceCollector`**: Collects and organizes trace data into a hierarchical structure as it arrives
+-   **`TraceSpan`**: Represents a span within a trace that contains chunks of data
+-   **`TraceNode`**: Represents a node in the trace tree that can contain multiple spans
+-   **`TraceStack`**: Manages a stack of TraceNodes for tracking the current execution context
+-   **`TraceCollector`**: Collects and organizes trace data into a hierarchical structure as it arrives
 
 #### Main Functionality
 
@@ -96,14 +93,13 @@ The Attribute Extractor extracts attributes from various types of trace data gen
 
 #### Supported Event Types
 
-- Model Invocation Input/Output
-- Action Group Invocation
-- Code Interpreter Invocation
-- Knowledge Base Lookup
-- Agent Collaborator Invocation
-- Rationale
-- Failure Trace
-
+-   Model Invocation Input/Output
+-   Action Group Invocation
+-   Code Interpreter Invocation
+-   Knowledge Base Lookup
+-   Agent Collaborator Invocation
+-   Rationale
+-   Failure Trace
 
 ### Trace Processing Flow
 
@@ -114,18 +110,18 @@ flowchart TD
     B -->|OrchestrationTrace| D[Process Orchestration]
     B -->|PostProcessingTrace| E[Process Post-Processing]
     B -->|FailureTrace| F[Process Failure]
-    
+
     C --> G{Chunk Type?}
     D --> G
     E --> G
     F --> G
-    
+
     G -->|modelInvocationInput| H[Process Model Input]
     G -->|modelInvocationOutput| I[Process Model Output]
     G -->|invocationInput| J[Process Invocation Input]
     G -->|observation| K[Process Observation]
     G -->|rationale| L[Process Rationale]
-    
+
     H --> M[Create/Update Span]
     I --> M
     J --> M
@@ -137,18 +133,18 @@ flowchart TD
 
 ### Trace Types
 
-- **PreProcessingTrace**: Traces related to pre-processing steps before agent execution
-- **OrchestrationTrace**: Traces related to the main agent execution flow
-- **PostProcessingTrace**: Traces related to post-processing steps after agent execution
-- **FailureTrace**: Traces related to failures during agent execution
+-   **PreProcessingTrace**: Traces related to pre-processing steps before agent execution
+-   **OrchestrationTrace**: Traces related to the main agent execution flow
+-   **PostProcessingTrace**: Traces related to post-processing steps after agent execution
+-   **FailureTrace**: Traces related to failures during agent execution
 
 ### Span Types
 
-- **LLM**: Spans for LLM model invocations
-- **CHAIN**: Spans for orchestration chains
-- **AGENT**: Spans for agent collaborator invocations
-- **TOOL**: Spans for tool invocations (action groups, code interpreter, knowledge base)
-- **RETRIEVER**: Spans for knowledge base retrievals
+-   **LLM**: Spans for LLM model invocations
+-   **CHAIN**: Spans for orchestration chains
+-   **AGENT**: Spans for agent collaborator invocations
+-   **TOOL**: Spans for tool invocations (action groups, code interpreter, knowledge base)
+-   **RETRIEVER**: Spans for knowledge base retrievals
 
 ### Trace Hierarchy
 
@@ -255,44 +251,48 @@ This section provides guidance on setting up Amazon Bedrock Agents for use with 
 
 ### Prerequisites
 
-- AWS account with Bedrock access in your region
-- IAM permissions for:
-  - Bedrock
-  - Lambda (for tools)
-  - Open Search or Pinecone (for vector stores)
+-   AWS account with Bedrock access in your region
+-   IAM permissions for:
+    -   Bedrock
+    -   Lambda (for tools)
+    -   Open Search or Pinecone (for vector stores)
 
 ### Creating an Agent in Amazon Bedrock
 
 1. **Define the Agent Purpose**
-   - Clarify the tasks your agent will perform (answer FAQs, perform task automation, query documents, run calculations)
+
+    - Clarify the tasks your agent will perform (answer FAQs, perform task automation, query documents, run calculations)
 
 2. **Create the Agent**
-   - Go to **Amazon Bedrock > Agents**
-   - Click **Create agent**
-   - Fill out:
-     - Agent name
-     - Instruction prompt
-     - Foundation model (e.g., `claude 3.5 sonnet`)
-     - Idle session TTL
+
+    - Go to **Amazon Bedrock > Agents**
+    - Click **Create agent**
+    - Fill out:
+        - Agent name
+        - Instruction prompt
+        - Foundation model (e.g., `claude 3.5 sonnet`)
+        - Idle session TTL
 
 3. **Configure Action Groups Using Lambda for Tools**
-   - Create a Lambda function in AWS Lambda Console
-   - In your agent's **Action Groups** tab, click **Add**
-   - Configure the action group with name, description, and Lambda function
-   - Define input parameters
-   - Link the Action Group to your agent
+
+    - Create a Lambda function in AWS Lambda Console
+    - In your agent's **Action Groups** tab, click **Add**
+    - Configure the action group with name, description, and Lambda function
+    - Define input parameters
+    - Link the Action Group to your agent
 
 4. **Configure and Attach a Knowledge Base**
-   - Create a Knowledge Base in **Bedrock > Knowledge bases**
-   - Configure data source, storage, and processing
-   - Choose Embeddings Model and Vector Database
-   - In agent settings, attach the Knowledge Base
+
+    - Create a Knowledge Base in **Bedrock > Knowledge bases**
+    - Configure data source, storage, and processing
+    - Choose Embeddings Model and Vector Database
+    - In agent settings, attach the Knowledge Base
 
 5. **Enable Code Interpreter**
-   - Go to **Amazon Bedrock > Agents**
-   - Open your agent and go to **Agent settings**
-   - Scroll to **Tools** section
-   - Enable **code interpreter**
+    - Go to **Amazon Bedrock > Agents**
+    - Open your agent and go to **Agent settings**
+    - Scroll to **Tools** section
+    - Enable **code interpreter**
 
 ### Testing the Agent with Tracing
 
@@ -322,25 +322,32 @@ for idx, event in enumerate(response["completion"]):
 When tracing is enabled, the system captures traces for the following stages of agent execution:
 
 #### 1. PreProcessing
+
 This stage evaluates user input—e.g., checking if it's safe or non-harmful. It involves an LLM invocation to perform this evaluation. If `preProcessing` is enabled at the agent level and tracing is turned on, these LLM calls will be captured and returned in the trace.
 
 #### 2. Orchestration
+
 When orchestration is enabled, the agent determines which AWS services to invoke based on the user input:
-- After preProcessing passes, the agent sends the input to the LLM
-- The LLM decides the next step (e.g., calling an ActionGroup or Knowledge Base)
-- The agent then invokes the corresponding tool
+
+-   After preProcessing passes, the agent sends the input to the LLM
+-   The LLM decides the next step (e.g., calling an ActionGroup or Knowledge Base)
+-   The agent then invokes the corresponding tool
 
 Traces captured during orchestration include:
-- `invocationInput`: Input to the selected Agent Tool
-- `invocationOutput`: Output returned from the tool
+
+-   `invocationInput`: Input to the selected Agent Tool
+-   `invocationOutput`: Output returned from the tool
 
 #### 3. PostProcessing
+
 After the LLM generates a final response, it is passed through a post-processing phase—again, an LLM invocation—to validate or refine the output before returning it to the user.
 
 #### Model Invocation Traces
+
 Each LLM interaction—whether during preProcessing, orchestration, or postProcessing—will include:
-- `modelInvocationInput`
-- `modelInvocationOutput`
+
+-   `modelInvocationInput`
+-   `modelInvocationOutput`
 
 These traces align with the span types and trace hierarchy described in the Architecture Overview section of this document.
 
@@ -349,8 +356,9 @@ These traces align with the span types and trace hierarchy described in the Arch
 The OpenInference instrumentation for Amazon Bedrock Agents provides a comprehensive solution for tracing and telemetry collection. By capturing detailed information about agent interactions, it enables developers to monitor, debug, and analyze agent behavior effectively.
 
 The implementation uses a modular architecture with clear separation of concerns:
-- The Response Accumulator processes responses and creates spans
-- The Trace Manager organizes trace data into a hierarchical structure
-- The Attribute Extractor extracts attributes from trace data
+
+-   The Response Accumulator processes responses and creates spans
+-   The Trace Manager organizes trace data into a hierarchical structure
+-   The Attribute Extractor extracts attributes from trace data
 
 This design allows for flexible and extensible instrumentation that can adapt to changes in the Bedrock Agent API and support new features as they are added.

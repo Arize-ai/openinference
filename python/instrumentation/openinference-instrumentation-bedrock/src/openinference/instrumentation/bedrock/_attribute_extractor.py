@@ -29,6 +29,7 @@ from openinference.instrumentation.bedrock.utils.json_utils import (
 )
 from openinference.semconv.trace import (
     DocumentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -162,7 +163,7 @@ class AttributeExtractor:
 
         # Set attributes
         return {
-            **get_llm_attributes(**llm_attributes),  # type: ignore
+            **get_llm_attributes(**llm_attributes, provider=OpenInferenceLLMProviderValues.AWS),  # type: ignore
             **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
             **get_input_attributes(input_text),
         }
@@ -200,7 +201,7 @@ class AttributeExtractor:
 
         # Set attributes
         request_attributes = {
-            **get_llm_attributes(**llm_attributes),  # type: ignore
+            **get_llm_attributes(**llm_attributes, provider=OpenInferenceLLMProviderValues.AWS),  # type: ignore
             **get_llm_token_count_attributes(
                 AttributeExtractor.get_token_counts(model_invocation_output or {})
             ),
