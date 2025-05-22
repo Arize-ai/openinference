@@ -114,9 +114,8 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
             _meta = {"traceparent": args[1].params.meta.traceparent}
             ctx = propagate.extract(_meta)
             context.attach(ctx)
-            return wrapped(*args, **kwargs)
         finally:
-            pass
+            return wrapped(*args, **kwargs)
 
     def _base_session_init_wrapper(
         self, wrapped: Callable[..., None], instance: Any, args: Any, kwargs: Any
