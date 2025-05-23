@@ -7,31 +7,32 @@ import {
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 
-// For troubleshooting, set the log level to DiagLogLevel.DEBUG
-// This is not required and should not be added in a production setting
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 export function register() {
+  const spaceId = process.env.ARIZE_SPACE_ID;
+  const apiKey = process.env.ARIZE_API_KEY;
+
+  if (!spaceId || !apiKey) {
+    throw new Error("ARIZE_SPACE_ID and ARIZE_API_KEY must be set");
+  }
+
   registerOTel({
-    serviceName: "phoenix-next-app",
+    serviceName: "parker-vercel-test",
     attributes: {
-      // This is not required but it will allow you to send traces to a specific
-      // project in phoenix
-      [SEMRESATTRS_PROJECT_NAME]: "phoenix-next-app",
+      model_id: "parker-vercel-model",
+      model_version: "1.0.0",
     },
     spanProcessors: [
       new OpenInferenceSimpleSpanProcessor({
         exporter: new OTLPTraceExporter({
+          url: "https://otlp.arize.com/v1/traces",
           headers: {
-            api_key: process.env["PHOENIX_API_KEY"],
+            space_id: spaceId,
+            api_key: apiKey,
           },
-          url: "http://localhost:6006/v1/traces",
         }),
-        spanFilter: (span) => {
-          // Only export spans that are OpenInference to remove non-generative spans
-          // This should be removed if you want to export all spans
-          return isOpenInferenceSpan(span);
-        },
+        spanFilter: (span) => isOpenInferenceSpan(span),
       }),
     ],
   });
