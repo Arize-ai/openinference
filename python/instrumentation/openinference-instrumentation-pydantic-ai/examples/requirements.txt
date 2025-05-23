@@ -1,0 +1,3 @@
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+pydantic-ai
