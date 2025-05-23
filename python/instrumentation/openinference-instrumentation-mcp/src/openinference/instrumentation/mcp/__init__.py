@@ -2,12 +2,18 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Callable, Collection, Tuple, cast
 
-from opentelemetry import context, propagate
+from opentelemetry import context, propagate, trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.instrumentation.utils import unwrap
+from opentelemetry.trace import Status, StatusCode
 from wrapt import ObjectProxy, register_post_import_hook, wrap_function_wrapper
 
+from openinference.instrumentation import safe_json_dumps
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from openinference.instrumentation.mcp.package import _instruments
+
+from mcp.client.session import ClientSession
+import mcp.types as mcp_types
 
 
 class MCPInstrumentor(BaseInstrumentor):  # type: ignore
@@ -19,6 +25,35 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        # Instrument high-level MCP client operations
+        register_post_import_hook(
+            lambda _: wrap_function_wrapper(
+                "mcp.client.session",
+                "ClientSession.call_tool",
+                self._wrap_call_tool,
+            ),
+            "mcp.client.session",
+        )
+
+        register_post_import_hook(
+            lambda _: wrap_function_wrapper(
+                "mcp.client.session",
+                "ClientSession.get_prompt",
+                self._wrap_get_prompt,
+            ),
+            "mcp.client.session",
+        )
+
+        register_post_import_hook(
+            lambda _: wrap_function_wrapper(
+                "mcp.client.session",
+                "ClientSession.read_resource",
+                self._wrap_read_resource,
+            ),
+            "mcp.client.session",
+        )
+
+        # Existing transport-level instrumentation for context propagation
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
                 "mcp.client.streamable_http",
@@ -85,6 +120,9 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        unwrap("mcp.client.session", "ClientSession.call_tool")
+        unwrap("mcp.client.session", "ClientSession.get_prompt")
+        unwrap("mcp.client.session", "ClientSession.read_resource")
         unwrap("mcp.client.stdio", "stdio_client")
         unwrap("mcp.server.stdio", "stdio_server")
         unwrap("mcp.client.session", "ClientSession.call_tool")
@@ -133,6 +171,126 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
                 instance, "_incoming_message_stream_reader", ContextAttachingStreamReader(reader)
             )
             setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))
+
+    async def _wrap_call_tool(
+        self, wrapped: Callable[..., Any], instance: ClientSession, args: Any, kwargs: Any
+    ) -> Any:
+        """Wrap MCP call_tool operation with tracing."""
+        # Extract arguments
+        name = kwargs.get("name", "unknown")
+        arguments = kwargs.get("arguments")
+
+        tracer = trace_api.get_tracer(__name__)
+        with tracer.start_as_current_span(
+            f"mcp.call_tool.{name}",
+            attributes={
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL.value,
+                SpanAttributes.TOOL_NAME: name,
+                SpanAttributes.SESSION_ID: instance._request_id,
+                SpanAttributes.INPUT_VALUE: safe_json_dumps(kwargs),
+                SpanAttributes.INPUT_MIME_TYPE: "application/json",
+            },
+        ) as span:
+            # Add input attributes
+            if arguments:
+                span.set_attribute(SpanAttributes.TOOL_PARAMETERS, safe_json_dumps(arguments))
+
+            try:
+                # Call the original method
+                result: mcp_types.CallToolResult = await wrapped(*args, **kwargs)
+
+                # Add output attributes
+                # TODO: handle content types
+                if hasattr(result, "content") and result.content:
+                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, safe_json_dumps(result.content))
+                    span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
+
+                span.set_status(Status(StatusCode.OK))
+                return result
+            except Exception as e:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.record_exception(e)
+                raise
+
+    # TODO: update once OpenInference support for prompts grows
+    async def _wrap_get_prompt(
+        self, wrapped: Callable[..., Any], instance: ClientSession, args: Any, kwargs: Any
+    ) -> Any:
+        """Wrap MCP get_prompt operation with tracing."""
+        # Extract arguments
+        name = kwargs.get("name", "unknown")
+
+        tracer = trace_api.get_tracer(__name__)
+        with tracer.start_as_current_span(
+            f"mcp.get_prompt.{name}",
+            attributes={
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.UNKNOWN.value,
+                SpanAttributes.PROMPT_ID: name,
+                SpanAttributes.SESSION_ID: instance._request_id,
+                SpanAttributes.INPUT_VALUE: safe_json_dumps(kwargs),
+                SpanAttributes.INPUT_MIME_TYPE: "application/json",
+            },
+        ) as span:
+            try:
+                # Call the original method
+                result: mcp_types.GetPromptResult = await wrapped(*args, **kwargs)
+
+                # Add output attributes
+                if hasattr(result, "messages") and result.messages:
+                    span.set_attribute(
+                        SpanAttributes.OUTPUT_VALUE,
+                        safe_json_dumps(
+                            {"description": result.description, "messages": result.messages}
+                        ),
+                    )
+                    span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
+
+                span.set_status(Status(StatusCode.OK))
+                return result
+            except Exception as e:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.record_exception(e)
+                raise
+
+    # TODO: further e2e testing once Phoenix error #7687 is resolved
+    async def _wrap_read_resource(
+        self, wrapped: Callable[..., Any], instance: ClientSession, args: Any, kwargs: Any
+    ) -> Any:
+        """Wrap MCP read_resource operation with tracing."""
+        # Extract arguments
+        uri = args[0]
+        tracer = trace_api.get_tracer(__name__)
+        with tracer.start_as_current_span(
+            f"mcp.read_resource.{uri}",
+            attributes={
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.RETRIEVER.value,
+                SpanAttributes.SESSION_ID: instance._request_id,
+                SpanAttributes.INPUT_VALUE: safe_json_dumps({"uri": uri}),
+                SpanAttributes.INPUT_MIME_TYPE: "application/json",
+            },
+        ) as span:
+            try:
+                # Call the original method
+                result: mcp_types.ReadResourceResult = await wrapped(*args, **kwargs)
+                # Add output attributes
+                if hasattr(result, "contents") and result.contents:
+                    serialized_contents = [content.model_dump() for content in result.contents]
+                    span.set_attribute(
+                        SpanAttributes.RETRIEVAL_DOCUMENTS, safe_json_dumps(serialized_contents)
+                    )
+                    span.set_attribute(
+                        SpanAttributes.OUTPUT_VALUE,
+                        safe_json_dumps({"contents": serialized_contents}),
+                    )
+                    span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
+
+                span.set_status(Status(StatusCode.OK))
+                return result
+
+            except Exception as e:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.record_exception(e)
+                raise
 
 
 class InstrumentedStreamReader(ObjectProxy):  # type: ignore
