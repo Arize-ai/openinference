@@ -2,18 +2,16 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Callable, Collection, Tuple, cast
 
-from opentelemetry import context, propagate, trace as trace_api
+from opentelemetry import context, propagate
+from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.instrumentation.utils import unwrap
 from opentelemetry.trace import Status, StatusCode
 from wrapt import ObjectProxy, register_post_import_hook, wrap_function_wrapper
 
 from openinference.instrumentation import safe_json_dumps
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from openinference.instrumentation.mcp.package import _instruments
-
-from mcp.client.session import ClientSession
-import mcp.types as mcp_types
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
 class MCPInstrumentor(BaseInstrumentor):  # type: ignore
@@ -173,7 +171,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
             setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))
 
     async def _wrap_call_tool(
-        self, wrapped: Callable[..., Any], instance: ClientSession, args: Any, kwargs: Any
+        self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
     ) -> Any:
         """Wrap MCP call_tool operation with tracing."""
         # Extract arguments
@@ -197,7 +195,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
 
             try:
                 # Call the original method
-                result: mcp_types.CallToolResult = await wrapped(*args, **kwargs)
+                result = await wrapped(*args, **kwargs)
 
                 # Add output attributes
                 # TODO: handle content types
@@ -214,7 +212,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
 
     # TODO: update once OpenInference support for prompts grows
     async def _wrap_get_prompt(
-        self, wrapped: Callable[..., Any], instance: ClientSession, args: Any, kwargs: Any
+        self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
     ) -> Any:
         """Wrap MCP get_prompt operation with tracing."""
         # Extract arguments
@@ -233,7 +231,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         ) as span:
             try:
                 # Call the original method
-                result: mcp_types.GetPromptResult = await wrapped(*args, **kwargs)
+                result = await wrapped(*args, **kwargs)
 
                 # Add output attributes
                 if hasattr(result, "messages") and result.messages:
@@ -254,7 +252,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
 
     # TODO: further e2e testing once Phoenix error #7687 is resolved
     async def _wrap_read_resource(
-        self, wrapped: Callable[..., Any], instance: ClientSession, args: Any, kwargs: Any
+        self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
     ) -> Any:
         """Wrap MCP read_resource operation with tracing."""
         # Extract arguments
@@ -271,7 +269,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         ) as span:
             try:
                 # Call the original method
-                result: mcp_types.ReadResourceResult = await wrapped(*args, **kwargs)
+                result = await wrapped(*args, **kwargs)
                 # Add output attributes
                 if hasattr(result, "contents") and result.contents:
                     serialized_contents = [content.model_dump() for content in result.contents]
