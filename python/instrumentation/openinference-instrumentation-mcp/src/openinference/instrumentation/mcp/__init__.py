@@ -61,6 +61,14 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
             ),
             "mcp.server.stdio",
         )
+        register_post_import_hook(
+            lambda _: wrap_function_wrapper(
+                "mcp.server.lowlevel.server",
+                "Server._handle_request",
+                self._wrap_handle_request,
+            ),
+            "mcp.server.lowlevel.server",
+        )
 
         # While we prefer to instrument the lowest level primitive, the transports above, it doesn't
         # mean context will be propagated to handlers automatically. Notably, the MCP SDK passes
@@ -79,6 +87,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     def _uninstrument(self, **kwargs: Any) -> None:
         unwrap("mcp.client.stdio", "stdio_client")
         unwrap("mcp.server.stdio", "stdio_server")
+        unwrap("mcp.client.session", "ClientSession.call_tool")
 
     @asynccontextmanager
     async def _wrap_transport_with_callback(
@@ -97,6 +106,21 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter"], None]:
         async with wrapped(*args, **kwargs) as (read_stream, write_stream):
             yield InstrumentedStreamReader(read_stream), InstrumentedStreamWriter(write_stream)
+
+    async def _wrap_handle_request(
+        self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+    ) -> Any:
+        token = None
+        try:
+            # Message has been deserialized, we need to extract the traceparent
+            _meta = {"traceparent": args[1].params.meta.traceparent}
+            ctx = propagate.extract(_meta)
+            token = context.attach(ctx)
+        finally:
+            res = await wrapped(*args, **kwargs)
+            if token:
+                context.detach(token)
+            return res
 
     def _base_session_init_wrapper(
         self, wrapped: Callable[..., None], instance: Any, args: Any, kwargs: Any
