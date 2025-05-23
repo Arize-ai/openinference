@@ -12,6 +12,7 @@ from openinference.instrumentation.anthropic._wrappers import (
     _AsyncCompletionsWrapper,
     _AsyncMessagesWrapper,
     _CompletionsWrapper,
+    _MessagesStreamWrapper,
     _MessagesWrapper,
 )
 from openinference.instrumentation.anthropic.version import __version__
@@ -29,6 +30,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_async_completions_create",
         "_original_messages_create",
         "_original_async_messages_create",
+        "_original_messages_stream",
         "_instruments",
         "_tracer",
     )
@@ -77,6 +79,13 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             module="anthropic.resources.messages",
             name="AsyncMessages.create",
             wrapper=_AsyncMessagesWrapper(tracer=self._tracer),
+        )
+
+        self._original_messages_stream = Messages.stream
+        wrap_function_wrapper(
+            module="anthropic.resources.messages",
+            name="Messages.stream",
+            wrapper=_MessagesStreamWrapper(tracer=self._tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

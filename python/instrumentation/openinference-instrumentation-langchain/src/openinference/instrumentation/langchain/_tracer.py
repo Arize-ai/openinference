@@ -51,6 +51,7 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     RerankerAttributes,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -599,6 +600,9 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
             f"expected Mapping, found {type(invocation_parameters)}"
         )
         yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
+        tools = invocation_parameters.get("tools", [])
+        for idx, tool in enumerate(tools):
+            yield f"{LLM_TOOLS}.{idx}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
 
 
 @stop_on_exception
@@ -959,3 +963,5 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
