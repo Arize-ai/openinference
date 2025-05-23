@@ -1,5 +1,15 @@
 # @arizeai/openinference-vercel
 
+## 2.2.0
+
+### Minor Changes
+
+- a573489: feat: Mastra instrumentation
+
+  Initial instrumentation for Mastra, adhering to OpenInference semantic conventions
+
+- a573489: feat: Instrument tool calls and results from multi-part content messages
+
 ## 2.1.0
 
 ### Minor Changes
