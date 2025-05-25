@@ -118,9 +118,9 @@ from llama_index.core.workflow.errors import WorkflowDone
 
 # Import LlamaIndex LLM classes for provider detection
 from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
-from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI  # type: ignore[import-untyped]
+from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
 from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
-from llama_index.llms.vertex import Vertex as LlamaIndexVertex  # type: ignore[import-untyped]
+from llama_index.llms.vertex import Vertex as LlamaIndexVertex
 from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
