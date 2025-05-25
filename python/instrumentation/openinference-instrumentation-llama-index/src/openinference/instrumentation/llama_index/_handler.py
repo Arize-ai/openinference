@@ -115,6 +115,12 @@ from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
 from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
 from llama_index.core.workflow.errors import WorkflowDone
+
+# Import LlamaIndex LLM classes for provider detection
+from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
+from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
+from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
+from llama_index.llms.vertex import Vertex as LlamaIndexVertex
 from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
@@ -125,20 +131,14 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
     OpenInferenceLLMProviderValues,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
 )
-
-# Import LlamaIndex LLM classes for provider detection
-from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
-from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
-from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
-from llama_index.llms.vertex import Vertex as LlamaIndexVertex
 
 # Import LLM_PROVIDER constant
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER

@@ -1,10 +1,5 @@
-from typing import Iterator
-from unittest.mock import Mock
 
-import pytest
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.llama_index._handler import _Span
 from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
