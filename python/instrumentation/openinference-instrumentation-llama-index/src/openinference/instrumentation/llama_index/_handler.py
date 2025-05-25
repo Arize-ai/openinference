@@ -115,6 +115,12 @@ from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
 from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
 from llama_index.core.workflow.errors import WorkflowDone
+
+# Import LlamaIndex LLM classes for provider detection
+from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
+from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
+from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
+from llama_index.llms.vertex import Vertex as LlamaIndexVertex
 from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
@@ -125,6 +131,7 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -132,6 +139,9 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+# Import LLM_PROVIDER constant
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -286,6 +296,32 @@ class _Span(BaseSpan):
         if metadata := instance.metadata:
             self[LLM_MODEL_NAME] = metadata.model_name
             self[LLM_INVOCATION_PARAMETERS] = metadata.json(exclude_unset=True)
+
+        # Provider detection
+        if isinstance(instance, LlamaIndexAzureOpenAI):
+            self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.AZURE.value
+        elif isinstance(instance, LlamaIndexOpenAI):
+            self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.OPENAI.value
+        elif isinstance(instance, LlamaIndexAnthropic):
+            self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.ANTHROPIC.value
+        elif isinstance(instance, LlamaIndexVertex):
+            self[LLM_PROVIDER] = (
+                OpenInferenceLLMProviderValues.GOOGLE.value
+            )  # Vertex AI is a Google Cloud service
+        else:
+            # Fallback to class name inspection
+            if "anthropic" in instance.__class__.__name__.lower():
+                self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.ANTHROPIC.value
+            elif "azure" in instance.__class__.__name__.lower():
+                self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.AZURE.value
+            elif "openai" in instance.__class__.__name__.lower():
+                self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.OPENAI.value
+            elif (
+                "google" in instance.__class__.__name__.lower()
+                or "vertex" in instance.__class__.__name__.lower()
+            ):
+                self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.GOOGLE.value
+            # Add other providers as needed
 
     @process_instance.register
     def _(self, instance: BaseEmbedding) -> None:
