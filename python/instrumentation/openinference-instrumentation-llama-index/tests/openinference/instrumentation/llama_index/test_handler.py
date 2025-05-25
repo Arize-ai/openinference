@@ -290,6 +290,7 @@ def test_handler_basic_retrieval(
         assert template_variables["query_str"] == question
         assert llm_attributes.pop(INPUT_VALUE, None) is not None
         assert llm_attributes.pop(INPUT_MIME_TYPE, None)
+        assert llm_attributes.pop(SpanAttributes.LLM_PROVIDER, None) == "openai"
         if status_code == 200:
             assert llm_span.status.status_code == trace_api.StatusCode.OK
             assert not llm_span.status.description
@@ -324,6 +325,7 @@ def test_handler_basic_retrieval(
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}", None) is not None
         assert openai_attributes.pop(INPUT_VALUE, None) is not None
         assert openai_attributes.pop(INPUT_MIME_TYPE, None)
+        assert openai_attributes.pop(SpanAttributes.LLM_PROVIDER, None) == "openai"
         if status_code == 200:
             assert openai_span.status.status_code == trace_api.StatusCode.OK
             assert not openai_span.status.description
