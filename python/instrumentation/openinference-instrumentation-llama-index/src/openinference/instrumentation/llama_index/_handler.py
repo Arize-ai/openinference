@@ -305,7 +305,9 @@ class _Span(BaseSpan):
         elif isinstance(instance, LlamaIndexAnthropic):
             self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.ANTHROPIC.value
         elif isinstance(instance, LlamaIndexVertex):
-            self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.GOOGLE.value  # Vertex AI is a Google Cloud service
+            self[LLM_PROVIDER] = (
+                OpenInferenceLLMProviderValues.GOOGLE.value
+            )  # Vertex AI is a Google Cloud service
         else:
             # Fallback to class name inspection
             if "anthropic" in instance.__class__.__name__.lower():
@@ -314,8 +316,10 @@ class _Span(BaseSpan):
                 self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.AZURE.value
             elif "openai" in instance.__class__.__name__.lower():
                 self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.OPENAI.value
-            elif "google" in instance.__class__.__name__.lower() or \
-                 "vertex" in instance.__class__.__name__.lower():
+            elif (
+                "google" in instance.__class__.__name__.lower()
+                or "vertex" in instance.__class__.__name__.lower()
+            ):
                 self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.GOOGLE.value
             # Add other providers as needed
 
