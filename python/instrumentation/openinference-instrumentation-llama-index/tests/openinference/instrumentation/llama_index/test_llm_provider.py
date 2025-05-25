@@ -24,10 +24,10 @@ class TestLLMProvider:
         tracer = tracer_provider.get_tracer(__name__)
         otel_span = tracer.start_span("test")
         span = _Span(otel_span=otel_span)
-        
+
         llm = OpenAI(model="gpt-4o-mini", api_key="sk-")
         span.process_instance(llm)
-        
+
         assert span._attributes.get(LLM_PROVIDER) == OpenInferenceLLMProviderValues.OPENAI.value
         otel_span.end()
 
@@ -42,7 +42,7 @@ class TestLLMProvider:
         tracer = tracer_provider.get_tracer(__name__)
         otel_span = tracer.start_span("test")
         span = _Span(otel_span=otel_span)
-        
+
         llm = AzureOpenAI(
             model="gpt-4o-mini",
             engine="gpt-4o-mini",  # Required parameter
@@ -51,7 +51,7 @@ class TestLLMProvider:
             api_version="2024-02-01",
         )
         span.process_instance(llm)
-        
+
         assert span._attributes.get(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AZURE.value
         otel_span.end()
 
@@ -66,10 +66,10 @@ class TestLLMProvider:
         tracer = tracer_provider.get_tracer(__name__)
         otel_span = tracer.start_span("test")
         span = _Span(otel_span=otel_span)
-        
+
         llm = Anthropic(model="claude-3-5-haiku-20241022", api_key="sk-ant-")
         span.process_instance(llm)
-        
+
         assert span._attributes.get(LLM_PROVIDER) == OpenInferenceLLMProviderValues.ANTHROPIC.value
         otel_span.end()
 
@@ -84,10 +84,10 @@ class TestLLMProvider:
         tracer = tracer_provider.get_tracer(__name__)
         otel_span = tracer.start_span("test")
         span = _Span(otel_span=otel_span)
-        
+
         llm = Vertex(model="gemini-1.5-flash", project="test-project", location="us-central1")
         span.process_instance(llm)
-        
+
         assert span._attributes.get(LLM_PROVIDER) == OpenInferenceLLMProviderValues.GOOGLE.value
         otel_span.end()
 
@@ -142,7 +142,7 @@ class TestLLMProvider:
         # Test with a mock LLM that has "anthropic" in the class name
         llm = MockAnthropicLLM()
         span.process_instance(llm)
-        
+
         assert span._attributes.get(LLM_PROVIDER) == OpenInferenceLLMProviderValues.ANTHROPIC.value
         otel_span.end()
 
@@ -197,7 +197,7 @@ class TestLLMProvider:
         # Test with a mock LLM that has no recognizable provider name
         llm = MockUnknownLLM()
         span.process_instance(llm)
-        
+
         # Should not have LLM_PROVIDER attribute for unknown providers
         assert LLM_PROVIDER not in span._attributes
         otel_span.end()
@@ -253,10 +253,10 @@ class TestLLMProvider:
         # Test with a mock LLM that has "google" in the class name
         llm = MockGoogleLLM()
         span.process_instance(llm)
-        
+
         assert span._attributes.get(LLM_PROVIDER) == OpenInferenceLLMProviderValues.GOOGLE.value
         otel_span.end()
 
 
 # Import the attribute constants
-LLM_PROVIDER = SpanAttributes.LLM_PROVIDER 
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
