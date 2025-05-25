@@ -1,3 +1,4 @@
+# type: ignore
 from opentelemetry.sdk.trace import TracerProvider
 
 from openinference.instrumentation.llama_index._handler import _Span
