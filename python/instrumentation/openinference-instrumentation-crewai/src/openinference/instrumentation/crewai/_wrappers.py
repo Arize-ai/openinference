@@ -208,7 +208,7 @@ class _KickoffWrapper:
                             "agent_role": task.agent.role if task.agent else "None",
                             "agent_key": task.agent.key if task.agent else None,
                             "context": [task.description for task in task.context]
-                            if task.context
+                            if isinstance(task.context, list)
                             else None,
                             "tools_names": [tool.name.casefold() for tool in task.tools or []],
                         }
