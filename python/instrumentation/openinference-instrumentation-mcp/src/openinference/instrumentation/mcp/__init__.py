@@ -272,10 +272,27 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
                 result = await wrapped(*args, **kwargs)
                 # Add output attributes
                 if hasattr(result, "contents") and result.contents:
+                    for i, content in enumerate(result.contents):
+                        if content.text:
+                            span.set_attribute(
+                                f"retrieval.documents.{i}.document.content", content.text
+                            )
+                            span.set_attribute(
+                                f"retrieval.documents.{i}.document.metadata",
+                                safe_json_dumps({"type": content.__class__.__name__}),
+                            )
+                        elif content.blob:
+                            span.set_attribute(
+                                f"retrieval.documents.{i}.document.content", content.blob
+                            )
+                            span.set_attribute(
+                                f"retrieval.documents.{i}.document.metadata",
+                                safe_json_dumps({"type": content.__class__.__name__}),
+                            )
+                        else:
+                            # fail silently for now
+                            print(f"Unknown document type: {type(content)}")
                     serialized_contents = [content.model_dump() for content in result.contents]
-                    span.set_attribute(
-                        SpanAttributes.RETRIEVAL_DOCUMENTS, safe_json_dumps(serialized_contents)
-                    )
                     span.set_attribute(
                         SpanAttributes.OUTPUT_VALUE,
                         safe_json_dumps({"contents": serialized_contents}),
