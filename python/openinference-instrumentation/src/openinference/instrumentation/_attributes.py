@@ -112,7 +112,7 @@ def get_retriever_attributes(*, documents: List[Document]) -> Dict[str, Attribut
 def _document_attributes(
     *,
     document: Document,
-    document_index: str,
+    document_index: int,
     key_prefix: str,
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if not isinstance(document, dict):
@@ -130,7 +130,7 @@ def _document_attributes(
             serialized_metadata = safe_json_dumps(metadata)
         yield key, serialized_metadata
     if (score := document.get("score")) is not None:
-        return f"{key_prefix}.{document_index}.{DOCUMENT_SCORE}", score
+        yield f"{key_prefix}.{document_index}.{DOCUMENT_SCORE}", score
 
 
 def get_embedding_attributes(
