@@ -20,7 +20,7 @@ tokenizers = "^0.21.1"
 openinference-semantic-conventions = "^0.1.15"
 dspy-ai = "^2.6.15"
 cohere = "^5.14.0"
-
+h11 = ">0.14.0"
 
 [build-system]
 requires = ["poetry-core"]
