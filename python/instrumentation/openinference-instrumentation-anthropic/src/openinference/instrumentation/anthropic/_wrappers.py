@@ -328,18 +328,64 @@ def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
     # cache_creation_input_tokens: Number of tokens written to the cache when creating a new entry.
     # cache_read_input_tokens: Number of tokens retrieved from the cache for this request.
     # input_tokens: Number of input tokens which were not read from or used to create a cache.
-    if prompt_tokens := (
+
+    # Get total tokens first
+    total_input_tokens = (
         usage.input_tokens
         + (usage.cache_creation_input_tokens or 0)
         + (usage.cache_read_input_tokens or 0)
-    ):
-        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if usage.output_tokens:
-        yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
-    if usage.cache_read_input_tokens:
-        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, usage.cache_read_input_tokens
-    if usage.cache_creation_input_tokens:
-        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, usage.cache_creation_input_tokens
+    )
+    total_output_tokens = usage.output_tokens
+
+    # Get special component tokens
+    cache_read_tokens = usage.cache_read_input_tokens
+    cache_write_tokens = usage.cache_creation_input_tokens
+    cache_input_tokens = getattr(usage, "cache_input", None)
+    audio_input_tokens = getattr(usage, "audio_tokens", None)
+    audio_output_tokens = None
+    reasoning_tokens = None
+    accepted_prediction_tokens = None
+
+    # Get completion details if available
+    if hasattr(usage, "completion_tokens_details"):
+        completion_details = usage.completion_tokens_details
+        if hasattr(completion_details, "audio_tokens"):
+            audio_output_tokens = completion_details.audio_tokens
+        if hasattr(completion_details, "reasoning_tokens"):
+            reasoning_tokens = completion_details.reasoning_tokens
+        if hasattr(completion_details, "accepted_prediction_tokens"):
+            accepted_prediction_tokens = completion_details.accepted_prediction_tokens
+
+    # Yield total tokens only if non-zero
+    if total_input_tokens and total_input_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT, total_input_tokens
+    if total_output_tokens and total_output_tokens > 0:
+        yield LLM_TOKEN_COUNT_COMPLETION, total_output_tokens
+
+    # Calculate and add total token count
+    total_tokens = (total_input_tokens or 0) + (total_output_tokens or 0)
+    if total_tokens > 0:
+        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+    # Yield special component tokens only if non-zero
+    if cache_read_tokens and cache_read_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_tokens
+    if cache_write_tokens and cache_write_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
+    if cache_input_tokens and cache_input_tokens > 0:
+        yield "llm.token_count.prompt_details.cache_input", cache_input_tokens
+    if audio_input_tokens and audio_input_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_input_tokens
+        # Also include the more explicit naming
+        yield "llm.token_count.prompt_details.audio_input", audio_input_tokens
+    if audio_output_tokens and audio_output_tokens > 0:
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, audio_output_tokens
+        # Also include the more explicit naming
+        yield "llm.token_count.completion_details.audio_output", audio_output_tokens
+    if reasoning_tokens and reasoning_tokens > 0:
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
+    if accepted_prediction_tokens and accepted_prediction_tokens > 0:
+        yield "llm.token_count.completion_details.accepted_prediction", accepted_prediction_tokens
 
 
 def _get_llm_model_name_from_input(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -517,6 +563,9 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMP
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
     SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
 )
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = "llm.token_count.prompt_details.audio_input"
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = "llm.token_count.completion_details.reasoning"
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = "llm.token_count.completion_details.audio_output"
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

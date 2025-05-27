@@ -152,8 +152,123 @@ class _ResponseExtractor:
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
         if not (result := self._response_accumulator._result()):
             return
-        if completion := result.get("completion", ""):
-            yield SpanAttributes.LLM_OUTPUT_MESSAGES, completion
+        messages = result.get("messages", [])
+        idx = 0
+        total_completion_token_count = 0
+        total_prompt_token_count = 0
+        # Dictionary to store detailed token counts
+        detailed_token_counts = {
+            "prompt_details": {
+                "audio_input": 0,
+                "cache_read": 0,
+                "cache_write": 0,
+                "cache_input": 0,
+            },
+            "completion_details": {
+                "audio_output": 0,
+                "reasoning": 0,
+                "accepted_prediction": 0,
+            },
+        }
+
+        # TODO(harrison): figure out if we should always assume messages is 1.
+        # The current non streaming implementation assumes the same
+        for message in messages:
+            if role := message.get("role"):
+                yield (
+                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}",
+                    role,
+                )
+            if output_tokens := message.get("output_tokens"):
+                total_completion_token_count += int(output_tokens)
+            if input_tokens := message.get("input_tokens"):
+                total_prompt_token_count += int(input_tokens)
+
+            # Extract detailed token information if available
+            if audio_input := message.get("audio_input_tokens"):
+                detailed_token_counts["prompt_details"]["audio_input"] += int(audio_input)
+            if cache_read := message.get("cache_read_input_tokens"):
+                detailed_token_counts["prompt_details"]["cache_read"] += int(cache_read)
+            if cache_write := message.get("cache_creation_input_tokens"):
+                detailed_token_counts["prompt_details"]["cache_write"] += int(cache_write)
+            if cache_input := message.get("cache_input_tokens"):
+                detailed_token_counts["prompt_details"]["cache_input"] += int(cache_input)
+            if audio_output := message.get("audio_output_tokens"):
+                detailed_token_counts["completion_details"]["audio_output"] += int(audio_output)
+            if reasoning := message.get("reasoning_tokens"):
+                detailed_token_counts["completion_details"]["reasoning"] += int(reasoning)
+            if accepted_prediction := message.get("accepted_prediction_tokens"):
+                detailed_token_counts["completion_details"]["accepted_prediction"] += int(
+                    accepted_prediction
+                )
+
+            # TODO(harrison): figure out if we should always assume the first message
+            #  will always be a message output generally this block feels really
+            #  brittle to imitate the current non streaming implementation.
+            tool_idx = 0
+            for content in message.get("content", []):
+                # this is the current assumption of the non streaming implementation.
+                if (content_type := content.get("type")) == "text":
+                    yield (
+                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}",
+                        content.get("text", ""),
+                    )
+                elif content_type == "tool_use":
+                    yield (
+                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                        content.get("tool_name", ""),
+                    )
+                    yield (
+                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        content.get("tool_input", "{}"),
+                    )
+                    tool_idx += 1
+            idx += 1
+
+        # Yield total tokens only if non-zero
+        if total_prompt_token_count > 0:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, total_prompt_token_count
+        if total_completion_token_count > 0:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, total_completion_token_count
+
+        total_tokens = total_completion_token_count + total_prompt_token_count
+        if total_tokens > 0:
+            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+        # Add detailed token counts if they're non-zero
+        # Prompt details
+        if detailed_token_counts["prompt_details"]["audio_input"] > 0:
+            yield (
+                "llm.token_count.prompt_details.audio_input",
+                detailed_token_counts["prompt_details"]["audio_input"],
+            )
+        if detailed_token_counts["prompt_details"]["cache_read"] > 0:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+                detailed_token_counts["prompt_details"]["cache_read"],
+            )
+        if detailed_token_counts["prompt_details"]["cache_write"] > 0:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+                detailed_token_counts["prompt_details"]["cache_write"],
+            )
+        if detailed_token_counts["prompt_details"]["cache_input"] > 0:
+            yield (
+                "llm.token_count.prompt_details.cache_input",
+                detailed_token_counts["prompt_details"]["cache_input"],
+            )
+
+        # Completion details
+        if detailed_token_counts["completion_details"]["audio_output"] > 0:
+            yield (
+                "llm.token_count.completion_details.audio_output",
+                detailed_token_counts["completion_details"]["audio_output"],
+            )
+        if detailed_token_counts["completion_details"]["reasoning"] > 0:
+            yield (
+                "llm.token_count.completion_details.reasoning",
+                detailed_token_counts["completion_details"]["reasoning"],
+            )
 
 
 class _MessagesStream(ObjectProxy):  # type: ignore
@@ -341,6 +456,21 @@ class _MessageResponseExtractor:
         idx = 0
         total_completion_token_count = 0
         total_prompt_token_count = 0
+        # Dictionary to store detailed token counts
+        detailed_token_counts = {
+            "prompt_details": {
+                "audio_input": 0,
+                "cache_read": 0,
+                "cache_write": 0,
+                "cache_input": 0,
+            },
+            "completion_details": {
+                "audio_output": 0,
+                "reasoning": 0,
+                "accepted_prediction": 0,
+            },
+        }
+
         # TODO(harrison): figure out if we should always assume messages is 1.
         # The current non streaming implementation assumes the same
         for message in messages:
@@ -353,6 +483,24 @@ class _MessageResponseExtractor:
                 total_completion_token_count += int(output_tokens)
             if input_tokens := message.get("input_tokens"):
                 total_prompt_token_count += int(input_tokens)
+
+            # Extract detailed token information if available
+            if audio_input := message.get("audio_input_tokens"):
+                detailed_token_counts["prompt_details"]["audio_input"] += int(audio_input)
+            if cache_read := message.get("cache_read_input_tokens"):
+                detailed_token_counts["prompt_details"]["cache_read"] += int(cache_read)
+            if cache_write := message.get("cache_creation_input_tokens"):
+                detailed_token_counts["prompt_details"]["cache_write"] += int(cache_write)
+            if cache_input := message.get("cache_input_tokens"):
+                detailed_token_counts["prompt_details"]["cache_input"] += int(cache_input)
+            if audio_output := message.get("audio_output_tokens"):
+                detailed_token_counts["completion_details"]["audio_output"] += int(audio_output)
+            if reasoning := message.get("reasoning_tokens"):
+                detailed_token_counts["completion_details"]["reasoning"] += int(reasoning)
+            if accepted_prediction := message.get("accepted_prediction_tokens"):
+                detailed_token_counts["completion_details"]["accepted_prediction"] += int(
+                    accepted_prediction
+                )
 
             # TODO(harrison): figure out if we should always assume the first message
             #  will always be a message output generally this block feels really
@@ -376,12 +524,51 @@ class _MessageResponseExtractor:
                     )
                     tool_idx += 1
             idx += 1
-        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, total_completion_token_count
-        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, total_prompt_token_count
-        yield (
-            SpanAttributes.LLM_TOKEN_COUNT_TOTAL,
-            total_completion_token_count + total_prompt_token_count,
-        )
+
+        # Yield total tokens only if non-zero
+        if total_prompt_token_count > 0:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, total_prompt_token_count
+        if total_completion_token_count > 0:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, total_completion_token_count
+
+        total_tokens = total_completion_token_count + total_prompt_token_count
+        if total_tokens > 0:
+            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+        # Add detailed token counts if they're non-zero
+        # Prompt details
+        if detailed_token_counts["prompt_details"]["audio_input"] > 0:
+            yield (
+                "llm.token_count.prompt_details.audio_input",
+                detailed_token_counts["prompt_details"]["audio_input"],
+            )
+        if detailed_token_counts["prompt_details"]["cache_read"] > 0:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+                detailed_token_counts["prompt_details"]["cache_read"],
+            )
+        if detailed_token_counts["prompt_details"]["cache_write"] > 0:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+                detailed_token_counts["prompt_details"]["cache_write"],
+            )
+        if detailed_token_counts["prompt_details"]["cache_input"] > 0:
+            yield (
+                "llm.token_count.prompt_details.cache_input",
+                detailed_token_counts["prompt_details"]["cache_input"],
+            )
+
+        # Completion details
+        if detailed_token_counts["completion_details"]["audio_output"] > 0:
+            yield (
+                "llm.token_count.completion_details.audio_output",
+                detailed_token_counts["completion_details"]["audio_output"],
+            )
+        if detailed_token_counts["completion_details"]["reasoning"] > 0:
+            yield (
+                "llm.token_count.completion_details.reasoning",
+                detailed_token_counts["completion_details"]["reasoning"],
+            )
 
 
 class _ValuesAccumulator:

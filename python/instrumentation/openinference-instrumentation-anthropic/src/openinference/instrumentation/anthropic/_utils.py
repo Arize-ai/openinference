@@ -51,6 +51,23 @@ def _finish_tracing(
 
 def _io_value_and_type(obj: Any) -> _ValueAndType:
     try:
+        # If object has a usage field, exclude it to avoid duplication
+        if isinstance(obj, dict) and "usage" in obj:
+            obj_without_usage = {k: v for k, v in obj.items() if k != "usage"}
+            return _ValueAndType(
+                safe_json_dumps(obj_without_usage), OpenInferenceMimeTypeValues.JSON
+            )
+        # Handle Anthropic response objects that might have a usage attribute
+        elif hasattr(obj, "usage") and hasattr(obj, "model_dump_json"):
+            try:
+                # For pydantic models with model_dump_json method
+                import json
+
+                model_dict = json.loads(obj.model_dump_json())
+                model_dict.pop("usage", None)
+                return _ValueAndType(json.dumps(model_dict), OpenInferenceMimeTypeValues.JSON)
+            except Exception:
+                pass
         return _ValueAndType(safe_json_dumps(obj), OpenInferenceMimeTypeValues.JSON)
     except Exception:
         logger.exception("Failed to get input attributes from request parameters.")
