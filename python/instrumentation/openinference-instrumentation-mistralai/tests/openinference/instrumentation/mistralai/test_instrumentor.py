@@ -32,6 +32,7 @@ from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -1386,3 +1387,298 @@ SESSION_ID = SpanAttributes.SESSION_ID
 USER_ID = SpanAttributes.USER_ID
 METADATA = SpanAttributes.METADATA
 TAG_TAGS = SpanAttributes.TAG_TAGS
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_synchronous_ocr_emits_expected_span(
+    use_context_attributes: bool,
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    """Test synchronous OCR functionality with proper span instrumentation."""
+    # Mock OCR response
+    respx.post("https://api.mistral.ai/v1/ocr").mock(
+        return_value=Response(
+            200,
+            json={
+                "model": "mistral-ocr-2505-completion",
+                "usage_info": {"pages_processed": 2, "doc_size_bytes": 1024000},
+                "document_annotation": "# Document Title\n\nThis is a sample document with structured content.\n\n## Section 1\n\nContent here with some **bold** text.\n\n| Column 1 | Column 2 |\n|----------|----------|\n| Data 1   | Data 2   |",  # noqa: E501
+                "pages": [
+                    {
+                        "index": 0,
+                        "markdown": "# Document Title\n\nThis is a sample document with structured content.\n\n## Section 1\n\nContent here with some **bold** text.\n\n![img-0.jpeg](img-0.jpeg)",  # noqa: E501
+                        "images": [
+                            {
+                                "id": "img-0.jpeg",
+                                "top_left_x": 28,
+                                "top_left_y": 107,
+                                "bottom_right_x": 330,
+                                "bottom_right_y": 278,
+                                "image_base64": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aH...",  # noqa: E501
+                                "image_annotation": None,
+                            }
+                        ],
+                        "dimensions": {"dpi": 200, "height": 915, "width": 672},  # noqa: E501
+                    },
+                    {
+                        "index": 1,
+                        "markdown": "| Column 1 | Column 2 |\n|----------|----------|\n| Data 1   | Data 2   |",  # noqa: E501
+                        "images": [],
+                        "dimensions": {"dpi": 200, "height": 915, "width": 672},  # noqa: E501
+                    },
+                ],
+            },
+        )
+    )
+
+    def mistral_ocr() -> Any:
+        return mistral_sync_client.ocr.process(
+            model="mistral-ocr-2505-completion",
+            document={"type": "document_url", "document_url": "https://example.com/sample.pdf"},
+            include_image_base64=True,
+        )
+
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            response = mistral_ocr()
+    else:
+        response = mistral_ocr()
+
+    # Verify response structure
+    assert hasattr(response, "model")
+    assert response.model == "mistral-ocr-2505-completion"
+    assert hasattr(response, "pages")
+    assert len(response.pages) == 2
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.is_ok
+    assert not span.status.description
+    assert len(span.events) == 0
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Check span kind is LLM (OCR uses LLM span kind for now)
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+
+    # Check input attributes
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+
+    # Check model name
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral-ocr-2505-completion"
+
+    # Check OCR-specific attributes (using actual field names from OCRUsageInfo)
+    assert attributes.pop("ocr.pages_processed") == 2
+    assert attributes.pop("ocr.document_size_bytes") == 1024000
+
+    # Check output structure - document_annotation is the main output
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+
+    # Check that pages are structured as LLM output messages
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        == "text"
+    )
+    assert "Document Title" in str(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+    )
+
+    # Check second page message
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        == "text"
+    )
+    assert "Column 1" in str(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+    )
+
+    # Check retrieval document structure
+    assert "Document Title" in str(attributes.pop("retrieval.documents.0.document.content"))
+    assert '"type": "ocr_page"' in str(attributes.pop("retrieval.documents.0.document.metadata"))
+    assert "Column 1" in str(attributes.pop("retrieval.documents.1.document.content"))
+    assert '"page_index": 1' in str(attributes.pop("retrieval.documents.1.document.metadata"))
+
+    # Check context attributes if used
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_synchronous_ocr_with_error_emits_span_with_exception(
+    use_context_attributes: bool,
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    """Test that OCR errors are properly instrumented."""
+    # Mock an error response
+    respx.post("https://api.mistral.ai/v1/ocr").mock(
+        return_value=Response(
+            400,
+            json={
+                "error": {"type": "invalid_request_error", "message": "Unsupported document format"}
+            },
+        )
+    )
+
+    def mistral_ocr_with_error() -> Any:
+        return mistral_sync_client.ocr.process(
+            model="mistral-ocr-2505-completion",
+            document={"type": "document_url", "document_url": "https://example.com/invalid.xyz"},
+        )
+
+    # Test that the function raises an exception
+    with pytest.raises(Exception):
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                mistral_ocr_with_error()
+        else:
+            mistral_ocr_with_error()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+
+    # Check that span recorded the error
+    assert not span.status.is_ok
+    assert span.status.description is not None
+    assert len(span.events) == 1
+
+    # Check that exception event was recorded
+    exception_event = span.events[0]
+    assert exception_event.name == "exception"
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Check basic span attributes
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+
+    # Check context attributes if used
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+
+
+@pytest.mark.parametrize("document_type", ["document_url", "image_url"])
+def test_ocr_document_types(
+    document_type: str,
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    """Test OCR with different document types (PDF vs image)."""
+    # Mock OCR response
+    respx.post("https://api.mistral.ai/v1/ocr").mock(
+        return_value=Response(
+            200,
+            json={
+                "model": "mistral-ocr-2505-completion",
+                "usage_info": {"pages_processed": 1, "doc_size_bytes": 256000},
+                "document_annotation": f"# {document_type.title()} Content\n\nProcessed from {document_type}",  # noqa: E501
+                "pages": [
+                    {
+                        "index": 0,
+                        "markdown": f"# {document_type.title()} Content\n\nProcessed from {document_type}",  # noqa: E501
+                        "images": [],
+                        "dimensions": {"dpi": 200, "height": 600, "width": 800},
+                    }
+                ],
+            },
+        )
+    )
+
+    if document_type == "document_url":
+        document_spec: Any = {
+            "type": "document_url",
+            "document_url": "https://example.com/test.pdf",
+        }
+    else:  # image_url
+        document_spec = {
+            "type": "image_url",
+            "image_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",  # noqa: E501
+        }
+
+    response = mistral_sync_client.ocr.process(
+        model="mistral-ocr-2505-completion", document=document_spec
+    )
+
+    # Verify response
+    assert hasattr(response, "model")
+    assert response.model == "mistral-ocr-2505-completion"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.is_ok
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Check that input contains the document type
+    input_value = attributes.get(INPUT_VALUE)
+    assert input_value is not None
+    assert document_type in str(input_value)

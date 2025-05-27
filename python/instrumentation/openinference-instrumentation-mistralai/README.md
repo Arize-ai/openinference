@@ -76,6 +76,74 @@ Now simply run the python file and observe the traces in Phoenix.
 python your_file.py
 ```
 
+## OCR and Input Image Tracing
+
+The MistralAI instrumentation automatically traces input images and documents passed to the OCR API, following OpenInference semantic conventions. This includes:
+
+### Supported Input Types
+
+- **HTTP Image URLs**: `https://example.com/image.jpg`
+- **Base64 Images**: `data:image/jpeg;base64,{base64_data}`  
+- **PDF URLs**: `https://example.com/document.pdf`
+- **Base64 PDFs**: `data:application/pdf;base64,{base64_data}`
+
+### Trace Attributes
+
+For **image inputs**, the instrumentation creates:
+- `input.message_content.type`: `"image"`
+- `input.message_content.image.image.url`: The image URL or base64 data URL
+- `input.message_content.image.metadata`: JSON metadata including source, encoding type, and MIME type
+
+For **document inputs**, the instrumentation creates:
+- `input.message_content.type`: `"document"`  
+- `input.document.url`: The document URL or base64 data URL
+- `input.document.metadata`: JSON metadata including source, encoding type, and MIME type
+
+### Example Usage
+
+```python
+import base64
+import os
+from mistralai import Mistral
+from openinference.instrumentation.mistralai import MistralAIInstrumentor
+
+# Set up instrumentation
+MistralAIInstrumentor().instrument()
+
+client = Mistral(api_key=os.environ["MISTRAL_API_KEY"])
+
+# OCR with HTTP image URL
+response = client.ocr.process(
+    model="mistral-ocr-latest",
+    document={
+        "type": "image_url",
+        "image_url": "https://example.com/receipt.png"
+    },
+    include_image_base64=True
+)
+
+# OCR with base64 image  
+with open("image.jpg", "rb") as f:
+    base64_image = base64.b64encode(f.read()).decode('utf-8')
+
+response = client.ocr.process(
+    model="mistral-ocr-latest", 
+    document={
+        "type": "image_url",
+        "image_url": f"data:image/jpeg;base64,{base64_image}"
+    },
+    include_image_base64=True
+)
+```
+
+### Privacy and Configuration
+
+Input image tracing works seamlessly with [TraceConfig](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration) for:
+
+- **Image size limits**: Control maximum base64 image length with `base64_image_max_length`
+- **Privacy controls**: Hide input images with `hide_inputs` or `hide_input_images`
+- **MIME type detection**: Automatic detection and proper formatting of image data URLs
+
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
