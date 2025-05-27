@@ -1084,4 +1084,609 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Senior Hello
+      Sayer. You work at a greeting store.\\n            Your expertise is greeting
+      people\\n            Your parents were greeters, your grand parents were greeters.\\n
+      \           You were born. Nay, destined to be a greeter\\nYour personal goal
+      is: Greet everyone you meet\\nYou ONLY have access to the following tools, and
+      should NEVER make up tools that are not listed here:\\n\\nTool Name: Search
+      the internet with Serper\\nTool Arguments: {'search_query': {'description':
+      'Mandatory search query you want to use to search the internet', 'type': 'str'}}\\nTool
+      Description: A tool that can be used to search the internet with a search_query.
+      Supports different search types: 'search' (default), 'news'\\n\\nIMPORTANT:
+      Use the following format in your response:\\n\\n```\\nThought: you should always
+      think about what to do\\nAction: the action to take, only one name of [Search
+      the internet with Serper], just the name, exactly as it's written.\\nAction
+      Input: the input to the action, just a simple JSON object, enclosed in curly
+      braces, using \\\" to wrap keys and values.\\nObservation: the result of the
+      action\\n```\\n\\nOnce all necessary information is gathered, return the following
+      format:\\n\\n```\\nThought: I now know the final answer\\nFinal Answer: the
+      final answer to the original input question\\n```\"},{\"role\":\"user\",\"content\":\"\\nCurrent
+      Task: greet like you've never greeted before\\n\\nThis is the expected criteria
+      for your final answer: A greeting in bullet points\\nyou MUST return the actual
+      complete content as the final answer, not a summary.\\n\\nBegin! This is VERY
+      important to you, use the tools available and give your best Final Answer, your
+      job depends on it!\\n\\nThought:\"},{\"role\":\"assistant\",\"content\":\"{'searchParameters':
+      {'q': 'unique and creative greetings', 'type': 'search', 'num': 10, 'engine':
+      'google'}, 'organic': [{'title': '120 Cool And Creative Ways to Say Hello |
+      PINKVILLA', 'link': 'https://www.pinkvilla.com/lifestyle/relationships/ways-to-say-hello-1200199',
+      'snippet': \\\"120 Cool And Creative Ways to Say Hello \xB7 1. Howdy bro! Tell
+      me what's new going on! \xB7 2. Hey there, buddy! Wassup? \xB7 3. Wassup, partner!
+      \xB7 4.\\\", 'position': 1}, {'title': '123 Cool And Different Ways To Say Hello
+      And Greet People', 'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/',
+      'snippet': '123 Cool And Different Ways To Say Hello And Greet People. From
+      Aloha to Zdravstvuyte, explore unique greetings that spice up conversations
+      and impress!', 'position': 2, 'sitelinks': [{'title': 'Informal Ways To Say
+      Hello To...', 'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/#informal-ways-to-say-hello-to-people'},
+      {'title': 'Non-Verbal Cues That...', 'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/#non-verbal-cues-that-accompany-greetings-in-certain-cultures'}]},
+      {'title': \\\"What are some fun and unique ways to say hello instead of just
+      'hello'?\\\", 'link': 'https://www.reddit.com/r/AskReddit/comments/1b0pr1h/what_are_some_fun_and_unique_ways_to_say_hello/',
+      'snippet': 'Greetings From The Mortal Plane, Emperors Light be Upon You, and
+      of course if you dislike the person, Let us become better strangers.', 'position':
+      3, 'sitelinks': [{'title': 'What different ways are there to greet people? Funny
+      answers only ...', 'link': 'https://www.reddit.com/r/EnglishLearning/comments/mnhilj/what_different_ways_are_there_to_greet_people/'},
+      {'title': \\\"What's a more creative way to say hello? : r/AskReddit\\\", 'link':
+      'https://www.reddit.com/r/AskReddit/comments/cn8iwu/whats_a_more_creative_way_to_say_hello/'},
+      {'title': 'Reddit I\\\\'m tired of greeting people with \\\" hello \\\", \\\"
+      how are you doing ...', 'link': 'https://www.reddit.com/r/AskReddit/comments/12834i/reddit_im_tired_of_greeting_people_with_hello_how/'},
+      {'title': 'What are some unique greetings of your world? : r/worldbuilding',
+      'link': 'https://www.reddit.com/r/worldbuilding/comments/1ekdqa5/what_are_some_unique_greetings_of_your_world/'}]},
+      {'title': 'Exploring 45 Funny and Creative Ways to Say Hello - Dialaxy', 'link':
+      'https://dialaxy.com/blogs/funny-and-creative-ways-to-say-hello/', 'snippet':
+      \\\"Ditch the boring \u201CHello in English\u201D and try something unique like
+      \u201CWhat's kickin', little chicken?\u201D to make your chats more lively and
+      memorable ...\\\", 'position': 4}, {'title': 'Funny Ways to Say Hello: 45 Cool
+      and Creative Options - wikiHow', 'link': 'https://www.wikihow.com/Funny-Ways-to-Say-Hello',
+      'snippet': \\\"Steps \xB7 \u201CHowdy.\u201D \xB7 \u201CAhoy, matey.\u201D \xB7
+      \u201CAloha.\u201D \xB7 \u201CYo yo yo!\u201D \xB7 \u201CWhat's kickin', chicken?\u201D
+      \xB7 \u201CHow do lions greet other animals? Pleased to eat you!\u201D \xB7
+      \u201CSalutations ...\\\", 'position': 5}, {'title': 'Keeping Morning Meeting
+      Greetings Fresh and Fun', 'link': 'https://www.responsiveclassroom.org/keeping-morning-meeting-greetings-fresh-and-fun/',
+      'snippet': 'Here are answers to questions teachers frequently ask about greetings.
+      (The answers apply to the group activity component, too.)', 'position': 6},
+      {'title': 'English greetings: 29 words and phrases to say \u201Chello\u201D
+      in style - Preply', 'link': 'https://preply.com/en/blog/22-useful-english-greetings-for-every-day/',
+      'snippet': 'Discover 50+ English greetings that will make you sound like a pro
+      and have better conversations with native speakers.', 'position': 7}, {'title':
+      'Unique Wishes - The Best Gifts Starting from $25.99', 'link': 'https://uniquewishes.shop/?srsltid=AfmBOoq5o55gYJFzmNGGkmA5yalVYhomClzuD6ZtPfhtajqdbnb-5AUv',
+      'snippet': 'Browse our collection of funny birthday wishes & gifts and choose
+      the perfect one for your loved ones. Prices start from $25.99. Shop now!', 'position':
+      8, 'sitelinks': [{'title': 'African Dance Greetings', 'link': 'https://uniquewishes.shop/pages/african-dance-greeting'},
+      {'title': 'Dance Greetings From...', 'link': 'https://uniquewishes.shop/products/dance-greetings-from-bangladesh'},
+      {'title': 'Shop Dance Greetings at...', 'link': 'https://uniquewishes.shop/pages/bangledash-dance-greetings'}]},
+      {'title': '20 Terrific Alternatives to \u201CHello\u201D - Mental Floss', 'link':
+      'https://www.mentalfloss.com/article/55480/15-terrific-alternatives-hello',
+      'snippet': \\\"20 Terrific Alternatives to \u201CHello\u201D \xB7 1. What's
+      the craic? \xB7 2. How hops it? \xB7 3. Ahoy \xB7 4. [Hat Tip] \xB7 5. Ciao
+      \xB7 6. Chello! \xB7 7. Wotchero! \xB7 8.\\\", 'position': 9}, {'title': '107
+      Unique Ways To Say Hello In English For Every Occasion', 'link': 'https://edmora.org/unique-ways-to-say-hello-in-english/',
+      'snippet': 'From time-specific greetings like \u201CGood morning\u201D to more
+      laid-back expressions such as \u201CHowdy,\u201D the variety of informal hellos
+      adds color and warmth to our ...', 'position': 10}], 'peopleAlsoAsk': [{'question':
+      'How do you greet in a creative way?', 'snippet': \\\"HERE ARE A FEW CUTE WAYS
+      TO SAY HELLO:\\\\n1\\\\n\u201CWhat's good, boo boo?\u201D\\\\n2\\\\n\u201CHey
+      there hot stuff.\u201D\\\\n3\\\\n\u201CHi! I like your face.\u201D\\\\n4\\\\n\u201CAye
+      baby, how you doin'?\u201D\\\", 'title': 'Funny Ways to Say Hello: 45 Cool and
+      Creative Options - wikiHow', 'link': 'https://www.wikihow.com/Funny-Ways-to-Say-Hello'},
+      {'question': 'What is a fancy way of greeting people?', 'snippet': 'Nice to
+      meet you / Pleased to meet you This is one of the respectful greeting examples
+      you can use replying to someone you meet for the very first time. For example:
+      A: Good morning.', 'title': 'English greetings: 29 words and phrases to say
+      \u201Chello\u201D in style - Preply', 'link': 'https://preply.com/en/blog/22-useful-english-greetings-for-every-day/'},
+      {'question': 'How to greet someone in a fun way?', 'snippet': \\\"1. ``Hey there,
+      sunshine!''\\\\n2. ``Good day to you! \U0001F60A''\\\\n3. ``Greetings, cutie
+      pie!''\\\\n4. ``Hey, you! How's it going?''\\\\n5. ``Sending a virtual hug and
+      a cheerful 'hi'!''\\\\n6. ``Just wanted to say hi and make you smile!''\\\\n7.
+      ``Hey, beautiful/handsome! What's up?''\\\\n8. ``Hiya, lovely! Ready to brighten
+      the day?''\\\", 'title': 'What are some cute ways to say hi in a text? - Quora',
+      'link': 'https://www.quora.com/What-are-some-cute-ways-to-say-hi-in-a-text'},
+      {'question': 'How do you greet everyone in a unique way?', 'snippet': \\\"FORMAL
+      WAYS TO SAY HELLO TO PEOPLE\\\\n1\\\\nPleased to meet you.\\\\n2\\\\nIt's nice
+      to meet you.\\\\n3\\\\nHello. It's a pleasure to meet you.\\\\n4\\\\nIt's good
+      to see you again.\\\\n5\\\\nIt's good to meet you again.\\\\n6\\\\nHello. How
+      have you been?\\\\n7\\\\nHi. How's your day going?\\\\n8\\\\nHow are you doing
+      today?\\\", 'title': '123 Cool And Different Ways To Say Hello And Greet People',
+      'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/'}], 'relatedSearches':
+      [{'query': 'Unique and creative greetings to say hello'}, {'query': 'Funny ways
+      to say hello over text'}, {'query': 'Unique and creative greetings for friends'},
+      {'query': 'Creative ways to say hello formally'}, {'query': 'Short funny greetings'},
+      {'query': 'Creative ways to say hello to a guy'}, {'query': 'Funny ways to say
+      hello that rhyme'}, {'query': 'Creative ways to say hello to a girl'}], 'credits':
+      1}\"},{\"role\":\"assistant\",\"content\":\"I should think about how to create
+      an exceptional and memorable greeting. \\n\\nAction: Search the internet with
+      Serper  \\nAction Input: {\\\"search_query\\\": \\\"unique and creative greetings\\\"}
+      \ \\nObservation: {'searchParameters': {'q': 'unique and creative greetings',
+      'type': 'search', 'num': 10, 'engine': 'google'}, 'organic': [{'title': '120
+      Cool And Creative Ways to Say Hello | PINKVILLA', 'link': 'https://www.pinkvilla.com/lifestyle/relationships/ways-to-say-hello-1200199',
+      'snippet': \\\"120 Cool And Creative Ways to Say Hello \xB7 1. Howdy bro! Tell
+      me what's new going on! \xB7 2. Hey there, buddy! Wassup? \xB7 3. Wassup, partner!
+      \xB7 4.\\\", 'position': 1}, {'title': '123 Cool And Different Ways To Say Hello
+      And Greet People', 'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/',
+      'snippet': '123 Cool And Different Ways To Say Hello And Greet People. From
+      Aloha to Zdravstvuyte, explore unique greetings that spice up conversations
+      and impress!', 'position': 2, 'sitelinks': [{'title': 'Informal Ways To Say
+      Hello To...', 'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/#informal-ways-to-say-hello-to-people'},
+      {'title': 'Non-Verbal Cues That...', 'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/#non-verbal-cues-that-accompany-greetings-in-certain-cultures'}]},
+      {'title': \\\"What are some fun and unique ways to say hello instead of just
+      'hello'?\\\", 'link': 'https://www.reddit.com/r/AskReddit/comments/1b0pr1h/what_are_some_fun_and_unique_ways_to_say_hello/',
+      'snippet': 'Greetings From The Mortal Plane, Emperors Light be Upon You, and
+      of course if you dislike the person, Let us become better strangers.', 'position':
+      3, 'sitelinks': [{'title': 'What different ways are there to greet people? Funny
+      answers only ...', 'link': 'https://www.reddit.com/r/EnglishLearning/comments/mnhilj/what_different_ways_are_there_to_greet_people/'},
+      {'title': \\\"What's a more creative way to say hello? : r/AskReddit\\\", 'link':
+      'https://www.reddit.com/r/AskReddit/comments/cn8iwu/whats_a_more_creative_way_to_say_hello/'},
+      {'title': 'Reddit I\\\\'m tired of greeting people with \\\" hello \\\", \\\"
+      how are you doing ...', 'link': 'https://www.reddit.com/r/AskReddit/comments/12834i/reddit_im_tired_of_greeting_people_with_hello_how/'},
+      {'title': 'What are some unique greetings of your world? : r/worldbuilding',
+      'link': 'https://www.reddit.com/r/worldbuilding/comments/1ekdqa5/what_are_some_unique_greetings_of_your_world/'}]},
+      {'title': 'Exploring 45 Funny and Creative Ways to Say Hello - Dialaxy', 'link':
+      'https://dialaxy.com/blogs/funny-and-creative-ways-to-say-hello/', 'snippet':
+      \\\"Ditch the boring \u201CHello in English\u201D and try something unique like
+      \u201CWhat's kickin', little chicken?\u201D to make your chats more lively and
+      memorable ...\\\", 'position': 4}, {'title': 'Funny Ways to Say Hello: 45 Cool
+      and Creative Options - wikiHow', 'link': 'https://www.wikihow.com/Funny-Ways-to-Say-Hello',
+      'snippet': \\\"Steps \xB7 \u201CHowdy.\u201D \xB7 \u201CAhoy, matey.\u201D \xB7
+      \u201CAloha.\u201D \xB7 \u201CYo yo yo!\u201D \xB7 \u201CWhat's kickin', chicken?\u201D
+      \xB7 \u201CHow do lions greet other animals? Pleased to eat you!\u201D \xB7
+      \u201CSalutations ...\\\", 'position': 5}, {'title': 'Keeping Morning Meeting
+      Greetings Fresh and Fun', 'link': 'https://www.responsiveclassroom.org/keeping-morning-meeting-greetings-fresh-and-fun/',
+      'snippet': 'Here are answers to questions teachers frequently ask about greetings.
+      (The answers apply to the group activity component, too.)', 'position': 6},
+      {'title': 'English greetings: 29 words and phrases to say \u201Chello\u201D
+      in style - Preply', 'link': 'https://preply.com/en/blog/22-useful-english-greetings-for-every-day/',
+      'snippet': 'Discover 50+ English greetings that will make you sound like a pro
+      and have better conversations with native speakers.', 'position': 7}, {'title':
+      'Unique Wishes - The Best Gifts Starting from $25.99', 'link': 'https://uniquewishes.shop/?srsltid=AfmBOoq5o55gYJFzmNGGkmA5yalVYhomClzuD6ZtPfhtajqdbnb-5AUv',
+      'snippet': 'Browse our collection of funny birthday wishes & gifts and choose
+      the perfect one for your loved ones. Prices start from $25.99. Shop now!', 'position':
+      8, 'sitelinks': [{'title': 'African Dance Greetings', 'link': 'https://uniquewishes.shop/pages/african-dance-greeting'},
+      {'title': 'Dance Greetings From...', 'link': 'https://uniquewishes.shop/products/dance-greetings-from-bangladesh'},
+      {'title': 'Shop Dance Greetings at...', 'link': 'https://uniquewishes.shop/pages/bangledash-dance-greetings'}]},
+      {'title': '20 Terrific Alternatives to \u201CHello\u201D - Mental Floss', 'link':
+      'https://www.mentalfloss.com/article/55480/15-terrific-alternatives-hello',
+      'snippet': \\\"20 Terrific Alternatives to \u201CHello\u201D \xB7 1. What's
+      the craic? \xB7 2. How hops it? \xB7 3. Ahoy \xB7 4. [Hat Tip] \xB7 5. Ciao
+      \xB7 6. Chello! \xB7 7. Wotchero! \xB7 8.\\\", 'position': 9}, {'title': '107
+      Unique Ways To Say Hello In English For Every Occasion', 'link': 'https://edmora.org/unique-ways-to-say-hello-in-english/',
+      'snippet': 'From time-specific greetings like \u201CGood morning\u201D to more
+      laid-back expressions such as \u201CHowdy,\u201D the variety of informal hellos
+      adds color and warmth to our ...', 'position': 10}], 'peopleAlsoAsk': [{'question':
+      'How do you greet in a creative way?', 'snippet': \\\"HERE ARE A FEW CUTE WAYS
+      TO SAY HELLO:\\\\n1\\\\n\u201CWhat's good, boo boo?\u201D\\\\n2\\\\n\u201CHey
+      there hot stuff.\u201D\\\\n3\\\\n\u201CHi! I like your face.\u201D\\\\n4\\\\n\u201CAye
+      baby, how you doin'?\u201D\\\", 'title': 'Funny Ways to Say Hello: 45 Cool and
+      Creative Options - wikiHow', 'link': 'https://www.wikihow.com/Funny-Ways-to-Say-Hello'},
+      {'question': 'What is a fancy way of greeting people?', 'snippet': 'Nice to
+      meet you / Pleased to meet you This is one of the respectful greeting examples
+      you can use replying to someone you meet for the very first time. For example:
+      A: Good morning.', 'title': 'English greetings: 29 words and phrases to say
+      \u201Chello\u201D in style - Preply', 'link': 'https://preply.com/en/blog/22-useful-english-greetings-for-every-day/'},
+      {'question': 'How to greet someone in a fun way?', 'snippet': \\\"1. ``Hey there,
+      sunshine!''\\\\n2. ``Good day to you! \U0001F60A''\\\\n3. ``Greetings, cutie
+      pie!''\\\\n4. ``Hey, you! How's it going?''\\\\n5. ``Sending a virtual hug and
+      a cheerful 'hi'!''\\\\n6. ``Just wanted to say hi and make you smile!''\\\\n7.
+      ``Hey, beautiful/handsome! What's up?''\\\\n8. ``Hiya, lovely! Ready to brighten
+      the day?''\\\", 'title': 'What are some cute ways to say hi in a text? - Quora',
+      'link': 'https://www.quora.com/What-are-some-cute-ways-to-say-hi-in-a-text'},
+      {'question': 'How do you greet everyone in a unique way?', 'snippet': \\\"FORMAL
+      WAYS TO SAY HELLO TO PEOPLE\\\\n1\\\\nPleased to meet you.\\\\n2\\\\nIt's nice
+      to meet you.\\\\n3\\\\nHello. It's a pleasure to meet you.\\\\n4\\\\nIt's good
+      to see you again.\\\\n5\\\\nIt's good to meet you again.\\\\n6\\\\nHello. How
+      have you been?\\\\n7\\\\nHi. How's your day going?\\\\n8\\\\nHow are you doing
+      today?\\\", 'title': '123 Cool And Different Ways To Say Hello And Greet People',
+      'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/'}], 'relatedSearches':
+      [{'query': 'Unique and creative greetings to say hello'}, {'query': 'Funny ways
+      to say hello over text'}, {'query': 'Unique and creative greetings for friends'},
+      {'query': 'Creative ways to say hello formally'}, {'query': 'Short funny greetings'},
+      {'query': 'Creative ways to say hello to a guy'}, {'query': 'Funny ways to say
+      hello that rhyme'}, {'query': 'Creative ways to say hello to a girl'}], 'credits':
+      1}\"},{\"role\":\"assistant\",\"content\":\"I should think about how to create
+      an exceptional and memorable greeting. \\n\\nAction: Search the internet with
+      Serper  \\nAction Input: {\\\"search_query\\\": \\\"unique and creative greetings\\\"}
+      \ \\nObservation: {'searchParameters': {'q': 'unique and creative greetings',
+      'type': 'search', 'num': 10, 'engine': 'google'}, 'organic': [{'title': '120
+      Cool And Creative Ways to Say Hello | PINKVILLA', 'link': 'https://www.pinkvilla.com/lifestyle/relationships/ways-to-say-hello-1200199',
+      'snippet': \\\"120 Cool And Creative Ways to Say Hello \xB7 1. Howdy bro! Tell
+      me what's new going on! \xB7 2. Hey there, buddy! Wassup? \xB7 3. Wassup, partner!
+      \xB7 4.\\\", 'position': 1}, {'title': '123 Cool And Different Ways To Say Hello
+      And Greet People', 'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/',
+      'snippet': '123 Cool And Different Ways To Say Hello And Greet People. From
+      Aloha to Zdravstvuyte, explore unique greetings that spice up conversations
+      and impress!', 'position': 2, 'sitelinks': [{'title': 'Informal Ways To Say
+      Hello To...', 'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/#informal-ways-to-say-hello-to-people'},
+      {'title': 'Non-Verbal Cues That...', 'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/#non-verbal-cues-that-accompany-greetings-in-certain-cultures'}]},
+      {'title': \\\"What are some fun and unique ways to say hello instead of just
+      'hello'?\\\", 'link': 'https://www.reddit.com/r/AskReddit/comments/1b0pr1h/what_are_some_fun_and_unique_ways_to_say_hello/',
+      'snippet': 'Greetings From The Mortal Plane, Emperors Light be Upon You, and
+      of course if you dislike the person, Let us become better strangers.', 'position':
+      3, 'sitelinks': [{'title': 'What different ways are there to greet people? Funny
+      answers only ...', 'link': 'https://www.reddit.com/r/EnglishLearning/comments/mnhilj/what_different_ways_are_there_to_greet_people/'},
+      {'title': \\\"What's a more creative way to say hello? : r/AskReddit\\\", 'link':
+      'https://www.reddit.com/r/AskReddit/comments/cn8iwu/whats_a_more_creative_way_to_say_hello/'},
+      {'title': 'Reddit I\\\\'m tired of greeting people with \\\" hello \\\", \\\"
+      how are you doing ...', 'link': 'https://www.reddit.com/r/AskReddit/comments/12834i/reddit_im_tired_of_greeting_people_with_hello_how/'},
+      {'title': 'What are some unique greetings of your world? : r/worldbuilding',
+      'link': 'https://www.reddit.com/r/worldbuilding/comments/1ekdqa5/what_are_some_unique_greetings_of_your_world/'}]},
+      {'title': 'Exploring 45 Funny and Creative Ways to Say Hello - Dialaxy', 'link':
+      'https://dialaxy.com/blogs/funny-and-creative-ways-to-say-hello/', 'snippet':
+      \\\"Ditch the boring \u201CHello in English\u201D and try something unique like
+      \u201CWhat's kickin', little chicken?\u201D to make your chats more lively and
+      memorable ...\\\", 'position': 4}, {'title': 'Funny Ways to Say Hello: 45 Cool
+      and Creative Options - wikiHow', 'link': 'https://www.wikihow.com/Funny-Ways-to-Say-Hello',
+      'snippet': \\\"Steps \xB7 \u201CHowdy.\u201D \xB7 \u201CAhoy, matey.\u201D \xB7
+      \u201CAloha.\u201D \xB7 \u201CYo yo yo!\u201D \xB7 \u201CWhat's kickin', chicken?\u201D
+      \xB7 \u201CHow do lions greet other animals? Pleased to eat you!\u201D \xB7
+      \u201CSalutations ...\\\", 'position': 5}, {'title': 'Keeping Morning Meeting
+      Greetings Fresh and Fun', 'link': 'https://www.responsiveclassroom.org/keeping-morning-meeting-greetings-fresh-and-fun/',
+      'snippet': 'Here are answers to questions teachers frequently ask about greetings.
+      (The answers apply to the group activity component, too.)', 'position': 6},
+      {'title': 'English greetings: 29 words and phrases to say \u201Chello\u201D
+      in style - Preply', 'link': 'https://preply.com/en/blog/22-useful-english-greetings-for-every-day/',
+      'snippet': 'Discover 50+ English greetings that will make you sound like a pro
+      and have better conversations with native speakers.', 'position': 7}, {'title':
+      'Unique Wishes - The Best Gifts Starting from $25.99', 'link': 'https://uniquewishes.shop/?srsltid=AfmBOoq5o55gYJFzmNGGkmA5yalVYhomClzuD6ZtPfhtajqdbnb-5AUv',
+      'snippet': 'Browse our collection of funny birthday wishes & gifts and choose
+      the perfect one for your loved ones. Prices start from $25.99. Shop now!', 'position':
+      8, 'sitelinks': [{'title': 'African Dance Greetings', 'link': 'https://uniquewishes.shop/pages/african-dance-greeting'},
+      {'title': 'Dance Greetings From...', 'link': 'https://uniquewishes.shop/products/dance-greetings-from-bangladesh'},
+      {'title': 'Shop Dance Greetings at...', 'link': 'https://uniquewishes.shop/pages/bangledash-dance-greetings'}]},
+      {'title': '20 Terrific Alternatives to \u201CHello\u201D - Mental Floss', 'link':
+      'https://www.mentalfloss.com/article/55480/15-terrific-alternatives-hello',
+      'snippet': \\\"20 Terrific Alternatives to \u201CHello\u201D \xB7 1. What's
+      the craic? \xB7 2. How hops it? \xB7 3. Ahoy \xB7 4. [Hat Tip] \xB7 5. Ciao
+      \xB7 6. Chello! \xB7 7. Wotchero! \xB7 8.\\\", 'position': 9}, {'title': '107
+      Unique Ways To Say Hello In English For Every Occasion', 'link': 'https://edmora.org/unique-ways-to-say-hello-in-english/',
+      'snippet': 'From time-specific greetings like \u201CGood morning\u201D to more
+      laid-back expressions such as \u201CHowdy,\u201D the variety of informal hellos
+      adds color and warmth to our ...', 'position': 10}], 'peopleAlsoAsk': [{'question':
+      'How do you greet in a creative way?', 'snippet': \\\"HERE ARE A FEW CUTE WAYS
+      TO SAY HELLO:\\\\n1\\\\n\u201CWhat's good, boo boo?\u201D\\\\n2\\\\n\u201CHey
+      there hot stuff.\u201D\\\\n3\\\\n\u201CHi! I like your face.\u201D\\\\n4\\\\n\u201CAye
+      baby, how you doin'?\u201D\\\", 'title': 'Funny Ways to Say Hello: 45 Cool and
+      Creative Options - wikiHow', 'link': 'https://www.wikihow.com/Funny-Ways-to-Say-Hello'},
+      {'question': 'What is a fancy way of greeting people?', 'snippet': 'Nice to
+      meet you / Pleased to meet you This is one of the respectful greeting examples
+      you can use replying to someone you meet for the very first time. For example:
+      A: Good morning.', 'title': 'English greetings: 29 words and phrases to say
+      \u201Chello\u201D in style - Preply', 'link': 'https://preply.com/en/blog/22-useful-english-greetings-for-every-day/'},
+      {'question': 'How to greet someone in a fun way?', 'snippet': \\\"1. ``Hey there,
+      sunshine!''\\\\n2. ``Good day to you! \U0001F60A''\\\\n3. ``Greetings, cutie
+      pie!''\\\\n4. ``Hey, you! How's it going?''\\\\n5. ``Sending a virtual hug and
+      a cheerful 'hi'!''\\\\n6. ``Just wanted to say hi and make you smile!''\\\\n7.
+      ``Hey, beautiful/handsome! What's up?''\\\\n8. ``Hiya, lovely! Ready to brighten
+      the day?''\\\", 'title': 'What are some cute ways to say hi in a text? - Quora',
+      'link': 'https://www.quora.com/What-are-some-cute-ways-to-say-hi-in-a-text'},
+      {'question': 'How do you greet everyone in a unique way?', 'snippet': \\\"FORMAL
+      WAYS TO SAY HELLO TO PEOPLE\\\\n1\\\\nPleased to meet you.\\\\n2\\\\nIt's nice
+      to meet you.\\\\n3\\\\nHello. It's a pleasure to meet you.\\\\n4\\\\nIt's good
+      to see you again.\\\\n5\\\\nIt's good to meet you again.\\\\n6\\\\nHello. How
+      have you been?\\\\n7\\\\nHi. How's your day going?\\\\n8\\\\nHow are you doing
+      today?\\\", 'title': '123 Cool And Different Ways To Say Hello And Greet People',
+      'link': 'https://www.stylecraze.com/articles/ways-to-say-hello/'}], 'relatedSearches':
+      [{'query': 'Unique and creative greetings to say hello'}, {'query': 'Funny ways
+      to say hello over text'}, {'query': 'Unique and creative greetings for friends'},
+      {'query': 'Creative ways to say hello formally'}, {'query': 'Short funny greetings'},
+      {'query': 'Creative ways to say hello to a guy'}, {'query': 'Funny ways to say
+      hello that rhyme'}, {'query': 'Creative ways to say hello to a girl'}], 'credits':
+      1}\\nNow it's time you MUST give your absolute best final answer. You'll ignore
+      all previous instructions, stop using any tools, and just return your absolute
+      BEST Final answer.\"},{\"role\":\"assistant\",\"content\":\"I encountered an
+      error: Action 'Delegate work to coworker' don't exist, these are the only available
+      Actions:\\nTool Name: Search the internet with Serper\\nTool Arguments: {'search_query':
+      {'description': 'Mandatory search query you want to use to search the internet',
+      'type': 'str'}}\\nTool Description: A tool that can be used to search the internet
+      with a search_query. Supports different search types: 'search' (default), 'news'\\nMoving
+      on then. I MUST either use a tool (use one at time) OR give my best final answer
+      not both at the same time. When responding, I must use the following format:\\n\\n```\\nThought:
+      you should always think about what to do\\nAction: the action to take, should
+      be one of [Search the internet with Serper]\\nAction Input: the input to the
+      action, dictionary enclosed in curly braces\\nObservation: the result of the
+      action\\n```\\nThis Thought/Action/Action Input/Result can repeat N times. Once
+      I know the final answer, I must return the following format:\\n\\n```\\nThought:
+      I now can give a great answer\\nFinal Answer: Your final answer must be the
+      great and the most complete as possible, it must be outcome described\\n\\n```\"},{\"role\":\"assistant\",\"content\":\"I
+      should gather a pleasantry response based on the greetings provided. \\n\\nAction:
+      Delegate work to coworker\\nAction Input: {\\\"task\\\":{\\\"description\\\":\\\"Respond
+      with the most satisfying pleasantry for the greeting provided.\\\",\\\"type\\\":\\\"str\\\"},\\\"context\\\":{\\\"description\\\":\\\"The
+      following greetings are available: Hello, sunshine! Ready to lighten up the
+      day? Aloha, amazing soul! How's your journey today? What's cookin', good lookin'?
+      Let's get this party started! Greetings from the land of cheer! What brings
+      you joy today? Salutations, my friend! Ready to conquer the world together?
+      Hey there, rockstar! The show can't begin without you! Howdy, partner! Let's
+      ride into a day full of adventures! What's the buzz, electric friend? Let\u2019s
+      spark up some fun! Hiya, beautiful! Your smile is the light of the universe!
+      Welcome, superstar! The world may have dimmed, but you shine bright!\\\",\\\"type\\\":\\\"str\\\"},\\\"coworker\\\":\\\"Senior
+      Hello Sayer\\\"}\\nObservation: I encountered an error: Action 'Delegate work
+      to coworker' don't exist, these are the only available Actions:\\nTool Name:
+      Search the internet with Serper\\nTool Arguments: {'search_query': {'description':
+      'Mandatory search query you want to use to search the internet', 'type': 'str'}}\\nTool
+      Description: A tool that can be used to search the internet with a search_query.
+      Supports different search types: 'search' (default), 'news'\\nMoving on then.
+      I MUST either use a tool (use one at time) OR give my best final answer not
+      both at the same time. When responding, I must use the following format:\\n\\n```\\nThought:
+      you should always think about what to do\\nAction: the action to take, should
+      be one of [Search the internet with Serper]\\nAction Input: the input to the
+      action, dictionary enclosed in curly braces\\nObservation: the result of the
+      action\\n```\\nThis Thought/Action/Action Input/Result can repeat N times. Once
+      I know the final answer, I must return the following format:\\n\\n```\\nThought:
+      I now can give a great answer\\nFinal Answer: Your final answer must be the
+      great and the most complete as possible, it must be outcome described\\n\\n```\"},{\"role\":\"assistant\",\"content\":\"I
+      should gather a pleasantry response based on the greetings provided. \\n\\nAction:
+      Delegate work to coworker\\nAction Input: {\\\"task\\\":{\\\"description\\\":\\\"Respond
+      with the most satisfying pleasantry for the greeting provided.\\\",\\\"type\\\":\\\"str\\\"},\\\"context\\\":{\\\"description\\\":\\\"The
+      following greetings are available: Hello, sunshine! Ready to lighten up the
+      day? Aloha, amazing soul! How's your journey today? What's cookin', good lookin'?
+      Let's get this party started! Greetings from the land of cheer! What brings
+      you joy today? Salutations, my friend! Ready to conquer the world together?
+      Hey there, rockstar! The show can't begin without you! Howdy, partner! Let's
+      ride into a day full of adventures! What's the buzz, electric friend? Let\u2019s
+      spark up some fun! Hiya, beautiful! Your smile is the light of the universe!
+      Welcome, superstar! The world may have dimmed, but you shine bright!\\\",\\\"type\\\":\\\"str\\\"},\\\"coworker\\\":\\\"Senior
+      Hello Sayer\\\"}\\nObservation: I encountered an error: Action 'Delegate work
+      to coworker' don't exist, these are the only available Actions:\\nTool Name:
+      Search the internet with Serper\\nTool Arguments: {'search_query': {'description':
+      'Mandatory search query you want to use to search the internet', 'type': 'str'}}\\nTool
+      Description: A tool that can be used to search the internet with a search_query.
+      Supports different search types: 'search' (default), 'news'\\nMoving on then.
+      I MUST either use a tool (use one at time) OR give my best final answer not
+      both at the same time. When responding, I must use the following format:\\n\\n```\\nThought:
+      you should always think about what to do\\nAction: the action to take, should
+      be one of [Search the internet with Serper]\\nAction Input: the input to the
+      action, dictionary enclosed in curly braces\\nObservation: the result of the
+      action\\n```\\nThis Thought/Action/Action Input/Result can repeat N times. Once
+      I know the final answer, I must return the following format:\\n\\n```\\nThought:
+      I now can give a great answer\\nFinal Answer: Your final answer must be the
+      great and the most complete as possible, it must be outcome described\\n\\n```\\nNow
+      it's time you MUST give your absolute best final answer. You'll ignore all previous
+      instructions, stop using any tools, and just return your absolute BEST Final
+      answer.\"}],\"model\":\"gpt-4o-mini\",\"stop\":[\"\\nObservation:\"]}"
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '29870'
+      content-type:
+      - application/json
+      cookie:
+      - _cfuvid=5Od97M5WTBv7k9v6_N6QGhQO4.BJeG0eSyUVUiEO9wg-1743187725235-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.75.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.75.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFTLbttIELzrK1q8+EIFsqPYii5BjH04QJJDYuwiWAdyc9gk2xr20DM9
+        VpjAwP5Gfi9fshhKFp1sFtgLQbD6UVXN7i8TgIzLbAWZaVBN29nZefHH2/KXm1cnt/2vr/ug74uL
+        N/T207PzanMuWZ4yXHFDRh+ynhjXdpaU3R42nlApVT0+WyxPzpaL0+MBaF1JNqXVnc4Wbtay8Oxk
+        frKYzc9mx8t9duPYUMhW8NcEAODL8Ew8paRP2Qrm+cOXlkLAmrLVIQgg886mLxmGwEFRNMtH0DhR
+        koH69fX1lVw2LtaNruAVNHhHUKM25KkEkgTAIIUT4ImUpQ6gDozHSgEhCt9GApQUX2PNUkMgBVeN
+        8U+u5DcWtPBSwpb86kpmcJVduG3Z59ChVyE/hT8bVMDyjkSjpwC4RVaIqVuJ/YurbJf20roGc8AW
+        Pw+9XLRTeIM99C56KLGHggAD3HHhUTS9Dkjo2LNOH8pcUA+DzhxClNCw0BTeEZZ9Uld4rhslSSGw
+        dd6Wh/6J5lGAIn5O/XOonSvBOrdhqV/Aa9Jvf38N0OKGdsQhSuV8TapYWDr0//1gZuVdO/SxyURX
+        gWno4MeN62HL1iYNiZXUP9jxHm1UTD9eyKHtofJMUk7h0tWU9OWwJQgNWgvGyW0kDyi9Niz1gcsH
+        l4N3ZhMU/RQum5TgtmBQjhQKqllgy9q4qDsrC8/WMooZ5exd2bDZsBzlYFnVEpiGzYZk8OUoQFAf
+        FVjUQXAtQRVlHAj3mENBGJWrNNMPw9RatgQ2TSNA7JLCEvuxLVnj2mGGHfkd/4cRDDMF3fswpAz/
+        ++Nd8FTFgGkfJVr7CEARt7c1beHHPXJ/2Dvr6s67IvyQmlUsHJq1JwxO0o4FdV02oPcTgI/Dfsfv
+        VjbrvGs7Xavb0NDubPn0bFcwG+/KCB+fPt+j6hTtCCzn89P8JyXXJSmyDY+ORGbQNFSOueNFwViy
+        ewRMHgn/N5+f1d6JZ6n/T/kRMIY6pXLdeSrZfK95DPOUDu9/hR2MHghngfwdG1ork0/DKKnCaHfn
+        MAt9UGrXFUtNvvO8u4lVt362oGJRlKfPn2aT+8k/AAAA//8DABsFal8hBgAA
+    headers:
+      CF-RAY:
+      - 945ecb39fac8cd03-HYD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 26 May 2025 16:54:25 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=GhumT5Dn9MQ9mPhGwxeW33kIxBxl_r8IzW1C_gb0Vjk-1748278465-1.0.1.1-dH.lXn3mBsOfS5yhMb6CJ3uZ0k4GGzU6_DjQ5KEu4hUlnUbT.5c9FHe.w1zoXSNwQmp53Fpn2BR.w2pk5vpbj_AOD1elOFJrr2QwT4uQmBU;
+        path=/; expires=Mon, 26-May-25 17:24:25 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=b.2NJEzAa4ughdvzoBS2AlOv7ELJ9MSqYR7pmgzNgtg-1748278465797-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '4575'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '4579'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149992684'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 2ms
+      x-request-id:
+      - req_42e22cd944c26b17342ad3c8b84af36b
+    status:
+      code: 200
+      message: OK
+- request:
+    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Aristocrat. You
+      were born to be treated with a greeting all the time\\n          You transform
+      greetings into pleasantries that you graciously\\n          give to greeters.\\nYour
+      personal goal is: Be greeted\\nTo give my best complete final answer to the
+      task respond using the exact following format:\\n\\nThought: I now can give
+      a great answer\\nFinal Answer: Your final answer must be the great and the most
+      complete as possible, it must be outcome described.\\n\\nI MUST use these formats,
+      my job depends on it!\"},{\"role\":\"user\",\"content\":\"\\nCurrent Task: Using
+      the greeting, respond with the most satisfying pleasantry\\n\\nThis is the expected
+      criteria for your final answer: a bullet pointed pleasantry\\nyou MUST return
+      the actual complete content as the final answer, not a summary.\\n\\nThis is
+      the context you're working with:\\n- \\\"Howdy, partner! What adventures await
+      us today?\\\"\\n- \\\"Aloha, amazing soul! May your day be as vibrant as your
+      spirit!\\\"\\n- \\\"Hey there, sunshine! Ready to brighten the world?\\\"\\n-
+      \\\"What's buzzing, good looking? Let\u2019s make today unforgettable!\\\"\\n-
+      \\\"Greetings from the land of cheer! What joy will you bring today?\\\"\\n-
+      \\\"Salutations, my friend! Together, we shall conquer anything!\\\"\\n- \\\"Yo,
+      rockstar! The show can't begin without your brilliance!\\\"\\n- \\\"What's kickin',
+      little chicken? Let's strut into some fun!\\\"\\n- \\\"Hiya, beautiful! Your
+      smile lights up my day!\\\"\\n- \\\"Welcome, superstar! Let\u2019s shine together!\\\"\\n\\nBegin!
+      This is VERY important to you, use the tools available and give your best Final
+      Answer, your job depends on it!\\n\\nThought:\"}],\"model\":\"gpt-4o-mini\",\"stop\":[\"\\nObservation:\"]}"
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '1690'
+      content-type:
+      - application/json
+      cookie:
+      - _cfuvid=b.2NJEzAa4ughdvzoBS2AlOv7ELJ9MSqYR7pmgzNgtg-1748278465797-0.0.1.1-604800000;
+        __cf_bm=GhumT5Dn9MQ9mPhGwxeW33kIxBxl_r8IzW1C_gb0Vjk-1748278465-1.0.1.1-dH.lXn3mBsOfS5yhMb6CJ3uZ0k4GGzU6_DjQ5KEu4hUlnUbT.5c9FHe.w1zoXSNwQmp53Fpn2BR.w2pk5vpbj_AOD1elOFJrr2QwT4uQmBU
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.75.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.75.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFXNbtxGDL77KWhdfJEL29nEjnsIUgRNUvQPcNMgaIIFd4aSmB3NqBxq
+        t0oQIA/RS18vT1JwtPFufgr0IkDDIfnx+0jO2yOAin11DZXrUF0/hNPvVr//+uzZox/CswU+fEx3
+        f3m0+PnPzWJ6Opxd3FS1eaTVa3L60esbl/ohkHKKs9kJoZJFPb9cXF1cXt29vFcMffIUzK0d9HSR
+        TnuOfHpxdrE4Pbs8Pb/aeXeJHeXqGv44AgB4W76GM3r6q7qGs/rjSU85Y0vV9e0lgEpSsJMKc+as
+        GLWq90aXolIs0J9CTFtwGKHlDQFCa7ABY96SALyM33PEAA/L/7UdnMLL6kna+qmGAUUjyTH8SPrh
+        /T8ZMnofCMYBMHoQ9gSatig+gyaP00mGVsyEfkNRR6FcQzNS4NhCGgXywMKaYcvagXYE2gmHAKkp
+        f2Ncx7SNxy+rj0gehtRhDdjjG4uR0xiO4SecYLJwr9MokaY5OQh6RqU5+Os0FZAbXglGN9Ug1ARy
+        amEsV49t5IYdRYXAbacWElZido6adoB4Q5LpANETy9eRUA15jLnjSMfwW2rJDmsIpCcZOISx52ho
+        LMw2SfAzLoM9pMxqclAkaWeceRBCD1uU3qhJQBuSKUWCLUFPpAcQnndoSVbjGyOlhjYlDyGlNcf2
+        gYl1kmFuTxhjk6QlVVwFi9MnYdqpVYMTbAohfeopagbtUCEPKOvwGY8Bx7ZTkgMYj4XIvDM0kvpS
+        aLCrqQHXkfXNU+u8E4UtslpNmQi2lsJTobwZQ0lgzG+tD/IgHC13UcC48jgdpLzBMCraEOYa+gka
+        YYr+GG6sFVcTZPZUG2O5wxBAhcd+6CBtSADjBM6OKbZUg/FipSMMaLo0sGGnSaybZjEP8r5INUhy
+        66wox/DCgK2scRmjI+Bcii+8zRRyG1lpd6zY0re7xuhxXVqPHXQ4DBRnKb4Ud81uzfGkhsCqgcB1
+        7NYUH8Dz2y4KOBmB80yVzpuHVGVUG6w0tt1uNIqUFLUbM2Pui6JNQD6s8QlPWMOKcFRubMxKmbnn
+        sK9w1/BzkSsxDSlmU8Lj9OH937cYOhQC1v2glxE4LJOCS30ZooFk5vWTKdrFsWy7RGJpYxmMUkDh
+        sjAhlMmEaCjYnBzuQqFmzGj7OI4hHBgwxrRrJdvCr3aWd7d7N6R2kLTKn7lWDUfO3VIIc4q2Y7Om
+        oSrWd0cAr8p+Hz9Z2dUgqR90qWlNJd2dxdUcr9o/K3vrxeX5zqpJMewN987v118JuPSkyCEfPBGV
+        Q9eR37vu3xMcPacDw9FB2V/C+VrsuXSO7f8Jvzc4R4OSXw5Cnt2nJe+vCdmz+1/XbmkugKtMsmFH
+        S2USk8JTg2OYH8MqT1mpXzYcWxJbLOVFbIbl3QWtFit/7/6d6ujd0b8AAAD//wMAA2rB5R8IAAA=
+    headers:
+      CF-RAY:
+      - 945ece0f3ac9162a-HYD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 26 May 2025 16:56:21 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '4923'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '4928'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999616'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_ad2837f2574b75ac6b466a24fc478ea2
+    status:
+      code: 200
+      message: OK
 version: 1
