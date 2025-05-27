@@ -1081,4 +1081,598 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Senior Hello
+      Sayer. You work at a greeting store.\\n                Your expertise is greeting
+      people\\n                Your parents were greeters, your grand parents were
+      greeters.\\n                You were born. Nay, destined to be a greeter\\nYour
+      personal goal is: Greet everyone you meet\\nYou ONLY have access to the following
+      tools, and should NEVER make up tools that are not listed here:\\n\\nTool Name:
+      Search the internet with Serper\\nTool Arguments: {'search_query': {'description':
+      'Mandatory search query you want to use to search the internet', 'type': 'str'}}\\nTool
+      Description: A tool that can be used to search the internet with a search_query.
+      Supports different search types: 'search' (default), 'news'\\n\\nIMPORTANT:
+      Use the following format in your response:\\n\\n```\\nThought: you should always
+      think about what to do\\nAction: the action to take, only one name of [Search
+      the internet with Serper], just the name, exactly as it's written.\\nAction
+      Input: the input to the action, just a simple JSON object, enclosed in curly
+      braces, using \\\" to wrap keys and values.\\nObservation: the result of the
+      action\\n```\\n\\nOnce all necessary information is gathered, return the following
+      format:\\n\\n```\\nThought: I now know the final answer\\nFinal Answer: the
+      final answer to the original input question\\n```\"},{\"role\":\"user\",\"content\":\"\\nCurrent
+      Task: greet like you've never greeted before\\n\\nThis is the expected criteria
+      for your final answer: A greeting in bullet points\\nyou MUST return the actual
+      complete content as the final answer, not a summary.\\n\\nBegin! This is VERY
+      important to you, use the tools available and give your best Final Answer, your
+      job depends on it!\\n\\nThought:\"},{\"role\":\"assistant\",\"content\":\"{'searchParameters':
+      {'q': 'unique and creative greeting ideas', 'type': 'search', 'num': 10, 'engine':
+      'google'}, 'organic': [{'title': '110 Creative greetings and front page ideas
+      - Pinterest', 'link': 'https://in.pinterest.com/nimishpatel112/creative-greetings-and-front-page-ideas/',
+      'snippet': 'Jan 11, 2022 - Explore Garima Patel\\\\'s board \\\"Creative greetings
+      and front page ideas\\\" on Pinterest. See more ideas about cards handmade,
+      valentines cards, ...', 'position': 1}, {'title': '45 Creative Greeting Card
+      Ideas For Every Occasion - Gelato', 'link': 'https://www.gelato.com/blog/greeting-card-ideas',
+      'snippet': 'Indulge your creative side and elevate your sentiments with our
+      45 uniquely inventive greeting card ideas. Perfect for any occasion.', 'position':
+      2}, {'title': 'Unique Greeting Cards Ideas - Pinterest', 'link': 'https://www.pinterest.com/ideas/unique-greeting-cards-ideas/908311063782/',
+      'snippet': \\\"Discover Pinterest's best ideas and inspiration for Unique greeting
+      cards ideas. Get inspired and try out new things.\\\", 'position': 3}, {'title':
+      '20 Creative Ways to Decorate Handmade Greeting Cards - Altenew', 'link': 'https://altenew.com/blogs/paper-crafting-inspiration-and-tips/20-creative-ways-to-decorate-handmade-greeting-cards?srsltid=AfmBOorT1IgvfLYXydfTrVxKavddalUY-_jtZO939segb9X2FYVt5i1I',
+      'snippet': \\\"In this blog post, we'll explore 20 creative ways to elevate
+      your handmade cards, transforming them from simple greetings into stunning works
+      of art.\\\", 'position': 4}, {'title': '10 Creative Holiday Greeting Card Ideas
+      (& How to Make Them)', 'link': 'https://www.skillshare.com/en/blog/holiday-greeting-card-ideas/?srsltid=AfmBOoqWhdc5qTABPfZW5TlkC4moF7e0P2nWlx2vwg8wZXGETBre7fam',
+      'snippet': 'Looking for unique holiday greeting card ideas? Explore ten creative
+      designs and techniques that will delight you and your loved ones!', 'position':
+      5}, {'title': 'What are some creative greeting card ideas? - Quora', 'link':
+      'https://www.quora.com/What-are-some-creative-greeting-card-ideas', 'snippet':
+      'One of the unique idea is \\\"Quilling Art\\\". You can make different design
+      with the help of paper strip which is simply available in the market.', 'position':
+      6, 'sitelinks': [{'title': 'What are some DIY innovative greeting cards idea?',
+      'link': 'https://www.quora.com/What-are-some-DIY-innovative-greeting-cards-idea'},
+      {'title': 'What are some unique ways to make your own greeting card?', 'link':
+      'https://www.quora.com/What-are-some-unique-ways-to-make-your-own-greeting-card'},
+      {'title': 'Where do you get ideas for making handmade greeting cards?', 'link':
+      'https://www.quora.com/Where-do-you-get-ideas-for-making-handmade-greeting-cards'},
+      {'title': 'What are some of the most creative birthday cards?', 'link': 'https://www.quora.com/What-are-some-of-the-most-creative-birthday-cards'}]},
+      {'title': 'I designed and made these greetings cards at home, some ... - Reddit',
+      'link': 'https://www.reddit.com/r/cardmaking/comments/1eag7jr/i_designed_and_made_these_greetings_cards_at_home/',
+      'snippet': \\\"I designed and made these greetings cards at home, some illustrations
+      we're based off designs I made for family members (nowhere near as ...\\\",
+      'position': 7}, {'title': 'Jess A Little Creative: Unique Cards For Thoughtful
+      People', 'link': 'https://jessalittlecreative.com/?srsltid=AfmBOorn2hmEN5KQhcnZAgYu7iX8QtczrOqBh48JSIgNGwOX2-EAQwPa',
+      'snippet': 'Jess A Little Creative is a small independent greeting card business
+      based in Cheltenham, UK, specialising in unique and beautiful greeting cards
+      for all ...', 'position': 8}, {'title': 'diy creative greeting card - Pinterest',
+      'link': 'https://in.pinterest.com/pin/358880664075796227/', 'snippet': '21/mar/2024
+      - Unleash your creativity with this DIY Creative Greeting Card tutorial! Learn
+      how to craft personalized greeting cards that are ...', 'position': 9}, {'title':
+      'Favorite greeting/catchphrase? : r/AnimalCrossing - Reddit', 'link': 'https://www.reddit.com/r/AnimalCrossing/comments/kd2s51/favorite_greetingcatchphrase/',
+      'snippet': 'Every time one of my villagers asks me for a new greeting I freeze!
+      What are some of your favorites and may I plagiarize them?', 'position': 10}],
+      'peopleAlsoAsk': [{'question': 'What are some ideas for greeting?', 'snippet':
+      \\\"IDEAS FOR WRITING GREETING CARD MESSAGES\\\\nWishing you the best day ever!\\\\nHappiest
+      of birthdays to you!\\\\nHope your day is as sweet as you are!\\\\nWishing you
+      a day full of wonderful things and lovely people.\\\\nHere's to another wild
+      trip around the sun!\\\\nWarmest wishes and lots of love from us to you!\\\",
+      'title': 'Ideas for Writing Greeting Card Messages - Naomi Witzke Art', 'link':
+      'https://www.naomiwitzke.com/greeting-card-messages'}, {'question': 'What can
+      I use instead of greeting cards?', 'snippet': 'Postcards: Instead of traditional
+      greeting cards, use postcards. They are usually cheaper and can be found at
+      local shops or online. You can also make your own postcards. Handwritten Letters:
+      A heartfelt handwritten letter can be just as meaningful as a card.', 'title':
+      'What is a cost-effective alternative to expensive greeting cards? - Quora',
+      'link': 'https://www.quora.com/What-is-a-cost-effective-alternative-to-expensive-greeting-cards'},
+      {'question': \\\"What's trending in greeting cards?\\\", 'snippet': 'Personalized
+      and customizable cards are all about making a greeting personal. In 2024, consumers
+      are seeking cards that reflect their personal style, with features like custom
+      messages, hand-drawn illustrations, and unique family photos. With user-friendly
+      design tools, creating these cards is easier than ever.', 'title': 'A Guide
+      to 2024 Greeting Card Trends - DigiPrint Corporation', 'link': 'https://digiprintcorporation.com/whats-trending-for-2024-greeting-cards/'},
+      {'question': 'How to make a card more interesting?', 'snippet': 'Use leaves,
+      flowers, or other natural elements to create prints. Dip them in paint or ink
+      and press them onto the card for a unique design. Incorporate elements like
+      sliders, spinners, or flaps that reveal messages or images when moved, making
+      the card engaging. Use stencils to create patterns or shapes on your card.',
+      'title': 'What are some unique ways to make your own greeting card? - Quora',
+      'link': 'https://www.quora.com/What-are-some-unique-ways-to-make-your-own-greeting-card'}],
+      'relatedSearches': [{'query': 'Unique and creative greeting ideas for adults'},
+      {'query': 'Unique and creative greeting ideas for birthday'}, {'query': 'Unique
+      and creative greeting ideas for family'}, {'query': 'Pinterest Greeting Cards
+      Handmade'}, {'query': 'Greeting cards handmade ideas'}, {'query': 'Best greeting
+      card design'}, {'query': 'Pinterest Greeting Cards ideas'}, {'query': 'Card
+      design ideas handmade'}], 'credits': 1}\"},{\"role\":\"assistant\",\"content\":\"I
+      should gather some inspiration for unique greetings to meet the criteria of
+      greeting like I've never greeted before.\\n\\nAction: Search the internet with
+      Serper  \\nAction Input: {\\\"search_query\\\":\\\"unique and creative greeting
+      ideas\\\"}  \\nObservation: {'searchParameters': {'q': 'unique and creative
+      greeting ideas', 'type': 'search', 'num': 10, 'engine': 'google'}, 'organic':
+      [{'title': '110 Creative greetings and front page ideas - Pinterest', 'link':
+      'https://in.pinterest.com/nimishpatel112/creative-greetings-and-front-page-ideas/',
+      'snippet': 'Jan 11, 2022 - Explore Garima Patel\\\\'s board \\\"Creative greetings
+      and front page ideas\\\" on Pinterest. See more ideas about cards handmade,
+      valentines cards, ...', 'position': 1}, {'title': '45 Creative Greeting Card
+      Ideas For Every Occasion - Gelato', 'link': 'https://www.gelato.com/blog/greeting-card-ideas',
+      'snippet': 'Indulge your creative side and elevate your sentiments with our
+      45 uniquely inventive greeting card ideas. Perfect for any occasion.', 'position':
+      2}, {'title': 'Unique Greeting Cards Ideas - Pinterest', 'link': 'https://www.pinterest.com/ideas/unique-greeting-cards-ideas/908311063782/',
+      'snippet': \\\"Discover Pinterest's best ideas and inspiration for Unique greeting
+      cards ideas. Get inspired and try out new things.\\\", 'position': 3}, {'title':
+      '20 Creative Ways to Decorate Handmade Greeting Cards - Altenew', 'link': 'https://altenew.com/blogs/paper-crafting-inspiration-and-tips/20-creative-ways-to-decorate-handmade-greeting-cards?srsltid=AfmBOorT1IgvfLYXydfTrVxKavddalUY-_jtZO939segb9X2FYVt5i1I',
+      'snippet': \\\"In this blog post, we'll explore 20 creative ways to elevate
+      your handmade cards, transforming them from simple greetings into stunning works
+      of art.\\\", 'position': 4}, {'title': '10 Creative Holiday Greeting Card Ideas
+      (& How to Make Them)', 'link': 'https://www.skillshare.com/en/blog/holiday-greeting-card-ideas/?srsltid=AfmBOoqWhdc5qTABPfZW5TlkC4moF7e0P2nWlx2vwg8wZXGETBre7fam',
+      'snippet': 'Looking for unique holiday greeting card ideas? Explore ten creative
+      designs and techniques that will delight you and your loved ones!', 'position':
+      5}, {'title': 'What are some creative greeting card ideas? - Quora', 'link':
+      'https://www.quora.com/What-are-some-creative-greeting-card-ideas', 'snippet':
+      'One of the unique idea is \\\"Quilling Art\\\". You can make different design
+      with the help of paper strip which is simply available in the market.', 'position':
+      6, 'sitelinks': [{'title': 'What are some DIY innovative greeting cards idea?',
+      'link': 'https://www.quora.com/What-are-some-DIY-innovative-greeting-cards-idea'},
+      {'title': 'What are some unique ways to make your own greeting card?', 'link':
+      'https://www.quora.com/What-are-some-unique-ways-to-make-your-own-greeting-card'},
+      {'title': 'Where do you get ideas for making handmade greeting cards?', 'link':
+      'https://www.quora.com/Where-do-you-get-ideas-for-making-handmade-greeting-cards'},
+      {'title': 'What are some of the most creative birthday cards?', 'link': 'https://www.quora.com/What-are-some-of-the-most-creative-birthday-cards'}]},
+      {'title': 'I designed and made these greetings cards at home, some ... - Reddit',
+      'link': 'https://www.reddit.com/r/cardmaking/comments/1eag7jr/i_designed_and_made_these_greetings_cards_at_home/',
+      'snippet': \\\"I designed and made these greetings cards at home, some illustrations
+      we're based off designs I made for family members (nowhere near as ...\\\",
+      'position': 7}, {'title': 'Jess A Little Creative: Unique Cards For Thoughtful
+      People', 'link': 'https://jessalittlecreative.com/?srsltid=AfmBOorn2hmEN5KQhcnZAgYu7iX8QtczrOqBh48JSIgNGwOX2-EAQwPa',
+      'snippet': 'Jess A Little Creative is a small independent greeting card business
+      based in Cheltenham, UK, specialising in unique and beautiful greeting cards
+      for all ...', 'position': 8}, {'title': 'diy creative greeting card - Pinterest',
+      'link': 'https://in.pinterest.com/pin/358880664075796227/', 'snippet': '21/mar/2024
+      - Unleash your creativity with this DIY Creative Greeting Card tutorial! Learn
+      how to craft personalized greeting cards that are ...', 'position': 9}, {'title':
+      'Favorite greeting/catchphrase? : r/AnimalCrossing - Reddit', 'link': 'https://www.reddit.com/r/AnimalCrossing/comments/kd2s51/favorite_greetingcatchphrase/',
+      'snippet': 'Every time one of my villagers asks me for a new greeting I freeze!
+      What are some of your favorites and may I plagiarize them?', 'position': 10}],
+      'peopleAlsoAsk': [{'question': 'What are some ideas for greeting?', 'snippet':
+      \\\"IDEAS FOR WRITING GREETING CARD MESSAGES\\\\nWishing you the best day ever!\\\\nHappiest
+      of birthdays to you!\\\\nHope your day is as sweet as you are!\\\\nWishing you
+      a day full of wonderful things and lovely people.\\\\nHere's to another wild
+      trip around the sun!\\\\nWarmest wishes and lots of love from us to you!\\\",
+      'title': 'Ideas for Writing Greeting Card Messages - Naomi Witzke Art', 'link':
+      'https://www.naomiwitzke.com/greeting-card-messages'}, {'question': 'What can
+      I use instead of greeting cards?', 'snippet': 'Postcards: Instead of traditional
+      greeting cards, use postcards. They are usually cheaper and can be found at
+      local shops or online. You can also make your own postcards. Handwritten Letters:
+      A heartfelt handwritten letter can be just as meaningful as a card.', 'title':
+      'What is a cost-effective alternative to expensive greeting cards? - Quora',
+      'link': 'https://www.quora.com/What-is-a-cost-effective-alternative-to-expensive-greeting-cards'},
+      {'question': \\\"What's trending in greeting cards?\\\", 'snippet': 'Personalized
+      and customizable cards are all about making a greeting personal. In 2024, consumers
+      are seeking cards that reflect their personal style, with features like custom
+      messages, hand-drawn illustrations, and unique family photos. With user-friendly
+      design tools, creating these cards is easier than ever.', 'title': 'A Guide
+      to 2024 Greeting Card Trends - DigiPrint Corporation', 'link': 'https://digiprintcorporation.com/whats-trending-for-2024-greeting-cards/'},
+      {'question': 'How to make a card more interesting?', 'snippet': 'Use leaves,
+      flowers, or other natural elements to create prints. Dip them in paint or ink
+      and press them onto the card for a unique design. Incorporate elements like
+      sliders, spinners, or flaps that reveal messages or images when moved, making
+      the card engaging. Use stencils to create patterns or shapes on your card.',
+      'title': 'What are some unique ways to make your own greeting card? - Quora',
+      'link': 'https://www.quora.com/What-are-some-unique-ways-to-make-your-own-greeting-card'}],
+      'relatedSearches': [{'query': 'Unique and creative greeting ideas for adults'},
+      {'query': 'Unique and creative greeting ideas for birthday'}, {'query': 'Unique
+      and creative greeting ideas for family'}, {'query': 'Pinterest Greeting Cards
+      Handmade'}, {'query': 'Greeting cards handmade ideas'}, {'query': 'Best greeting
+      card design'}, {'query': 'Pinterest Greeting Cards ideas'}, {'query': 'Card
+      design ideas handmade'}], 'credits': 1}\"},{\"role\":\"assistant\",\"content\":\"I
+      should gather some inspiration for unique greetings to meet the criteria of
+      greeting like I've never greeted before.\\n\\nAction: Search the internet with
+      Serper  \\nAction Input: {\\\"search_query\\\":\\\"unique and creative greeting
+      ideas\\\"}  \\nObservation: {'searchParameters': {'q': 'unique and creative
+      greeting ideas', 'type': 'search', 'num': 10, 'engine': 'google'}, 'organic':
+      [{'title': '110 Creative greetings and front page ideas - Pinterest', 'link':
+      'https://in.pinterest.com/nimishpatel112/creative-greetings-and-front-page-ideas/',
+      'snippet': 'Jan 11, 2022 - Explore Garima Patel\\\\'s board \\\"Creative greetings
+      and front page ideas\\\" on Pinterest. See more ideas about cards handmade,
+      valentines cards, ...', 'position': 1}, {'title': '45 Creative Greeting Card
+      Ideas For Every Occasion - Gelato', 'link': 'https://www.gelato.com/blog/greeting-card-ideas',
+      'snippet': 'Indulge your creative side and elevate your sentiments with our
+      45 uniquely inventive greeting card ideas. Perfect for any occasion.', 'position':
+      2}, {'title': 'Unique Greeting Cards Ideas - Pinterest', 'link': 'https://www.pinterest.com/ideas/unique-greeting-cards-ideas/908311063782/',
+      'snippet': \\\"Discover Pinterest's best ideas and inspiration for Unique greeting
+      cards ideas. Get inspired and try out new things.\\\", 'position': 3}, {'title':
+      '20 Creative Ways to Decorate Handmade Greeting Cards - Altenew', 'link': 'https://altenew.com/blogs/paper-crafting-inspiration-and-tips/20-creative-ways-to-decorate-handmade-greeting-cards?srsltid=AfmBOorT1IgvfLYXydfTrVxKavddalUY-_jtZO939segb9X2FYVt5i1I',
+      'snippet': \\\"In this blog post, we'll explore 20 creative ways to elevate
+      your handmade cards, transforming them from simple greetings into stunning works
+      of art.\\\", 'position': 4}, {'title': '10 Creative Holiday Greeting Card Ideas
+      (& How to Make Them)', 'link': 'https://www.skillshare.com/en/blog/holiday-greeting-card-ideas/?srsltid=AfmBOoqWhdc5qTABPfZW5TlkC4moF7e0P2nWlx2vwg8wZXGETBre7fam',
+      'snippet': 'Looking for unique holiday greeting card ideas? Explore ten creative
+      designs and techniques that will delight you and your loved ones!', 'position':
+      5}, {'title': 'What are some creative greeting card ideas? - Quora', 'link':
+      'https://www.quora.com/What-are-some-creative-greeting-card-ideas', 'snippet':
+      'One of the unique idea is \\\"Quilling Art\\\". You can make different design
+      with the help of paper strip which is simply available in the market.', 'position':
+      6, 'sitelinks': [{'title': 'What are some DIY innovative greeting cards idea?',
+      'link': 'https://www.quora.com/What-are-some-DIY-innovative-greeting-cards-idea'},
+      {'title': 'What are some unique ways to make your own greeting card?', 'link':
+      'https://www.quora.com/What-are-some-unique-ways-to-make-your-own-greeting-card'},
+      {'title': 'Where do you get ideas for making handmade greeting cards?', 'link':
+      'https://www.quora.com/Where-do-you-get-ideas-for-making-handmade-greeting-cards'},
+      {'title': 'What are some of the most creative birthday cards?', 'link': 'https://www.quora.com/What-are-some-of-the-most-creative-birthday-cards'}]},
+      {'title': 'I designed and made these greetings cards at home, some ... - Reddit',
+      'link': 'https://www.reddit.com/r/cardmaking/comments/1eag7jr/i_designed_and_made_these_greetings_cards_at_home/',
+      'snippet': \\\"I designed and made these greetings cards at home, some illustrations
+      we're based off designs I made for family members (nowhere near as ...\\\",
+      'position': 7}, {'title': 'Jess A Little Creative: Unique Cards For Thoughtful
+      People', 'link': 'https://jessalittlecreative.com/?srsltid=AfmBOorn2hmEN5KQhcnZAgYu7iX8QtczrOqBh48JSIgNGwOX2-EAQwPa',
+      'snippet': 'Jess A Little Creative is a small independent greeting card business
+      based in Cheltenham, UK, specialising in unique and beautiful greeting cards
+      for all ...', 'position': 8}, {'title': 'diy creative greeting card - Pinterest',
+      'link': 'https://in.pinterest.com/pin/358880664075796227/', 'snippet': '21/mar/2024
+      - Unleash your creativity with this DIY Creative Greeting Card tutorial! Learn
+      how to craft personalized greeting cards that are ...', 'position': 9}, {'title':
+      'Favorite greeting/catchphrase? : r/AnimalCrossing - Reddit', 'link': 'https://www.reddit.com/r/AnimalCrossing/comments/kd2s51/favorite_greetingcatchphrase/',
+      'snippet': 'Every time one of my villagers asks me for a new greeting I freeze!
+      What are some of your favorites and may I plagiarize them?', 'position': 10}],
+      'peopleAlsoAsk': [{'question': 'What are some ideas for greeting?', 'snippet':
+      \\\"IDEAS FOR WRITING GREETING CARD MESSAGES\\\\nWishing you the best day ever!\\\\nHappiest
+      of birthdays to you!\\\\nHope your day is as sweet as you are!\\\\nWishing you
+      a day full of wonderful things and lovely people.\\\\nHere's to another wild
+      trip around the sun!\\\\nWarmest wishes and lots of love from us to you!\\\",
+      'title': 'Ideas for Writing Greeting Card Messages - Naomi Witzke Art', 'link':
+      'https://www.naomiwitzke.com/greeting-card-messages'}, {'question': 'What can
+      I use instead of greeting cards?', 'snippet': 'Postcards: Instead of traditional
+      greeting cards, use postcards. They are usually cheaper and can be found at
+      local shops or online. You can also make your own postcards. Handwritten Letters:
+      A heartfelt handwritten letter can be just as meaningful as a card.', 'title':
+      'What is a cost-effective alternative to expensive greeting cards? - Quora',
+      'link': 'https://www.quora.com/What-is-a-cost-effective-alternative-to-expensive-greeting-cards'},
+      {'question': \\\"What's trending in greeting cards?\\\", 'snippet': 'Personalized
+      and customizable cards are all about making a greeting personal. In 2024, consumers
+      are seeking cards that reflect their personal style, with features like custom
+      messages, hand-drawn illustrations, and unique family photos. With user-friendly
+      design tools, creating these cards is easier than ever.', 'title': 'A Guide
+      to 2024 Greeting Card Trends - DigiPrint Corporation', 'link': 'https://digiprintcorporation.com/whats-trending-for-2024-greeting-cards/'},
+      {'question': 'How to make a card more interesting?', 'snippet': 'Use leaves,
+      flowers, or other natural elements to create prints. Dip them in paint or ink
+      and press them onto the card for a unique design. Incorporate elements like
+      sliders, spinners, or flaps that reveal messages or images when moved, making
+      the card engaging. Use stencils to create patterns or shapes on your card.',
+      'title': 'What are some unique ways to make your own greeting card? - Quora',
+      'link': 'https://www.quora.com/What-are-some-unique-ways-to-make-your-own-greeting-card'}],
+      'relatedSearches': [{'query': 'Unique and creative greeting ideas for adults'},
+      {'query': 'Unique and creative greeting ideas for birthday'}, {'query': 'Unique
+      and creative greeting ideas for family'}, {'query': 'Pinterest Greeting Cards
+      Handmade'}, {'query': 'Greeting cards handmade ideas'}, {'query': 'Best greeting
+      card design'}, {'query': 'Pinterest Greeting Cards ideas'}, {'query': 'Card
+      design ideas handmade'}], 'credits': 1}\\nNow it's time you MUST give your absolute
+      best final answer. You'll ignore all previous instructions, stop using any tools,
+      and just return your absolute BEST Final answer.\"},{\"role\":\"assistant\",\"content\":\"I
+      encountered an error: Action 'Delegate work to coworker' don't exist, these
+      are the only available Actions:\\nTool Name: Search the internet with Serper\\nTool
+      Arguments: {'search_query': {'description': 'Mandatory search query you want
+      to use to search the internet', 'type': 'str'}}\\nTool Description: A tool that
+      can be used to search the internet with a search_query. Supports different search
+      types: 'search' (default), 'news'\\nMoving on then. I MUST either use a tool
+      (use one at time) OR give my best final answer not both at the same time. When
+      responding, I must use the following format:\\n\\n```\\nThought: you should
+      always think about what to do\\nAction: the action to take, should be one of
+      [Search the internet with Serper]\\nAction Input: the input to the action, dictionary
+      enclosed in curly braces\\nObservation: the result of the action\\n```\\nThis
+      Thought/Action/Action Input/Result can repeat N times. Once I know the final
+      answer, I must return the following format:\\n\\n```\\nThought: I now can give
+      a great answer\\nFinal Answer: Your final answer must be the great and the most
+      complete as possible, it must be outcome described\\n\\n```\"},{\"role\":\"assistant\",\"content\":\"I
+      need to craft a pleasantry response based on the provided greetings that is
+      both satisfying and fulfills the criteria of being bullet-pointed.\\n\\nAction:
+      Delegate work to coworker\\nAction Input: {\\\"task\\\":{\\\"description\\\":\\\"Create
+      a bullet-pointed pleasantry response based on the given greetings.\\\",\\\"type\\\":\\\"str\\\"},\\\"context\\\":{\\\"description\\\":\\\"The
+      task involves using the following greetings to form a pleasant response: 'Hello
+      there! \U0001F31F It\u2019s a beautiful day to meet someone as wonderful as
+      you!', 'Greetings and salutations! May your day be filled with joy and laughter!
+      \U0001F60A', 'Bonjour, my friend! Here\u2019s wishing you all the happiness
+      in the world! \U0001F389', 'Hiya! Just wanted to sprinkle some positivity your
+      way! \u2728', 'Salutations! Life is too short not to greet every moment with
+      enthusiasm! \U0001F64C', 'Hey! Sending good vibes your way\u2014let's make today
+      amazing! \U0001F308', 'Good day to you! May this greeting bring a smile to your
+      face! \U0001F603', 'Howdy! Here\u2019s a world of possibility in your greeting
+      today! \U0001F30D', 'Greetings! Remember, a smile is the universal language\u2014let's
+      share it! \U0001F604', 'Hi there! You\u2019re a gem in this world\u2014here\u2019s
+      to you shining bright today! \U0001F48E'}\\\",\\\"coworker\\\":\\\"Senior Hello
+      Sayer\\\"}\\nObservation: I encountered an error: Action 'Delegate work to coworker'
+      don't exist, these are the only available Actions:\\nTool Name: Search the internet
+      with Serper\\nTool Arguments: {'search_query': {'description': 'Mandatory search
+      query you want to use to search the internet', 'type': 'str'}}\\nTool Description:
+      A tool that can be used to search the internet with a search_query. Supports
+      different search types: 'search' (default), 'news'\\nMoving on then. I MUST
+      either use a tool (use one at time) OR give my best final answer not both at
+      the same time. When responding, I must use the following format:\\n\\n```\\nThought:
+      you should always think about what to do\\nAction: the action to take, should
+      be one of [Search the internet with Serper]\\nAction Input: the input to the
+      action, dictionary enclosed in curly braces\\nObservation: the result of the
+      action\\n```\\nThis Thought/Action/Action Input/Result can repeat N times. Once
+      I know the final answer, I must return the following format:\\n\\n```\\nThought:
+      I now can give a great answer\\nFinal Answer: Your final answer must be the
+      great and the most complete as possible, it must be outcome described\\n\\n```\"},{\"role\":\"assistant\",\"content\":\"I
+      need to craft a pleasantry response based on the provided greetings that is
+      both satisfying and fulfills the criteria of being bullet-pointed.\\n\\nAction:
+      Delegate work to coworker\\nAction Input: {\\\"task\\\":{\\\"description\\\":\\\"Create
+      a bullet-pointed pleasantry response based on the given greetings.\\\",\\\"type\\\":\\\"str\\\"},\\\"context\\\":{\\\"description\\\":\\\"The
+      task involves using the following greetings to form a pleasant response: 'Hello
+      there! \U0001F31F It\u2019s a beautiful day to meet someone as wonderful as
+      you!', 'Greetings and salutations! May your day be filled with joy and laughter!
+      \U0001F60A', 'Bonjour, my friend! Here\u2019s wishing you all the happiness
+      in the world! \U0001F389', 'Hiya! Just wanted to sprinkle some positivity your
+      way! \u2728', 'Salutations! Life is too short not to greet every moment with
+      enthusiasm! \U0001F64C', 'Hey! Sending good vibes your way\u2014let's make today
+      amazing! \U0001F308', 'Good day to you! May this greeting bring a smile to your
+      face! \U0001F603', 'Howdy! Here\u2019s a world of possibility in your greeting
+      today! \U0001F30D', 'Greetings! Remember, a smile is the universal language\u2014let's
+      share it! \U0001F604', 'Hi there! You\u2019re a gem in this world\u2014here\u2019s
+      to you shining bright today! \U0001F48E'}\\\",\\\"coworker\\\":\\\"Senior Hello
+      Sayer\\\"}\\nObservation: I encountered an error: Action 'Delegate work to coworker'
+      don't exist, these are the only available Actions:\\nTool Name: Search the internet
+      with Serper\\nTool Arguments: {'search_query': {'description': 'Mandatory search
+      query you want to use to search the internet', 'type': 'str'}}\\nTool Description:
+      A tool that can be used to search the internet with a search_query. Supports
+      different search types: 'search' (default), 'news'\\nMoving on then. I MUST
+      either use a tool (use one at time) OR give my best final answer not both at
+      the same time. When responding, I must use the following format:\\n\\n```\\nThought:
+      you should always think about what to do\\nAction: the action to take, should
+      be one of [Search the internet with Serper]\\nAction Input: the input to the
+      action, dictionary enclosed in curly braces\\nObservation: the result of the
+      action\\n```\\nThis Thought/Action/Action Input/Result can repeat N times. Once
+      I know the final answer, I must return the following format:\\n\\n```\\nThought:
+      I now can give a great answer\\nFinal Answer: Your final answer must be the
+      great and the most complete as possible, it must be outcome described\\n\\n```\\nNow
+      it's time you MUST give your absolute best final answer. You'll ignore all previous
+      instructions, stop using any tools, and just return your absolute BEST Final
+      answer.\"}],\"model\":\"gpt-4o-mini\",\"stop\":[\"\\nObservation:\"]}"
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '29100'
+      content-type:
+      - application/json
+      cookie:
+      - _cfuvid=b.2NJEzAa4ughdvzoBS2AlOv7ELJ9MSqYR7pmgzNgtg-1748278465797-0.0.1.1-604800000;
+        __cf_bm=GhumT5Dn9MQ9mPhGwxeW33kIxBxl_r8IzW1C_gb0Vjk-1748278465-1.0.1.1-dH.lXn3mBsOfS5yhMb6CJ3uZ0k4GGzU6_DjQ5KEu4hUlnUbT.5c9FHe.w1zoXSNwQmp53Fpn2BR.w2pk5vpbj_AOD1elOFJrr2QwT4uQmBU
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.75.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.75.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFRNbxxFEL3vr6idCxdvZJv1R/aGxUcCJlKIQUE42q2Zrpkpu6dr6K7Z
+        ZYgsWYIDoJADyiGWkHLld/kX8BNQ965313xIXObQVfX6vXo97+UAIGOTTSAratSiae3oJP/qCZvm
+        y4/4LP/w6fxk8fz0yWdBzw6enxrJduKE5BdU6N3Ug0Ka1pKyuGW58IRKEXXvaHy8f3Q8PjxMhUYM
+        2ThWtToay6hhx6P93f3xaPdotHe8mq6FCwrZBL4ZAAC8TN/I0xn6LpvA7s7dSUMhYEXZZN0EkHmx
+        8STDEDgoOs12NsVCnJJL1Gez2bk7q6Wrap3AY6hxTlCh1uTJAMIcPZP2ICV0jr/tCCpPpOyqACrQ
+        egrkFNgBQt5ZSzpqhZ1CKb5BfXDuPmaHFj5wYUF+AuduBI/IWoF0xRD+fPfqHTzW2+ubECEIO+Wy
+        s2Cwjxc0RApBGhJHgAEW4gz52IABeumGEfCTNSV0BgLaTjEaEYbwOfaxzSe8nKBka8nAgrWGC+nT
+        gMWonnwk8/aXCHgi7kI6vwNND6VncmYIj8hTYrngULOrIiygtVEI1Ni27CiEuIl4sBBvTQR8/XOS
+        zD0O4dMuKCzQKZmoLbSe3aWlpA9aCaw8Z10RXmA/hNvf/4jjz7YlnXJJwHH9AqEWr+BEI15yBmhO
+        vodGmuhL0klO6y4whiYSunm19KAfwjNyJiqpRAzMOaewvvr2+o0lfS9Ag5cEKnF92OD37Krk2U9p
+        73FuZVT0Im1baw7rRwK5j1+E0LClVZ+HEotk/dsfEhdZmH5rwbjcXnxzrYTAOdu4FXbL4TV2YpXY
+        /HrvFQzhC2qoycnvrG+O+6opvuE5+YAWLLqqw4rWQkONnoA18fpxadrdI/1autvrG0+AUFGz9JjD
+        kubt9Zv6jvlSH8T3sRJf1brh+dvrczebzbZ/RU9lFzDGgeus3Sqgc7KyPIbAi1Xlav3bW6laL3n4
+        22hWsuNQTz1hEBd/8aDSZql6NQB4keKlu5cYWeulaXWqcknpusOHxwdLwGwTa5vy/t5dVUXRbgpH
+        +7urXLoPOTWkyDZsZVRWYFGT2cxuAg07w7JVGGwJ/yeff8NeimdX/R/4TaEoqFUy09aT4eK+5k2b
+        p5j7/9W2XnQinAXycy5oqkw+mmGoxM4u0zgLfVBqpiW7inwMgxTJZTs9GFM+zs3hw/ezwdXgLwAA
+        AP//AwBgNwlaoAYAAA==
+    headers:
+      CF-RAY:
+      - 945ecb5d598acd03-HYD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 26 May 2025 16:54:31 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '4569'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '4575'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149992850'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 2ms
+      x-request-id:
+      - req_51b8cb5dafa512f6c5620fe7903d612b
+    status:
+      code: 200
+      message: OK
+- request:
+    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Aristocrat. You
+      were born to be treated with a greeting all the time\\n              You transform
+      greetings into pleasantries that you graciously\\n              give to greeters.\\nYour
+      personal goal is: Be greeted\\nTo give my best complete final answer to the
+      task respond using the exact following format:\\n\\nThought: I now can give
+      a great answer\\nFinal Answer: Your final answer must be the great and the most
+      complete as possible, it must be outcome described.\\n\\nI MUST use these formats,
+      my job depends on it!\"},{\"role\":\"user\",\"content\":\"\\nCurrent Task: Using
+      the greeting, respond with the most satisfying pleasantry\\n\\nThis is the expected
+      criteria for your final answer: a bullet pointed pleasantry\\nyou MUST return
+      the actual complete content as the final answer, not a summary.\\n\\nThis is
+      the context you're working with:\\n- Hello there! \U0001F31F It\u2019s a beautiful
+      day to meet someone as wonderful as you!\\n- Greetings and salutations! May
+      your day be filled with joy and laughter! \U0001F60A\\n- Bonjour, my friend!
+      Here\u2019s wishing you all the happiness in the world! \U0001F389\\n- Hiya!
+      Just wanted to sprinkle some positivity your way! \u2728\\n- Salutations! Life
+      is too short not to greet every moment with enthusiasm! \U0001F64C\\n- Hey!
+      Sending good vibes your way\u2014let's make today amazing! \U0001F308\\n- Good
+      day to you! May this greeting bring a smile to your face! \U0001F603\\n- Howdy!
+      Here\u2019s a world of possibility in your greeting today! \U0001F30D\\n- Greetings!
+      Remember, a smile is the universal language\u2014let's share it! \U0001F604\\n-
+      Hi there! You\u2019re a gem in this world\u2014here\u2019s to you shining bright
+      today! \U0001F48E\\n\\nBegin! This is VERY important to you, use the tools available
+      and give your best Final Answer, your job depends on it!\\n\\nThought:\"}],\"model\":\"gpt-4o-mini\",\"stop\":[\"\\nObservation:\"]}"
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '1834'
+      content-type:
+      - application/json
+      cookie:
+      - _cfuvid=b.2NJEzAa4ughdvzoBS2AlOv7ELJ9MSqYR7pmgzNgtg-1748278465797-0.0.1.1-604800000;
+        __cf_bm=GhumT5Dn9MQ9mPhGwxeW33kIxBxl_r8IzW1C_gb0Vjk-1748278465-1.0.1.1-dH.lXn3mBsOfS5yhMb6CJ3uZ0k4GGzU6_DjQ5KEu4hUlnUbT.5c9FHe.w1zoXSNwQmp53Fpn2BR.w2pk5vpbj_AOD1elOFJrr2QwT4uQmBU
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.75.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.75.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFbNbhtHDL77Kai99GIF/kvt+NYASewiBYykLRC0gUHtcHdpzwwXw1kp
+        ahDAD9BjLjnl3fwEfYSCs2tJ+SnQi7AaDsmPH//m/R5Axa46h6ruMNeh9/Oni9+v8PDF84PX/ury
+        6rebVwfH/mIZ/LOrw3BW7ZuGLG6ozg9aj2oJvafMEkdxnQgzmdXD05Ozo9Ozx2dHRRDEkTe1ts/z
+        E5kHjjw/Ojg6mR+czg8n43UnXJNW5/DHHgDA+/JrOKOjd9U5HOw/nARSxZaq880lgCqJt5MKVVkz
+        xlztb4W1xEyxQL+EKCuoMULLSwKE1mADRl1RAvgzPueIHn4q/8/tYA4X5L1A7ijRDP75/PdnuMz3
+        d58UEBaEQ+Zm8OBwDVkgEGVQCSSRABVWEh0lu4AKaxlmcAl1R4m1AxkSUKxliJkSYHSwsuNGkt1M
+        oIE9qVldeFGVAJ5vCRovK0oKHEH7xLF9NMJ8kYgyx1aLKUU/ZLT06Ax+wfVo0lAuCBr2nsxd7uBG
+        1kXB49B2mdJsG50jz22XDUFBtpYBKDpPqtBh33O0r9xhBoexJh0B6hBHPYmwwkxpAvhU4o0MaR/C
+        GprEFN0MLihR8WYOOLbFB3pvdO/44FgOVpK82wmnI0wZZEnJSNnEsw94axolaaArokyaIZAXtwZp
+        AKHDFCSyDAp5iDQhvOA1zuDnQTOsMGZyZqOQfOuppBV6Uc685DxBWOF6Bi8pF1cJ12r2dYgWDQF7
+        PwSOmGm83WPupkoACouENRXFgC3XppnFmcGC5vVuCl9yQ8BWDQLaScoQpWSmtbQDLSmtIUigmEce
+        KOZuUEYNM3i242rJi4QxQy1eUkHrzfQEqk7Y5J2yDhQkMensoRXWM3hN0VmqWhFn5kg3VNzfffSU
+        f1AIeEtjMIAB/+LYzuBXacm6aB/GOzlh1EZSAEmOI24CsHxnAXqXE25E6JYU85A2WF6Y+6ntSmdZ
+        WeSOdaTEEC6sPQDHTpruJWiwphm8sU8rfiPVyqTHdDsWM7eRM+nX9SdKgEmG6EZ/IyOycuudOsax
+        SI3XXlR5wd5qhePoewNtSvSmlK0zIn3TnTY/klWpY62t0JmmjuOoPaepruyT8+yrQTCDVxQoLIzy
+        BxKmaIfIS0qKHjzGdsCWNqnTDhOBWbOy3hlEtcRIdYah8LE7/DL2pDmV3lphClbk0U1Nrh33D2Tx
+        wxh9I8P93adUJjCFkV/Wkbv7u4/dA51jzsC6aUroOJC+JC+hYxtAMM6doS8xel5SKfDSHDaQxwE2
+        TdwZwO6SSNQMirao4uD9jgBjlKkNbT29nSQfNgvJS9snWehXqlXDkbW7ToQq0ZaPZumrIv2wB/C2
+        LL7hi11W9UlCn6+z3FJxd/zkZLRXbfftjvToySTNktFvBadHx/vfMXjtKCN73dmdVY11R26rul20
+        ODiWHcHeTtjfwvme7TF0ju3/Mb8V1DX1mdx1n8hx/WXI22uJ7D3yX9c2NBfAlVJack3XmSlZKhw1
+        OPjxlVDpWjOF64ZjS8mmfXkqNP314xNanCzcj0+Oq70Pe/8CAAD//wMACUJoHzgJAAA=
+    headers:
+      CF-RAY:
+      - 945ece311fce162a-HYD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 26 May 2025 16:56:30 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '8399'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '8411'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999575'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_883619c063efd4604251980a84281bd9
+    status:
+      code: 200
+      message: OK
 version: 1
