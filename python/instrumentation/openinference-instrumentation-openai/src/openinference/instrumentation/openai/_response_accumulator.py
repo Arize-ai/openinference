@@ -1,15 +1,11 @@
 import warnings
-from collections import defaultdict
-from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    DefaultDict,
     Dict,
     Iterable,
     Iterator,
-    List,
     Mapping,
     Optional,
     Protocol,
@@ -52,6 +48,7 @@ class _ChatCompletionAccumulator:
         "_request_parameters",
         "_response_attributes_extractor",
         "_chat_completion_type",
+        "_has_usage",  # Track if we've seen usage data
     )
 
     def __init__(
@@ -64,19 +61,46 @@ class _ChatCompletionAccumulator:
         self._request_parameters = request_parameters
         self._response_attributes_extractor = response_attributes_extractor
         self._is_null = True
-        self._cached_result: Optional[Dict[str, Any]] = None
+        self._cached_result = None
+        self._has_usage = False
         self._values = _ValuesAccumulator(
             choices=_IndexedAccumulator(
                 lambda: _ValuesAccumulator(
                     message=_ValuesAccumulator(
+                        role=_StringAccumulator(),
                         content=_StringAccumulator(),
-                        function_call=_ValuesAccumulator(arguments=_StringAccumulator()),
+                        function_call=_ValuesAccumulator(
+                            name=_StringAccumulator(),
+                            arguments=_StringAccumulator(),
+                        ),
                         tool_calls=_IndexedAccumulator(
                             lambda: _ValuesAccumulator(
-                                function=_ValuesAccumulator(arguments=_StringAccumulator()),
-                            )
+                                id=_StringAccumulator(),
+                                type=_StringAccumulator(),
+                                function=_ValuesAccumulator(
+                                    name=_StringAccumulator(),
+                                    arguments=_StringAccumulator(),
+                                ),
+                            ),
                         ),
                     ),
+                    finish_reason=_StringAccumulator(),
+                ),
+            ),
+            usage=_ValuesAccumulator(
+                prompt_tokens=_IntAccumulator(),
+                completion_tokens=_IntAccumulator(),
+                total_tokens=_IntAccumulator(),
+                prompt_tokens_details=_ValuesAccumulator(
+                    cached_tokens=_IntAccumulator(),
+                    cache_input=_IntAccumulator(),
+                    audio_tokens=_IntAccumulator(),
+                ),
+                completion_tokens_details=_ValuesAccumulator(
+                    reasoning_tokens=_IntAccumulator(),
+                    audio_tokens=_IntAccumulator(),
+                    accepted_prediction_tokens=_IntAccumulator(),
+                    rejected_prediction_tokens=_IntAccumulator(),
                 ),
             ),
         )
@@ -88,16 +112,95 @@ class _ChatCompletionAccumulator:
             warnings.simplefilter("ignore")
             # `warnings=False` in `model_dump()` is only supported in Pydantic v2
             values = chunk.model_dump(exclude_unset=True)
-        for choice in values.get("choices", ()):
-            if delta := choice.pop("delta", None):
-                choice["message"] = delta
-        self._values += values
+
+        # Check if this chunk has usage data
+        if "usage" in values:
+            self._has_usage = True
+
+        # For streaming responses, we need to handle tool calls specially
+        if "choices" in values:
+            for choice in values["choices"]:
+                if "delta" in choice:
+                    delta = choice["delta"]
+                    if "tool_calls" in delta:
+                        # For tool calls, we need to merge them with existing tool calls
+                        if "choices" not in self._values:
+                            self._values["choices"] = _IndexedAccumulator(
+                                lambda: _ValuesAccumulator(
+                                    message=_ValuesAccumulator(
+                                        tool_calls=_IndexedAccumulator(
+                                            lambda: _ValuesAccumulator(
+                                                id=_StringAccumulator(),
+                                                type=_StringAccumulator(),
+                                                function=_ValuesAccumulator(
+                                                    name=_StringAccumulator(),
+                                                    arguments=_StringAccumulator(),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            )
+                        # Merge tool calls
+                        for tool_call in delta["tool_calls"]:
+                            idx = tool_call.get("index", 0)
+                            if "choices" in self._values and idx < len(self._values["choices"]):
+                                if "message" not in self._values["choices"][idx]:
+                                    self._values["choices"][idx]["message"] = _ValuesAccumulator(
+                                        tool_calls=_IndexedAccumulator(
+                                            lambda: _ValuesAccumulator(
+                                                id=_StringAccumulator(),
+                                                type=_StringAccumulator(),
+                                                function=_ValuesAccumulator(
+                                                    name=_StringAccumulator(),
+                                                    arguments=_StringAccumulator(),
+                                                ),
+                                            ),
+                                        ),
+                                    )
+                                if "tool_calls" not in self._values["choices"][idx]["message"]:
+                                    self._values["choices"][idx]["message"]["tool_calls"] = (
+                                        _IndexedAccumulator(
+                                            lambda: _ValuesAccumulator(
+                                                id=_StringAccumulator(),
+                                                type=_StringAccumulator(),
+                                                function=_ValuesAccumulator(
+                                                    name=_StringAccumulator(),
+                                                    arguments=_StringAccumulator(),
+                                                ),
+                                            ),
+                                        )
+                                    )
+                                # Update the tool call
+                                if "id" in tool_call:
+                                    self._values["choices"][idx]["message"]["tool_calls"][idx][
+                                        "id"
+                                    ] = tool_call["id"]
+                                if "type" in tool_call:
+                                    self._values["choices"][idx]["message"]["tool_calls"][idx][
+                                        "type"
+                                    ] = tool_call["type"]
+                                if "function" in tool_call:
+                                    if "name" in tool_call["function"]:
+                                        self._values["choices"][idx]["message"]["tool_calls"][idx][
+                                            "function"
+                                        ]["name"] = tool_call["function"]["name"]
+                                    if "arguments" in tool_call["function"]:
+                                        self._values["choices"][idx]["message"]["tool_calls"][idx][
+                                            "function"
+                                        ]["arguments"] = tool_call["function"]["arguments"]
+                    else:
+                        # For non-tool-call deltas, just update normally
+                        self._values += values
 
     def _result(self) -> Optional[Dict[str, Any]]:
         if self._is_null:
             return None
         if not self._cached_result:
             self._cached_result = dict(self._values)
+            # If we haven't seen usage data in streaming mode, don't include it
+            if not self._has_usage and "usage" in self._cached_result:
+                del self._cached_result["usage"]
         return self._cached_result
 
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
@@ -177,89 +280,76 @@ class _CompletionAccumulator:
             )
 
 
-class _ValuesAccumulator:
-    __slots__ = ("_values",)
-
-    def __init__(self, **values: Any) -> None:
-        self._values: Dict[str, Any] = values
-
-    def __iter__(self) -> Iterator[Tuple[str, Any]]:
-        for key, value in self._values.items():
-            if value is None:
-                continue
-            if isinstance(value, _ValuesAccumulator):
-                if dict_value := dict(value):
-                    yield key, dict_value
-            elif isinstance(value, _IndexedAccumulator):
-                if list_value := list(value):
-                    yield key, list_value
-            elif isinstance(value, _StringAccumulator):
-                if str_value := str(value):
-                    yield key, str_value
-            else:
-                yield key, value
-
-    def __iadd__(self, values: Optional[Mapping[str, Any]]) -> "_ValuesAccumulator":
-        if not values:
-            return self
-        for key in self._values.keys():
-            if (value := values.get(key)) is None:
-                continue
-            self_value = self._values[key]
-            if isinstance(self_value, _ValuesAccumulator):
-                if isinstance(value, Mapping):
-                    self_value += value
-            elif isinstance(self_value, _StringAccumulator):
-                if isinstance(value, str):
-                    self_value += value
-            elif isinstance(self_value, _IndexedAccumulator):
-                if isinstance(value, Iterable):
-                    for v in value:
-                        self_value += v
-                else:
-                    self_value += value
-            elif isinstance(self_value, List) and isinstance(value, Iterable):
-                self_value.extend(value)
-            else:
-                self._values[key] = value  # replacement
-        for key in values.keys():
-            if key in self._values or (value := values[key]) is None:
-                continue
-            value = deepcopy(value)
-            if isinstance(value, Mapping):
-                value = _ValuesAccumulator(**value)
-            self._values[key] = value  # new entry
-        return self
-
-
 class _StringAccumulator:
-    __slots__ = ("_fragments",)
-
     def __init__(self) -> None:
-        self._fragments: List[str] = []
-
-    def __str__(self) -> str:
-        return "".join(self._fragments)
+        self._value: Optional[str] = None
 
     def __iadd__(self, value: Optional[str]) -> "_StringAccumulator":
-        if not value:
-            return self
-        self._fragments.append(value)
+        if value is not None:
+            self._value = value
+        return self
+
+    def __bool__(self) -> bool:
+        return self._value is not None
+
+    def __str__(self) -> str:
+        return str(self._value) if self._value is not None else ""
+
+    def __repr__(self) -> str:
+        return repr(self._value)
+
+
+class _IntAccumulator:
+    def __init__(self) -> None:
+        self._value: Optional[int] = None
+
+    def __iadd__(self, value: Optional[int]) -> "_IntAccumulator":
+        if value is not None:
+            self._value = value
+        return self
+
+    def __bool__(self) -> bool:
+        return self._value is not None
+
+    def __int__(self) -> int:
+        return self._value if self._value is not None else 0
+
+    def __repr__(self) -> str:
+        return repr(self._value)
+
+
+class _ValuesAccumulator(dict):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+
+    def __iadd__(self, values: Mapping[str, Any]) -> "_ValuesAccumulator":
+        for key, value in values.items():
+            if key not in self:
+                self[key] = value
+            elif isinstance(self[key], _ValuesAccumulator):
+                self[key] += value
+            elif isinstance(self[key], _StringAccumulator):
+                self[key] += value
+            elif isinstance(self[key], _IntAccumulator):
+                self[key] += value
+            elif isinstance(self[key], _IndexedAccumulator):
+                self[key] += value
         return self
 
 
-class _IndexedAccumulator:
-    __slots__ = ("_indexed",)
+class _IndexedAccumulator(list):
+    def __init__(self, factory: Callable[[], Any]) -> None:
+        super().__init__()
+        self._factory = factory
 
-    def __init__(self, factory: Callable[[], _ValuesAccumulator]) -> None:
-        self._indexed: DefaultDict[int, _ValuesAccumulator] = defaultdict(factory)
-
-    def __iter__(self) -> Iterator[Dict[str, Any]]:
-        for _, values in sorted(self._indexed.items()):
-            yield dict(values)
-
-    def __iadd__(self, values: Optional[Mapping[str, Any]]) -> "_IndexedAccumulator":
-        if not values or not hasattr(values, "get") or (index := values.get("index")) is None:
-            return self
-        self._indexed[index] += values
+    def __iadd__(self, values: Iterable[Any]) -> "_IndexedAccumulator":
+        for value in values:
+            if isinstance(value, Mapping):
+                if "index" in value:
+                    idx = value["index"]
+                    while len(self) <= idx:
+                        self.append(self._factory())
+                    self[idx] += value
+            else:
+                self.append(value)
         return self

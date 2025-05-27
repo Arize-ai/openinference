@@ -573,11 +573,28 @@ def _get_attributes_from_usage(
 ) -> Iterator[tuple[str, AttributeValue]]:
     if not obj:
         return
-    yield LLM_TOKEN_COUNT_COMPLETION, obj.output_tokens
-    yield LLM_TOKEN_COUNT_PROMPT, obj.input_tokens
-    yield LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
-    yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, obj.input_tokens_details.cached_tokens
-    yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, obj.output_tokens_details.reasoning_tokens
+
+    # Get the total tokens
+    total_input_tokens = obj.input_tokens
+    total_output_tokens = obj.output_tokens
+
+    # Get special component tokens
+    cache_tokens = obj.input_tokens_details.cached_tokens
+    reasoning_tokens = obj.output_tokens_details.reasoning_tokens
+
+    # Set the main token counts (total tokens) only if non-zero
+    if total_input_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT, total_input_tokens
+    if total_output_tokens > 0:
+        yield LLM_TOKEN_COUNT_COMPLETION, total_output_tokens
+    if obj.total_tokens > 0:
+        yield LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
+
+    # Set the special component details only if non-zero
+    if cache_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_tokens
+    if reasoning_tokens > 0:
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
 
 
 def _flatten(

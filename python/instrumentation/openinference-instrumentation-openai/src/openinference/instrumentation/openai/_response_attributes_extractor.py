@@ -225,17 +225,57 @@ class _ResponseAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # openai.types.CompletionUsage
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_usage.py#L8  # noqa: E501
-        if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
+        if (total_tokens := getattr(usage, "total_tokens", None)) is not None and total_tokens > 0:
             yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
-        if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
+        if (
+            prompt_tokens := getattr(usage, "prompt_tokens", None)
+        ) is not None and prompt_tokens > 0:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-        if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
+        if (
+            completion_tokens := getattr(usage, "completion_tokens", None)
+        ) is not None and completion_tokens > 0:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
-        if (prompt_completion_tokens := getattr(usage, "prompt_tokens_details", None)) is not None:
+
+        # Extract prompt_tokens_details
+        if (prompt_tokens_details := getattr(usage, "prompt_tokens_details", None)) is not None:
             if (
-                cached_tokens := getattr(prompt_completion_tokens, "cached_tokens", None)
-            ) is not None:
+                cached_tokens := getattr(prompt_tokens_details, "cached_tokens", None)
+            ) is not None and cached_tokens > 0:
                 yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+            if (
+                cache_input := getattr(prompt_tokens_details, "cache_input", None)
+            ) is not None and cache_input > 0:
+                yield "llm.token_count.prompt_details.cache_input", cache_input
+            if (
+                audio_tokens := getattr(prompt_tokens_details, "audio_tokens", None)
+            ) is not None and audio_tokens > 0:
+                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_tokens
+                # Also include the more explicit naming
+                yield "llm.token_count.prompt_details.audio_input", audio_tokens
+
+        # Extract completion_tokens_details
+        if (
+            completion_tokens_details := getattr(usage, "completion_tokens_details", None)
+        ) is not None:
+            if (
+                reasoning_tokens := getattr(completion_tokens_details, "reasoning_tokens", None)
+            ) is not None and reasoning_tokens > 0:
+                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
+            if (
+                audio_tokens := getattr(completion_tokens_details, "audio_tokens", None)
+            ) is not None and audio_tokens > 0:
+                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, audio_tokens
+                # Also include the more explicit naming
+                yield "llm.token_count.completion_details.audio_output", audio_tokens
+            if (
+                accepted_prediction_tokens := getattr(
+                    completion_tokens_details, "accepted_prediction_tokens", None
+                )
+            ) is not None and accepted_prediction_tokens > 0:
+                yield (
+                    "llm.token_count.completion_details.accepted_prediction",
+                    accepted_prediction_tokens,
+                )
 
     def _get_attributes_from_embedding_usage(
         self,
@@ -243,7 +283,9 @@ class _ResponseAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # openai.types.create_embedding_response.Usage
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/create_embedding_response.py#L12  # noqa: E501
-        if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
+        if (total_tokens := getattr(usage, "total_tokens", None)) is not None and total_tokens > 0:
             yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
-        if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
+        if (
+            prompt_tokens := getattr(usage, "prompt_tokens", None)
+        ) is not None and prompt_tokens > 0:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens

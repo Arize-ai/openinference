@@ -43,7 +43,8 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 # `warnings=False` in `model_dump_json()` is only supported in Pydantic v2
-                value = obj.model_dump_json(exclude_unset=True)
+                # Exclude usage field to avoid duplication in spans
+                value = obj.model_dump_json(exclude_unset=True, exclude={"usage"})
             assert isinstance(value, str)
         except Exception:
             logger.exception("Failed to get model dump json")
@@ -51,7 +52,12 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
     if not isinstance(obj, str) and isinstance(obj, (Sequence, Mapping)):
         try:
-            value = safe_json_dumps(obj)
+            # For dictionaries, exclude the usage field before serializing
+            if isinstance(obj, Mapping) and "usage" in obj:
+                obj_without_usage = {k: v for k, v in obj.items() if k != "usage"}
+                value = safe_json_dumps(obj_without_usage)
+            else:
+                value = safe_json_dumps(obj)
         except Exception:
             logger.exception("Failed to dump json")
         else:
