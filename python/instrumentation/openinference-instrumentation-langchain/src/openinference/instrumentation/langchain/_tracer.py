@@ -391,9 +391,9 @@ def _input_messages(
     # There may be more than one set of messages. We'll use just the first set.
     if not (multiple_messages := inputs.get("messages")):
         return
-    assert isinstance(
-        multiple_messages, Iterable
-    ), f"expected Iterable, found {type(multiple_messages)}"
+    assert isinstance(multiple_messages, Iterable), (
+        f"expected Iterable, found {type(multiple_messages)}"
+    )
     # This will only get the first set of messages.
     if not (first_messages := next(iter(multiple_messages), None)):
         return
@@ -431,15 +431,15 @@ def _output_messages(
     # There may be more than one set of generations. We'll use just the first set.
     if not (multiple_generations := outputs.get("generations")):
         return
-    assert isinstance(
-        multiple_generations, Iterable
-    ), f"expected Iterable, found {type(multiple_generations)}"
+    assert isinstance(multiple_generations, Iterable), (
+        f"expected Iterable, found {type(multiple_generations)}"
+    )
     # This will only get the first set of generations.
     if not (first_generations := next(iter(multiple_generations), None)):
         return
-    assert isinstance(
-        first_generations, Iterable
-    ), f"expected Iterable, found {type(first_generations)}"
+    assert isinstance(first_generations, Iterable), (
+        f"expected Iterable, found {type(first_generations)}"
+    )
     parsed_messages = []
     for generation in first_generations:
         assert hasattr(generation, "get"), f"expected Mapping, found {type(generation)}"
@@ -498,13 +498,13 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
             assert isinstance(name, str), f"expected str, found {type(name)}"
             yield MESSAGE_NAME, name
         if additional_kwargs := kwargs.get("additional_kwargs"):
-            assert hasattr(
-                additional_kwargs, "get"
-            ), f"expected Mapping, found {type(additional_kwargs)}"
+            assert hasattr(additional_kwargs, "get"), (
+                f"expected Mapping, found {type(additional_kwargs)}"
+            )
             if function_call := additional_kwargs.get("function_call"):
-                assert hasattr(
-                    function_call, "get"
-                ), f"expected Mapping, found {type(function_call)}"
+                assert hasattr(function_call, "get"), (
+                    f"expected Mapping, found {type(function_call)}"
+                )
                 if name := function_call.get("name"):
                     assert isinstance(name, str), f"expected str, found {type(name)}"
                     yield MESSAGE_FUNCTION_CALL_NAME, name
@@ -512,9 +512,9 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                     assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
                     yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
             if tool_calls := additional_kwargs.get("tool_calls"):
-                assert isinstance(
-                    tool_calls, Iterable
-                ), f"expected Iterable, found {type(tool_calls)}"
+                assert isinstance(tool_calls, Iterable), (
+                    f"expected Iterable, found {type(tool_calls)}"
+                )
                 message_tool_calls = []
                 for tool_call in tool_calls:
                     if message_tool_call := dict(_get_tool_call(tool_call)):
@@ -565,9 +565,9 @@ def _parse_prompt_template(
         message = messages[0]
         assert isinstance(message, Mapping), f"expected dict, found {type(message)}"
         if partial_variables := kwargs.get("partial_variables"):
-            assert isinstance(
-                partial_variables, Mapping
-            ), f"expected dict, found {type(partial_variables)}"
+            assert isinstance(partial_variables, Mapping), (
+                f"expected dict, found {type(partial_variables)}"
+            )
             inputs = {**partial_variables, **inputs}
         yield from _parse_prompt_template(inputs, message)
     elif _get_cls_name(serialized).endswith("PromptTemplate") and isinstance(
@@ -575,9 +575,9 @@ def _parse_prompt_template(
     ):
         yield LLM_PROMPT_TEMPLATE, template
         if input_variables := kwargs.get("input_variables"):
-            assert isinstance(
-                input_variables, list
-            ), f"expected list, found {type(input_variables)}"
+            assert isinstance(input_variables, list), (
+                f"expected list, found {type(input_variables)}"
+            )
             template_variables = {}
             for variable in input_variables:
                 if (value := inputs.get(variable)) is not None:
@@ -595,9 +595,9 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
         return
     assert hasattr(extra, "get"), f"expected Mapping, found {type(extra)}"
     if invocation_parameters := extra.get("invocation_params"):
-        assert isinstance(
-            invocation_parameters, Mapping
-        ), f"expected Mapping, found {type(invocation_parameters)}"
+        assert isinstance(invocation_parameters, Mapping), (
+            f"expected Mapping, found {type(invocation_parameters)}"
+        )
         yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
 
 
@@ -618,64 +618,102 @@ def _model_name(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
 @stop_on_exception
 def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, int]]:
     """Yields token count information if present."""
-    if not (
-        token_usage := (
-            _parse_token_usage_for_non_streaming_outputs(outputs)
-            or _parse_token_usage_for_streaming_outputs(outputs)
-            or _parse_token_usage_for_vertexai(outputs)
-        )
-    ):
-        return
-    for attribute_name, keys in [
-        (
-            LLM_TOKEN_COUNT_PROMPT,
-            (
-                "prompt_tokens",
-                "input_tokens",  # Anthropic-specific key
-                "prompt_token_count",  # Gemini-specific key - https://ai.google.dev/gemini-api/docs/tokens?lang=python
-            ),
-        ),
-        (
-            LLM_TOKEN_COUNT_COMPLETION,
-            (
-                "completion_tokens",
-                "output_tokens",  # Anthropic-specific key
-                "candidates_token_count",  # Gemini-specific key
-            ),
-        ),
-        (LLM_TOKEN_COUNT_TOTAL, ("total_tokens", "total_token_count")),  # Gemini-specific key
-        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, ("cache_read_input_tokens",)),  # Antrhopic
-        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, ("cache_creation_input_tokens",)),  # Antrhopic
-    ]:
-        if (token_count := _get_first_value(token_usage, keys)) is not None:
-            yield attribute_name, token_count
+    logger.debug(f"Getting token counts from outputs: {json.dumps(outputs, default=str)}")
 
-    # OpenAI
-    for attribute_name, details_key, keys in [
+    # Try each parser and log which one succeeds
+    token_usage = None
+    if token_usage := _parse_token_usage_for_non_streaming_outputs(outputs):
+        logger.debug("Found token usage in non-streaming outputs")
+    elif token_usage := _parse_token_usage_for_streaming_outputs(outputs):
+        logger.debug("Found token usage in streaming outputs")
+    elif token_usage := _parse_token_usage_for_vertexai(outputs):
+        logger.debug("Found token usage in VertexAI outputs")
+    elif token_usage := _parse_token_usage_for_langgraph(outputs):
+        logger.debug("Found token usage in LangGraph outputs")
+    elif token_usage := _parse_token_usage_for_function_bound(outputs):
+        logger.debug("Found token usage in function-bound outputs")
+    else:
+        logger.debug("No token usage found in any output format")
+        return
+
+    logger.debug(f"Found token usage data: {json.dumps(token_usage, default=str)}")
+
+    # Get total tokens first
+    total_input_tokens = _get_first_value(
+        token_usage,
         (
-            LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
-            "completion_tokens_details",
-            ("audio_tokens",),
+            "prompt_tokens",
+            "input_tokens",  # Anthropic-specific key
+            "prompt_token_count",  # VertexAI-specific key
         ),
+    )
+    total_output_tokens = _get_first_value(
+        token_usage,
         (
-            LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
-            "completion_tokens_details",
-            ("reasoning_tokens",),
+            "completion_tokens",
+            "output_tokens",  # Anthropic-specific key
+            "candidates_token_count",  # VertexAI-specific key
         ),
-        (
-            LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
-            "prompt_tokens_details",
-            ("audio_tokens",),
-        ),
-        (
-            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-            "prompt_tokens_details",
-            ("cached_tokens",),
-        ),
-    ]:
-        if (details := token_usage.get(details_key)) is not None:
-            if (token_count := _get_first_value(details, keys)) is not None:
-                yield attribute_name, token_count
+    )
+    # Get total tokens from provider or calculate from input/output
+    total_tokens = _get_first_value(
+        token_usage, ("total_tokens", "total_token_count")
+    )  # VertexAI-specific key
+    # For Anthropic, calculate total if we have both input and output tokens
+    if total_tokens is None and total_input_tokens is not None and total_output_tokens is not None:
+        total_tokens = total_input_tokens + total_output_tokens
+
+    # Get special component tokens
+    cache_tokens = _get_first_value(token_usage, ("cache_read_input_tokens",))  # Anthropic
+    cache_write_tokens = _get_first_value(
+        token_usage, ("cache_creation_input_tokens",)
+    )  # Anthropic
+    cache_input_tokens = _get_first_value(token_usage, ("cache_input_tokens",))  # Anthropic
+    # For VertexAI, get cache tokens from cached_content_token_count
+    if cache_tokens is None:
+        cache_tokens = _get_first_value(token_usage, ("cached_content_token_count",))  # VertexAI
+
+    # Get audio tokens from details
+    audio_input_tokens = _get_first_value(
+        token_usage.get("prompt_tokens_details", {}), ("audio_tokens",)
+    )
+    audio_output_tokens = _get_first_value(
+        token_usage.get("completion_tokens_details", {}), ("audio_tokens",)
+    )
+
+    # For VertexAI, check prompt_tokens_details for modality 2 (image) tokens
+    if audio_input_tokens is None and "prompt_tokens_details" in token_usage:
+        for detail in token_usage["prompt_tokens_details"]:
+            if detail.get("modality") == 2:  # Image modality
+                audio_input_tokens = detail.get("token_count")
+                break
+
+    # Get reasoning tokens from either completion_tokens_details or thoughts_token_count (VertexAI)
+    reasoning_tokens = _get_first_value(
+        token_usage.get("completion_tokens_details", {}), ("reasoning_tokens",)
+    ) or _get_first_value(token_usage, ("thoughts_token_count",))  # VertexAI
+
+    # Yield total tokens only if non-zero
+    if total_input_tokens and total_input_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT, total_input_tokens
+    if total_output_tokens and total_output_tokens > 0:
+        yield LLM_TOKEN_COUNT_COMPLETION, total_output_tokens
+    if total_tokens and total_tokens > 0:
+        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+    # Yield special component tokens only if non-zero
+    if cache_tokens and cache_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_tokens
+    if cache_write_tokens and cache_write_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
+    if cache_input_tokens and cache_input_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT, cache_input_tokens
+    if audio_input_tokens and audio_input_tokens > 0:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_input_tokens
+    if audio_output_tokens and audio_output_tokens > 0:
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, audio_output_tokens
+    if reasoning_tokens and reasoning_tokens > 0:
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
 
 
 def _parse_token_usage_for_vertexai(
@@ -702,7 +740,14 @@ def _parse_token_usage_for_vertexai(
         and hasattr(generation_info, "get")
         and (token_usage := generation_info.get("usage_metadata"))
     ):
-        return token_usage
+        # Extract token usage data and then remove the usage_metadata field
+        token_data = token_usage.copy() if hasattr(token_usage, "copy") else token_usage
+
+        # Remove the usage_metadata field from the original output
+        if hasattr(generation_info, "pop"):
+            generation_info.pop("usage_metadata", None)
+
+        return token_data
     return None
 
 
@@ -713,6 +758,7 @@ def _parse_token_usage_for_non_streaming_outputs(
     Parses output to get token usage information for non-streaming LLMs, i.e.,
     when `stream_usage` is set to false.
     """
+    logger.debug(f"Parsing non-streaming outputs: {outputs}")
     if (
         outputs
         and hasattr(outputs, "get")
@@ -728,7 +774,21 @@ def _parse_token_usage_for_non_streaming_outputs(
             )
         )
     ):
-        return token_usage
+        logger.debug(f"Found token usage in non-streaming outputs: {token_usage}")
+        # Extract token usage data and then remove the usage field from outputs if it exists
+        token_data = token_usage.copy() if hasattr(token_usage, "copy") else token_usage
+
+        # If it's an Anthropic response with usage field, remove it from the original output
+        if hasattr(llm_output, "get") and llm_output.get("usage") is not None:
+            if hasattr(llm_output, "pop"):
+                llm_output.pop("usage", None)
+        # If token_usage is identified from token_usage field, remove it from the original output
+        elif hasattr(llm_output, "get") and llm_output.get("token_usage") is not None:
+            if hasattr(llm_output, "pop"):
+                llm_output.pop("token_usage", None)
+
+        return token_data
+    logger.debug("No token usage found in non-streaming outputs")
     return None
 
 
@@ -739,6 +799,7 @@ def _parse_token_usage_for_streaming_outputs(
     Parses output to get token usage information for streaming LLMs, i.e., when
     `stream_usage` is set to true.
     """
+    logger.debug(f"Parsing streaming outputs: {outputs}")
     if (
         outputs
         and hasattr(outputs, "get")
@@ -754,7 +815,100 @@ def _parse_token_usage_for_streaming_outputs(
         and hasattr(kwargs, "get")
         and (token_usage := kwargs.get("usage_metadata"))
     ):
-        return token_usage
+        logger.debug(f"Found token usage in streaming outputs: {token_usage}")
+        # Extract token usage data and then remove the usage_metadata field
+        token_data = token_usage.copy() if hasattr(token_usage, "copy") else token_usage
+
+        # Remove the usage_metadata field from the original output
+        if hasattr(kwargs, "pop"):
+            kwargs.pop("usage_metadata", None)
+
+        return token_data
+    logger.debug("No token usage found in streaming outputs")
+    return None
+
+
+def _parse_token_usage_for_langgraph(
+    outputs: Optional[Mapping[str, Any]],
+) -> Any:
+    """
+    Parses output to get token usage information for LangGraph LLMs.
+    LangGraph may store token usage in a different location in the generation structure.
+    """
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (generations := outputs.get("generations"))
+        and hasattr(generations, "__getitem__")
+        and generations[0]
+        and hasattr(generations[0], "__getitem__")
+        and (generation := generations[0][0])
+        and hasattr(generation, "get")
+    ):
+        # Try different possible locations for token usage
+        token_usage = None
+
+        # Check direct on generation
+        if usage := generation.get("usage"):
+            token_usage = usage
+        # Check in generation_info
+        elif (gen_info := generation.get("generation_info")) and hasattr(gen_info, "get"):
+            if usage := gen_info.get("usage"):
+                token_usage = usage
+            elif usage := gen_info.get("usage_metadata"):
+                token_usage = usage
+        # Check in message kwargs
+        elif (message := generation.get("message")) and hasattr(message, "get"):
+            if kwargs := message.get("kwargs"):
+                if usage := kwargs.get("usage"):
+                    token_usage = usage
+                elif usage := kwargs.get("usage_metadata"):
+                    token_usage = usage
+
+        if token_usage:
+            # Extract token usage data and then remove it from the original output
+            token_data = token_usage.copy() if hasattr(token_usage, "copy") else token_usage
+            return token_data
+    return None
+
+
+def _parse_token_usage_for_function_bound(
+    outputs: Optional[Mapping[str, Any]],
+) -> Any:
+    """
+    Parses output to get token usage information for LLMs bound with functions.
+    This is used in cases like supervisor chains where the LLM is bound with functions
+    and the output is parsed by JsonOutputFunctionsParser.
+    """
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (llm_output := outputs.get("llm_output"))
+        and hasattr(llm_output, "get")
+    ):
+        # Check for token usage in various locations
+        token_usage = None
+
+        # Check direct on llm_output
+        if usage := llm_output.get("usage"):
+            token_usage = usage
+        # Check in raw_output if present
+        elif (raw := llm_output.get("raw_output")) and hasattr(raw, "get"):
+            if usage := raw.get("usage"):
+                token_usage = usage
+            elif usage := raw.get("usage_metadata"):
+                token_usage = usage
+        # Check in additional_kwargs if present
+        elif (kwargs := llm_output.get("additional_kwargs")) and hasattr(kwargs, "get"):
+            if usage := kwargs.get("usage"):
+                token_usage = usage
+            elif usage := kwargs.get("usage_metadata"):
+                token_usage = usage
+
+        if token_usage:
+            # Extract token usage data
+            token_data = token_usage.copy() if hasattr(token_usage, "copy") else token_usage
+            return token_data
     return None
 
 
@@ -930,6 +1084,7 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
     SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
 )
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT = "llm.token_count.prompt_details.cache_input"
 LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
