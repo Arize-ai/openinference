@@ -36,6 +36,9 @@ export type RetrievalDocument = {
 export type LLMParameterAttributes = {
   [SemanticConventions.LLM_MODEL_NAME]?: string;
   [SemanticConventions.LLM_INVOCATION_PARAMETERS]?: string;
+  [
+    key: `${typeof SemanticConventions.LLM_TOOLS}.${number}.${typeof SemanticConventions.TOOL_JSON_SCHEMA}`
+  ]: string;
 };
 
 export type PromptTemplateAttributes = {
