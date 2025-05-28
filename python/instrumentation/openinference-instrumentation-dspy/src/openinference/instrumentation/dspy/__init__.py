@@ -400,7 +400,7 @@ class _PredictForwardWrapper(_WithTracer):
                     _flatten(
                         {
                             OUTPUT_VALUE: safe_json_dumps(
-                                self._prediction_to_output_dict(prediction, signature)
+                                _prediction_to_output_dict_global(prediction, signature)
                             ),
                             OUTPUT_MIME_TYPE: JSON,
                         }
@@ -410,15 +410,14 @@ class _PredictForwardWrapper(_WithTracer):
             span.set_status(StatusCode.OK)
         return prediction
 
-    def _prediction_to_output_dict(self, prediction: Any, signature: Any) -> Dict[str, Any]:
+    def _prediction_to_output_dict(self, prediction: Any, signature: Any = None) -> Dict[str, Any]:
         """
-        Parse the prediction to get output fields
+        Parse the prediction to get output fields as a dictionary.
+        If signature is provided, use its output_fields. Otherwise, try to extract
+        all fields from the prediction object.
         """
-        output = {}
-        for output_field_name in signature.output_fields:
-            if (prediction_value := prediction.get(output_field_name)) is not None:
-                output[output_field_name] = prediction_value
-        return output
+        # Delegate to the global function
+        return _prediction_to_output_dict_global(prediction, signature)
 
 
 class _PredictAforwardWrapper(_WithTracer):
@@ -484,10 +483,7 @@ class _PredictAforwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: safe_json_dumps(
-                                self._prediction_to_output_dict(prediction, signature)
-                            ),
-                            OUTPUT_MIME_TYPE: JSON,
+                            **dict(_dspy_output_value_and_mime_type(prediction)),
                         }
                     )
                 )
@@ -499,11 +495,8 @@ class _PredictAforwardWrapper(_WithTracer):
         """
         Parse the prediction to get output fields
         """
-        output = {}
-        for output_field_name in signature.output_fields:
-            if (prediction_value := prediction.get(output_field_name)) is not None:
-                output[output_field_name] = prediction_value
-        return output
+        # Delegate to the global function
+        return _prediction_to_output_dict_global(prediction, signature)
 
 
 class _ModuleForwardWrapper(_WithTracer):
@@ -549,8 +542,7 @@ class _ModuleForwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
-                            OUTPUT_MIME_TYPE: JSON,
+                            **dict(_dspy_output_value_and_mime_type(prediction)),
                         }
                     )
                 )
@@ -602,8 +594,7 @@ class _ModuleAforwardWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
-                            OUTPUT_MIME_TYPE: JSON,
+                            **dict(_dspy_output_value_and_mime_type(prediction)),
                         }
                     )
                 )
@@ -743,7 +734,7 @@ class _AdapterCallWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            **dict(_output_value_and_mime_type(response)),
+                            **dict(_dspy_output_value_and_mime_type(response)),
                         }
                     )
                 )
@@ -781,7 +772,7 @@ class _AdapterAcallWrapper(_WithTracer):
                 dict(
                     _flatten(
                         {
-                            **dict(_output_value_and_mime_type(response)),
+                            **dict(_dspy_output_value_and_mime_type(response)),
                         }
                     )
                 )
@@ -897,6 +888,53 @@ class SafeJSONEncoder(json.JSONEncoder):
             if hasattr(o, "dict") and callable(o.dict):  # pydantic v1 models, e.g., from Cohere
                 return o.dict()
             return repr(o)
+
+
+def _prediction_to_output_dict_global(prediction: Any, signature: Any = None) -> Dict[str, Any]:
+    """
+    Parse the prediction to get output fields as a dictionary.
+    If signature is provided, use its output_fields. Otherwise, try to extract
+    all fields from the prediction object.
+    """
+    from dspy.primitives.example import Example
+    
+    # If it's not a DSPy Example/Prediction object, return it as-is
+    if not isinstance(prediction, Example):
+        return prediction if isinstance(prediction, dict) else {"value": prediction}
+    
+    output = {}
+    
+    if signature is not None:
+        # Use signature's output fields if available
+        for output_field_name in signature.output_fields:
+            if (prediction_value := prediction.get(output_field_name)) is not None:
+                output[output_field_name] = prediction_value
+    else:
+        # Extract all fields from the prediction's _store
+        store = getattr(prediction, "_store", {})
+        if isinstance(store, dict):
+            output.update(store)
+        else:
+            # Fallback to trying to get all attributes
+            for key in dir(prediction):
+                if not key.startswith('_') and hasattr(prediction, key):
+                    try:
+                        value = getattr(prediction, key)
+                        if not callable(value):
+                            output[key] = value
+                    except (AttributeError, TypeError):
+                        continue
+    
+    return output if output else {"value": str(prediction)}
+
+
+def _dspy_output_value_and_mime_type(response: Any, signature: Any = None) -> Iterator[Tuple[str, Any]]:
+    """
+    Generate output value and mime type for DSPy responses, properly parsing prediction objects.
+    """
+    output_dict = _prediction_to_output_dict_global(response, signature)
+    yield OUTPUT_VALUE, safe_json_dumps(output_dict)
+    yield OUTPUT_MIME_TYPE, JSON
 
 
 def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
