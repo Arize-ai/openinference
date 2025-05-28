@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 3.3.0
+
+### Minor Changes
+
+- 2869d93: captures the json schema for function calls that are bound to llm calls as tools
+
 ## 3.2.0
 
 ### Minor Changes
