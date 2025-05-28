@@ -306,9 +306,12 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
         yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
 
 
-def _llm_invocation_parameters(model: Model, arguments: Optional[Mapping[str, Any]] = None) -> Iterator[Tuple[str, Any]]:
+def _llm_invocation_parameters(
+    model: Model, arguments: Optional[Mapping[str, Any]] = None
+) -> Iterator[Tuple[str, Any]]:
     request_kwargs = {}
-    # TODO (v2.0.0): with the cleanup of the agno.models.base.Model class we will handle these attributes in a more consistent way.
+    # TODO (v2.0.0): with the cleanup of the agno.models.base.Model class we will
+    # handle these attributes in a more consistent way.
     if getattr(model, "request_kwargs", None):
         request_kwargs = model.request_kwargs  # type: ignore[attr-defined]
     if getattr(model, "request_params", None):
@@ -319,10 +322,9 @@ def _llm_invocation_parameters(model: Model, arguments: Optional[Mapping[str, An
         # Special handling for OpenAIResponses model
         if model.__class__.__name__ == "OpenAIResponses" and arguments:
             messages = arguments.get("messages", [])
-            request_kwargs = model.get_request_params(
-                messages=messages)  # type: ignore[attr-defined]
+            request_kwargs = model.get_request_params(messages=messages)  # type: ignore[attr-defined]
         else:
-            request_kwargs = model.get_request_params() # type: ignore[attr-defined]
+            request_kwargs = model.get_request_params()  # type: ignore[attr-defined]
 
     if request_kwargs:
         yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_kwargs)
