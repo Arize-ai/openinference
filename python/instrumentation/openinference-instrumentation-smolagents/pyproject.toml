@@ -38,7 +38,7 @@ instruments = [
   "smolagents>=1.12.0",
 ]
 test = [
-  "smolagents==1.12.0",
+  "smolagents[litellm]==1.12.0",
   "opentelemetry-sdk",
   "pytest-recording",
   "openai",

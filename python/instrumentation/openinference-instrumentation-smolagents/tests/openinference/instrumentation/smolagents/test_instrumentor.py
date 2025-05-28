@@ -9,7 +9,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from smolagents import OpenAIServerModel, Tool
+from smolagents import LiteLLMModel, OpenAIServerModel, Tool
 from smolagents.agents import (  # type: ignore[import-untyped]
     CodeAgent,
     ToolCallingAgent,
@@ -24,6 +24,7 @@ from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -96,6 +97,13 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
     return api_key
 
 
+@pytest.fixture
+def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
+    api_key = "sk-0123456789"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", api_key)
+    return api_key
+
+
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
         (instrumentor_entrypoint,) = entry_points(
@@ -163,7 +171,12 @@ class TestModels:
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
         assert (
-            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == output_message_content
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == output_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
         )
         assert not attributes
 
@@ -273,6 +286,77 @@ class TestModels:
             str,
         )
         assert json.loads(tool_call_arguments_json) == {"location": "Paris"}
+        assert not attributes
+
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    def test_litellm_reasoning_model_has_expected_attributes(
+        self,
+        anthropic_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        model_params = {"thinking": {"type": "enabled", "budget_tokens": 4000}}
+
+        model = LiteLLMModel(
+            model_id="anthropic/claude-3-7-sonnet-20250219",
+            api_key=os.environ["ANTHROPIC_API_KEY"],
+            **model_params,
+        )
+
+        input_message_content = (
+            "Who won the World Cup in 2018? Answer in one word with no punctuation."
+        )
+        output_message = model(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": input_message_content}],
+                }
+            ]
+        )
+        output_message_content = output_message.content
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "LiteLLMModel.__call__"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        input_data = json.loads(input_value)
+        assert "messages" in input_data
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(json.loads(output_value), dict)
+        assert attributes.pop(LLM_MODEL_NAME) == "anthropic/claude-3-7-sonnet-20250219"
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == model_params
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == output_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert isinstance(
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"),
+            str,
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
         assert not attributes
 
 
@@ -496,6 +580,9 @@ class TestTools:
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
