@@ -116,11 +116,8 @@ from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
 from llama_index.core.workflow.errors import WorkflowDone
 
-# Import LlamaIndex LLM classes for provider detection
-from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
-from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
-from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
-from llama_index.llms.vertex import Vertex as LlamaIndexVertex
+# Removed eager imports of LLM provider classes to fix import issues
+# These will be lazily imported in the provider detection logic instead
 from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
@@ -166,6 +163,60 @@ if LLAMA_INDEX_VERSION < (0, 10, 44):
 
 elif not TYPE_CHECKING:
     from llama_index.core.instrumentation.events.exception import ExceptionEvent
+
+
+def _detect_llm_provider(instance: Any) -> Optional[str]:
+    """
+    Detect LLM provider using lazy imports to avoid import errors when
+    optional LLM provider packages are not installed.
+    
+    Args:
+        instance: The LLM instance to check
+        
+    Returns:
+        Provider string if detected, None otherwise
+    """
+    # Try specific provider imports with lazy loading
+    try:
+        from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
+        if isinstance(instance, LlamaIndexAzureOpenAI):
+            return OpenInferenceLLMProviderValues.AZURE.value
+    except ImportError:
+        pass
+    
+    try:
+        from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
+        if isinstance(instance, LlamaIndexOpenAI):
+            return OpenInferenceLLMProviderValues.OPENAI.value
+    except ImportError:
+        pass
+    
+    try:
+        from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
+        if isinstance(instance, LlamaIndexAnthropic):
+            return OpenInferenceLLMProviderValues.ANTHROPIC.value
+    except ImportError:
+        pass
+    
+    try:
+        from llama_index.llms.vertex import Vertex as LlamaIndexVertex
+        if isinstance(instance, LlamaIndexVertex):
+            return OpenInferenceLLMProviderValues.GOOGLE.value  # Vertex AI is a Google Cloud service
+    except ImportError:
+        pass
+    
+    # Fallback to class name inspection
+    class_name_lower = instance.__class__.__name__.lower()
+    if "anthropic" in class_name_lower:
+        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+    elif "azure" in class_name_lower:
+        return OpenInferenceLLMProviderValues.AZURE.value
+    elif "openai" in class_name_lower:
+        return OpenInferenceLLMProviderValues.OPENAI.value
+    elif "google" in class_name_lower or "vertex" in class_name_lower:
+        return OpenInferenceLLMProviderValues.GOOGLE.value
+    
+    return None
 
 
 class _StreamingStatus(Enum):
@@ -298,30 +349,9 @@ class _Span(BaseSpan):
             self[LLM_INVOCATION_PARAMETERS] = metadata.json(exclude_unset=True)
 
         # Provider detection
-        if isinstance(instance, LlamaIndexAzureOpenAI):
-            self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.AZURE.value
-        elif isinstance(instance, LlamaIndexOpenAI):
-            self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.OPENAI.value
-        elif isinstance(instance, LlamaIndexAnthropic):
-            self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.ANTHROPIC.value
-        elif isinstance(instance, LlamaIndexVertex):
-            self[LLM_PROVIDER] = (
-                OpenInferenceLLMProviderValues.GOOGLE.value
-            )  # Vertex AI is a Google Cloud service
-        else:
-            # Fallback to class name inspection
-            if "anthropic" in instance.__class__.__name__.lower():
-                self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.ANTHROPIC.value
-            elif "azure" in instance.__class__.__name__.lower():
-                self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.AZURE.value
-            elif "openai" in instance.__class__.__name__.lower():
-                self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.OPENAI.value
-            elif (
-                "google" in instance.__class__.__name__.lower()
-                or "vertex" in instance.__class__.__name__.lower()
-            ):
-                self[LLM_PROVIDER] = OpenInferenceLLMProviderValues.GOOGLE.value
-            # Add other providers as needed
+        provider = _detect_llm_provider(instance)
+        if provider:
+            self[LLM_PROVIDER] = provider
 
     @process_instance.register
     def _(self, instance: BaseEmbedding) -> None:
