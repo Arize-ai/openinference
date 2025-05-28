@@ -35,9 +35,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-instruments = [
-  "pydantic-ai>=0.2.0",
-]
 test = [
   "pytest>=7.4.0",
   "pytest-cov>=4.1.0",
