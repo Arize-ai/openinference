@@ -436,6 +436,18 @@ function formatLLMParams(
     openInferenceParams[SemanticConventions.LLM_MODEL_NAME] =
       runExtra.invocation_params.model;
   }
+
+  // add tool json schema if present in the invocation params
+  const tools = runExtra.invocation_params.tools;
+  if (Array.isArray(tools)) {
+    tools.forEach((tool, index) => {
+      const toolJsonSchema = safelyJSONStringify(tool);
+      if (toolJsonSchema) {
+        const key = `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`;
+        openInferenceParams[key] = toolJsonSchema;
+      }
+    });
+  }
   return openInferenceParams;
 }
 

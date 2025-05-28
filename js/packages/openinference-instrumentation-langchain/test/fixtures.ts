@@ -79,3 +79,133 @@ export const functionCallResponse = {
     total_tokens: 110,
   },
 };
+
+/***
+ *AIMessage 
+ {
+  "id": "chatcmpl-Bc4uFXiPV92QJpHTTCmA5ZTFDgMJr",
+  "content": "",
+  "additional_kwargs": {
+    "tool_calls": [
+      {
+        "id": "call_AlQk4zMNaLGogyZRlFGNzioN",
+        "type": "function",
+        "function": "[Object]"
+      }
+    ]
+  },
+  "response_metadata": {
+    "tokenUsage": {
+      "promptTokens": 48,
+      "completionTokens": 16,
+      "totalTokens": 64
+    },
+    "finish_reason": "tool_calls",
+    "model_name": "gpt-4o-mini-2024-07-18",
+    "usage": {
+      "prompt_tokens": 48,
+      "completion_tokens": 16,
+      "total_tokens": 64,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "system_fingerprint": "fp_34a54ae93c"
+  },
+  "tool_calls": [
+    {
+      "name": "multiply",
+      "args": {
+        "input": "2 * 3"
+      },
+      "type": "tool_call",
+      "id": "call_AlQk4zMNaLGogyZRlFGNzioN"
+    }
+  ],
+  "invalid_tool_calls": [],
+  "usage_metadata": {
+    "output_tokens": 16,
+    "input_tokens": 48,
+    "total_tokens": 64,
+    "input_token_details": {
+      "audio": 0,
+      "cache_read": 0
+    },
+    "output_token_details": {
+      "audio": 0,
+      "reasoning": 0
+    }
+  }
+}
+ 
+ * 
+ */
+export const toolCallResponse = {
+  id: "chatcmpl-Bc4uFXiPV92QJpHTTCmA5ZTFDgMJr",
+  content: "",
+  additional_kwargs: {
+    tool_calls: [
+      {
+        id: "call_AlQk4zMNaLGogyZRlFGNzioN",
+        type: "function",
+        function: "[Object]",
+      },
+    ],
+  },
+  response_metadata: {
+    tokenUsage: {
+      promptTokens: 48,
+      completionTokens: 16,
+      totalTokens: 64,
+    },
+    finish_reason: "tool_calls",
+    model_name: "gpt-4o-mini-2024-07-18",
+    usage: {
+      prompt_tokens: 48,
+      completion_tokens: 16,
+      total_tokens: 64,
+      prompt_tokens_details: {
+        cached_tokens: 0,
+        audio_tokens: 0,
+      },
+      completion_tokens_details: {
+        reasoning_tokens: 0,
+        audio_tokens: 0,
+        accepted_prediction_tokens: 0,
+        rejected_prediction_tokens: 0,
+      },
+    },
+    system_fingerprint: "fp_34a54ae93c",
+  },
+  tool_calls: [
+    {
+      name: "multiply",
+      args: {
+        input: "2 * 3",
+      },
+      type: "tool_call",
+      id: "call_AlQk4zMNaLGogyZRlFGNzioN",
+    },
+  ],
+  invalid_tool_calls: [],
+  usage_metadata: {
+    output_tokens: 16,
+    input_tokens: 48,
+    total_tokens: 64,
+    input_token_details: {
+      audio: 0,
+      cache_read: 0,
+    },
+    output_token_details: {
+      audio: 0,
+      reasoning: 0,
+    },
+  },
+};
