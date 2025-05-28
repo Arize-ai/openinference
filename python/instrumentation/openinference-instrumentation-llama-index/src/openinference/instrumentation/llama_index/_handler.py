@@ -158,6 +158,60 @@ elif not TYPE_CHECKING:
     from llama_index.core.instrumentation.events.exception import ExceptionEvent
 
 
+def _detect_llm_provider(instance: Any) -> Optional[str]:
+    """
+    Detect LLM provider using lazy imports to avoid import errors when
+    optional LLM provider packages are not installed.
+    
+    Args:
+        instance: The LLM instance to check
+        
+    Returns:
+        Provider string if detected, None otherwise
+    """
+    # Try specific provider imports with lazy loading
+    try:
+        from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
+        if isinstance(instance, LlamaIndexOpenAI):
+            return "openai"
+    except ImportError:
+        pass
+    
+    try:
+        from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
+        if isinstance(instance, LlamaIndexAnthropic):
+            return "anthropic"
+    except ImportError:
+        pass
+    
+    try:
+        from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
+        if isinstance(instance, LlamaIndexAzureOpenAI):
+            return "azure"
+    except ImportError:
+        pass
+    
+    try:
+        from llama_index.llms.vertex import Vertex as LlamaIndexVertex
+        if isinstance(instance, LlamaIndexVertex):
+            return "vertex"
+    except ImportError:
+        pass
+    
+    # Fallback: check class name if imports fail
+    class_name = instance.__class__.__name__.lower()
+    if "openai" in class_name:
+        if "azure" in class_name:
+            return "azure"
+        return "openai"
+    elif "anthropic" in class_name:
+        return "anthropic"
+    elif "vertex" in class_name or "gemini" in class_name:
+        return "vertex"
+    
+    return None
+
+
 class _StreamingStatus(Enum):
     FINISHED = auto()
     IN_PROGRESS = auto()
@@ -286,6 +340,10 @@ class _Span(BaseSpan):
         if metadata := instance.metadata:
             self[LLM_MODEL_NAME] = metadata.model_name
             self[LLM_INVOCATION_PARAMETERS] = metadata.json(exclude_unset=True)
+        
+        # Add LLM provider detection
+        if provider := _detect_llm_provider(instance):
+            self[LLM_PROVIDER] = provider
 
     @process_instance.register
     def _(self, instance: BaseEmbedding) -> None:
@@ -1158,6 +1216,7 @@ LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
