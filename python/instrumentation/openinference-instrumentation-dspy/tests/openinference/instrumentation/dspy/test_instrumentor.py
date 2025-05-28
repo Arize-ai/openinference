@@ -1170,6 +1170,176 @@ def test_context_attributes_are_instrumented(
         )
 
 
+def test_dspy_output_parsing_as_json_objects(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """
+    Test that DSPy prediction outputs are parsed as JSON objects with individual fields
+    rather than string representations. This verifies the fix for GitHub issue #1695.
+    """
+    
+    # Create a signature with multiple output fields
+    class TestSignature(dspy.Signature):
+        """Test signature with multiple output fields."""
+        question = dspy.InputField()
+        answer = dspy.OutputField()
+        reasoning = dspy.OutputField()
+        confidence_score = dspy.OutputField()
+    
+    # Create a test module that returns a prediction with multiple fields
+    class TestModule(dspy.Module):  # type: ignore
+        def __init__(self) -> None:
+            super().__init__()
+            self.signature = TestSignature
+        
+        def forward(self, question: str) -> dspy.Prediction:
+            # Return a prediction with multiple output fields
+            return dspy.Prediction(
+                answer="Washington, D.C.",
+                reasoning="The capital of the United States is Washington, D.C.",
+                confidence_score=0.95
+            )
+    
+    # Test the module
+    module = TestModule()
+    result = module(question="What is the capital of the United States?")
+    
+    # Verify the result has the expected fields
+    assert result.answer == "Washington, D.C."
+    assert result.reasoning == "The capital of the United States is Washington, D.C."
+    assert result.confidence_score == 0.95
+    
+    # Get the spans and verify output parsing
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, f"Expected 1 span, got {len(spans)}"
+    
+    span = spans[0]
+    assert span.name == "TestModule.forward"
+    assert span.status.is_ok
+    
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    
+    # Verify input is properly parsed
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
+    input_data = json.loads(input_value)
+    assert input_data["question"] == "What is the capital of the United States?"
+    
+    # Verify output is properly parsed as JSON with individual fields
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    
+    # This is the key test: output should be parseable as JSON
+    output_data = json.loads(output_value)
+    assert isinstance(output_data, dict), f"Expected dict, got {type(output_data)}"
+    
+    # Verify individual fields are accessible and correct
+    assert "answer" in output_data, "answer field not found in output"
+    assert "reasoning" in output_data, "reasoning field not found in output"
+    assert "confidence_score" in output_data, "confidence_score field not found in output"
+    
+    assert output_data["answer"] == "Washington, D.C."
+    assert output_data["reasoning"] == "The capital of the United States is Washington, D.C."
+    assert output_data["confidence_score"] == 0.95
+    
+    # Verify no extra attributes remain
+    assert not attributes
+
+
+def test_dspy_output_parsing_without_signature(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """
+    Test that DSPy prediction outputs are parsed correctly even when no signature is available.
+    This tests the fallback behavior of extracting fields from the prediction's _store.
+    """
+    
+    # Create a test module without a signature
+    class TestModuleNoSignature(dspy.Module):  # type: ignore
+        def forward(self, question: str) -> dspy.Prediction:
+            # Return a prediction with multiple fields but no signature
+            return dspy.Prediction(
+                recording_file_name="test_recording.wav",
+                disappointment_score=7.5,
+                disappointment_reasoning="The response lacks enthusiasm and clarity."
+            )
+    
+    # Test the module
+    module = TestModuleNoSignature()
+    result = module(question="How disappointed are you?")
+    
+    # Verify the result has the expected fields
+    assert result.recording_file_name == "test_recording.wav"
+    assert result.disappointment_score == 7.5
+    assert result.disappointment_reasoning == "The response lacks enthusiasm and clarity."
+    
+    # Get the spans and verify output parsing
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, f"Expected 1 span, got {len(spans)}"
+    
+    span = spans[0]
+    assert span.name == "TestModuleNoSignature.forward"
+    assert span.status.is_ok
+    
+    attributes = dict(span.attributes or {})
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    
+    # Parse output as JSON and verify fields are accessible
+    output_data = json.loads(output_value)
+    assert isinstance(output_data, dict)
+    
+    # These are the exact fields mentioned in the GitHub issue
+    assert "recording_file_name" in output_data
+    assert "disappointment_score" in output_data  
+    assert "disappointment_reasoning" in output_data
+    
+    assert output_data["recording_file_name"] == "test_recording.wav"
+    assert output_data["disappointment_score"] == 7.5
+    assert output_data["disappointment_reasoning"] == "The response lacks enthusiasm and clarity."
+
+
+def test_dspy_output_parsing_non_dspy_objects(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """
+    Test that non-DSPy objects are handled gracefully in output parsing.
+    """
+    
+    class TestModuleNonDSPy(dspy.Module):  # type: ignore
+        def forward(self, question: str) -> Dict[str, Any]:
+            # Return a regular dictionary instead of a DSPy Prediction
+            return {
+                "answer": "42",
+                "type": "number"
+            }
+    
+    # Test the module
+    module = TestModuleNonDSPy()
+    result = module(question="What is the answer?")
+    
+    # Verify the result
+    assert result["answer"] == "42"
+    assert result["type"] == "number"
+    
+    # Get the spans and verify output parsing
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    output_value = attributes.pop(OUTPUT_VALUE)
+    
+    # Parse output as JSON
+    output_data = json.loads(output_value)
+    assert isinstance(output_data, dict)
+    assert output_data["answer"] == "42"
+    assert output_data["type"] == "number"
+
+
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
