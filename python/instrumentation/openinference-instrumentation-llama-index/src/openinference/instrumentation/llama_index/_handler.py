@@ -169,42 +169,48 @@ def _detect_llm_provider(instance: Any) -> Optional[str]:
     """
     Detect LLM provider using lazy imports to avoid import errors when
     optional LLM provider packages are not installed.
-    
+
     Args:
         instance: The LLM instance to check
-        
+
     Returns:
         Provider string if detected, None otherwise
     """
     # Try specific provider imports with lazy loading
     try:
         from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
+
         if isinstance(instance, LlamaIndexAzureOpenAI):
             return OpenInferenceLLMProviderValues.AZURE.value
     except ImportError:
         pass
-    
+
     try:
         from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
+
         if isinstance(instance, LlamaIndexOpenAI):
             return OpenInferenceLLMProviderValues.OPENAI.value
     except ImportError:
         pass
-    
+
     try:
         from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
+
         if isinstance(instance, LlamaIndexAnthropic):
             return OpenInferenceLLMProviderValues.ANTHROPIC.value
     except ImportError:
         pass
-    
+
     try:
         from llama_index.llms.vertex import Vertex as LlamaIndexVertex
+
         if isinstance(instance, LlamaIndexVertex):
-            return OpenInferenceLLMProviderValues.GOOGLE.value  # Vertex AI is a Google Cloud service
+            return (
+                OpenInferenceLLMProviderValues.GOOGLE.value
+            )  # Vertex AI is a Google Cloud service
     except ImportError:
         pass
-    
+
     # Fallback to class name inspection
     class_name_lower = instance.__class__.__name__.lower()
     if "anthropic" in class_name_lower:
@@ -215,7 +221,7 @@ def _detect_llm_provider(instance: Any) -> Optional[str]:
         return OpenInferenceLLMProviderValues.OPENAI.value
     elif "google" in class_name_lower or "vertex" in class_name_lower:
         return OpenInferenceLLMProviderValues.GOOGLE.value
-    
+
     return None
 
 
