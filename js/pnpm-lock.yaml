@@ -313,16 +313,12 @@ importers:
 
   packages/openinference-mastra:
     dependencies:
-      '@arizeai/openinference-core':
-        specifier: workspace:*
-        version: link:../openinference-core
       '@arizeai/openinference-semantic-conventions':
         specifier: workspace:*
         version: link:../openinference-semantic-conventions
       '@arizeai/openinference-vercel':
         specifier: workspace:*
         version: link:../openinference-vercel
-    devDependencies:
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -338,6 +334,7 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.34.0
         version: 1.34.0
+    devDependencies:
       vitest:
         specifier: ^3.1.3
         version: 3.1.4(@types/node@20.14.11)(tsx@4.19.3)(yaml@2.5.0)
