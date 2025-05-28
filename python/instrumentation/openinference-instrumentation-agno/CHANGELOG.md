@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.4...python-openinference-instrumentation-agno-v0.1.5) (2025-05-28)
+
+
+### Bug Fixes
+
+* handle AgnoInstrumentor failing with OpenAIResponses ([#1701](https://github.com/Arize-ai/openinference/issues/1701)) ([f33fadf](https://github.com/Arize-ai/openinference/commit/f33fadf5a67fd4bce8ba590cdae4c9b7d1133d74))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.3...python-openinference-instrumentation-agno-v0.1.4) (2025-05-20)
 
 
