@@ -24,11 +24,7 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import { LangChainTracer } from "../src/tracer";
 import { trace } from "@opentelemetry/api";
-import {
-  completionsResponse,
-  functionCallResponse,
-  toolCallResponse,
-} from "./fixtures";
+import { completionsResponse, functionCallResponse } from "./fixtures";
 import { DynamicTool } from "@langchain/core/tools";
 import {
   OITracer,
