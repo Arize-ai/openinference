@@ -499,7 +499,6 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should capture tool json schema in llm spans for bound tools", async () => {
-    // Do this to update the mock to return a tool call response
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { ChatOpenAI } = jest.requireMock("@langchain/openai");
 
