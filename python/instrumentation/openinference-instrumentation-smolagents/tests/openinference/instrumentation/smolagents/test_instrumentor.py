@@ -96,6 +96,13 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
     return api_key
 
 
+@pytest.fixture
+def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
+    api_key = "sk-0123456789"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", api_key)
+    return api_key
+
+
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
         (instrumentor_entrypoint,) = entry_points(
@@ -290,7 +297,6 @@ class TestModels:
         model = LiteLLMModel(
             model_id="anthropic/claude-3-7-sonnet-20250219",
             api_key=os.environ["ANTHROPIC_API_KEY"],
-            api_base="https://api.anthropic.com/v1",
             **model_params,
         )
 
