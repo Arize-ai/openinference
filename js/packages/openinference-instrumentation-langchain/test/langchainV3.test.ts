@@ -18,9 +18,6 @@ import {
   METADATA,
   OpenInferenceSpanKind,
   SemanticConventions,
-  TOOL_CALL_FUNCTION_NAME,
-  TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
-  MESSAGE_TOOL_CALLS,
 } from "@arizeai/openinference-semantic-conventions";
 import { LangChainTracer } from "../src/tracer";
 import { trace } from "@opentelemetry/api";
