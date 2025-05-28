@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.1...python-openinference-instrumentation-pydantic-ai-v0.1.2) (2025-05-28)
+
+
+### Bug Fixes
+
+* rename pydantic ai test dir ([#1706](https://github.com/Arize-ai/openinference/issues/1706)) ([d45b00c](https://github.com/Arize-ai/openinference/commit/d45b00cce1d5960e090dac3801a914523fb0355c))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.0...python-openinference-instrumentation-pydantic-ai-v0.1.1) (2025-05-23)
 
 

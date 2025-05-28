@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.11...python-openinference-instrumentation-smolagents-v0.1.12) (2025-05-28)
+
+
+### Bug Fixes
+
+* **smolagents:** include reasoning content ([#1697](https://github.com/Arize-ai/openinference/issues/1697)) ([0c8ea99](https://github.com/Arize-ai/openinference/commit/0c8ea99312874f605e1ab751e38dd13c8b0d4ea0))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.10...python-openinference-instrumentation-smolagents-v0.1.11) (2025-04-28)
 
 
