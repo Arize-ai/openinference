@@ -9,7 +9,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from smolagents import OpenAIServerModel, Tool
+from smolagents import LiteLLMModel, OpenAIServerModel, Tool
 from smolagents.agents import (  # type: ignore[import-untyped]
     CodeAgent,
     ToolCallingAgent,
@@ -285,19 +285,15 @@ class TestModels:
         anthropic_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
+        model_params = {"thinking": {"type": "enabled", "budget_tokens": 4000}}
 
-        model_params = {"thinking": {
-            "type": "enabled",
-            "budget_tokens": 4000
-        }}
-        
         model = LiteLLMModel(
             model_id="anthropic/claude-3-7-sonnet-20250219",
             api_key=os.environ["ANTHROPIC_API_KEY"],
             api_base="https://api.anthropic.com/v1",
-            **model_params
+            **model_params,
         )
-       
+
         input_message_content = (
             "Who won the World Cup in 2018? Answer in one word with no punctuation."
         )
