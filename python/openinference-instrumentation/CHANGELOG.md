@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.31...python-openinference-instrumentation-v0.1.32) (2025-05-27)
+
+
+### Features
+
+* **instrumentation:** add helpers for remaining semantic conventions ([#1606](https://github.com/Arize-ai/openinference/issues/1606)) ([cb3d4fa](https://github.com/Arize-ai/openinference/commit/cb3d4fa5f0b5d3281c60fa02fa9219813218e815))
+
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.30...python-openinference-instrumentation-v0.1.31) (2025-05-23)
+
+
+### Features
+
+* pydanticai instrumentation ([#1639](https://github.com/Arize-ai/openinference/issues/1639)) ([d8c5b9c](https://github.com/Arize-ai/openinference/commit/d8c5b9cdf793dcce247b2ea852c28eba3a1989bc))
+
 ## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.29...python-openinference-instrumentation-v0.1.30) (2025-05-19)
 
 

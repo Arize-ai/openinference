@@ -37,6 +37,7 @@ from openinference.instrumentation import (
     ImageMessageContent,
     Message,
     OITracer,
+    PromptDetails,
     TextMessageContent,
     TokenCount,
     Tool,
@@ -2235,7 +2236,16 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
             contents=[TextMessageContent(type="text", text="Hi there!")],
         )
     ]
-    token_count: TokenCount = TokenCount(prompt=10, completion=5, total=15)
+    token_count: TokenCount = TokenCount(
+        prompt=10,
+        completion=5,
+        total=15,
+        prompt_details=PromptDetails(
+            audio=3,
+            cache_read=2,
+            cache_write=1,
+        ),
+    )
     tools: Sequence[Tool] = [
         Tool(
             json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}})
@@ -2252,7 +2262,6 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         token_count=token_count,
         tools=tools,
     )
-
     assert attributes.pop(LLM_PROVIDER) == "openai"
     assert attributes.pop(LLM_SYSTEM) == "openai"
     assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
@@ -2319,6 +2328,9 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         == "Hi there!"
     )
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO) == 3
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 2
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 1
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 5
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 15
     assert (
@@ -2705,6 +2717,11 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND

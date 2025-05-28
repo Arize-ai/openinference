@@ -29,6 +29,7 @@ import {
   setSession,
 } from "@arizeai/openinference-core";
 import { context } from "@opentelemetry/api";
+import { tool } from "@langchain/core/tools";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -54,6 +55,8 @@ const {
   PROMPT_TEMPLATE_TEMPLATE,
   PROMPT_TEMPLATE_VARIABLES,
   RETRIEVAL_DOCUMENTS,
+  LLM_TOOLS,
+  TOOL_JSON_SCHEMA,
 } = SemanticConventions;
 
 jest.mock("@langchain/openai", () => {
@@ -490,6 +493,42 @@ describe("LangChainInstrumentation", () => {
     // Make sure the input and output values are set
     expect(inputValue).toBeDefined();
     expect(outputValue).toBeDefined();
+  });
+
+  it("should capture tool json schema in llm spans for bound tools", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { ChatOpenAI } = jest.requireMock("@langchain/openai");
+
+    const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
+      modelName: "gpt-4o-mini",
+      temperature: 1,
+    });
+
+    const multiply = tool(
+      ({ a, b }: { a: number; b: number }): number => {
+        return a * b;
+      },
+      {
+        name: "multiply",
+        description: "Multiply two numbers",
+      },
+    );
+
+    const modelWithTools = chatModel.bindTools([multiply]);
+    await modelWithTools.invoke("What is 2 * 3?");
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans).toBeDefined();
+
+    const llmSpan = spans.find(
+      (span) =>
+        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+    expect(llmSpan).toBeDefined();
+    expect(llmSpan?.attributes[`${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`]).toBe(
+      '{"type":"function","function":{"name":"multiply","description":"Multiply two numbers","parameters":{"type":"object","properties":{"input":{"type":"string"}},"required":["input"],"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}',
+    );
   });
 
   it("should add tool information to tool spans", async () => {

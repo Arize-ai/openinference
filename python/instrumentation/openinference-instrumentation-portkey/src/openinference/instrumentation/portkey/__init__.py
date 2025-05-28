@@ -43,6 +43,11 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             name="Completions.create",
             wrapper=_CompletionsWrapper(tracer=self._tracer),
         )
+        wrap_function_wrapper(
+            module="portkey_ai.api_resources.apis.generation",
+            name="Completions.create",
+            wrapper=_CompletionsWrapper(tracer=self._tracer),
+        )
 
     def _uninstrument(self, **kwargs: Any) -> None:
         portkey_module = import_module("portkey_ai.api_resources.apis.chat_complete")
