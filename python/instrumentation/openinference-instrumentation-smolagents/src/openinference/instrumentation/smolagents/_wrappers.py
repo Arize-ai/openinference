@@ -188,7 +188,7 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                         yield from process_message(i, role, text)
 
 
-def _llm_output_messages(output_message: Any) -> dict[str, AttributeValue]:
+def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
     oi_message: oi.Message = {}
     oi_message_contents: list[oi.MessageContent] = []
     if (role := getattr(output_message, "role", None)) is not None:
