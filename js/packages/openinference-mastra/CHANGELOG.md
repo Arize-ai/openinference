@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 2.1.0
+
+### Minor Changes
+
+- 2611f8a: chore: Pin peer dependencies
+
 ## 2.0.0
 
 ### Major Changes
