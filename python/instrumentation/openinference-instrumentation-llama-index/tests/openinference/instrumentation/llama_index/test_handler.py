@@ -282,6 +282,7 @@ def test_handler_basic_retrieval(
         assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None
         assert llm_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+        assert llm_attributes.pop(LLM_PROVIDER, None) == "openai"
         assert llm_attributes.pop(LLM_PROMPT_TEMPLATE, None) is not None
         template_variables = json.loads(
             cast(str, llm_attributes.pop(f"{LLM_PROMPT_TEMPLATE_VARIABLES}", None))

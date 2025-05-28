@@ -75,6 +75,7 @@ exclude = [
   "examples",
   "dist",
   "sdist",
+  "test_env",
 ]
 
 [[tool.mypy.overrides]]
