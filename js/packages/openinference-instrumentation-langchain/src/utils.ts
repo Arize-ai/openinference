@@ -443,7 +443,8 @@ function formatLLMParams(
     tools.forEach((tool, index) => {
       const toolJsonSchema = safelyJSONStringify(tool);
       if (toolJsonSchema) {
-        const key = `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}` as const;
+        const key =
+          `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}` as const;
         openInferenceParams[key] = toolJsonSchema;
       }
     });
