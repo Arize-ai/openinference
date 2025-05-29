@@ -269,7 +269,7 @@ def test_completion_with_tool_calls(
 ) -> None:
     in_memory_span_exporter.clear()
 
-    input_messages = [
+    input_messages: List[Dict[str, Any]] = [
         {"content": "What's the weather like in New York?", "role": "user"},
         {
             "role": "assistant",
@@ -306,13 +306,21 @@ def test_completion_with_tool_calls(
     for i, message in enumerate(input_messages):
         _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
 
-    tool_call_function_name = f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
-    tool_call_function_args = f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    tool_call_function_name = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tool_call_function_args = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
 
     assert attributes.get(tool_call_function_name) == "get_weather"
     assert attributes.get(tool_call_function_args) == '{"location": "New York", "unit": "celsius"}'
 
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "The weather in New York is 22°C and sunny."
+    assert (
+        attributes.get(SpanAttributes.OUTPUT_VALUE) == "The weather in New York is 22°C and sunny."
+    )
 
 
 def test_completion_with_multiple_messages(

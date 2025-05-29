@@ -38,8 +38,10 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
-    SpanAttributes, OpenInferenceMimeTypeValues, ToolCallAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
 )
 
 # Skip capture
@@ -192,7 +194,9 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
     if isinstance(result, ModelResponse):
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, result.model_dump_json())
-        _set_span_attribute(span, SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value)
+        _set_span_attribute(
+            span, SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+        )
 
         for idx, choice in enumerate(result.choices):
             if not isinstance(choice, Choices):
