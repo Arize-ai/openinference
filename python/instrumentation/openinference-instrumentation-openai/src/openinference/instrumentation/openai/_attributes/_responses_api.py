@@ -463,7 +463,7 @@ class _ResponsesApiAttributes:
                 f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
             )
         elif TYPE_CHECKING:
-            assert_never(obj.type)
+            assert_never(obj.type)  # type: ignore[arg-type]
 
     @classmethod
     @stop_on_exception

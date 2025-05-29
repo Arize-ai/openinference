@@ -531,7 +531,7 @@ def _get_attributes_from_response_output(
         elif isinstance(item, ResponseReasoningItem):
             ...  # TODO
         elif TYPE_CHECKING:
-            assert_never(item)
+            assert_never(item)  # type: ignore[arg-type]
 
 
 def _get_attributes_from_response_instruction(
