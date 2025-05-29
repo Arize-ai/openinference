@@ -38,7 +38,6 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -193,17 +192,12 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
     if isinstance(result, ModelResponse):
-        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, result.model_dump_json())
-        _set_span_attribute(
-            span, SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
-        )
-
         for idx, choice in enumerate(result.choices):
             if not isinstance(choice, Choices):
                 continue
 
-            # if idx == 0 and choice.message and (output := choice.message.content):
-            #     _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
+            if idx == 0 and choice.message and (output := choice.message.content):
+                _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output)
 
             for key, value in _get_attributes_from_message_param(choice.message):
                 _set_span_attribute(
