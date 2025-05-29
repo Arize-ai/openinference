@@ -424,7 +424,7 @@ def test_generate_content_with_pydantic_response_schema(
 
     user_prompt = "What is the capital of France?"
     system_prompt = "You are a helpful assistant."
-    
+
     config = GenerateContentConfig(
         system_instruction=system_prompt,
         response_mime_type="application/json",
@@ -433,9 +433,7 @@ def test_generate_content_with_pydantic_response_schema(
 
     # This should not fail with PydanticSerializationError
     response = client.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents=user_prompt,
-        config=config
+        model="gemini-2.0-flash-001", contents=user_prompt, config=config
     )
 
     # Get the spans
@@ -467,9 +465,10 @@ def test_generate_content_with_pydantic_response_schema(
 
     # Should have LLM_INVOCATION_PARAMETERS that contains config details
     assert SpanAttributes.LLM_INVOCATION_PARAMETERS in attributes
-    
+
     # Verify the serialized config contains response_schema as a string, not the class
     import json
+
     invocation_params = json.loads(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS])
     assert "response_schema" in invocation_params
     assert isinstance(invocation_params["response_schema"], str)

@@ -99,17 +99,19 @@ class _RequestAttributesExtractor:
         """
         # Create a copy with serializable values
         config_dict = config.model_dump(exclude_none=True)
-        
+
         # Handle response_schema if it's a Pydantic model class
         if "response_schema" in config_dict:
             response_schema = config_dict["response_schema"]
             if hasattr(response_schema, "__pydantic_core_schema__"):
                 # It's a Pydantic model class, convert to schema name or string representation
-                config_dict["response_schema"] = getattr(response_schema, "__name__", str(response_schema))
+                config_dict["response_schema"] = getattr(
+                    response_schema, "__name__", str(response_schema)
+                )
             elif hasattr(response_schema, "model_json_schema"):
                 # It's a Pydantic model instance, use its schema
                 config_dict["response_schema"] = response_schema.model_json_schema()
-        
+
         return json.dumps(config_dict)
 
     def _get_attributes_from_message_param(
