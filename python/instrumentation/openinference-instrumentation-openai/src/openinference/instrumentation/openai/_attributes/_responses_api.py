@@ -462,8 +462,26 @@ class _ResponsesApiAttributes:
                 obj,
                 f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
             )
+        elif obj.type == "image_generation_call":
+            # TODO: Handle image generation call
+            pass
+        elif obj.type == "code_interpreter_call":
+            # TODO: Handle code interpreter call
+            pass
+        elif obj.type == "local_shell_call":
+            # TODO: Handle local shell call
+            pass
+        elif obj.type == "mcp_call":
+            # TODO: Handle mcp call
+            pass
+        elif obj.type == "mcp_list_tools":
+            # TODO: Handle mcp list tools
+            pass
+        elif obj.type == "mcp_approval_request":
+            # TODO: Handle mcp approval request
+            pass
         elif TYPE_CHECKING:
-            assert_never(obj.type)  # type: ignore[arg-type]
+            assert_never(obj.type)
 
     @classmethod
     @stop_on_exception
