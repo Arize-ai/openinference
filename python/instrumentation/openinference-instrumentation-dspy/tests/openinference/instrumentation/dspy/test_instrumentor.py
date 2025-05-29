@@ -152,7 +152,7 @@ class TestLM:
         assert output_data[0] == response
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {
-            "max_tokens": 1000,  # default setting in LM
+            "max_tokens": 4000,  # default setting in LM
             "temperature": 0.2,  # from __call__
             "top_p": 0.1,  # from __init__
         }
@@ -202,7 +202,7 @@ class TestLM:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {
             "temperature": 0.0,
-            "max_tokens": 1000,
+            "max_tokens": 4000,
         }
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
@@ -253,7 +253,7 @@ class TestLM:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {
             "temperature": 0.0,
-            "max_tokens": 1000,
+            "max_tokens": 4000,
         }
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
@@ -305,7 +305,7 @@ class TestLM:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {
             "temperature": 0.0,
-            "max_tokens": 1000,
+            "max_tokens": 4000,
         }
         assert not attributes
 
@@ -358,7 +358,7 @@ class TestLM:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {
             "temperature": 0.0,
-            "max_tokens": 1000,
+            "max_tokens": 4000,
         }
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
@@ -570,7 +570,7 @@ async def test_rag_module(
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == {
         "temperature": 0.0,
-        "max_tokens": 1000,
+        "max_tokens": 4000,
     }
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert isinstance(attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
