@@ -1,3 +1,4 @@
+import json
 import logging
 from enum import Enum
 from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
@@ -54,9 +55,11 @@ class _RequestAttributesExtractor:
         request_params_dict.pop("contents", None)  # Remove LLM input contents
         if config := request_params_dict.get("config", None):
             # Config is a pydantic object, so we need to convert it to a JSON string
+            # Handle special case where response_schema might be a Pydantic model class
+            config_json = self._serialize_config_safely(config)
             yield (
                 SpanAttributes.LLM_INVOCATION_PARAMETERS,
-                config.model_dump_json(exclude_none=True),
+                config_json,
             )
             # We push the system instruction to the first message for replay and consistency
             system_instruction = getattr(config, "system_instruction", None)
@@ -88,6 +91,28 @@ class _RequestAttributesExtractor:
                         f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
                         value,
                     )
+
+    def _serialize_config_safely(self, config: Any) -> str:
+        """
+        Serialize a config object to JSON, handling Pydantic model classes
+        that can't be directly serialized.
+        """
+        # Create a copy with serializable values
+        config_dict = config.model_dump(exclude_none=True)
+
+        # Handle response_schema if it's a Pydantic model class
+        if "response_schema" in config_dict:
+            response_schema = config_dict["response_schema"]
+            if hasattr(response_schema, "__pydantic_core_schema__"):
+                # It's a Pydantic model class, convert to schema name or string representation
+                config_dict["response_schema"] = getattr(
+                    response_schema, "__name__", str(response_schema)
+                )
+            elif hasattr(response_schema, "model_json_schema"):
+                # It's a Pydantic model instance, use its schema
+                config_dict["response_schema"] = response_schema.model_json_schema()
+
+        return json.dumps(config_dict)
 
     def _get_attributes_from_message_param(
         self,

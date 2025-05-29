@@ -8,9 +8,14 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic import BaseModel
 
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from openinference.semconv.trace import MessageAttributes, SpanAttributes
+
+
+class Answer(BaseModel):
+    answer: str
 
 
 @pytest.fixture
@@ -400,3 +405,71 @@ async def test_async_streaming_text_content(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value"
         )
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+)
+def test_generate_content_with_pydantic_response_schema(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    """Test that reproduce the bug when using a Pydantic model as response_schema."""
+    # Get API key from environment variable
+    api_key = "REDACTED"
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    user_prompt = "What is the capital of France?"
+    system_prompt = "You are a helpful assistant."
+
+    config = GenerateContentConfig(
+        system_instruction=system_prompt,
+        response_mime_type="application/json",
+        response_schema=Answer,  # This is where the bug occurs - passing a Pydantic class
+    )
+
+    # This should not fail with PydanticSerializationError
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-001", contents=user_prompt, config=config
+    )
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": system_prompt,
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_prompt,
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash-001",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+
+    # Should have LLM_INVOCATION_PARAMETERS that contains config details
+    assert SpanAttributes.LLM_INVOCATION_PARAMETERS in attributes
+
+    # Verify the serialized config contains response_schema as a string, not the class
+    import json
+
+    invocation_params = json.loads(str(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
+    assert "response_schema" in invocation_params
+    assert isinstance(invocation_params["response_schema"], str)
+    assert invocation_params["response_schema"] == "Answer"
