@@ -469,7 +469,7 @@ def test_generate_content_with_pydantic_response_schema(
     # Verify the serialized config contains response_schema as a string, not the class
     import json
 
-    invocation_params = json.loads(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS])
+    invocation_params = json.loads(str(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
     assert "response_schema" in invocation_params
     assert isinstance(invocation_params["response_schema"], str)
     assert invocation_params["response_schema"] == "Answer"
