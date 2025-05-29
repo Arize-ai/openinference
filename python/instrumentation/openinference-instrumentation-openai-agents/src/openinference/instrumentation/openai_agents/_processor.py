@@ -36,7 +36,17 @@ from openai.types.responses import (
     ResponseUsage,
     Tool,
 )
+from openai.types.responses.response_code_interpreter_tool_call import (
+    ResponseCodeInterpreterToolCall,
+)
 from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
+from openai.types.responses.response_output_item import (
+    ImageGenerationCall,
+    LocalShellCall,
+    McpApprovalRequest,
+    McpCall,
+    McpListTools,
+)
 from openai.types.responses.response_output_message_param import Content
 from opentelemetry.context import attach, detach
 from opentelemetry.trace import Span as OtelSpan
@@ -530,8 +540,20 @@ def _get_attributes_from_response_output(
             ...  # TODO
         elif isinstance(item, ResponseReasoningItem):
             ...  # TODO
+        elif isinstance(item, ImageGenerationCall):
+            ...  # TODO
+        elif isinstance(item, ResponseCodeInterpreterToolCall):
+            ...  # TODO
+        elif isinstance(item, LocalShellCall):
+            ...  # TODO
+        elif isinstance(item, McpCall):
+            ...  # TODO
+        elif isinstance(item, McpListTools):
+            ...  # TODO
+        elif isinstance(item, McpApprovalRequest):
+            ...  # TODO
         elif TYPE_CHECKING:
-            assert_never(item)  # type: ignore[arg-type]
+            assert_never(item)
 
 
 def _get_attributes_from_response_instruction(
