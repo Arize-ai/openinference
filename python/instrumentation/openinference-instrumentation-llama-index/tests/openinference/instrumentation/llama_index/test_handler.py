@@ -282,6 +282,8 @@ def test_handler_basic_retrieval(
         assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None
         assert llm_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+        assert llm_attributes.pop(LLM_PROVIDER, None) == "openai"
+        assert llm_attributes.pop(LLM_SYSTEM, None) == "openai"
         assert llm_attributes.pop(LLM_PROMPT_TEMPLATE, None) is not None
         template_variables = json.loads(
             cast(str, llm_attributes.pop(f"{LLM_PROMPT_TEMPLATE_VARIABLES}", None))
@@ -318,6 +320,8 @@ def test_handler_basic_retrieval(
         assert openai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert openai_attributes.pop(LLM_MODEL_NAME, None) is not None
         assert openai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+        assert openai_attributes.pop(LLM_PROVIDER, None) == "openai"
+        assert openai_attributes.pop(LLM_SYSTEM, None) == "openai"
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "system"
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) == "user"
@@ -522,6 +526,8 @@ LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL

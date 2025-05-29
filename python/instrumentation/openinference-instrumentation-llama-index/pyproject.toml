@@ -75,6 +75,7 @@ exclude = [
   "examples",
   "dist",
   "sdist",
+  "test_env",
 ]
 
 [[tool.mypy.overrides]]
@@ -82,7 +83,9 @@ ignore_missing_imports = true
 module = [
   "wrapt",
   "llama_index.llms.anthropic",
+  "llama_index.llms.azure_openai",
   "llama_index.llms.openai",
+  "llama_index.llms.vertex",
 ]
 
 [tool.ruff]

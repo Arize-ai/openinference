@@ -125,6 +125,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -156,6 +158,122 @@ if LLAMA_INDEX_VERSION < (0, 10, 44):
 
 elif not TYPE_CHECKING:
     from llama_index.core.instrumentation.events.exception import ExceptionEvent
+
+
+def _detect_llm_provider(instance: Any) -> Optional[str]:
+    """
+    Detect LLM provider using lazy imports to avoid import errors when
+    optional LLM provider packages are not installed.
+
+    Args:
+        instance: The LLM instance to check
+
+    Returns:
+        Provider string if detected, None otherwise
+    """
+    # Try specific provider imports with lazy loading
+    try:
+        from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
+
+        if isinstance(instance, LlamaIndexOpenAI):
+            return OpenInferenceLLMProviderValues.OPENAI.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
+
+        if isinstance(instance, LlamaIndexAnthropic):
+            return OpenInferenceLLMProviderValues.ANTHROPIC.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
+
+        if isinstance(instance, LlamaIndexAzureOpenAI):
+            return OpenInferenceLLMProviderValues.AZURE.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.vertex import Vertex as LlamaIndexVertex
+
+        if isinstance(instance, LlamaIndexVertex):
+            return OpenInferenceLLMProviderValues.GOOGLE.value
+    except ImportError:
+        pass
+
+    # Fallback: check class name if imports fail
+    class_name = instance.__class__.__name__.lower()
+    if "openai" in class_name:
+        if "azure" in class_name:
+            return OpenInferenceLLMProviderValues.AZURE.value
+        return OpenInferenceLLMProviderValues.OPENAI.value
+    elif "anthropic" in class_name:
+        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+    elif "vertex" in class_name or "gemini" in class_name:
+        return OpenInferenceLLMProviderValues.GOOGLE.value
+
+    return None
+
+
+def _detect_llm_system(instance: Any) -> Optional[str]:
+    """
+    Detect LLM system (AI product) using lazy imports to avoid import errors when
+    optional LLM provider packages are not installed.
+
+    Args:
+        instance: The LLM instance to check
+
+    Returns:
+        System string if detected, None otherwise
+    """
+    # Try specific system imports with lazy loading
+    try:
+        from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
+
+        if isinstance(instance, LlamaIndexOpenAI):
+            return OpenInferenceLLMSystemValues.OPENAI.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
+
+        if isinstance(instance, LlamaIndexAzureOpenAI):
+            return OpenInferenceLLMSystemValues.OPENAI.value  # Azure OpenAI uses OpenAI's system
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
+
+        if isinstance(instance, LlamaIndexAnthropic):
+            return OpenInferenceLLMSystemValues.ANTHROPIC.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.vertex import Vertex as LlamaIndexVertex
+
+        if isinstance(instance, LlamaIndexVertex):
+            return OpenInferenceLLMSystemValues.VERTEXAI.value
+    except ImportError:
+        pass
+
+    # Fallback: check class name if imports fail
+    class_name = instance.__class__.__name__.lower()
+    if "openai" in class_name:
+        return (
+            OpenInferenceLLMSystemValues.OPENAI.value
+        )  # Both OpenAI and Azure OpenAI use OpenAI system
+    elif "anthropic" in class_name:
+        return OpenInferenceLLMSystemValues.ANTHROPIC.value
+    elif "vertex" in class_name or "gemini" in class_name:
+        return OpenInferenceLLMSystemValues.VERTEXAI.value
+
+    return None
 
 
 class _StreamingStatus(Enum):
@@ -286,6 +404,14 @@ class _Span(BaseSpan):
         if metadata := instance.metadata:
             self[LLM_MODEL_NAME] = metadata.model_name
             self[LLM_INVOCATION_PARAMETERS] = metadata.json(exclude_unset=True)
+
+        # Add LLM provider detection
+        if provider := _detect_llm_provider(instance):
+            self[LLM_PROVIDER] = provider
+
+        # Add LLM system detection
+        if system := _detect_llm_system(instance):
+            self[LLM_SYSTEM] = system
 
     @process_instance.register
     def _(self, instance: BaseEmbedding) -> None:
@@ -1158,6 +1284,8 @@ LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
