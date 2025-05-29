@@ -39,7 +39,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceSpanKindValues,
-    SpanAttributes,
+    SpanAttributes, OpenInferenceMimeTypeValues, ToolCallAttributes,
 )
 
 # Skip capture
@@ -78,6 +78,20 @@ def _get_attributes_from_message_param(
                 for key, value in _get_attributes_from_message_content(c):
                     yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
 
+    if tool_calls := message.get("tool_calls"):
+        if isinstance(tool_calls, Iterable):
+            for tool_call_index, tool_call in enumerate(tool_calls):
+                if function := tool_call.get("function"):
+                    if function_name := function.get("name"):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                            function_name,
+                        )
+                    if function_arguments := function.get("arguments"):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            function_arguments,
+                        )
 
 def _get_attributes_from_message_content(
     content: Mapping[str, Any],
