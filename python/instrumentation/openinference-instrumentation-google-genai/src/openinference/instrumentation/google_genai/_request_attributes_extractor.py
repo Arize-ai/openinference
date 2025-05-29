@@ -1,3 +1,4 @@
+import json
 import logging
 from enum import Enum
 from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
@@ -109,8 +110,6 @@ class _RequestAttributesExtractor:
                 # It's a Pydantic model instance, use its schema
                 config_dict["response_schema"] = response_schema.model_json_schema()
         
-        # Convert to JSON string
-        import json
         return json.dumps(config_dict)
 
     def _get_attributes_from_message_param(
