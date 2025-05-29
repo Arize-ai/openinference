@@ -11,6 +11,7 @@ from openinference.instrumentation import (
     get_attributes_from_context,
     get_output_attributes,
     safe_json_dumps,
+    using_attributes,
 )
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
@@ -126,6 +127,22 @@ class _ExecuteCoreWrapper:
                 span.set_attribute("crew_id", str(crew.id))
             span.set_attribute("task_key", task.key)
             span.set_attribute("task_id", str(task.id))
+
+            # Set agent name as metadata if agent exists
+            if agent:
+                with using_attributes(metadata={"agentName": agent.role}):
+                    try:
+                        response = wrapped(*args, **kwargs)
+                    except Exception as exception:
+                        span.set_status(
+                            trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+                        )
+                        span.record_exception(exception)
+                        raise
+                    span.set_status(trace_api.StatusCode.OK)
+                    span.set_attributes(dict(get_output_attributes(response)))
+                    span.set_attributes(dict(get_attributes_from_context()))
+                return response
 
             if crew and crew.share_crew:
                 span.set_attribute("formatted_description", task.description)
