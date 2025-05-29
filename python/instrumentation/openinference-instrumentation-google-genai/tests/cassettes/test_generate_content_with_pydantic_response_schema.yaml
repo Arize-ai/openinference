@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the capital of France?"}], "role":
+      "user"}], "systemInstruction": {"parts": [{"text": "You are a helpful assistant."}],
+      "role": "user"}, "generationConfig": {"responseMimeType": "application/json",
+      "responseSchema": {"properties": {"answer": {"title": "Answer", "type": "STRING"}},
+      "required": ["answer"], "title": "Answer", "type": "OBJECT"}}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/61RTU/DMAy991dEOa9T0m2FcUMMJCSmVVAhPsohUK+r1iVdksFQ1f9O0q5bCldy
+        iCy/Zz/7ufIQwh+Mp3nKNCh8gV5NBqGq+S0muAauDdClTLJkUp+47auc2FA07G0RrhKOUIIZV18g
+        E5NJcMRkrhKc8Bo7NfUxfhuclKQowLbZiBSKjl53BLzMea5W98CU4Jb2EC8ifETZZ3YnslKKdzus
+        T4aEkGA6IuEkCMfhhJ4FlJ57nXgji3eKZTAHzYwf7Lg1Nk02pY7FGviV2DV+0Gkr5NjXx+kB10Kz
+        ogeNyOBPWzUzonnh2uo4bvZnRa6/7ZLx9VOMHY90f6rOJM/x8veM/yVG+2Le4TbtuR5Bqry9SwYb
+        cyk/GBJ/WTC18gmhTVcsQZWCK7hNLa8Mn8dsEe1n8+0NTdfR9hxegkuFvdr7AYWvVs6qAgAA
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Thu, 29 May 2025 18:25:43 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Server-Timing:
+      - gfet4t7; dur=403
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+    status:
+      code: 200
+      message: OK
+version: 1
