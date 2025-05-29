@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.2.1...python-openinference-instrumentation-llama-index-v4.3.0) (2025-05-29)
+
+
+### Features
+
+* **llama-index:** Add LLM provider detection with lazy imports - res… ([#1710](https://github.com/Arize-ai/openinference/issues/1710)) ([f20ac82](https://github.com/Arize-ai/openinference/commit/f20ac827b1b38fe298e69753f6718b52e0807aa0))
+
 ## [4.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.2.0...python-openinference-instrumentation-llama-index-v4.2.1) (2025-04-11)
 
 
