@@ -160,6 +160,8 @@ class TestLM:
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
+        assert attributes.pop(LLM_PROVIDER) == "openai"
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
         assert not attributes
 
     @pytest.mark.vcr(
@@ -208,6 +210,8 @@ class TestLM:
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
+        assert attributes.pop(LLM_PROVIDER) == "openai"
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
         assert not attributes
 
     @pytest.mark.vcr(
@@ -259,6 +263,8 @@ class TestLM:
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
+        assert attributes.pop(LLM_PROVIDER) == "openai"
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-3.5-turbo-instruct"
         assert not attributes
 
     @pytest.mark.vcr(
@@ -307,6 +313,8 @@ class TestLM:
             "temperature": 0.0,
             "max_tokens": 4000,
         }
+        assert attributes.pop(LLM_PROVIDER) == "openai"
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
         assert not attributes
 
     @pytest.mark.vcr(
@@ -364,6 +372,8 @@ class TestLM:
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == response
+        assert attributes.pop(LLM_PROVIDER) == "openai"
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
         assert not attributes
 
 
@@ -586,6 +596,7 @@ async def test_rag_module(
         str,
     )
     assert "Washington, D.C." in message_content_0
+    assert attributes.pop(LLM_PROVIDER) == "openai"
     assert not attributes
 
 
@@ -854,8 +865,8 @@ async def test_react(
     output_value = json.loads(output_value)
     assert isinstance(output_value, list)
     assert len(output_value) == 1
-    assert output_value[0]["next_tool_name"] == "finish"
-    assert output_value[0]["next_tool_args"] == {}
+    print(output_value[0])
+    assert output_value[0]["answer"] == "4"
     assert not attributes
 
     span = next(it)
@@ -879,7 +890,7 @@ async def test_react(
     output_value = json.loads(output_value)
     assert isinstance(output_value, list)
     assert len(output_value) == 1
-    assert "[[ ## next_tool_name ## ]]\nfinish" in output_value[-1]
+    assert "[[ ## answer ## ]]\n4\n\n[[ ## completed ## ]]" in output_value[-1]
 
     span = next(it)
     expected_span_name = "finish.acall" if is_async else "finish.__call__"
@@ -1175,7 +1186,6 @@ LLM = OpenInferenceSpanKindValues.LLM.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
 TOOL = OpenInferenceSpanKindValues.TOOL.value
-LLM = OpenInferenceSpanKindValues.LLM.value
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
@@ -1183,6 +1193,7 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

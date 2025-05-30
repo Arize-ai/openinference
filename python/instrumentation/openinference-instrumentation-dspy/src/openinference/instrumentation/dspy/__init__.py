@@ -268,6 +268,7 @@ class _LMCallWrapper(_WithTracer):
                         OPENINFERENCE_SPAN_KIND: LLM,
                         **dict(_input_value_and_mime_type(arguments)),
                         **dict(_llm_model_name(instance)),
+                        **dict(_llm_provider(instance)),
                         **dict(_llm_invocation_parameters(instance, arguments)),
                         **dict(_llm_input_messages(arguments)),
                         **dict(get_attributes_from_context()),
@@ -314,6 +315,7 @@ class _LMAcallWrapper(_WithTracer):
                         OPENINFERENCE_SPAN_KIND: LLM,
                         **dict(_input_value_and_mime_type(arguments)),
                         **dict(_llm_model_name(instance)),
+                        **dict(_llm_provider(instance)),
                         **dict(_llm_invocation_parameters(instance, arguments)),
                         **dict(_llm_input_messages(arguments)),
                         **dict(get_attributes_from_context()),
@@ -991,6 +993,48 @@ def _output_value_and_mime_type(response: Any) -> Iterator[Tuple[str, Any]]:
 def _llm_model_name(lm: "LM") -> Iterator[Tuple[str, Any]]:
     if (model_name := getattr(lm, "model_name", None)) is not None:
         yield LLM_MODEL_NAME, model_name
+    elif (model := getattr(lm, "model", None)) is not None:
+        # Extract model name from "provider/model" format or use as-is
+        model_str = str(model)
+        if "/" in model_str:
+            # Extract model from "provider/model" format (e.g., "openai/gpt-4" -> "gpt-4")
+            model_name = model_str.split("/", 1)[1]
+            yield LLM_MODEL_NAME, model_name
+        else:
+            # Use the model string as-is
+            yield LLM_MODEL_NAME, model_str
+
+
+def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
+    """
+    Extract the LLM provider from a DSPy LM instance.
+    """
+    # First try to get provider directly from the instance
+    if (provider := getattr(lm, "provider", None)) is not None:
+        # Handle provider objects with name attributes (like Provider instances)
+        if hasattr(provider, "name"):
+            yield LLM_PROVIDER, provider.name.lower()
+        elif hasattr(provider, "__name__"):
+            yield LLM_PROVIDER, provider.__name__.lower()
+        else:
+            # Extract provider name from class name (e.g., OpenAIProvider -> openai)
+            provider_class_name = provider.__class__.__name__.lower()
+            if "provider" in provider_class_name and provider_class_name != "provider":
+                provider_name = provider_class_name.replace("provider", "")
+                yield LLM_PROVIDER, provider_name
+                return
+            # If it's just a generic Provider class, fall through to model string extraction
+    
+    # Fallback to extracting provider from model string
+    if (model := getattr(lm, "model", None)) is not None:
+        model_str = str(model)
+        if "/" in model_str:
+            # Extract provider from "provider/model" format
+            provider_name = model_str.split("/")[0].lower()
+            # Handle cases like "text-completion-openai" -> "openai"
+            if "-" in provider_name:
+                provider_name = provider_name.split("-")[-1]
+            yield LLM_PROVIDER, provider_name
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -1046,3 +1090,4 @@ LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
