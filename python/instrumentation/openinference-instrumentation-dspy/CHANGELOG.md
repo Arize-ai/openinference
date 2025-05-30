@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.23...python-openinference-instrumentation-dspy-v0.1.24) (2025-05-30)
+
+
+### Features
+
+* **dspy:** Display Module.forward Output in JSON Format ([#1729](https://github.com/Arize-ai/openinference/issues/1729)) ([591a2d9](https://github.com/Arize-ai/openinference/commit/591a2d921d6fa09342059d71d43da46076ba8fad))
+
+
+### Bug Fixes
+
+* **dspy:** upstream max token default value change ([#1718](https://github.com/Arize-ai/openinference/issues/1718)) ([1654bc1](https://github.com/Arize-ai/openinference/commit/1654bc1e0734b0424f67d678ad1e5e4271a9942c))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.22...python-openinference-instrumentation-dspy-v0.1.23) (2025-05-13)
 
 
