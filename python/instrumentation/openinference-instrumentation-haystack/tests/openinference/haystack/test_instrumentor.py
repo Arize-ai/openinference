@@ -17,7 +17,7 @@ from haystack.core.errors import PipelineRuntimeError
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack_integrations.components.rankers.cohere import (
+from haystack_integrations.components.rankers.cohere import (  # type: ignore[import-untyped]
     CohereRanker,
 )
 from opentelemetry.sdk.resources import Resource
