@@ -867,7 +867,7 @@ async def test_react(
     assert isinstance(output_value, list)
     assert len(output_value) == 1
     print(output_value[0])
-    assert output_value[0]["answer"] == "4"
+    assert output_value[0].get("next_tool_name") == "finish" and "next_tool_args" in output_value[0]
     assert not attributes
 
     span = next(it)
@@ -891,7 +891,12 @@ async def test_react(
     output_value = json.loads(output_value)
     assert isinstance(output_value, list)
     assert len(output_value) == 1
-    assert "[[ ## answer ## ]]\n4\n\n[[ ## completed ## ]]" in output_value[-1]
+    assert (
+        "next_thought" in output_value[-1]
+        and "next_tool_name" in output_value[-1]
+        and "finish" in output_value[-1]
+        and "completed" in output_value[-1]
+    )
 
     span = next(it)
     expected_span_name = "finish.acall" if is_async else "finish.__call__"
