@@ -546,14 +546,7 @@ class _ModuleForwardWrapper(_WithTracer):
             span.set_attributes(dict(get_attributes_from_context()))
             prediction = wrapped(*args, **kwargs)
             span.set_attributes(
-                dict(
-                    _flatten(
-                        {
-                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
-                            OUTPUT_MIME_TYPE: JSON,
-                        }
-                    )
-                )
+                dict(_flatten(_module_prediction_output_attributes(prediction, instance)))
             )
             span.set_status(StatusCode.OK)
         return prediction
@@ -599,14 +592,7 @@ class _ModuleAforwardWrapper(_WithTracer):
             span.set_attributes(dict(get_attributes_from_context()))
             prediction = await wrapped(*args, **kwargs)
             span.set_attributes(
-                dict(
-                    _flatten(
-                        {
-                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
-                            OUTPUT_MIME_TYPE: JSON,
-                        }
-                    )
-                )
+                dict(_flatten(_module_prediction_output_attributes(prediction, instance)))
             )
             span.set_status(StatusCode.OK)
         return prediction
@@ -1026,6 +1012,20 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
     bound_args = method_signature.bind(*args, **kwargs)
     bound_args.apply_defaults()
     return bound_args.arguments
+
+
+def _module_prediction_output_attributes(prediction: Any, instance: Any) -> Dict[str, Any]:
+    output_attributes = {OUTPUT_MIME_TYPE: JSON}
+    import dspy
+
+    if isinstance(prediction, dspy.Prediction):
+        # https://github.com/stanfordnlp/dspy/blob/6fe693528323c9c10c82d90cb26711a985e18b29/dspy/primitives/example.py#L107C1-L108C1  # noqa E501
+        # The Prediction object in DSPy works like a dictionary
+        # https://github.com/stanfordnlp/dspy/blob/6fe693528323c9c10c82d90cb26711a985e18b29/dspy/primitives/prediction.py#L22  # noqa E501
+        output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction.toDict())
+    else:
+        output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction, cls=DSPyJSONEncoder)
+    return output_attributes
 
 
 JSON = OpenInferenceMimeTypeValues.JSON.value
