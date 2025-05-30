@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.19...python-openinference-instrumentation-litellm-v0.1.20) (2025-05-30)
+
+
+### Bug Fixes
+
+* **litellm:** display tool_calls from model output ([#1722](https://github.com/Arize-ai/openinference/issues/1722)) ([53c9fa5](https://github.com/Arize-ai/openinference/commit/53c9fa5498135728364d122eefe2bf23ea30b47c))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.18...python-openinference-instrumentation-litellm-v0.1.19) (2025-04-29)
 
 
