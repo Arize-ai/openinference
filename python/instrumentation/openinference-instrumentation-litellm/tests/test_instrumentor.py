@@ -318,8 +318,8 @@ def test_completion_with_tool_calls(
     assert attributes.get(tool_call_function_name) == "get_weather"
     assert attributes.get(tool_call_function_args) == '{"location": "New York", "unit": "celsius"}'
 
-    assert (
-        "The weather in New York is 22°C and sunny." in attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert "The weather in New York is 22°C and sunny." in attributes.get(
+        SpanAttributes.OUTPUT_VALUE
     )
 
 
@@ -364,9 +364,8 @@ def test_completion_with_multiple_messages(
         }
     )
 
-    assert (
-        "Got it! What kind of pie would you like to make?" in
-        attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert "Got it! What kind of pie would you like to make?" in attributes.get(
+        SpanAttributes.OUTPUT_VALUE
     )
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
