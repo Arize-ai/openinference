@@ -331,7 +331,7 @@ def _llm_invocation_parameters(
         yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(filtered_kwargs)
 
 
-def _filter_sensitive_params(params: dict) -> dict:
+def _filter_sensitive_params(params: Dict[str, Any]) -> Dict[str, Any]:
     """Filter out sensitive parameters from model request parameters."""
     sensitive_keys = frozenset(
         [
