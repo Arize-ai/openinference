@@ -264,8 +264,8 @@ def test_completion_with_parameters(
 
 
 def test_completion_with_tool_calls(
-        in_memory_span_exporter: InMemorySpanExporter,
-        setup_litellm_instrumentation: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
 ) -> None:
     in_memory_span_exporter.clear()
 
@@ -281,11 +281,11 @@ def test_completion_with_tool_calls(
                     "type": "function",
                     "function": {
                         "name": "get_weather",
-                        "arguments": '{"location": "New York", "unit": "celsius"}'
-                    }
+                        "arguments": '{"location": "New York", "unit": "celsius"}',
+                    },
                 }
-            ]
-        }
+            ],
+        },
     ]
     litellm.completion(
         model="gpt-3.5-turbo",

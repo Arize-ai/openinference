@@ -94,6 +94,7 @@ def _get_attributes_from_message_param(
                             function_arguments,
                         )
 
+
 def _get_attributes_from_message_content(
     content: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
