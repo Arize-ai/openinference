@@ -4,17 +4,19 @@ from typing import Any, Dict, Generator, Optional, Sequence, Union
 
 import pytest
 from haystack import Document
-from haystack.components.builders import ChatPromptBuilder
+from haystack.components.builders import ChatPromptBuilder  # type: ignore[attr-defined]
 from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.components.embedders import OpenAIDocumentEmbedder
-from haystack.components.generators import OpenAIGenerator
-from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
+from haystack.components.embedders import OpenAIDocumentEmbedder  # type: ignore[attr-defined]
+from haystack.components.generators import OpenAIGenerator  # type: ignore[attr-defined]
+from haystack.components.generators.chat import OpenAIChatGenerator  # type: ignore[attr-defined]
+from haystack.components.retrievers.in_memory import (
+    InMemoryBM25Retriever,  # type: ignore[attr-defined]
+)
 from haystack.components.websearch.serper_dev import SerperDevWebSearch
 from haystack.core.errors import PipelineRuntimeError
 from haystack.core.pipeline.pipeline import Pipeline
-from haystack.dataclasses import ChatMessage
-from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack.dataclasses import ChatMessage  # type: ignore[attr-defined]
+from haystack.document_stores.in_memory import InMemoryDocumentStore  # type: ignore[attr-defined]
 from haystack_integrations.components.rankers.cohere import (  # type: ignore[import-untyped]
     CohereRanker,
 )
@@ -513,7 +515,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
 ) -> None:
-    prompt_builder = PromptBuilder(template=default_template)
+    prompt_builder = PromptBuilder(template=default_template or "")
     pipe = Pipeline()
     pipe.add_component("prompt_builder", prompt_builder)
     output = pipe.run({"prompt_builder": prompt_builder_inputs})
