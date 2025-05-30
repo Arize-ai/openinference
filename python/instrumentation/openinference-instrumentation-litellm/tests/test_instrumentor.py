@@ -22,6 +22,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 
@@ -260,6 +261,66 @@ def test_completion_with_parameters(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+
+
+def test_completion_with_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages: List[Dict[str, Any]] = [
+        {"content": "What's the weather like in New York?", "role": "user"},
+        {
+            "role": "assistant",
+            "content": "Let me check the weather for you.",
+            "tool_calls": [
+                {
+                    "index": 1,
+                    "id": "call_abc123",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": '{"location": "New York", "unit": "celsius"}',
+                    },
+                }
+            ],
+        },
+    ]
+    litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        mock_response="The weather in New York is 22°C and sunny.",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    for i, message in enumerate(input_messages):
+        _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
+
+    tool_call_function_name = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tool_call_function_args = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+
+    assert attributes.get(tool_call_function_name) == "get_weather"
+    assert attributes.get(tool_call_function_args) == '{"location": "New York", "unit": "celsius"}'
+
+    assert (
+        attributes.get(SpanAttributes.OUTPUT_VALUE) == "The weather in New York is 22°C and sunny."
+    )
 
 
 def test_completion_with_multiple_messages(
