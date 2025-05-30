@@ -597,6 +597,7 @@ async def test_rag_module(
     )
     assert "Washington, D.C." in message_content_0
     assert attributes.pop(LLM_PROVIDER) == "openai"
+    assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
     assert not attributes
 
 

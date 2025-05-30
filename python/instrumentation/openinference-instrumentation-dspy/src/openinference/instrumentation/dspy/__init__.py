@@ -1024,7 +1024,7 @@ def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
                 yield LLM_PROVIDER, provider_name
                 return
             # If it's just a generic Provider class, fall through to model string extraction
-    
+
     # Fallback to extracting provider from model string
     if (model := getattr(lm, "model", None)) is not None:
         model_str = str(model)
