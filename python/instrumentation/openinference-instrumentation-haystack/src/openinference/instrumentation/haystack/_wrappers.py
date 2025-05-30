@@ -233,7 +233,7 @@ def _get_component_by_name(pipeline: "Pipeline", component_name: str) -> Optiona
         component := node.get("instance")
     ) is None:
         return None
-    return component
+    return cast(Optional["Component"], component)
 
 
 def _get_component_class_name(component: "Component") -> str:
@@ -256,7 +256,6 @@ def _get_component_type(component: "Component") -> ComponentType:
     outputs. In the absence of typing information, we make a best-effort attempt
     to infer the component type.
     """
-
     from haystack.components.builders import PromptBuilder
 
     component_name = _get_component_class_name(component)

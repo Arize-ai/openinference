@@ -9,7 +9,9 @@ from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
+from haystack.components.retrievers.in_memory import (
+    InMemoryBM25Retriever,
+)
 from haystack.components.websearch.serper_dev import SerperDevWebSearch
 from haystack.core.errors import PipelineRuntimeError
 from haystack.core.pipeline.pipeline import Pipeline
@@ -513,7 +515,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
 ) -> None:
-    prompt_builder = PromptBuilder(template=default_template)
+    prompt_builder = PromptBuilder(template=default_template or "")
     pipe = Pipeline()
     pipe.add_component("prompt_builder", prompt_builder)
     output = pipe.run({"prompt_builder": prompt_builder_inputs})
