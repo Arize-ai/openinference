@@ -327,7 +327,33 @@ def _llm_invocation_parameters(
             request_kwargs = model.get_request_params()  # type: ignore[attr-defined]
 
     if request_kwargs:
-        yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_kwargs)
+        filtered_kwargs = _filter_sensitive_params(request_kwargs)
+        yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(filtered_kwargs)
+
+
+def _filter_sensitive_params(params: dict) -> dict:
+    """Filter out sensitive parameters from model request parameters."""
+    sensitive_keys = frozenset(
+        [
+            "api_key",
+            "api_base",
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "aws_access_key",
+            "aws_secret_key",
+            "azure_endpoint",
+            "azure_deployment",
+            "azure_ad_token",
+            "azure_ad_token_provider",
+        ]
+    )
+
+    return {
+        key: "[REDACTED]"
+        if any(sensitive_key in key.lower() for sensitive_key in sensitive_keys)
+        else value
+        for key, value in params.items()
+    }
 
 
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
