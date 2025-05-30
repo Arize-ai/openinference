@@ -7,7 +7,7 @@ Python auto-instrumentation library for PydanticAI. These traces are fully OpenT
 ## Installation
 
 ```shell
-pip install openinference-pydantic-ai
+pip install openinference-instrumentation-pydantic-ai
 ```
 
 ## Quickstart
