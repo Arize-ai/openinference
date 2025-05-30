@@ -20,11 +20,8 @@ from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
     Response,
-    ResponseComputerToolCall,
-    ResponseFileSearchToolCall,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
-    ResponseFunctionWebSearch,
     ResponseInputContentParam,
     ResponseInputItemParam,
     ResponseOutputItem,
@@ -32,21 +29,10 @@ from openai.types.responses import (
     ResponseOutputMessageParam,
     ResponseOutputRefusal,
     ResponseOutputText,
-    ResponseReasoningItem,
     ResponseUsage,
     Tool,
 )
-from openai.types.responses.response_code_interpreter_tool_call import (
-    ResponseCodeInterpreterToolCall,
-)
 from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
-from openai.types.responses.response_output_item import (
-    ImageGenerationCall,
-    LocalShellCall,
-    McpApprovalRequest,
-    McpCall,
-    McpListTools,
-)
 from openai.types.responses.response_output_message_param import Content
 from opentelemetry.context import attach, detach
 from opentelemetry.trace import Span as OtelSpan
@@ -261,8 +247,24 @@ def _get_attributes_from_input(
             continue  # TODO
         elif item["type"] == "item_reference":
             continue  # TODO
-        elif TYPE_CHECKING:
-            assert_never(item["type"])  # type: ignore[arg-type]
+        elif item["type"] == "image_generation_call":
+            continue  # TODO
+        elif item["type"] == "code_interpreter_call":
+            continue  # TODO
+        elif item["type"] == "local_shell_call":
+            continue  # TODO
+        elif item["type"] == "local_shell_call_output":
+            continue  # TODO
+        elif item["type"] == "mcp_list_tools":
+            continue  # TODO
+        elif item["type"] == "mcp_approval_request":
+            continue  # TODO
+        elif item["type"] == "mcp_approval_response":
+            continue  # TODO
+        elif item["type"] == "mcp_call":
+            continue  # TODO
+        elif TYPE_CHECKING and item["type"] is not None:
+            assert_never(item["type"])
 
 
 def _get_attributes_from_message_param(
@@ -523,34 +525,34 @@ def _get_attributes_from_response_output(
 ) -> Iterator[tuple[str, AttributeValue]]:
     tool_call_idx = 0
     for i, item in enumerate(obj):
-        if isinstance(item, ResponseOutputMessage):
+        if item.type == "message":
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
             yield from _get_attributes_from_message(item, prefix)
             msg_idx += 1
-        elif isinstance(item, ResponseFunctionToolCall):
+        elif item.type == "function_call":
             yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
             yield from _get_attributes_from_function_tool_call(item, prefix)
             tool_call_idx += 1
-        elif isinstance(item, ResponseFileSearchToolCall):
+        elif item.type == "file_search_call":
             ...  # TODO
-        elif isinstance(item, ResponseFunctionWebSearch):
+        elif item.type == "web_search_call":
             ...  # TODO
-        elif isinstance(item, ResponseComputerToolCall):
+        elif item.type == "computer_call":
             ...  # TODO
-        elif isinstance(item, ResponseReasoningItem):
+        elif item.type == "reasoning":
             ...  # TODO
-        elif isinstance(item, ImageGenerationCall):
+        elif item.type == "image_generation_call":
             ...  # TODO
-        elif isinstance(item, ResponseCodeInterpreterToolCall):
+        elif item.type == "code_interpreter_call":
             ...  # TODO
-        elif isinstance(item, LocalShellCall):
+        elif item.type == "local_shell_call":
             ...  # TODO
-        elif isinstance(item, McpCall):
+        elif item.type == "mcp_call":
             ...  # TODO
-        elif isinstance(item, McpListTools):
+        elif item.type == "mcp_list_tools":
             ...  # TODO
-        elif isinstance(item, McpApprovalRequest):
+        elif item.type == "mcp_approval_request":
             ...  # TODO
         elif TYPE_CHECKING:
             assert_never(item)
