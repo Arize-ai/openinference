@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.2...python-openinference-instrumentation-pydantic-ai-v0.1.3) (2025-05-30)
+
+
+### Documentation
+
+* fix pip install in readme ([#1705](https://github.com/Arize-ai/openinference/issues/1705)) ([4fbad21](https://github.com/Arize-ai/openinference/commit/4fbad21f700325af4cd5d314881ec004a859bdf8))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.1...python-openinference-instrumentation-pydantic-ai-v0.1.2) (2025-05-28)
 
 
