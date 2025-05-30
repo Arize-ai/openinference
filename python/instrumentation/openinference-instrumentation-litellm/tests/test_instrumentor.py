@@ -123,7 +123,7 @@ def test_completion(
     ]
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps({"messages": input_values})
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
-    assert "Beijing" in attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
     for i, choice in enumerate(response["choices"]):
         _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, choice.message)
 
@@ -257,7 +257,7 @@ def test_completion_with_parameters(
         }
     )
 
-    assert "Beijing" in attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -318,8 +318,8 @@ def test_completion_with_tool_calls(
     assert attributes.get(tool_call_function_name) == "get_weather"
     assert attributes.get(tool_call_function_args) == '{"location": "New York", "unit": "celsius"}'
 
-    assert "The weather in New York is 22°C and sunny." in attributes.get(
-        SpanAttributes.OUTPUT_VALUE
+    assert "The weather in New York is 22°C and sunny." in str(
+        attributes.get(SpanAttributes.OUTPUT_VALUE)
     )
 
 
@@ -364,8 +364,8 @@ def test_completion_with_multiple_messages(
         }
     )
 
-    assert "Got it! What kind of pie would you like to make?" in attributes.get(
-        SpanAttributes.OUTPUT_VALUE
+    assert "Got it! What kind of pie would you like to make?" in str(
+        attributes.get(SpanAttributes.OUTPUT_VALUE)
     )
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
@@ -422,7 +422,7 @@ def test_completion_image_support(
         ],
         "mock_response": "That's an image of a pasture",
     }
-    assert "That's an image of a pasture" in attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert "That's an image of a pasture" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -477,7 +477,7 @@ async def test_acompletion(
     )
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
-    assert "Beijing" in attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -543,7 +543,7 @@ def test_completion_with_retries(
     )
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
-    assert "Beijing" in attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
