@@ -87,7 +87,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     def _uninstrument(self, **kwargs: Any) -> None:
         unwrap("mcp.client.stdio", "stdio_client")
         unwrap("mcp.server.stdio", "stdio_server")
-        unwrap("mcp.client.session", "ClientSession.call_tool")
+        unwrap("mcp.server.lowlevel.server", "Server._handle_request")
 
     @asynccontextmanager
     async def _wrap_transport_with_callback(
