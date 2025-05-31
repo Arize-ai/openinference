@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.20...python-openinference-instrumentation-litellm-v0.1.21) (2025-05-31)
+
+
+### Bug Fixes
+
+* **litellm:** full JSON output ([#1735](https://github.com/Arize-ai/openinference/issues/1735)) ([891fc26](https://github.com/Arize-ai/openinference/commit/891fc265cd4a4c5600e7dd261e78ad4ad14e9cc6))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.19...python-openinference-instrumentation-litellm-v0.1.20) (2025-05-30)
 
 
