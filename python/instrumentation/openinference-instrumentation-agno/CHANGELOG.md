@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.5...python-openinference-instrumentation-agno-v0.1.6) (2025-05-30)
+
+
+### Bug Fixes
+
+* filter sensitive model params ([#1737](https://github.com/Arize-ai/openinference/issues/1737)) ([fe7ebbe](https://github.com/Arize-ai/openinference/commit/fe7ebbe9f7663e39d6f18ee1be9f775f0f6e7fb4))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.4...python-openinference-instrumentation-agno-v0.1.5) (2025-05-28)
 
 
