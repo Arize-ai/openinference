@@ -127,6 +127,10 @@ class _ExecuteCoreWrapper:
             span.set_attribute("task_key", task.key)
             span.set_attribute("task_id", str(task.id))
 
+            # Set agent name directly on the span if agent exists
+            if agent:
+                span.set_attribute("metadata.agentName", agent.role)
+
             if crew and crew.share_crew:
                 span.set_attribute("formatted_description", task.description)
                 span.set_attribute("formatted_expected_output", task.expected_output)
