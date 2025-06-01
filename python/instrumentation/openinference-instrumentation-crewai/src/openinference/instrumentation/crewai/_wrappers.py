@@ -124,12 +124,22 @@ class _ExecuteCoreWrapper:
             if crew:
                 span.set_attribute("crew_key", crew.key)
                 span.set_attribute("crew_id", str(crew.id))
+                # Find the step number and next agent based on task's position in crew.tasks
+                for i, t in enumerate(crew.tasks):
+                    if t.id == task.id:
+                        span.set_attribute("metadata.step", i + 1)  # 1-based indexing
+                        # Set next agent if there is one
+                        if i + 1 < len(crew.tasks):
+                            next_task = crew.tasks[i + 1]
+                            if next_task.agent:
+                                span.set_attribute("metadata.next_agent", next_task.agent.role)
+                        break
             span.set_attribute("task_key", task.key)
             span.set_attribute("task_id", str(task.id))
 
             # Set agent name directly on the span if agent exists
             if agent:
-                span.set_attribute("metadata.agentName", agent.role)
+                span.set_attribute("metadata.agent_name", agent.role)
 
             if crew and crew.share_crew:
                 span.set_attribute("formatted_description", task.description)
