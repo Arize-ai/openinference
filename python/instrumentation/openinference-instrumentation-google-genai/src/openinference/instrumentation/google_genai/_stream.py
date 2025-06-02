@@ -31,6 +31,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 if TYPE_CHECKING:
@@ -119,6 +120,7 @@ class _ResponseAccumulator:
                         parts=_IndexedAccumulator(
                             lambda: _ValuesAccumulator(
                                 text=_StringAccumulator(),
+                                function_call=_DictReplace(),
                             ),
                         ),
                         role=_SimpleStringReplace(),
@@ -180,9 +182,23 @@ class _ResponseExtractor:
                         )
                     if parts := content.get("parts"):
                         text_parts = []
+                        tool_call_index = 0
                         for part in parts:
                             if text := part.get("text"):
                                 text_parts.append(text)
+                            elif function_call := part.get("function_call"):
+                                # Handle function calls in streaming responses
+                                if function_name := function_call.get("name"):
+                                    yield (
+                                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                                        function_name,
+                                    )
+                                if function_args := function_call.get("args"):
+                                    yield (
+                                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                        safe_json_dumps(function_args),
+                                    )
+                                tool_call_index += 1
                         if text_parts:
                             yield (
                                 f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}",
@@ -211,6 +227,9 @@ class _ValuesAccumulator:
                     yield key, str_value
             elif isinstance(value, _IndexedAccumulator):
                 yield key, list(value)
+            elif isinstance(value, _DictReplace):
+                if dict_value := dict(value):
+                    yield key, dict_value
             else:
                 yield key, value
 
@@ -232,6 +251,9 @@ class _ValuesAccumulator:
                     self_value += value
             elif isinstance(self_value, _IndexedAccumulator):
                 self_value += value
+            elif isinstance(self_value, _DictReplace):
+                if isinstance(value, Mapping):
+                    self_value += value
             elif isinstance(self_value, List) and isinstance(value, Iterable):
                 self_value.extend(value)
             else:
@@ -313,10 +335,17 @@ class _DictReplace:
     __slots__ = ("_val",)
 
     def __init__(self) -> None:
-        self._val: Mapping[Any, Any] = {}
+        self._val: Optional[Dict[Any, Any]] = None
+
+    def __iter__(self) -> Iterator[Tuple[Any, Any]]:
+        if self._val:
+            yield from self._val.items()
 
     def __iadd__(self, value: Optional[Mapping[Any, Any]]) -> "_DictReplace":
         if not value:
             return self
-        self._val = value
+        if self._val is None:
+            self._val = dict(value)  # First chunk
+        else:
+            self._val.update(value)  # Merge subsequent chunks
         return self

@@ -1,0 +1,32 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What''s the weather like in San Francisco?"}],
+      "role": "user"}], "systemInstruction": {"parts": [{"text": "You are a helpful
+      assistant that can answer questions and help with tasks. Use the available tools
+      when appropriate."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Get current weather information for a given location", "name": "get_weather",
+      "parameters": {"properties": {"location": {"description": "The city and state/country
+      for weather information", "type": "STRING"}, "unit": {"description": "Temperature
+      unit", "enum": ["celsius", "fahrenheit"], "type": "STRING"}}, "required": ["location"],
+      "type": "OBJECT"}}]}], "generationConfig": {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
+        \             \"args\": {\n                \"location\": \"San Francisco\"\n
+        \             }\n            }\n          }\n        ],\n        \"role\":
+        \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
+        -0.024333807329336803\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        63,\n    \"candidatesTokenCount\": 6,\n    \"totalTokenCount\": 69,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 63\n
+        \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
+        \"TEXT\",\n        \"tokenCount\": 6\n      }\n    ]\n  },\n  \"modelVersion\":
+        \"gemini-2.0-flash\",\n  \"responseId\": \"Vrw9aMfMHPyTmNAP44qv0AU\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
