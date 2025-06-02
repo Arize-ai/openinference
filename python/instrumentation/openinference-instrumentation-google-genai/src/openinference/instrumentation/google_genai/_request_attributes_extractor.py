@@ -5,6 +5,7 @@ from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
 from google.genai.types import Content, Part, UserContent
 from opentelemetry.util.types import AttributeValue
 
+from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
     _as_input_attributes,
     _io_value_and_type,
@@ -14,6 +15,7 @@ from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
 )
 
 __all__ = ("_RequestAttributesExtractor",)
@@ -71,6 +73,9 @@ class _RequestAttributesExtractor:
                 )
                 input_messages_index += 1
 
+            # Extract tools from config
+            yield from self._get_tools_from_config(config)
+
         if input_contents := request_parameters.get("contents"):
             if isinstance(input_contents, list):
                 for input_content in input_contents:
@@ -88,6 +93,73 @@ class _RequestAttributesExtractor:
                         f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
                         value,
                     )
+
+    def _get_tools_from_config(self, config: Any) -> Iterator[Tuple[str, AttributeValue]]:
+        """Extract tools from the GenerateContentConfig object."""
+        if not hasattr(config, "tools") or not config.tools:
+            return
+        
+        tools = config.tools
+        if not isinstance(tools, list):
+            return
+            
+        for tool_index, tool in enumerate(tools):
+            try:
+                # Convert tool to dictionary for serialization
+                if hasattr(tool, "model_dump"):
+                    # Pydantic model
+                    tool_dict = tool.model_dump(exclude_none=True)
+                elif hasattr(tool, "__dict__"):
+                    # Regular object with attributes
+                    tool_dict = self._convert_tool_to_dict(tool)
+                else:
+                    # Already a dict or other serializable format
+                    tool_dict = tool
+                
+                yield (
+                    f"{SpanAttributes.LLM_TOOLS}.{tool_index}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                    safe_json_dumps(tool_dict),
+                )
+            except Exception:
+                logger.exception(f"Failed to serialize tool at index {tool_index}")
+
+    def _convert_tool_to_dict(self, tool: Any) -> dict:
+        """Convert a Tool object to a dictionary representation."""
+        try:
+            # Handle Google GenAI Tool object
+            if hasattr(tool, "function_declarations"):
+                func_declarations = []
+                for func_decl in tool.function_declarations:
+                    if hasattr(func_decl, "model_dump"):
+                        func_declarations.append(func_decl.model_dump(exclude_none=True))
+                    else:
+                        # Manually extract attributes
+                        func_dict = {
+                            "name": getattr(func_decl, "name", None),
+                            "description": getattr(func_decl, "description", None),
+                        }
+                        
+                        # Handle parameters which might be a Schema object
+                        parameters = getattr(func_decl, "parameters", None)
+                        if parameters is not None:
+                            if hasattr(parameters, "model_dump"):
+                                func_dict["parameters"] = parameters.model_dump(exclude_none=True)
+                            elif hasattr(parameters, "__dict__"):
+                                func_dict["parameters"] = parameters.__dict__
+                            else:
+                                func_dict["parameters"] = parameters
+                        
+                        # Remove None values
+                        func_dict = {k: v for k, v in func_dict.items() if v is not None}
+                        func_declarations.append(func_dict)
+                
+                return {"function_declarations": func_declarations}
+            else:
+                # Fallback: convert all attributes to dict
+                return {k: v for k, v in tool.__dict__.items() if not k.startswith("_")}
+        except Exception:
+            logger.exception(f"Failed to convert tool to dict: {tool}")
+            return {}
 
     def _get_attributes_from_message_param(
         self,
