@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.23...python-openinference-instrumentation-bedrock-v0.1.24) (2025-06-03)
+
+
+### Bug Fixes
+
+* Added exception to span when invoke_agent throws an exception  ([#1742](https://github.com/Arize-ai/openinference/issues/1742)) ([1027d18](https://github.com/Arize-ai/openinference/commit/1027d185ed233edacf8cfc76993c761a3b6a8afe))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.22...python-openinference-instrumentation-bedrock-v0.1.23) (2025-05-22)
 
 
