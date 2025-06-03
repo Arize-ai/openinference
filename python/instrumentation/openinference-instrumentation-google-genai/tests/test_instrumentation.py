@@ -1,3 +1,4 @@
+# type: ignore
 # ruff: noqa: E501
 import json
 from typing import Any, Dict, Iterator
