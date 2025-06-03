@@ -1,7 +1,7 @@
 import json
 import logging
 from enum import Enum
-from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
+from typing import Any, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar
 
 from google.genai.types import Content, Part, UserContent
 from opentelemetry.util.types import AttributeValue
@@ -146,7 +146,7 @@ class _RequestAttributesExtractor:
             except Exception:
                 logger.exception(f"Failed to serialize tool at index {tool_index}")
 
-    def _convert_tool_to_dict(self, tool: Any) -> dict:
+    def _convert_tool_to_dict(self, tool: Any) -> Dict[str, Any]:
         """Convert a Tool object to a dictionary representation."""
         try:
             # Handle Google GenAI Tool object
