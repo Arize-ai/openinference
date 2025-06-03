@@ -1,10 +1,11 @@
 # ruff: noqa: E501
 from typing import Any, Dict, Iterator
 import json
+from typing import Any, Dict, Iterator
 
 import pytest
 from google import genai
-from google.genai.types import Content, GenerateContentConfig, Part, Tool, FunctionDeclaration
+from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -12,7 +13,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from pydantic import BaseModel
 
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
-from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolAttributes, ToolCallAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 
 
 class Answer(BaseModel):
@@ -600,7 +606,7 @@ def test_generate_content_with_tool(
         args = json.loads(tool_call_args)
         assert "location" in args, f"Tool call should include 'location' parameter"
         # The location should be something reasonable for San Francisco
-        assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), f"Tool call location should reference San Francisco"
+        assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), "Tool call location should reference San Francisco"
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
@@ -850,7 +856,7 @@ def test_streaming_content_with_tool(
             return params.model_dump(exclude_none=True)
         else:
             return params
-
+    
     # Convert the weather_tool to the expected schema format for comparison
     expected_tool_schema = {
         "function_declarations": [
@@ -876,7 +882,7 @@ def test_streaming_content_with_tool(
 
     tool_call_args = attributes.get(tool_call_args_key)
     assert isinstance(tool_call_args, str), f"Tool call arguments should be a JSON string"
-
+    
     # Parse and validate tool call arguments
     args = json.loads(tool_call_args)
     assert "location" in args, f"Tool call should include 'location' parameter"
@@ -943,7 +949,7 @@ def test_chat_session_with_tool(
     # Create config with tools for the chat session
     user_message = "What's the weather like in San Francisco?"
     system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
-
+    
     config = GenerateContentConfig(
         system_instruction=system_instruction,
         tools=[weather_tool]
@@ -1011,10 +1017,10 @@ def test_chat_session_with_tool(
     # Check if the model decided to call the tool
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
     tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
-
+    
     # For chat session tool calling, we expect a tool call since we're testing tool calling functionality
     assert tool_call_name_key in attributes, f"Expected a tool call in the chat session response, but none found. Available keys: {list(attributes.keys())}"
-
+    
     # Model decided to call the tool, verify the tool call details
     assert attributes.get(tool_call_name_key) == "get_weather", f"Expected tool call to be 'get_weather'"
 
@@ -1052,20 +1058,23 @@ def test_streaming_tool_call_aggregation(
 ) -> None:
     """Test that streaming tool calls are properly aggregated across multiple chunks."""
     # Direct test of the streaming accumulator logic
-    from openinference.instrumentation.google_genai._stream import _ResponseAccumulator, _ResponseExtractor
-    from openinference.semconv.trace import SpanAttributes, MessageAttributes, ToolCallAttributes
+    from openinference.instrumentation.google_genai._stream import (
+        _ResponseAccumulator,
+        _ResponseExtractor,
+    )
+    from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
     # Create a response accumulator (this is what processes streaming chunks)
     accumulator = _ResponseAccumulator()
-
+    
     # Create mock chunks that simulate a tool call arriving in parts
     class MockChunk:
         def __init__(self, data):
             self.data = data
-
+            
         def model_dump(self, exclude_unset=True, warnings=False):
             return self.data
-
+    
     # Chunk 1: Function name only
     chunk1 = MockChunk({
         "candidates": [{
@@ -1081,7 +1090,7 @@ def test_streaming_tool_call_aggregation(
         }],
         "model_version": "gemini-2.0-flash"
     })
-
+    
     # Chunk 2: Function arguments only
     chunk2 = MockChunk({
         "candidates": [{
@@ -1104,33 +1113,33 @@ def test_streaming_tool_call_aggregation(
             "total_token_count": 60
         }
     })
-
+    
     # Process chunks through the accumulator (this tests our aggregation logic)
     accumulator.process_chunk(chunk1)
     accumulator.process_chunk(chunk2)
-
+    
     # Extract attributes using the response extractor
     extractor = _ResponseExtractor(accumulator)
     attributes = dict(extractor.get_extra_attributes())
-
+    
     # Verify the aggregated tool call - this is the key test!
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
     tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
-
+    
     # This tests that both name (from chunk1) and args (from chunk2) are present
     assert attributes.get(tool_call_name_key) == "get_weather", f"Function name not found. Available keys: {list(attributes.keys())}"
-
+    
     tool_call_args = attributes.get(tool_call_args_key)
     assert tool_call_args is not None, f"Function arguments not found. Available keys: {list(attributes.keys())}"
-
+    
     # Parse and verify the merged arguments
     args = json.loads(tool_call_args)
     assert args["location"] == "San Francisco", "Location argument missing from aggregated tool call"
     assert args["unit"] == "fahrenheit", "Unit argument missing from aggregated tool call"
-
+    
     # Verify token counts from final chunk
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 60
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 50
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 10
-
+    
     print("✅ Multi-chunk tool call aggregation works! Name from chunk1 + args from chunk2 merged successfully.")
