@@ -562,7 +562,8 @@ async def test_rag_module(
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str)
     input_data = json.loads(input_value)
     assert set(input_data.keys()) == {"prompt", "messages", "kwargs"}
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
@@ -1179,6 +1180,58 @@ def test_context_attributes_are_instrumented(
         assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
             prompt_template_variables
         )
+
+
+def test_module_forward_output_parsing(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Test that Module.forward output is properly parsed as JSON with individual fields"""
+    
+    class DisappointmentScorer(dspy.Module):  # type: ignore
+        """A DSPy module that scores disappointment level"""
+        
+        def __init__(self) -> None:
+            super().__init__()
+            self.scorer = dspy.ChainOfThought("recording_file_name -> disappointment_score, disappointment_reasoning")
+        
+        def forward(self, recording_file_name: str) -> dspy.Prediction:
+            # Mock the scorer to return a prediction with the expected fields
+            prediction = dspy.Prediction(
+                disappointment_score=8,
+                disappointment_reasoning="The customer expressed frustration multiple times"
+            )
+            return prediction
+    
+    # Create and run the module
+    scorer = DisappointmentScorer()
+    result = scorer(recording_file_name="customer_call_123.wav")
+    
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    
+    # Find the Module.forward span
+    module_span = None
+    for span in spans:
+        if span.name == "DisappointmentScorer.forward":
+            module_span = span
+            break
+    
+    assert module_span is not None, "Module.forward span not found"
+    
+    # Get the output value
+    attributes = dict(module_span.attributes or {})
+    output_value = attributes.get(OUTPUT_VALUE)
+    assert output_value is not None, "Output value not found in span attributes"
+    
+    # Parse the output value as JSON
+    output_dict = json.loads(output_value)
+    
+    # The output should contain the individual fields as a proper dict
+    assert isinstance(output_dict, dict), "Output should be a dictionary"
+    assert "disappointment_score" in output_dict, "disappointment_score field should be in output"
+    assert "disappointment_reasoning" in output_dict, "disappointment_reasoning field should be in output"
+    assert output_dict["disappointment_score"] == 8
+    assert output_dict["disappointment_reasoning"] == "The customer expressed frustration multiple times"
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
