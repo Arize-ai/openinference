@@ -407,15 +407,16 @@ async def test_async_streaming_text_content(
             f"Attribute {key} does not match expected value"
         )
 
+
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
 def test_generate_content_with_tool(
-        in_memory_span_exporter: InMemorySpanExporter,
-        tracer_provider: TracerProvider,
-        setup_google_genai_instrumentation: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
     api_key = "REDACTED"
@@ -434,33 +435,30 @@ def test_generate_content_with_tool(
                     "properties": {
                         "location": {
                             "type": "string",
-                            "description": "The city and state/country for weather information"
+                            "description": "The city and state/country for weather information",
                         },
                         "unit": {
                             "type": "string",
                             "enum": ["celsius", "fahrenheit"],
-                            "description": "Temperature unit"
-                        }
+                            "description": "Temperature unit",
+                        },
                     },
-                    "required": ["location"]
-                }
+                    "required": ["location"],
+                },
             )
         ]
     )
 
     # Create content for the request
-    user_message="What's the weather like in San Francisco?"
+    user_message = "What's the weather like in San Francisco?"
     content = Content(
         role="user",
         parts=[Part.from_text(text=user_message)],
     )
 
     # Create config with tools
-    system_instruction="You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
-    config = GenerateContentConfig(
-        system_instruction=system_instruction,
-        tools=[weather_tool]
-    )
+    system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
+    config = GenerateContentConfig(system_instruction=system_instruction, tools=[weather_tool])
 
     # Make the API call
     response = client.models.generate_content(
@@ -499,7 +497,7 @@ def test_generate_content_with_tool(
 
     # Helper function to convert parameters to the expected format
     def convert_parameters(params):
-        if hasattr(params, 'model_dump'):
+        if hasattr(params, "model_dump"):
             return params.model_dump(exclude_none=True)
         else:
             return params
@@ -510,12 +508,14 @@ def test_generate_content_with_tool(
             {
                 "name": func_decl.name,
                 "description": func_decl.description,
-                "parameters": convert_parameters(func_decl.parameters)
+                "parameters": convert_parameters(func_decl.parameters),
             }
             for func_decl in weather_tool.function_declarations
         ]
     }
-    assert tool_schema == expected_tool_schema, f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    assert tool_schema == expected_tool_schema, (
+        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    )
 
     # Check if the model decided to call the tool
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -523,7 +523,9 @@ def test_generate_content_with_tool(
 
     if tool_call_name_key in attributes:
         # Model decided to call the tool, verify the tool call details
-        assert attributes.get(tool_call_name_key) == "get_weather", "Expected tool call to be 'get_weather'"
+        assert attributes.get(tool_call_name_key) == "get_weather", (
+            "Expected tool call to be 'get_weather'"
+        )
 
         tool_call_args = attributes.get(tool_call_args_key)
         assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
@@ -532,7 +534,9 @@ def test_generate_content_with_tool(
         args = json.loads(tool_call_args)
         assert "location" in args, "Tool call should include 'location' parameter"
         # The location should be something reasonable for San Francisco
-        assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), "Tool call location should reference San Francisco"
+        assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
+            "Tool call location should reference San Francisco"
+        )
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
@@ -550,15 +554,16 @@ def test_generate_content_with_tool(
             f"Attribute {key} does not match expected value"
         )
 
+
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
 def test_generate_content_with_raw_json_tool(
-        in_memory_span_exporter: InMemorySpanExporter,
-        tracer_provider: TracerProvider,
-        setup_google_genai_instrumentation: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
     api_key = "REDACTED"
@@ -577,32 +582,32 @@ def test_generate_content_with_raw_json_tool(
                     "properties": {
                         "location": {
                             "type": "STRING",
-                            "description": "The city and state/country for weather information"
+                            "description": "The city and state/country for weather information",
                         },
                         "unit": {
                             "type": "STRING",
                             "enum": ["celsius", "fahrenheit"],
-                            "description": "Temperature unit"
-                        }
+                            "description": "Temperature unit",
+                        },
                     },
-                    "required": ["location"]
-                }
+                    "required": ["location"],
+                },
             }
         ]
     }
 
     # Create content for the request
-    user_message="What's the weather like in San Francisco?"
+    user_message = "What's the weather like in San Francisco?"
     content = Content(
         role="user",
         parts=[Part.from_text(text=user_message)],
     )
 
     # Create config with raw JSON tools
-    system_instruction="You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
+    system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
     config = GenerateContentConfig(
         system_instruction=system_instruction,
-        tools=[weather_tool_dict]  # Using raw dict instead of Tool object
+        tools=[weather_tool_dict],  # Using raw dict instead of Tool object
     )
 
     # Make the API call
@@ -641,7 +646,9 @@ def test_generate_content_with_raw_json_tool(
     tool_schema = json.loads(tool_schema_json)
     # For raw JSON tools, the expected schema should match exactly
     expected_tool_schema = weather_tool_dict
-    assert tool_schema == expected_tool_schema, f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    assert tool_schema == expected_tool_schema, (
+        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    )
 
     # Check if the model decided to call the tool
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -649,7 +656,9 @@ def test_generate_content_with_raw_json_tool(
 
     if tool_call_name_key in attributes:
         # Model decided to call the tool, verify the tool call details
-        assert attributes.get(tool_call_name_key) == "get_weather", "Expected tool call to be 'get_weather'"
+        assert attributes.get(tool_call_name_key) == "get_weather", (
+            "Expected tool call to be 'get_weather'"
+        )
 
         tool_call_args = attributes.get(tool_call_args_key)
         assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
@@ -658,7 +667,9 @@ def test_generate_content_with_raw_json_tool(
         args = json.loads(tool_call_args)
         assert "location" in args, "Tool call should include 'location' parameter"
         # The location should be something reasonable for San Francisco
-        assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), "Tool call location should reference San Francisco"
+        assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
+            "Tool call location should reference San Francisco"
+        )
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
@@ -675,6 +686,7 @@ def test_generate_content_with_raw_json_tool(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value"
         )
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -703,33 +715,30 @@ def test_streaming_content_with_tool(
                     "properties": {
                         "location": {
                             "type": "string",
-                            "description": "The city and state/country for weather information"
+                            "description": "The city and state/country for weather information",
                         },
                         "unit": {
                             "type": "string",
                             "enum": ["celsius", "fahrenheit"],
-                            "description": "Temperature unit"
-                        }
+                            "description": "Temperature unit",
+                        },
                     },
-                    "required": ["location"]
-                }
+                    "required": ["location"],
+                },
             )
         ]
     )
 
     # Create content for the request
-    user_message="What's the weather like in San Francisco?"
+    user_message = "What's the weather like in San Francisco?"
     content = Content(
         role="user",
         parts=[Part.from_text(text=user_message)],
     )
 
     # Create config with tools
-    system_instruction="You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
-    config = GenerateContentConfig(
-        system_instruction=system_instruction,
-        tools=[weather_tool]
-    )
+    system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
+    config = GenerateContentConfig(system_instruction=system_instruction, tools=[weather_tool])
 
     # Make the streaming API call
     stream = client.models.generate_content_stream(
@@ -765,7 +774,9 @@ def test_streaming_content_with_tool(
 
     # Only add message content if there was actual text (not just tool calls)
     if full_response:
-        expected_attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"] = full_response
+        expected_attributes[
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+        ] = full_response
 
     # Verify tool schema is recorded (same as non-streaming)
     tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
@@ -778,7 +789,7 @@ def test_streaming_content_with_tool(
 
     # Helper function to convert parameters to the expected format
     def convert_parameters(params):
-        if hasattr(params, 'model_dump'):
+        if hasattr(params, "model_dump"):
             return params.model_dump(exclude_none=True)
         else:
             return params
@@ -789,22 +800,28 @@ def test_streaming_content_with_tool(
             {
                 "name": func_decl.name,
                 "description": func_decl.description,
-                "parameters": convert_parameters(func_decl.parameters)
+                "parameters": convert_parameters(func_decl.parameters),
             }
             for func_decl in weather_tool.function_declarations
         ]
     }
-    assert tool_schema == expected_tool_schema, f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    assert tool_schema == expected_tool_schema, (
+        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    )
 
     # Check if the model decided to call the tool in streaming response
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
     tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
     # For this test, we expect a tool call since we're testing tool calling functionality
-    assert tool_call_name_key in attributes, f"Expected a tool call in the streaming response, but none found. Available keys: {list(attributes.keys())}"
+    assert tool_call_name_key in attributes, (
+        f"Expected a tool call in the streaming response, but none found. Available keys: {list(attributes.keys())}"
+    )
 
     # Model decided to call the tool, verify the tool call details
-    assert attributes.get(tool_call_name_key) == "get_weather", "Expected tool call to be 'get_weather'"
+    assert attributes.get(tool_call_name_key) == "get_weather", (
+        "Expected tool call to be 'get_weather'"
+    )
 
     tool_call_args = attributes.get(tool_call_args_key)
     assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
@@ -813,7 +830,9 @@ def test_streaming_content_with_tool(
     args = json.loads(tool_call_args)
     assert "location" in args, "Tool call should include 'location' parameter"
     # The location should be something reasonable for San Francisco
-    assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), "Tool call location should reference San Francisco"
+    assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
+        "Tool call location should reference San Francisco"
+    )
 
     # Check if token counts are available in the response from the last chunk
     if chunks and hasattr(chunks[-1], "usage_metadata") and chunks[-1].usage_metadata is not None:
@@ -821,7 +840,9 @@ def test_streaming_content_with_tool(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[-1].usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[
+                    -1
+                ].usage_metadata.candidates_token_count,
             }
         )
 
@@ -830,6 +851,7 @@ def test_streaming_content_with_tool(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value"
         )
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -858,16 +880,16 @@ def test_chat_session_with_tool(
                     "properties": {
                         "location": {
                             "type": "string",
-                            "description": "The city and state/country for weather information"
+                            "description": "The city and state/country for weather information",
                         },
                         "unit": {
                             "type": "string",
                             "enum": ["celsius", "fahrenheit"],
-                            "description": "Temperature unit"
-                        }
+                            "description": "Temperature unit",
+                        },
                     },
-                    "required": ["location"]
-                }
+                    "required": ["location"],
+                },
             )
         ]
     )
@@ -876,10 +898,7 @@ def test_chat_session_with_tool(
     user_message = "What's the weather like in San Francisco?"
     system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
 
-    config = GenerateContentConfig(
-        system_instruction=system_instruction,
-        tools=[weather_tool]
-    )
+    config = GenerateContentConfig(system_instruction=system_instruction, tools=[weather_tool])
 
     # Create a chat session with tools
     chat = client.chats.create(model="gemini-2.0-flash", config=config)
@@ -909,7 +928,9 @@ def test_chat_session_with_tool(
 
     # Only add message content if there was actual text (tool calls might not have text content)
     if response.text:
-        expected_attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"] = response.text
+        expected_attributes[
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+        ] = response.text
 
     # Verify tool schema is recorded
     tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
@@ -922,7 +943,7 @@ def test_chat_session_with_tool(
 
     # Helper function to convert parameters to the expected format
     def convert_parameters(params):
-        if hasattr(params, 'model_dump'):
+        if hasattr(params, "model_dump"):
             return params.model_dump(exclude_none=True)
         else:
             return params
@@ -933,22 +954,28 @@ def test_chat_session_with_tool(
             {
                 "name": func_decl.name,
                 "description": func_decl.description,
-                "parameters": convert_parameters(func_decl.parameters)
+                "parameters": convert_parameters(func_decl.parameters),
             }
             for func_decl in weather_tool.function_declarations
         ]
     }
-    assert tool_schema == expected_tool_schema, f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    assert tool_schema == expected_tool_schema, (
+        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    )
 
     # Check if the model decided to call the tool
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
     tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
     # For chat session tool calling, we expect a tool call since we're testing tool calling functionality
-    assert tool_call_name_key in attributes, f"Expected a tool call in the chat session response, but none found. Available keys: {list(attributes.keys())}"
+    assert tool_call_name_key in attributes, (
+        f"Expected a tool call in the chat session response, but none found. Available keys: {list(attributes.keys())}"
+    )
 
     # Model decided to call the tool, verify the tool call details
-    assert attributes.get(tool_call_name_key) == "get_weather", "Expected tool call to be 'get_weather'"
+    assert attributes.get(tool_call_name_key) == "get_weather", (
+        "Expected tool call to be 'get_weather'"
+    )
 
     tool_call_args = attributes.get(tool_call_args_key)
     assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
@@ -957,7 +984,9 @@ def test_chat_session_with_tool(
     args = json.loads(tool_call_args)
     assert "location" in args, "Tool call should include 'location' parameter"
     # The location should be something reasonable for San Francisco
-    assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), "Tool call location should reference San Francisco"
+    assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
+        "Tool call location should reference San Francisco"
+    )
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
@@ -974,6 +1003,7 @@ def test_chat_session_with_tool(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value"
         )
+
 
 # This test may be overkill, just want to make sure the logic in the accumulator works as expected. Tried to mock out
 # Chunks for client to return, but ultimately could not get that approach to work
@@ -1002,43 +1032,46 @@ def test_streaming_tool_call_aggregation(
             return self.data
 
     # Chunk 1: Function name only
-    chunk1 = MockChunk({
-        "candidates": [{
-            "index": 0,
-            "content": {
-                "role": "model",
-                "parts": [{
-                    "function_call": {
-                        "name": "get_weather"
-                    }
-                }]
-            }
-        }],
-        "model_version": "gemini-2.0-flash"
-    })
+    chunk1 = MockChunk(
+        {
+            "candidates": [
+                {
+                    "index": 0,
+                    "content": {
+                        "role": "model",
+                        "parts": [{"function_call": {"name": "get_weather"}}],
+                    },
+                }
+            ],
+            "model_version": "gemini-2.0-flash",
+        }
+    )
 
     # Chunk 2: Function arguments only
-    chunk2 = MockChunk({
-        "candidates": [{
-            "index": 0,
-            "content": {
-                "role": "model",
-                "parts": [{
-                    "function_call": {
-                        "args": {
-                            "location": "San Francisco",
-                            "unit": "fahrenheit"
-                        }
-                    }
-                }]
-            }
-        }],
-        "usage_metadata": {
-            "prompt_token_count": 50,
-            "candidates_token_count": 10,
-            "total_token_count": 60
+    chunk2 = MockChunk(
+        {
+            "candidates": [
+                {
+                    "index": 0,
+                    "content": {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "function_call": {
+                                    "args": {"location": "San Francisco", "unit": "fahrenheit"}
+                                }
+                            }
+                        ],
+                    },
+                }
+            ],
+            "usage_metadata": {
+                "prompt_token_count": 50,
+                "candidates_token_count": 10,
+                "total_token_count": 60,
+            },
         }
-    })
+    )
 
     # Process chunks through the accumulator (this tests our aggregation logic)
     accumulator.process_chunk(chunk1)
@@ -1053,14 +1086,20 @@ def test_streaming_tool_call_aggregation(
     tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
     # This tests that both name (from chunk1) and args (from chunk2) are present
-    assert attributes.get(tool_call_name_key) == "get_weather", f"Function name not found. Available keys: {list(attributes.keys())}"
+    assert attributes.get(tool_call_name_key) == "get_weather", (
+        f"Function name not found. Available keys: {list(attributes.keys())}"
+    )
 
     tool_call_args = attributes.get(tool_call_args_key)
-    assert tool_call_args is not None, f"Function arguments not found. Available keys: {list(attributes.keys())}"
+    assert tool_call_args is not None, (
+        f"Function arguments not found. Available keys: {list(attributes.keys())}"
+    )
 
     # Parse and verify the merged arguments
     args = json.loads(tool_call_args)
-    assert args["location"] == "San Francisco", "Location argument missing from aggregated tool call"
+    assert args["location"] == "San Francisco", (
+        "Location argument missing from aggregated tool call"
+    )
     assert args["unit"] == "fahrenheit", "Unit argument missing from aggregated tool call"
 
     # Verify token counts from final chunk
@@ -1068,4 +1107,6 @@ def test_streaming_tool_call_aggregation(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 50
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 10
 
-    print("✅ Multi-chunk tool call aggregation works! Name from chunk1 + args from chunk2 merged successfully.")
+    print(
+        "✅ Multi-chunk tool call aggregation works! Name from chunk1 + args from chunk2 merged successfully."
+    )
