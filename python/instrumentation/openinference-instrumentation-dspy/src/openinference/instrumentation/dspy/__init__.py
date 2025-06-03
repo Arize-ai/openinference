@@ -545,11 +545,15 @@ class _ModuleForwardWrapper(_WithTracer):
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             prediction = wrapped(*args, **kwargs)
+            
+            # Extract the output dictionary from the prediction
+            output_dict = self._prediction_to_output_dict(prediction)
+            
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
+                            OUTPUT_VALUE: safe_json_dumps(output_dict),
                             OUTPUT_MIME_TYPE: JSON,
                         }
                     )
@@ -557,6 +561,25 @@ class _ModuleForwardWrapper(_WithTracer):
             )
             span.set_status(StatusCode.OK)
         return prediction
+
+    def _prediction_to_output_dict(self, prediction: Any) -> Dict[str, Any]:
+        """
+        Extract the output fields from a DSPy prediction object
+        """
+        from dspy.primitives.example import Example
+        
+        if isinstance(prediction, Example):
+            # DSPy Prediction objects are subclasses of Example
+            return getattr(prediction, "_store", {})
+        elif hasattr(prediction, "_asdict"):
+            # Handle namedtuples
+            return prediction._asdict()
+        elif isinstance(prediction, dict):
+            # Already a dictionary
+            return prediction
+        else:
+            # Fallback: try to convert to dict
+            return {"value": prediction}
 
 
 class _ModuleAforwardWrapper(_WithTracer):
@@ -598,11 +621,15 @@ class _ModuleAforwardWrapper(_WithTracer):
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
             prediction = await wrapped(*args, **kwargs)
+            
+            # Extract the output dictionary from the prediction
+            output_dict = self._prediction_to_output_dict(prediction)
+            
             span.set_attributes(
                 dict(
                     _flatten(
                         {
-                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
+                            OUTPUT_VALUE: safe_json_dumps(output_dict),
                             OUTPUT_MIME_TYPE: JSON,
                         }
                     )
@@ -610,6 +637,25 @@ class _ModuleAforwardWrapper(_WithTracer):
             )
             span.set_status(StatusCode.OK)
         return prediction
+
+    def _prediction_to_output_dict(self, prediction: Any) -> Dict[str, Any]:
+        """
+        Extract the output fields from a DSPy prediction object
+        """
+        from dspy.primitives.example import Example
+        
+        if isinstance(prediction, Example):
+            # DSPy Prediction objects are subclasses of Example
+            return getattr(prediction, "_store", {})
+        elif hasattr(prediction, "_asdict"):
+            # Handle namedtuples
+            return prediction._asdict()
+        elif isinstance(prediction, dict):
+            # Already a dictionary
+            return prediction
+        else:
+            # Fallback: try to convert to dict
+            return {"value": prediction}
 
 
 class _RetrieverForwardWrapper(_WithTracer):

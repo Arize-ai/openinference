@@ -522,9 +522,12 @@ async def test_rag_module(
     )
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert "Prediction" in output_value
-    assert "reasoning=" in output_value
-    assert "answer=" in output_value
+    # Parse the JSON output and check for the expected fields
+    output_data = json.loads(output_value)
+    assert isinstance(output_data, dict)
+    assert "reasoning" in output_data
+    assert "answer" in output_data
+    assert output_data["answer"] == "Washington, D.C."
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -661,7 +664,9 @@ async def test_react(
     )
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert "next_tool_name='add'" in output_value
+    # Parse JSON and check for next_tool_name
+    output_data = json.loads(output_value)
+    assert output_data["next_tool_name"] == "add"
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -799,8 +804,10 @@ async def test_react(
     )
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert "next_tool_name='finish'" in output_value
-    assert "next_tool_args={}" in output_value
+    # Parse JSON and check for next_tool_name and next_tool_args
+    output_data = json.loads(output_value)
+    assert output_data["next_tool_name"] == "finish"
+    assert output_data["next_tool_args"] == {}
     assert not attributes
 
     span = next(it)
@@ -918,7 +925,9 @@ async def test_react(
     )
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert "answer='4'" in output_value
+    # Parse JSON and check for answer
+    output_data = json.loads(output_value)
+    assert output_data["answer"] == "4"
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -939,7 +948,9 @@ async def test_react(
     )
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert "answer='4'" in output_value
+    # Parse JSON and check for answer
+    output_data = json.loads(output_value)
+    assert output_data["answer"] == "4"
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
