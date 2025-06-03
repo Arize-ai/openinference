@@ -100,6 +100,7 @@ class _InvokeAgentWithResponseStream(_WithTracer):
                 )
                 return response
             except Exception as e:
+                span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
                 raise e
