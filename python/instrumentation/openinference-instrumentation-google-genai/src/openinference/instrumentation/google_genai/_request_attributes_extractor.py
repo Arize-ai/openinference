@@ -98,11 +98,11 @@ class _RequestAttributesExtractor:
         """Extract tools from the GenerateContentConfig object."""
         if not hasattr(config, "tools") or not config.tools:
             return
-        
+
         tools = config.tools
         if not isinstance(tools, list):
             return
-            
+
         for tool_index, tool in enumerate(tools):
             try:
                 # Convert tool to dictionary for serialization
@@ -115,7 +115,7 @@ class _RequestAttributesExtractor:
                 else:
                     # Already a dict or other serializable format
                     tool_dict = tool
-                
+
                 yield (
                     f"{SpanAttributes.LLM_TOOLS}.{tool_index}.{ToolAttributes.TOOL_JSON_SCHEMA}",
                     safe_json_dumps(tool_dict),
@@ -138,7 +138,7 @@ class _RequestAttributesExtractor:
                             "name": getattr(func_decl, "name", None),
                             "description": getattr(func_decl, "description", None),
                         }
-                        
+
                         # Handle parameters which might be a Schema object
                         parameters = getattr(func_decl, "parameters", None)
                         if parameters is not None:
@@ -148,11 +148,11 @@ class _RequestAttributesExtractor:
                                 func_dict["parameters"] = parameters.__dict__
                             else:
                                 func_dict["parameters"] = parameters
-                        
+
                         # Remove None values
                         func_dict = {k: v for k, v in func_dict.items() if v is not None}
                         func_declarations.append(func_dict)
-                
+
                 return {"function_declarations": func_declarations}
             else:
                 # Fallback: convert all attributes to dict
