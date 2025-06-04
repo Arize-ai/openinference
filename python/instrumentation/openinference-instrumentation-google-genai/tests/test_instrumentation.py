@@ -1186,3 +1186,144 @@ def test_streaming_tool_call_aggregation(
     print(
         "✅ Multi-chunk tool call aggregation works! Name from chunk1 + args from chunk2 merged successfully."
     )
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_generate_content_with_automatic_tool_calling(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    """Test automatic tool calling where Google GenAI executes the function and returns complete response."""
+    # Get API key from environment variable
+    api_key = "REDACTED"
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    # Define an executable function for automatic tool calling
+    def get_weather(location: str, unit: str = "fahrenheit") -> Dict[str, Any]:
+        """
+        This function will be automatically executed by Google GenAI.
+        It must return a JSON-serializable value.
+        """
+        # Mock weather data for testing
+        mock_weather = {
+            "san francisco": {"temperature": 65, "condition": "foggy", "humidity": "85%"},
+            "new york": {"temperature": 72, "condition": "sunny", "humidity": "60%"},
+            "london": {"temperature": 55, "condition": "rainy", "humidity": "90%"},
+        }
+        
+        location_lower = location.lower()
+        weather = mock_weather.get(location_lower, {"temperature": 70, "condition": "unknown", "humidity": "50%"})
+        
+        if unit == "celsius":
+            weather["temperature"] = round((weather["temperature"] - 32) * 5/9, 1)
+        
+        return {
+            "location": location,
+            "temperature": weather["temperature"],
+            "unit": unit,
+            "condition": weather["condition"],
+            "humidity": weather["humidity"]
+        }
+
+    # Create content for the request
+    user_message = "What's the weather like in San Francisco?"
+    content = Content(
+        role="user",
+        parts=[Part.from_text(text=user_message)],
+    )
+
+    # Create config with executable function (automatic tool calling)
+    # According to Google GenAI docs, pass the function directly in tools, not wrapped in Tool objects
+    system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
+    config = GenerateContentConfig(
+        system_instruction=system_instruction,
+        tools=[get_weather]  # Pass actual function directly for automatic calling!
+    )
+
+    # Make the API call
+    response = client.models.generate_content(
+        model="gemini-2.0-flash", contents=content, config=config
+    )
+
+    # For automatic tool calling, we expect a complete text response
+    # The model should have automatically called the function and incorporated the results
+    assert response is not None, "Response should not be None"
+    assert response.text is not None, "Response should have text content for automatic tool calling"
+    assert len(response.text.strip()) > 0, "Response text should not be empty"
+    
+    # Validate that the response contains weather information
+    response_lower = response.text.lower()
+    weather_keywords = ["weather", "temperature", "degrees", "san francisco", "condition"]
+    assert any(keyword in response_lower for keyword in weather_keywords), (
+        f"Response should contain weather-related information. Got: '{response.text}'"
+    )
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, f"Expected 1 span, got {len(spans)}"
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": system_instruction,
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # For automatic tool calling, the tool schema should still be recorded
+    # but it will be auto-generated from the function signature
+    tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
+    assert tool_schema_key in attributes, "Tool schema not found in attributes"
+    tool_schema_json = attributes.get(tool_schema_key)
+    assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
+
+    # Parse and validate the tool schema was auto-generated correctly
+    tool_schema = json.loads(tool_schema_json)
+    assert "function_declarations" in tool_schema, "Tool schema should contain function_declarations"
+    assert len(tool_schema["function_declarations"]) == 1, "Should have exactly one function declaration"
+    
+    func_decl = tool_schema["function_declarations"][0]
+    assert func_decl["name"] == "get_weather", "Function name should match"
+    assert "parameters" in func_decl, "Function should have parameters"
+    
+    # Verify key parameters are present
+    params = func_decl["parameters"]
+    assert "properties" in params, "Parameters should have properties"
+    assert "location" in params["properties"], "Should have location parameter"
+
+    # Check if token counts are available in the response
+    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+            }
+        )
+
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+
+    # Note: For automatic tool calling, the function execution happens transparently
+    # We may or may not see explicit tool call attributes in the span depending on
+    # how Google GenAI implements it internally. The key difference is that we get
+    # a complete text response that incorporates the function results.

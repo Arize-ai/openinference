@@ -58,6 +58,11 @@ class _ResponseAttributesExtractor:
                 if content := getattr(candidate, "content", None):
                     for key, value in self._get_attributes_from_generate_content_content(content):
                         yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+        
+        # Handle automatic function calling history
+        # For automatic function calling, the function call details are stored separately
+        if automatic_history := getattr(response, "automatic_function_calling_history", None):
+            yield from self._get_attributes_from_automatic_function_calling_history(automatic_history)
 
     def _get_attributes_from_generate_content_content(
         self,
@@ -128,3 +133,28 @@ class _ResponseAttributesExtractor:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_token_count
         if (candidates_token_count := getattr(usage, "candidates_token_count", None)) is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, candidates_token_count
+
+    def _get_attributes_from_automatic_function_calling_history(
+        self,
+        history: Iterable[object],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Extract function call information from automatic_function_calling_history.
+        
+        This history contains the sequence of model->function call->function response
+        that happened during automatic function calling.
+        """
+        tool_call_index = 0
+        
+        for content_entry in history:
+            # Each entry is a Content object with parts
+            if not hasattr(content_entry, "parts") or not hasattr(content_entry, "role"):
+                continue
+                
+            # Look for model responses that contain function calls
+            if getattr(content_entry, "role") == "model":
+                parts = getattr(content_entry, "parts", [])
+                for part in parts:
+                    if function_call := getattr(part, "function_call", None):
+                        # Extract function call details for the span
+                        yield from self._get_attributes_from_function_call(function_call, tool_call_index)
+                        tool_call_index += 1

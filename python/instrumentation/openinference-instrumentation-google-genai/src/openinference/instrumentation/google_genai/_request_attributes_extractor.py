@@ -57,10 +57,29 @@ class _RequestAttributesExtractor:
         request_params_dict.pop("contents", None)  # Remove LLM input contents
         if config := request_params_dict.get("config", None):
             # Config is a pydantic object, so we need to convert it to a JSON string
-            yield (
-                SpanAttributes.LLM_INVOCATION_PARAMETERS,
-                config.model_dump_json(exclude_none=True),
-            )
+            # For automatic function calling, config.tools may contain Python function objects
+            # which cannot be serialized by Pydantic. We exclude tools from serialization
+            # since they are handled separately in _get_tools_from_config.
+            try:
+                config_json = config.model_dump_json(exclude_none=True, exclude={"tools"})
+                yield (
+                    SpanAttributes.LLM_INVOCATION_PARAMETERS,
+                    config_json,
+                )
+            except Exception:
+                # Fallback: try to serialize without tools field entirely
+                logger.exception("Failed to serialize config, attempting fallback")
+                try:
+                    # Create a copy of config without tools for serialization
+                    config_dict = config.model_dump(exclude_none=True)
+                    config_dict.pop("tools", None)
+                    yield (
+                        SpanAttributes.LLM_INVOCATION_PARAMETERS,
+                        safe_json_dumps(config_dict),
+                    )
+                except Exception:
+                    logger.exception("Failed to serialize config even with fallback")
+            
             # We push the system instruction to the first message for replay and consistency
             system_instruction = getattr(config, "system_instruction", None)
             if system_instruction:
@@ -128,8 +147,11 @@ class _RequestAttributesExtractor:
 
         for tool_index, tool in enumerate(tools):
             try:
-                # Convert tool to dictionary for serialization
-                if hasattr(tool, "model_dump"):
+                # Handle different types of tools
+                if callable(tool):
+                    # Python function for automatic function calling
+                    tool_dict = self._convert_function_to_schema(tool)
+                elif hasattr(tool, "model_dump"):
                     # Pydantic model
                     tool_dict = tool.model_dump(exclude_none=True)
                 elif hasattr(tool, "__dict__"):
@@ -145,6 +167,87 @@ class _RequestAttributesExtractor:
                 )
             except Exception:
                 logger.exception(f"Failed to serialize tool at index {tool_index}")
+
+    def _convert_function_to_schema(self, func: callable) -> Dict[str, Any]:
+        """Convert a Python function to a tool schema for automatic function calling."""
+        import inspect
+        from typing import get_type_hints
+        
+        try:
+            # Get function metadata
+            func_name = func.__name__
+            func_doc = func.__doc__ or ""
+            
+            # Get function signature
+            sig = inspect.signature(func)
+            type_hints = get_type_hints(func)
+            
+            # Build parameters schema
+            properties = {}
+            required = []
+            
+            for param_name, param in sig.parameters.items():
+                if param_name == 'self':
+                    continue
+                    
+                # Determine if parameter is required (no default value)
+                if param.default == inspect.Parameter.empty:
+                    required.append(param_name)
+                
+                # Get parameter type information
+                param_type = type_hints.get(param_name, str)
+                param_info = {"type": self._python_type_to_json_schema_type(param_type)}
+                
+                # Add description from docstring if available
+                param_info["description"] = f"Parameter {param_name}"
+                
+                properties[param_name] = param_info
+            
+            # Build the schema
+            parameters_schema = {
+                "type": "object",
+                "properties": properties
+            }
+            
+            if required:
+                parameters_schema["required"] = required
+            
+            # Return in Google GenAI Tool format
+            return {
+                "function_declarations": [{
+                    "name": func_name,
+                    "description": func_doc.strip() or f"Function {func_name}",
+                    "parameters": parameters_schema
+                }]
+            }
+            
+        except Exception:
+            logger.exception(f"Failed to convert function {func} to schema")
+            return {
+                "function_declarations": [{
+                    "name": getattr(func, "__name__", "unknown_function"),
+                    "description": "Python function for automatic calling",
+                    "parameters": {"type": "object", "properties": {}}
+                }]
+            }
+    
+    def _python_type_to_json_schema_type(self, python_type) -> str:
+        """Convert Python type to JSON schema type string."""
+        if python_type == str:
+            return "string"
+        elif python_type == int:
+            return "integer"
+        elif python_type == float:
+            return "number"
+        elif python_type == bool:
+            return "boolean"
+        elif python_type == list:
+            return "array"
+        elif python_type == dict:
+            return "object"
+        else:
+            # Default to string for unknown types
+            return "string"
 
     def _convert_tool_to_dict(self, tool: Any) -> Dict[str, Any]:
         """Convert a Tool object to a dictionary representation."""
