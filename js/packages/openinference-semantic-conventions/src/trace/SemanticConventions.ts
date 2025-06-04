@@ -22,6 +22,8 @@ export const SemanticAttributePrefixes = {
   message_content: "message_content",
   image: "image",
   audio: "audio",
+  agent: "agent",
+  graph: "graph",
 } as const;
 
 export const LLMAttributePostfixes = {
@@ -119,6 +121,18 @@ export const AudioAttributesPostfixes = {
   url: "url",
   mime_type: "mime_type",
   transcript: "transcript",
+} as const;
+
+export const AgentPostfixes = {
+  name: "name",
+  step: "step",
+  next_agent: "next_agent",
+} as const;
+
+export const GraphPostfixes = {
+  node_name: "node.name",
+  node_step: "node.step",
+  node_next_node: "node.next_node",
 } as const;
 
 /**
@@ -452,6 +466,37 @@ export const AUDIO_MIME_TYPE =
 export const AUDIO_TRANSCRIPT =
   `${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.transcript}` as const;
 
+/**
+ * The name of the agent.
+ */
+export const AGENT_NAME =
+  `${SemanticAttributePrefixes.agent}.${AgentPostfixes.name}` as const;
+/**
+ * The step number of the current agent in the execution graph.
+ */
+export const AGENT_STEP =
+  `${SemanticAttributePrefixes.agent}.${AgentPostfixes.step}` as const;
+/**
+ * The next agent to call
+ */
+export const AGENT_NEXT_AGENT =
+  `${SemanticAttributePrefixes.agent}.${AgentPostfixes.next_agent}` as const;
+/**
+ * The name of the node in the execution graph. Nodes are like agents but are for general purpose graphs.
+ */
+export const GRAPH_NODE_NAME =
+  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_name}` as const;
+/**
+ * The step number of the current node in the execution graph.
+ */
+export const GRAPH_NODE_STEP =
+  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_step}` as const;
+/**
+ * The next node to call
+ */
+export const GRAPH_NODE_NEXT_NODE =
+  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_next_node}` as const;
+
 export const SemanticConventions = {
   IMAGE_URL,
   INPUT_VALUE,
@@ -510,6 +555,12 @@ export const SemanticConventions = {
   METADATA,
   TAG_TAGS,
   OPENINFERENCE_SPAN_KIND: `${SemanticAttributePrefixes.openinference}.span.kind`,
+  AGENT_NAME,
+  AGENT_STEP,
+  AGENT_NEXT_AGENT,
+  GRAPH_NODE_NAME,
+  GRAPH_NODE_STEP,
+  GRAPH_NODE_NEXT_NODE,
 } as const;
 
 export enum OpenInferenceSpanKind {

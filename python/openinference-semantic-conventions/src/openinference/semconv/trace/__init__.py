@@ -124,6 +124,30 @@ class SpanAttributes:
     """
     The id of the user
     """
+    AGENT_NAME = "agent.name"
+    """
+    The name of the agent.
+    """
+    AGENT_STEP = "agent.step"
+    """
+    The step number of the current agent in the execution graph.
+    """
+    AGENT_NEXT_AGENT = "agent.next_agent"
+    """
+    The next agent to call
+    """
+    GRAPH_NODE_NAME = "graph.node.name"
+    """
+    The name of the node in the execution graph. Nodes are like agents but are for general purpose graphs.
+    """
+    GRAPH_NODE_STEP = "graph.node.step"
+    """
+    The step number of the current node in the execution graph.
+    """
+    GRAPH_NODE_NEXT_NODE = "graph.node.next_node"
+    """
+    The next node to call
+    """
 
 
 class MessageAttributes:
