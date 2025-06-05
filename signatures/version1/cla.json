@@ -503,6 +503,14 @@
       "created_at": "2025-06-04T22:33:23Z",
       "repoId": 735999703,
       "pullRequestNo": 1748
+    },
+    {
+      "name": "igor-gorohovsky",
+      "id": 80672922,
+      "comment_id": 2943727196,
+      "created_at": "2025-06-05T10:59:07Z",
+      "repoId": 735999703,
+      "pullRequestNo": 1744
     }
   ]
 }
