@@ -2,6 +2,7 @@ from typing import Any, Callable, Collection, Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from packaging.version import Version
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import (
@@ -24,7 +25,6 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_run_method",
         "_original_step_methods",
         "_original_tool_call_method",
-        "_original_model_call_methods",
         "_original_model_generate_methods",
         "_tracer",
     )
@@ -65,8 +65,9 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 wrapper=step_wrapper,
             )
 
-        self._original_model_call_methods: Optional[dict[type, Callable[..., Any]]] = {}
-        self._original_model_generate_methods: Optional[dict[type, Callable[..., Any]]] = {}
+        self._original_model_generate_methods: Optional[
+            dict[type, tuple[str, Callable[..., Any]]]
+        ] = {}
 
         exported_model_subclasses = [
             attr
@@ -74,24 +75,18 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             if isinstance(attr, type) and issubclass(attr, models.Model)
         ]
 
+        wrap_generate = Version(smolagents.__version__) >= Version("1.15.0")
+        method_name = "generate" if wrap_generate else "__call__"
+
         for model_subclass in exported_model_subclasses:
             model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
 
-            self._original_model_call_methods[model_subclass] = getattr(
-                model_subclass, "__call__"
-            )
-            wrap_function_wrapper(
-                module="smolagents",
-                name=model_subclass.__name__ + ".__call__",
-                wrapper=model_subclass_wrapper,
-            )
+            original_method = getattr(model_subclass, method_name)
+            self._original_model_generate_methods[model_subclass] = (method_name, original_method)
 
-            self._original_model_generate_methods[model_subclass] = getattr(
-                model_subclass, "generate"
-            )
             wrap_function_wrapper(
                 module="smolagents",
-                name=model_subclass.__name__ + ".generate",
+                name=f"{model_subclass.__name__}.{method_name}",
                 wrapper=model_subclass_wrapper,
             )
 
@@ -115,20 +110,12 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 setattr(step_cls, "step", original_step_method)
             self._original_step_methods = None
 
-        if self._original_model_call_methods is not None:
-            for (
-                model_subclass,
-                original_model_call_method,
-            ) in self._original_model_call_methods.items():
-                setattr(model_subclass, "__call__", original_model_call_method)
-            self._original_model_call_methods = None
-
         if self._original_model_generate_methods is not None:
-            for (
-                model_subclass,
-                original_model_generate_method,
+            for model_subclass, (
+                method_name,
+                original_method,
             ) in self._original_model_generate_methods.items():
-                setattr(model_subclass, "generate", original_model_generate_method)
+                setattr(model_subclass, method_name, original_method)
             self._original_model_generate_methods = None
 
         if self._original_tool_call_method is not None:
