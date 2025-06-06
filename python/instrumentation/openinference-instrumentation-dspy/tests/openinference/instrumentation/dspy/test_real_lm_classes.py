@@ -2,6 +2,8 @@
 
 import os
 
+import dspy
+
 from openinference.instrumentation.dspy import (
     _llm_model_name,
     _llm_provider,
@@ -16,7 +18,6 @@ os.environ["COHERE_API_KEY"] = "dummy-key"
 
 def test_real_dspy_lm_classes() -> None:
     """Test provider and model extraction with actual DSPy LM instances."""
-    import dspy
 
     # Test various model string formats that DSPy supports
     test_cases = [
@@ -117,5 +118,3 @@ def test_provider_class_name_extraction() -> None:
         print("✓ OpenAIProvider class name extraction works")
     except Exception as e:
         print(f"⚠ OpenAI provider test skipped: {e}")
-
-
