@@ -281,7 +281,7 @@ class _ModelWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         arguments = _bind_arguments(wrapped, *args, **kwargs)
-        span_name = f"{instance.__class__.__name__}.__call__"
+        span_name = f"{instance.__class__.__name__}.generate"
         model = instance
         with self._tracer.start_as_current_span(
             span_name,
