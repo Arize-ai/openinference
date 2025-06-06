@@ -37,6 +37,7 @@ export const LLMAttributePostfixes = {
   prompt_template: "prompt_template",
   function_call: "function_call",
   tools: "tools",
+  cost: "cost",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -220,6 +221,58 @@ export const LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO =
 /** Token count for the entire transaction with the llm */
 export const LLM_TOKEN_COUNT_TOTAL =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.total` as const;
+
+/** Cost of the prompt tokens in USD */
+export const LLM_COST_PROMPT = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt` as const;
+
+/** Cost of the completion tokens in USD */
+export const LLM_COST_COMPLETION = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion` as const;
+
+/** Total cost of the LLM call in USD (prompt + completion) */
+export const LLM_COST_TOTAL = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.total` as const;
+
+/** Cost of reasoning steps in the completion in USD */
+export const LLM_COST_COMPLETION_DETAILS_REASONING = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion_details.reasoning` as const;
+
+/** Cost of audio tokens in the completion in USD */
+export const LLM_COST_COMPLETION_DETAILS_AUDIO = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion_details.audio` as const;
+
+/** Cost of prompt tokens written to cache in USD */
+export const LLM_COST_PROMPT_DETAILS_CACHE_WRITE = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.cache_write` as const;
+
+/** Cost of prompt tokens read from cache in USD */
+export const LLM_COST_PROMPT_DETAILS_CACHE_READ = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.cache_read` as const;
+
+/** Cost of input tokens in the prompt that were cached in USD */
+export const LLM_COST_PROMPT_DETAILS_CACHE_INPUT = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.cache_input` as const;
+
+/** Cost of audio tokens in the prompt in USD */
+export const LLM_COST_PROMPT_DETAILS_AUDIO = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.audio` as const;
+
+/**
+ * Key prefix for cost information. When these keys are transformed into a JSON-like structure, it would look like:
+ * {
+ *     "prompt": 0.0012,  # Cost in USD
+ *     "completion": 0.0024,  # Cost in USD
+ *     "total": 0.0036,  # Cost in USD
+ *     "completion_details": {
+ *         "reasoning": 0.0012,    # Cost in USD (e.g., 40 tokens * $0.03/1K tokens)
+ *         "audio": 0.0006  # Cost in USD (e.g., 20 tokens * $0.03/1K tokens)
+ *     },
+ *     "prompt_details": {
+ *         "cache_write": 0.0003,  # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
+ *         "cache_read": 0.0003,   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
+ *         "cache_input": 0.0003,  # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
+ *         "audio": 0.0003   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
+ *     }
+ * }
+ * Note: This is a key prefix - individual attributes are stored as separate span attributes with this prefix,
+ * e.g. llm.cost.prompt, llm.cost.completion_details.reasoning, etc. The JSON structure shown above represents
+ * how these separate attributes can be conceptually organized.
+ * All monetary values are in USD with floating point precision.
+ */
+export const LLM_COST = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}` as const;
+
 /**
  * The role that the LLM assumes the message is from
  * during the LLM invocation
@@ -519,6 +572,16 @@ export const SemanticConventions = {
   LLM_SYSTEM,
   LLM_PROVIDER,
   LLM_TOOLS,
+  LLM_COST,
+  LLM_COST_PROMPT,
+  LLM_COST_COMPLETION,
+  LLM_COST_TOTAL,
+  LLM_COST_COMPLETION_DETAILS_REASONING,
+  LLM_COST_COMPLETION_DETAILS_AUDIO,
+  LLM_COST_PROMPT_DETAILS_CACHE_WRITE,
+  LLM_COST_PROMPT_DETAILS_CACHE_READ,
+  LLM_COST_PROMPT_DETAILS_CACHE_INPUT,
+  LLM_COST_PROMPT_DETAILS_AUDIO,
   MESSAGE_ROLE,
   MESSAGE_NAME,
   MESSAGE_TOOL_CALLS,

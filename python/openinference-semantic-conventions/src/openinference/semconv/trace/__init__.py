@@ -118,7 +118,7 @@ class SpanAttributes:
     """
     Key prefix for additional completion token count details. Each detail should be a separate attribute
     with this prefix, e.g. llm.token_count.completion_details.reasoning, llm.token_count.completion_details.audio.
-    All values should be in tokens.
+    All values should be in tokens (integer count of tokens).
     """
 
     LLM_COST_PROMPT = "llm.cost.prompt"
@@ -162,22 +162,26 @@ class SpanAttributes:
 
     LLM_COST = "llm.cost"
     """
-    Cost information for the LLM call. Example structure:
+    Key prefix for cost information. When these keys are transformed into a JSON-like structure, it would look like:
     {
-        "prompt": 0.0012,  # in USD
-        "completion": 0.0024,  # in USD
-        "total": 0.0036,  # in USD
+        "prompt": 0.0012,  # Cost in USD
+        "completion": 0.0024,  # Cost in USD
+        "total": 0.0036,  # Cost in USD
         "completion_details": {
-            "reasoning": 0.0012,    # 40 tokens * $0.03/1K tokens
-            "audio": 0.0006  # 20 tokens * $0.03/1K tokens
+            "reasoning": 0.0012,    # Cost in USD (e.g., 40 tokens * $0.03/1K tokens)
+            "audio": 0.0006  # Cost in USD (e.g., 20 tokens * $0.03/1K tokens)
         },
         "prompt_details": {
-            "cache_write": 0.0003,  # 10 tokens * $0.03/1K tokens
-            "cache_read": 0.0003,   # 10 tokens * $0.03/1K tokens
-            "cache_input": 0.0003,  # 10 tokens * $0.03/1K tokens
-            "audio": 0.0003   # 10 tokens * $0.03/1K tokens
+            "cache_write": 0.0003,  # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
+            "cache_read": 0.0003,   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
+            "cache_input": 0.0003,  # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
+            "audio": 0.0003   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
         }
     }
+    Note: This is a key prefix - individual attributes are stored as separate span attributes with this prefix,
+    e.g. llm.cost.prompt, llm.cost.completion_details.reasoning, etc. The JSON structure shown above represents
+    how these separate attributes can be conceptually organized.
+    All monetary values are in USD with floating point precision.
     """
 
     LLM_TOOLS = "llm.tools"
