@@ -7,7 +7,7 @@ import pytest
 from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from litellm.types.utils import Message as LitellmMessage
-from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -98,8 +98,8 @@ def test_litellm_function_error_status(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
     function_name: str,
-    args: list,
-    kwargs: dict,
+    args: list[Any],
+    kwargs: dict[str, Any],
     expected_span_name: str,
 ) -> None:
     in_memory_span_exporter.clear()
