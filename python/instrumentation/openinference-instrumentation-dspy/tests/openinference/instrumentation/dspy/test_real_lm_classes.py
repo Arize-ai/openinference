@@ -14,7 +14,7 @@ os.environ["ANTHROPIC_API_KEY"] = "dummy-key"
 os.environ["COHERE_API_KEY"] = "dummy-key"
 
 
-def test_real_dspy_lm_classes():
+def test_real_dspy_lm_classes() -> None:
     """Test provider and model extraction with actual DSPy LM instances."""
     import dspy
 
@@ -44,18 +44,18 @@ def test_real_dspy_lm_classes():
 
             # Test parse_provider_and_model function
             provider, model_name = parse_provider_and_model(model_string)
-            assert (
-                provider == expected_provider
-            ), f"Expected provider {expected_provider}, got {provider}"
-            assert (
-                model_name == expected_model
-            ), f"Expected model {expected_model}, got {model_name}"
+            assert provider == expected_provider, (
+                f"Expected provider {expected_provider}, got {provider}"
+            )
+            assert model_name == expected_model, (
+                f"Expected model {expected_model}, got {model_name}"
+            )
 
             # Test _llm_provider function
             provider_results = list(_llm_provider(lm))
-            assert (
-                len(provider_results) == 1
-            ), f"Expected 1 provider result, got {len(provider_results)}"
+            assert len(provider_results) == 1, (
+                f"Expected 1 provider result, got {len(provider_results)}"
+            )
             assert provider_results[0][0] == "llm.provider"
             assert provider_results[0][1] == expected_provider
 
@@ -78,7 +78,7 @@ def test_real_dspy_lm_classes():
             assert model_name == expected_model
 
 
-def test_edge_cases_with_real_lm():
+def test_edge_cases_with_real_lm() -> None:
     """Test edge cases that might occur with real LM instances."""
     import dspy
 
@@ -100,7 +100,7 @@ def test_edge_cases_with_real_lm():
         print(f"⚠ Simple model string test skipped: {e}")
 
 
-def test_provider_class_name_extraction():
+def test_provider_class_name_extraction() -> None:
     """Test that we correctly extract provider names from class names."""
     import dspy
 

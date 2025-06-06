@@ -1,13 +1,13 @@
 import json
 from importlib.metadata import version
-from typing import Any, Dict, Generator, List, Tuple, cast
+from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, cast
 
 import dspy
 import pytest
 from dspy.teleprompt import BootstrapFewShotWithRandomSearch
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
@@ -1234,7 +1234,7 @@ DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
 # --- New tests for provider/model parsing and edge cases ---
 
 
-def get_first_from_generator(gen):
+def get_first_from_generator(gen: Iterator[Tuple[str, Any]]) -> Optional[Tuple[str, Any]]:
     return next(iter(gen), None)
 
 
@@ -1251,13 +1251,15 @@ class Provider:
 
 
 class DummyLM:
-    def __init__(self, model_name=None, model=None, provider=None):
+    def __init__(
+        self, model_name: Optional[str] = None, model: Optional[str] = None, provider: Any = None
+    ) -> None:
         self.model_name = model_name
         self.model = model
         self.provider = provider
 
 
-def test_parse_provider_and_model_cases():
+def test_parse_provider_and_model_cases() -> None:
     # (input, expected_provider, expected_model)
     cases = [
         ("openai/gpt-4", "openai", "gpt-4"),
@@ -1270,12 +1272,12 @@ def test_parse_provider_and_model_cases():
         (None, None, None),
     ]
     for model_str, exp_provider, exp_model in cases:
-        provider, model = parse_provider_and_model(model_str)
+        provider, model = parse_provider_and_model(model_str)  # type: ignore[arg-type]
         assert provider == exp_provider, f"{model_str}: provider {provider} != {exp_provider}"
         assert model == exp_model, f"{model_str}: model {model} != {exp_model}"
 
 
-def test_llm_provider_and_model_name_extraction():
+def test_llm_provider_and_model_name_extraction() -> None:
     """Test various cases of provider and model name extraction based on actual DSPy behavior."""
 
     # Provider extraction tests
@@ -1317,7 +1319,7 @@ def test_llm_provider_and_model_name_extraction():
     assert get_first_from_generator(_llm_model_name(lm)) is None
 
 
-def test_llm_functions_yield_only_once():
+def test_llm_functions_yield_only_once() -> None:
     """Test that _llm_provider and _llm_model_name only yield once even with multiple attributes."""
     # Test case where LM has both model_name and model attributes
     lm = DummyLM(model_name="gpt-4", model="openai/gpt-3.5-turbo")
