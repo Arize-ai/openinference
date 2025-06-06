@@ -11,7 +11,6 @@ from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from pytest import MonkeyPatch
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.dspy import (
@@ -89,13 +88,6 @@ def instrument(
     yield
     DSPyInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
-
-
-@pytest.fixture
-def openai_api_key(monkeypatch: MonkeyPatch) -> str:
-    api_key = "sk-fake-key"
-    monkeypatch.setenv("OPENAI_API_KEY", api_key)
-    return api_key
 
 
 class TestInstrumentor:

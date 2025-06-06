@@ -1,8 +1,7 @@
 """Test provider and model extraction with real DSPy LM classes."""
 
-import os
-
 import dspy
+import pytest
 
 from openinference.instrumentation.dspy import (
     _llm_model_name,
@@ -10,111 +9,138 @@ from openinference.instrumentation.dspy import (
     parse_provider_and_model,
 )
 
-# Set dummy API keys to avoid errors
-os.environ["OPENAI_API_KEY"] = "dummy-key"
-os.environ["ANTHROPIC_API_KEY"] = "dummy-key"
-os.environ["COHERE_API_KEY"] = "dummy-key"
 
-
-def test_real_dspy_lm_classes() -> None:
-    """Test provider and model extraction with actual DSPy LM instances."""
-
-    # Test various model string formats that DSPy supports
-    test_cases = [
-        # (model_string, expected_provider, expected_model_name)
-        ("openai/gpt-4", "openai", "gpt-4"),
-        ("openai/gpt-3.5-turbo", "openai", "gpt-3.5-turbo"),
-        ("anthropic/claude-3-opus-20240229", "anthropic", "claude-3-opus-20240229"),
-        ("cohere/command-r-plus", "cohere", "command-r-plus"),
-        (
+@pytest.mark.parametrize(
+    "model_string,expected_provider,expected_model",
+    [
+        pytest.param("openai/gpt-4", "openai", "gpt-4", id="openai-gpt4"),
+        pytest.param("openai/gpt-3.5-turbo", "openai", "gpt-3.5-turbo", id="openai-gpt35"),
+        pytest.param(
+            "anthropic/claude-3-opus-20240229",
+            "anthropic",
+            "claude-3-opus-20240229",
+            id="anthropic-claude3",
+        ),
+        pytest.param("cohere/command-r-plus", "cohere", "command-r-plus", id="cohere-command"),
+        pytest.param(
             "databricks/databricks-meta-llama-3-1-70b-instruct",
             "databricks",
             "databricks-meta-llama-3-1-70b-instruct",
+            id="databricks-llama",
         ),
-        (
+        pytest.param(
             "together/meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
             "together",
             "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+            id="together-llama",
         ),
-    ]
-
-    for model_string, expected_provider, expected_model in test_cases:
-        try:
-            # Create LM instance
-            lm = dspy.LM(model_string)
-
-            # Test parse_provider_and_model function
-            provider, model_name = parse_provider_and_model(model_string)
-            assert provider == expected_provider, (
-                f"Expected provider {expected_provider}, got {provider}"
-            )
-            assert model_name == expected_model, (
-                f"Expected model {expected_model}, got {model_name}"
-            )
-
-            # Test _llm_provider function
-            provider_results = list(_llm_provider(lm))
-            assert len(provider_results) == 1, (
-                f"Expected 1 provider result, got {len(provider_results)}"
-            )
-            assert provider_results[0][0] == "llm.provider"
-            assert provider_results[0][1] == expected_provider
-
-            # Test _llm_model_name function
-            model_results = list(_llm_model_name(lm))
-            assert len(model_results) == 1, f"Expected 1 model result, got {len(model_results)}"
-            assert model_results[0][0] == "llm.model_name"
-            assert model_results[0][1] == expected_model
-
-            print(f"✓ {model_string}: provider={expected_provider}, model={expected_model}")
-
-        except Exception as e:
-            # Some providers might fail due to missing dependencies or API keys
-            # but we can still test the parsing logic
-            print(f"⚠ {model_string}: Skipped due to {type(e).__name__}: {e}")
-
-            # Still test the parsing function
-            provider, model_name = parse_provider_and_model(model_string)
-            assert provider == expected_provider
-            assert model_name == expected_model
+        pytest.param("gpt-4", None, "gpt-4", id="simple-model-string"),
+        pytest.param("claude-3", None, "claude-3", id="simple-claude"),
+    ],
+)
+def test_parse_provider_and_model(
+    model_string: str,
+    expected_provider: str,
+    expected_model: str,
+) -> None:
+    """Test parse_provider_and_model function with various model string formats."""
+    provider, model_name = parse_provider_and_model(model_string)
+    assert provider == expected_provider, f"Expected provider {expected_provider}, got {provider}"
+    assert model_name == expected_model, f"Expected model {expected_model}, got {model_name}"
 
 
-def test_edge_cases_with_real_lm() -> None:
-    """Test edge cases that might occur with real LM instances."""
-    import dspy
+@pytest.mark.parametrize(
+    "model_string,expected_provider,expected_model",
+    [
+        pytest.param("openai/gpt-4", "openai", "gpt-4", id="openai-gpt4"),
+        pytest.param("openai/gpt-3.5-turbo", "openai", "gpt-3.5-turbo", id="openai-gpt35"),
+    ],
+)
+def test_llm_provider_and_model_extraction(
+    model_string: str,
+    expected_provider: str,
+    expected_model: str,
+    openai_api_key: str,
+) -> None:
+    """Test _llm_provider and _llm_model_name functions with real LM instances."""
+    # Create LM instance
+    lm = dspy.LM(model_string)
 
-    # Test with a simple model string (no provider prefix)
-    try:
-        lm = dspy.LM("gpt-4")
-        provider_results = list(_llm_provider(lm))
-        model_results = list(_llm_model_name(lm))
+    # Test _llm_provider function
+    provider_results = list(_llm_provider(lm))
+    assert len(provider_results) == 1, f"Expected 1 provider result, got {len(provider_results)}"
+    assert provider_results[0][0] == "llm.provider"
+    assert provider_results[0][1] == expected_provider
 
-        # Should still extract model name
-        assert len(model_results) == 1
-        assert model_results[0][1] == "gpt-4"
-
-        # Provider results might be empty for simple model strings
-        assert len(provider_results) <= 1
-
-        print("✓ Simple model string handled correctly")
-    except Exception as e:
-        print(f"⚠ Simple model string test skipped: {e}")
+    # Test _llm_model_name function
+    model_results = list(_llm_model_name(lm))
+    assert len(model_results) == 1, f"Expected 1 model result, got {len(model_results)}"
+    assert model_results[0][0] == "llm.model_name"
+    assert model_results[0][1] == expected_model
 
 
-def test_provider_class_name_extraction() -> None:
-    """Test that we correctly extract provider names from class names."""
-    import dspy
+def test_simple_model_string_extraction(openai_api_key: str) -> None:
+    """Test extraction with a simple model string (no provider prefix)."""
+    lm = dspy.LM("gpt-4")
 
-    # Test OpenAI
-    try:
-        lm = dspy.LM("openai/gpt-4")
-        assert hasattr(lm, "provider")
-        assert lm.provider.__class__.__name__ == "OpenAIProvider"
+    # Test _llm_model_name - should extract model name
+    model_results = list(_llm_model_name(lm))
+    assert len(model_results) == 1
+    assert model_results[0][0] == "llm.model_name"
+    assert model_results[0][1] == "gpt-4"
 
-        provider_results = list(_llm_provider(lm))
-        assert len(provider_results) == 1
-        assert provider_results[0][1] == "openai"
+    # Test _llm_provider - might not extract provider for simple strings
+    provider_results = list(_llm_provider(lm))
+    # Provider extraction depends on the LM implementation
+    assert len(provider_results) <= 1
 
-        print("✓ OpenAIProvider class name extraction works")
-    except Exception as e:
-        print(f"⚠ OpenAI provider test skipped: {e}")
+
+def test_provider_class_name_extraction(openai_api_key: str) -> None:
+    """Test that we correctly extract provider names from provider class names."""
+    lm = dspy.LM("openai/gpt-4")
+
+    # Verify the provider attribute exists and has the expected class name
+    assert hasattr(lm, "provider")
+    assert lm.provider.__class__.__name__ == "OpenAIProvider"
+
+    # Test provider extraction
+    provider_results = list(_llm_provider(lm))
+    assert len(provider_results) == 1
+    assert provider_results[0][0] == "llm.provider"
+    assert provider_results[0][1] == "openai"
+
+
+def test_edge_cases_parse_provider_and_model() -> None:
+    """Test edge cases for parse_provider_and_model function."""
+    # Test with trailing slash
+    provider, model = parse_provider_and_model("openai/gpt-4/")
+    assert provider == "openai"
+    assert model == "gpt-4"
+
+    # Test with empty string
+    provider, model = parse_provider_and_model("")
+    assert provider is None
+    assert model is None
+
+    # Test with None
+    provider, model = parse_provider_and_model(None)
+    assert provider is None
+    assert model is None
+
+    # Test with prefixed format
+    provider, model = parse_provider_and_model("text-completion-openai/gpt-3.5-turbo-instruct")
+    assert provider == "openai"
+    assert model == "gpt-3.5-turbo-instruct"
+
+
+def test_functions_yield_once(openai_api_key: str) -> None:
+    """Test that _llm_provider and _llm_model_name only yield once."""
+    lm = dspy.LM("openai/gpt-4")
+
+    # Test _llm_provider yields exactly once
+    provider_results = list(_llm_provider(lm))
+    assert len(provider_results) == 1
+
+    # Test _llm_model_name yields exactly once
+    model_results = list(_llm_model_name(lm))
+    assert len(model_results) == 1
