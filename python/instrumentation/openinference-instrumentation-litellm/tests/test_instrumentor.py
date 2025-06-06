@@ -445,8 +445,7 @@ def test_completion_error_response(
         with pytest.raises(RuntimeError, match=error_message):
             litellm.completion(
                 model="gpt-3.5-turbo",
-                messages=[
-                    {"content": "What's the capital of China?", "role": "user"}],
+                messages=[{"content": "What's the capital of China?", "role": "user"}],
             )
 
     spans = in_memory_span_exporter.get_finished_spans()
