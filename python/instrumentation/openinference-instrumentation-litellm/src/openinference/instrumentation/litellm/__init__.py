@@ -229,6 +229,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                     _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
 
     _set_token_counts_from_usage(span, result)
+    _set_span_status(span, result)
 
 
 # Gets values safely from an object
@@ -305,6 +306,20 @@ def _set_token_counts_from_usage(span: trace_api.Span, result: Any) -> None:
         _set_span_attribute(
             span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
         )
+
+
+def _set_span_status(span: trace_api.Span, result: Any) -> None:
+    """
+    Sets the span status based on whether the result contains an error.
+    """
+    error = _get_value(result, "error")
+    if error is None and isinstance(result, dict):
+        error = result.get("error")
+
+    if error:
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(error)))
+    else:
+        span.set_status(trace_api.Status(trace_api.StatusCode.OK))
 
 
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: CustomStreamWrapper) -> Any:
