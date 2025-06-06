@@ -119,11 +119,3 @@ def test_provider_class_name_extraction() -> None:
         print(f"⚠ OpenAI provider test skipped: {e}")
 
 
-if __name__ == "__main__":
-    print("Testing with real DSPy LM classes...\n")
-    test_real_dspy_lm_classes()
-    print("\nTesting edge cases...")
-    test_edge_cases_with_real_lm()
-    print("\nTesting provider class name extraction...")
-    test_provider_class_name_extraction()
-    print("\nAll tests completed!")
