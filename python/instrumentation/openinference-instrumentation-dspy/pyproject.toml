@@ -100,8 +100,3 @@ select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
 force-single-line = false
-
-[dependency-groups]
-dev = [
-    "pytest>=8.3.5",
-]

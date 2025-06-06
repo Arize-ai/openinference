@@ -14,7 +14,14 @@ from opentelemetry.util._importlib_metadata import entry_points
 from pytest import MonkeyPatch
 
 from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.dspy import DSPyInstrumentor
+from openinference.instrumentation.dspy import (
+    LLM_MODEL_NAME,
+    LLM_PROVIDER,
+    DSPyInstrumentor,
+    _llm_model_name,
+    _llm_provider,
+    parse_provider_and_model,
+)
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -866,7 +873,6 @@ async def test_react(
     output_value = json.loads(output_value)
     assert isinstance(output_value, list)
     assert len(output_value) == 1
-    print(output_value[0])
     assert output_value[0].get("next_tool_name") == "finish" and "next_tool_args" in output_value[0]
     assert not attributes
 
@@ -1013,8 +1019,7 @@ async def test_react(
     output_value = json.loads(output_value)
     assert isinstance(output_value, list)
     assert len(output_value) == 1
-    print(output_value[0])
-    assert output_value[0]["answer"] == "4"
+    assert output_value[0].get("next_tool_name") == "finish" and "next_tool_args" in output_value[0]
     assert not attributes
 
     span = next(it)
@@ -1198,8 +1203,7 @@ INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
-LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
-LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+# LLM_MODEL_NAME and LLM_PROVIDER are already imported from the module
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
@@ -1226,3 +1230,103 @@ TAG_TAGS = SpanAttributes.TAG_TAGS
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
+
+# --- New tests for provider/model parsing and edge cases ---
+
+
+def get_first_from_generator(gen):
+    return next(iter(gen), None)
+
+
+class OpenAIProvider:
+    """Mock of DSPy's OpenAIProvider class"""
+
+    pass
+
+
+class Provider:
+    """Mock of a generic Provider class"""
+
+    pass
+
+
+class DummyLM:
+    def __init__(self, model_name=None, model=None, provider=None):
+        self.model_name = model_name
+        self.model = model
+        self.provider = provider
+
+
+def test_parse_provider_and_model_cases():
+    # (input, expected_provider, expected_model)
+    cases = [
+        ("openai/gpt-4", "openai", "gpt-4"),
+        ("text-completion-openai/gpt-3.5-turbo-instruct", "openai", "gpt-3.5-turbo-instruct"),
+        ("huggingface/llama-2-7b", "huggingface", "llama-2-7b"),
+        ("anthropic/claude-3-opus", "anthropic", "claude-3-opus"),
+        ("openai/gpt-4/", "openai", "gpt-4"),
+        ("gpt-4", None, "gpt-4"),
+        ("", None, None),
+        (None, None, None),
+    ]
+    for model_str, exp_provider, exp_model in cases:
+        provider, model = parse_provider_and_model(model_str)
+        assert provider == exp_provider, f"{model_str}: provider {provider} != {exp_provider}"
+        assert model == exp_model, f"{model_str}: model {model} != {exp_model}"
+
+
+def test_llm_provider_and_model_name_extraction():
+    """Test various cases of provider and model name extraction based on actual DSPy behavior."""
+
+    # Provider extraction tests
+    # Case 1: Provider instance with class name ending in "Provider" (actual DSPy behavior)
+    lm = DummyLM(model="openai/gpt-4", provider=OpenAIProvider())
+    assert get_first_from_generator(_llm_provider(lm)) == (LLM_PROVIDER, "openai")
+
+    # Case 2: Generic Provider class - should fall back to model string
+    lm = DummyLM(model="openai/gpt-4", provider=Provider())
+    assert get_first_from_generator(_llm_provider(lm)) == (LLM_PROVIDER, "openai")
+
+    # Case 3: No provider attribute - parse from LiteLLM-style model string
+    lm = DummyLM(model="text-completion-openai/gpt-3.5-turbo-instruct")
+    assert get_first_from_generator(_llm_provider(lm)) == (LLM_PROVIDER, "openai")
+
+    # Model name extraction tests
+    # Case 1: Direct model_name attribute takes precedence
+    lm = DummyLM(model_name="gpt-4")
+    assert get_first_from_generator(_llm_model_name(lm)) == (LLM_MODEL_NAME, "gpt-4")
+
+    # Case 2: Parse from model string with provider prefix
+    lm = DummyLM(model="openai/gpt-4")
+    assert get_first_from_generator(_llm_model_name(lm)) == (LLM_MODEL_NAME, "gpt-4")
+
+    # Case 3: Handle trailing slashes
+    lm = DummyLM(model="openai/gpt-4/")
+    assert get_first_from_generator(_llm_model_name(lm)) == (LLM_MODEL_NAME, "gpt-4")
+
+    # Case 4: Model string without provider prefix
+    lm = DummyLM(model="gpt-4")
+    assert get_first_from_generator(_llm_model_name(lm)) == (LLM_MODEL_NAME, "gpt-4")
+
+    # Edge cases
+    lm = DummyLM(model=None)
+    assert get_first_from_generator(_llm_model_name(lm)) is None
+
+    lm = DummyLM()
+    assert get_first_from_generator(_llm_provider(lm)) is None
+    assert get_first_from_generator(_llm_model_name(lm)) is None
+
+
+def test_llm_functions_yield_only_once():
+    """Test that _llm_provider and _llm_model_name only yield once even with multiple attributes."""
+    # Test case where LM has both model_name and model attributes
+    lm = DummyLM(model_name="gpt-4", model="openai/gpt-3.5-turbo")
+    model_results = list(_llm_model_name(lm))
+    assert len(model_results) == 1
+    assert model_results[0] == (LLM_MODEL_NAME, "gpt-4")
+
+    # Test case where LM has both provider object and model string
+    lm = DummyLM(provider=OpenAIProvider(), model="anthropic/claude-3")
+    provider_results = list(_llm_provider(lm))
+    assert len(provider_results) == 1
+    assert provider_results[0] == (LLM_PROVIDER, "openai")

@@ -990,51 +990,59 @@ def _output_value_and_mime_type(response: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_MIME_TYPE, JSON
 
 
+def parse_provider_and_model(model_str: str) -> tuple[Optional[str], Optional[str]]:
+    """
+    Parse a model string like 'openai/gpt-4', 'text-completion-openai/gpt-3.5-turbo-instruct/', etc.
+    Returns (provider, model_name), both lowercased and stripped of trailing slashes.
+    """
+    if not isinstance(model_str, str) or not model_str:
+        return None, None
+    model_str = model_str.strip().rstrip("/")
+    if "/" in model_str:
+        provider, model_name = model_str.split("/", 1)
+        provider = provider.strip().lower()
+        model_name = model_name.strip()
+        # Handle cases like 'text-completion-openai' -> 'openai'
+        if "-" in provider:
+            provider = provider.split("-")[-1]
+        return provider, model_name
+    return None, model_str.strip() if model_str else None
+
+
 def _llm_model_name(lm: "LM") -> Iterator[Tuple[str, Any]]:
     if (model_name := getattr(lm, "model_name", None)) is not None:
         yield LLM_MODEL_NAME, model_name
+        return
     elif (model := getattr(lm, "model", None)) is not None:
-        # Extract model name from "provider/model" format or use as-is
-        model_str = str(model)
-        if "/" in model_str:
-            # Extract model from "provider/model" format (e.g., "openai/gpt-4" -> "gpt-4")
-            model_name = model_str.split("/", 1)[1]
+        provider, model_name = parse_provider_and_model(str(model))
+        if model_name:
             yield LLM_MODEL_NAME, model_name
-        else:
-            # Use the model string as-is
-            yield LLM_MODEL_NAME, model_str
 
 
 def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
     """
     Extract the LLM provider from a DSPy LM instance.
-    """
-    # First try to get provider directly from the instance
-    if (provider := getattr(lm, "provider", None)) is not None:
-        # Handle provider objects with name attributes (like Provider instances)
-        if hasattr(provider, "name"):
-            yield LLM_PROVIDER, provider.name.lower()
-        elif hasattr(provider, "__name__"):
-            yield LLM_PROVIDER, provider.__name__.lower()
-        else:
-            # Extract provider name from class name (e.g., OpenAIProvider -> openai)
-            provider_class_name = provider.__class__.__name__.lower()
-            if "provider" in provider_class_name and provider_class_name != "provider":
-                provider_name = provider_class_name.replace("provider", "")
-                yield LLM_PROVIDER, provider_name
-                return
-            # If it's just a generic Provider class, fall through to model string extraction
 
-    # Fallback to extracting provider from model string
-    if (model := getattr(lm, "model", None)) is not None:
-        model_str = str(model)
-        if "/" in model_str:
-            # Extract provider from "provider/model" format
-            provider_name = model_str.split("/")[0].lower()
-            # Handle cases like "text-completion-openai" -> "openai"
-            if "-" in provider_name:
-                provider_name = provider_name.split("-")[-1]
+    This function attempts to extract the provider name through two strategies:
+    1. From the provider attribute's class name (e.g., OpenAIProvider -> openai)
+    2. Parsing from the model string (LiteLLM-style format like "openai/gpt-4")
+    """
+    # First try to get provider from the provider attribute
+    if (provider := getattr(lm, "provider", None)) is not None:
+        # Extract provider name from class name (e.g., OpenAIProvider -> openai)
+        provider_class_name = provider.__class__.__name__.lower()
+        if "provider" in provider_class_name and provider_class_name != "provider":
+            provider_name = provider_class_name.removesuffix("provider")
             yield LLM_PROVIDER, provider_name
+            return
+
+    # Fallback: Parse provider from LiteLLM-style model string
+    # LiteLLM uses format "provider/model" (e.g., "openai/gpt-4")
+    # Also handles prefixed formats like "text-completion-openai/gpt-3.5-turbo-instruct"
+    if (model := getattr(lm, "model", None)) is not None:
+        provider, _ = parse_provider_and_model(str(model))
+        if provider:
+            yield LLM_PROVIDER, provider
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
