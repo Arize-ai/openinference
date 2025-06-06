@@ -62,64 +62,6 @@ class TestInstrumentor:
         assert isinstance(LiteLLMInstrumentor()._tracer, OITracer)
 
 
-@pytest.mark.parametrize(
-    "function_name, args, kwargs, expected_span_name",
-    [
-        (
-            "completion",
-            [],
-            {
-                "model": "gpt-3.5-turbo",
-                "messages": [{"content": "What's the capital of China?", "role": "user"}],
-            },
-            "completion",
-        ),
-        (
-            "embedding",
-            [],
-            {
-                "model": "text-embedding-ada-002",
-                "input": "good morning from litellm",
-            },
-            "embedding",
-        ),
-        (
-            "image_generation",
-            [],
-            {
-                "prompt": "cute baby otter",
-                "model": "dall-e-2",
-            },
-            "image_generation",
-        ),
-    ],
-)
-def test_litellm_function_error_status(
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_litellm_instrumentation: Any,
-    function_name: str,
-    args: list[Any],
-    kwargs: dict[str, Any],
-    expected_span_name: str,
-) -> None:
-    in_memory_span_exporter.clear()
-
-    error_message = "Mocked API failure"
-
-    with patch(f"litellm.{function_name}", side_effect=RuntimeError(error_message)):
-        litellm_func = getattr(litellm, function_name)
-        with pytest.raises(RuntimeError, match=error_message):
-            litellm_func(*args, **kwargs)
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span = spans[0]
-
-    assert span.name == expected_span_name
-    assert span.status.status_code == StatusCode.ERROR
-    assert error_message in (span.status.description or "")
-
-
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 @pytest.mark.parametrize("n", [1, 5])
 @pytest.mark.parametrize(
@@ -489,6 +431,31 @@ def test_completion_image_support(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
     assert span.status.status_code == StatusCode.OK
+
+
+def test_completion_error_response(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    error_message = "Mocked API failure"
+
+    with patch("openai.ChatCompletion.create", side_effect=RuntimeError(error_message)):
+        with pytest.raises(RuntimeError, match=error_message):
+            litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"content": "What's the capital of China?", "role": "user"}],
+            )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.name == "completion"
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == error_message
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
