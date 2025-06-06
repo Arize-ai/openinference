@@ -990,7 +990,7 @@ def _output_value_and_mime_type(response: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_MIME_TYPE, JSON
 
 
-def parse_provider_and_model(model_str: str) -> tuple[Optional[str], Optional[str]]:
+def parse_provider_and_model(model_str: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     """
     Parse a model string like 'openai/gpt-4', 'text-completion-openai/gpt-3.5-turbo-instruct/', etc.
     Returns (provider, model_name), both lowercased and stripped of trailing slashes.

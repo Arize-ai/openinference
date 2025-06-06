@@ -1,5 +1,7 @@
 """Test provider and model extraction with real DSPy LM classes."""
 
+from typing import Optional
+
 import dspy
 import pytest
 
@@ -40,8 +42,8 @@ from openinference.instrumentation.dspy import (
 )
 def test_parse_provider_and_model(
     model_string: str,
-    expected_provider: str,
-    expected_model: str,
+    expected_provider: Optional[str],
+    expected_model: Optional[str],
 ) -> None:
     """Test parse_provider_and_model function with various model string formats."""
     provider, model_name = parse_provider_and_model(model_string)
