@@ -111,14 +111,15 @@ class SpanAttributes:
     LLM_TOKEN_COUNT_PROMPT_DETAILS = "llm.token_count.prompt_details"
     """
     Key prefix for additional prompt token count details. Each detail should be a separate attribute
-    with this prefix, e.g. llm.token_count.prompt_details.reasoning, llm.token_count.prompt_details.audio.
-    All values should be in tokens.
+    with this prefix, e.g. llm.token_count.prompt_details.reasoning,
+    llm.token_count.prompt_details.audio. All values should be in tokens.
     """
     LLM_TOKEN_COUNT_COMPLETION_DETAILS = "llm.token_count.completion_details"
     """
-    Key prefix for additional completion token count details. Each detail should be a separate attribute
-    with this prefix, e.g. llm.token_count.completion_details.reasoning, llm.token_count.completion_details.audio.
-    All values should be in tokens (integer count of tokens).
+    Key prefix for additional completion token count details. Each detail should be a separate
+    attribute with this prefix, e.g. llm.token_count.completion_details.reasoning,
+    llm.token_count.completion_details.audio. All values should be in tokens
+    (integer count of tokens).
     """
 
     LLM_COST_PROMPT = "llm.cost.prompt"
@@ -137,13 +138,15 @@ class SpanAttributes:
     """
     LLM_COST_INPUT = "llm.cost.input"
     """
-    Total cost of input tokens in USD. This represents the cost of tokens that were used as input
-    to the model, which may be different from the prompt cost if there are additional processing steps.
+    Total cost of input tokens in USD. This represents the cost of tokens that were used as
+    input to the model, which may be different from the prompt cost if there are additional
+    processing steps.
     """
     LLM_COST_OUTPUT = "llm.cost.output"
     """
-    Total cost of output tokens in USD. This represents the cost of tokens that were generated as output
-    by the model, which may be different from the completion cost if there are additional processing steps.
+    Total cost of output tokens in USD. This represents the cost of tokens that were generated
+    as output by the model, which may be different from the completion cost if there are
+    additional processing steps.
     """
     LLM_COST_COMPLETION_DETAILS_REASONING = "llm.cost.completion_details.reasoning"
     """
@@ -172,7 +175,8 @@ class SpanAttributes:
 
     LLM_COST = "llm.cost"
     """
-    Key prefix for cost information. When these keys are transformed into a JSON-like structure, it would look like:
+    Key prefix for cost information. When these keys are transformed into a JSON-like structure,
+    it would look like:
     {
         "prompt": 0.0021,  # Cost in USD
         "completion": 0.0045,  # Cost in USD
@@ -190,10 +194,10 @@ class SpanAttributes:
             "audio": 0.0003   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
         }
     }
-    Note: This is a key prefix - individual attributes are stored as separate span attributes with this prefix,
-    e.g. llm.cost.prompt, llm.cost.completion_details.reasoning, etc. The JSON structure shown above represents
-    how these separate attributes can be conceptually organized.
-    All monetary values are in USD with floating point precision.
+    Note: This is a key prefix - individual attributes are stored as separate span attributes
+    with this prefix, e.g. llm.cost.prompt, llm.cost.completion_details.reasoning, etc.
+    The JSON structure shown above represents how these separate attributes can be conceptually
+    organized. All monetary values are in USD with floating point precision.
     """
 
     LLM_TOOLS = "llm.tools"
