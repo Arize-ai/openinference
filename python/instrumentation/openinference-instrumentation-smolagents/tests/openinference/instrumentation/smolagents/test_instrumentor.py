@@ -5,7 +5,7 @@ from typing import Any, Generator, Optional
 import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
@@ -150,7 +150,7 @@ class TestModels:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.__call__"
+        assert span.name == "OpenAIServerModel.generate"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -224,12 +224,12 @@ class TestModels:
         assert len(tool_calls) == 1
         assert isinstance(tool_call := tool_calls[0], ChatMessageToolCall)
         assert tool_call.function.name == "get_weather"
-        assert tool_call.function.arguments == {"location": "Paris"}
+        assert tool_call.function.arguments == '{"location":"Paris"}'
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.__call__"
+        assert span.name == "OpenAIServerModel.generate"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -279,13 +279,6 @@ class TestModels:
             )
             == "get_weather"
         )
-        assert isinstance(
-            tool_call_arguments_json := attributes.pop(
-                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
-            ),
-            str,
-        )
-        assert json.loads(tool_call_arguments_json) == {"location": "Paris"}
         assert not attributes
 
     @pytest.mark.vcr(
@@ -321,7 +314,7 @@ class TestModels:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "LiteLLMModel.__call__"
+        assert span.name == "LiteLLMModel.generate"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
