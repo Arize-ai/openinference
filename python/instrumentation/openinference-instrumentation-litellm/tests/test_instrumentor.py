@@ -7,10 +7,11 @@ import pytest
 from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from litellm.types.utils import Message as LitellmMessage
-from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
@@ -130,6 +131,7 @@ def test_completion(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -261,6 +263,7 @@ def test_completion_with_parameters(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
 
 
 def test_completion_with_tool_calls(
@@ -370,6 +373,7 @@ def test_completion_with_multiple_messages(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
 
 
 def test_completion_image_support(
@@ -426,6 +430,31 @@ def test_completion_image_support(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
+
+
+def test_completion_error_response(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    error_message = "Mocked API failure"
+
+    with patch("openai.ChatCompletion.create", side_effect=RuntimeError(error_message)):
+        with pytest.raises(RuntimeError, match=error_message):
+            litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=[{"content": "What's the capital of China?", "role": "user"}],
+            )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.name == "completion"
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == error_message
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -481,6 +510,7 @@ async def test_acompletion(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -547,6 +577,7 @@ def test_completion_with_retries(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -638,6 +669,7 @@ def test_embedding(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 6
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 1
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 6
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -705,6 +737,7 @@ async def test_aembedding(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 6
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 1
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 6
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -772,6 +805,7 @@ def test_image_generation_url(
 
     assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -839,6 +873,7 @@ def test_image_generation_b64json(
 
     assert attributes.get(ImageAttributes.IMAGE_URL) == "dummy_b64_json"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "dummy_b64_json"
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -905,6 +940,7 @@ async def test_aimage_generation(
 
     assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
