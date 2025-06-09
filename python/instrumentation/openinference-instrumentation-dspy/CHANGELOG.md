@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.24...python-openinference-instrumentation-dspy-v0.1.25) (2025-06-09)
+
+
+### Features
+
+* Add model name and provider fields to DSPy for better model tracking/instrumentation [#1730](https://github.com/Arize-ai/openinference/issues/1730) ([#1730](https://github.com/Arize-ai/openinference/issues/1730)) ([3613f66](https://github.com/Arize-ai/openinference/commit/3613f66331d3529f9131c2b9432696a79a4b7b21))
+
 ## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.23...python-openinference-instrumentation-dspy-v0.1.24) (2025-05-30)
 
 
