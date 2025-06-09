@@ -53,7 +53,12 @@ logger.addHandler(logging.NullHandler())
 
 
 class _WithTracer(ABC):
-    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
 
@@ -83,21 +88,24 @@ class _RunnerRunAsync(_WithTracer):
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.CHAIN.value
 
         arguments = bind_args_kwargs(wrapped, *args, **kwargs)
-        attributes[SpanAttributes.INPUT_VALUE] = json.dumps(
-            arguments, default=_default, ensure_ascii=False
-        )
-        attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+        try:
+            attributes[SpanAttributes.INPUT_VALUE] = json.dumps(
+                arguments,
+                default=_default,
+                ensure_ascii=False,
+            )
+            attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+        except Exception:
+            logger.exception(f"Failed to get attribute: {SpanAttributes.INPUT_VALUE}.")
 
-        user_id = kwargs.get("user_id")
-        session_id = kwargs.get("session_id")
-        if user_id:
+        if (user_id := kwargs.get("user_id")) is not None:
             attributes[SpanAttributes.USER_ID] = user_id
-        if session_id:
+        if (session_id := kwargs.get("session_id")) is not None:
             attributes[SpanAttributes.SESSION_ID] = session_id
 
-        # new_message = kwargs.get("new_message")
-
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc]
+            __wrapped__: AsyncGenerator[Event, None]
+
             async def __aiter__(self) -> Any:
                 with ExitStack() as stack:
                     stack.enter_context(
@@ -106,9 +114,9 @@ class _RunnerRunAsync(_WithTracer):
                             attributes=attributes,
                         )
                     )
-                    if user_id:
+                    if user_id is not None:
                         stack.enter_context(using_user(user_id))
-                    if session_id:
+                    if session_id is not None:
                         stack.enter_context(using_session(session_id))
                     async for event in self.__wrapped__:
                         yield event
@@ -134,22 +142,29 @@ class _BaseAgentRunAsync(_WithTracer):
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
 
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc]
+            __wrapped__: AsyncGenerator[Event, None]
+
             async def __aiter__(self) -> Any:
                 with tracer.start_as_current_span(
                     name=name,
                     attributes=attributes,
                 ) as span:
                     async for event in self.__wrapped__:
-                        yield event
                         if event.is_final_response():
-                            span.set_attribute(
-                                SpanAttributes.OUTPUT_VALUE,
-                                event.model_dump_json(exclude_none=True),
-                            )
-                            span.set_attribute(
-                                SpanAttributes.OUTPUT_MIME_TYPE,
-                                OpenInferenceMimeTypeValues.JSON.value,
-                            )
+                            try:
+                                span.set_attribute(
+                                    SpanAttributes.OUTPUT_VALUE,
+                                    event.model_dump_json(exclude_none=True),
+                                )
+                                span.set_attribute(
+                                    SpanAttributes.OUTPUT_MIME_TYPE,
+                                    OpenInferenceMimeTypeValues.JSON.value,
+                                )
+                            except Exception:
+                                logger.exception(
+                                    f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                )
+                        yield event
 
         return _AsyncGenerator(generator)
 
@@ -176,10 +191,13 @@ class _BaseLlmFlowCallLlmAsync(_WithTracer):
 
         input_messages_index = 0
         if llm_request:
-            attributes[SpanAttributes.INPUT_VALUE] = safe_json_dumps(
-                _build_llm_request_for_trace(llm_request)
-            )
-            attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+            try:
+                attributes[SpanAttributes.INPUT_VALUE] = safe_json_dumps(
+                    _build_llm_request_for_trace(llm_request)
+                )
+                attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+            except Exception:
+                logger.exception(f"Failed to get attribute: {SpanAttributes.INPUT_VALUE}.")
 
             if llm_request.tools_dict:
                 for i, tool in enumerate(llm_request.tools_dict.values()):
@@ -265,11 +283,21 @@ class _TraceToolCall(_WithTracer):
                 if args_dict := next(
                     (arg for arg in arguments.values() if isinstance(arg, Mapping)), None
                 ):
-                    span.set_attribute(SpanAttributes.TOOL_PARAMETERS, safe_json_dumps(args_dict))
-                    span.set_attribute(SpanAttributes.INPUT_VALUE, safe_json_dumps(args_dict))
-                    span.set_attribute(
-                        SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
-                    )
+                    try:
+                        span.set_attribute(
+                            SpanAttributes.TOOL_PARAMETERS,
+                            safe_json_dumps(args_dict),
+                        )
+                        span.set_attribute(
+                            SpanAttributes.INPUT_VALUE,
+                            safe_json_dumps(args_dict),
+                        )
+                        span.set_attribute(
+                            SpanAttributes.INPUT_MIME_TYPE,
+                            OpenInferenceMimeTypeValues.JSON.value,
+                        )
+                    except Exception:
+                        logger.exception(f"Failed to get attribute: {SpanAttributes.INPUT_VALUE}.")
             if event := next((arg for arg in arguments.values() if isinstance(arg, Event)), None):
                 if responses := event.get_function_responses():
                     try:
@@ -278,7 +306,8 @@ class _TraceToolCall(_WithTracer):
                             responses[0].model_dump_json(exclude_none=True),
                         )
                         span.set_attribute(
-                            SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+                            SpanAttributes.OUTPUT_MIME_TYPE,
+                            OpenInferenceMimeTypeValues.JSON.value,
                         )
                     except Exception:
                         logger.exception(f"Failed to get attribute in {wrapped.__name__}.")
