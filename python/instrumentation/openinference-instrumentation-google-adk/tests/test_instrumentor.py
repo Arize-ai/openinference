@@ -149,6 +149,16 @@ async def test_google_adk_instrumentor(
     assert tool_attributes.pop("user.id", None) == user_id
     assert tool_attributes.pop("session.id", None) == session_id
     assert tool_attributes.pop("openinference.span.kind", None) == "TOOL"
+    assert tool_attributes.pop("input.mime_type", None) == "application/json"
+    assert tool_attributes.pop("input.value", None) == '{"city": "New York"}'
+    assert tool_attributes.pop("output.mime_type", None) == "application/json"
+    assert tool_attributes.pop("output.value", None)
+    assert (
+        tool_attributes.pop("tool.description", None)
+        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."  # noqa: E501
+    )
+    assert tool_attributes.pop("tool.name", None) == "get_weather"
+    assert tool_attributes.pop("tool.parameters", None) == '{"city": "New York"}'
     assert tool_attributes.pop("gcp.vertex.agent.event_id", None)
     assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
     assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
@@ -165,16 +175,6 @@ async def test_google_adk_instrumentor(
         == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."  # noqa: E501
     )
     assert tool_attributes.pop("gen_ai.tool.name", None) == "get_weather"
-    assert tool_attributes.pop("input.mime_type", None) == "application/json"
-    assert tool_attributes.pop("input.value", None) == '{"city": "New York"}'
-    assert tool_attributes.pop("output.mime_type", None) == "application/json"
-    assert tool_attributes.pop("output.value", None)
-    assert (
-        tool_attributes.pop("tool.description", None)
-        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."  # noqa: E501
-    )
-    assert tool_attributes.pop("tool.name", None) == "get_weather"
-    assert tool_attributes.pop("tool.parameters", None) == '{"city": "New York"}'
     assert not tool_attributes
 
     call_llm_span1 = spans_by_name["call_llm"][1]
