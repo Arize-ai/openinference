@@ -36,7 +36,7 @@ async def test_google_adk_instrumentor(
             ),
         }
 
-    agent_name = "_" + token_hex(4)
+    agent_name = f"_{token_hex(4)}"
     agent = Agent(
         name=agent_name,
         model="gemini-2.0-flash",
