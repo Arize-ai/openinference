@@ -108,7 +108,7 @@ class _RunnerRunAsync(_WithTracer):
 
             async def __aiter__(self) -> Any:
                 with ExitStack() as stack:
-                    stack.enter_context(
+                    span = stack.enter_context(
                         tracer.start_as_current_span(
                             name=name,
                             attributes=attributes,
@@ -119,6 +119,20 @@ class _RunnerRunAsync(_WithTracer):
                     if session_id is not None:
                         stack.enter_context(using_session(session_id))
                     async for event in self.__wrapped__:
+                        if event.is_final_response():
+                            try:
+                                span.set_attribute(
+                                    SpanAttributes.OUTPUT_VALUE,
+                                    event.model_dump_json(exclude_none=True),
+                                )
+                                span.set_attribute(
+                                    SpanAttributes.OUTPUT_MIME_TYPE,
+                                    OpenInferenceMimeTypeValues.JSON.value,
+                                )
+                            except Exception:
+                                logger.exception(
+                                    f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                )
                         yield event
 
         return _AsyncGenerator(generator)

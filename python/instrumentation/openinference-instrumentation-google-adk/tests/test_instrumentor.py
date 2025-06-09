@@ -73,6 +73,8 @@ async def test_google_adk_instrumentor(
     assert invocation_attributes.pop("user.id", None) == user_id
     assert invocation_attributes.pop("session.id", None) == session_id
     assert invocation_attributes.pop("openinference.span.kind", None) == "CHAIN"
+    assert invocation_attributes.pop("output.mime_type", None) == "application/json"
+    assert invocation_attributes.pop("output.value", None)
     assert invocation_attributes.pop("input.mime_type", None) == "application/json"
     assert invocation_attributes.pop("input.value", None)
     assert not invocation_attributes
