@@ -5,15 +5,13 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-# Optionally, you can also print the spans to the console.
-tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
 GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
 
@@ -44,7 +42,7 @@ def get_weather(city: str) -> dict:
 
 agent = Agent(
     name="test_agent",
-    model="gemini-2.0-flash-exp",
+    model="gemini-2.0-flash",
     description="Agent to answer questions using tools.",
     instruction="You must use the available tools to find an answer.",
     tools=[get_weather],
@@ -57,7 +55,7 @@ async def main():
     session_id = "test_session"
     runner = InMemoryRunner(agent=agent, app_name=app_name)
     session_service = runner.session_service
-    session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
+    await session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
     async for event in runner.run_async(
         user_id=user_id,
         session_id=session_id,

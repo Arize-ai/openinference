@@ -1,81 +1,117 @@
-from typing import Iterator
-from unittest.mock import MagicMock
+from collections import defaultdict
+from secrets import token_hex
+from typing import Any
 
 import pytest
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from google.adk import Agent
+from google.adk.runners import InMemoryRunner
+from google.genai import types
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util._importlib_metadata import entry_points
-
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 
-@pytest.fixture
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture
-def tracer_provider(
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+    decode_compressed_response=True,
+)
+async def test_google_adk_instrumentor(
+    instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
-) -> trace_api.TracerProvider:
-    tracer_provider = trace_sdk.TracerProvider()
-    span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
-    tracer_provider.add_span_processor(span_processor=span_processor)
-    return tracer_provider
+) -> None:
+    def get_weather(city: str) -> dict:
+        """Retrieves the current weather report for a specified city.
 
+        Args:
+            city (str): The name of the city for which to retrieve the weather report.
 
-@pytest.fixture
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Iterator[None]:
-    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    GoogleADKInstrumentor().uninstrument()
+        Returns:
+            dict: status and result or error msg.
+        """
+        return {
+            "status": "success",
+            "report": (
+                f"The weather in {city} is sunny with a temperature of 25 degrees"
+                " Celsius (77 degrees Fahrenheit)."
+            ),
+        }
 
+    agent_name = "_" + token_hex(4)
+    agent = Agent(
+        name=agent_name,
+        model="gemini-2.0-flash",
+        description="Agent to answer questions using tools.",
+        instruction="You must use the available tools to find an answer.",
+        tools=[get_weather],
+    )
 
-def test_entrypoint_for_opentelemetry_instrument() -> None:
-    (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="google_adk")
-    instrumentor = instrumentor_entrypoint.load()()
-    assert isinstance(instrumentor, GoogleADKInstrumentor)
+    app_name = token_hex(4)
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+    runner = InMemoryRunner(agent=agent, app_name=app_name)
+    session_service = runner.session_service
+    await session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user", parts=[types.Part(text="What is the weather in New York?")]
+        ),
+    ):
+        ...
 
+    spans = in_memory_span_exporter.get_finished_spans()
+    spans = sorted(spans, key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+    assert len(spans) == 5
 
-def test_google_adk_instrumentor(instrument, in_memory_span_exporter: InMemorySpanExporter):
-    from google.adk.agents.llm_agent import LlmAgent
+    invocation_span = spans_by_name[f"invocation [{app_name}]"][0]
+    assert not invocation_span.parent
+    invocation_attributes = dict(invocation_span.attributes or {})
+    assert invocation_attributes.pop("user.id", None) == user_id
+    assert invocation_attributes.pop("session.id", None) == session_id
+    assert invocation_attributes.pop("openinference.span.kind", None) == "CHAIN"
+    assert invocation_attributes.pop("input.mime_type", None) == "application/json"
+    assert invocation_attributes.pop("input.value", None)
+    assert not invocation_attributes
 
-    agent = LlmAgent(name="agent")
-    context = MagicMock()
-    context.agent_name = "agent"
+    agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
+    assert agent_run_span.parent
+    assert agent_run_span.parent is invocation_span.get_span_context()
+    agent_run_attributes = dict(agent_run_span.attributes or {})
+    assert agent_run_attributes.pop("user.id", None) == user_id
+    assert agent_run_attributes.pop("session.id", None) == session_id
+    assert agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
+    assert agent_run_attributes.pop("output.mime_type", None) == "application/json"
+    assert agent_run_attributes.pop("output.value", None)
+    assert not agent_run_attributes
 
-    llm_request = MagicMock()
-    llm_request.model = "model"
+    call_llm_span0 = spans_by_name["call_llm"][0]
+    assert call_llm_span0.parent
+    assert call_llm_span0.parent is agent_run_span.get_span_context()
+    call_llm_attributes0 = dict(call_llm_span0.attributes or {})
+    assert call_llm_attributes0.pop("user.id", None) == user_id
+    assert call_llm_attributes0.pop("session.id", None) == session_id
+    assert call_llm_attributes0.pop("openinference.span.kind", None) == "LLM"
+    assert call_llm_attributes0.pop("output.mime_type", None) == "application/json"
+    assert call_llm_attributes0.pop("output.value", None)
 
-    llm_response = MagicMock()
-    llm_response.content.model_dump.return_value = {"response": "yes"}
+    tool_span = spans_by_name["execute_tool get_weather"][0]
+    assert tool_span.parent
+    assert tool_span.parent is call_llm_span0.get_span_context()
+    tool_attributes = dict(tool_span.attributes or {})
+    assert tool_attributes.pop("user.id", None) == user_id
+    assert tool_attributes.pop("session.id", None) == session_id
+    assert tool_attributes.pop("openinference.span.kind", None) == "TOOL"
 
-    tool = MagicMock()
-    tool.name = "tool"
-
-    agent.before_agent_callback(context)
-
-    agent.before_model_callback(context, llm_request)
-    agent.after_model_callback(context, llm_response)
-
-    agent.before_tool_callback(tool, {}, context)
-    agent.after_tool_callback(tool, {}, context, "tool response")
-
-    agent.after_agent_callback(context)
-
-    assert len(in_memory_span_exporter._finished_spans) == 3
-    assert in_memory_span_exporter._finished_spans[0].name == "agent-LLM"
-    assert in_memory_span_exporter._finished_spans[1].name == "agent-TOOL"
-    assert in_memory_span_exporter._finished_spans[2].name == "agent-AGENT"
-
-    assert in_memory_span_exporter._finished_spans[0].attributes["llm.model_name"] == "model"
-    assert in_memory_span_exporter._finished_spans[1].attributes["tool.name"] == "tool"
-
-    parent_id = in_memory_span_exporter._finished_spans[2].context.span_id
-    assert in_memory_span_exporter._finished_spans[0].parent.span_id == parent_id
-    assert in_memory_span_exporter._finished_spans[1].parent.span_id == parent_id
+    call_llm_span1 = spans_by_name["call_llm"][1]
+    assert call_llm_span1.parent
+    assert call_llm_span1.parent is agent_run_span.get_span_context()
+    call_llm_attributes1 = dict(call_llm_span1.attributes or {})
+    assert call_llm_attributes1.pop("user.id", None) == user_id
+    assert call_llm_attributes1.pop("session.id", None) == session_id
+    assert call_llm_attributes1.pop("openinference.span.kind", None) == "LLM"
+    assert call_llm_attributes1.pop("output.mime_type", None) == "application/json"
+    assert call_llm_attributes1.pop("output.value", None)

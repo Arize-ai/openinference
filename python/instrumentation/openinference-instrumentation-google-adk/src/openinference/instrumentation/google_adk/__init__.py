@@ -1,11 +1,14 @@
 import logging
-from typing import Any, Collection
+from typing import Any, Collection, Iterator, List, Tuple, cast
 
+import wrapt
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
     BaseInstrumentor,
 )
-from wrapt import wrap_object_attribute
+from opentelemetry.trace import Span, Tracer, get_current_span
+from opentelemetry.util._decorator import _agnosticcontextmanager
+from wrapt import resolve_path, wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.google_adk.version import __version__
@@ -13,7 +16,7 @@ from openinference.instrumentation.google_adk.version import __version__
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-_instruments = ("google-adk >= 0.3.0",)
+_instruments = ("google-adk >= 1.2.1",)
 
 
 class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
@@ -32,69 +35,127 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         else:
             assert isinstance(config, TraceConfig)
 
-        self._tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
+        self._tracer = cast(
+            Tracer,
+            OITracer(
+                trace_api.get_tracer(__name__, __version__, tracer_provider),
+                config=config,
+            ),
         )
 
-        from openinference.instrumentation.google_adk._callback import (
-            GoogleADKTracingCallback,
+        from google.adk.agents import BaseAgent
+        from google.adk.flows.llm_flows.base_llm_flow import BaseLlmFlow
+        from google.adk.runners import Runner
+
+        from openinference.instrumentation.google_adk._wrappers import (
+            _BaseAgentRunAsync,
+            _BaseLlmFlowCallLlmAsync,
+            _RunnerRunAsync,
+            _TraceToolCall,
         )
 
-        callback = GoogleADKTracingCallback(tracer=self._tracer)
+        self._originals: List[Tuple[Any, Any, Any]] = []
+        method_wrappers: dict[Any, Any] = {
+            Runner.run_async: _RunnerRunAsync(self._tracer),
+            BaseAgent.run_async: _BaseAgentRunAsync(self._tracer),
+            BaseLlmFlow._call_llm_async: _BaseLlmFlowCallLlmAsync(self._tracer),
+        }
+        for method, wrapper in method_wrappers.items():
+            module, name = method.__module__, method.__qualname__
+            self._originals.append(resolve_path(module, name))
+            wrap_function_wrapper(module, name, wrapper)
 
-        def callback_factory(value, *args, **kwargs):  # type: ignore[no-untyped-def]
-            # Honor any callback passed by the user
-            kwargs["callback_parent"]._original_value = value
-            return kwargs["callback_wrapper"]
+        from google.adk.flows.llm_flows.base_llm_flow import functions  # type: ignore[attr-defined]
 
-        wrap_object_attribute(
-            module="google.adk.agents.llm_agent",
-            name="LlmAgent.before_agent_callback",
-            factory=callback_factory,
-            kwargs={
-                "callback_parent": callback,
-                "callback_wrapper": callback.before_agent_callback,
-            },
+        setattr(functions, "tracer", self._tracer)
+        setattr(
+            functions,
+            "trace_tool_call",
+            _TraceToolCall(self._tracer)(functions.trace_tool_call),  # type: ignore[attr-defined]
         )
-
-        wrap_object_attribute(
-            module="google.adk.agents.llm_agent",
-            name="LlmAgent.before_model_callback",
-            factory=callback_factory,
-            kwargs={
-                "callback_parent": callback,
-                "callback_wrapper": callback.before_model_callback,
-            },
-        )
-
-        wrap_object_attribute(
-            module="google.adk.agents.llm_agent",
-            name="LlmAgent.before_tool_callback",
-            factory=callback_factory,
-            kwargs={"callback_parent": callback, "callback_wrapper": callback.before_tool_callback},
-        )
-
-        wrap_object_attribute(
-            module="google.adk.agents.llm_agent",
-            name="LlmAgent.after_agent_callback",
-            factory=callback_factory,
-            kwargs={"callback_parent": callback, "callback_wrapper": callback.after_agent_callback},
-        )
-
-        wrap_object_attribute(
-            module="google.adk.agents.llm_agent",
-            name="LlmAgent.after_model_callback",
-            factory=callback_factory,
-            kwargs={"callback_parent": callback, "callback_wrapper": callback.after_model_callback},
-        )
-
-        wrap_object_attribute(
-            module="google.adk.agents.llm_agent",
-            name="LlmAgent.after_tool_callback",
-            factory=callback_factory,
-            kwargs={"callback_parent": callback, "callback_wrapper": callback.after_tool_callback},
-        )
+        _disable_existing_tracers()
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        pass
+        _restore_existing_tracers()
+
+        from google.adk.flows.llm_flows.base_llm_flow import functions  # type: ignore[attr-defined]
+
+        if callable(
+            original := getattr(functions.trace_tool_call, "__wrapped__"),  # type: ignore[attr-defined]
+        ):
+            from google.adk.flows.llm_flows.base_llm_flow import (  # type: ignore[attr-defined]
+                functions,
+            )  # type ignore[attr-defined]
+
+            setattr(functions, "trace_tool_call", original)
+
+        from google.adk.telemetry import tracer
+
+        setattr(functions, "tracer", tracer)
+
+        for parent, attribute, original in getattr(self, "_originals", ()):
+            setattr(parent, attribute, original)
+
+
+class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc]
+    @_agnosticcontextmanager
+    def start_as_current_span(self, *args: Any, **kwargs: Any) -> Iterator[Span]:
+        yield get_current_span()
+
+
+def _disable_existing_tracers() -> None:
+    from google.adk.runners import (  # type: ignore[attr-defined]
+        tracer,  # pyright: ignore[reportPrivateImportUsage]
+    )
+
+    if isinstance(tracer, Tracer):
+        from google.adk import runners
+
+        setattr(runners, "tracer", _PassthroughTracer(tracer))
+
+    from google.adk.agents.base_agent import (
+        tracer,  # pyright: ignore[reportPrivateImportUsage]
+    )
+
+    if isinstance(tracer, Tracer):
+        from google.adk.agents import base_agent
+
+        setattr(base_agent, "tracer", _PassthroughTracer(tracer))
+
+    from google.adk.flows.llm_flows.base_llm_flow import (  # type: ignore[attr-defined]
+        tracer,  # pyright: ignore[reportPrivateImportUsage]
+    )
+
+    if isinstance(tracer, Tracer):
+        from google.adk.flows.llm_flows import base_llm_flow
+
+        setattr(base_llm_flow, "tracer", _PassthroughTracer(tracer))
+
+
+def _restore_existing_tracers() -> None:
+    from google.adk.runners import (  # type: ignore[attr-defined]
+        tracer,  # pyright: ignore[reportPrivateImportUsage]
+    )
+
+    if isinstance(original := getattr(tracer, "__wrapped__"), Tracer):
+        from google.adk import runners
+
+        setattr(runners, "tracer", original)
+
+    from google.adk.agents.base_agent import (
+        tracer,  # pyright: ignore[reportPrivateImportUsage]
+    )
+
+    if isinstance(original := getattr(tracer, "__wrapped__"), Tracer):
+        from google.adk.agents import base_agent
+
+        setattr(base_agent, "tracer", original)
+
+    from google.adk.flows.llm_flows.base_llm_flow import (  # type: ignore[attr-defined]
+        tracer,  # pyright: ignore[reportPrivateImportUsage]
+    )
+
+    if isinstance(original := getattr(tracer, "__wrapped__"), Tracer):
+        from google.adk.flows.llm_flows import base_llm_flow
+
+        setattr(base_llm_flow, "tracer", original)
