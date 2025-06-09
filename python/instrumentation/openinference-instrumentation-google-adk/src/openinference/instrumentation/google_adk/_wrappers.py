@@ -391,21 +391,6 @@ def _get_attributes_from_parts(
         elif part.thought is not None:
             # TODO
             pass
-        elif part.inline_data is not None:
-            # TODO
-            pass
-        elif part.file_data is not None:
-            # TODO
-            pass
-        elif part.thought_signature is not None:
-            # TODO
-            pass
-        elif part.code_execution_result is not None:
-            # TODO
-            pass
-        elif part.executable_code is not None:
-            # TODO
-            pass
 
 
 @stop_on_exception
