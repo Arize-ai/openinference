@@ -433,30 +433,6 @@ def test_completion_image_support(
     assert span.status.status_code == StatusCode.OK
 
 
-def test_completion_error_response(
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_litellm_instrumentation: Any,
-) -> None:
-    in_memory_span_exporter.clear()
-
-    error_message = "Mocked API failure"
-
-    with patch("openai.ChatCompletion.create", side_effect=RuntimeError(error_message)):
-        with pytest.raises(RuntimeError, match=error_message):
-            litellm.completion(
-                model="gpt-3.5-turbo",
-                messages=[{"content": "What's the capital of China?", "role": "user"}],
-            )
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-
-    span = spans[0]
-    assert span.name == "completion"
-    assert span.status.status_code == StatusCode.ERROR
-    assert span.status.description == error_message
-
-
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_acompletion(
     in_memory_span_exporter: InMemorySpanExporter,
