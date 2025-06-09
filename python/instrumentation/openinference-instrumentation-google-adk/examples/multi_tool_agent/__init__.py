@@ -1,7 +1,8 @@
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 from . import agent  # noqa: F401
 

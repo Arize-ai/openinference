@@ -386,12 +386,6 @@ def _get_attributes_from_parts(
                     f"{prefix}{MessageAttributes.MESSAGE_CONTENT}",
                     safe_json_dumps(function_response.response),
                 )
-        elif part.video_metadata is not None:
-            # TODO
-            pass
-        elif part.thought is not None:
-            # TODO
-            pass
 
 
 @stop_on_exception

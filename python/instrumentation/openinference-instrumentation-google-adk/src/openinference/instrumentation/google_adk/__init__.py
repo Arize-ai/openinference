@@ -85,7 +85,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         ):
             from google.adk.flows.llm_flows.base_llm_flow import (  # type: ignore[attr-defined]
                 functions,
-            )  # type ignore[attr-defined]
+            )
 
             setattr(functions, "trace_tool_call", original)
 
