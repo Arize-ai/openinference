@@ -1,4 +1,4 @@
-from importlib.metadata import entry_points
+from opentelemetry.util._importlib_metadata import entry_points
 
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
