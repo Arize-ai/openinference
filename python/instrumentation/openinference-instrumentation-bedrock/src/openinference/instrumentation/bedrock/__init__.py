@@ -27,7 +27,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.trace import Tracer
+from opentelemetry.trace import Span, Tracer
 from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
 
@@ -42,6 +42,9 @@ from openinference.instrumentation.bedrock._wrappers import (
     _InvokeModelWithResponseStream,
 )
 from openinference.instrumentation.bedrock.package import _instruments
+from openinference.instrumentation.bedrock.utils.anthropic import (
+    _attributes as anthropic_attributes,
+)
 from openinference.instrumentation.bedrock.version import __version__
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -147,69 +150,39 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
 
             with tracer.start_as_current_span("bedrock.invoke_model") as span:
-                span.set_attribute(
-                    SpanAttributes.OPENINFERENCE_SPAN_KIND,
-                    OpenInferenceSpanKindValues.LLM.value,
-                )
+                request_body = json.loads(kwargs["body"])
+                model_id = kwargs.get("modelId")
+                claude_messages_api = False
+                if model_id and is_anthropic_model(model_id) and "claude-v2" not in str(model_id):
+                    claude_messages_api = True
+                    span.set_attributes(
+                        anthropic_attributes.get_llm_input_attributes(request_body, model_id)
+                    )
+                else:
+                    prompt = request_body.pop("prompt", None)
+                    invocation_parameters = safe_json_dumps(request_body)
+                    _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
+                    _set_span_attribute(
+                        span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
+                    )
+                    span.set_attribute(
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                        OpenInferenceSpanKindValues.LLM.value,
+                    )
                 response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
                 response["body"] = BufferedStreamingBody(
                     response["body"]._raw_stream, response["body"]._content_length
                 )
-                raw_request_body = kwargs["body"]
-                request_body = json.loads(raw_request_body)
                 response_body = json.loads(response.get("body").read())
                 response["body"].reset()
-
-                prompt = request_body.pop("prompt", None)
-                invocation_parameters = safe_json_dumps(request_body)
-                _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
-                _set_span_attribute(
-                    span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
-                )
-
-                if metadata := response.get("ResponseMetadata"):
-                    if headers := metadata.get("HTTPHeaders"):
-                        if input_token_count := headers.get("x-amzn-bedrock-input-token-count"):
-                            input_token_count = int(input_token_count)
-                            _set_span_attribute(
-                                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count
-                            )
-                        if response_token_count := headers.get("x-amzn-bedrock-output-token-count"):
-                            response_token_count = int(response_token_count)
-                            _set_span_attribute(
-                                span,
-                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
-                                response_token_count,
-                            )
-                        if total_token_count := (
-                            input_token_count + response_token_count
-                            if input_token_count and response_token_count
-                            else None
-                        ):
-                            _set_span_attribute(
-                                span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
-                            )
-
-                if model_id := kwargs.get("modelId"):
-                    _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
-
-                    if isinstance(model_id, str):
-                        (vendor, *_) = model_id.split(".")
-
-                    if vendor == "ai21":
-                        content = str(response_body.get("completions"))
-                    elif vendor == "anthropic":
-                        content = str(response_body.get("completion"))
-                    elif vendor == "cohere":
-                        content = str(response_body.get("generations"))
-                    elif vendor == "meta":
-                        content = str(response_body.get("generation"))
-                    else:
-                        content = ""
-
-                    if content:
-                        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
-
+                if claude_messages_api:
+                    span.set_attributes(
+                        anthropic_attributes.get_llm_output_attributes(response_body)
+                    )
+                else:
+                    set_model_name(span, response_body, kwargs)
+                    if metadata := response.get("ResponseMetadata"):
+                        set_token_counts(span, metadata)
                 span.set_attributes(dict(get_attributes_from_context()))
                 return response  # type: ignore
 
@@ -418,3 +391,54 @@ T = TypeVar("T", bound=type)
 
 def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
     return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)
+
+
+def set_model_name(span: Span, response_body: Dict[str, Any], kwargs: Dict[str, Any]) -> None:
+    if model_id := kwargs.get("modelId"):
+        _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
+        vendor = None
+        if isinstance(model_id, str):
+            (vendor, *_) = model_id.split(".")
+
+        if vendor == "ai21":
+            content = str(response_body.get("completions"))
+        elif vendor == "anthropic":
+            content = str(response_body.get("completion"))
+        elif vendor == "cohere":
+            content = str(response_body.get("generations"))
+        elif vendor == "meta":
+            content = str(response_body.get("generation"))
+        else:
+            content = ""
+
+        if content:
+            _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
+
+
+def set_token_counts(span: Span, metadata: Dict[str, Any]) -> None:
+    if headers := metadata.get("HTTPHeaders"):
+        if input_token_count := headers.get("x-amzn-bedrock-input-token-count"):
+            input_token_count = int(input_token_count)
+            _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count)
+        if response_token_count := headers.get("x-amzn-bedrock-output-token-count"):
+            response_token_count = int(response_token_count)
+            _set_span_attribute(
+                span,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
+                response_token_count,
+            )
+        if total_token_count := (
+            input_token_count + response_token_count
+            if input_token_count and response_token_count
+            else None
+        ):
+            _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count)
+
+
+def is_anthropic_model(model_id: str) -> bool:
+    if model_id:
+        if isinstance(model_id, str):
+            (vendor, *_) = model_id.split(".")
+            if vendor == "anthropic":
+                return True
+    return False
