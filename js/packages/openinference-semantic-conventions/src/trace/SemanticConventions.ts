@@ -126,13 +126,13 @@ export const AudioAttributesPostfixes = {
 export const AgentPostfixes = {
   name: "name",
   step: "step",
-  next_agent: "next_agent",
+  parent: "parent",
 } as const;
 
 export const GraphPostfixes = {
   node_name: "node.name",
   node_step: "node.step",
-  node_next_node: "node.next_node",
+  node_parent: "node.parent",
 } as const;
 
 /**
@@ -479,8 +479,8 @@ export const AGENT_STEP =
 /**
  * The next agent to call
  */
-export const AGENT_NEXT_AGENT =
-  `${SemanticAttributePrefixes.agent}.${AgentPostfixes.next_agent}` as const;
+export const AGENT_PARENT =
+  `${SemanticAttributePrefixes.agent}.${AgentPostfixes.parent}` as const;
 /**
  * The name of the node in the execution graph. Nodes are like agents but are for general purpose graphs.
  */
@@ -494,8 +494,8 @@ export const GRAPH_NODE_STEP =
 /**
  * The next node to call
  */
-export const GRAPH_NODE_NEXT_NODE =
-  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_next_node}` as const;
+export const GRAPH_NODE_PARENT =
+  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_parent}` as const;
 
 export const SemanticConventions = {
   IMAGE_URL,
@@ -557,10 +557,10 @@ export const SemanticConventions = {
   OPENINFERENCE_SPAN_KIND: `${SemanticAttributePrefixes.openinference}.span.kind`,
   AGENT_NAME,
   AGENT_STEP,
-  AGENT_NEXT_AGENT,
+  AGENT_PARENT,
   GRAPH_NODE_NAME,
   GRAPH_NODE_STEP,
-  GRAPH_NODE_NEXT_NODE,
+  GRAPH_NODE_PARENT,
 } as const;
 
 export enum OpenInferenceSpanKind {

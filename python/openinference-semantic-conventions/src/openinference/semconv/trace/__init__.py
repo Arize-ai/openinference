@@ -132,9 +132,9 @@ class SpanAttributes:
     """
     The step number of the current agent in the execution graph.
     """
-    AGENT_NEXT_AGENT = "agent.next_agent"
+    AGENT_PARENT = "agent.parent"
     """
-    The next agent to call
+    The parent agent of the current agent.
     """
     GRAPH_NODE_NAME = "graph.node.name"
     """
@@ -144,9 +144,9 @@ class SpanAttributes:
     """
     The step number of the current node in the execution graph.
     """
-    GRAPH_NODE_NEXT_NODE = "graph.node.next_node"
+    GRAPH_NODE_PARENT = "graph.node.parent"
     """
-    The next node to call
+    The parent node of the current node.
     """
 
 
