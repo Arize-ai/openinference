@@ -317,8 +317,7 @@ def _get_attributes_from_llm_response(
         yield from _get_attributes_from_usage_metadata(obj.usage_metadata)
     if obj.content:
         yield from _get_attributes_from_content(
-            obj.content,
-            prefix=f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{0}.",
+            obj.content, prefix=f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
         )
 
 
