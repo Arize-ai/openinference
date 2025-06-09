@@ -167,8 +167,6 @@ class StoryFlowAgent(BaseAgent):
                 yield event
         else:
             logger.info(f"[{self.name}] Tone is not negative. Keeping current story.")
-            pass
-
         logger.info(f"[{self.name}] Workflow finished.")
 
 

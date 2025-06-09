@@ -335,7 +335,8 @@ def _get_attributes_from_usage_metadata(
                 and modality_token_count.token_count
             ):
                 completion_details_audio += modality_token_count.token_count
-        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, completion_details_audio
+        if completion_details_audio:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, completion_details_audio
     if obj.prompt_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, obj.prompt_token_count
     if obj.total_token_count:
