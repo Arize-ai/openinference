@@ -196,19 +196,36 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                     if isinstance(model_id, str):
                         (vendor, *_) = model_id.split(".")
 
-                    if vendor == "ai21":
-                        content = str(response_body.get("completions"))
-                    elif vendor == "anthropic":
-                        content = str(response_body.get("completion"))
-                    elif vendor == "cohere":
-                        content = str(response_body.get("generations"))
-                    elif vendor == "meta":
-                        content = str(response_body.get("generation"))
-                    else:
-                        content = ""
+                        if vendor == "ai21":
+                            content = str(response_body.get("completions"))
+                        elif vendor == "anthropic":
+                            # Handle both Claude 2 (completion field) and Claude 3 (content array) formats
+                            if "completion" in response_body:
+                                # Claude 2 format: {"completion": "text"}
+                                content = str(response_body.get("completion"))
+                            elif "content" in response_body:
+                                # Claude 3 format: {"content": [{"type": "text", "text": "text"}]}
+                                content_blocks = response_body.get("content", [])
+                                if isinstance(content_blocks, list) and content_blocks:
+                                    # Extract text from all text blocks
+                                    text_parts = []
+                                    for block in content_blocks:
+                                        if isinstance(block, dict) and block.get("type") == "text":
+                                            text_parts.append(block.get("text", ""))
+                                    content = "\n".join(text_parts) if text_parts else ""
+                                else:
+                                    content = ""
+                            else:
+                                content = ""
+                        elif vendor == "cohere":
+                            content = str(response_body.get("generations"))
+                        elif vendor == "meta":
+                            content = str(response_body.get("generation"))
+                        else:
+                            content = ""
 
-                    if content:
-                        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
+                        if content:
+                            _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
 
                 span.set_attributes(dict(get_attributes_from_context()))
                 return response  # type: ignore

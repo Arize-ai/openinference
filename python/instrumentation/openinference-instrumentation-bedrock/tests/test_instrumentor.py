@@ -29,7 +29,8 @@ from openinference.semconv.trace import (
 @pytest.fixture()
 def image_bytes_and_format() -> Tuple[bytes, str]:
     return (
-        b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",  # noqa: E501
+        b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",
+        # noqa: E501
         "webp",
     )
 
@@ -100,8 +101,8 @@ def in_memory_span_exporter() -> InMemorySpanExporter:
 
 @pytest.fixture(autouse=True)
 def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
+        tracer_provider: trace_api.TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
     BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
@@ -124,15 +125,15 @@ class TestInstrumentor:
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_invoke_client(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
+        use_context_attributes: bool,
+        in_memory_span_exporter: InMemorySpanExporter,
+        session_id: str,
+        user_id: str,
+        metadata: Dict[str, Any],
+        tags: List[str],
+        prompt_template: str,
+        prompt_template_version: str,
+        prompt_template_variables: Dict[str, Any],
 ) -> None:
     output = b'{"completion":" Hello!","stop_reason":"stop_sequence","stop":"\\n\\nHuman:"}'
     streaming_body = StreamingBody(io.BytesIO(output), len(output))
@@ -164,13 +165,13 @@ def test_invoke_client(
     model_name = "anthropic.claude-v2"
     if use_context_attributes:
         with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
         ):
             client.invoke_model(
                 modelId=model_name,
@@ -214,15 +215,15 @@ def test_invoke_client(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_invoke_client_with_missing_tokens(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
+        use_context_attributes: bool,
+        in_memory_span_exporter: InMemorySpanExporter,
+        session_id: str,
+        user_id: str,
+        metadata: Dict[str, Any],
+        tags: List[str],
+        prompt_template: str,
+        prompt_template_version: str,
+        prompt_template_variables: Dict[str, Any],
 ) -> None:
     output = b'{"completion":" Hello!","stop_reason":"stop_sequence","stop":"\\n\\nHuman:"}'
     streaming_body = StreamingBody(io.BytesIO(output), len(output))
@@ -254,13 +255,13 @@ def test_invoke_client_with_missing_tokens(
     model_name = "anthropic.claude-v2"
     if use_context_attributes:
         with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
         ):
             client.invoke_model(
                 modelId=model_name,
@@ -301,15 +302,15 @@ def test_invoke_client_with_missing_tokens(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_converse(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
+        use_context_attributes: bool,
+        in_memory_span_exporter: InMemorySpanExporter,
+        session_id: str,
+        user_id: str,
+        metadata: Dict[str, Any],
+        tags: List[str],
+        prompt_template: str,
+        prompt_template_version: str,
+        prompt_template_variables: Dict[str, Any],
 ) -> None:
     if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
         pytest.xfail(
@@ -352,13 +353,13 @@ def test_converse(
     model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     if use_context_attributes:
         with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
         ):
             client.converse(
                 modelId=model_name,
@@ -399,15 +400,15 @@ def test_converse(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_converse_multiple(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
+        use_context_attributes: bool,
+        in_memory_span_exporter: InMemorySpanExporter,
+        session_id: str,
+        user_id: str,
+        metadata: Dict[str, Any],
+        tags: List[str],
+        prompt_template: str,
+        prompt_template_version: str,
+        prompt_template_variables: Dict[str, Any],
 ) -> None:
     if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
         pytest.xfail(
@@ -454,13 +455,13 @@ def test_converse_multiple(
     messages = [first_msg]
     if use_context_attributes:
         with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
         ):
             response = client.converse(
                 modelId=model_name,
@@ -529,13 +530,13 @@ def test_converse_multiple(
     messages.extend([response["output"]["message"], second_msg])
     if use_context_attributes:
         with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
         ):
             client.converse(
                 modelId=model_name,
@@ -580,15 +581,15 @@ def test_converse_multiple(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_converse_with_missing_tokens(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
+        use_context_attributes: bool,
+        in_memory_span_exporter: InMemorySpanExporter,
+        session_id: str,
+        user_id: str,
+        metadata: Dict[str, Any],
+        tags: List[str],
+        prompt_template: str,
+        prompt_template_version: str,
+        prompt_template_variables: Dict[str, Any],
 ) -> None:
     if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
         pytest.xfail(
@@ -630,13 +631,13 @@ def test_converse_with_missing_tokens(
     model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     if use_context_attributes:
         with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
         ):
             client.converse(
                 modelId=model_name,
@@ -687,16 +688,16 @@ def test_converse_with_missing_tokens(
     ],
 )
 def test_converse_multiple_models(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
-    model_id: str,
+        use_context_attributes: bool,
+        in_memory_span_exporter: InMemorySpanExporter,
+        session_id: str,
+        user_id: str,
+        metadata: Dict[str, Any],
+        tags: List[str],
+        prompt_template: str,
+        prompt_template_version: str,
+        prompt_template_variables: Dict[str, Any],
+        model_id: str,
 ) -> None:
     if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
         pytest.xfail(
@@ -737,13 +738,13 @@ def test_converse_multiple_models(
     message = {"role": "user", "content": [{"text": "hello there?"}]}
     if use_context_attributes:
         with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
         ):
             client.converse(
                 modelId=model_id,
@@ -780,16 +781,16 @@ def test_converse_multiple_models(
 
 @pytest.mark.parametrize("use_context_attributes", [False])  # , True])
 def test_converse_multimodal(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    image_bytes_and_format: Tuple[bytes, str],
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
+        use_context_attributes: bool,
+        in_memory_span_exporter: InMemorySpanExporter,
+        image_bytes_and_format: Tuple[bytes, str],
+        session_id: str,
+        user_id: str,
+        metadata: Dict[str, Any],
+        tags: List[str],
+        prompt_template: str,
+        prompt_template_version: str,
+        prompt_template_variables: Dict[str, Any],
 ) -> None:
     if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
         pytest.xfail(
@@ -851,13 +852,13 @@ def test_converse_multimodal(
 
     if use_context_attributes:
         with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
         ):
             client.converse(
                 modelId=model_name,
@@ -900,14 +901,14 @@ def test_converse_multimodal(
 
 
 def _check_context_attributes(
-    attributes: Dict[str, Any],
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
+        attributes: Dict[str, Any],
+        session_id: str,
+        user_id: str,
+        metadata: Dict[str, Any],
+        tags: List[str],
+        prompt_template: str,
+        prompt_template_version: str,
+        prompt_template_variables: Dict[str, Any],
 ) -> None:
     assert attributes.pop(SESSION_ID, None) == session_id
     assert attributes.pop(USER_ID, None) == user_id
@@ -922,7 +923,7 @@ def _check_context_attributes(
     assert list(attr_tags) == tags
     assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
     assert (
-        attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) == prompt_template_version
+            attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None) == prompt_template_version
     )
     assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
         prompt_template_variables
@@ -930,21 +931,21 @@ def _check_context_attributes(
 
 
 def _run_converse_checks(
-    use_context_attributes: bool,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
-    span: trace_sdk.ReadableSpan,
-    llm_input_messages_truth: List[Dict[str, str]],
-    input: str,
-    output: Dict[str, Any],
-    model_name: str,
-    token_counts: Dict[Any, Any],
-    invocation_parameters: Dict[str, Any],
+        use_context_attributes: bool,
+        session_id: str,
+        user_id: str,
+        metadata: Dict[str, Any],
+        tags: List[str],
+        prompt_template: str,
+        prompt_template_version: str,
+        prompt_template_variables: Dict[str, Any],
+        span: trace_sdk.ReadableSpan,
+        llm_input_messages_truth: List[Dict[str, str]],
+        input: str,
+        output: Dict[str, Any],
+        model_name: str,
+        token_counts: Dict[Any, Any],
+        invocation_parameters: Dict[str, Any],
 ) -> None:
     assert span.status.is_ok
     attributes = dict(span.attributes or dict())
@@ -961,8 +962,8 @@ def _run_converse_checks(
     assert attributes.pop(OUTPUT_VALUE) == output["message"]["content"][0]["text"]
     assert attributes.pop("llm.output_messages.0.message.role") == output["message"]["role"]
     assert (
-        attributes.pop("llm.output_messages.0.message.content")
-        == output["message"]["content"][0]["text"]
+            attributes.pop("llm.output_messages.0.message.content")
+            == output["message"]["content"][0]["text"]
     )
 
     assert attributes.pop(INPUT_VALUE) == input
@@ -1001,6 +1002,213 @@ def _run_converse_checks(
             prompt_template_variables,
         )
     assert attributes == {}
+
+
+class TestClaude3ResponseFormatHandling:
+    """Test Claude 3 response format parsing for invoke_model API."""
+
+    def test_claude_3_single_text_block(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        """Test Claude 3 format with single text content block."""
+        output = b'{"content": [{"type": "text", "text": "Hello Claude 3!"}]}'
+        streaming_body = StreamingBody(io.BytesIO(output), len(output))
+        mock_response = {
+            "ResponseMetadata": {
+                "RequestId": "test-request-id",
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {
+                    "x-amzn-bedrock-output-token-count": "4",
+                    "x-amzn-bedrock-input-token-count": "8",
+                },
+            },
+            "contentType": "application/json",
+            "body": streaming_body,
+        }
+
+        session = boto3.session.Session()
+        client = session.client("bedrock-runtime", region_name="us-east-1")
+        client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
+
+        body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": [{"type": "text", "text": "Hello"}]}]
+        }
+        model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+        client.invoke_model(modelId=model_name, body=json.dumps(body))
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+
+        # Verify the output content is extracted correctly from Claude 3 format
+        assert attributes.pop(OUTPUT_VALUE) == "Hello Claude 3!"
+        assert attributes.pop(LLM_MODEL_NAME) == model_name
+
+    def test_claude_3_multiple_text_blocks(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        """Test Claude 3 format with multiple text content blocks."""
+        output = b'{"content": [{"type": "text", "text": "First part"}, {"type": "text", "text": "Second part"}]}'
+        streaming_body = StreamingBody(io.BytesIO(output), len(output))
+        mock_response = {
+            "ResponseMetadata": {"RequestId": "test-request-id", "HTTPStatusCode": 200},
+            "contentType": "application/json",
+            "body": streaming_body,
+        }
+
+        session = boto3.session.Session()
+        client = session.client("bedrock-runtime", region_name="us-east-1")
+        client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
+
+        body = {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024}
+        model_name = "anthropic.claude-3-haiku-20240307-v1:0"
+
+        client.invoke_model(modelId=model_name, body=json.dumps(body))
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        # Multiple text blocks should be joined with newlines
+        assert attributes.pop(OUTPUT_VALUE) == "First part\nSecond part"
+
+    def test_claude_3_mixed_content_blocks(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        """Test Claude 3 format with mixed content types (only text should be extracted)."""
+        output = b'{"content": [{"type": "text", "text": "Text content"}, {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": "..."}}]}'
+        streaming_body = StreamingBody(io.BytesIO(output), len(output))
+        mock_response = {
+            "ResponseMetadata": {"RequestId": "test-request-id", "HTTPStatusCode": 200},
+            "contentType": "application/json",
+            "body": streaming_body,
+        }
+
+        session = boto3.session.Session()
+        client = session.client("bedrock-runtime", region_name="us-east-1")
+        client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
+
+        body = {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024}
+        model_name = "anthropic.claude-3-opus-20240229-v1:0"
+
+        client.invoke_model(modelId=model_name, body=json.dumps(body))
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        # Only text content should be extracted, non-text blocks ignored
+        assert attributes.pop(OUTPUT_VALUE) == "Text content"
+
+    def test_claude_3_empty_content(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        """Test Claude 3 format with empty content array."""
+        output = b'{"content": []}'
+        streaming_body = StreamingBody(io.BytesIO(output), len(output))
+        mock_response = {
+            "ResponseMetadata": {"RequestId": "test-request-id", "HTTPStatusCode": 200},
+            "contentType": "application/json",
+            "body": streaming_body,
+        }
+
+        session = boto3.session.Session()
+        client = session.client("bedrock-runtime", region_name="us-east-1")
+        client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
+
+        body = {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024}
+        model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+        client.invoke_model(modelId=model_name, body=json.dumps(body))
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        # Empty content should not set OUTPUT_VALUE attribute
+        assert OUTPUT_VALUE not in attributes
+
+    def test_claude_3_no_text_content_blocks(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        """Test Claude 3 format with content blocks but no text type."""
+        output = b'{"content": [{"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": "..."}}]}'
+        streaming_body = StreamingBody(io.BytesIO(output), len(output))
+        mock_response = {
+            "ResponseMetadata": {"RequestId": "test-request-id", "HTTPStatusCode": 200},
+            "contentType": "application/json",
+            "body": streaming_body,
+        }
+
+        session = boto3.session.Session()
+        client = session.client("bedrock-runtime", region_name="us-east-1")
+        client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
+
+        body = {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024}
+        model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+        client.invoke_model(modelId=model_name, body=json.dumps(body))
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        # No text content blocks should not set OUTPUT_VALUE attribute
+        assert OUTPUT_VALUE not in attributes
+
+    def test_claude_3_malformed_content_structure(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        """Test Claude 3 format with malformed content structure."""
+        output = b'{"content": "not_an_array"}'
+        streaming_body = StreamingBody(io.BytesIO(output), len(output))
+        mock_response = {
+            "ResponseMetadata": {"RequestId": "test-request-id", "HTTPStatusCode": 200},
+            "contentType": "application/json",
+            "body": streaming_body,
+        }
+
+        session = boto3.session.Session()
+        client = session.client("bedrock-runtime", region_name="us-east-1")
+        client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
+
+        body = {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024}
+        model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+        client.invoke_model(modelId=model_name, body=json.dumps(body))
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        # Malformed content structure should not set OUTPUT_VALUE attribute
+        assert OUTPUT_VALUE not in attributes
+
+    def test_claude_2_format_still_works(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        """Test that Claude 2 completion format still works after our fix."""
+        output = b'{"completion": "Hello Claude 2!", "stop_reason": "stop_sequence"}'
+        streaming_body = StreamingBody(io.BytesIO(output), len(output))
+        mock_response = {
+            "ResponseMetadata": {"RequestId": "test-request-id", "HTTPStatusCode": 200},
+            "contentType": "application/json",
+            "body": streaming_body,
+        }
+
+        session = boto3.session.Session()
+        client = session.client("bedrock-runtime", region_name="us-east-1")
+        client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
+
+        body = {"prompt": "Human: hello there? Assistant:", "max_tokens_to_sample": 1024}
+        model_name = "anthropic.claude-v2"
+
+        client.invoke_model(modelId=model_name, body=json.dumps(body))
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        # Claude 2 completion format should still work
+        assert attributes.pop(OUTPUT_VALUE) == "Hello Claude 2!"
+        assert attributes.pop(LLM_MODEL_NAME) == model_name
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
