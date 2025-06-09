@@ -219,7 +219,7 @@ def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
                 oi_function: oi.ToolCallFunction = {}
                 if (name := getattr(function, "name", None)) is not None:
                     oi_function["name"] = name
-                if isinstance(arguments := getattr(function, "arguments", None), dict):
+                if isinstance(arguments := getattr(function, "arguments", None), str):
                     oi_function["arguments"] = arguments
                 oi_tool_call["function"] = oi_function
                 oi_tool_calls.append(oi_tool_call)

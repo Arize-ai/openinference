@@ -279,6 +279,13 @@ class TestModels:
             )
             == "get_weather"
         )
+        assert isinstance(
+            tool_call_arguments_json := attributes.pop(
+                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+            ),
+            str,
+        )
+        assert json.loads(tool_call_arguments_json) == {"location": "Paris"}
         assert not attributes
 
     @pytest.mark.vcr(
