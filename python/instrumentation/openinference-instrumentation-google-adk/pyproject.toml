@@ -73,7 +73,6 @@ exclude = [
   "examples",
   "dist",
   "sdist",
-  "tests"
 ]
 
 [[tool.mypy.overrides]]

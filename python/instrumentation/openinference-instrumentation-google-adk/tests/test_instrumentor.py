@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 from collections import defaultdict
 from secrets import token_hex
 from typing import Any
@@ -19,7 +20,7 @@ async def test_google_adk_instrumentor(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    def get_weather(city: str) -> dict:
+    def get_weather(city: str) -> dict[str, str]:
         """Retrieves the current weather report for a specified city.
 
         Args:
@@ -60,8 +61,7 @@ async def test_google_adk_instrumentor(
     ):
         ...
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    spans = sorted(spans, key=lambda s: s.start_time or 0)
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
     spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
     for span in spans:
         spans_by_name[span.name].append(span)
@@ -79,7 +79,7 @@ async def test_google_adk_instrumentor(
 
     agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
     assert agent_run_span.parent
-    assert agent_run_span.parent is invocation_span.get_span_context()
+    assert agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
     agent_run_attributes = dict(agent_run_span.attributes or {})
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
@@ -90,7 +90,7 @@ async def test_google_adk_instrumentor(
 
     call_llm_span0 = spans_by_name["call_llm"][0]
     assert call_llm_span0.parent
-    assert call_llm_span0.parent is agent_run_span.get_span_context()
+    assert call_llm_span0.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
@@ -144,7 +144,7 @@ async def test_google_adk_instrumentor(
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
     assert tool_span.parent
-    assert tool_span.parent is call_llm_span0.get_span_context()
+    assert tool_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
     tool_attributes = dict(tool_span.attributes or {})
     assert tool_attributes.pop("user.id", None) == user_id
     assert tool_attributes.pop("session.id", None) == session_id
@@ -155,7 +155,7 @@ async def test_google_adk_instrumentor(
     assert tool_attributes.pop("output.value", None)
     assert (
         tool_attributes.pop("tool.description", None)
-        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."  # noqa: E501
+        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."
     )
     assert tool_attributes.pop("tool.name", None) == "get_weather"
     assert tool_attributes.pop("tool.parameters", None) == '{"city": "New York"}'
@@ -165,21 +165,21 @@ async def test_google_adk_instrumentor(
     assert tool_attributes.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "New York"}'
     assert (
         tool_attributes.pop("gcp.vertex.agent.tool_response", None)
-        == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'  # noqa: E501
+        == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
     assert tool_attributes.pop("gen_ai.operation.name", None) == "execute_tool"
     assert tool_attributes.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert tool_attributes.pop("gen_ai.tool.call.id", None)
     assert (
         tool_attributes.pop("gen_ai.tool.description", None)
-        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."  # noqa: E501
+        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."
     )
     assert tool_attributes.pop("gen_ai.tool.name", None) == "get_weather"
     assert not tool_attributes
 
     call_llm_span1 = spans_by_name["call_llm"][1]
     assert call_llm_span1.parent
-    assert call_llm_span1.parent is agent_run_span.get_span_context()
+    assert call_llm_span1.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
     call_llm_attributes1 = dict(call_llm_span1.attributes or {})
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
@@ -218,7 +218,7 @@ async def test_google_adk_instrumentor(
     )
     assert (
         call_llm_attributes1.pop("llm.input_messages.3.message.content", None)
-        == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'  # noqa: E501
+        == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
     assert call_llm_attributes1.pop("llm.input_messages.3.message.name", None) == "get_weather"
     assert call_llm_attributes1.pop("llm.input_messages.3.message.role", None) == "tool"
@@ -228,7 +228,7 @@ async def test_google_adk_instrumentor(
         call_llm_attributes1.pop(
             "llm.output_messages.0.message.contents.0.message_content.text", None
         )
-        == "OK. The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\n"  # noqa: E501
+        == "OK. The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\n"
     )
     assert (
         call_llm_attributes1.pop(

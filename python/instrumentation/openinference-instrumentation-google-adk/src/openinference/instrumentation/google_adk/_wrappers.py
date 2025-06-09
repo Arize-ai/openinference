@@ -490,7 +490,7 @@ def _default(obj: Any) -> str:
 
     if isinstance(obj, BaseModel):
         return json.dumps(
-            obj.model_dump(exclude=None, mode="json"),
+            obj.model_dump(exclude=None),
             ensure_ascii=False,
             default=str,
         )
