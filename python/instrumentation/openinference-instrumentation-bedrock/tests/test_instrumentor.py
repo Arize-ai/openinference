@@ -1182,6 +1182,33 @@ class TestClaude3ResponseFormatHandling:
         # Malformed content structure should not set OUTPUT_VALUE attribute
         assert OUTPUT_VALUE not in attributes
 
+    def test_claude_3_with_tool_use_blocks(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
+        """Test Claude 3 format with tool_use content blocks (text should still be extracted)."""
+        output = b'{"content": [{"type": "text", "text": "I need to check the weather."}, {"type": "tool_use", "id": "toolu_123", "name": "get_weather", "input": {"location": "SF"}}]}'
+        streaming_body = StreamingBody(io.BytesIO(output), len(output))
+        mock_response = {
+            "ResponseMetadata": {"RequestId": "test-request-id", "HTTPStatusCode": 200},
+            "contentType": "application/json",
+            "body": streaming_body,
+        }
+
+        session = boto3.session.Session()
+        client = session.client("bedrock-runtime", region_name="us-east-1")
+        client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
+
+        body = {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024}
+        model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+        client.invoke_model(modelId=model_name, body=json.dumps(body))
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        # Only text content should be extracted, tool_use blocks ignored
+        assert attributes.pop(OUTPUT_VALUE) == "I need to check the weather."
+
     def test_claude_2_format_still_works(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
         """Test that Claude 2 completion format still works after our fix."""
         output = b'{"completion": "Hello Claude 2!", "stop_reason": "stop_sequence"}'
