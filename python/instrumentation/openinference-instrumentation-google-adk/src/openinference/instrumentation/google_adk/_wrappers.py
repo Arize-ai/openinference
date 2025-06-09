@@ -11,7 +11,6 @@ from typing import (
     Iterator,
     Mapping,
     OrderedDict,
-    ParamSpec,
     TypedDict,
 )
 
@@ -31,7 +30,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import get_current_span
 from opentelemetry.util.types import AttributeValue
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, ParamSpec
 
 from openinference.instrumentation import (
     get_attributes_from_context,
@@ -71,7 +70,7 @@ class _RunnerRunAsync(_WithTracer):
         self,
         wrapped: Callable[..., AsyncGenerator[Event, None]],
         instance: Runner,
-        args: tuple[type, Any],
+        args: tuple[Any, ...],
         kwargs: _RunnerRunAsyncKwargs,
     ) -> Any:
         generator = wrapped(*args, **kwargs)
@@ -122,7 +121,7 @@ class _BaseAgentRunAsync(_WithTracer):
         self,
         wrapped: Callable[..., AsyncGenerator[Event, None]],
         instance: BaseAgent,
-        args: tuple[type, Any],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         generator = wrapped(*args, **kwargs)
@@ -160,7 +159,7 @@ class _BaseLlmFlowCallLlmAsync(_WithTracer):
         self,
         wrapped: Callable[..., AsyncGenerator[LlmResponse, None]],
         instance: BaseAgent,
-        args: tuple[type, Any],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         generator = wrapped(*args, **kwargs)
@@ -248,7 +247,7 @@ class _TraceToolCall(_WithTracer):
         self,
         wrapped: Callable[..., None],
         instance: BaseAgent,
-        args: tuple[type, Any],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> None:
         if not context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
