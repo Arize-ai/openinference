@@ -7,6 +7,14 @@ import pytest
 from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from litellm.types.utils import Message as LitellmMessage
+from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
+from opentelemetry.util._importlib_metadata import entry_points
+from opentelemetry.util.types import AttributeValue
+
 from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import (
@@ -17,13 +25,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import StatusCode
-from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
 
 
 @pytest.fixture(scope="module")
