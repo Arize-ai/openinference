@@ -1,5 +1,5 @@
 {
-    "python/openinference-semantic-conventions": "0.1.18",
+    "python/openinference-semantic-conventions": "0.1.19",
     "python/instrumentation/openinference-instrumentation-agno": "0.1.6",
     "python/instrumentation/openinference-instrumentation-openai": "0.1.30",
     "python/instrumentation/openinference-instrumentation-llama-index": "4.3.0",
@@ -7,7 +7,7 @@
     "python/instrumentation/openinference-instrumentation-langchain": "0.1.43",
     "python/instrumentation/openinference-instrumentation-bedrock": "0.1.24",
     "python/instrumentation/openinference-instrumentation-mistralai": "1.3.3",
-    "python/openinference-instrumentation": "0.1.32",
+    "python/openinference-instrumentation": "0.1.33",
     "python/instrumentation/openinference-instrumentation-guardrails": "0.1.9",
     "python/instrumentation/openinference-instrumentation-vertexai": "0.1.11",
     "python/instrumentation/openinference-instrumentation-crewai": "0.1.10",
@@ -24,5 +24,6 @@
     "python/instrumentation/openinference-instrumentation-mcp": "1.3.0",
     "python/instrumentation/openinference-instrumentation-google-genai": "0.1.2",
     "python/instrumentation/openinference-instrumentation-autogen-agentchat": "0.1.0",
-    "python/instrumentation/openinference-instrumentation-pydantic-ai": "0.1.3"
+    "python/instrumentation/openinference-instrumentation-pydantic-ai": "0.1.3",
+    "python/instrumentation/openinference-instrumentation-google-adk": "0.1.0"
 }

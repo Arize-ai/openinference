@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.32...python-openinference-instrumentation-v0.1.33) (2025-06-10)
+
+
+### Features
+
+* add instrumentation for google-adk ([#1759](https://github.com/Arize-ai/openinference/issues/1759)) ([aeb1769](https://github.com/Arize-ai/openinference/commit/aeb17692d30cd8112bcad0990f1ec56491a59962))
+
 ## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.31...python-openinference-instrumentation-v0.1.32) (2025-05-27)
 
 
