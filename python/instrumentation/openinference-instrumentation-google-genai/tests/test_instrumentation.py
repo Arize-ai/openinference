@@ -1,6 +1,5 @@
 # type: ignore
 # ruff: noqa: E501
-from typing import Any, Dict, Iterator
 import json
 from typing import Any, Dict, Iterator
 
@@ -464,11 +463,8 @@ def test_generate_content_with_tool(
     )
 
     # Create config with tools
-    system_instruction="You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
-    config = GenerateContentConfig(
-        system_instruction=system_instruction,
-        tools=[weather_tool]
-    )
+    system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
+    config = GenerateContentConfig(system_instruction=system_instruction, tools=[weather_tool])
 
     # Make the API call
     response = client.models.generate_content(
@@ -499,7 +495,7 @@ def test_generate_content_with_tool(
 
     # Verify flattened tool schema format
     tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
-    assert tool_schema_key in attributes, f"Tool schema not found in attributes"
+    assert tool_schema_key in attributes, "Tool schema not found in attributes"
     tool_schema_json = attributes.get(tool_schema_key)
     assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
     tool_schema = json.loads(tool_schema_json)
@@ -537,14 +533,16 @@ def test_generate_content_with_tool(
 
     if tool_call_name_key in attributes:
         # Model decided to call the tool, verify the tool call details
-        assert attributes.get(tool_call_name_key) == "get_weather", f"Expected tool call to be 'get_weather'"
+        assert attributes.get(tool_call_name_key) == "get_weather", (
+            "Expected tool call to be 'get_weather'"
+        )
 
         tool_call_args = attributes.get(tool_call_args_key)
-        assert isinstance(tool_call_args, str), f"Tool call arguments should be a JSON string"
+        assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
 
         # Parse and validate tool call arguments
         args = json.loads(tool_call_args)
-        assert "location" in args, f"Tool call should include 'location' parameter"
+        assert "location" in args, "Tool call should include 'location' parameter"
         # The location should be something reasonable for San Francisco
         assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
             "Tool call location should reference San Francisco"
@@ -653,9 +651,9 @@ def test_generate_content_with_raw_json_tool(
 
     # Verify tool schema is recorded
     tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
-    assert tool_schema_key in attributes, f"Tool schema not found in attributes"
+    assert tool_schema_key in attributes, "Tool schema not found in attributes"
     tool_schema_json = attributes.get(tool_schema_key)
-    assert isinstance(tool_schema_json, str), f"Tool schema should be a JSON string"
+    assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
 
     # Parse and validate the tool schema matches what we provided
     tool_schema = json.loads(tool_schema_json)
@@ -694,11 +692,11 @@ def test_generate_content_with_raw_json_tool(
         )
 
         tool_call_args = attributes.get(tool_call_args_key)
-        assert isinstance(tool_call_args, str), f"Tool call arguments should be a JSON string"
+        assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
 
         # Parse and validate tool call arguments
         args = json.loads(tool_call_args)
-        assert "location" in args, f"Tool call should include 'location' parameter"
+        assert "location" in args, "Tool call should include 'location' parameter"
         # The location should be something reasonable for San Francisco
         assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
             "Tool call location should reference San Francisco"
@@ -813,9 +811,9 @@ def test_streaming_content_with_tool(
 
     # Verify tool schema is recorded (same as non-streaming)
     tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
-    assert tool_schema_key in attributes, f"Tool schema not found in attributes"
+    assert tool_schema_key in attributes, "Tool schema not found in attributes"
     tool_schema_json = attributes.get(tool_schema_key)
-    assert isinstance(tool_schema_json, str), f"Tool schema should be a JSON string"
+    assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
 
     # Parse and validate the tool schema matches what we provided
     tool_schema = json.loads(tool_schema_json)
@@ -859,11 +857,11 @@ def test_streaming_content_with_tool(
     )
 
     tool_call_args = attributes.get(tool_call_args_key)
-    assert isinstance(tool_call_args, str), f"Tool call arguments should be a JSON string"
+    assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
 
     # Parse and validate tool call arguments
     args = json.loads(tool_call_args)
-    assert "location" in args, f"Tool call should include 'location' parameter"
+    assert "location" in args, "Tool call should include 'location' parameter"
     # The location should be something reasonable for San Francisco
     assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
         "Tool call location should reference San Francisco"
@@ -875,7 +873,9 @@ def test_streaming_content_with_tool(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[-1].usage_metadata.candidates_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[
+                    -1
+                ].usage_metadata.candidates_token_count,
             }
         )
 
@@ -931,10 +931,7 @@ def test_chat_session_with_tool(
     user_message = "What's the weather like in San Francisco?"
     system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
 
-    config = GenerateContentConfig(
-        system_instruction=system_instruction,
-        tools=[weather_tool]
-    )
+    config = GenerateContentConfig(system_instruction=system_instruction, tools=[weather_tool])
 
     # Create a chat session with tools
     chat = client.chats.create(model="gemini-2.0-flash", config=config)
@@ -1016,11 +1013,11 @@ def test_chat_session_with_tool(
     )
 
     tool_call_args = attributes.get(tool_call_args_key)
-    assert isinstance(tool_call_args, str), f"Tool call arguments should be a JSON string"
+    assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
 
     # Parse and validate tool call arguments
     args = json.loads(tool_call_args)
-    assert "location" in args, f"Tool call should include 'location' parameter"
+    assert "location" in args, "Tool call should include 'location' parameter"
     # The location should be something reasonable for San Francisco
     assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
         "Tool call location should reference San Francisco"
@@ -1070,20 +1067,20 @@ def test_streaming_tool_call_aggregation(
             return self.data
 
     # Chunk 1: Function name only
-    chunk1 = MockChunk({
-        "candidates": [{
-            "index": 0,
-            "content": {
-                "role": "model",
-                "parts": [{
-                    "function_call": {
-                        "name": "get_weather"
-                    }
-                }]
-            }
-        }],
-        "model_version": "gemini-2.0-flash"
-    })
+    chunk1 = MockChunk(
+        {
+            "candidates": [
+                {
+                    "index": 0,
+                    "content": {
+                        "role": "model",
+                        "parts": [{"function_call": {"name": "get_weather"}}],
+                    },
+                }
+            ],
+            "model_version": "gemini-2.0-flash",
+        }
+    )
 
     # Chunk 2: Function arguments only
     chunk2 = MockChunk(
