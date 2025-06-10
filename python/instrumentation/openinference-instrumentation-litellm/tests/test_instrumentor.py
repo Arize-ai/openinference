@@ -7,7 +7,7 @@ import pytest
 from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from litellm.types.utils import Message as LitellmMessage
-from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -455,7 +455,7 @@ def test_completion_with_invalid_model_triggers_exception_event(
     exception_events = [e for e in span.events if e.name == "exception"]
     assert len(exception_events) == 1, "Expected one exception event to be recorded"
 
-    exception_attributes = exception_events[0].attributes
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
     assert "exception.type" in exception_attributes
     assert "exception.message" in exception_attributes
     assert "exception.stacktrace" in exception_attributes
@@ -551,7 +551,7 @@ async def test_acompletion_with_invalid_model_triggers_exception_event(
     exception_events = [e for e in span.events if e.name == "exception"]
     assert len(exception_events) == 1, "Expected one exception event to be recorded"
 
-    exception_attributes = exception_events[0].attributes
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
     assert "exception.type" in exception_attributes
     assert "exception.message" in exception_attributes
     assert "exception.stacktrace" in exception_attributes
@@ -735,7 +735,7 @@ def test_embedding_with_invalid_model_triggers_exception_event(
     exception_events = [e for e in span.events if e.name == "exception"]
     assert len(exception_events) == 1, "Expected one exception event to be recorded"
 
-    exception_attributes = exception_events[0].attributes
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
     assert "exception.type" in exception_attributes
     assert "exception.message" in exception_attributes
     assert "exception.stacktrace" in exception_attributes
@@ -828,7 +828,7 @@ async def test_aembedding_with_invalid_model_triggers_exception_event(
     exception_events = [e for e in span.events if e.name == "exception"]
     assert len(exception_events) == 1, "Expected one exception event to be recorded"
 
-    exception_attributes = exception_events[0].attributes
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
     assert "exception.type" in exception_attributes
     assert "exception.message" in exception_attributes
     assert "exception.stacktrace" in exception_attributes
@@ -992,7 +992,7 @@ def test_image_generation_with_invalid_model_triggers_exception_event(
     exception_events = [e for e in span.events if e.name == "exception"]
     assert len(exception_events) == 1, "Expected one exception event to be recorded"
 
-    exception_attributes = exception_events[0].attributes
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
     assert "exception.type" in exception_attributes
     assert "exception.message" in exception_attributes
     assert "exception.stacktrace" in exception_attributes
@@ -1087,7 +1087,7 @@ async def test_aimage_generation_with_invalid_model_triggers_exception_event(
     exception_events = [e for e in span.events if e.name == "exception"]
     assert len(exception_events) == 1, "Expected one exception event to be recorded"
 
-    exception_attributes = exception_events[0].attributes
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
     assert "exception.type" in exception_attributes
     assert "exception.message" in exception_attributes
     assert "exception.stacktrace" in exception_attributes
