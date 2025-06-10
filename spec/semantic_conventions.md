@@ -119,17 +119,17 @@ for i, obj in enumerate(messages):
 
 ```javascript
 const messages = [
-    { "message.role": "user", "message.content": "hello" },
-    {
-        "message.role": "assistant",
-        "message.content": "hi",
-    },
+  { "message.role": "user", "message.content": "hello" },
+  {
+    "message.role": "assistant",
+    "message.content": "hi",
+  },
 ];
 
 for (const [i, obj] of messages.entries()) {
-    for (const [key, value] of Object.entries(obj)) {
-        span.setAttribute(`input.messages.${i}.${key}`, value);
-    }
+  for (const [key, value] of Object.entries(obj)) {
+    span.setAttribute(`input.messages.${i}.${key}`, value);
+  }
 }
 ```
 
