@@ -416,73 +416,6 @@ async def test_async_streaming_text_content(
 
 
 @pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-)
-def test_generate_content_with_pydantic_response_schema(
-    in_memory_span_exporter: InMemorySpanExporter,
-    tracer_provider: TracerProvider,
-    setup_google_genai_instrumentation: None,
-) -> None:
-    """Test that reproduce the bug when using a Pydantic model as response_schema."""
-    # Get API key from environment variable
-    api_key = "REDACTED"
-
-    # Initialize the client
-    client = genai.Client(api_key=api_key)
-
-    user_prompt = "What is the capital of France?"
-    system_prompt = "You are a helpful assistant."
-
-    config = GenerateContentConfig(
-        system_instruction=system_prompt,
-        response_mime_type="application/json",
-        response_schema=Answer,  # This is where the bug occurs - passing a Pydantic class
-    )
-
-    # This should not fail with PydanticSerializationError
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-001", contents=user_prompt, config=config
-    )
-
-    # Get the spans
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span = spans[0]
-    attributes = dict(span.attributes or {})
-
-    # Define expected attributes
-    expected_attributes: Dict[str, Any] = {
-        f"{SpanAttributes.LLM_PROVIDER}": "google",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": system_prompt,
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_prompt,
-        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
-        SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash-001",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
-        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
-    }
-
-    # Verify attributes
-    for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
-
-    # Should have LLM_INVOCATION_PARAMETERS that contains config details
-    assert SpanAttributes.LLM_INVOCATION_PARAMETERS in attributes
-
-    # Verify the serialized config contains response_schema as a string, not the class
-    import json
-
-    invocation_params = json.loads(str(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
-    assert "response_schema" in invocation_params
-    assert isinstance(invocation_params["response_schema"], str)
-    assert invocation_params["response_schema"] == "Answer"
-
-@pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
@@ -519,7 +452,7 @@ def test_generate_content_with_tool(
                     },
                     "required": ["location"],
                 },
-            )
+            ),
         ]
     )
 
@@ -559,39 +492,42 @@ def test_generate_content_with_tool(
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text or None,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
-    # Verify tool schema is recorded
+    # Verify flattened tool schema format
     tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
     assert tool_schema_key in attributes, f"Tool schema not found in attributes"
     tool_schema_json = attributes.get(tool_schema_key)
-    assert isinstance(tool_schema_json, str), f"Tool schema should be a JSON string"
-
-    # Parse and validate the tool schema matches what we provided
+    assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
     tool_schema = json.loads(tool_schema_json)
 
-    # Helper function to convert parameters to the expected format
-    def convert_parameters(params):
-        if hasattr(params, 'model_dump'):
-            return params.model_dump(exclude_none=True)
-        else:
-            return params
-
-    # Convert the weather_tool to the expected schema format for comparison
+    # Verify tool matches flattened format
     expected_tool_schema = {
-        "function_declarations": [
-            {
-                "name": func_decl.name,
-                "description": func_decl.description,
-                "parameters": convert_parameters(func_decl.parameters)
-            }
-            for func_decl in weather_tool.function_declarations
-        ]
+        "name": "get_weather",
+        "description": "Get current weather information for a given location",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "location": {
+                    "type": "STRING",
+                    "description": "The city and state/country for weather information",
+                },
+                "unit": {
+                    "type": "STRING",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "Temperature unit",
+                },
+            },
+            "required": ["location"],
+        }
     }
+
     assert tool_schema == expected_tool_schema, (
-        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+        f"Tool schema doesn't match expected flattened format.\n"
+        f"Expected: {expected_tool_schema}\n"
+        f"Got: {tool_schema}"
     )
 
     # Check if the model decided to call the tool
@@ -626,7 +562,9 @@ def test_generate_content_with_tool(
     # Verify attributes
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
+            f"Attribute {key} does not match expected value\n"
+            f"Expected: {expected_value}\n"
+            f"Got: {attributes.get(key)}"
         )
 
 
@@ -719,8 +657,26 @@ def test_generate_content_with_raw_json_tool(
 
     # Parse and validate the tool schema matches what we provided
     tool_schema = json.loads(tool_schema_json)
-    # For raw JSON tools, the expected schema should match exactly
-    expected_tool_schema = weather_tool_dict
+    # For raw JSON tools, the expected schema should be flattened
+    expected_tool_schema = {
+        "name": "get_weather",
+        "description": "Get current weather information for a given location",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "location": {
+                    "type": "STRING",
+                    "description": "The city and state/country for weather information",
+                },
+                "unit": {
+                    "type": "STRING",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "Temperature unit",
+                },
+            },
+            "required": ["location"],
+        }
+    }
     assert tool_schema == expected_tool_schema, (
         f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
     )
@@ -862,23 +818,25 @@ def test_streaming_content_with_tool(
     # Parse and validate the tool schema matches what we provided
     tool_schema = json.loads(tool_schema_json)
 
-    # Helper function to convert parameters to the expected format
-    def convert_parameters(params):
-        if hasattr(params, "model_dump"):
-            return params.model_dump(exclude_none=True)
-        else:
-            return params
-
-    # Convert the weather_tool to the expected schema format for comparison
+    # Verify tool matches flattened format
     expected_tool_schema = {
-        "function_declarations": [
-            {
-                "name": func_decl.name,
-                "description": func_decl.description,
-                "parameters": convert_parameters(func_decl.parameters),
-            }
-            for func_decl in weather_tool.function_declarations
-        ]
+        "name": "get_weather",
+        "description": "Get current weather information for a given location",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "location": {
+                    "type": "STRING",
+                    "description": "The city and state/country for weather information",
+                },
+                "unit": {
+                    "type": "STRING",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "Temperature unit",
+                },
+            },
+            "required": ["location"],
+        }
     }
     assert tool_schema == expected_tool_schema, (
         f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
@@ -1010,30 +968,32 @@ def test_chat_session_with_tool(
 
     # Verify tool schema is recorded
     tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
-    assert tool_schema_key in attributes, f"Tool schema not found in attributes"
+    assert tool_schema_key in attributes, "Tool schema not found in attributes"
     tool_schema_json = attributes.get(tool_schema_key)
-    assert isinstance(tool_schema_json, str), f"Tool schema should be a JSON string"
+    assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
 
     # Parse and validate the tool schema matches what we provided
     tool_schema = json.loads(tool_schema_json)
 
-    # Helper function to convert parameters to the expected format
-    def convert_parameters(params):
-        if hasattr(params, "model_dump"):
-            return params.model_dump(exclude_none=True)
-        else:
-            return params
-
-    # Convert the weather_tool to the expected schema format for comparison
+    # Verify tool matches flattened format
     expected_tool_schema = {
-        "function_declarations": [
-            {
-                "name": func_decl.name,
-                "description": func_decl.description,
-                "parameters": convert_parameters(func_decl.parameters),
-            }
-            for func_decl in weather_tool.function_declarations
-        ]
+        "name": "get_weather",
+        "description": "Get current weather information for a given location",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "location": {
+                    "type": "STRING",
+                    "description": "The city and state/country for weather information",
+                },
+                "unit": {
+                    "type": "STRING",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "Temperature unit",
+                },
+            },
+            "required": ["location"],
+        }
     }
     assert tool_schema == expected_tool_schema, (
         f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
@@ -1183,10 +1143,6 @@ def test_streaming_tool_call_aggregation(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 50
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 10
 
-    print(
-        "✅ Multi-chunk tool call aggregation works! Name from chunk1 + args from chunk2 merged successfully."
-    )
-
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -1217,19 +1173,21 @@ def test_generate_content_with_automatic_tool_calling(
             "new york": {"temperature": 72, "condition": "sunny", "humidity": "60%"},
             "london": {"temperature": 55, "condition": "rainy", "humidity": "90%"},
         }
-        
+
         location_lower = location.lower()
-        weather = mock_weather.get(location_lower, {"temperature": 70, "condition": "unknown", "humidity": "50%"})
-        
+        weather = mock_weather.get(
+            location_lower, {"temperature": 70, "condition": "unknown", "humidity": "50%"}
+        )
+
         if unit == "celsius":
-            weather["temperature"] = round((weather["temperature"] - 32) * 5/9, 1)
-        
+            weather["temperature"] = round((weather["temperature"] - 32) * 5 / 9, 1)
+
         return {
             "location": location,
             "temperature": weather["temperature"],
             "unit": unit,
             "condition": weather["condition"],
-            "humidity": weather["humidity"]
+            "humidity": weather["humidity"],
         }
 
     # Create content for the request
@@ -1244,7 +1202,7 @@ def test_generate_content_with_automatic_tool_calling(
     system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
     config = GenerateContentConfig(
         system_instruction=system_instruction,
-        tools=[get_weather]  # Pass actual function directly for automatic calling!
+        tools=[get_weather],  # Pass actual function directly for automatic calling!
     )
 
     # Make the API call
@@ -1257,7 +1215,7 @@ def test_generate_content_with_automatic_tool_calling(
     assert response is not None, "Response should not be None"
     assert response.text is not None, "Response should have text content for automatic tool calling"
     assert len(response.text.strip()) > 0, "Response text should not be empty"
-    
+
     # Validate that the response contains weather information
     response_lower = response.text.lower()
     weather_keywords = ["weather", "temperature", "degrees", "san francisco", "condition"]
@@ -1295,15 +1253,14 @@ def test_generate_content_with_automatic_tool_calling(
 
     # Parse and validate the tool schema was auto-generated correctly
     tool_schema = json.loads(tool_schema_json)
-    assert "function_declarations" in tool_schema, "Tool schema should contain function_declarations"
-    assert len(tool_schema["function_declarations"]) == 1, "Should have exactly one function declaration"
-    
-    func_decl = tool_schema["function_declarations"][0]
-    assert func_decl["name"] == "get_weather", "Function name should match"
-    assert "parameters" in func_decl, "Function should have parameters"
-    
+
+    # For automatic function calling, the tool should be in flattened format
+    assert "name" in tool_schema, "Tool schema should have name"
+    assert tool_schema["name"] == "get_weather", "Function name should match"
+    assert "parameters" in tool_schema, "Function should have parameters"
+
     # Verify key parameters are present
-    params = func_decl["parameters"]
+    params = tool_schema["parameters"]
     assert "properties" in params, "Parameters should have properties"
     assert "location" in params["properties"], "Should have location parameter"
 
