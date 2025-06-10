@@ -127,28 +127,18 @@ class SpanAttributes:
     AGENT_NAME = "agent.name"
     """
     The name of the agent. Agents that perform the same functions should have the same name. 
-    Avoid including high cardinality information such as IDs as part of the agent name.
     """
-    AGENT_STEP = "agent.step"
+    GRAPH_NODE_ID = "graph.node.id"
     """
-    The step number of the current agent in the execution graph.
-    """
-    AGENT_PARENT = "agent.parent"
-    """
-    The parent agent of the current agent. Leaving this unset or set as empty string implies that the current span is the root agent.
+    The id of the node in the execution graph. This along with graph.node.parent_id are used to visualize the execution graph.
     """
     GRAPH_NODE_NAME = "graph.node.name"
     """
-    The name of the node in the execution graph. Nodes that perform the same functions should have the same name.
-    Avoid including high cardinality information such as IDs as part of the node name.
+    The name of the node in the execution graph. Use this to present a human readable name for the node. Optional
     """
-    GRAPH_NODE_STEP = "graph.node.step"
+    GRAPH_NODE_PARENT_ID = "graph.node.parent_id"
     """
-    The step number of the current node in the execution graph.
-    """
-    GRAPH_NODE_PARENT = "graph.node.parent"
-    """
-    The parent node of the current node. Leaving this unset or set as empty string implies that the current span is the root node.
+    This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node.
     """
 
 

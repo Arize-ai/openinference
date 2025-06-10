@@ -125,14 +125,12 @@ export const AudioAttributesPostfixes = {
 
 export const AgentPostfixes = {
   name: "name",
-  step: "step",
-  parent: "parent",
 } as const;
 
 export const GraphPostfixes = {
+  node_id: "node.id",
   node_name: "node.name",
-  node_step: "node.step",
-  node_parent: "node.parent",
+  node_parent_id: "node.parent_id",
 } as const;
 
 /**
@@ -468,36 +466,24 @@ export const AUDIO_TRANSCRIPT =
 
 /**
  * The name of the agent. Agents that perform the same functions should have the same name. 
- * Avoid including high cardinality information such as IDs as part of the agent name.
  */
 export const AGENT_NAME =
   `${SemanticAttributePrefixes.agent}.${AgentPostfixes.name}` as const;
 /**
- * The step number of the current agent in the execution graph.
+ * The id of the node in the execution graph. This along with graph.node.parent_id are used to visualize the execution graph.
  */
-export const AGENT_STEP =
-  `${SemanticAttributePrefixes.agent}.${AgentPostfixes.step}` as const;
+export const GRAPH_NODE_ID =
+  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_id}` as const;
 /**
- * The parent agent of the current agent. Leaving this unset or set as empty string implies that the current span is the root agent.
- */
-export const AGENT_PARENT =
-  `${SemanticAttributePrefixes.agent}.${AgentPostfixes.parent}` as const;
-/**
- * The name of the node in the execution graph. Nodes that perform the same functions should have the same name.
- * Avoid including high cardinality information such as IDs as part of the node name.
+ * The name of the node in the execution graph. Use this to present a human readable name for the node. Optional
  */
 export const GRAPH_NODE_NAME =
   `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_name}` as const;
 /**
- * The step number of the current node in the execution graph.
+ * This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node.
  */
-export const GRAPH_NODE_STEP =
-  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_step}` as const;
-/**
- * The parent node of the current node. Leaving this unset or set as empty string implies that the current span is the root node.
- */
-export const GRAPH_NODE_PARENT =
-  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_parent}` as const;
+export const GRAPH_NODE_PARENT_ID =
+  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_parent_id}` as const;
 
 export const SemanticConventions = {
   IMAGE_URL,
@@ -558,11 +544,9 @@ export const SemanticConventions = {
   TAG_TAGS,
   OPENINFERENCE_SPAN_KIND: `${SemanticAttributePrefixes.openinference}.span.kind`,
   AGENT_NAME,
-  AGENT_STEP,
-  AGENT_PARENT,
+  GRAPH_NODE_ID,
   GRAPH_NODE_NAME,
-  GRAPH_NODE_STEP,
-  GRAPH_NODE_PARENT,
+  GRAPH_NODE_PARENT_ID,
 } as const;
 
 export enum OpenInferenceSpanKind {
