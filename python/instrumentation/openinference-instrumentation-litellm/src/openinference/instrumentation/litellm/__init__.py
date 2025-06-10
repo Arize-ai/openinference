@@ -15,16 +15,6 @@ from typing import (
 )
 
 from openai.types.image import Image
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.util.types import AttributeValue
-
-import litellm
-from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
-from litellm.types.utils import Choices, EmbeddingResponse, ImageResponse, ModelResponse
-from litellm.types.utils import Message as LitellmMessage
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
@@ -43,6 +33,16 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.util.types import AttributeValue
+
+import litellm
+from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
+from litellm.types.utils import Choices, EmbeddingResponse, ImageResponse, ModelResponse
+from litellm.types.utils import Message as LitellmMessage
 
 # Skip capture
 KEYS_TO_REDACT = ["api_key"]

@@ -7,14 +7,6 @@ import pytest
 from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from litellm.types.utils import Message as LitellmMessage
-from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import StatusCode
-from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
-
 from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import (
@@ -25,6 +17,13 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
+from opentelemetry.sdk.resources import Resource  # type: ignore[attr-defined]
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
+from opentelemetry.util._importlib_metadata import entry_points
+from opentelemetry.util.types import AttributeValue
 
 
 @pytest.fixture(scope="module")
@@ -433,6 +432,34 @@ def test_completion_image_support(
     assert span.status.status_code == StatusCode.OK
 
 
+def test_completion_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        litellm.completion(
+            model="invalid-model-name",
+            messages=[{"content": "What's the capital of China?", "role": "user"}],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "completion"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = exception_events[0].attributes
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
+
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_acompletion(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -499,6 +526,34 @@ async def test_acompletion(
             prompt_template_version,
             prompt_template_variables,
         )
+
+
+async def test_acompletion_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        await litellm.acompletion(
+            model="invalid-model-name",
+            messages=[{"content": "What's the capital of China?", "role": "user"}],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "acompletion"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = exception_events[0].attributes
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -660,6 +715,31 @@ def test_embedding(
         )
 
 
+def test_embedding_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        litellm.embedding(model="invalid-model-name", input=["good morning from litellm"])
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "embedding"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = exception_events[0].attributes
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
+
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_aembedding(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -726,6 +806,31 @@ async def test_aembedding(
             prompt_template_version,
             prompt_template_variables,
         )
+
+
+async def test_aembedding_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        await litellm.aembedding(model="invalid-model-name", input=["good morning from litellm"])
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "aembedding"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = exception_events[0].attributes
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -864,6 +969,34 @@ def test_image_generation_b64json(
         )
 
 
+def test_image_generation_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        litellm.image_generation(
+            model="invalid-model-name",
+            prompt="a sunrise over the mountains",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "image_generation"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = exception_events[0].attributes
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
+
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_aimage_generation(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -929,6 +1062,34 @@ async def test_aimage_generation(
             prompt_template_version,
             prompt_template_variables,
         )
+
+
+async def test_aimage_generation_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        await litellm.aimage_generation(
+            model="invalid-model-name",
+            prompt="a sunrise over the mountains",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "aimage_generation"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = exception_events[0].attributes
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
 
 
 def test_uninstrument(tracer_provider: TracerProvider) -> None:
