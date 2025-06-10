@@ -96,7 +96,7 @@ class _ResponseAttributesExtractor:
         # Always yield message content, even if empty
         # This ensures Phoenix can properly display the message structure
         if has_any_parts:
-            content = "\n".join(text_content) if text_content else None
+            content = "\n".join(text_content) if text_content else ""
             yield MessageAttributes.MESSAGE_CONTENT, content
 
     def _get_attributes_from_function_call(
