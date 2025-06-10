@@ -9,7 +9,10 @@
         },
         "python/openinference-instrumentation": {
             "package-name": "python-openinference-instrumentation",
-            "release-type": "python"
+            "release-type": "python",
+            "exclude-paths": [
+                ".gitignore"
+            ]
         },
         "python/instrumentation/openinference-instrumentation-agno": {
             "package-name": "python-openinference-instrumentation-agno",
