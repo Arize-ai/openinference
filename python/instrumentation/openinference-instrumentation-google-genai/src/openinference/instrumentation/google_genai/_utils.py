@@ -37,7 +37,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
             logger.exception("Failed to dump json")
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
-    
+
     # Try to convert Google GenAI objects to a better dict representation
     if hasattr(obj, "__dict__") and not isinstance(obj, (str, int, float, bool)):
         try:
@@ -47,7 +47,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
         except Exception:
             logger.exception("Failed to convert Google GenAI object to dict")
-    
+
     return _ValueAndType(str(obj), OpenInferenceMimeTypeValues.TEXT)
 
 
@@ -55,20 +55,20 @@ def _convert_google_genai_object_to_dict(obj: Any) -> Any:
     """Convert Google GenAI objects to dictionary representation for better JSON serialization."""
     if obj is None or isinstance(obj, (str, int, float, bool)):
         return obj
-    
+
     if isinstance(obj, (list, tuple)):
         return [_convert_google_genai_object_to_dict(item) for item in obj]
-    
+
     if isinstance(obj, dict):
         return {k: _convert_google_genai_object_to_dict(v) for k, v in obj.items()}
-    
+
     # Handle objects with model_dump method (Pydantic models)
     if hasattr(obj, "model_dump") and callable(obj.model_dump):
         try:
             return obj.model_dump(exclude_unset=True)
         except Exception:
             pass
-    
+
     # Handle objects with __dict__ (regular Python objects)
     if hasattr(obj, "__dict__"):
         try:
@@ -83,11 +83,11 @@ def _convert_google_genai_object_to_dict(obj: Any) -> Any:
             return result
         except Exception:
             pass
-    
+
     # Handle enum types
-    if hasattr(obj, 'value'):
+    if hasattr(obj, "value"):
         return obj.value
-    
+
     # Fallback to string representation for truly unhandleable objects
     return str(obj)
 

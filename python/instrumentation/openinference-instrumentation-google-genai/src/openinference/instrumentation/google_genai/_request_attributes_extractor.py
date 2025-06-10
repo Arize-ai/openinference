@@ -43,7 +43,7 @@ class _RequestAttributesExtractor:
                 f"Failed to get input attributes from request parameters of "
                 f"type {type(request_parameters)}"
             )
-        
+
         # Extract tools as high-priority attributes (avoid 128 attribute limit dropping them)
         if isinstance(request_parameters, Mapping):
             if config := request_parameters.get("config", None):
@@ -150,7 +150,7 @@ class _RequestAttributesExtractor:
             return
 
         tool_index = 0  # Track across all function declarations
-        
+
         for tool in tools:
             try:
                 # Handle different types of tools
@@ -186,24 +186,24 @@ class _RequestAttributesExtractor:
                         safe_json_dumps(tool_dict),
                     )
                     tool_index += 1
-                    
+
             except Exception:
                 logger.exception(f"Failed to serialize tool: {tool}")
 
     def _convert_to_flattened_format(self, func_decl: Dict[str, Any]) -> Dict[str, Any]:
         """Convert Google GenAI function declaration to flattened format."""
         flattened_tool = {}
-        
+
         # Copy name and description directly
         if "name" in func_decl:
             flattened_tool["name"] = func_decl["name"]
         if "description" in func_decl:
             flattened_tool["description"] = func_decl["description"]
-            
+
         # Convert 'parameters' to 'input_schema' for flattened format
         if "parameters" in func_decl:
             flattened_tool["parameters"] = func_decl["parameters"]
-            
+
         return flattened_tool
 
     def _convert_automatic_function_to_schema(self, func: Callable[..., Any]) -> Dict[str, Any]:

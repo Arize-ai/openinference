@@ -492,7 +492,8 @@ def test_generate_content_with_tool(
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text or None,
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
+        or None,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
@@ -521,7 +522,7 @@ def test_generate_content_with_tool(
                 },
             },
             "required": ["location"],
-        }
+        },
     }
 
     assert tool_schema == expected_tool_schema, (
@@ -675,7 +676,7 @@ def test_generate_content_with_raw_json_tool(
                 },
             },
             "required": ["location"],
-        }
+        },
     }
     assert tool_schema == expected_tool_schema, (
         f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
@@ -836,7 +837,7 @@ def test_streaming_content_with_tool(
                 },
             },
             "required": ["location"],
-        }
+        },
     }
     assert tool_schema == expected_tool_schema, (
         f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
@@ -993,7 +994,7 @@ def test_chat_session_with_tool(
                 },
             },
             "required": ["location"],
-        }
+        },
     }
     assert tool_schema == expected_tool_schema, (
         f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
