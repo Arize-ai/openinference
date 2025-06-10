@@ -4,19 +4,17 @@ from typing import Any, Dict, Generator, Optional, Sequence, Union
 
 import pytest
 from haystack import Document
-from haystack.components.builders import ChatPromptBuilder
+from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.components.embedders import OpenAIDocumentEmbedder
-from haystack.components.generators import OpenAIGenerator
-from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.components.retrievers.in_memory import (
-    InMemoryBM25Retriever,
-)
+from haystack.components.embedders.openai_document_embedder import OpenAIDocumentEmbedder
+from haystack.components.generators.chat.openai import OpenAIChatGenerator
+from haystack.components.generators.openai import OpenAIGenerator
+from haystack.components.retrievers.in_memory.bm25_retriever import InMemoryBM25Retriever
 from haystack.components.websearch.serper_dev import SerperDevWebSearch
 from haystack.core.errors import PipelineRuntimeError
 from haystack.core.pipeline.pipeline import Pipeline
-from haystack.dataclasses import ChatMessage
-from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack.dataclasses.chat_message import ChatMessage
+from haystack.document_stores.in_memory.document_store import InMemoryDocumentStore
 from haystack_integrations.components.rankers.cohere import (  # type: ignore[import-untyped]
     CohereRanker,
 )
