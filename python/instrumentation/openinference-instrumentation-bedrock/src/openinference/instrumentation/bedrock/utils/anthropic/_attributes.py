@@ -25,13 +25,13 @@ from openinference.semconv.trace import (
 
 
 def _get_input_messages(content: Any) -> List[Message]:
-    messages = list()
+    messages = []
     for message in content:
         if isinstance(message.get("content"), str):
             messages.append(Message(content=message.get("content"), role=message.get("role")))
         elif isinstance(message.get("content"), Iterable):
-            contents: List[Any] = list()
-            tool_calls: List[ToolCall] = list()
+            contents: List[Any] = []
+            tool_calls: List[ToolCall] = []
             for part_content in message.get("content"):
                 if part_content.get("type") == "image":
                     base64_img = part_content.get("source", {}).get("data")
@@ -63,12 +63,15 @@ def _get_input_messages(content: Any) -> List[Message]:
 
 
 def _get_llm_token_counts(usage: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
-    if prompt_tokens := (
-        usage.get("input_tokens")
-        or 0
-        + (usage.get("cache_creation_input_tokens") or 0)
-        + (usage.get("cache_read_input_tokens") or 0)
-    ):
+    prompt_tokens = sum(
+        usage.get(key, 0)
+        for key in [
+            "input_tokens",
+            "cache_creation_input_tokens",
+            "cache_read_input_tokens",
+        ]
+    )
+    if prompt_tokens:
         yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
 
     if usage.get("output_tokens"):
@@ -90,18 +93,14 @@ def _get_invocation_parameters(kwargs: Mapping[str, Any]) -> Any:
     """
     Extracts the invocation parameters from the call
     """
-    invocation_parameters = {}
-    for key, value in kwargs.items():
-        if _validate_invocation_parameter(key):
-            invocation_parameters[key] = value
-    return invocation_parameters
+    return {key: value for key, value in kwargs.items() if _validate_invocation_parameter(key)}
 
 
 def _get_output_messages(response: Any) -> Any:
     """
     Extracts the tool call information from the response
     """
-    output_messages = list()
+    output_messages = []
     for block in response.get("content", []):
         if block.get("type") == "tool_use":
             tool_call_function = ToolCallFunction(

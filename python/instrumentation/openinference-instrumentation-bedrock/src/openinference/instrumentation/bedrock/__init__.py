@@ -436,9 +436,8 @@ def set_token_counts(span: Span, metadata: Dict[str, Any]) -> None:
 
 
 def is_anthropic_model(model_id: str) -> bool:
-    if model_id:
-        if isinstance(model_id, str):
-            (vendor, *_) = model_id.split(".")
-            if vendor == "anthropic":
-                return True
+    if model_id and isinstance(model_id, str):
+        (vendor, *_) = model_id.split(".")
+        if vendor == "anthropic":
+            return True
     return False

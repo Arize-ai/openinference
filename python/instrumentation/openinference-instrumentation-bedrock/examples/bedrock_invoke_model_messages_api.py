@@ -45,17 +45,15 @@ def claude3_invoke_model():
 
 
 def sanitize_format(fmt: str) -> str:
-    if fmt == "jpg":
-        return "jpeg"
-    return fmt
+    return "jpeg" if fmt == "jpg" else fmt
 
 
 def download_img(url: str):
-    format = sanitize_format(os.path.splitext(url)[-1].lstrip("."))
+    img_format = sanitize_format(os.path.splitext(url)[-1].lstrip("."))
     resp = requests.get(url)
     if resp.status_code != 200:
         raise ValueError(f"Error: Could not retrieve image from URL: {url}")
-    return resp.content, format
+    return resp.content, img_format
 
 
 def invoke_image_call():
@@ -65,7 +63,7 @@ def invoke_image_call():
         "https://a1cf74336522e87f135f-2f21ace9a6cf0052456644b80fa06d4f.ssl.cf2.rackcdn.com"
         "/images/characters/large/800/Homer-Simpson.The-Simpsons.webp"
     )
-    img_bytes, format = download_img(img_url)
+    img_bytes, img_format = download_img(img_url)
 
     message = {
         "messages": [
@@ -80,7 +78,7 @@ def invoke_image_call():
                         "type": "image",
                         "source": {
                             "type": "base64",
-                            "media_type": "image/" + format,
+                            "media_type": f"image/{img_format}",
                             "data": base64.b64encode(img_bytes).decode("utf-8"),
                         },
                     },
@@ -100,5 +98,5 @@ def invoke_image_call():
 
 
 if __name__ == "__main__":
-    # invoke_image_call()
+    invoke_image_call()
     claude3_invoke_model()
