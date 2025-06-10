@@ -12,6 +12,7 @@ from typing import (
     Mapping,
     OrderedDict,
     TypedDict,
+    TypeVar,
 )
 
 import wrapt
@@ -28,7 +29,7 @@ from google.genai.types import MediaModality
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import get_current_span
+from opentelemetry.trace import StatusCode, get_current_span
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import NotRequired, ParamSpec
 
@@ -41,6 +42,7 @@ from openinference.instrumentation import (
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -50,6 +52,9 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 class _WithTracer(ABC):
@@ -134,6 +139,7 @@ class _RunnerRunAsync(_WithTracer):
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
                                 )
                         yield event
+                    span.set_status(StatusCode.OK)
 
         return _AsyncGenerator(generator)
 
@@ -179,37 +185,50 @@ class _BaseAgentRunAsync(_WithTracer):
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
                                 )
                         yield event
+                    span.set_status(StatusCode.OK)
 
         return _AsyncGenerator(generator)
 
 
-class _BaseLlmFlowCallLlmAsync(_WithTracer):
+class _TraceCallLlm(_WithTracer):
+    @wrapt.decorator  # type: ignore[misc]
     def __call__(
         self,
-        wrapped: Callable[..., AsyncGenerator[LlmResponse, None]],
-        instance: BaseAgent,
+        wrapped: Callable[..., T],
+        _: Any,
         args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
-    ) -> Any:
-        generator = wrapped(*args, **kwargs)
+    ) -> T:
+        ans = wrapped(*args, **kwargs)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-            return generator
-
-        tracer = self._tracer
-        name = "call_llm"
-        attributes = dict(get_attributes_from_context())
-        attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
-
+            return ans
+        span = get_current_span()
+        span.set_status(StatusCode.OK)  # Pre-emptively set status to OK
+        span.set_attribute(
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            OpenInferenceSpanKindValues.LLM.value,
+        )
         arguments = bind_args_kwargs(wrapped, *args, **kwargs)
         llm_request = next((arg for arg in arguments.values() if isinstance(arg, LlmRequest)), None)
-
+        llm_response = next(
+            (arg for arg in arguments.values() if isinstance(arg, LlmResponse)), None
+        )
         input_messages_index = 0
         if llm_request:
+            span.set_attribute(
+                SpanAttributes.LLM_PROVIDER,
+                OpenInferenceLLMProviderValues.GOOGLE.value,
+            )  # TODO: other providers may also be possible
+
             try:
-                attributes[SpanAttributes.INPUT_VALUE] = safe_json_dumps(
-                    _build_llm_request_for_trace(llm_request)
+                span.set_attribute(
+                    SpanAttributes.INPUT_VALUE,
+                    safe_json_dumps(_build_llm_request_for_trace(llm_request)),
                 )
-                attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+                span.set_attribute(
+                    SpanAttributes.INPUT_MIME_TYPE,
+                    OpenInferenceMimeTypeValues.JSON.value,
+                )
             except Exception:
                 logger.exception(f"Failed to get attribute: {SpanAttributes.INPUT_VALUE}.")
 
@@ -219,23 +238,25 @@ class _BaseLlmFlowCallLlmAsync(_WithTracer):
                         tool,
                         prefix=f"{SpanAttributes.LLM_TOOLS}.{i}.",
                     ):
-                        attributes[k] = v
+                        span.set_attribute(k, v)
 
             if llm_request.model:
-                attributes[SpanAttributes.LLM_MODEL_NAME] = llm_request.model
+                span.set_attribute(SpanAttributes.LLM_MODEL_NAME, llm_request.model)
 
             if config := llm_request.config:
                 for k, v in _get_attributes_from_generate_content_config(config):
-                    attributes[k] = v
+                    span.set_attribute(k, v)
 
                 if system_instruction := config.system_instruction:
-                    attributes[
-                        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_ROLE}"
-                    ] = "system"
+                    span.set_attribute(
+                        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_ROLE}",
+                        "system",
+                    )
                     if isinstance(system_instruction, str):
-                        attributes[
-                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}"
-                        ] = system_instruction
+                        span.set_attribute(
+                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
+                            system_instruction,
+                        )
                     elif isinstance(system_instruction, types.Content):
                         if system_instruction.parts:
                             for k, v in _get_attributes_from_parts(
@@ -243,7 +264,7 @@ class _BaseLlmFlowCallLlmAsync(_WithTracer):
                                 prefix=f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.",
                                 text_only=True,
                             ):
-                                attributes[k] = v
+                                span.set_attribute(k, v)
                     elif isinstance(system_instruction, list):
                         # TODO
                         pass
@@ -255,80 +276,69 @@ class _BaseLlmFlowCallLlmAsync(_WithTracer):
                         content,
                         prefix=f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}.",
                     ):
-                        attributes[k] = v
-
-        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc]
-            __wrapped__: AsyncGenerator[LlmResponse, None]
-
-            async def __aiter__(self) -> Any:
-                with tracer.start_as_current_span(
-                    name=name,
-                    attributes=attributes,
-                ) as span:
-                    async for llm_response in self.__wrapped__:
-                        for k, v in _get_attributes_from_llm_response(llm_response):
-                            span.set_attribute(k, v)
-                        yield llm_response
-
-        return _AsyncGenerator(generator)
+                        span.set_attribute(k, v)
+        if llm_response:
+            for k, v in _get_attributes_from_llm_response(llm_response):
+                span.set_attribute(k, v)
+        return ans
 
 
 class _TraceToolCall(_WithTracer):
     @wrapt.decorator  # type: ignore[misc]
     def __call__(
         self,
-        wrapped: Callable[..., None],
-        instance: BaseAgent,
+        wrapped: Callable[..., T],
+        _: Any,
         args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
-    ) -> None:
-        if not context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-            span = get_current_span()
-            span.set_attribute(
-                SpanAttributes.OPENINFERENCE_SPAN_KIND,
-                OpenInferenceSpanKindValues.TOOL.value,
-            )
-            arguments = bind_args_kwargs(wrapped, *args, **kwargs)
-            if base_tool := next(
-                (arg for arg in arguments.values() if isinstance(arg, BaseTool)), None
+    ) -> T:
+        ans = wrapped(*args, **kwargs)
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return ans
+        span = get_current_span()
+        span.set_status(StatusCode.OK)  # Pre-emptively set status to OK
+        span.set_attribute(
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            OpenInferenceSpanKindValues.TOOL.value,
+        )
+        arguments = bind_args_kwargs(wrapped, *args, **kwargs)
+        if base_tool := next(
+            (arg for arg in arguments.values() if isinstance(arg, BaseTool)), None
+        ):
+            span.set_attribute(SpanAttributes.TOOL_NAME, base_tool.name)
+            span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, base_tool.description)
+            if args_dict := next(
+                (arg for arg in arguments.values() if isinstance(arg, Mapping)), None
             ):
-                span.set_attribute(SpanAttributes.TOOL_NAME, base_tool.name)
-                span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, base_tool.description)
-                if args_dict := next(
-                    (arg for arg in arguments.values() if isinstance(arg, Mapping)), None
-                ):
-                    try:
-                        span.set_attribute(
-                            SpanAttributes.TOOL_PARAMETERS,
-                            safe_json_dumps(args_dict),
-                        )
-                        span.set_attribute(
-                            SpanAttributes.INPUT_VALUE,
-                            safe_json_dumps(args_dict),
-                        )
-                        span.set_attribute(
-                            SpanAttributes.INPUT_MIME_TYPE,
-                            OpenInferenceMimeTypeValues.JSON.value,
-                        )
-                    except Exception:
-                        logger.exception(f"Failed to get attribute: {SpanAttributes.INPUT_VALUE}.")
-            if event := next((arg for arg in arguments.values() if isinstance(arg, Event)), None):
-                if responses := event.get_function_responses():
-                    try:
-                        span.set_attribute(
-                            SpanAttributes.OUTPUT_VALUE,
-                            responses[0].model_dump_json(exclude_none=True),
-                        )
-                        span.set_attribute(
-                            SpanAttributes.OUTPUT_MIME_TYPE,
-                            OpenInferenceMimeTypeValues.JSON.value,
-                        )
-                    except Exception:
-                        logger.exception(f"Failed to get attribute in {wrapped.__name__}.")
-        return wrapped(*args, **kwargs)
-
-
-P = ParamSpec("P")
+                try:
+                    span.set_attribute(
+                        SpanAttributes.TOOL_PARAMETERS,
+                        safe_json_dumps(args_dict),
+                    )
+                    span.set_attribute(
+                        SpanAttributes.INPUT_VALUE,
+                        safe_json_dumps(args_dict),
+                    )
+                    span.set_attribute(
+                        SpanAttributes.INPUT_MIME_TYPE,
+                        OpenInferenceMimeTypeValues.JSON.value,
+                    )
+                except Exception:
+                    logger.exception(f"Failed to get attribute: {SpanAttributes.INPUT_VALUE}.")
+        if event := next((arg for arg in arguments.values() if isinstance(arg, Event)), None):
+            if responses := event.get_function_responses():
+                try:
+                    span.set_attribute(
+                        SpanAttributes.OUTPUT_VALUE,
+                        responses[0].model_dump_json(exclude_none=True),
+                    )
+                    span.set_attribute(
+                        SpanAttributes.OUTPUT_MIME_TYPE,
+                        OpenInferenceMimeTypeValues.JSON.value,
+                    )
+                except Exception:
+                    logger.exception(f"Failed to get attribute in {wrapped.__name__}.")
+        return ans
 
 
 def stop_on_exception(

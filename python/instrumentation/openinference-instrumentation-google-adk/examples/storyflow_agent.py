@@ -80,7 +80,7 @@ class StoryFlowAgent(BaseAgent):
         """
         # Create internal agents *before* calling super().__init__
         loop_agent = LoopAgent(
-            name="CriticReviserLoop", sub_agents=[critic, reviser], max_iterations=1
+            name="CriticReviserLoop", sub_agents=[critic, reviser], max_iterations=2
         )
         sequential_agent = SequentialAgent(
             name="PostProcessing", sub_agents=[grammar_check, tone_check]

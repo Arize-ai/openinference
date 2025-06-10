@@ -68,6 +68,7 @@ async def test_google_adk_instrumentor(
     assert len(spans) == 5
 
     invocation_span = spans_by_name[f"invocation [{app_name}]"][0]
+    assert invocation_span.status.is_ok
     assert not invocation_span.parent
     invocation_attributes = dict(invocation_span.attributes or {})
     assert invocation_attributes.pop("user.id", None) == user_id
@@ -80,6 +81,7 @@ async def test_google_adk_instrumentor(
     assert not invocation_attributes
 
     agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
+    assert agent_run_span.status.is_ok
     assert agent_run_span.parent
     assert agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
     agent_run_attributes = dict(agent_run_span.attributes or {})
@@ -91,6 +93,7 @@ async def test_google_adk_instrumentor(
     assert not agent_run_attributes
 
     call_llm_span0 = spans_by_name["call_llm"][0]
+    assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
     assert call_llm_span0.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
@@ -135,6 +138,7 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 106
     assert call_llm_attributes0.pop("llm.token_count.total", None) == 112
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
+    assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes0.pop("gcp.vertex.agent.invocation_id", None)
     assert call_llm_attributes0.pop("gcp.vertex.agent.llm_request", None)
@@ -145,6 +149,7 @@ async def test_google_adk_instrumentor(
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
+    assert tool_span.status.is_ok
     assert tool_span.parent
     assert tool_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
     tool_attributes = dict(tool_span.attributes or {})
@@ -180,6 +185,7 @@ async def test_google_adk_instrumentor(
     assert not tool_attributes
 
     call_llm_span1 = spans_by_name["call_llm"][1]
+    assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
     assert call_llm_span1.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
     call_llm_attributes1 = dict(call_llm_span1.attributes or {})
@@ -243,6 +249,7 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 140
     assert call_llm_attributes1.pop("llm.token_count.total", None) == 165
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
+    assert call_llm_attributes1.pop("llm.provider", None) == "google"
     assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
     assert call_llm_attributes1.pop("gcp.vertex.agent.invocation_id", None)
     assert call_llm_attributes1.pop("gcp.vertex.agent.llm_request", None)
