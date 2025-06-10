@@ -4,10 +4,10 @@ version = "0.1.0"
 description = "Streamlit frontend for DSPy"
 authors = ["diicell", "mikeldking"]
 license = "MIT"
-readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.10, <3.11"
+python = ">=3.12, <3.13"
 streamlit = "^1.32.0"
 python-dotenv = "^1.0.1"
 

@@ -9,6 +9,7 @@ from contextlib import suppress
 from contextvars import copy_context
 from functools import partial
 from importlib.metadata import version
+from secrets import token_hex
 from typing import (
     Any,
     AsyncIterator,
@@ -19,27 +20,36 @@ from typing import (
     List,
     Optional,
     Tuple,
+    Union,
 )
+from unittest.mock import patch
 
 import numpy as np
 import openai
 import pytest
+import vcr  # type: ignore
+from google.auth.credentials import AnonymousCredentials
 from httpx import AsyncByteStream, Response, SyncByteStream
 from langchain.chains import LLMChain, RetrievalQA
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnableSerializable
+from langchain_google_vertexai import VertexAI
 from langchain_openai import ChatOpenAI
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
+from opentelemetry.util._importlib_metadata import entry_points
 from respx import MockRouter
+from typing_extensions import assert_never
 
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.langchain import (
+    LangChainInstrumentor,
     get_ancestor_spans,
     get_current_span,
 )
@@ -47,9 +57,11 @@ from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -62,6 +74,15 @@ for name, logger in logging.root.manager.loggerDict.items():
 LANGCHAIN_VERSION = tuple(map(int, version("langchain-core").split(".")[:3]))
 LANGCHAIN_OPENAI_VERSION = tuple(map(int, version("langchain-openai").split(".")[:3]))
 SUPPORTS_TEMPLATES = LANGCHAIN_VERSION < (0, 3, 0)
+
+
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="langchain"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, LangChainInstrumentor)
 
 
 @pytest.mark.parametrize("is_async", [False, True])
@@ -93,6 +114,16 @@ async def test_get_current_span(
         id(span.get_span_context())  # type: ignore[no-untyped-call]
         for span in spans
     }
+
+
+def test_get_current_span_when_there_is_no_tracer() -> None:
+    instrumentor = LangChainInstrumentor()
+    instrumentor.uninstrument()
+    del instrumentor._tracer
+    assert RunnableLambda(lambda _: (get_current_span(), get_ancestor_spans())).invoke(0) == (
+        None,
+        [],
+    )
 
 
 async def test_get_ancestor_spans(
@@ -127,13 +158,13 @@ async def test_get_ancestor_spans(
     ancestors_after_execution = get_ancestor_spans()
     assert ancestors_after_execution == [], "No ancestors after execution"
 
-    assert (
-        len(ancestors_during_execution) == 2 * n
-    ), "Did not capture all ancestors during execution"
+    assert len(ancestors_during_execution) == 2 * n, (
+        "Did not capture all ancestors during execution"
+    )
 
-    assert (
-        len(set(id(span) for span in ancestors_during_execution)) == n
-    ), "Both Lambdas share the same ancestor"
+    assert len(set(id(span) for span in ancestors_during_execution)) == n, (
+        "Both Lambdas share the same ancestor"
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
@@ -171,13 +202,13 @@ async def test_get_ancestor_spans_async(
     ancestors_after_execution = get_ancestor_spans()
     assert ancestors_after_execution == [], "No ancestors after execution"
 
-    assert (
-        len(ancestors_during_execution) == 2 * n
-    ), "Did not capture all ancestors during execution"
+    assert len(ancestors_during_execution) == 2 * n, (
+        "Did not capture all ancestors during execution"
+    )
 
-    assert (
-        len(set(id(span) for span in ancestors_during_execution)) == n
-    ), "Both Lambdas share the same ancestor"
+    assert len(set(id(span) for span in ancestors_during_execution)) == n, (
+        "Both Lambdas share the same ancestor"
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
@@ -186,6 +217,7 @@ async def test_get_ancestor_spans_async(
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
+@pytest.mark.flaky(reruns=5, reruns_delay=1)  # test is flaky when is_stream is true
 def test_callback_llm(
     is_async: bool,
     is_stream: bool,
@@ -445,10 +477,68 @@ def test_callback_llm(
                 }
         # Ignore metadata since LC adds a bunch of unstable metadata
         oai_attributes.pop(METADATA, None)
-        assert oai_attributes == {}
+        if status_code == 200:
+            assert oai_attributes == {}
 
         assert spans_by_name == {}
     assert len(questions) == 0
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        SystemMessage(name=token_hex(8), content=token_hex(8)),
+        SystemMessage(content=[token_hex(8), token_hex(8)]),
+        HumanMessage(name=token_hex(8), content=token_hex(8)),
+        HumanMessage(content=[token_hex(8), token_hex(8)]),
+        AIMessage(name=token_hex(8), content=token_hex(8)),
+        AIMessage(content=[token_hex(8), token_hex(8)]),
+        ToolMessage(name=token_hex(8), tool_call_id=token_hex(8), content=token_hex(8)),
+        ToolMessage(tool_call_id=token_hex(8), content=[token_hex(8), token_hex(8)]),
+    ],
+)
+def test_input_messages(
+    message: Union[SystemMessage, HumanMessage, AIMessage, ToolMessage],
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    n = 2
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_mock.post(url).mock(Response(400))
+    with suppress(openai.BadRequestError):
+        ChatOpenAI().invoke([message] * n)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    for i in range(n):
+        prefix = f"{LLM_INPUT_MESSAGES}.{i}"
+        key = f"{prefix}.{MESSAGE_ROLE}"
+        if isinstance(message, SystemMessage):
+            assert attributes[key] == "system"
+        elif isinstance(message, HumanMessage):
+            assert attributes[key] == "user"
+        elif isinstance(message, AIMessage):
+            assert attributes[key] == "assistant"
+        elif isinstance(message, ToolMessage):
+            assert attributes[key] == "tool"
+        else:
+            assert_never(message)
+        if message.name:
+            key = f"{prefix}.{MESSAGE_NAME}"
+            assert attributes[key] == message.name
+        if isinstance(message.content, str):
+            key = f"{prefix}.{MESSAGE_CONTENT}"
+            assert attributes[key] == message.content
+        elif isinstance(message.content, list):
+            for j in range(len(message.content)):
+                key = f"{prefix}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TEXT}"
+                assert attributes[key] == message.content[j]
+        else:
+            assert_never(message.content)
+        if isinstance(message, ToolMessage):
+            key = f"{prefix}.{MESSAGE_TOOL_CALL_ID}"
+            assert attributes[key] == message.tool_call_id
 
 
 def test_anthropic_token_counts(
@@ -471,7 +561,12 @@ def test_anthropic_token_counts(
                 "content": [{"type": "text", "text": "Argentina."}],
                 "stop_reason": "end_turn",
                 "stop_sequence": None,
-                "usage": {"input_tokens": 22, "output_tokens": 5},
+                "usage": {
+                    "input_tokens": 22,
+                    "output_tokens": 5,
+                    "cache_read_input_tokens": 9,
+                    "cache_creation_input_tokens": 2,
+                },
             },
         )
     )
@@ -484,6 +579,45 @@ def test_anthropic_token_counts(
     assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
     assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == 22
     assert llm_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == 5
+    assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 2
+    assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 9
+
+
+@pytest.mark.parametrize(
+    "streaming, cassette_name",
+    [
+        (True, "test_gemini_token_counts_streaming"),
+        (False, "test_gemini_token_counts"),
+    ],
+)
+@pytest.mark.vcr(
+    match_on=["method", "uri"],
+)
+def test_gemini_token_counts_streaming(
+    streaming: bool,
+    cassette_name: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with patch("google.auth.default", return_value=(AnonymousCredentials(), "test-project")) as _:  # type: ignore
+        # patching with AnonymousCredentials in order to avoid a check on CI where a metadata
+        # request will be made because the job is running in GCE.
+        # ignoring types until https://github.com/googleapis/google-cloud-python/issues/10540
+        with vcr.use_cassette(path=f"tests/cassettes/test_instrumentor/{cassette_name}.yaml"):
+            llm = VertexAI(
+                api_transport="rest",
+                project="test-project",
+                model_name="gemini-pro",
+                streaming=streaming,
+            )
+            llm.invoke("Tell me a funny joke, a one-liner.")
+            spans = in_memory_span_exporter.get_finished_spans()
+            assert len(spans) == 1
+            span = spans[0]
+            attributes = dict(span.attributes or {})
+            assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
+            assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT, None), int)
+            assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None), int)
+            assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -502,8 +636,6 @@ def test_chain_metadata(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    if use_context_attributes:
-        pytest.skip("Merge metadata failing due to #866")
     url = "https://api.openai.com/v1/chat/completions"
     output_val = "nock nock"
     respx_kwargs: Dict[str, Any] = {
@@ -526,6 +658,7 @@ def test_chain_metadata(
         langchain_metadata = {"category": "jokes"}
         llm = LLMChain(llm=ChatOpenAI(), prompt=prompt, metadata=langchain_metadata)
     else:
+        langchain_metadata = {}
         llm = LLMChain(llm=ChatOpenAI(), prompt=prompt)
     langchain_prompt_variables = {
         "adjective": "funny",
@@ -553,7 +686,10 @@ def test_chain_metadata(
     llm_attributes = dict(llm_chain_span.attributes or {})
     assert llm_attributes
     if use_langchain_metadata:
-        check_metadata = langchain_metadata
+        if use_context_attributes:
+            check_metadata = {**metadata, **langchain_metadata}
+        else:
+            check_metadata = langchain_metadata
     else:
         if use_context_attributes:
             check_metadata = metadata
@@ -566,9 +702,11 @@ def test_chain_metadata(
         user_id=user_id if use_context_attributes else None,
         metadata=check_metadata,
         tags=tags if use_context_attributes else None,
-        prompt_template=langchain_prompt_template,
+        prompt_template=langchain_prompt_template
+        if LANGCHAIN_VERSION < (0, 3, 0)
+        else (prompt_template if use_context_attributes else None),
         prompt_template_version=prompt_template_version if use_context_attributes else None,
-        prompt_template_variables=langchain_prompt_variables,
+        prompt_template_variables=langchain_prompt_variables if use_context_attributes else None,
     )
     assert (
         llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.CHAIN.value
@@ -635,9 +773,6 @@ def test_read_session_from_metadata(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    if use_context_attributes:
-        pytest.skip("Merge metadata failing due to #866")
-
     url = "https://api.openai.com/v1/chat/completions"
     output_val = "nock nock"
     respx_kwargs: Dict[str, Any] = {
@@ -689,11 +824,15 @@ def test_read_session_from_metadata(
         attributes=llm_attributes,
         session_id=expected_session_id,
         user_id=user_id if use_context_attributes else None,
-        metadata=langchain_metadata,
+        metadata={**metadata, **langchain_metadata}
+        if use_context_attributes
+        else langchain_metadata,
         tags=tags if use_context_attributes else None,
-        prompt_template=langchain_prompt_template,
+        prompt_template=langchain_prompt_template
+        if LANGCHAIN_VERSION < (0, 3, 0)
+        else (prompt_template if use_context_attributes else None),
         prompt_template_version=prompt_template_version if use_context_attributes else None,
-        prompt_template_variables=langchain_prompt_variables,
+        prompt_template_variables=langchain_prompt_variables if use_context_attributes else None,
     )
     assert (
         llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.CHAIN.value
@@ -746,7 +885,6 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
 )
 def test_records_token_counts_for_streaming_openai_llm(
     in_memory_span_exporter: InMemorySpanExporter,
-    openai_api_key: str,
 ) -> None:
     llm = ChatOpenAI(streaming=True, stream_usage=True)  # type: ignore[call-arg,unused-ignore]
     llm.invoke("Tell me a funny joke, a one-liner.")
@@ -758,6 +896,134 @@ def test_records_token_counts_for_streaming_openai_llm(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT, None), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_token_counts(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from langchain.chat_models import init_chat_model
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    llm = init_chat_model("gpt-4o-mini", model_provider="openai")
+    messages = [
+        SystemMessage("Translate the following from English into Italian"),
+        HumanMessage("hi!"),
+    ]
+    llm.invoke(messages)
+
+    # The token counts in the mocked responses in the file
+    # "cassettes/test_instrumentor/test_token_counts.yaml"
+    # are not accurate representations of the actual token counts fro API calls.
+    # They were manually altered/hard coded for test assertions.
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attr = dict(span.attributes or {})
+    assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == 20
+    assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == 4
+    assert attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO) == 4
+    assert attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING) == 3
+    assert attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO) == 2
+    assert attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 1
+    assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == 24
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+    cassette_library_dir="tests/cassettes/test_instrumentor",  # Explicitly set the directory
+)
+def test_tool_call_with_function(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from langchain.chat_models import init_chat_model
+    from langchain_core.messages import AIMessage
+    from langchain_core.tools import tool
+
+    @tool
+    def add(a: int, b: int) -> int:
+        """Adds a and b."""
+        return a + b
+
+    @tool
+    def multiply(a: int, b: int) -> int:
+        """Multiplies a and b."""
+        return a * b
+
+    tools = [add, multiply]
+
+    llm = init_chat_model(
+        "gpt-4o-mini",
+        model_provider="openai",
+        api_key="sk-fake-key",
+    )
+    llm_with_tools = llm.bind_tools(tools)
+    query = "What is 3 * 12? Also, what is 11 + 49?"
+    result = llm_with_tools.invoke(query)
+    assert isinstance(result, AIMessage)
+    _ = result.tool_calls
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Test input message
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert attributes.pop("llm.input_messages.0.message.content") == query
+
+    # Test output message and tool calls
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+
+    # Test first tool call (multiply)
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.name")
+        == "multiply"
+    )
+    multiply_args = attributes.pop(
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+    )
+    assert isinstance(multiply_args, str)
+    assert json.loads(multiply_args) == {"a": 3, "b": 12}
+
+    # Test second tool call (add)
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.function.name")
+        == "add"
+    )
+    add_args = attributes.pop(
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments"
+    )
+    assert isinstance(add_args, str)
+    assert json.loads(add_args) == {"a": 11, "b": 49}
+
+    # Test tool schemas
+    tool1_schema = attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}", None)
+    tool2_schema = attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}", None)
+    assert tool1_schema is not None
+    assert tool2_schema is not None
+    assert isinstance(tool1_schema, str)
+    assert isinstance(tool2_schema, str)
+
+    tool1_schema_dict = json.loads(tool1_schema)
+    assert tool1_schema_dict["type"] == "function"
+    assert tool1_schema_dict["function"]["name"] == "add"
+    assert tool1_schema_dict["function"]["description"] == "Adds a and b."
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["a"]["type"] == "integer"
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["b"]["type"] == "integer"
+
+    tool2_schema_dict = json.loads(tool2_schema)
+    assert tool2_schema_dict["type"] == "function"
+    assert tool2_schema_dict["function"]["name"] == "multiply"
+    assert tool2_schema_dict["function"]["description"] == "Multiplies a and b."
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["a"]["type"] == "integer"
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["b"]["type"] == "integer"
 
 
 def _check_context_attributes(
@@ -785,19 +1051,14 @@ def _check_context_attributes(
         assert attr_tags is not None
         assert len(attr_tags) == len(tags)
         assert list(attr_tags) == tags
-    if prompt_template is not None and SUPPORTS_TEMPLATES:
-        # Langchain less than 0.3.0 has templates
+    if prompt_template is not None:
         assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE, None) == prompt_template
     if prompt_template_version:
         assert (
             attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, None)
             == prompt_template_version
         )
-    if prompt_template_variables and SUPPORTS_TEMPLATES:
-        # print(prompt_template_variables)
-        # x = attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None)
-        # print(x)
-        # assert x == json.dumps(prompt_template_variables)
+    if prompt_template_variables:
         x = attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None)
         assert x
 
@@ -932,13 +1193,26 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
+MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
@@ -946,8 +1220,8 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
-LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
-LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
 LLM = OpenInferenceSpanKindValues.LLM

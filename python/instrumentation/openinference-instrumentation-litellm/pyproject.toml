@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference liteLLM Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8, <3.13"
+requires-python = ">=3.9, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,19 +18,20 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation",
-  "openinference-instrumentation>=0.1.17",
-  "openinference-semantic-conventions>=0.1.9",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.17",
   "wrapt",
+  "setuptools",
 ]
 
 [project.optional-dependencies]
@@ -38,8 +39,16 @@ test = [
   "litellm",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
+  "pytest-vcr",
   "tenacity",
+  "tokenizers==0.20.3; python_version == '3.8'"
 ]
+
+[project.entry-points.opentelemetry_instrumentor]
+litellm = "openinference.instrumentation.litellm:LiteLLMInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+litellm = "openinference.instrumentation.litellm:LiteLLMInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-litellm"

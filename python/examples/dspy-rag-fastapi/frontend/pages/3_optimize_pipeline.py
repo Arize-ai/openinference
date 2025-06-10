@@ -1,15 +1,13 @@
-import streamlit as st
-import pandas as pd
-import requests
-import json
-
 import os
 
+import pandas as pd
+import requests
+import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
 
-fastapi_base_url = os.getenv("FASTAPI_BACKEND_URL", "localhost")
+fastapi_base_url = os.getenv("FASTAPI_BACKEND_URL", "http://localhost:8000")
 
 # interact with FastAPI endpoint
 backend = f"{fastapi_base_url}/api/rag/compile-program"
@@ -64,11 +62,16 @@ st.markdown(
     """
 ## Using DSPy Optimizers with Small Training Sets
 
-DSPy, a powerful framework developed by StanfordNLP, provides a suite of tools and functionalities for natural language processing tasks. One of its capabilities includes optimizing models based on a variety of input data. This page focuses on how to use DSPy optimizers with a small dataset, specifically a CSV file containing pairs of questions and answers.
+DSPy, a powerful framework developed by StanfordNLP, provides a suite of tools
+and functionalities for natural language processing tasks.
+One of its capabilities includes optimizing models based on a variety of input data.
+This page focuses on how to use DSPy optimizers with a small dataset,
+specifically a CSV file containing pairs of questions and answers.
 
 ### Preparing Your Data
 
-Your dataset should be in a CSV file with two columns: `question` and `answer`. Here's an example of what your data might look like:
+Your dataset should be in a CSV file with two columns: `question` and `answer`.
+Here's an example of what your data might look like:
 
 ```csv
 question,answer
@@ -120,7 +123,8 @@ if uploaded_file is not None:
         )
         if response.status_code == 200:
             st.success("Successfully compiled RAG program!")
-            # Parse the response JSON using Pydantic models (if the response contains data to be displayed)
+            # Parse the response JSON using Pydantic models
+            # (if the response contains data to be displayed)
             # For example, if your FastAPI returns the processed data back
             # processed_data = [QAItem(**item) for item in response.json()['processed']]
             # for item in processed_data:

@@ -1,18 +1,20 @@
 import json
-from typing import Any, Dict, List, Mapping, Optional, cast
+from typing import Any, Dict, Generator, List, Mapping, Optional, Union, cast
 from unittest.mock import patch
 
 import litellm
 import pytest
 from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
-from litellm.types.utils import EmbeddingResponse, ImageResponse, Usage
+from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
+from litellm.types.utils import Message as LitellmMessage
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -20,6 +22,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 
@@ -36,21 +39,42 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
     return tracer_provider
 
 
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(
-    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
-) -> None:
-    in_memory_span_exporter.clear()
+@pytest.fixture()
+def setup_litellm_instrumentation(
+    tracer_provider: TracerProvider,
+) -> Generator[None, None, None]:
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
-    assert isinstance(LiteLLMInstrumentor()._tracer, OITracer)
+    yield
     LiteLLMInstrumentor().uninstrument()
 
 
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="litellm"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, LiteLLMInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_litellm_instrumentation: Any) -> None:
+        assert isinstance(LiteLLMInstrumentor()._tracer, OITracer)
+
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
+@pytest.mark.parametrize("n", [1, 5])
+@pytest.mark.parametrize(
+    "input_messages",
+    [
+        [{"content": "What's the capital of China?", "role": "user"}],
+        [LitellmMessage(content="How can I help you?", role="assistant")],
+    ],
+)
 def test_completion(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
+    input_messages: List[Union[Dict[str, Any], LitellmMessage]],
     session_id: str,
     user_id: str,
     metadata: Dict[str, Any],
@@ -58,11 +82,11 @@ def test_completion(
     prompt_template: str,
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
+    n: int,
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    response = None
     if use_context_attributes:
         with using_attributes(
             session_id=session_id,
@@ -73,15 +97,17 @@ def test_completion(
             prompt_template_version=prompt_template_version,
             prompt_template_variables=prompt_template_variables,
         ):
-            litellm.completion(
+            response = litellm.completion(
                 model="gpt-3.5-turbo",
                 messages=input_messages,
+                n=n,
                 mock_response="Beijing",
             )
     else:
-        litellm.completion(
+        response = litellm.completion(
             model="gpt-3.5-turbo",
             messages=input_messages,
+            n=n,
             mock_response="Beijing",
         )
 
@@ -91,9 +117,16 @@ def test_completion(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    input_values = [
+        msg.json() if isinstance(msg, LitellmMessage) else msg  # type: ignore[no-untyped-call]
+        for msg in input_messages
+    ]
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps({"messages": input_values})
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
+    for i, choice in enumerate(response["choices"]):
+        _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, choice.message)
 
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -109,14 +142,92 @@ def test_completion(
             prompt_template_version,
             prompt_template_variables,
         )
-    LiteLLMInstrumentor().uninstrument()
+
+
+@pytest.mark.parametrize("use_context_attributes", [True])
+@pytest.mark.parametrize("n", [1])
+def test_completion_sync_streaming(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    use_context_attributes: bool,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+    n: int,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    response = None
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            response = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=input_messages,
+                mock_response="The capital of China is Beijing",
+                n=n,
+                stream=True,
+            )
+    else:
+        response = litellm.completion(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            mock_response="The capital of China is Beijing",
+            n=n,
+            stream=True,
+        )
+
+    output_message = ""
+    for chunk in response:
+        if chunk.choices[0].delta.content:
+            output_message += chunk.choices[0].delta.content
+
+    assert output_message == "The capital of China is Beijing"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "The capital of China is Beijing"
+
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
 
 
 def test_completion_with_parameters(
-    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     litellm.completion(
@@ -132,24 +243,91 @@ def test_completion_with_parameters(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {"mock_response": "Beijing", "temperature": 0.7, "top_p": 0.9}
+        {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"content": "What's the capital of China?", "role": "user"}],
+            "mock_response": "Beijing",
+            "temperature": 0.7,
+            "top_p": 0.9,
+        }
     )
 
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
 
-    LiteLLMInstrumentor().uninstrument()
+
+def test_completion_with_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages: List[Dict[str, Any]] = [
+        {"content": "What's the weather like in New York?", "role": "user"},
+        {
+            "role": "assistant",
+            "content": "Let me check the weather for you.",
+            "tool_calls": [
+                {
+                    "index": 1,
+                    "id": "call_abc123",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": '{"location": "New York", "unit": "celsius"}',
+                    },
+                }
+            ],
+        },
+    ]
+    litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        mock_response="The weather in New York is 22°C and sunny.",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    for i, message in enumerate(input_messages):
+        _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
+
+    tool_call_function_name = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tool_call_function_args = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+
+    assert attributes.get(tool_call_function_name) == "get_weather"
+    assert attributes.get(tool_call_function_args) == '{"location": "New York", "unit": "celsius"}'
+
+    assert "The weather in New York is 22°C and sunny." in str(
+        attributes.get(SpanAttributes.OUTPUT_VALUE)
+    )
 
 
 def test_completion_with_multiple_messages(
-    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [
         {"content": "Hello, I want to bake a cake", "role": "user"},
@@ -160,6 +338,7 @@ def test_completion_with_multiple_messages(
         model="gpt-3.5-turbo",
         messages=input_messages,
         mock_response="Got it! What kind of pie would you like to make?",
+        api_key="sk-",
     )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -167,34 +346,43 @@ def test_completion_with_multiple_messages(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
-    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {"mock_response": "Got it! What kind of pie would you like to make?"}
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
     )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     for i, message in enumerate(input_messages):
         _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
-    assert (
+    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
+        {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"content": "Hello, I want to bake a cake", "role": "user"},
+                {"content": "Hello, I can pull up some recipes for cakes.", "role": "assistant"},
+                {"content": "No actually I want to make a pie", "role": "user"},
+            ],
+            "mock_response": "Got it! What kind of pie would you like to make?",
+        }
+    )
+
+    assert "Got it! What kind of pie would you like to make?" in str(
         attributes.get(SpanAttributes.OUTPUT_VALUE)
-        == "Got it! What kind of pie would you like to make?"
     )
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 def test_completion_image_support(
-    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": "What’s in this image?"},
+                {"type": "text", "text": "What's in this image?"},
                 {
                     "type": "image_url",
                     "image_url": {"url": "https://dummy_image.jpg"},
@@ -213,24 +401,37 @@ def test_completion_image_support(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
-    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {"mock_response": "That's an image of a pasture"}
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
     )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     for i, message in enumerate(input_messages):
         _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "That's an image of a pasture"
+    params_str = attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS)
+    assert isinstance(params_str, str)  # Type narrowing for mypy
+    assert json.loads(params_str) == {
+        "model": "gpt-4o",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What's in this image?"},
+                    {"type": "image_url", "image_url": {"url": "https://dummy_image.jpg"}},
+                ],
+            }
+        ],
+        "mock_response": "That's an image of a pasture",
+    }
+    assert "That's an image of a pasture" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_acompletion(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -241,7 +442,6 @@ async def test_acompletion(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     if use_context_attributes:
@@ -272,9 +472,12 @@ async def test_acompletion(
     assert span.name == "acompletion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -291,13 +494,11 @@ async def test_acompletion(
             prompt_template_variables,
         )
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_completion_with_retries(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -308,7 +509,6 @@ def test_completion_with_retries(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     input_messages = [{"content": "What's the capital of China?", "role": "user"}]
     if use_context_attributes:
@@ -338,9 +538,12 @@ def test_completion_with_retries(
     assert span.name == "completion_with_retries"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
-    assert attributes.get(SpanAttributes.INPUT_VALUE) == json.dumps(input_messages)
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -356,7 +559,6 @@ def test_completion_with_retries(
             prompt_template_version,
             prompt_template_variables,
         )
-    LiteLLMInstrumentor().uninstrument()
 
 
 # Bug report filed on GitHub for acompletion_with_retries: https://github.com/BerriAI/litellm/issues/4908
@@ -387,8 +589,8 @@ def test_completion_with_retries(
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_embedding(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -399,7 +601,6 @@ def test_embedding(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_embedding = EmbeddingResponse(
         model="text-embedding-ada-002",
@@ -449,13 +650,12 @@ def test_embedding(
             prompt_template_version,
             prompt_template_variables,
         )
-    LiteLLMInstrumentor().uninstrument()
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_aembedding(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -466,7 +666,6 @@ async def test_aembedding(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_embedding = EmbeddingResponse(
         model="text-embedding-ada-002",
@@ -519,13 +718,11 @@ async def test_aembedding(
             prompt_template_variables,
         )
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_image_generation_url(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -536,11 +733,10 @@ def test_image_generation_url(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
+        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")],  # type: ignore
     )
 
     with patch.object(
@@ -589,13 +785,11 @@ def test_image_generation_url(
             prompt_template_variables,
         )
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_image_generation_b64json(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -606,11 +800,10 @@ def test_image_generation_b64json(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[{"b64_json": "dummy_b64_json", "revised_prompt": None, "url": None}],
+        data=[ImageObject(b64_json="dummy_b64_json", revised_prompt=None, url=None)],  # type: ignore
     )
 
     with patch.object(
@@ -659,13 +852,11 @@ def test_image_generation_b64json(
             prompt_template_variables,
         )
 
-    LiteLLMInstrumentor().uninstrument()
-
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_aimage_generation(
-    tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
     use_context_attributes: bool,
     session_id: str,
     user_id: str,
@@ -676,11 +867,10 @@ async def test_aimage_generation(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     in_memory_span_exporter.clear()
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
 
     mock_response_image_gen = ImageResponse(
         created=1722359754,
-        data=[{"b64_json": None, "revised_prompt": None, "url": "https://dummy-url"}],
+        data=[ImageObject(b64_json=None, revised_prompt=None, url="https://dummy-url")],  # type: ignore
     )
     with patch.object(
         OpenAIChatCompletion, "aimage_generation", return_value=mock_response_image_gen
@@ -727,8 +917,6 @@ async def test_aimage_generation(
             prompt_template_version,
             prompt_template_variables,
         )
-
-    LiteLLMInstrumentor().uninstrument()
 
 
 def test_uninstrument(tracer_provider: TracerProvider) -> None:

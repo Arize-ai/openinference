@@ -1,5 +1,43 @@
 # @arizeai/openinference-vercel
 
+## 2.2.0
+
+### Minor Changes
+
+- a573489: feat: Mastra instrumentation
+
+  Initial instrumentation for Mastra, adhering to OpenInference semantic conventions
+
+- a573489: feat: Instrument tool calls and results from multi-part content messages
+
+## 2.1.0
+
+### Minor Changes
+
+- c301f99: chore: pin peer deps, update readme, fix types
+
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [ae5cd15]
+  - @arizeai/openinference-semantic-conventions@1.1.0
+  - @arizeai/openinference-core@1.0.2
+
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [c4e2252]
+  - @arizeai/openinference-semantic-conventions@1.0.1
+  - @arizeai/openinference-core@1.0.1
+
+## 2.0.1
+
+### Patch Changes
+
+- 365a3c2: Updated the OpenInference semantic convention mapping to account for changes to the Vercel AI SDK semantic conventions
+
 ## 2.0.0
 
 ### Major Changes

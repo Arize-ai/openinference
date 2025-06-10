@@ -26,23 +26,29 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.17",
-  "openinference-semantic-conventions",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.17",
   "wrapt",
   "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "crewai >= 0.41.1",
+  "crewai >= 0.119.0",
 ]
 test = [
-  "crewai == 0.41.1",
-  "crewai-tools == 0.4.26",
+  "crewai == 0.119.0",
+  "crewai-tools == 0.45.0",
   "opentelemetry-sdk",
   "responses",
   "vcrpy",
 ]
+
+[project.entry-points.opentelemetry_instrumentor]
+crewai = "openinference.instrumentation.crewai:CrewAIInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+crewai = "openinference.instrumentation.crewai:CrewAIInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-crewai"

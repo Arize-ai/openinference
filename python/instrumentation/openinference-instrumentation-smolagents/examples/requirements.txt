@@ -1,0 +1,17 @@
+# Main dependencies of the examples in this directory:
+smolagents[e2b,gradio,litellm,openai]
+datasets
+langchain
+langchain_community
+rank_bm25
+
+# Install `opentelemetry-instrument` for zero code instrumentation. This
+# defaults to export traces to localhost 4317, which Phoenix listens on.
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-grpc
+opentelemetry-distro
+
+
+# Both `opentelemetry-instrument` and main need .env variables. Run like this:
+#   dotenv run -- opentelemetry-instrument python e2b_example.py
+python-dotenv[cli]

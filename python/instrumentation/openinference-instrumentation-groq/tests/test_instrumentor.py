@@ -14,6 +14,7 @@ from groq.types.chat.chat_completion import (  # type: ignore[attr-defined]
 from groq.types.completion_usage import CompletionUsage
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -148,6 +149,17 @@ def _check_context_attributes(
     assert attributes.get(LLM_PROMPT_TEMPLATE, None)
     assert attributes.get(LLM_PROMPT_TEMPLATE_VERSION, None)
     assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
+
+
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="groq")
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, GroqInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_groq_instrumentation: Any) -> None:
+        assert isinstance(GroqInstrumentor()._tracer, OITracer)
 
 
 def test_groq_instrumentation(

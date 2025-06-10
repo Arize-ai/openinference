@@ -115,6 +115,7 @@ export class LangChainTracer extends BaseTracer {
     }
     const { span } = runWithSpan;
     if (run.error != null) {
+      span.recordException(run.error);
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: run.error,

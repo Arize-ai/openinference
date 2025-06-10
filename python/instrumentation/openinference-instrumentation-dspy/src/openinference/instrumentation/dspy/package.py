@@ -1,2 +1,2 @@
-_instruments = ("dspy >= 2.5.0",)
+_instruments = ("dspy >= 2.6.0",)
 _supports_metrics = False

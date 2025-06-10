@@ -2,16 +2,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import logging
-import os
+import logging  # noqa
+import os  # noqa
 
-import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-from app.api.routers.rag import rag_router
-from instrument import instrument
-
+import uvicorn  # noqa
+from app.api.routers.rag import rag_router  # noqa
+from fastapi import FastAPI  # noqa
+from fastapi.middleware.cors import CORSMiddleware  # noqa
+from instrument import instrument  # noqa
 
 do_not_instrument = os.getenv("INSTRUMENT_DSPY", "true") == "false"
 if not do_not_instrument:

@@ -42,7 +42,16 @@ class TestSpanAttributes:
                 "system": "LLM_SYSTEM",
                 "token_count": {
                     "completion": "LLM_TOKEN_COUNT_COMPLETION",
+                    "completion_details": {
+                        "reasoning": "LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING",
+                        "audio": "LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO",
+                    },
                     "prompt": "LLM_TOKEN_COUNT_PROMPT",
+                    "prompt_details": {
+                        "cache_write": "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE",
+                        "cache_read": "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ",
+                        "audio": "LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO",
+                    },
                     "total": "LLM_TOKEN_COUNT_TOTAL",
                 },
                 "tools": "LLM_TOOLS",
@@ -73,6 +82,11 @@ class TestSpanAttributes:
             },
             "user": {
                 "id": "USER_ID",
+            },
+            "prompt": {
+                "id": "PROMPT_ID",
+                "url": "PROMPT_URL",
+                "vendor": "PROMPT_VENDOR",
             },
         }
 

@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.17...python-openinference-instrumentation-anthropic-v0.1.18) (2025-05-19)
+
+
+### Features
+
+* **anthropic:** add stream wrapper and tests ([#1572](https://github.com/Arize-ai/openinference/issues/1572)) ([918aa01](https://github.com/Arize-ai/openinference/commit/918aa017441fd4c8cffdbcaab287913349a41a60))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.16...python-openinference-instrumentation-anthropic-v0.1.17) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.15...python-openinference-instrumentation-anthropic-v0.1.16) (2025-04-11)
+
+
+### Bug Fixes
+
+* increased minimum supported version of openinference-instrumentation to 0.1.27 ([#1507](https://github.com/Arize-ai/openinference/issues/1507)) ([a55edfa](https://github.com/Arize-ai/openinference/commit/a55edfa8900c1f36a73385c7d03f91cffadd85c4))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.14...python-openinference-instrumentation-anthropic-v0.1.15) (2025-04-03)
+
+
+### Features
+
+* instrumentation-anthropic cache token counts ([#1465](https://github.com/Arize-ai/openinference/issues/1465)) ([d6765e0](https://github.com/Arize-ai/openinference/commit/d6765e0edd455fb879ccf0b58ea7d3dfaabeabf0))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.13...python-openinference-instrumentation-anthropic-v0.1.14) (2025-03-25)
+
+
+### Bug Fixes
+
+* include cache tokens in prompt tokens for anthropic ([#1429](https://github.com/Arize-ai/openinference/issues/1429)) ([abd36c4](https://github.com/Arize-ai/openinference/commit/abd36c45ea4ff966b58eccee42de252bc876d5ab))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.12...python-openinference-instrumentation-anthropic-v0.1.13) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.11...python-openinference-instrumentation-anthropic-v0.1.12) (2025-02-18)
+
+
+### Features
+
+* define openinference_instrumentor entry points for all libraries ([#1290](https://github.com/Arize-ai/openinference/issues/1290)) ([4b69fdc](https://github.com/Arize-ai/openinference/commit/4b69fdc13210048009e51639b01e7c0c9550c9d1))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.10...python-openinference-instrumentation-anthropic-v0.1.11) (2025-02-11)
+
+
+### Features
+
+* add entrypoint for use in opentelemetry-instrument ([#1278](https://github.com/Arize-ai/openinference/issues/1278)) ([2106acf](https://github.com/Arize-ai/openinference/commit/2106acfd6648804abe9b95e41a49df26a500435c))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.9...python-openinference-instrumentation-anthropic-v0.1.10) (2025-02-04)
+
+
+### Bug Fixes
+
+* support python 3.13 and drop python 3.8 ([#1263](https://github.com/Arize-ai/openinference/issues/1263)) ([5bfaa90](https://github.com/Arize-ai/openinference/commit/5bfaa90d800a8f725b3ac7444d16972ed7821738))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.8...python-openinference-instrumentation-anthropic-v0.1.9) (2024-11-21)
 
 

@@ -1,5 +1,3 @@
-import json
-from abc import ABC
 from enum import Enum, auto
 from inspect import BoundArguments, Parameter, signature
 from typing import (
@@ -39,26 +37,51 @@ if TYPE_CHECKING:
     from haystack.core.component import Component
 
 
-class _WithTracer(ABC):
-    """
-    Base class for wrappers that need a tracer.
-    """
-
-    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._tracer = tracer
-
-
-class _ComponentWrapper(_WithTracer):
+class _PipelineRunComponentWrapper:
     """
     Components in Haystack are defined as a duck-typed protocol with a `run`
-    method, so we wrap `haystack.Pipeline._run_component`, which invokes the
-    component's `run` method. From here, we can gain access to the component
-    itself.
+    method invoked by `haystack.Pipeline._run_component`. We dynamically wrap
+    the component `run` method if it is not already wrapped from within
+    `haystack.Pipeline._run_component`.
 
-    See:
-    https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/core/component/component.py#L129
+    This wrapper handles the static method signature of Pipeline._run_component:
+    @staticmethod
+    def _run_component(
+        component_name: str,
+        component: Dict[str, Any],
+        inputs: Dict[str, Any],
+        component_visits: Dict[str, int],
+        parent_span: Optional[tracing.Span] = None,
+    ) -> Dict[str, Any]:
     """
+
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        wrap_component_run_method: Callable[[type[Any], Callable[..., Any]], None],
+    ) -> None:
+        self._tracer = tracer
+        self._wrap_component_run_method = wrap_component_run_method
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
+        if (component := arguments.get("component")) is not None and (
+            component_instance := component.get("instance")
+        ) is not None:
+            component_cls = component_instance.__class__
+            self._wrap_component_run_method(component_cls, component_instance.run)
+        return wrapped(*args, **kwargs)
+
+
+class _ComponentRunWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
 
     def __call__(
         self,
@@ -70,29 +93,22 @@ class _ComponentWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        pipe_args = _get_bound_arguments(wrapped, *args, **kwargs).arguments
-        component_name = pipe_args["name"]
-        component = _get_component_by_name(instance, component_name)
-        if component is None or not hasattr(component, "run") or not callable(component.run):
-            return wrapped(*args, **kwargs)
+        component = instance
         component_class_name = _get_component_class_name(component)
-
-        run_bound_args = _get_bound_arguments(component.run, **pipe_args["inputs"])
-        run_args = run_bound_args.arguments
+        bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
+        arguments = bound_arguments.arguments
 
         with self._tracer.start_as_current_span(
-            name=_get_component_span_name(
-                component_class_name=component_class_name, component_name=component_name
-            )
+            name=_get_component_span_name(component_class_name)
         ) as span:
             span.set_attributes(
-                {**dict(get_attributes_from_context()), **dict(_get_input_attributes(run_args))}
+                {**dict(get_attributes_from_context()), **dict(_get_input_attributes(arguments))}
             )
             if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
                 span.set_attributes(
                     {
                         **dict(_get_span_kind_attributes(LLM)),
-                        **dict(_get_llm_input_message_attributes(run_args)),
+                        **dict(_get_llm_input_message_attributes(arguments)),
                     }
                 )
             elif component_type is ComponentType.EMBEDDER:
@@ -107,7 +123,7 @@ class _ComponentWrapper(_WithTracer):
                     {
                         **dict(_get_span_kind_attributes(RERANKER)),
                         **dict(_get_reranker_model_attributes(component)),
-                        **dict(_get_reranker_request_attributes(run_args)),
+                        **dict(_get_reranker_request_attributes(arguments)),
                     }
                 )
             elif component_type is ComponentType.RETRIEVER:
@@ -118,7 +134,7 @@ class _ComponentWrapper(_WithTracer):
                         **dict(_get_span_kind_attributes(LLM)),
                         **dict(
                             _get_llm_prompt_template_attributes_from_prompt_builder(
-                                component, run_bound_args
+                                component, bound_arguments
                             )
                         ),
                     }
@@ -144,7 +160,7 @@ class _ComponentWrapper(_WithTracer):
                     }
                 )
             elif component_type is ComponentType.EMBEDDER:
-                span.set_attributes(dict(_get_embedding_attributes(run_args, response)))
+                span.set_attributes(dict(_get_embedding_attributes(arguments, response)))
             elif component_type is ComponentType.RANKER:
                 span.set_attributes(dict(_get_reranker_response_attributes(response)))
             elif component_type is ComponentType.RETRIEVER:
@@ -159,11 +175,14 @@ class _ComponentWrapper(_WithTracer):
         return response
 
 
-class _PipelineWrapper(_WithTracer):
+class _PipelineWrapper:
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
     """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
 
     def __call__(
         self,
@@ -177,7 +196,7 @@ class _PipelineWrapper(_WithTracer):
 
         arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
 
-        span_name = "Pipeline"
+        span_name = "Pipeline.run"
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
@@ -214,7 +233,7 @@ def _get_component_by_name(pipeline: "Pipeline", component_name: str) -> Optiona
         component := node.get("instance")
     ) is None:
         return None
-    return component
+    return cast(Optional["Component"], component)
 
 
 def _get_component_class_name(component: "Component") -> str:
@@ -224,11 +243,11 @@ def _get_component_class_name(component: "Component") -> str:
     return str(component.__class__.__name__)
 
 
-def _get_component_span_name(*, component_class_name: str, component_name: str) -> str:
+def _get_component_span_name(component_class_name: str) -> str:
     """
     Gets the name of the span for a component.
     """
-    return f"{component_class_name} ({component_name})"
+    return f"{component_class_name}.run"
 
 
 def _get_component_type(component: "Component") -> ComponentType:
@@ -237,7 +256,6 @@ def _get_component_type(component: "Component") -> ComponentType:
     outputs. In the absence of typing information, we make a best-effort attempt
     to infer the component type.
     """
-
     from haystack.components.builders import PromptBuilder
 
     component_name = _get_component_class_name(component)
@@ -380,7 +398,7 @@ def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[
         map(lambda x: isinstance(x, ChatMessage), messages)
     ):
         for message_index, message in enumerate(messages):
-            if (content := message.content) is not None:
+            if (content := message.text) is not None:
                 yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}", content
             if (role := message.role) is not None:
                 yield f"{LLM_INPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}", role
@@ -408,25 +426,20 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
             ):
                 continue
             if finish_reason == "tool_calls":
-                try:
-                    tool_calls = json.loads(reply.content)
-                except json.JSONDecodeError:
-                    continue
+                tool_calls = reply.tool_calls
                 for tool_call_index, tool_call in enumerate(tool_calls):
-                    if (function_call := tool_call.get("function")) is None:
-                        continue
-                    if (tool_call_arguments_json := function_call.get("arguments")) is not None:
+                    if (tool_call_arguments := tool_call.arguments) is not None:
                         yield (
                             f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            tool_call_arguments_json,
+                            safe_json_dumps(tool_call_arguments),
                         )
-                    if (tool_name := function_call.get("name")) is not None:
+                    if (tool_name := tool_call.tool_name) is not None:
                         yield (
                             f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
                             tool_name,
                         )
             else:
-                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.content
+                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.text
             yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role.value
         elif isinstance(reply, str):
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", reply
@@ -548,9 +561,9 @@ def _get_reranker_request_attributes(arguments: Mapping[str, Any]) -> Iterator[T
     if _is_list_of_documents(documents := arguments.get("documents")):
         for doc_index, doc in enumerate(documents):
             if (id := doc.id) is not None:
-                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_ID}", id
             if (content := doc.content) is not None:
-                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+                yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_CONTENT}", content
 
 
 def _get_reranker_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -560,11 +573,11 @@ def _get_reranker_response_attributes(response: Mapping[str, Any]) -> Iterator[T
     if _is_list_of_documents(documents := response.get("documents")):
         for doc_index, doc in enumerate(documents):
             if (id := doc.id) is not None:
-                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_ID}", id
             if (content := doc.content) is not None:
-                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_CONTENT}", content
             if (score := doc.score) is not None:
-                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}." f"{DOCUMENT_SCORE}", score
+                yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_SCORE}", score
 
 
 def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -581,14 +594,14 @@ def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[
         return
     for doc_index, doc in enumerate(documents):
         if (content := doc.content) is not None:
-            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_CONTENT}", content
+            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}.{DOCUMENT_CONTENT}", content
         if (id := doc.id) is not None:
-            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_ID}", id
+            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}.{DOCUMENT_ID}", id
         if (score := doc.score) is not None:
-            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_SCORE}", score
+            yield f"{RETRIEVAL_DOCUMENTS}.{doc_index}.{DOCUMENT_SCORE}", score
         if (metadata := doc.meta) is not None:
             yield (
-                f"{RETRIEVAL_DOCUMENTS}.{doc_index}." f"{DOCUMENT_METADATA}",
+                f"{RETRIEVAL_DOCUMENTS}.{doc_index}.{DOCUMENT_METADATA}",
                 safe_json_dumps(metadata),
             )
 

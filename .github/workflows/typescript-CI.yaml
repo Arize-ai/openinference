@@ -2,7 +2,7 @@ name: Typescript CI
 
 on:
     push:
-        branches: [main, langchainjs]
+        branches: [main]
     pull_request:
         paths:
             - "js/**"
@@ -14,16 +14,35 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
+    changes:
+        name: Filter Changes
+        runs-on: ubuntu-latest
+        outputs:
+            diff: ${{ steps.filter.outputs.diff }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dorny/paths-filter@v3
+              id: filter
+              with:
+                  filters: |
+                      diff:
+                        - "js/packages/**/*.js"
+                        - "js/packages/**/*.ts"
+                        - "js/packages/**/package.json"
+                        - "js/packages/**/tsconfig.*"
+
     ci:
         name: CI Typescript
+        needs: changes
+        if: ${{ needs.changes.outputs.diff == 'true' }}
         runs-on: ubuntu-latest
         steps:
             - name: Checkout Repository
-              uses: actions/checkout@v3
+              uses: actions/checkout@v4
             - name: Set up Nodejs
-              uses: actions/setup-node@v3
+              uses: actions/setup-node@v4
               with:
-                  node-version: 18
+                  node-version: 20
             - name: Setup PNPM
               uses: pnpm/action-setup@v4
               with:

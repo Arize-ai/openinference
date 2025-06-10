@@ -44,10 +44,10 @@ export const AISemConvToOISemConvMap: Record<
     SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
   [AISemanticConventions.TOKEN_COUNT_PROMPT]:
     SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-  [AISemanticConventions.RESULT_TEXT]: SemanticConventions.OUTPUT_VALUE,
-  [AISemanticConventions.RESULT_TOOL_CALLS]:
+  [AISemanticConventions.RESPONSE_TEXT]: SemanticConventions.OUTPUT_VALUE,
+  [AISemanticConventions.RESPONSE_TOOL_CALLS]:
     SemanticConventions.MESSAGE_TOOL_CALLS,
-  [AISemanticConventions.RESULT_OBJECT]: SemanticConventions.OUTPUT_VALUE,
+  [AISemanticConventions.RESPONSE_OBJECT]: SemanticConventions.OUTPUT_VALUE,
   [AISemanticConventions.PROMPT]: SemanticConventions.INPUT_VALUE,
   [AISemanticConventions.PROMPT_MESSAGES]:
     SemanticConventions.LLM_INPUT_MESSAGES,

@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Anthropic Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8, <3.13"
+requires-python = ">=3.9, <3.14"
 authors = [
     { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,26 +18,32 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "opentelemetry-api",
     "opentelemetry-instrumentation",
     "opentelemetry-semantic-conventions",
-    "openinference-instrumentation>=0.1.17",
-    "openinference-semantic-conventions",
+    "openinference-instrumentation>=0.1.27",
+    "openinference-semantic-conventions>=0.1.17",
     "wrapt",
     "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-    "anthropic >= 0.30.0",
+    "anthropic >= 0.41.0",
 ]
+
+[project.entry-points.opentelemetry_instrumentor]
+anthropic = "openinference.instrumentation.anthropic:AnthropicInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+anthropic = "openinference.instrumentation.anthropic:AnthropicInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-anthropic"

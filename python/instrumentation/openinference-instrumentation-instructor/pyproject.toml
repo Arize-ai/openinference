@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Instructor Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.13"
+requires-python = ">=3.9, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -27,8 +27,8 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.17",
-  "openinference-semantic-conventions",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.17",
   "wrapt",
   "typing-extensions",
 ]
@@ -43,6 +43,12 @@ test = [
   "responses",
   "vcrpy",
 ]
+
+[project.entry-points.opentelemetry_instrumentor]
+instructor = "openinference.instrumentation.instructor:InstructorInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+instructor = "openinference.instrumentation.instructor:InstructorInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-instructor"

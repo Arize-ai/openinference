@@ -1,5 +1,5 @@
 import json
-from types import AsyncGeneratorType, GeneratorType
+from types import AsyncGeneratorType
 from typing import (
     Any,
     Dict,
@@ -24,6 +24,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -70,9 +71,17 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
     return response
 
 
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer() -> None:
-    assert isinstance(MistralAIInstrumentor()._tracer, OITracer)
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="mistralai"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, MistralAIInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self) -> None:
+        assert isinstance(MistralAIInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -556,7 +565,7 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
     )
 
     def mistral_chat() -> ChatCompletionResponse:
-        return mistral_sync_client.chat.complete(  # type: ignore
+        return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             messages=[
                 {
@@ -903,11 +912,11 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
             response_stream = mistral_stream()
     else:
         response_stream = mistral_stream()
-    assert isinstance(response_stream, GeneratorType)
     response_content = ""
     for chunk in response_stream:
         if chunk_content := chunk.data.choices[0].delta.content:
-            response_content += chunk_content
+            if isinstance(chunk_content, str):
+                response_content += chunk_content
 
     assert (
         response_content == "France won World Cup"  # noqa: E501

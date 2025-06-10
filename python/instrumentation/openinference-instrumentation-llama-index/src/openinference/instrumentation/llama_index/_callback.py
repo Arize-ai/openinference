@@ -511,9 +511,9 @@ def _message_payload_to_attributes(message: Any) -> Dict[str, Optional[str]]:
         if "name" in message.additional_kwargs:
             message_attributes[MESSAGE_NAME] = message.additional_kwargs["name"]
         if tool_calls := message.additional_kwargs.get("tool_calls"):
-            assert isinstance(
-                tool_calls, Iterable
-            ), f"tool_calls must be Iterable, found {type(tool_calls)}"
+            assert isinstance(tool_calls, Iterable), (
+                f"tool_calls must be Iterable, found {type(tool_calls)}"
+            )
             message_tool_calls = []
             for tool_call in tool_calls:
                 if message_tool_call := dict(_get_tool_call(tool_call)):
@@ -578,9 +578,9 @@ def _get_message(message: object) -> Iterator[Tuple[str, Any]]:
         assert isinstance(content, str), f"content must be str, found {type(content)}"
         yield MESSAGE_CONTENT, content
     if tool_calls := getattr(message, "tool_calls", None):
-        assert isinstance(
-            tool_calls, Iterable
-        ), f"tool_calls must be Iterable, found {type(tool_calls)}"
+        assert isinstance(tool_calls, Iterable), (
+            f"tool_calls must be Iterable, found {type(tool_calls)}"
+        )
         message_tool_calls = []
         for tool_call in tool_calls:
             if message_tool_call := dict(_get_tool_call(tool_call)):
@@ -617,12 +617,11 @@ def _get_token_counts_from_object(usage: object) -> Iterator[Tuple[str, Any]]:
     """
     Yields token count attributes from response.raw.usage
     """
-    if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
-        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
-        yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
-    if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
-        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+    def get_value(obj: object, key: str) -> Any:
+        return getattr(obj, key, None)
+
+    yield from _get_token_counts_impl(usage, get_value)
 
 
 def _get_token_counts_from_mapping(
@@ -631,12 +630,58 @@ def _get_token_counts_from_mapping(
     """
     Yields token count attributes from a mapping (e.x. completion kwargs payload)
     """
-    if (prompt_tokens := usage_mapping.get("prompt_tokens")) is not None:
+
+    def get_value(obj: Mapping[str, Any], key: str) -> Any:
+        return obj.get(key)
+
+    yield from _get_token_counts_impl(usage_mapping, get_value)
+
+
+def _get_token_counts_impl(
+    usage: Union[object, Mapping[str, Any]], get_value: Callable[[Any, str], Any]
+) -> Iterator[Tuple[str, Any]]:
+    """
+    Yields token count attributes from either an object or mapping using the provided
+    getter function.
+    Args:
+        usage: The object or mapping to extract token counts from
+        get_value: Function to get values from the object (either getattr or dict.get)
+    """
+    # OpenAI
+    if (prompt_tokens := get_value(usage, "prompt_tokens")) is not None:
         yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if (completion_tokens := usage_mapping.get("completion_tokens")) is not None:
+    if (prompt_token_details := get_value(usage, "prompt_token_details")) is not None:
+        if (cached_tokens := get_value(prompt_token_details, "cached_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+        if (audio_tokens := get_value(prompt_token_details, "audio_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_tokens
+    if (completion_tokens := get_value(usage, "completion_tokens")) is not None:
         yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
-    if (total_tokens := usage_mapping.get("total_tokens")) is not None:
+    if (completion_tokens_details := get_value(usage, "completion_tokens_details")) is not None:
+        if (
+            reasoning_tokens := get_value(completion_tokens_details, "reasoning_tokens")
+        ) is not None:
+            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
+        if (
+            completion_audio_tokens := get_value(completion_tokens_details, "audio_tokens")
+        ) is not None:
+            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, completion_audio_tokens
+    if (total_tokens := get_value(usage, "total_tokens")) is not None:
         yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+    # Anthropic
+    if (output_tokens := get_value(usage, "output_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_COMPLETION, output_tokens
+    if (cache_creation_input_tokens := get_value(usage, "cache_creation_input_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
+    if (cache_read_input_tokens := get_value(usage, "cache_read_input_tokens")) is not None:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
+    if (input_tokens := get_value(usage, "input_tokens")) is not None:
+        if cache_creation_input_tokens is not None:
+            input_tokens += cache_creation_input_tokens
+        if cache_read_input_tokens is not None:
+            input_tokens += cache_read_input_tokens
+        yield LLM_TOKEN_COUNT_PROMPT, input_tokens
 
 
 def _template_attributes(payload: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -720,7 +765,16 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON

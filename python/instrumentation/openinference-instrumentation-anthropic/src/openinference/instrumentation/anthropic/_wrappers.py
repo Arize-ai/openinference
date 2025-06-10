@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC
 from contextlib import contextmanager
 from itertools import chain
@@ -6,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Mapping, 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
+from wrapt import ObjectProxy
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.anthropic._stream import (
@@ -29,6 +32,7 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
+    from anthropic.lib.streaming import MessageStreamManager
     from anthropic.types import Message, Usage
 
 
@@ -295,6 +299,61 @@ class _AsyncMessagesWrapper(_WithTracer):
                 return response
 
 
+class _MessagesStreamWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        arguments = kwargs
+        llm_input_messages = dict(arguments).pop("messages", None)
+        invocation_parameters = _get_invocation_parameters(arguments)
+
+        with self._start_as_current_span(
+            span_name="MessagesStream",
+            attributes=dict(
+                chain(
+                    get_attributes_from_context(),
+                    _get_llm_model_name_from_input(arguments),
+                    _get_llm_provider(),
+                    _get_llm_system(),
+                    _get_llm_span_kind(),
+                    _get_llm_input_messages(llm_input_messages),
+                    _get_llm_invocation_parameters(invocation_parameters),
+                    _get_llm_tools(invocation_parameters),
+                    _get_inputs(arguments),
+                )
+            ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
+                span.record_exception(exception)
+                raise
+
+            return _MessageStreamManager(response, span)
+
+
+class _MessageStreamManager(ObjectProxy):  # type: ignore
+    def __init__(
+        self,
+        manager: MessageStreamManager,
+        with_span: _WithSpan,
+    ) -> None:
+        super().__init__(manager)
+        self._self_with_span = with_span
+
+    def __enter__(self) -> Iterator[str]:
+        raw = self.__api_request()
+        return _MessagesStream(raw, self._self_with_span)
+
+
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     yield INPUT_VALUE, safe_json_dumps(arguments)
     yield INPUT_MIME_TYPE, JSON
@@ -324,8 +383,22 @@ def _get_llm_system() -> Iterator[Tuple[str, Any]]:
 
 
 def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
-    yield LLM_TOKEN_COUNT_PROMPT, usage.input_tokens
-    yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
+    # See https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#tracking-cache-performance
+    # cache_creation_input_tokens: Number of tokens written to the cache when creating a new entry.
+    # cache_read_input_tokens: Number of tokens retrieved from the cache for this request.
+    # input_tokens: Number of input tokens which were not read from or used to create a cache.
+    if prompt_tokens := (
+        usage.input_tokens
+        + (usage.cache_creation_input_tokens or 0)
+        + (usage.cache_read_input_tokens or 0)
+    ):
+        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    if usage.output_tokens:
+        yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
+    if usage.cache_read_input_tokens:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, usage.cache_read_input_tokens
+    if usage.cache_creation_input_tokens:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, usage.cache_creation_input_tokens
 
 
 def _get_llm_model_name_from_input(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -499,6 +572,10 @@ LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

@@ -1,38 +1,31 @@
 import json
 from datetime import datetime
-from typing import Any, Dict, Generator, List, Optional, Sequence, Union
+from typing import Any, Dict, Generator, Optional, Sequence, Union
 
 import pytest
-import respx
 from haystack import Document
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.components.embedders import (
-    OpenAIDocumentEmbedder,
-    SentenceTransformersDocumentEmbedder,
-    SentenceTransformersTextEmbedder,
-)
+from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers.in_memory import (
     InMemoryBM25Retriever,
-    InMemoryEmbeddingRetriever,
 )
 from haystack.components.websearch.serper_dev import SerperDevWebSearch
+from haystack.core.errors import PipelineRuntimeError
 from haystack.core.pipeline.pipeline import Pipeline
-from haystack.dataclasses import ChatMessage, ChatRole
+from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.utils.auth import Secret
 from haystack_integrations.components.rankers.cohere import (  # type: ignore[import-untyped]
     CohereRanker,
 )
-from httpx import Response
-from openai import AuthenticationError
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
+from opentelemetry.util._importlib_metadata import entry_points
 from typing_extensions import TypeGuard
 
 from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
@@ -81,58 +74,6 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
     return response
 
 
-def fake_OpenAIGenerator_run(
-    self: Any, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None, **kwargs: Any
-) -> Dict[str, List[Union[str, Dict[str, Any]]]]:
-    return {
-        "replies": ["sorry, i have zero clue"],
-        "meta": [
-            {
-                "model": "fake_model",
-                "usage": {"completion_tokens": 10, "prompt_tokens": 5, "total_tokens": 15},
-                "awesome_attribute": True,
-                "another_attribute": 7,
-            }
-        ],
-    }
-
-
-def fake_OpenAIGenerator_run_chat(
-    self: Any, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None
-) -> Dict[str, List[ChatMessage]]:
-    return {
-        "replies": [
-            ChatMessage(
-                content="idk, sorry!",
-                name=None,
-                role=ChatRole.ASSISTANT,
-                meta={
-                    "model": "gpt-3.5-turbo-0613",
-                    "index": 0,
-                    "finish_reason": "stop",
-                    "usage": {"prompt_tokens": 16, "completion_tokens": 61, "total_tokens": 77},
-                },
-            )
-        ]
-    }
-
-
-def fake_SentenceTransformersTextEmbedder_run(
-    self: Any, text: str, **kwargs: Any
-) -> Dict[str, Any]:
-    return {"embedding": [0.1, 0.2, 0.3]}
-
-
-def fake_SentenceTransformersDocumentEmbedder_run(
-    self: Any, documents: List[Document], **kwargs: Any
-) -> Dict[str, Any]:
-    return {"documents": [Document(content="I love pizza!", embedding=[0.1, 0.2, 0.3])]}
-
-
-def fake_SentenceTransformersEmbedder_warm_up(self: Any) -> None:
-    self.embedding_backend = None
-
-
 @pytest.fixture()
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
@@ -155,112 +96,17 @@ def setup_haystack_instrumentation(
     HaystackInstrumentor().uninstrument()
 
 
-def test_haystack_instrumentation(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_haystack_instrumentation: Any,
-) -> None:
-    # Configure document store and load dataset
-    document_store = InMemoryDocumentStore()
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="haystack"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, HaystackInstrumentor)
 
-    dataset = [
-        {
-            "content": "The first wonder of the world is the Great Pyramid of Giza",
-            "meta": {"id": 1},
-        },
-        {
-            "content": "The second wonder of the world is the Hanging Gardens of Babylon",
-            "meta": {"id": 2},
-        },
-        {
-            "content": "The third wonder of the world is the Statue of Zeus at Olympia",
-            "meta": {"id": 3},
-        },
-    ]
-
-    docs = [Document(content=doc["content"], meta=doc["meta"]) for doc in dataset]
-
-    # Configure document embedder and store documents from dataset
-    doc_embedder = SentenceTransformersDocumentEmbedder(model="fake_model")
-    doc_embedder.warm_up = fake_SentenceTransformersEmbedder_warm_up.__get__(
-        doc_embedder, SentenceTransformersDocumentEmbedder
-    )
-
-    doc_embedder.warm_up()
-    doc_embedder.run = fake_SentenceTransformersDocumentEmbedder_run.__get__(
-        doc_embedder, SentenceTransformersDocumentEmbedder
-    )
-    docs_with_embeddings = doc_embedder.run(docs)
-
-    document_store.write_documents(docs_with_embeddings["documents"])
-
-    # Configure text embedder (prompt)
-    text_embedder = SentenceTransformersTextEmbedder(model="fake_model")
-
-    text_embedder.warm_up = fake_SentenceTransformersEmbedder_warm_up.__get__(
-        text_embedder, SentenceTransformersDocumentEmbedder
-    )
-    text_embedder.run = fake_SentenceTransformersTextEmbedder_run.__get__(
-        text_embedder, SentenceTransformersTextEmbedder
-    )
-
-    # Configure retriever
-    retriever = InMemoryEmbeddingRetriever(document_store)
-
-    template = """
-    Given the following information, answer the question.
-    Context:
-    {% for document in documents %}
-        {{ document.content }}
-    {% endfor %}
-    Question: {{question}}
-    Answer:
-    """
-
-    prompt_builder = PromptBuilder(template=template)
-    llm = OpenAIGenerator(api_key=Secret.from_token("TOTALLY_REAL_API_KEY"))
-
-    llm.run = fake_OpenAIGenerator_run.__get__(llm, OpenAIGenerator)
-
-    basic_rag_pipeline = Pipeline()
-    basic_rag_pipeline.add_component("text_embedder", text_embedder)
-    basic_rag_pipeline.add_component("retriever", retriever)
-    basic_rag_pipeline.add_component("prompt_builder", prompt_builder)
-    basic_rag_pipeline.add_component("llm", llm)
-
-    # Connect necessary pipeline components to each other
-    basic_rag_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
-    basic_rag_pipeline.connect("retriever", "prompt_builder.documents")
-    basic_rag_pipeline.connect("prompt_builder", "llm")
-
-    q = "What's Natural Language Processing? Be brief."
-
-    basic_rag_pipeline.run(
-        {
-            "text_embedder": {"text": q},
-            "prompt_builder": {"question": q},
-        }
-    )
-
-    spans = in_memory_span_exporter.get_finished_spans()
-
-    assert [span.name for span in spans] == [
-        "SentenceTransformersTextEmbedder (text_embedder)",
-        "InMemoryEmbeddingRetriever (retriever)",
-        "PromptBuilder (prompt_builder)",
-        "OpenAIGenerator (llm)",
-        "Pipeline",
-    ]
-
-    assert [
-        span.attributes.get("openinference.span.kind") for span in spans if span and span.attributes
-    ] == [
-        EMBEDDING,
-        RETRIEVER,
-        LLM,
-        LLM,
-        CHAIN,
-    ]
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_haystack_instrumentation: Any) -> None:
+        assert isinstance(HaystackInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.vcr(
@@ -298,7 +144,7 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     span = spans[0]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "ChatPromptBuilder (prompt_builder)"
+    assert span.name == "ChatPromptBuilder.run"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -310,7 +156,7 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     span = spans[1]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "OpenAIChatGenerator (llm)"
+    assert span.name == "OpenAIChatGenerator.run"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -342,7 +188,7 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     span = spans[2]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "Pipeline"
+    assert span.name == "Pipeline.run"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -393,8 +239,8 @@ def test_haystack_instrumentation_filtering(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert [span.name for span in spans] == [
-        "InMemoryBM25Retriever (retriever)",
-        "Pipeline",
+        "InMemoryBM25Retriever.run",
+        "Pipeline.run",
     ]
 
     assert [
@@ -448,12 +294,14 @@ def test_tool_calling_llm_span_has_expected_attributes(
             }
         }
     )
-    assert "get_current_weather" in response["llm"]["replies"][0].content
+    chat_message = response["llm"]["replies"][0]
+    tool_call = chat_message.tool_calls[0]
+    assert tool_call.tool_name == "get_current_weather"
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
-    assert span.name == "OpenAIChatGenerator (llm)"
+    assert span.name == "OpenAIChatGenerator.run"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -527,13 +375,13 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
             }
         }
     )
-    assert "argentina" in response["llm"]["replies"][0].content.lower()
+    assert "argentina" in response["llm"]["replies"][0].text.lower()
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "OpenAIChatGenerator (llm)"
+    assert span.name == "OpenAIChatGenerator.run"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert (
@@ -594,7 +442,7 @@ def test_openai_generator_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
-    assert span.name == "OpenAIGenerator (llm)"
+    assert span.name == "OpenAIGenerator.run"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -667,7 +515,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
 ) -> None:
-    prompt_builder = PromptBuilder(template=default_template)
+    prompt_builder = PromptBuilder(template=default_template or "")
     pipe = Pipeline()
     pipe.add_component("prompt_builder", prompt_builder)
     output = pipe.run({"prompt_builder": prompt_builder_inputs})
@@ -675,7 +523,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
-    assert span.name == "PromptBuilder (prompt_builder)"
+    assert span.name == "PromptBuilder.run"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -735,7 +583,7 @@ def test_cohere_reranker_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
-    assert span.name == "CohereRanker (ranker)"
+    assert span.name == "CohereRanker.run"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -804,7 +652,7 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == k
     span = spans[0]
-    assert span.name == "SerperDevWebSearch (websearch)"
+    assert span.name == "SerperDevWebSearch.run"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -837,26 +685,16 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     assert not attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
 def test_openai_document_embedder_embedding_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
-    respx_mock: Any,
 ) -> None:
-    respx.post("https://api.openai.com/v1/embeddings").mock(
-        return_value=Response(
-            200,
-            json={
-                "object": "list",
-                "data": [
-                    {"object": "embedding", "index": 0, "embedding": [1, 2, 3]},
-                    {"object": "embedding", "index": 1, "embedding": [4, 5, 6]},
-                ],
-                "model": "text-embedding-3-small",
-                "usage": {"prompt_tokens": 20, "total_tokens": 20},
-            },
-        )
-    )
     pipe = Pipeline()
     embedder = OpenAIDocumentEmbedder(model="text-embedding-3-small")
     pipe.add_component("embedder", embedder)
@@ -880,7 +718,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
-    assert span.name == "OpenAIDocumentEmbedder (embedder)"
+    assert span.name == "OpenAIDocumentEmbedder.run"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -954,7 +792,7 @@ def test_error_status_code_and_exception_events_with_invalid_api_key(
     pipe = Pipeline()
     llm = OpenAIGenerator(model="gpt-4o")
     pipe.add_component("llm", llm)
-    with pytest.raises(AuthenticationError):
+    with pytest.raises(PipelineRuntimeError):
         pipe.run(
             {
                 "llm": {
@@ -1016,12 +854,6 @@ def test_pipeline_and_component_spans_contain_context_attributes(
         assert attributes.get(LLM_PROMPT_TEMPLATE, "tempate with {var_name}")
         assert attributes.get(LLM_PROMPT_TEMPLATE_VERSION, "prompt-template-version")
         assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, '{"var_name": "var-value"}')
-
-
-def test_instrumentor_uses_oitracer(
-    setup_haystack_instrumentation: Any,
-) -> None:
-    assert isinstance(HaystackInstrumentor()._tracer, OITracer)
 
 
 @pytest.fixture

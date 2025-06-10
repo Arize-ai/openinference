@@ -1,4 +1,6 @@
 import json
+import random
+import string
 from typing import Any, Dict, Generator, Optional
 
 import anthropic
@@ -23,7 +25,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from typing_extensions import assert_never
+from opentelemetry.util._importlib_metadata import entry_points
 from wrapt import BoundFunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -74,20 +76,6 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
     return response
 
 
-def _to_assistant_message_param(
-    message: Message,
-) -> MessageParam:
-    content = []
-    for block in message.content:
-        if isinstance(block, TextBlock):
-            content.append(block)
-        elif isinstance(block, ToolUseBlock):
-            content.append(block)  # type: ignore
-        else:
-            assert_never(block)
-    return MessageParam(content=content, role="assistant")
-
-
 def _get_tool_use_id(message: Message) -> Optional[str]:
     for block in message.content:
         if isinstance(block, ToolUseBlock):
@@ -115,6 +103,19 @@ def setup_anthropic_instrumentation(
     AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     AnthropicInstrumentor().uninstrument()
+
+
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(
+            group="opentelemetry_instrumentor", name="anthropic"
+        )
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, AnthropicInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_anthropic_instrumentation: Any) -> None:
+        assert isinstance(AnthropicInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.vcr(
@@ -165,6 +166,66 @@ def test_anthropic_instrumentation_completions_streaming(
     invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
     assert json.loads(inv_params) == invocation_params
     assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
+    assert not attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_stream_message(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = Anthropic(api_key="fake")
+    input_message = "What's the capital of France?"
+    chat = [{"role": "user", "content": input_message}]
+    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-latest"}
+
+    with client.messages.stream(
+        max_tokens=1024,
+        messages=chat,  # type: ignore
+        model="claude-3-opus-latest",
+    ) as stream:
+        for _ in stream:
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.name == "MessagesStream"
+
+    attributes = dict(span.attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+    msg_out = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+    assert isinstance(msg_out, str)
+    assert "paris" in msg_out.lower()
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop("llm.token_count.total"), int)
+
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-latest"
+    raw_inv = attributes.pop(LLM_INVOCATION_PARAMETERS)
+    assert isinstance(raw_inv, str)
+    assert json.loads(raw_inv) == invocation_params
+
     assert not attributes
 
 
@@ -579,7 +640,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                    "description": "The unit of temperature, either 'celsius' or 'fahrenheit'",
                 },
             },
             "required": ["location"],
@@ -682,7 +743,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The unit of temperature," " either 'celsius' or 'fahrenheit'",
+                    "description": "The unit of temperature, either 'celsius' or 'fahrenheit'",
                 },
             },
             "required": ["location"],
@@ -952,6 +1013,74 @@ def test_anthropic_instrumentation_context_attributes_existence(
         assert att.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_messages_token_counts(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = Anthropic(api_key="sk-")
+    random_1024_token = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
+    novel_text = """Full Text of Novel <Pride and Prejudice>""" + random_1024_token
+    client.messages.create(
+        model="claude-3-7-sonnet-20250219",
+        max_tokens=2048,
+        system=[
+            {
+                "type": "text",
+                "text": "You are an AI assistant tasked with analyzing literary works.\n",
+            },
+            {
+                "type": "text",
+                "text": novel_text,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ],
+        messages=[
+            {"role": "user", "content": "Analyze the major themes in 'Pride and Prejudice'."}
+        ],
+    )
+    client.messages.create(
+        model="claude-3-7-sonnet-20250219",
+        max_tokens=2048,
+        system=[
+            {
+                "type": "text",
+                "text": "You are an AI assistant tasked with analyzing literary works.\n",
+            },
+            {
+                "type": "text",
+                "text": novel_text,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ],
+        messages=[
+            {"role": "user", "content": "Analyze the major themes in 'Pride and Prejudice'."}
+        ],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    s1, s2 = spans
+    att1 = dict(s1.attributes or {})
+    att2 = dict(s2.attributes or {})
+    # Two requests have identical requests/prompts
+    assert att1.pop(LLM_TOKEN_COUNT_PROMPT) == att2.pop(LLM_TOKEN_COUNT_PROMPT)
+    # first request's cache write is 2nd request's cache read
+    assert (
+        att1.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE)
+        == att2.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ)
+        == 1733
+    )
+    # first request doesn't hit cache
+    assert att1.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) is None
+    # second request doesn't write cache
+    assert att2.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) is None
+
+
 def test_anthropic_uninstrumentation(
     tracer_provider: TracerProvider,
 ) -> None:
@@ -1002,6 +1131,10 @@ LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS

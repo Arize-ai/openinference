@@ -1,9 +1,10 @@
 import logging
 import os
 
-from app.engine.constants import STORAGE_DIR
-from llama_index.core.storage import StorageContext
 from llama_index.core.indices import load_index_from_storage
+from llama_index.core.storage import StorageContext
+
+from app.engine.constants import STORAGE_DIR
 
 logger = logging.getLogger("uvicorn")
 

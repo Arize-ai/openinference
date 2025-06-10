@@ -1,5 +1,87 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.24...python-openinference-instrumentation-dspy-v0.1.25) (2025-06-09)
+
+
+### Features
+
+* Add model name and provider fields to DSPy for better model tracking/instrumentation [#1730](https://github.com/Arize-ai/openinference/issues/1730) ([#1730](https://github.com/Arize-ai/openinference/issues/1730)) ([3613f66](https://github.com/Arize-ai/openinference/commit/3613f66331d3529f9131c2b9432696a79a4b7b21))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.23...python-openinference-instrumentation-dspy-v0.1.24) (2025-05-30)
+
+
+### Features
+
+* **dspy:** Display Module.forward Output in JSON Format ([#1729](https://github.com/Arize-ai/openinference/issues/1729)) ([591a2d9](https://github.com/Arize-ai/openinference/commit/591a2d921d6fa09342059d71d43da46076ba8fad))
+
+
+### Bug Fixes
+
+* **dspy:** upstream max token default value change ([#1718](https://github.com/Arize-ai/openinference/issues/1718)) ([1654bc1](https://github.com/Arize-ai/openinference/commit/1654bc1e0734b0424f67d678ad1e5e4271a9942c))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.22...python-openinference-instrumentation-dspy-v0.1.23) (2025-05-13)
+
+
+### Features
+
+* **dspy:** Instrument DSPy.Tool ([#1617](https://github.com/Arize-ai/openinference/issues/1617)) ([e1ee8ff](https://github.com/Arize-ai/openinference/commit/e1ee8ff86148a3fe0a8abf69bde675c8e0491cf5))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.21...python-openinference-instrumentation-dspy-v0.1.22) (2025-05-11)
+
+
+### Features
+
+* **dspy:** Add initial support for async tracing ([#1597](https://github.com/Arize-ai/openinference/issues/1597)) ([205bdf0](https://github.com/Arize-ai/openinference/commit/205bdf0e3a8da1c86802735112d9eff9f8dd0c5f))
+
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.20...python-openinference-instrumentation-dspy-v0.1.21) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.19...python-openinference-instrumentation-dspy-v0.1.20) (2025-04-11)
+
+
+### Bug Fixes
+
+* increased minimum supported version of openinference-instrumentation to 0.1.27 ([#1507](https://github.com/Arize-ai/openinference/issues/1507)) ([a55edfa](https://github.com/Arize-ai/openinference/commit/a55edfa8900c1f36a73385c7d03f91cffadd85c4))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.18...python-openinference-instrumentation-dspy-v0.1.19) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.17...python-openinference-instrumentation-dspy-v0.1.18) (2025-02-18)
+
+
+### Features
+
+* define openinference_instrumentor entry points for all libraries ([#1290](https://github.com/Arize-ai/openinference/issues/1290)) ([4b69fdc](https://github.com/Arize-ai/openinference/commit/4b69fdc13210048009e51639b01e7c0c9550c9d1))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.16...python-openinference-instrumentation-dspy-v0.1.17) (2025-02-11)
+
+
+### Features
+
+* add entrypoint for use in opentelemetry-instrument ([#1278](https://github.com/Arize-ai/openinference/issues/1278)) ([2106acf](https://github.com/Arize-ai/openinference/commit/2106acfd6648804abe9b95e41a49df26a500435c))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.15...python-openinference-instrumentation-dspy-v0.1.16) (2025-02-04)
+
+
+### Bug Fixes
+
+* support python 3.13 and drop python 3.8 ([#1263](https://github.com/Arize-ai/openinference/issues/1263)) ([5bfaa90](https://github.com/Arize-ai/openinference/commit/5bfaa90d800a8f725b3ac7444d16972ed7821738))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.14...python-openinference-instrumentation-dspy-v0.1.15) (2025-02-04)
+
+
+### Bug Fixes
+
+* **dspy:** dspy 2.6.0 upgrade ([#1249](https://github.com/Arize-ai/openinference/issues/1249)) ([c1ab1d8](https://github.com/Arize-ai/openinference/commit/c1ab1d86783c607c2114c92245a17ed9754ff2f4))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.13...python-openinference-instrumentation-dspy-v0.1.14) (2024-11-12)
 
 

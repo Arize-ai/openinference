@@ -1,5 +1,89 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.29...python-openinference-instrumentation-openai-v0.1.30) (2025-05-30)
+
+
+### Bug Fixes
+
+* CI Failures For OpenAI & OpenAI Agents Follow Up ([#1733](https://github.com/Arize-ai/openinference/issues/1733)) ([ec1e855](https://github.com/Arize-ai/openinference/commit/ec1e8552b40c8a04ee2b3b92073e41e405b95293))
+
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.28...python-openinference-instrumentation-openai-v0.1.29) (2025-05-30)
+
+
+### Bug Fixes
+
+* CI Failures For OpenAI & OpenAI Agents ([#1725](https://github.com/Arize-ai/openinference/issues/1725)) ([69576ca](https://github.com/Arize-ai/openinference/commit/69576cac4628f7d3b1b36558ad6cf8e4ae65b2d8))
+
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.27...python-openinference-instrumentation-openai-v0.1.28) (2025-05-11)
+
+
+### Bug Fixes
+
+* ruff formating fix & bump ruff version in dev requirements ([#1600](https://github.com/Arize-ai/openinference/issues/1600)) ([076bb79](https://github.com/Arize-ai/openinference/commit/076bb7966d44fccdb2ab94e6f379ef4ae22c39b1))
+
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.26...python-openinference-instrumentation-openai-v0.1.27) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.25...python-openinference-instrumentation-openai-v0.1.26) (2025-04-24)
+
+
+### Features
+
+* Openai audio + reasoning token counts ([#1547](https://github.com/Arize-ai/openinference/issues/1547)) ([cbae31b](https://github.com/Arize-ai/openinference/commit/cbae31b2838234a3fe388a1501caadd281ac545e))
+
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.24...python-openinference-instrumentation-openai-v0.1.25) (2025-04-16)
+
+
+### Features
+
+* instrument OpenAI responses API ([#1521](https://github.com/Arize-ai/openinference/issues/1521)) ([64cde2b](https://github.com/Arize-ai/openinference/commit/64cde2b7230bfae3e7f7fb1141708a86ceea6b1a))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.23...python-openinference-instrumentation-openai-v0.1.24) (2025-04-11)
+
+
+### Bug Fixes
+
+* increased minimum supported version of openinference-instrumentation to 0.1.27 ([#1507](https://github.com/Arize-ai/openinference/issues/1507)) ([a55edfa](https://github.com/Arize-ai/openinference/commit/a55edfa8900c1f36a73385c7d03f91cffadd85c4))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.22...python-openinference-instrumentation-openai-v0.1.23) (2025-04-04)
+
+
+### Features
+
+* add cached read semantic conventions to openai sdk ([#1485](https://github.com/Arize-ai/openinference/issues/1485)) ([2db5918](https://github.com/Arize-ai/openinference/commit/2db591850259c1ff1fe606151f7f8be1ec1d63a7))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.21...python-openinference-instrumentation-openai-v0.1.22) (2025-03-14)
+
+
+### Documentation
+
+* fix license to be openinference ([#1353](https://github.com/Arize-ai/openinference/issues/1353)) ([85d435b](https://github.com/Arize-ai/openinference/commit/85d435be3af3de5424494cfbdd654454688b7377))
+
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.20...python-openinference-instrumentation-openai-v0.1.21) (2025-02-18)
+
+
+### Features
+
+* define openinference_instrumentor entry points for all libraries ([#1290](https://github.com/Arize-ai/openinference/issues/1290)) ([4b69fdc](https://github.com/Arize-ai/openinference/commit/4b69fdc13210048009e51639b01e7c0c9550c9d1))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.19...python-openinference-instrumentation-openai-v0.1.20) (2025-02-11)
+
+
+### Features
+
+* add entrypoint for use in opentelemetry-instrument ([#1278](https://github.com/Arize-ai/openinference/issues/1278)) ([2106acf](https://github.com/Arize-ai/openinference/commit/2106acfd6648804abe9b95e41a49df26a500435c))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.18...python-openinference-instrumentation-openai-v0.1.19) (2025-02-04)
+
+
+### Bug Fixes
+
+* support python 3.13 and drop python 3.8 ([#1263](https://github.com/Arize-ai/openinference/issues/1263)) ([5bfaa90](https://github.com/Arize-ai/openinference/commit/5bfaa90d800a8f725b3ac7444d16972ed7821738))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.17...python-openinference-instrumentation-openai-v0.1.18) (2024-11-22)
 
 

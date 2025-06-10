@@ -1,8 +1,9 @@
 import logging
+from logging import LogRecord
 
 
 class CustomFormatter(logging.Formatter):
-    def format(self, record):
+    def format(self, record: LogRecord) -> str:
         level = record.levelname
 
         return f"{level}: {record.getMessage()}"

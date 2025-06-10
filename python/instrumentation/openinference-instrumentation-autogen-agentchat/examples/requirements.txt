@@ -1,0 +1,6 @@
+autogen-agentchat
+autogen-ext
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+openinference-instrumentation-autogen-agentchat

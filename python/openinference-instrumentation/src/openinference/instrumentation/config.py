@@ -1,38 +1,22 @@
 import os
-from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
-from secrets import randbits
+from types import TracebackType
 from typing import (
     Any,
     Callable,
-    Dict,
-    Iterator,
     Optional,
-    Sequence,
+    Type,
     Union,
-    cast,
     get_args,
 )
 
-import wrapt
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
-    Context,
     attach,
     detach,
     set_value,
 )
-from opentelemetry.sdk.trace import IdGenerator
-from opentelemetry.trace import (
-    INVALID_SPAN_ID,
-    INVALID_TRACE_ID,
-    Link,
-    Span,
-    SpanKind,
-    Tracer,
-    use_span,
-)
-from opentelemetry.util.types import Attributes, AttributeValue
+from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -63,10 +47,20 @@ class suppress_tracing:
         self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         detach(self._token)
 
-    def __aexit__(self, exc_type, exc_value, traceback) -> None:
+    def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         detach(self._token)
 
 
@@ -218,23 +212,23 @@ class TraceConfig:
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> Optional[AttributeValue]:
         if self.hide_llm_invocation_parameters and key == SpanAttributes.LLM_INVOCATION_PARAMETERS:
-            return
+            return None
         elif self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
-            return
+            return None
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_MIME_TYPE:
-            return
+            return None
         elif (
             self.hide_inputs or self.hide_input_messages
         ) and SpanAttributes.LLM_INPUT_MESSAGES in key:
-            return
+            return None
         elif (
             self.hide_outputs or self.hide_output_messages
         ) and SpanAttributes.LLM_OUTPUT_MESSAGES in key:
-            return
+            return None
         elif (
             self.hide_input_text
             and SpanAttributes.LLM_INPUT_MESSAGES in key
@@ -266,7 +260,7 @@ class TraceConfig:
             and SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
         ):
-            return
+            return None
         elif (
             is_base64_url(value)  # type:ignore
             and len(value) > self.base64_image_max_length  # type:ignore
@@ -280,7 +274,7 @@ class TraceConfig:
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key
             and EmbeddingAttributes.EMBEDDING_VECTOR in key
         ):
-            return
+            return None
         return value() if callable(value) else value
 
     def _parse_value(
@@ -318,7 +312,7 @@ class TraceConfig:
         self,
         value: Any,
         cast_to: Any,
-    ) -> None:
+    ) -> Any:
         if cast_to is bool:
             if isinstance(value, str) and value.lower() == "true":
                 return True
@@ -327,128 +321,6 @@ class TraceConfig:
             raise
         else:
             return cast_to(value)
-
-
-_IMPORTANT_ATTRIBUTES = [
-    SpanAttributes.OPENINFERENCE_SPAN_KIND,
-]
-
-
-class _WrappedSpan(wrapt.ObjectProxy):  # type: ignore[misc]
-    def __init__(self, wrapped: Span, config: TraceConfig) -> None:
-        super().__init__(wrapped)
-        self._self_config = config
-        self._self_important_attributes: Dict[str, AttributeValue] = {}
-
-    def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
-        for k, v in attributes.items():
-            self.set_attribute(k, v)
-
-    def set_attribute(
-        self,
-        key: str,
-        value: Union[AttributeValue, Callable[[], AttributeValue]],
-    ) -> None:
-        value = self._self_config.mask(key, value)
-        if value is not None:
-            if key in _IMPORTANT_ATTRIBUTES:
-                self._self_important_attributes[key] = value
-            else:
-                span = cast(Span, self.__wrapped__)
-                span.set_attribute(key, value)
-
-    def end(self, end_time: Optional[int] = None) -> None:
-        span = cast(Span, self.__wrapped__)
-        for k, v in reversed(self._self_important_attributes.items()):
-            span.set_attribute(k, v)
-        span.end(end_time)
-
-
-class _IdGenerator(IdGenerator):
-    """
-    An IdGenerator that uses a different source of randomness to
-    avoid being affected by seeds set by user application.
-    """
-
-    def generate_span_id(self) -> int:
-        while (span_id := randbits(64)) == INVALID_SPAN_ID:
-            continue
-        return span_id
-
-    def generate_trace_id(self) -> int:
-        while (trace_id := randbits(128)) == INVALID_TRACE_ID:
-            continue
-        return trace_id
-
-
-class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
-    def __init__(self, wrapped: Tracer, config: TraceConfig) -> None:
-        super().__init__(wrapped)
-        self._self_config = config
-        self._self_id_generator = _IdGenerator()
-
-    @property
-    def id_generator(self) -> IdGenerator:
-        return self._self_id_generator
-
-    @contextmanager
-    def start_as_current_span(
-        self,
-        name: str,
-        context: Optional[Context] = None,
-        kind: SpanKind = SpanKind.INTERNAL,
-        attributes: Attributes = None,
-        links: Optional[Sequence[Link]] = (),
-        start_time: Optional[int] = None,
-        record_exception: bool = True,
-        set_status_on_exception: bool = True,
-        end_on_exit: bool = True,
-    ) -> Iterator[Span]:
-        span = self.start_span(
-            name=name,
-            context=context,
-            kind=kind,
-            attributes=attributes,
-            links=links,
-            start_time=start_time,
-            record_exception=record_exception,
-            set_status_on_exception=set_status_on_exception,
-        )
-        with use_span(
-            span,
-            end_on_exit=end_on_exit,
-            record_exception=record_exception,
-            set_status_on_exception=set_status_on_exception,
-        ) as span:
-            yield span
-
-    def start_span(
-        self,
-        name: str,
-        context: Optional[Context] = None,
-        kind: SpanKind = SpanKind.INTERNAL,
-        attributes: Attributes = None,
-        links: Optional[Sequence[Link]] = (),
-        start_time: Optional[int] = None,
-        record_exception: bool = True,
-        set_status_on_exception: bool = True,
-    ) -> Span:
-        tracer = cast(Tracer, self.__wrapped__)
-        span = tracer.__class__.start_span(
-            self,
-            name=name,
-            context=context,
-            kind=kind,
-            attributes=None,
-            links=links,
-            start_time=start_time,
-            record_exception=record_exception,
-            set_status_on_exception=set_status_on_exception,
-        )
-        span = _WrappedSpan(span, config=self._self_config)
-        if attributes:
-            span.set_attributes(attributes)
-        return span
 
 
 def is_base64_url(url: str) -> bool:

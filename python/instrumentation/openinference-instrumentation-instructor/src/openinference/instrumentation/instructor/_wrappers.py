@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -10,7 +10,11 @@ from opentelemetry.util.types import AttributeValue
 
 from instructor.utils import is_async
 from openinference.instrumentation import safe_json_dumps
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -85,6 +89,39 @@ class _PatchWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
+    @classmethod
+    def _get_messages(cls, request_params: Any) -> Dict[str, Any]:
+        llm_messages = {}
+        if messages := request_params.get("messages"):
+            prefix = f"{LLM_INPUT_MESSAGES}"
+            if isinstance(messages, Iterable) and not isinstance(messages, (str, bytes)):
+                for idx, message in enumerate(messages):
+                    llm_messages[f"{prefix}.{idx}.{MESSAGE_CONTENT}"] = message["content"]
+                    llm_messages[f"{prefix}.{idx}.{MESSAGE_ROLE}"] = message["role"]
+        return llm_messages
+
+    @classmethod
+    def _get_input_value(cls, request_params: Any) -> Any:
+        return request_params.get("messages")
+
+    @classmethod
+    def _clean_request_params(cls, attributes: Dict[str, Any]) -> Dict[str, Any]:
+        attributes = dict(attributes)
+        if "response_model" in attributes:
+            attributes["response_model"] = (
+                attributes["response_model"].__name__ if attributes.get("response_model") else None
+            )
+        if "hooks" in attributes:
+            attributes.pop("hooks")
+        return attributes
+
+    @classmethod
+    def _get_invocation_params(cls, request_params: Any) -> Dict[str, Any]:
+        attributes = dict(request_params)
+        if "messages" in request_params:
+            attributes.pop("messages")
+        return attributes
+
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -110,6 +147,7 @@ class _PatchWrapper:
 
         def patched_new_func(*args: Any, **kwargs: Any) -> Any:
             span_name = "instructor.patch"
+            attributes = self._clean_request_params(kwargs)
             with self._tracer.start_as_current_span(
                 span_name,
                 attributes=dict(
@@ -118,7 +156,11 @@ class _PatchWrapper:
                             OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
                             INPUT_VALUE_MIME_TYPE: "application/json",
                             # TODO(harrison): figure out why i cant use args with _get_input_value
-                            INPUT_VALUE: kwargs,
+                            INPUT_VALUE: self._get_input_value(attributes),
+                            LLM_INVOCATION_PARAMETERS: json.dumps(
+                                self._get_invocation_params(attributes)
+                            ),
+                            **self._get_messages(attributes),
                         }
                     )
                 ),
@@ -138,6 +180,7 @@ class _PatchWrapper:
 
         async def async_patched_new_func(*args: Any, **kwargs: Any) -> Any:
             span_name = "instructor.async_patch"
+            attributes = self._clean_request_params(kwargs)
             with self._tracer.start_as_current_span(
                 span_name,
                 attributes=dict(
@@ -146,7 +189,11 @@ class _PatchWrapper:
                             OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
                             INPUT_VALUE_MIME_TYPE: "application/json",
                             # TODO(harrison): figure out why i cant use args with _get_input_value
-                            INPUT_VALUE: kwargs,
+                            INPUT_VALUE: self._get_input_value(attributes),
+                            LLM_INVOCATION_PARAMETERS: json.dumps(
+                                self._get_invocation_params(attributes)
+                            ),
+                            **self._get_messages(attributes),
                         }
                     )
                 ),
@@ -215,17 +262,25 @@ class _HandleResponseWrapper:
                 if response_model is not None and hasattr(response_model, "model_json_schema"):
                     span.set_attribute(OUTPUT_VALUE, json.dumps(response_model.model_json_schema()))
                     span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+                elif response_model is None and isinstance(response[1], str):
+                    span.set_attribute(OUTPUT_VALUE, response[1])
+                elif response_model is None:
+                    span.set_attribute(OUTPUT_VALUE, json.dumps(response[1]))
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, response)
+            # span.set_attribute(OUTPUT_VALUE, response[1])
         return response
 
 
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_VALUE_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

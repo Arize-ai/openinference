@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Mistral AI Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.13"
+requires-python = ">=3.9, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -27,8 +27,8 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.17",
-  "openinference-semantic-conventions",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.17",
   "wrapt",
 ]
 
@@ -37,13 +37,13 @@ instruments = [
   "mistralai >= 1.0.2",
 ]
 test = [
-  "mistralai == 1.0.2",
-  "opentelemetry-sdk",
-  "opentelemetry-instrumentation-httpx",
-  "respx",
-  "pytest-asyncio",
-  "pytest.recording",
 ]
+
+[project.entry-points.opentelemetry_instrumentor]
+mistralai = "openinference.instrumentation.mistralai:MistralAIInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+mistralai = "openinference.instrumentation.mistralai:MistralAIInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-mistralai"
@@ -62,6 +62,7 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]

@@ -1,0 +1,64 @@
+interactions:
+- request:
+    body: "test_body"
+    headers: {}
+    method: POST
+    uri: https://oauth2.googleapis.com/token
+  response:
+    body:
+      string: "{\n  \"access_token\": \"test_token\",\n
+        \ \"expires_in\": 3599000,\n  \"scope\": \"https://www.googleapis.com/auth/cloud-platform
+        https://www.googleapis.com/auth/sqlservice.login https://www.googleapis.com/auth/userinfo.email
+        openid\",\n  \"token_type\": \"Bearer\",\n  \"id_token\": \"test_id_token\"\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: "{\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\":
+      [\n        {\n          \"text\": \"Tell me a funny joke, a one-liner.\"\n        }\n
+      \     ]\n    }\n  ],\n  \"generationConfig\": {}\n}"
+    headers: {}
+    method: POST
+    uri: https://us-central1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1/publishers/google/models/gemini-pro:streamGenerateContent?%24alt=json%3Benum-encoding%3Dint
+  response:
+    body:
+      string: "[{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"role\":
+        \"model\",\n        \"parts\": [\n          {\n            \"text\": \"What\"\n
+        \         }\n        ]\n      }\n    }\n  ],\n  \"usageMetadata\": {},\n  \"modelVersion\":
+        \"gemini-1.0-pro-002\",\n  \"createTime\": \"2025-01-28T03:43:23.633751Z\",\n
+        \ \"responseId\": \"W1KYZ5fXJsmbmecPiL6aaA\"\n}\n,\r\n{\n  \"candidates\":
+        [\n    {\n      \"content\": {\n        \"role\": \"model\",\n        \"parts\":
+        [\n          {\n            \"text\": \" do you call a fish with no eyes?
+        \\n\\n...Fsh!\"\n          }\n        ]\n      },\n      \"finishReason\":
+        1,\n      \"safetyRatings\": [\n        {\n          \"category\": 1,\n          \"probability\":
+        1,\n          \"probabilityScore\": 0.38476563,\n          \"severity\": 2,\n
+        \         \"severityScore\": 0.265625\n        },\n        {\n          \"category\":
+        2,\n          \"probability\": 1,\n          \"probabilityScore\": 0.27539063,\n
+        \         \"severity\": 2,\n          \"severityScore\": 0.3125\n        },\n
+        \       {\n          \"category\": 3,\n          \"probability\": 1,\n          \"probabilityScore\":
+        0.47070313,\n          \"severity\": 2,\n          \"severityScore\": 0.33203125\n
+        \       },\n        {\n          \"category\": 4,\n          \"probability\":
+        1,\n          \"probabilityScore\": 0.23632813,\n          \"severity\": 1,\n
+        \         \"severityScore\": 0.19335938\n        }\n      ]\n    }\n  ],\n
+        \ \"usageMetadata\": {\n    \"promptTokenCount\": 11,\n    \"candidatesTokenCount\":
+        16,\n    \"totalTokenCount\": 27,\n    \"promptTokensDetails\": [\n      {\n
+        \       \"modality\": 1,\n        \"tokenCount\": 11\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": 1,\n        \"tokenCount\": 16\n      }\n
+        \   ]\n  },\n  \"modelVersion\": \"gemini-1.0-pro-002\",\n  \"createTime\":
+        \"2025-01-28T03:43:23.633751Z\",\n  \"responseId\": \"W1KYZ5fXJsmbmecPiL6aaA\"\n}\n]"
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 28 Jan 2025 04:26:52 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Transfer-Encoding:
+      - chunked    
+    status:
+      code: 200
+      message: OK
+version: 1

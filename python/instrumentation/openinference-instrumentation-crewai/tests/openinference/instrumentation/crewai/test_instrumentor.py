@@ -9,6 +9,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -45,14 +46,15 @@ def setup_crewai_instrumentation(
     CrewAIInstrumentor().uninstrument()
 
 
-# Ensure we're using the common OITracer from common opeinference-instrumentation pkg
-def test_oitracer(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_crewai_instrumentation: Any,
-) -> None:
-    in_memory_span_exporter.clear()
-    assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="crewai")
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, CrewAIInstrumentor)
+
+    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+    def test_oitracer(self, setup_crewai_instrumentation: Any) -> None:
+        assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
 
 
 def test_crewai_instrumentation(
@@ -60,7 +62,7 @@ def test_crewai_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_crewai_instrumentation: Any,
 ) -> None:
-    with test_vcr.use_cassette("crew_session.yaml", filter_headers=["authorization"]):
+    with test_vcr.use_cassette("crew_session.yaml", filter_headers=["authorization", "X-API-KEY"]):
         import os
 
         os.environ["OPENAI_API_KEY"] = "fake_key"
@@ -74,8 +76,8 @@ def test_crewai_instrumentation(
             Your parents were greeters, your grand parents were greeters.
             You were born. Nay, destined to be a greeter""",
             verbose=True,
-            allow_delegation=False,
             tools=[search_tool],
+            max_iter=1,
         )
         aristocrat = Agent(
             role="Aristocrat",
@@ -84,7 +86,7 @@ def test_crewai_instrumentation(
           You transform greetings into pleasantries that you graciously
           give to greeters.""",
             verbose=True,
-            allow_delegation=True,
+            max_iter=1,
         )
         # Create tasks for your agents
         task1 = Task(
@@ -105,7 +107,7 @@ def test_crewai_instrumentation(
         )
         crew.kickoff()
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 6
+    assert len(spans) == 4
     checked_spans = 0
     for span in spans:
         attributes = dict(span.attributes or dict())
@@ -113,24 +115,30 @@ def test_crewai_instrumentation(
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "CHAIN"
             assert attributes.get("output.value")
-            assert attributes.get("llm.token_count.prompt") == 5751
-            assert attributes.get("llm.token_count.completion") == 1793
-            assert attributes.get("llm.token_count.total") == 7544
+            # assert that there are no tokens on the kickoff chain so that we do not
+            # double count token when a user is also instrumenting with another instrumentor
+            # that provides token counts via the spans.
+            assert attributes.get("llm.token_count.prompt") is None
+            assert attributes.get("llm.token_count.completion") is None
+            assert attributes.get("llm.token_count.total") is None
             assert span.status.is_ok
         elif span.name == "ToolUsage._use":
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "TOOL"
+            assert attributes.get("output.value")
             assert attributes.get("tool.name") in (
-                "Search the internet",
+                "Search the internet with Serper",
                 "Ask question to coworker",
+                "Delegate work to coworker",
             )
             assert span.status.is_ok
         elif span.name == "Task._execute_core":
             checked_spans += 1
+            assert attributes.get("output.value")
             assert attributes["openinference.span.kind"] == "AGENT"
             assert attributes.get("input.value")
             assert span.status.is_ok
-    assert checked_spans == 6
+    assert checked_spans == 4
 
 
 def test_crewai_instrumentation_context_attributes(
@@ -155,7 +163,8 @@ def test_crewai_instrumentation_context_attributes(
         prompt_template_variables=prompt_template_variables,
     ):
         with test_vcr.use_cassette(
-            "crew_session_context_attributes.yaml", filter_headers=["authorization"]
+            "crew_session_context_attributes.yaml",
+            filter_headers=["authorization", "X-API-KEY"],
         ):
             import os
 
@@ -172,6 +181,7 @@ def test_crewai_instrumentation_context_attributes(
                 verbose=True,
                 allow_delegation=False,
                 tools=[search_tool],
+                max_iter=1,
             )
             aristocrat = Agent(
                 role="Aristocrat",
@@ -180,7 +190,7 @@ def test_crewai_instrumentation_context_attributes(
               You transform greetings into pleasantries that you graciously
               give to greeters.""",
                 verbose=True,
-                allow_delegation=True,
+                max_iter=1,
             )
             # Create tasks for your agents
             task1 = Task(

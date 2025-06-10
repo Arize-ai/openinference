@@ -46,7 +46,10 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
-        self._tracer: Optional[OpenInferenceTracer] = OpenInferenceTracer(tracer)
+        self._tracer: Optional[OpenInferenceTracer] = OpenInferenceTracer(
+            tracer,
+            bool(kwargs.get("separate_trace_from_runtime_context")),
+        )
         self._original_callback_manager_init = langchain_core.callbacks.BaseCallbackManager.__init__
         wrap_function_wrapper(
             module="langchain_core.callbacks",
@@ -62,9 +65,15 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
         self._tracer = None
 
     def get_span(self, run_id: UUID) -> Optional[Span]:
+        if not hasattr(self, "_tracer") or self._tracer is None:
+            print("Missing `tracer` for spans; please run `LangChainInstrumentor().instrument()`")
+            return None
         return self._tracer.get_span(run_id) if self._tracer else None
 
     def get_ancestors(self, run_id: UUID) -> List[Span]:
+        if not hasattr(self, "_tracer") or self._tracer is None:
+            print("Missing `tracer` for spans; please run `LangChainInstrumentor().instrument()`")
+            return []
         ancestors: List[Span] = []
         tracer = self._tracer
         assert tracer
@@ -141,7 +150,7 @@ def get_ancestor_spans() -> List[Span]:
     run_id: Optional[UUID] = None
     config = langchain_core.runnables.config.var_child_runnable_config.get()
     if not isinstance(config, dict):
-        return None
+        return []
     for v in config.values():
         if not isinstance(v, langchain_core.callbacks.BaseCallbackManager):
             continue

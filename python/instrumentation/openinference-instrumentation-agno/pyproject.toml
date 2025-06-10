@@ -1,0 +1,101 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-agno"
+dynamic = ["version"]
+description = "OpenInference Agno Instrumentation"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9, <3.14"
+authors = [
+  { name = "OpenInference Authors", email = "oss@arize.com" },
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "opentelemetry-api",
+  "opentelemetry-instrumentation",
+  "opentelemetry-semantic-conventions",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.17",
+  "wrapt",
+  "typing-extensions",
+]
+
+[project.optional-dependencies]
+instruments = [
+  "agno>=1.5.2",
+]
+test = [
+  "agno==1.5.2",
+  "opentelemetry-sdk",
+  "pytest-recording",
+  "openai",
+  "duckduckgo-search",
+]
+
+[project.entry-points.opentelemetry_instrumentor]
+agno = "openinference.instrumentation.agno:AgnoInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+agno = "openinference.instrumentation.agno:AgnoInstrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agno"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/agno/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+  "tests",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "agno",
+  "wrapt",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false

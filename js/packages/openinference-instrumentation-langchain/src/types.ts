@@ -36,6 +36,9 @@ export type RetrievalDocument = {
 export type LLMParameterAttributes = {
   [SemanticConventions.LLM_MODEL_NAME]?: string;
   [SemanticConventions.LLM_INVOCATION_PARAMETERS]?: string;
+  [
+    key: `${typeof SemanticConventions.LLM_TOOLS}.${number}.${typeof SemanticConventions.TOOL_JSON_SCHEMA}`
+  ]: string;
 };
 
 export type PromptTemplateAttributes = {
@@ -46,6 +49,11 @@ export type TokenCountAttributes = {
   [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]?: number;
   [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]?: number;
   [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]?: number;
+  [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]?: number;
+  [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]?: number;
+  [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO]?: number;
+  [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]?: number;
+  [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO]?: number;
 };
 
 export type ToolAttributes = {

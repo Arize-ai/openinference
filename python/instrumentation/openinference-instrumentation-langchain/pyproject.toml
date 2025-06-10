@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference LangChain Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8, <3.13"
+requires-python = ">=3.9, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,41 +18,50 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.17",
-  "openinference-semantic-conventions>=0.1.9",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.17",
   "wrapt",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "langchain_core >= 0.1.0",
+  "langchain_core >= 0.2.43",
 ]
 test = [
-  "langchain_core == 0.1.8",
-  "langchain == 0.1.0",
-  "langchain_openai == 0.0.2",
-  "langchain-community == 0.0.10",
+  "langchain_core == 0.3.50",
+  "langchain == 0.3.15",
+  "langchain_openai == 0.2.14",
+  "langchain-community == 0.3.15",
+  "langchain-google-vertexai == 2.0.12",
   "opentelemetry-sdk",
   "respx",
   "pytest-recording",
+  "pytest-rerunfailures",
   "langsmith",
   "portpicker",
   "starlette",
   "uvicorn",
+  "vcrpy>=6.0.1",
 ]
 type-check = [
-  "langchain_core == 0.1.5",
+  "langchain_core == 0.2.43",
 ]
+
+[project.entry-points.opentelemetry_instrumentor]
+langchain = "openinference.instrumentation.langchain:LangChainInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+langchain = "openinference.instrumentation.langchain:LangChainInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-langchain"
@@ -71,6 +80,7 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]

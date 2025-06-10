@@ -18,7 +18,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -28,11 +27,17 @@ classifiers = [
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-sdk",
-  "openinference-semantic-conventions>=0.1.6",
+  "openinference-semantic-conventions>=0.1.17",
 ]
 
 [project.optional-dependencies]
 test = [
+  "jsonschema",
+  "openai",
+  "pydantic>=2.0.0",
+  "pytest-asyncio",
+  "pytest-recording",
+  "types-jsonschema",
 ]
 
 [project.urls]
@@ -66,7 +71,21 @@ testpaths = [
 strict = true
 explicit_package_bases = true
 exclude = [
-  "src/openinference/instrumentation/*/*",
+  "src/openinference/instrumentation/anthropic/*",
+  "src/openinference/instrumentation/bedrock/*",
+  "src/openinference/instrumentation/crewai/*",
+  "src/openinference/instrumentation/dspy/*",
+  "src/openinference/instrumentation/groq/*",
+  "src/openinference/instrumentation/guardrails/*",
+  "src/openinference/instrumentation/haystack/*",
+  "src/openinference/instrumentation/instructor/*",
+  "src/openinference/instrumentation/langchain/*",
+  "src/openinference/instrumentation/litellm/*",
+  "src/openinference/instrumentation/llama_index/*",
+  "src/openinference/instrumentation/mistralai/*",
+  "src/openinference/instrumentation/openai/*",
+  "src/openinference/instrumentation/smolagents/*",
+  "src/openinference/instrumentation/vertexai/*",
 ]
 
 [tool.ruff]

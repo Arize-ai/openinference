@@ -1,6 +1,6 @@
 {
     "bump-patch-for-minor-pre-major": true,
-    "separate-pull-requests": true,
+    "separate-pull-requests": false,
     "sequential-calls": true,
     "packages": {
         "python/openinference-semantic-conventions": {
@@ -11,12 +11,20 @@
             "package-name": "python-openinference-instrumentation",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-agno": {
+            "package-name": "python-openinference-instrumentation-agno",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-mistralai": {
             "package-name": "python-openinference-instrumentation-mistralai",
             "release-type": "python"
         },
         "python/instrumentation/openinference-instrumentation-openai": {
             "package-name": "python-openinference-instrumentation-openai",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-openai-agents": {
+            "package-name": "python-openinference-instrumentation-openai-agents",
             "release-type": "python"
         },
         "python/instrumentation/openinference-instrumentation-vertexai": {
@@ -65,6 +73,38 @@
         },
         "python/instrumentation/openinference-instrumentation-anthropic": {
             "package-name": "python-openinference-instrumentation-anthropic",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-smolagents": {
+            "package-name": "python-openinference-instrumentation-smolagents",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-autogen": {
+            "package-name": "python-openinference-instrumentation-autogen",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-beeai": {
+            "package-name": "python-openinference-instrumentation-beeai",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-portkey": {
+            "package-name": "python-openinference-instrumentation-portkey",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-mcp": {
+            "package-name": "python-openinference-instrumentation-mcp",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-google-genai": {
+            "package-name": "python-openinference-instrumentation-google-genai",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-autogen-agentchat": {
+            "package-name": "python-openinference-instrumentation-autogen-agentchat",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-pydantic-ai": {
+            "package-name": "python-openinference-instrumentation-pydantic-ai",
             "release-type": "python"
         }
     }

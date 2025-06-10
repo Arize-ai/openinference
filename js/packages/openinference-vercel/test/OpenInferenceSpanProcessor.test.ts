@@ -165,7 +165,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           ],
         );
         break;
-      case AISemanticConventions.RESULT_TEXT:
+      case AISemanticConventions.RESPONSE_TEXT:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.OUTPUT_VALUE} with MIME type ${MimeType.TEXT}`,
           {
@@ -182,7 +182,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case AISemanticConventions.RESULT_OBJECT:
+      case AISemanticConventions.RESPONSE_OBJECT:
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.OUTPUT_VALUE} with MIME type ${MimeType.JSON}`,
           {
@@ -201,7 +201,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
-      case AISemanticConventions.RESULT_TOOL_CALLS: {
+      case AISemanticConventions.RESPONSE_TOOL_CALLS: {
         const firstOutputMessageToolPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}`;
         testCases.push([
           `${vercelSemanticConvention} to ${SemanticConventions.MESSAGE_TOOL_CALLS} on ${SemanticConventions.LLM_OUTPUT_MESSAGES}`,
@@ -321,6 +321,18 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
                 [`${firstInputMessageContentsPrefix}.1.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
                   "image.com",
                 [`${firstInputMessageContentsPrefix}.1.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_ID}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_ID}`]:
                   undefined,
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
                   OpenInferenceSpanKind.LLM,
@@ -544,13 +556,12 @@ function setupTraceProvider({
 }) {
   memoryExporter.reset();
   trace.disable();
-  traceProvider = new BasicTracerProvider();
   memoryExporter = new InMemorySpanExporter();
   processor = new Processor({
     exporter: memoryExporter,
     spanFilter,
   });
-  traceProvider.addSpanProcessor(processor);
+  traceProvider = new BasicTracerProvider({ spanProcessors: [processor] });
   trace.setGlobalTracerProvider(traceProvider);
 }
 

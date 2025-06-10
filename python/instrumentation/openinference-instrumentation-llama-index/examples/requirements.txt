@@ -13,6 +13,7 @@ openinference-instrumentation-llama-index >= 2.2.1
 opentelemetry-exporter-otlp
 opentelemetry-proto >= 1.12.0
 opentelemetry-sdk
+pydantic
 requests
 sentence-transformers >= 3.0.1
 sqlalchemy

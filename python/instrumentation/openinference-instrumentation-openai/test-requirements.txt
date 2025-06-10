@@ -1,6 +1,7 @@
-openai==1.0.0
+openai==1.69.0
 opentelemetry-sdk
 opentelemetry-instrumentation-httpx
 respx
 numpy
 pytest-vcr
+httpx<0.28

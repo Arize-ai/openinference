@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference LlamaIndex Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8, <3.13"
+requires-python = ">=3.9, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,40 +18,33 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.17",
-  "openinference-semantic-conventions>=0.1.9",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.17",
   "typing-extensions",
   "wrapt",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "llama-index-core >= 0.11.0",
+  "llama-index-core >= 0.12.3",
   "llama-index-multi-modal-llms-openai>=0.1.7",
 ]
-test = [
-  "llama-index == 0.11.0",
-  "llama-index-core >= 0.11.0",
-  "llama-index-llms-openai",
-  "llama_index.llms.anthropic",
-  "llama-index-llms-groq",
-  "pytest-vcr",
-  "anthropic<0.41",
-  "llama-index-multi-modal-llms-openai>=0.1.7",
-  "openinference-instrumentation-openai",
-  "opentelemetry-sdk",
-  "respx",
-]
+
+[project.entry-points.opentelemetry_instrumentor]
+llama_index = "openinference.instrumentation.llama_index:LlamaIndexInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+llama_index = "openinference.instrumentation.llama_index:LlamaIndexInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-llama-index"
@@ -82,6 +75,7 @@ exclude = [
   "examples",
   "dist",
   "sdist",
+  "test_env",
 ]
 
 [[tool.mypy.overrides]]
@@ -89,7 +83,9 @@ ignore_missing_imports = true
 module = [
   "wrapt",
   "llama_index.llms.anthropic",
+  "llama_index.llms.azure_openai",
   "llama_index.llms.openai",
+  "llama_index.llms.vertex",
 ]
 
 [tool.ruff]

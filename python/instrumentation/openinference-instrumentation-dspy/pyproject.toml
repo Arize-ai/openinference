@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference DSPy Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.13"
+requires-python = ">=3.9, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -27,23 +27,29 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.17",
-  "openinference-semantic-conventions",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.17",
   "wrapt",
   "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "dspy >= 2.5.0",
+  "dspy >= 2.6.22",
 ]
 test = [
-  "dspy>=2.5.27",
+  "dspy>=2.6.22",
   "google-generativeai",
   "opentelemetry-sdk",
   "pytest-recording",
   "litellm",
 ]
+
+[project.entry-points.opentelemetry_instrumentor]
+dspy = "openinference.instrumentation.dspy:DSPyInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+dspy = "openinference.instrumentation.dspy:DSPyInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-dspy"
@@ -80,7 +86,6 @@ ignore_missing_imports = true
 module = [
   "wrapt",
   "dspy.*",
-  "dsp.*",
 ]
 
 [tool.ruff]

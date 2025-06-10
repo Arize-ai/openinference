@@ -182,6 +182,9 @@ function getRoleFromMessageData(
   if (normalizedLangchainMessageClass.includes("function")) {
     return "function";
   }
+  if (normalizedLangchainMessageClass.includes("tool")) {
+    return "tool";
+  }
   if (
     normalizedLangchainMessageClass.includes("chat") &&
     isObject(messageData.kwargs) &&
@@ -433,6 +436,19 @@ function formatLLMParams(
     openInferenceParams[SemanticConventions.LLM_MODEL_NAME] =
       runExtra.invocation_params.model;
   }
+
+  // add tool json schema if present in the invocation params
+  const tools = runExtra.invocation_params.tools;
+  if (Array.isArray(tools)) {
+    tools.forEach((tool, index) => {
+      const toolJsonSchema = safelyJSONStringify(tool);
+      if (toolJsonSchema) {
+        const key =
+          `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}` as const;
+        openInferenceParams[key] = toolJsonSchema;
+      }
+    });
+  }
   return openInferenceParams;
 }
 
@@ -509,7 +525,7 @@ function formatTokenCounts(
     ? maybeMessage.usage_metadata
     : null;
   if (isObject(usageMetadata)) {
-    return {
+    const tokenCountAttributes: TokenCountAttributes = {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(
         usageMetadata.output_tokens,
       ),
@@ -520,6 +536,30 @@ function formatTokenCounts(
         usageMetadata.total_tokens,
       ),
     };
+    // Parse out the prompt / input token details.
+    // Note we fallback to undefined if the token details are not present just to save keys
+    if (isObject(usageMetadata.input_token_details)) {
+      tokenCountAttributes[
+        SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+      ] =
+        getTokenCount(usageMetadata.input_token_details.cache_read) ||
+        undefined;
+      tokenCountAttributes[
+        SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+      ] = getTokenCount(usageMetadata.input_token_details.audio) || undefined;
+    }
+    // Parse out the completion / output token details
+    if (isObject(usageMetadata.output_token_details)) {
+      tokenCountAttributes[
+        SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+      ] =
+        getTokenCount(usageMetadata.output_token_details.reasoning) ||
+        undefined;
+      tokenCountAttributes[
+        SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
+      ] = getTokenCount(usageMetadata.output_token_details.audio) || undefined;
+    }
+    return tokenCountAttributes;
   }
   const llmOutput = outputs.llmOutput;
   if (!isObject(llmOutput)) {

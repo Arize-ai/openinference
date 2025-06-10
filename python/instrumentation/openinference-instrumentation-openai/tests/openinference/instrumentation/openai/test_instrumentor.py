@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import uuid
 from contextlib import suppress
 from importlib import import_module
 from importlib.metadata import version
@@ -27,6 +28,7 @@ from httpx import AsyncByteStream, Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
 
@@ -53,6 +55,13 @@ for name, logger in logging.root.manager.loggerDict.items():
 
 _OPENAI_BASE_URL = "https://api.openai.com/v1/"
 _AZURE_BASE_URL = "https://aoairesource.openai.azure.com"
+
+
+class TestInstrumentor:
+    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="openai")
+        instrumentor = instrumentor_entrypoint.load()()
+        assert isinstance(instrumentor, OpenAIInstrumentor)
 
 
 @pytest.mark.parametrize(
@@ -515,6 +524,343 @@ def test_embeddings(
     assert attributes == {}  # test should account for all span attributes
 
 
+def randstr() -> str:
+    return str(random.random())
+
+
+def randid() -> str:
+    return str(uuid.uuid4().hex)
+
+
+def responses_tool_call_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
+    return (
+        [
+            b'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_67ef8ea7bdc081918bdbb89a4b85b593012c75bf9895c7d1","object":"response","created_at":1743752871,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-2024-08-06","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[{"type":"function","description":"Get current temperature for provided coordinates in celsius.","name":"get_weather","parameters":{"type":"object","properties":{"latitude":{"type":"number"},"longitude":{"type":"number"}},"required":["latitude","longitude"],"additionalProperties":false},"strict":true}],"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}\n\n',  # noqa# noqa: E501
+            b'event: response.in_progress\ndata: {"type":"response.in_progress","response":{"id":"resp_67ef8ea7bdc081918bdbb89a4b85b593012c75bf9895c7d1","object":"response","created_at":1743752871,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-2024-08-06","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[{"type":"function","description":"Get current temperature for provided coordinates in celsius.","name":"get_weather","parameters":{"type":"object","properties":{"latitude":{"type":"number"},"longitude":{"type":"number"}},"required":["latitude","longitude"],"additionalProperties":false},"strict":true}],"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}\n\n',  # noqa: E501
+            b'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"call_caea3f3962f34170b06d77f8f69da8e1","call_id":"call_h9tDOJkqPEKgq4igvAJgBseP","name":"get_weather","arguments":"","status":"in_progress"}}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","item_id":"call_caea3f3962f34170b06d77f8f69da8e1","output_index":0,"delta":"{"}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","item_id":"call_caea3f3962f34170b06d77f8f69da8e1","output_index":0,"delta":"77.209}"}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.done\ndata: {"type":"response.function_call_arguments.done","item_id":"call_caea3f3962f34170b06d77f8f69da8e1","output_index":0,"arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}"}\n\n',  # noqa: E501
+            b'event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","id":"call_caea3f3962f34170b06d77f8f69da8e1","call_id":"call_h9tDOJkqPEKgq4igvAJgBseP","name":"get_weather","arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}","status":"completed"}}\n\n',  # noqa: E501
+            b'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":1,"item":{"type":"function_call","id":"fc_67ef8ea883d08191ab2c4d310776ed53012c75bf9895c7d1","call_id":"call_FBQqz6pucj5sAQ0rcID0NiWR","name":"get_weather","arguments":"","status":"in_progress"}}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","item_id":"fc_67ef8ea883d08191ab2c4d310776ed53012c75bf9895c7d1","output_index":1,"delta":"{"}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.done\ndata: {"type":"response.function_call_arguments.done","item_id":"fc_67ef8ea883d08191ab2c4d310776ed53012c75bf9895c7d1","output_index":1,"arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}"}\n\n',  # noqa: E501
+            b'event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":1,"item":{"type":"function_call","id":"fc_67ef8ea883d08191ab2c4d310776ed53012c75bf9895c7d1","call_id":"call_FBQqz6pucj5sAQ0rcID0NiWR","name":"get_weather","arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}","status":"completed"}}\n\n',  # noqa: E501
+            b'event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp_67ef8ea7bdc081918bdbb89a4b85b593012c75bf9895c7d1","object":"response","created_at":1743752871,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-2024-08-06","output":[{"type":"function_call","id":"call_caea3f3962","call_id":"call_f34170b06d77f8f69da8e1","name":"get_weather","arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}","status":"completed"},{"type":"function_call","id":"fc_67ef8ea883d08191","call_id":"call_FBQqz6pucj5sAQ0rcID0NiWR","name":"get_weather","arguments":"{\\"latitude\\":28.01,\\"longitude\\":77.01}","status":"completed"}],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[{"type":"function","description":"Get current temperature for provided coordinates in celsius.","name":"get_weather","parameters":{"type":"object","properties":{"latitude":{"type":"number"},"longitude":{"type":"number"}},"required":["latitude","longitude"],"additionalProperties":false},"strict":true}],"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":0,"input_tokens_details":{"cached_tokens":0},"output_tokens":0,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":0},"user":null,"metadata":{}}}\n\n',  # noqa: E501
+            b"data: [DONE]\n",
+        ],
+        [
+            {
+                "arguments": '{"latitude":28.6139,"longitude":77.209}',
+                "call_id": "call_f34170b06d77f8f69da8e1",
+                "name": "get_weather",
+                "role": "assistant",
+                "type": "function_call",
+                "id": "call_caea3f3962",
+                "status": "completed",
+            },
+            {
+                "arguments": '{"latitude":28.01,"longitude":77.01}',
+                "call_id": "call_FBQqz6pucj5sAQ0rcID0NiWR",
+                "name": "get_weather",
+                "role": "assistant",
+                "type": "function_call",
+                "id": "fc_67ef8ea883d08191",
+                "status": "completed",
+            },
+        ],
+    )
+
+
+def responses_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
+    return (
+        [
+            b'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_67ee874802","object":"response","created_at":1743685448,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-mini-2024-07-18","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}\n\n',  # noqa: E501
+            b'event: response.in_progress\ndata: {"type":"response.in_progress","response":{"id":"resp_67ee8748023c8191b66511f9a23c0a5f0e88ccd2557cf7b7","object":"response","created_at":1743685448,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-mini-2024-07-18","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}\n\n',  # noqa: E501
+            b'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":0,"item":{"type":"message","id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","status":"in_progress","role":"assistant","content":[]}}\n\n',  # noqa: E501
+            b'event: response.content_part.added\ndata: {"type":"response.content_part.added","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}\n\n',  # noqa: E501
+            b'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"delta":"As"}\n\n',  # noqa: E501
+            b'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"delta":"."}\n\n',  # noqa: E501
+            b'event: response.output_text.done\ndata: {"type":"response.output_text.done","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"text":"As the moonlight"}\n\n',  # noqa: E501
+            b'event: response.content_part.done\ndata: {"type":"response.content_part.done","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"part":{"type":"output_text","text":"As the moonlight.","annotations":[]}}\n\n',  # noqa: E501
+            b'event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","status":"completed","role":"assistant","content":[{"type":"output_text","text":"As the moonlight","annotations":[]}]}}\n\n',  # noqa: E501
+            b'event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp_67ee8748023c8191b66511f9a23c0a5f0e88ccd2557cf7b7","object":"response","created_at":1743685448,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-mini-2024-07-18","output":[{"type":"message","id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","status":"completed","role":"assistant","content":[{"type":"output_text","text":"As the moonlight","annotations":[]}]}],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":18,"input_tokens_details":{"cached_tokens":0},"output_tokens":30,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":48},"user":null,"metadata":{}}}\n\n'  # noqa: E501
+            b"data: [DONE]\n",
+        ],
+        [
+            {
+                "id": f"msg_{randid()}",
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "As the moonlight", "annotations": []}],
+            }
+        ],
+    )
+
+
+def get_response_messages() -> List[
+    Tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Tuple[List[bytes], List[Dict[str, Any]]],
+    ]
+]:
+    messages: List[
+        Tuple[
+            List[Dict[str, Any]],
+            List[Dict[str, Any]],
+            Tuple[List[bytes], List[Dict[str, Any]]],
+        ]
+    ] = [
+        (
+            [{"role": "user", "content": f"{randstr()}"}],
+            [
+                {
+                    "id": f"msg_{randid()}",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": f"{randstr()}", "annotations": []}],
+                }
+            ],
+            responses_mock_stream(),
+        ),
+        (
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": f"{randstr()}"},
+                        {
+                            "type": "input_image",
+                            "image_url": "https:///cdn.pixabay.com/photo/2015/04/23/22/00/boardwalk.jpg",
+                        },
+                    ],
+                }
+            ],
+            [
+                {
+                    "id": f"msg_{randid()}",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": f"{randstr()}", "annotations": []}],
+                }
+            ],
+            responses_mock_stream(),
+        ),
+        (
+            [{"content": "What's the weather like in Paris & Delhi today?", "role": "user"}],
+            [
+                {
+                    "arguments": '{"latitude":28.6139,"longitude":77.209}',
+                    "call_id": f"call_{randid()}",
+                    "name": f"{randstr()}",
+                    "role": "assistant",
+                    "type": "function_call",
+                    "id": "call_caea3f3962f34170b06d77f8f69da8e1",
+                    "status": "completed",
+                }
+            ],
+            responses_tool_call_mock_stream(),
+        ),
+    ]
+    return messages
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        pytest.param(_OPENAI_BASE_URL, id="openai-base-url"),
+        pytest.param(_AZURE_BASE_URL, id="azure-base-url"),
+    ),
+)
+@pytest.mark.parametrize("message_data", get_response_messages())
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_stream", [False, True])
+@pytest.mark.parametrize("status_code", [200, 400])
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_responses(
+    base_url: str,
+    message_data: Tuple[List[Any], List[Any], Tuple[Any, Any]],
+    is_async: bool,
+    is_stream: bool,
+    status_code: int,
+    use_context_attributes: bool,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    responses_usage: Dict[str, Any],
+    model_name: str,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    input_messages: List[Any] = message_data[0]
+    output_messages: List[Dict[str, Any]] = message_data[2][1] if is_stream else message_data[1]
+    invocation_parameters = {
+        "stream": is_stream,
+        "model": model_name,
+        "temperature": random.random(),
+    }
+    url = urljoin(base_url, "responses")
+    response_model_name = randstr()
+    respx_kwargs: Dict[str, Any] = {
+        **(
+            {"stream": MockAsyncByteStream(message_data[2][0])}
+            if is_stream
+            else {
+                "json": {
+                    "id": randstr(),
+                    "status": "completed",
+                    "object": "response",
+                    "output": output_messages,
+                    "model": response_model_name,
+                    "usage": responses_usage,
+                }
+            }
+        ),
+    }
+    respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
+    create_kwargs = {"input": input_messages, **invocation_parameters}
+    openai = import_module("openai")
+    create = (
+        openai.AsyncOpenAI(api_key="sk-", base_url=base_url).responses.create
+        if is_async
+        else openai.OpenAI(api_key="sk-", base_url=base_url).responses.create
+    )
+
+    async def task() -> None:
+        response = await create(**create_kwargs)
+        if is_stream:
+            if _openai_version() >= (1, 6, 0):
+                async with response as iterator:
+                    async for _ in iterator:
+                        pass
+            else:
+                async for _ in response:
+                    pass
+
+    with suppress(openai.BadRequestError):
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                if is_async:
+                    asyncio.run(task())
+                else:
+                    response = create(**create_kwargs)
+                    if is_stream:
+                        if _openai_version() >= (1, 6, 0):
+                            with response as iterator:
+                                for _ in iterator:
+                                    pass
+                        else:
+                            for _ in response:
+                                pass
+        else:
+            if is_async:
+                asyncio.run(task())
+            else:
+                response = create(**create_kwargs)
+                if is_stream:
+                    if _openai_version() >= (1, 6, 0):
+                        with response as iterator:
+                            for _ in iterator:
+                                pass
+                    else:
+                        for _ in response:
+                            pass
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2  # first span should be from the httpx instrumentor
+    span: ReadableSpan = spans[1]
+    if status_code == 200:
+        assert span.status.is_ok
+        assert not span.status.description
+    elif status_code == 400:
+        assert not span.status.is_ok and not span.status.is_unset
+        assert span.status.description and span.status.description.startswith(
+            openai.BadRequestError.__name__
+        )
+        assert len(span.events) == 1
+        event = span.events[0]
+        assert event.name == "exception"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == (
+        LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
+    )
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+        == invocation_parameters
+    )
+    for i, message in enumerate(input_messages, 1):
+        _check_llm_message(LLM_INPUT_MESSAGES, i, attributes, message)
+
+    if status_code == 200:
+        for i, message in enumerate(output_messages):
+            _check_llm_message(LLM_OUTPUT_MESSAGES, i, attributes, message)
+            if message.get("type") == "function_call":
+                assert attributes.pop(
+                    f"llm.output_messages.{i}.message.tool_calls.0.tool_call.id"
+                ) == message.get("call_id")
+                assert attributes.pop(
+                    f"llm.output_messages.{i}.message.tool_calls.0.tool_call.function.arguments"
+                ) == message.get("arguments")
+                assert attributes.pop(
+                    f"llm.output_messages.{i}.message.tool_calls.0.tool_call.function.name"
+                ) == message.get("name")
+        assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
+        assert (
+            OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
+            == OpenInferenceMimeTypeValues.JSON
+        )
+        if not is_stream:
+            assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == responses_usage["total_tokens"]
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == responses_usage["input_tokens"]
+            assert (
+                attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == responses_usage["output_tokens"]
+            )
+            assert attributes.pop(LLM_MODEL_NAME, None) == response_model_name
+            assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, None) is not None
+        else:
+            assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) is not None
+            assert attributes.pop(LLM_MODEL_NAME, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, None) is not None
+            attributes.pop("llm.tools.0.tool.json_schema", None)
+    else:
+        assert attributes.pop(LLM_MODEL_NAME, None) == model_name
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+    assert attributes == {}  # test should account for all span attributes
+
+
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_raw", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
@@ -920,11 +1266,20 @@ def _check_llm_message(
     if isinstance(expected_content, list):
         for j, expected_content_item in enumerate(expected_content):
             content_item_type = attributes.pop(message_contents_type(prefix, i, j), None)
-            expected_content_item_type = expected_content_item.get("type")
-            if expected_content_item_type == "image_url":
+            if expected_content_item.get("type") in ("input_text", "output_text"):
+                expected_content_item_type = "text"
+            else:
+                expected_content_item_type = expected_content_item.get("type")
+            if expected_content_item_type in ("image_url", "input_image"):
                 expected_content_item_type = "image"
             assert content_item_type == expected_content_item_type
             if content_item_type == "text":
+                content_item_text = attributes.pop(message_contents_text(prefix, i, j), None)
+                if hide_text:
+                    assert content_item_text == REDACTED_VALUE
+                else:
+                    assert content_item_text == expected_content_item.get("text")
+            elif content_item_type == "output_text":
                 content_item_text = attributes.pop(message_contents_text(prefix, i, j), None)
                 if hide_text:
                     assert content_item_text == REDACTED_VALUE
@@ -937,7 +1292,10 @@ def _check_llm_message(
                 if hide_images:
                     assert content_item_image_url is None
                 else:
-                    expected_url = expected_content_item.get("image_url").get("url")
+                    expected_url = expected_content_item.get("image_url")
+                    if isinstance(expected_url, dict):
+                        expected_url = expected_url.get("url")
+                    assert isinstance(expected_url, str)
                     if image_limit is not None and len(expected_url) > image_limit:
                         assert content_item_image_url == REDACTED_VALUE
                     else:
@@ -1060,6 +1418,19 @@ def seed() -> Iterator[int]:
 def set_seed(seed: Iterator[int]) -> Iterator[None]:
     random.seed(next(seed))
     yield
+
+
+@pytest.fixture
+def responses_usage() -> Dict[str, Any]:
+    prompt_tokens = random.randint(1, 1000)
+    completion_tokens = random.randint(1, 1000)
+    return {
+        "input_tokens": prompt_tokens,
+        "input_tokens_details": {"cached_tokens": 0},
+        "output_tokens": completion_tokens,
+        "output_tokens_details": {"reasoning_tokens": 0},
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
 
 
 @pytest.fixture
@@ -1219,12 +1590,29 @@ class MockAsyncByteStream(AsyncByteStream):
             yield byte_string
 
 
-def randstr() -> str:
-    return str(random.random())
-
-
 def get_texts() -> List[str]:
     return [randstr() for _ in range(2)]
+
+
+def rand_tool_call() -> Dict[str, Any]:
+    return {
+        "type": "function_call",
+        "id": "fc_afa15b16dc044e4ea94697ab427dd59a",
+        "call_id": "call_caea3f3962f34170b06d77f8f69da8e1",
+        "name": "get_weather",
+        "arguments": f"{randstr()}",
+        "status": "completed",
+    }
+
+
+def rand_message() -> Dict[str, Any]:
+    return {
+        "type": "message",
+        "id": f"msg_{randid()}",
+        "status": "completed",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": randstr(), "annotations": []}],
+    }
 
 
 def get_messages() -> List[Dict[str, Any]]:
@@ -1343,6 +1731,10 @@ LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS

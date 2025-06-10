@@ -1,5 +1,4 @@
 import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
-import type * as CallbackManagerModuleV01 from "@langchain/coreV0.1/callbacks/manager";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -27,9 +26,7 @@ export function isPatched() {
   return _isOpenInferencePatched;
 }
 
-type CallbackManagerModule =
-  | typeof CallbackManagerModuleV01
-  | typeof CallbackManagerModuleV02;
+type CallbackManagerModule = typeof CallbackManagerModuleV02;
 
 /**
  * An auto instrumentation class for LangChain that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for LangChain
@@ -120,24 +117,6 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
             inheritableHandlers,
           );
           args[0] = newInheritableHandlers;
-
-          return original.apply(this, args);
-        };
-      });
-    } else {
-      this._wrap(module.CallbackManager, "configure", (original) => {
-        return function (
-          this: typeof CallbackManagerModuleV01,
-          ...args: Parameters<
-            (typeof CallbackManagerModuleV01.CallbackManager)["configure"]
-          >
-        ) {
-          const handlers = args[0];
-          const newHandlers = addTracerToHandlers(
-            instrumentation.oiTracer,
-            handlers,
-          );
-          args[0] = newHandlers;
 
           return original.apply(this, args);
         };

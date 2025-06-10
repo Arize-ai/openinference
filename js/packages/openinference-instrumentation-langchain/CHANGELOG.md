@@ -1,5 +1,49 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 3.3.0
+
+### Minor Changes
+
+- 2869d93: captures the json schema for function calls that are bound to llm calls as tools
+
+## 3.2.0
+
+### Minor Changes
+
+- 6892184: feat(langchain-js): Instrument tool messages in langchain js instrumentation
+
+### Patch Changes
+
+- 4b296d2: properly record exceptions on spans for langchain runs
+
+## 3.1.0
+
+### Minor Changes
+
+- e5300f3: support for prompt and completion token count details for langchainjs and openai
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [ae5cd15]
+  - @arizeai/openinference-semantic-conventions@1.1.0
+  - @arizeai/openinference-core@1.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [c4e2252]
+  - @arizeai/openinference-semantic-conventions@1.0.1
+  - @arizeai/openinference-core@1.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 1ae380c: deprecate support for v0.1
+
 ## 2.0.0
 
 ### Major Changes

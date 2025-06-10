@@ -1,0 +1,9 @@
+mcp==1.8.1
+
+httpx
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-proto
+opentelemetry-sdk
+respx
+starlette
+uvicorn

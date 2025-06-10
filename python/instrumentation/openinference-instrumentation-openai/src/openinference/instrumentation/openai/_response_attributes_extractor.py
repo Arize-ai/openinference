@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import logging
 from importlib import import_module
@@ -16,6 +18,7 @@ from typing import (
 
 from opentelemetry.util.types import AttributeValue
 
+from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._utils import _get_openai_version, _get_texts
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -27,12 +30,12 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
     from openai.types.chat import ChatCompletion
+    from openai.types.responses.response import Response
 
 __all__ = ("_ResponseAttributesExtractor",)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
 
 try:
     _NUMPY: Optional[ModuleType] = import_module("numpy")
@@ -46,12 +49,14 @@ class _ResponseAttributesExtractor:
         "_chat_completion_type",
         "_completion_type",
         "_create_embedding_response_type",
+        "_responses_type",
     )
 
     def __init__(self, openai: ModuleType) -> None:
         self._openai = openai
         self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
         self._completion_type: Type["Completion"] = openai.types.Completion
+        self._responses_type: Type["Response"] = openai.types.responses.response.Response
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
             openai.types.CreateEmbeddingResponse
         )
@@ -66,6 +71,11 @@ class _ResponseAttributesExtractor:
                 completion=response,
                 request_parameters=request_parameters,
             )
+        elif isinstance(response, self._responses_type):
+            yield from self._get_attributes_from_responses_response(
+                response=response,
+                request_parameters=request_parameters,
+            )
         elif isinstance(response, self._create_embedding_response_type):
             yield from self._get_attributes_from_create_embedding_response(
                 response=response,
@@ -76,8 +86,13 @@ class _ResponseAttributesExtractor:
                 completion=response,
                 request_parameters=request_parameters,
             )
-        else:
-            yield from ()
+
+    def _get_attributes_from_responses_response(
+        self,
+        response: Response,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield from _ResponsesApiAttributes._get_attributes_from_response(response)
 
     def _get_attributes_from_chat_completion(
         self,
@@ -231,6 +246,26 @@ class _ResponseAttributesExtractor:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+        if (prompt_completion_tokens := getattr(usage, "prompt_tokens_details", None)) is not None:
+            if (
+                cached_tokens := getattr(prompt_completion_tokens, "cached_tokens", None)
+            ) is not None:
+                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+            if (
+                audio_tokens := getattr(prompt_completion_tokens, "audio_tokens", None)
+            ) is not None:
+                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_tokens
+        if (
+            completion_completion_tokens := getattr(usage, "completion_tokens_details", None)
+        ) is not None:
+            if (
+                reasoning_tokens := getattr(completion_completion_tokens, "reasoning_tokens", None)
+            ) is not None:
+                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
+            if (
+                audio_tokens := getattr(completion_completion_tokens, "audio_tokens", None)
+            ) is not None:
+                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, audio_tokens
 
     def _get_attributes_from_embedding_usage(
         self,

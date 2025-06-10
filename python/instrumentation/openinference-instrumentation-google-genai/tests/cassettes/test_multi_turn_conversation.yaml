@@ -1,0 +1,68 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the capital of France?"}], "role":
+      "user"}]}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    content: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+      [\n          {\n            \"text\": \"The capital of France is **Paris**.\\n\"\n
+      \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+      \"STOP\",\n      \"avgLogprobs\": -0.021610861023267109\n    }\n  ],\n  \"usageMetadata\":
+      {\n    \"promptTokenCount\": 7,\n    \"candidatesTokenCount\": 9,\n    \"totalTokenCount\":
+      16,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+      \       \"tokenCount\": 7\n      }\n    ],\n    \"candidatesTokensDetails\":
+      [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 9\n      }\n
+      \   ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\"\n}\n"
+    headers: {}
+    http_version: HTTP/1.1
+    status_code: 200
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the capital of France?"}], "role":
+      "user"}, {"parts": [{"text": "The capital of France is **Paris**.\n"}], "role":
+      "model"}, {"parts": [{"text": "Why is the sky blue?"}], "role": "user"}]}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    content: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+      [\n          {\n            \"text\": \"The sky is blue because of a phenomenon
+      called **Rayleigh scattering**. Here's a breakdown:\\n\\n*   **Sunlight:** Sunlight
+      is actually made up of all the colors of the rainbow.\\n\\n*   **Entering the
+      Atmosphere:** When sunlight enters the Earth's atmosphere, it collides with
+      tiny air molecules (mostly nitrogen and oxygen).\\n\\n*   **Scattering:** This
+      collision causes the sunlight to scatter in different directions.\\n\\n*   **Rayleigh
+      Scattering:** Rayleigh scattering is the scattering of electromagnetic radiation
+      (of which light is a form) by particles of a much smaller wavelength. In this
+      case, the air molecules are much smaller than the wavelengths of visible light.\\n\\n*
+      \  **Blue is Scattered More:** Shorter wavelengths of light (like blue and violet)
+      are scattered more strongly than longer wavelengths (like red and orange). This
+      is because the amount of scattering is inversely proportional to the fourth
+      power of the wavelength. This means blue light is scattered about ten times
+      more than red light.\\n\\n*   **Why Not Violet?** Violet light is scattered
+      even more than blue. However, there are a couple of reasons why we see a blue
+      sky:\\n    *   The sun emits less violet light than blue light.\\n    *   Our
+      eyes are more sensitive to blue than violet.\\n\\n*   **The Result:** Because
+      blue light is scattered more effectively, it bounces around the atmosphere more
+      and reaches our eyes from all directions, making the sky appear blue.\\n\\nIn
+      simpler terms, think of it like this: the air molecules are like tiny obstacles.
+      When sunlight hits these obstacles, the blue light bounces off them more than
+      the other colors, spreading blue light all over the sky.\\n\"\n          }\n
+      \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n
+      \     \"citationMetadata\": {\n        \"citationSources\": [\n          {\n
+      \           \"startIndex\": 418,\n            \"endIndex\": 572,\n            \"uri\":
+      \"https://www.flexiprep.com/ICSE-Solutions/Physics/Selina-Class-10/ICSE-Class-10-Physics-Chapter-5-Spectrum-Part-2.html\"\n
+      \         },\n          {\n            \"startIndex\": 699,\n            \"endIndex\":
+      832,\n            \"uri\": \"https://brainly.ph/question/32236360\"\n          },\n
+      \         {\n            \"startIndex\": 809,\n            \"endIndex\": 932\n
+      \         }\n        ]\n      },\n      \"avgLogprobs\": -0.21692984444754465\n
+      \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 22,\n    \"candidatesTokenCount\":
+      343,\n    \"totalTokenCount\": 365,\n    \"promptTokensDetails\": [\n      {\n
+      \       \"modality\": \"TEXT\",\n        \"tokenCount\": 22\n      }\n    ],\n
+      \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+      \       \"tokenCount\": 343\n      }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\"\n}\n"
+    headers: {}
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

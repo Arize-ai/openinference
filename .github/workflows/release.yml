@@ -10,40 +10,31 @@ permissions:
 name: release
 
 jobs:
-  create-release:
+  release:
     runs-on: ubuntu-latest
     outputs:
-      python_path_released: ${{ steps.parse.outputs.python_path_released }}
-      js_path_released: ${{ steps.parse.outputs.js_path_released }}
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      paths_released: ${{ steps.release.outputs.paths_released }}
     steps:
-      - uses: google-github-actions/release-please-action@v4
-        id: release-please
-      - name: Parse release path
-        if: ${{ steps.release-please.outputs.releases_created == 'true' }}
-        id: parse
-        env:
-          PATHS_RELEASED: ${{ steps.release-please.outputs.paths_released }}
-        # We assume that only one path is released at a time
-        run: |
-          echo $PATHS_RELEASED | jq -r '.[0]' | while read -r PATH; do
-            case $PATH in 
-              python/*)
-                echo "python_path_released=$PATH" >> $GITHUB_OUTPUT ;;
-              js/*)
-                echo "js_path_released=$PATH" >> $GITHUB_OUTPUT ;;
-            esac
-          done
+      - uses: googleapis/release-please-action@v4
+        id: release
 
-  publish-python-distribution:
+  publish:
     name: Publish Python distribution
     runs-on: ubuntu-latest
-    needs: create-release
-    if: ${{ needs.create-release.outputs.python_path_released != '' }}
+    needs: release
+    if: ${{ needs.release.outputs.releases_created == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        path: ${{ fromJSON(needs.release.outputs.paths_released) }}
     defaults:
       run:
-        working-directory: ${{ needs.create-release.outputs.python_path_released }}
+        working-directory: ${{ matrix.path }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: python
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -59,14 +50,51 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           twine upload --skip-existing --verbose dist/*
+      - run: echo "NAME=$(basename ${{ matrix.path }})" >> $GITHUB_ENV
+        if: failure()
+      - run: touch ${{ runner.temp }}/${{ env.NAME }}
+        if: failure()
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ runner.temp }}/${{ env.NAME }}
+          retention-days: 1
 
-  publish-javascript-distribution:
-    name: Publish JavaScript distribution
+  slack:
+    name: Slack notification on failure
+    needs: publish
     runs-on: ubuntu-latest
-    needs: create-release
-    if: ${{ needs.create-release.outputs.js_path_released != '' }}
-    defaults:
-      run:
-        working-directory: ${{ needs.create-release.outputs.js_path_released }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+      - name: List failures as markdown
+        run: |
+          {
+            echo "list<<EOF"
+            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | nl -w2 -s'. '
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        id: failures
+      - name: Create message text
+        if: ${{ steps.failures.outputs.list != '' }}
+        run: |
+          {
+            echo "text<<EOF"
+            echo "Publication failed for the following packages:"
+            echo "${{ steps.failures.outputs.list }}"
+            echo ""
+            echo "Re-run CI step if error is transient."
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        id: message
+      - name: Send message to Slack
+        if: ${{ steps.failures.outputs.list != '' }}
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "type": "mrkdwn",
+              "text": ${{ toJSON(steps.message.outputs.text) }}
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

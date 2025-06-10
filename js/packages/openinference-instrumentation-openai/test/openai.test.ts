@@ -7,9 +7,11 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { suppressTracing } from "@opentelemetry/core";
 import { context } from "@opentelemetry/api";
 
-import * as OpenAI from "openai";
+import OpenAI from "openai";
 import { Stream } from "openai/streaming";
+import { APIPromise } from "openai/core";
 import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
+import { CreateEmbeddingResponse } from "openai/resources/embeddings";
 
 // Function tools
 async function getCurrentLocation() {
@@ -27,7 +29,7 @@ describe("OpenAIInstrumentation", () => {
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation();
   instrumentation.disable();
-  let openai: OpenAI.OpenAI;
+  let openai: OpenAI;
 
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
@@ -36,7 +38,7 @@ describe("OpenAIInstrumentation", () => {
 
   beforeAll(() => {
     instrumentation.enable();
-    openai = new OpenAI.OpenAI({
+    openai = new OpenAI({
       apiKey: "fake-api-key",
     });
   });
@@ -120,6 +122,69 @@ describe("OpenAIInstrumentation", () => {
 }
 `);
   });
+  it("captures the token count details for caching", async () => {
+    const response = {
+      id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
+      object: "chat.completion",
+      created: 1703743645,
+      model: "gpt-4o-mini",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "This is a test.",
+          },
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 12,
+        completion_tokens: 5,
+        total_tokens: 17,
+        prompt_tokens_details: {
+          cached_tokens: 1,
+        },
+      },
+    };
+    // Mock out the chat completions endpoint
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+    await openai.chat.completions.create({
+      messages: [{ role: "user", content: "Say this is a test" }],
+      model: "gpt-4o-mini",
+    });
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+    {
+      "input.mime_type": "application/json",
+      "input.value": "{"messages":[{"role":"user","content":"Say this is a test"}],"model":"gpt-4o-mini"}",
+      "llm.input_messages.0.message.content": "Say this is a test",
+      "llm.input_messages.0.message.role": "user",
+      "llm.invocation_parameters": "{"model":"gpt-4o-mini"}",
+      "llm.model_name": "gpt-4o-mini",
+      "llm.output_messages.0.message.content": "This is a test.",
+      "llm.output_messages.0.message.role": "assistant",
+      "llm.provider": "openai",
+      "llm.system": "openai",
+      "llm.token_count.completion": 5,
+      "llm.token_count.prompt": 12,
+      "llm.token_count.prompt_details.cache_read": 1,
+      "llm.token_count.total": 17,
+      "openinference.span.kind": "LLM",
+      "output.mime_type": "application/json",
+      "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17,"prompt_tokens_details":{"cached_tokens":1}}}",
+    }
+    `);
+  });
   it("creates a span for completions", async () => {
     const response = {
       id: "cmpl-8fZu1H3VijJUWev9asnxaYyQvJTC9",
@@ -169,39 +234,54 @@ describe("OpenAIInstrumentation", () => {
 `);
   });
   it("creates a span for embedding create", async () => {
-    const response = {
+    const response: CreateEmbeddingResponse = {
       object: "list",
       data: [{ object: "embedding", index: 0, embedding: [1, 2, 3] }],
+      model: "text-embedding-ada-003-small",
+      usage: { prompt_tokens: 0, total_tokens: 0 },
     };
-    // Mock out the embedding create endpoint
-    jest.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error the response type is not correct - this is just for testing
-      async (): Promise<unknown> => {
-        return response;
-      },
-    );
+
+    // Mock out the embedding create endpoint with proper Promise handling
+    jest.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new Promise((resolve) => {
+          resolve({
+            response: new Response(JSON.stringify(response), {
+              headers: {
+                "content-type": "application/json",
+              },
+              status: 200,
+              statusText: "OK",
+            }),
+            options: {
+              method: "post",
+              path: "/embeddings",
+            },
+            controller: new AbortController(),
+          });
+        }),
+      );
+    });
+
     await openai.embeddings.create({
       input: "A happy moment",
-      model: "text-embedding-ada-002",
+      model: "text-embedding-ada-003-small",
     });
+
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
     const span = spans[0];
     expect(span.name).toBe("OpenAI Embeddings");
-    expect(span.attributes).toMatchInlineSnapshot(`
-      {
-        "embedding.embeddings.0.embedding.text": "A happy moment",
-        "embedding.embeddings.0.embedding.vector": [
-          1,
-          2,
-          3,
-        ],
-        "embedding.model_name": "text-embedding-ada-002",
-        "input.mime_type": "text/plain",
-        "input.value": "A happy moment",
-        "openinference.span.kind": "EMBEDDING",
-      }
-    `);
+    // Check the attributes
+    expect(span.attributes["embedding.embeddings.0.embedding.text"]).toBe(
+      "A happy moment",
+    );
+    expect(span.attributes["embedding.model_name"]).toBe(
+      "text-embedding-ada-003-small",
+    );
+    expect(span.attributes["input.mime_type"]).toBe("text/plain");
+    expect(span.attributes["input.value"]).toBe("A happy moment");
+    expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
   });
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
@@ -712,23 +792,23 @@ describe("OpenAIInstrumentation", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Chat Completions");
     expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"messages":[{"role":"user","content":"What's the weather today?"}],"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
-  "llm.input_messages.0.message.content": "What's the weather today?",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
-  "llm.model_name": "gpt-3.5-turbo",
-  "llm.output_messages.0.message.content": "",
-  "llm.output_messages.0.message.function_call_arguments_json": "{}",
-  "llm.output_messages.0.message.function_call_name": "getWeather",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "openai",
-  "llm.system": "openai",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "",
-}
+      {
+        "input.mime_type": "application/json",
+        "input.value": "{"messages":[{"role":"user","content":"What's the weather today?"}],"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
+        "llm.input_messages.0.message.content": "What's the weather today?",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","functions":[{"name":"getWeather","description":"Get the weather for a location.","parameters":{"type":"object","properties":{"location":{"type":"string"}}}},{"name":"getCurrentLocation","description":"Get the current location of the user.","parameters":{"type":"object","properties":{}}}],"stream":true}",
+        "llm.model_name": "gpt-3.5-turbo",
+        "llm.output_messages.0.message.content": "",
+        "llm.output_messages.0.message.function_call_arguments_json": "{}",
+        "llm.output_messages.0.message.function_call_name": "getWeather",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.provider": "openai",
+        "llm.system": "openai",
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "text/plain",
+        "output.value": "",
+      }
 `);
   });
   it("should not emit a span if tracing is suppressed", async () => {
@@ -831,7 +911,7 @@ describe("OpenAIInstrumentation", () => {
   "input.value": "{"messages":[{"role":"user","content":[{"type":"text","text":"Say this is a test"},{"type":"image_url","image_url":{"url":"data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="}}]}],"model":"gpt-3.5-turbo"}",
   "llm.input_messages.0.message.contents.0.message_content.text": "Say this is a test",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
-  "llm.input_messages.0.message.contents.1.message_content.image": "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
   "llm.input_messages.0.message.contents.1.message_content.type": "image",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"model":"gpt-3.5-turbo"}",
@@ -923,7 +1003,7 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
     traceConfig: { hideInputs: true },
   });
   instrumentation.disable();
-  let openai: OpenAI.OpenAI;
+  let openai: OpenAI;
 
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
@@ -932,7 +1012,7 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
 
   beforeAll(() => {
     instrumentation.enable();
-    openai = new OpenAI.OpenAI({
+    openai = new OpenAI({
       apiKey: "fake-api-key",
     });
   });

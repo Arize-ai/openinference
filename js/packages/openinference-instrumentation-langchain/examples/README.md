@@ -4,7 +4,7 @@ This is a very simple example of how to setup LangChain.js auto instrumentation 
 
 ## Instrumentation
 
-Checkout the [instrumentation.ts](./instrumentation.ts) file to see how to auto-instrument LangChain.js and export spans to a locally running (Phoenix)[https://github.com/Arize-ai/phoenix] server.
+Checkout the [instrumentation.ts](./instrumentation.ts) file to see how to auto-instrument LangChain.js and export spans to a locally running [Phoenix](https://github.com/Arize-ai/phoenix) server.
 
 ## Chat
 

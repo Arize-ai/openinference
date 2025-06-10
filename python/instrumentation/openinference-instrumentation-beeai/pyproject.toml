@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-beeai"
+dynamic = ["version"]
+description = "OpenInference BeeAI Instrumentation"
+license = "Apache-2.0"
+authors = [
+    {name = "Milan Gallas",email = "gallas.milan@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "openinference-semantic-conventions>=0.1.17",
+    "opentelemetry-api>=1.31.1",
+    "opentelemetry-instrumentation>=0.52b1",
+    "opentelemetry-semantic-conventions>=0.52b1",
+    "openinference-instrumentation>=0.1.27",
+    "wrapt>=1.17.2",
+]
+
+[project.optional-dependencies]
+instruments = [
+  "beeai-framework >= 0.1.10",
+]
+test = [
+  "beeai-framework >= 0.1.19",
+  "opentelemetry-sdk"
+]
+
+[project.entry-points.opentelemetry_instrumentor]
+beeai = "openinference.instrumentation.beeai:BeeAIInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+beeai = "openinference.instrumentation.beeai:BeeAIInstrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-beeai"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/beeai/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+  "tests",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+mypy_path = "src"
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "wrapt",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
