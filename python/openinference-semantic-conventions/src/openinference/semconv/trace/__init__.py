@@ -501,3 +501,5 @@ class OpenInferenceLLMProviderValues(Enum):
     GOOGLE = "google"
     AZURE = "azure"
     AWS = "aws"
+    XAI = "xai"
+    DEEPSEEK = "deepseek"
