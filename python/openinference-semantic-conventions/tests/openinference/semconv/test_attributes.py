@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Tests for OpenInference semantic convention attributes.
 
 These tests verify that our OpenTelemetry span attribute semantic conventions correctly
@@ -47,7 +48,6 @@ is correct and that no attribute collisions occur when the spans are processed
 by OpenTelemetry collectors and backends.
 """
 
-# ruff: noqa: E501
 from typing import Any, Dict, Set, Type
 
 from openinference.semconv.resource import ResourceAttributes
