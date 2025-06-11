@@ -2,7 +2,9 @@
 """Tests for OpenInference semantic convention attributes.
 
 These tests verify that our OpenTelemetry span attribute semantic conventions correctly
-structure flat span attributes into nested hierarchies.
+structure flat span attributes into nested hierarchies. The tests ensure that when
+raw spans with flat attributes are processed, they are correctly organized into
+a hierarchical structure without any attribute collisions.
 
 Raw spans come in as flat dictionaries where all attributes are at the root level:
     {
@@ -68,9 +70,10 @@ class TestSpanAttributes:
     """Tests for SpanAttributes namespace structure.
 
     Verifies that all span-related attributes are properly nested under their
-    respective namespaces (e.g., llm, embedding, tool) to prevent attribute
-    collisions during ingestion. The test ensures that flat span attributes
-    are correctly organized into a hierarchical structure.
+    respective namespaces (e.g., llm, input, output) to prevent attribute
+    collisions during ingestion. The test ensures that when flat span attributes
+    are processed, they are correctly organized into a hierarchical structure
+    that preserves the relationships between attributes.
     """
 
     def test_nesting(self) -> None:
@@ -366,21 +369,20 @@ _PREFIXES: list[str] = [
 
 """List of OpenTelemetry span attribute prefixes that should be ignored during nesting.
 
-These prefixes represent intermediate namespace levels in the OpenTelemetry span attributes
-that should not be treated as actual attributes. When converting flat span attributes
-into nested structures, these prefixes are used to organize the attribute namespace.
+These prefixes represent intermediate namespace levels that should not be treated
+as actual attributes. They are used to organize the attribute namespace when
+converting flat span attributes into nested structures.
 
 For example:
-- 'llm.cost' is a namespace prefix for attributes like 'llm.cost.completion' and 'llm.cost.total'
+- 'llm.cost' is a namespace prefix for attributes like 'llm.cost.completion'
 - 'llm.token_count.prompt_details' is a namespace prefix for attributes like
   'llm.token_count.prompt_details.cache_write'
 - 'llm.token_count.completion_details' is a namespace prefix for attributes like
   'llm.token_count.completion_details.reasoning'
 
-If these prefixes were treated as attributes, they would create invalid nesting structures
-that could lead to attribute collisions during OpenTelemetry span ingestion and processing.
-The prefixes are purely organizational and should not appear as leaf nodes in the
-nested structure.
+If these prefixes were treated as attributes, they would create invalid nesting
+structures that could lead to attribute collisions. The prefixes are purely
+organizational and should not appear as leaf nodes in the nested structure.
 
 Example of why prefixes must be ignored:
 Consider a span with these attributes:
@@ -421,7 +423,8 @@ def _nested_dict(
 
     This function demonstrates how flat span attributes should be organized into
     a hierarchical structure. It takes the dot-notation keys from a flat span
-    and shows how they should be nested.
+    and shows how they should be nested. This is used to verify that our semantic
+    conventions correctly structure the attributes without collisions.
 
     For example, given these flat span attributes:
         {
@@ -456,6 +459,10 @@ def _nested_dict(
     """
     nested_attributes: dict[str, Any] = {}
     for value in attributes:
+        # Skip prefixes like 'llm.cost' or 'llm.token_count.prompt_details' because they are
+        # intermediate namespace levels, not actual attributes. If we didn't skip them,
+        # they would incorrectly appear as leaf nodes in the nested structure, potentially
+        # causing attribute collisions with their child attributes.
         if value in _PREFIXES:
             continue
         trie = nested_attributes
