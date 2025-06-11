@@ -54,7 +54,7 @@ class TestClaudeInvokeModelMessageApi:
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
-        attributes: Dict[str, Any] = dict(span.attributes or dict())
+        attributes: Dict[str, Any] = dict(span.attributes or {})
         assert json.loads(attributes.pop("input.value")) == prompt
         assert attributes.pop("llm.input_messages.0.message.content") == "Hello there."
         assert attributes.pop("llm.input_messages.0.message.role") == "user"
@@ -156,7 +156,7 @@ class TestClaudeInvokeModelMessageApi:
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
-        attributes: dict[str, Any] = dict(span.attributes or dict())
+        attributes: dict[str, Any] = dict(span.attributes or {})
         assert attributes.pop("input.mime_type") == "application/json"
 
         input_value = json.loads(attributes.pop("input.value"))
@@ -203,6 +203,5 @@ class TestClaudeInvokeModelMessageApi:
         assert attributes.pop(f"{prefix}.1.message_content.image.image.url").startswith(
             "data:image/webp;base64,UklGRt4+"
         )
-
         # Make sure everything is consumed
         assert not attributes, f"Unexpected leftover attributes: {attributes}"
