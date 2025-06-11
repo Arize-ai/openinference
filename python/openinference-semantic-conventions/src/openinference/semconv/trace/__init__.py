@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 from enum import Enum
 
 
@@ -244,7 +245,7 @@ class SpanAttributes:
     """
     AGENT_NAME = "agent.name"
     """
-    The name of the agent. Agents that perform the same functions should have the same name. 
+    The name of the agent. Agents that perform the same functions should have the same name.
     """
     GRAPH_NODE_ID = "graph.node.id"
     """
