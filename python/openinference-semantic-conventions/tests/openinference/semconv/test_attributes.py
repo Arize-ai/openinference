@@ -48,7 +48,7 @@ is correct and that no attribute collisions occur when the spans are processed
 by OpenTelemetry collectors and backends.
 """
 
-from typing import Any, Dict, Set, Type
+from typing import Any
 
 from openinference.semconv.resource import ResourceAttributes
 from openinference.semconv.trace import (
@@ -345,7 +345,7 @@ class TestResourceAttributes:
         }
 
 
-def _get_attributes(cls: Type[Any]) -> Set[str]:
+def _get_attributes(cls: type[Any]) -> set[str]:
     """Extract all uppercase attributes from a semantic convention class.
 
     Args:
@@ -415,8 +415,8 @@ would be invalid. Instead, we should only have:
 
 
 def _nested_dict(
-    attributes: Set[str],
-) -> Dict[str, Any]:
+    attributes: set[str],
+) -> dict[str, Any]:
     """Convert a set of OpenTelemetry span attribute names into a nested dictionary structure.
 
     This function demonstrates how flat span attributes should be organized into
@@ -454,7 +454,7 @@ def _nested_dict(
         A nested dictionary showing how the flat span attributes should be
         organized into a hierarchical structure.
     """
-    nested_attributes: Dict[str, Any] = {}
+    nested_attributes: dict[str, Any] = {}
     for value in attributes:
         if value in _PREFIXES:
             continue
