@@ -242,6 +242,22 @@ class SpanAttributes:
     """
     The id of the user
     """
+    AGENT_NAME = "agent.name"
+    """
+    The name of the agent. Agents that perform the same functions should have the same name. 
+    """
+    GRAPH_NODE_ID = "graph.node.id"
+    """
+    The id of the node in the execution graph. This along with graph.node.parent_id are used to visualize the execution graph.
+    """
+    GRAPH_NODE_NAME = "graph.node.name"
+    """
+    The name of the node in the execution graph. Use this to present a human readable name for the node. Optional
+    """
+    GRAPH_NODE_PARENT_ID = "graph.node.parent_id"
+    """
+    This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node.
+    """
 
     PROMPT_VENDOR = "prompt.vendor"
     """
@@ -485,3 +501,5 @@ class OpenInferenceLLMProviderValues(Enum):
     GOOGLE = "google"
     AZURE = "azure"
     AWS = "aws"
+    XAI = "xai"
+    DEEPSEEK = "deepseek"

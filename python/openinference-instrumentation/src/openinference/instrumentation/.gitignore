@@ -1,5 +1,6 @@
 /anthropic
 /autogen
+/autogen_agentchat
 /bedrock
 /crewai
 /dspy
@@ -18,6 +19,7 @@
 /mcp
 /portkey
 /google_genai
+/google_adk
 /agno
 /beeai
 /pydantic_ai

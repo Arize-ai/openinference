@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.19...python-openinference-semantic-conventions-v0.1.20) (2025-06-11)
+
+
+### Features
+
+* **semantic-conventions:** enhance provider enum to include XAI and DeepSeek ([#1766](https://github.com/Arize-ai/openinference/issues/1766)) ([f7e125e](https://github.com/Arize-ai/openinference/commit/f7e125ea70c181b2a3f069bcca4bae3bb75a7d45))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.18...python-openinference-semantic-conventions-v0.1.19) (2025-06-10)
+
+
+### Features
+
+* Add semantic conventions for agent and graph attributes ([#1748](https://github.com/Arize-ai/openinference/issues/1748)) ([5f90a80](https://github.com/Arize-ai/openinference/commit/5f90a8014c216a821c299d0c7ea7aa79a4fc738d))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.17...python-openinference-semantic-conventions-v0.1.18) (2025-06-09)
 
 

@@ -229,6 +229,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                     _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, url)
 
     _set_token_counts_from_usage(span, result)
+    _set_span_status(span, result)
 
 
 # Gets values safely from an object
@@ -307,9 +308,24 @@ def _set_token_counts_from_usage(span: trace_api.Span, result: Any) -> None:
         )
 
 
+def _set_span_status(span: trace_api.Span, result: Any) -> None:
+    """
+    Sets the span status based on whether the result contains an error.
+    """
+    error = _get_value(result, "error")
+    if error is None and isinstance(result, dict):
+        error = result.get("error", None)
+
+    if error is not None:
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(error)))
+    else:
+        span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+
+
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: CustomStreamWrapper) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
     usage_stats = None
+    aggregated_output = None
     try:
         for token in stream:
             if token.choices:
@@ -343,6 +359,8 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: CustomStreamWrap
     except Exception as e:
         span.record_exception(e)
         raise
+    else:
+        _set_span_status(span, aggregated_output)
     finally:
         span.end()
 

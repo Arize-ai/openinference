@@ -23,6 +23,8 @@ export const SemanticAttributePrefixes = {
   image: "image",
   audio: "audio",
   prompt: "prompt",
+  agent: "agent",
+  graph: "graph",
 } as const;
 
 export const LLMAttributePostfixes = {
@@ -129,6 +131,15 @@ export const PromptAttributePostfixes = {
   url: "url",
 } as const;
 
+export const AgentPostfixes = {
+  name: "name",
+} as const;
+
+export const GraphPostfixes = {
+  node_id: "node.id",
+  node_name: "node.name",
+  node_parent_id: "node.parent_id",
+} as const;
 /**
  * The input to any span
  */
@@ -557,7 +568,6 @@ export const AUDIO_MIME_TYPE =
  */
 export const AUDIO_TRANSCRIPT =
   `${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.transcript}` as const;
-
 /**
  * The vendor or origin of the prompt, e.g. a prompt library, a specialized service, etc.
  */
@@ -575,6 +585,31 @@ export const PROMPT_ID =
  */
 export const PROMPT_URL =
   `${SemanticAttributePrefixes.prompt}.${PromptAttributePostfixes.url}` as const;
+
+/**
+ * The name of the agent. Agents that perform the same functions should have the same name. 
+ */
+export const AGENT_NAME =
+  `${SemanticAttributePrefixes.agent}.${AgentPostfixes.name}` as const;
+
+/**
+ * The id of the node in the execution graph. This along with graph.node.parent_id are used to visualize the execution graph.
+ */
+export const GRAPH_NODE_ID =
+  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_id}` as const;
+
+/**
+ * The name of the node in the execution graph. Use this to present a human readable name for the node. Optional
+ */
+
+export const GRAPH_NODE_NAME =
+  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_name}` as const;
+
+/**
+ * This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node.
+ */
+export const GRAPH_NODE_PARENT_ID =
+  `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_parent_id}` as const;
 
 export const SemanticConventions = {
   IMAGE_URL,
@@ -656,6 +691,10 @@ export const SemanticConventions = {
   PROMPT_VENDOR,
   PROMPT_ID,
   PROMPT_URL,
+  AGENT_NAME,
+  GRAPH_NODE_ID,
+  GRAPH_NODE_NAME,
+  GRAPH_NODE_PARENT_ID,
 } as const;
 
 export enum OpenInferenceSpanKind {

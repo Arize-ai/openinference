@@ -81,12 +81,12 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         import haystack
 
         if self._original_pipeline_run is not None:
-            haystack.Pipeline.run = self._original_pipeline_run
+            setattr(haystack.Pipeline, "run", self._original_pipeline_run)
 
         if self._original_pipeline_run_component is not None:
             from haystack.core.pipeline.pipeline import Pipeline
 
-            Pipeline._run_component = staticmethod(self._original_pipeline_run_component)
+            setattr(Pipeline, "_run_component", staticmethod(self._original_pipeline_run_component))
 
         for component_cls, original_run_method in self._original_component_run_methods.items():
-            component_cls.run = original_run_method
+            setattr(component_cls, "run", original_run_method)
