@@ -10,7 +10,7 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import BaseChatMessage, BaseAgentEvent
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.context import get_current
+from opentelemetry.context import get_current, _RUNTIME_CONTEXT
 from opentelemetry.util.types import AttributeValue
 
 from autogen_agentchat.base import TaskResult, Response
@@ -21,6 +21,7 @@ from openinference.instrumentation import (
 )
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from contextlib import asynccontextmanager, ExitStack
+from opentelemetry.trace.propagation import _SPAN_KEY
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -114,7 +115,6 @@ class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
         kwargs: Mapping[str, Any],
     ) -> Any:
         generator = wrapped(*args, **kwargs)
-        print(f"supress key: {context_api._SUPPRESS_INSTRUMENTATION_KEY=}")
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return generator
 
@@ -123,22 +123,27 @@ class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
         attributes = dict(get_attributes_from_context())
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
 
-        async def foo():
-            with tracer.start_as_current_span(
+        async def wrapped_generator():
+            span = tracer.start_span(
                 name=name,
                 attributes=attributes,
-            ) as span:
-                # span.set_status(trace_api.StatusCode.OK)
+            )
+            span.set_status(trace_api.StatusCode.OK)
+            token = context_api.attach(context_api.set_value(_SPAN_KEY, span))
+            try:
                 async for event in generator:
-                    print(
-                        f"supress key: {event=}, {span=} {context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY)=}, {get_current()=}"
-                    )
                     yield event
-                    print(
-                        f"supress key: {context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY)=}, {get_current()=}"
-                    )
+            except GeneratorExit:
+                pass
+            except BaseException:
+                span.set_status(trace_api.StatusCode.ERROR)
+            finally:
+                try:
+                    _RUNTIME_CONTEXT.detach(token)
+                except Exception:
+                    pass
 
-        return foo()
+        return wrapped_generator()
 
 
 class _BaseAgentRunWrapper:
