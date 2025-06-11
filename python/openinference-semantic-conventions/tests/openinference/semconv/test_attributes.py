@@ -18,15 +18,26 @@ class TestSpanAttributes:
     def test_nesting(self) -> None:
         attributes = _flat_dict(SpanAttributes)
         assert _nested_dict(attributes) == {
+            "agent": {
+                "name": "AGENT_NAME",
+            },
             "embedding": {
                 "embeddings": "EMBEDDING_EMBEDDINGS",
                 "model_name": "EMBEDDING_MODEL_NAME",
+            },
+            "graph": {
+                "node": {
+                    "id": "GRAPH_NODE_ID",
+                    "name": "GRAPH_NODE_NAME",
+                    "parent_id": "GRAPH_NODE_PARENT_ID",
+                },
             },
             "input": {
                 "mime_type": "INPUT_MIME_TYPE",
                 "value": "INPUT_VALUE",
             },
             "llm": {
+                "cost": "LLM_COST",
                 "function_call": "LLM_FUNCTION_CALL",
                 "input_messages": "LLM_INPUT_MESSAGES",
                 "invocation_parameters": "LLM_INVOCATION_PARAMETERS",

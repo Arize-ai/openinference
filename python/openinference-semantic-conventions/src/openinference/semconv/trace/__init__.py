@@ -244,20 +244,20 @@ class SpanAttributes:
     """
     AGENT_NAME = "agent.name"
     """
-    The name of the agent. Agents that perform the same functions should have the same name. 
-    """
+    The name of the agent. Agents that perform the same functions should have the same name.
+    """  # noqa: E501
     GRAPH_NODE_ID = "graph.node.id"
     """
     The id of the node in the execution graph. This along with graph.node.parent_id are used to visualize the execution graph.
-    """
+    """  # noqa: E501
     GRAPH_NODE_NAME = "graph.node.name"
     """
     The name of the node in the execution graph. Use this to present a human readable name for the node. Optional
-    """
+    """  # noqa: E501
     GRAPH_NODE_PARENT_ID = "graph.node.parent_id"
     """
     This references the id of the parent node. Leaving this unset or set as empty string implies that the current span is the root node.
-    """
+    """  # noqa: E501
 
     PROMPT_VENDOR = "prompt.vendor"
     """

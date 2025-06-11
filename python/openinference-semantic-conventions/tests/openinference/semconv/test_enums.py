@@ -51,4 +51,6 @@ class TestOpenInferenceLLMProviderValues:
             "GOOGLE": "google",
             "MISTRALAI": "mistralai",
             "OPENAI": "openai",
+            "XAI": "xai",
+            "DEEPSEEK": "deepseek",
         }
