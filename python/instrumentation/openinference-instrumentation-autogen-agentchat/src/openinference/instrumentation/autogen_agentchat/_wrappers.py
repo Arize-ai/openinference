@@ -1,19 +1,40 @@
 import json
+from abc import ABC
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple, AsyncGenerator
+import logging
 
+import wrapt
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import BaseChatMessage, BaseAgentEvent
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.context import get_current
 from opentelemetry.util.types import AttributeValue
 
-from autogen_agentchat.base import TaskResult
+from autogen_agentchat.base import TaskResult, Response
 from openinference.instrumentation import (
     get_attributes_from_context,
     get_output_attributes,
     safe_json_dumps,
 )
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from contextlib import asynccontextmanager, ExitStack
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+
+class _WithTracer(ABC):
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._tracer = tracer
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -66,7 +87,7 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         *(
             [None]  # the value bound to the method's self argument is discarded below, so pass None
             if signature_contains_self_parameter
-            else []  # no self parameter, so no need to pass a value
+            else []  # no self parameter, so `no need to pass a value
         ),
         *args,
         **kwargs,
@@ -82,6 +103,42 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         },
         cls=SafeJSONEncoder,
     )
+
+
+class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., AsyncGenerator[BaseAgentEvent | BaseChatMessage | Response, None]],
+        instance: AssistantAgent,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        generator = wrapped(*args, **kwargs)
+        print(f"supress key: {context_api._SUPPRESS_INSTRUMENTATION_KEY=}")
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return generator
+
+        tracer = self._tracer
+        name = f"assistant_agent [{instance.name}].on_messages_stream"
+        attributes = dict(get_attributes_from_context())
+        attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
+
+        async def foo():
+            with tracer.start_as_current_span(
+                name=name,
+                attributes=attributes,
+            ) as span:
+                # span.set_status(trace_api.StatusCode.OK)
+                async for event in generator:
+                    print(
+                        f"supress key: {event=}, {span=} {context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY)=}, {get_current()=}"
+                    )
+                    yield event
+                    print(
+                        f"supress key: {context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY)=}, {get_current()=}"
+                    )
+
+        return foo()
 
 
 class _BaseAgentRunWrapper:
@@ -243,94 +300,6 @@ class _BaseGroupChatRunStreamWrapper:
             span.set_attributes(dict(get_attributes_from_context()))
 
 
-class _SendMessageWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
-        self._tracer = tracer
-
-    async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
-
-        span_name = f"{instance.__class__.__name__}.send_message"
-        with self._tracer.start_as_current_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
-            record_exception=False,
-            set_status_on_exception=False,
-        ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(get_output_attributes(response)))
-            span.set_attributes(dict(get_attributes_from_context()))
-        return response
-
-
-class _PublishMessageWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
-        self._tracer = tracer
-
-    async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
-
-        span_name = f"{instance.__class__.__name__}.publish_message"
-        with self._tracer.start_as_current_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
-            record_exception=False,
-            set_status_on_exception=False,
-        ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(get_output_attributes(response)))
-            span.set_attributes(dict(get_attributes_from_context()))
-        return response
-
-
 class _BaseAgentOnMessageWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -373,52 +342,6 @@ class _BaseAgentOnMessageWrapper:
             span.set_attributes(dict(get_output_attributes(response)))
             span.set_attributes(dict(get_attributes_from_context()))
         return response
-
-
-class _AssistantAgentOnMessagesStreamWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
-        self._tracer = tracer
-
-    async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            async for res in wrapped(*args, **kwargs):
-                yield res
-            return
-        span_name = f"{instance.__class__.__name__}.on_messages_stream"
-        with self._tracer.start_as_current_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
-            record_exception=False,
-            set_status_on_exception=False,
-        ) as span:
-            try:
-                async for res in wrapped(*args, **kwargs):
-                    if isinstance(res, TaskResult):
-                        span.set_attributes(dict(get_output_attributes(res)))
-                    yield res
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(get_attributes_from_context()))
 
 
 INPUT_VALUE = SpanAttributes.INPUT_VALUE

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Generator, Mapping, cast
+from typing import Any, Dict, Generator, Mapping, cast, Callable, Tuple
 
 import pytest
 from opentelemetry import trace as trace_api

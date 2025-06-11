@@ -33,35 +33,14 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
-        from autogen_agentchat.agents import BaseChatAgent
-        from autogen_agentchat.teams._group_chat._base_group_chat import BaseGroupChat
-        from autogen_core._single_threaded_agent_runtime import SingleThreadedAgentRuntime
-        from autogen_core.tools import BaseTool
-
-        # NEW
-        from autogen_core import BaseAgent
-        from autogen_agentchat.agents import BaseChatAgent
         from autogen_agentchat.agents import AssistantAgent
-
         from openinference.instrumentation.autogen_agentchat._wrappers import (
-            _BaseAgentRunWrapper,
-            _BaseGroupChatRunStreamWrapper,
-            _PublishMessageWrapper,
-            _SendMessageWrapper,
-            _ToolsRunJSONWrapper,
-            _BaseAgentOnMessageWrapper,
             _AssistantAgentOnMessagesStreamWrapper,
         )
 
         self._originals: List[Tuple[Any, Any, Any]] = []
 
         method_wrappers: dict[Any, Any] = {
-            BaseChatAgent.run: _BaseAgentRunWrapper(self._tracer),
-            BaseTool.run_json: _ToolsRunJSONWrapper(self._tracer),
-            BaseGroupChat.run_stream: _BaseGroupChatRunStreamWrapper(self._tracer),
-            # SingleThreadedAgentRuntime.send_message: _SendMessageWrapper(self._tracer),
-            # SingleThreadedAgentRuntime.publish_message: _PublishMessageWrapper(self._tracer),
-            # BaseAgent.on_message: _BaseAgentOnMessageWrapper(self._tracer),
             AssistantAgent.on_messages_stream: _AssistantAgentOnMessagesStreamWrapper(self._tracer),
         }
 
