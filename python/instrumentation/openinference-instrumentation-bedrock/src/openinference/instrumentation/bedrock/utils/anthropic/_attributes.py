@@ -127,20 +127,10 @@ def _validate_invocation_parameter(parameter: Any) -> bool:
     Validates the invocation parameters.
     """
     valid_params = (
-        "max_tokens",
-        "max_tokens_to_sample",
-        "model",
-        "metadata",
-        "stop_sequences",
-        "stream",
-        "system",
-        "temperature",
-        "tool_choice",
-        "tools",
-        "top_k",
-        "top_p",
+        "messages",
+        "modelId",
     )
-    return parameter in valid_params
+    return parameter not in valid_params
 
 
 def get_llm_input_attributes(request_body: Dict[str, Any], model_id: str) -> Dict[str, Any]:

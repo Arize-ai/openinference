@@ -73,7 +73,8 @@ class TestClaudeInvokeModelMessageApi:
 
         assert (
             attributes.pop("llm.invocation_parameters")
-            == '{"max_tokens": 1000, "temperature": 0.7}'
+            == '{"max_tokens": 1000, "temperature": 0.7, "anthropic_version": '
+            '"bedrock-2023-05-31"}'
         )
         assert attributes.pop("llm.model_name") == "claude-3-haiku-20240307"
 
@@ -174,7 +175,8 @@ class TestClaudeInvokeModelMessageApi:
         assert attributes.pop("llm.input_messages.0.message.role") == "user"
         assert (
             attributes.pop("llm.invocation_parameters")
-            == '{"max_tokens": 1000, "temperature": 0.7}'
+            == '{"max_tokens": 1000, "temperature": 0.7, '
+            '"anthropic_version": "bedrock-2023-05-31"}'
         )
         assert attributes.pop("llm.model_name") == "claude-3-haiku-20240307"
 
