@@ -27,7 +27,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.trace import Span, Tracer
+from opentelemetry.trace import Span, Status, StatusCode, Tracer
 from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
 
@@ -152,9 +152,20 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
             with tracer.start_as_current_span("bedrock.invoke_model") as span:
                 request_body = json.loads(kwargs["body"])
                 model_id = kwargs.get("modelId")
-                claude_messages_api = False
-                if model_id and is_anthropic_model(model_id) and "claude-v2" not in str(model_id):
-                    claude_messages_api = True
+                is_claude_messages_api = False
+                # Claude 3 models use the Messages API format for input and output, while earlier
+                # Claude models (like Claude 1 and 2) use the Completion API format.
+                # So, for code readability, I'm moving the existing implementation (used for
+                # models prior to Claude 3) into dedicated functions, and creating a separate
+                # implementation for Claude v3+ models to align with their different input/output
+                # format.
+                if (
+                    model_id
+                    and "anthropic" in model_id
+                    and "claude-v2" not in str(model_id)
+                    and "claude-instant-v1" not in str(model_id)
+                ):
+                    is_claude_messages_api = True
                     span.set_attributes(
                         anthropic_attributes.get_llm_input_attributes(request_body, model_id)
                     )
@@ -175,7 +186,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 )
                 response_body = json.loads(response.get("body").read())
                 response["body"].reset()
-                if claude_messages_api:
+                if is_claude_messages_api:
                     span.set_attributes(
                         anthropic_attributes.get_llm_output_attributes(response_body)
                     )
@@ -184,6 +195,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                     if metadata := response.get("ResponseMetadata"):
                         set_token_counts(span, metadata)
                 span.set_attributes(dict(get_attributes_from_context()))
+                span.set_status(Status(StatusCode.OK))
                 return response  # type: ignore
 
         return instrumented_response
@@ -433,11 +445,3 @@ def set_token_counts(span: Span, metadata: Dict[str, Any]) -> None:
             else None
         ):
             _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count)
-
-
-def is_anthropic_model(model_id: str) -> bool:
-    if model_id and isinstance(model_id, str):
-        (vendor, *_) = model_id.split(".")
-        if vendor == "anthropic":
-            return True
-    return False
