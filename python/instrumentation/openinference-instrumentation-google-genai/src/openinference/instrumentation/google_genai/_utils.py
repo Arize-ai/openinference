@@ -38,59 +38,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
 
-    # Try to convert Google GenAI objects to a better dict representation
-    if hasattr(obj, "__dict__") and not isinstance(obj, (str, int, float, bool)):
-        try:
-            # Convert the object to a dictionary representation
-            obj_dict = _convert_google_genai_object_to_dict(obj)
-            value = safe_json_dumps(obj_dict)
-            return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
-        except Exception:
-            logger.exception("Failed to convert Google GenAI object to dict")
-
     return _ValueAndType(str(obj), OpenInferenceMimeTypeValues.TEXT)
-
-
-def _convert_google_genai_object_to_dict(obj: Any) -> Any:
-    """Convert Google GenAI objects to dictionary representation for better JSON serialization."""
-    if obj is None or isinstance(obj, (str, int, float, bool)):
-        return obj
-
-    if isinstance(obj, (list, tuple)):
-        return [_convert_google_genai_object_to_dict(item) for item in obj]
-
-    if isinstance(obj, dict):
-        return {k: _convert_google_genai_object_to_dict(v) for k, v in obj.items()}
-
-    # Handle objects with model_dump method (Pydantic models)
-    if hasattr(obj, "model_dump") and callable(obj.model_dump):
-        try:
-            return obj.model_dump(exclude_unset=True)
-        except Exception:
-            pass
-
-    # Handle objects with __dict__ (regular Python objects)
-    if hasattr(obj, "__dict__"):
-        try:
-            result = {}
-            for key, value in obj.__dict__.items():
-                if not key.startswith("_"):  # Skip private attributes
-                    # Special handling for callable objects (functions)
-                    if callable(value):
-                        result[key] = f"<function:{getattr(value, '__name__', 'unknown')}>"
-                    else:
-                        result[key] = _convert_google_genai_object_to_dict(value)
-            return result
-        except Exception:
-            pass
-
-    # Handle enum types
-    if hasattr(obj, "value"):
-        return obj.value
-
-    # Fallback to string representation for truly unhandleable objects
-    return str(obj)
-
 
 def _as_input_attributes(
     value_and_type: Optional[_ValueAndType],

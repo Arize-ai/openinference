@@ -82,10 +82,8 @@ class _ResponseAttributesExtractor:
         # https://github.com/googleapis/python-genai/blob/e9e84aa38726e7b65796812684d9609461416b11/google/genai/types.py#L565  # noqa: E501
         text_content = []
         tool_call_index = 0
-        has_any_parts = False
 
         for part in content_parts:
-            has_any_parts = True
             if text := getattr(part, "text", None):
                 text_content.append(text)
             elif function_call := getattr(part, "function_call", None):
@@ -93,11 +91,10 @@ class _ResponseAttributesExtractor:
                 yield from self._get_attributes_from_function_call(function_call, tool_call_index)
                 tool_call_index += 1
 
-        # Always yield message content, even if empty
+        # Always yield message content for consistency, even if empty
         # This ensures Phoenix can properly display the message structure
-        if has_any_parts:
-            content = "\n".join(text_content) if text_content else ""
-            yield MessageAttributes.MESSAGE_CONTENT, content
+        content = "\n".join(text_content) if text_content else ""
+        yield MessageAttributes.MESSAGE_CONTENT, content
 
     def _get_attributes_from_function_call(
         self,

@@ -338,7 +338,7 @@ class _DictReplace:
         self._val: Optional[Dict[Any, Any]] = None
 
     def __iter__(self) -> Iterator[Tuple[Any, Any]]:
-        if self._val:
+        if self._val is not None:
             yield from self._val.items()
 
     def __iadd__(self, value: Optional[Mapping[Any, Any]]) -> "_DictReplace":
