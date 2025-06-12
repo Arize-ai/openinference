@@ -1,3 +1,4 @@
+import inspect
 import logging
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar, cast
@@ -183,7 +184,7 @@ class _RequestAttributesExtractor:
         if "description" in func_decl:
             flattened_tool["description"] = func_decl["description"]
 
-        # Convert 'parameters' to 'input_schema' for flattened format
+        # flatten parameters
         if "parameters" in func_decl:
             flattened_tool["parameters"] = func_decl["parameters"]
 
@@ -194,64 +195,59 @@ class _RequestAttributesExtractor:
         import inspect
         from typing import get_type_hints
 
-        try:
-            # Get function metadata - cast to tell mypy that functions have these attributes
-            func_name = cast(Any, func).__name__
-            func_doc = cast(Any, func).__doc__ or ""
+        # Get function metadata - cast to tell mypy that functions have these attributes
+        func_name = cast(Any, func).__name__
+        func_doc = cast(Any, func).__doc__ or ""
 
-            # Get function signature
-            sig = inspect.signature(func)
-            type_hints = get_type_hints(func)
+        # Get function signature
+        sig = inspect.signature(func)
+        type_hints = get_type_hints(func)
 
-            # Build parameters schema
-            properties = {}
-            required = []
+        # Build parameters schema
+        parameters_schema = self._build_parameters_schema(sig, type_hints)
 
-            for param_name, param in sig.parameters.items():
-                if param_name == "self":
-                    continue
+        # Return in Google GenAI Tool format
+        return {
+            "function_declarations": [
+                {
+                    "name": func_name,
+                    "description": func_doc.strip() or f"Function {func_name}",
+                    "parameters": parameters_schema,
+                }
+            ]
+        }
 
-                # Determine if parameter is required (no default value)
-                if param.default == inspect.Parameter.empty:
-                    required.append(param_name)
+    def _build_parameters_schema(
+        self, sig: inspect.Signature, type_hints: Dict[str, type]
+    ) -> Dict[str, Any]:
+        """Build JSON schema for function parameters."""
+        properties = {}
+        required = []
 
-                # Get parameter type information
-                param_type = type_hints.get(param_name, str)
-                param_info = {"type": self._python_type_to_json_schema_type(param_type)}
+        for param_name, param in sig.parameters.items():
+            if param_name == "self":
+                continue
 
-                # Add description from docstring if available
-                param_info["description"] = f"Parameter {param_name}"
+            # Determine if parameter is required (no default value)
+            if param.default == inspect.Parameter.empty:
+                required.append(param_name)
 
-                properties[param_name] = param_info
+            # Get parameter type information
+            param_type = type_hints.get(param_name, str)
+            param_info = {"type": self._python_type_to_json_schema_type(param_type)}
 
-            # Build the schema
-            parameters_schema = {"type": "object", "properties": properties}
+            # Add description from docstring if available
+            param_info["description"] = f"Parameter {param_name}"
 
-            if required:
-                parameters_schema["required"] = required
+            properties[param_name] = param_info
 
-            # Return in Google GenAI Tool format
-            return {
-                "function_declarations": [
-                    {
-                        "name": func_name,
-                        "description": func_doc.strip() or f"Function {func_name}",
-                        "parameters": parameters_schema,
-                    }
-                ]
-            }
+        # Build the schema
+        parameters_schema = {"type": "object", "properties": properties}
 
-        except Exception:
-            logger.exception(f"Failed to convert function {func} to schema")
-            return {
-                "function_declarations": [
-                    {
-                        "name": getattr(func, "__name__", "unknown_function"),
-                        "description": "Python function for automatic calling",
-                        "parameters": {"type": "object", "properties": {}},
-                    }
-                ]
-            }
+        if required:
+            parameters_schema["required"] = required
+
+        return parameters_schema
 
     def _python_type_to_json_schema_type(self, python_type: type) -> str:
         """Convert Python type to JSON schema type string."""
