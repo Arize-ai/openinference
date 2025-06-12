@@ -137,13 +137,13 @@ class SpanAttributes:
     """
     Total cost of the LLM call in USD (prompt + completion).
     """
-    LLM_COST_INPUT = "llm.cost.input"
+    LLM_COST_INPUT = "llm.cost.prompt_details.input"
     """
     Total cost of input tokens in USD. This represents the cost of tokens that were used as
     input to the model, which may be different from the prompt cost if there are additional
     processing steps.
     """
-    LLM_COST_OUTPUT = "llm.cost.output"
+    LLM_COST_OUTPUT = "llm.cost.completion_details.output"
     """
     Total cost of output tokens in USD. This represents the cost of tokens that were generated
     as output by the model, which may be different from the completion cost if there are
@@ -182,13 +182,13 @@ class SpanAttributes:
         "prompt": 0.0021,  # Cost in USD
         "completion": 0.0045,  # Cost in USD
         "total": 0.0066,  # Cost in USD
-        "input": 0.0003,  # Cost in USD
-        "output": 0.0009,  # Cost in USD
         "completion_details": {
+            "output": 0.0009,  # Cost in USD
             "reasoning": 0.0024,    # Cost in USD (e.g., 80 tokens * $0.03/1K tokens)
             "audio": 0.0012  # Cost in USD (e.g., 40 tokens * $0.03/1K tokens)
         },
         "prompt_details": {
+            "input": 0.0003,  # Cost in USD
             "cache_write": 0.0006,  # Cost in USD (e.g., 20 tokens * $0.03/1K tokens)
             "cache_read": 0.0003,   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
             "cache_input": 0.0006,  # Cost in USD (e.g., 20 tokens * $0.03/1K tokens)
