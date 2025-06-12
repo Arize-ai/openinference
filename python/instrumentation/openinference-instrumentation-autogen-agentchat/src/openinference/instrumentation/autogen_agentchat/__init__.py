@@ -33,15 +33,30 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
-        from autogen_agentchat.agents import AssistantAgent
+        from autogen_ext.models.openai import BaseOpenAIChatCompletionClient
+
+        from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
+        from autogen_agentchat.teams import BaseGroupChat
         from openinference.instrumentation.autogen_agentchat._wrappers import (
             _AssistantAgentOnMessagesStreamWrapper,
+            _BaseChatAgentOnMessagesStreamWrapper,
+            _BaseGroupChatRunStreamWrapper,
+            _BaseOpenAIChatCompletionClientCreateStreamWrapper,
+            _BaseOpenAIChatCompletionClientCreateWrapper,
         )
 
         self._originals: List[Tuple[Any, Any, Any]] = []
 
         method_wrappers: dict[Any, Any] = {
             AssistantAgent.on_messages_stream: _AssistantAgentOnMessagesStreamWrapper(self._tracer),
+            BaseChatAgent.on_messages_stream: _BaseChatAgentOnMessagesStreamWrapper(self._tracer),
+            BaseGroupChat.run_stream: _BaseGroupChatRunStreamWrapper(self._tracer),
+            BaseOpenAIChatCompletionClient.create: _BaseOpenAIChatCompletionClientCreateWrapper(
+                self._tracer
+            ),
+            BaseOpenAIChatCompletionClient.create_stream: (
+                _BaseOpenAIChatCompletionClientCreateStreamWrapper(self._tracer)
+            ),
         }
 
         for method, wrapper in method_wrappers.items():

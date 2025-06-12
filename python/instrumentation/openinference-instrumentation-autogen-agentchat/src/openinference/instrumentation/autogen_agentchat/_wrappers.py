@@ -1,27 +1,28 @@
 import json
+import logging
 from abc import ABC
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple, AsyncGenerator
-import logging
+from typing import Any, AsyncGenerator, Callable, Iterator, List, Mapping, Optional, Tuple, Union
 
-import wrapt
-from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.messages import BaseChatMessage, BaseAgentEvent
+from autogen_core.models import CreateResult
+from autogen_ext.models.openai import BaseOpenAIChatCompletionClient
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.context import get_current, _RUNTIME_CONTEXT
+from opentelemetry.context import _RUNTIME_CONTEXT
+from opentelemetry.trace.propagation import _SPAN_KEY
 from opentelemetry.util.types import AttributeValue
 
-from autogen_agentchat.base import TaskResult, Response
+from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
+from autogen_agentchat.base import Response, TaskResult
+from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage
+from autogen_agentchat.teams import BaseGroupChat
 from openinference.instrumentation import (
     get_attributes_from_context,
     get_output_attributes,
     safe_json_dumps,
 )
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
-from contextlib import asynccontextmanager, ExitStack
-from opentelemetry.trace.propagation import _SPAN_KEY
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -74,7 +75,7 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
 def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     """
     Parses a method call's inputs into a JSON string. Ensures a consistent
-    output regardless of whether the those inputs are passed as positional or
+    output regardless of whether those inputs are passed as positional or
     keyword arguments.
     """
 
@@ -119,13 +120,22 @@ class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
             return generator
 
         tracer = self._tracer
-        name = f"assistant_agent [{instance.name}].on_messages_stream"
+        agent_name = instance.name if instance else "AssistantAgent"
+
+        span_name = f"{agent_name}.on_messages_stream"
         attributes = dict(get_attributes_from_context())
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
+        attributes[SpanAttributes.INPUT_VALUE] = _get_input_value(
+            wrapped,
+            *args,
+            **kwargs,
+        )
 
-        async def wrapped_generator():
+        async def wrapped_generator() -> AsyncGenerator[
+            BaseAgentEvent | BaseChatMessage | Response, None
+        ]:
             span = tracer.start_span(
-                name=name,
+                name=span_name,
                 attributes=attributes,
             )
             span.set_status(trace_api.StatusCode.OK)
@@ -134,13 +144,70 @@ class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
                 async for event in generator:
                     yield event
             except GeneratorExit:
-                pass
-            except BaseException:
-                span.set_status(trace_api.StatusCode.ERROR)
+                raise
+            except BaseException as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
             finally:
+                span.end()
                 try:
                     _RUNTIME_CONTEXT.detach(token)
                 except Exception:
+                    # If the context is already detached, we can ignore the error.
+                    pass
+
+        return wrapped_generator()
+
+
+class _BaseChatAgentOnMessagesStreamWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., AsyncGenerator[BaseAgentEvent | BaseChatMessage | Response, None]],
+        instance: BaseChatAgent,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        generator = wrapped(*args, **kwargs)
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return generator
+
+        tracer = self._tracer
+        agent_name = instance.name if instance else "BaseChatAgent"
+
+        span_name = f"{agent_name}.on_messages_stream"
+        attributes = dict(get_attributes_from_context())
+        attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
+        attributes[SpanAttributes.INPUT_VALUE] = _get_input_value(
+            wrapped,
+            *args,
+            **kwargs,
+        )
+
+        async def wrapped_generator() -> AsyncGenerator[
+            BaseAgentEvent | BaseChatMessage | Response, None
+        ]:
+            span = tracer.start_span(
+                name=span_name,
+                attributes=attributes,
+            )
+            span.set_status(trace_api.StatusCode.OK)
+            token = context_api.attach(context_api.set_value(_SPAN_KEY, span))
+            try:
+                async for event in generator:
+                    yield event
+            except GeneratorExit:
+                raise
+            except BaseException as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            finally:
+                span.end()
+                try:
+                    _RUNTIME_CONTEXT.detach(token)
+                except Exception:
+                    # If the context is already detached, we can ignore the error.
                     pass
 
         return wrapped_generator()
@@ -252,8 +319,8 @@ class _BaseGroupChatRunStreamWrapper:
 
     async def __call__(
         self,
-        wrapped: Callable[..., Any],
-        instance: Any,
+        wrapped: Callable[..., AsyncGenerator[BaseAgentEvent | BaseChatMessage | TaskResult, None]],
+        instance: BaseGroupChat,
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
@@ -295,6 +362,90 @@ class _BaseGroupChatRunStreamWrapper:
             try:
                 async for res in wrapped(*args, **kwargs):
                     if isinstance(res, TaskResult):
+                        span.set_attributes(dict(get_output_attributes(res)))
+                    yield res
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(dict(get_attributes_from_context()))
+
+
+class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
+    async def __call__(
+        self,
+        wrapped: Callable[..., CreateResult],
+        instance: BaseOpenAIChatCompletionClient,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        span_name = f"{instance.__class__.__name__}.create"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM,
+                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                    }
+                )
+            ),
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            try:
+                res = await wrapped(*args, **kwargs)
+                span.set_attributes(dict(get_output_attributes(res)))
+                return res
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            finally:
+                span.set_attributes(dict(get_attributes_from_context()))
+
+
+class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
+    async def __call__(
+        self,
+        wrapped: Callable[..., AsyncGenerator[Union[str, CreateResult], None]],
+        instance: BaseOpenAIChatCompletionClient,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            async for res in wrapped(*args, **kwargs):
+                yield res
+            return
+        span_name = f"{instance.__class__.__name__}.create_stream"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM,
+                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                    }
+                )
+            ),
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            try:
+                async for res in wrapped(*args, **kwargs):
+                    if isinstance(res, CreateResult):
                         span.set_attributes(dict(get_output_attributes(res)))
                     yield res
             except Exception as exception:
