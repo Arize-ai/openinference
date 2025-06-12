@@ -1,4 +1,3 @@
-import json
 import logging
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar, cast
@@ -62,28 +61,11 @@ class _RequestAttributesExtractor:
         request_params_dict.pop("contents", None)  # Remove LLM input contents
         if config := request_params_dict.get("config", None):
             # Config is a pydantic object, so we need to convert it to a JSON string
-            # For automatic function calling, config.tools may contain Python function objects
-            # which cannot be serialized by Pydantic. We exclude tools from serialization
-            # since they are handled separately in _get_tools_from_config.
-            try:
-                config_json = config.model_dump_json(exclude_none=True, exclude={"tools"})
-                yield (
-                    SpanAttributes.LLM_INVOCATION_PARAMETERS,
-                    config_json,
-                )
-            except Exception:
-                # Fallback: try to serialize without tools field entirely
-                logger.exception("Failed to serialize config, attempting fallback")
-                try:
-                    # Create a copy of config without tools for serialization
-                    config_dict = config.model_dump(exclude_none=True)
-                    config_dict.pop("tools", None)
-                    yield (
-                        SpanAttributes.LLM_INVOCATION_PARAMETERS,
-                        safe_json_dumps(config_dict),
-                    )
-                except Exception:
-                    logger.exception("Failed to serialize config even with fallback")
+            config_json = self._serialize_config_safely(config)
+            yield (
+                SpanAttributes.LLM_INVOCATION_PARAMETERS,
+                config_json,
+            )
 
             # We push the system instruction to the first message for replay and consistency
             system_instruction = getattr(config, "system_instruction", None)
@@ -123,8 +105,9 @@ class _RequestAttributesExtractor:
         Serialize a config object to JSON, handling Pydantic model classes
         that can't be directly serialized.
         """
-        # Create a copy with serializable values
-        config_dict = config.model_dump(exclude_none=True)
+        # Create a copy with serializable values - excluding tools which may contain a python
+        # function object which will fail to serialize correctly later on
+        config_dict = config.model_dump(exclude_none=True, exclude={"tools"})
 
         # Handle response_schema if it's a Pydantic model class
         if "response_schema" in config_dict:
@@ -138,7 +121,7 @@ class _RequestAttributesExtractor:
                 # It's a Pydantic model instance, use its schema
                 config_dict["response_schema"] = response_schema.model_json_schema()
 
-        return json.dumps(config_dict)
+        return safe_json_dumps(config_dict)
 
     def _get_tools_from_config(self, config: Any) -> Iterator[Tuple[str, AttributeValue]]:
         """Extract tools from the GenerateContentConfig object."""
