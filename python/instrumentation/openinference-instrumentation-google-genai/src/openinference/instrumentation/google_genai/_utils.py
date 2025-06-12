@@ -40,6 +40,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
 
     return _ValueAndType(str(obj), OpenInferenceMimeTypeValues.TEXT)
 
+
 def _as_input_attributes(
     value_and_type: Optional[_ValueAndType],
 ) -> Iterator[Tuple[str, AttributeValue]]:
