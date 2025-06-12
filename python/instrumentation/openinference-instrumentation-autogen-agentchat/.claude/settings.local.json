@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:microsoft.github.io)",
+      "Bash(mypy:*)",
+      "Bash(python:*)"
+    ],
+    "deny": []
+  }
+}
