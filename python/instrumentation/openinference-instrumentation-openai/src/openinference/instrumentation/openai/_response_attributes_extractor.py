@@ -246,26 +246,54 @@ class _ResponseAttributesExtractor:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
-        if (prompt_completion_tokens := getattr(usage, "prompt_tokens_details", None)) is not None:
+
+        # Handle prompt token details - only include if values are > 0
+        if (prompt_tokens_details := getattr(usage, "prompt_tokens_details", None)) is not None:
+            # Map cached_tokens to cache_input (input tokens that were cached)
             if (
-                cached_tokens := getattr(prompt_completion_tokens, "cached_tokens", None)
-            ) is not None:
-                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+                cached_tokens := getattr(prompt_tokens_details, "cached_tokens", None)
+            ) is not None and cached_tokens > 0:
+                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT, cached_tokens
+
+            # Handle audio tokens in prompt
             if (
-                audio_tokens := getattr(prompt_completion_tokens, "audio_tokens", None)
-            ) is not None:
+                audio_tokens := getattr(prompt_tokens_details, "audio_tokens", None)
+            ) is not None and audio_tokens > 0:
                 yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_tokens
+
+            # Handle potential cache_creation_input_tokens (for providers like Anthropic via OpenAI-compatible APIs)
+            if (
+                cache_creation_tokens := getattr(
+                    prompt_tokens_details, "cache_creation_input_tokens", None
+                )
+            ) is not None and cache_creation_tokens > 0:
+                yield (
+                    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+                    cache_creation_tokens,
+                )
+
+        # Handle completion token details - only include if values are > 0
         if (
-            completion_completion_tokens := getattr(usage, "completion_tokens_details", None)
+            completion_tokens_details := getattr(usage, "completion_tokens_details", None)
         ) is not None:
+            # Handle reasoning tokens in completion (this is the important one for o3!)
             if (
-                reasoning_tokens := getattr(completion_completion_tokens, "reasoning_tokens", None)
-            ) is not None:
+                reasoning_tokens := getattr(completion_tokens_details, "reasoning_tokens", None)
+            ) is not None and reasoning_tokens > 0:
                 yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
+
+            # Handle audio tokens in completion
             if (
-                audio_tokens := getattr(completion_completion_tokens, "audio_tokens", None)
-            ) is not None:
+                audio_tokens := getattr(completion_tokens_details, "audio_tokens", None)
+            ) is not None and audio_tokens > 0:
                 yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, audio_tokens
+
+            # Handle prediction tokens (new in o3 models)
+            # Note: These don't have semantic convention attributes yet, so we'll use generic completion_details approach
+            # if (accepted_prediction_tokens := getattr(completion_tokens_details, "accepted_prediction_tokens", None)) is not None and accepted_prediction_tokens > 0:
+            #     yield f"{SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS}.accepted_prediction", accepted_prediction_tokens
+            # if (rejected_prediction_tokens := getattr(completion_tokens_details, "rejected_prediction_tokens", None)) is not None and rejected_prediction_tokens > 0:
+            #     yield f"{SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS}.rejected_prediction", rejected_prediction_tokens
 
     def _get_attributes_from_embedding_usage(
         self,

@@ -620,14 +620,50 @@ class _ResponsesApiAttributes:
         cls,
         obj: responses.response_usage.ResponseUsage,
     ) -> Iterator[Tuple[str, AttributeValue]]:
+        # Basic token counts
         yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, obj.input_tokens
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, obj.output_tokens
-        yield (
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
-            obj.output_tokens_details.reasoning_tokens,
-        )
-        yield (
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-            obj.input_tokens_details.cached_tokens,
-        )
+
+        # Handle output token details - only include if values are > 0
+        if hasattr(obj, "output_tokens_details") and obj.output_tokens_details is not None:
+            if (
+                hasattr(obj.output_tokens_details, "reasoning_tokens")
+                and obj.output_tokens_details.reasoning_tokens is not None
+                and obj.output_tokens_details.reasoning_tokens > 0
+            ):
+                yield (
+                    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+                    obj.output_tokens_details.reasoning_tokens,
+                )
+
+            # Handle audio tokens in completion (using getattr for safer access)
+            if (
+                audio_tokens := getattr(obj.output_tokens_details, "audio_tokens", None)
+            ) is not None and audio_tokens > 0:
+                yield (
+                    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+                    audio_tokens,
+                )
+
+        # Handle input token details - only include if values are > 0
+        if hasattr(obj, "input_tokens_details") and obj.input_tokens_details is not None:
+            # Map cached tokens to cache_input (input tokens that were cached)
+            if (
+                hasattr(obj.input_tokens_details, "cached_tokens")
+                and obj.input_tokens_details.cached_tokens is not None
+                and obj.input_tokens_details.cached_tokens > 0
+            ):
+                yield (
+                    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT,
+                    obj.input_tokens_details.cached_tokens,
+                )
+
+            # Handle audio tokens in prompt (using getattr for safer access)
+            if (
+                audio_tokens := getattr(obj.input_tokens_details, "audio_tokens", None)
+            ) is not None and audio_tokens > 0:
+                yield (
+                    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+                    audio_tokens,
+                )
