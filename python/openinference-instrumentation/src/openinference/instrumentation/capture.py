@@ -30,10 +30,11 @@ class capture_span_context:
     """
 
     _contexts: list[SpanContext]
-    _token: Token["capture_span_context"]
+    _token: Optional[Token["capture_span_context"]]
 
     def __init__(self) -> None:
         self._contexts = []
+        self._token = None
 
     def __enter__(self) -> "capture_span_context":
         self._token = _current_capture_span_context.set(self)
@@ -45,16 +46,15 @@ class capture_span_context:
         _exc_value: Optional[BaseException],
         _traceback: Optional[TracebackType],
     ) -> None:
-        _current_capture_span_context.reset(self._token)
+        if self._token:
+            _current_capture_span_context.reset(self._token)
         self._contexts.clear()
 
     def get_last_span_context(self) -> Optional[SpanContext]:
         """
         Returns the last captured span context, or None if no spans were captured.
         """
-        if self._contexts:
-            return self._contexts[-1]
-        return None
+        return self._contexts[-1] if self._contexts else None
 
     def get_span_contexts(self) -> Iterable[SpanContext]:
         """
