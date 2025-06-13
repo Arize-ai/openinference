@@ -9,6 +9,8 @@ from opentelemetry.context import (
 )
 
 from openinference.instrumentation import (
+    TracerProvider,
+    capture_span_context,
     get_attributes_from_context,
     safe_json_dumps,
     suppress_tracing,
@@ -240,6 +242,23 @@ def test_safe_json_dumps_encodes_non_ascii_characters_without_escaping() -> None
         safe_json_dumps({"naïve façade café": "안녕하세요"})
         == '{"naïve façade café": "안녕하세요"}'
     )
+
+
+def test_capture_span_context() -> None:
+    tracer = TracerProvider().get_tracer("test_capture_span_context")
+    with capture_span_context() as capture:
+        assert capture.get_last_span_context() is None
+        assert capture.get_span_contexts() == []
+        span1 = tracer.start_span("span1")
+        assert capture.get_last_span_context() == span1.get_span_context()
+        assert capture.get_span_contexts() == [span1.get_span_context()]
+        span2 = tracer.start_span("span2")
+        assert span1.get_span_context() != span2.get_span_context()
+        assert capture.get_last_span_context() == span2.get_span_context()
+        assert capture.get_span_contexts() == [span1.get_span_context(), span2.get_span_context()]
+
+    assert capture.get_last_span_context() is None
+    assert capture.get_span_contexts() == []
 
 
 @pytest.fixture
