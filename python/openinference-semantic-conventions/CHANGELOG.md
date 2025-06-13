@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.20...python-openinference-semantic-conventions-v0.1.21) (2025-06-13)
+
+
+### Features
+
+* **semcov:** Update input and output cost ([#1774](https://github.com/Arize-ai/openinference/issues/1774)) ([c2ee804](https://github.com/Arize-ai/openinference/commit/c2ee804e63cb4b5ff393238854c37d99c6f5d675))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.19...python-openinference-semantic-conventions-v0.1.20) (2025-06-11)
 
 
