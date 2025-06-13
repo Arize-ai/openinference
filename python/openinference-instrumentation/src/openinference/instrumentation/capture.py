@@ -1,6 +1,6 @@
 from contextvars import ContextVar, Token
 from types import TracebackType
-from typing import Optional, Type
+from typing import Iterable, Optional, Type
 
 from opentelemetry.trace import SpanContext
 
@@ -56,8 +56,8 @@ class capture_span_context:
             return self._contexts[-1]
         return None
 
-    def get_span_contexts(self) -> list[SpanContext]:
+    def get_span_contexts(self) -> Iterable[SpanContext]:
         """
         Returns a list of all captured span contexts.
         """
-        return self._contexts
+        return self._contexts.copy()

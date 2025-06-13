@@ -256,6 +256,8 @@ def test_capture_span_context() -> None:
         assert span1.get_span_context() != span2.get_span_context()
         assert capture.get_last_span_context() == span2.get_span_context()
         assert capture.get_span_contexts() == [span1.get_span_context(), span2.get_span_context()]
+        capture.get_span_contexts().append("appending to copy")
+        assert capture.get_span_contexts() == [span1.get_span_context(), span2.get_span_context()]
 
     assert capture.get_last_span_context() is None
     assert capture.get_span_contexts() == []
