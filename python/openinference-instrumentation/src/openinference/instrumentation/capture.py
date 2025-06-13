@@ -60,4 +60,4 @@ class capture_span_context:
         """
         Returns a list of all captured span contexts.
         """
-        return self._contexts.copy()
+        return self._contexts
