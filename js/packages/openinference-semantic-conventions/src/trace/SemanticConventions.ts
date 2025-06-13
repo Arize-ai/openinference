@@ -238,7 +238,7 @@ export const LLM_TOKEN_COUNT_TOTAL =
  * with this prefix, e.g. llm.token_count.prompt_details.reasoning, llm.token_count.prompt_details.audio.
  * All values should be in tokens (integer count of tokens).
  */
-export const LLM_TOKEN_COUNT_PROMPT_DETAILS = 
+export const LLM_TOKEN_COUNT_PROMPT_DETAILS =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt_details` as const;
 
 /**
@@ -246,7 +246,7 @@ export const LLM_TOKEN_COUNT_PROMPT_DETAILS =
  * with this prefix, e.g. llm.token_count.completion_details.reasoning, llm.token_count.completion_details.audio.
  * All values should be in tokens (integer count of tokens).
  */
-export const LLM_TOKEN_COUNT_COMPLETION_DETAILS = 
+export const LLM_TOKEN_COUNT_COMPLETION_DETAILS =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.completion_details` as const;
 
 /**
@@ -273,42 +273,54 @@ export const LLM_TOKEN_COUNT_COMPLETION_DETAILS =
  * how these separate attributes can be conceptually organized.
  * All monetary values are in USD with floating point precision.
  */
-export const LLM_COST = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}` as const;
+export const LLM_COST =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}` as const;
 
 /** Cost of the prompt tokens in USD */
-export const LLM_COST_PROMPT = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt` as const;
+export const LLM_COST_PROMPT =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt` as const;
 
 /** Cost of the completion tokens in USD */
-export const LLM_COST_COMPLETION = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion` as const;
+export const LLM_COST_COMPLETION =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion` as const;
 
 /** Total cost of the LLM call in USD (prompt + completion) */
-export const LLM_COST_TOTAL = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.total` as const;
+export const LLM_COST_TOTAL =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.total` as const;
 
 /** Total cost of input tokens in USD. This represents the cost of tokens that were used as input
  * to the model, which may be different from the prompt cost if there are additional processing steps. */
-export const LLM_COST_INPUT = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.input` as const;
+export const LLM_COST_INPUT =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.input` as const;
 
 /** Total cost of output tokens in USD. This represents the cost of tokens that were generated as output
  * by the model, which may be different from the completion cost if there are additional processing steps. */
-export const LLM_COST_OUTPUT = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion_details.output` as const;
+export const LLM_COST_OUTPUT =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion_details.output` as const;
 
 /** Cost of reasoning steps in the completion in USD */
-export const LLM_COST_COMPLETION_DETAILS_REASONING = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion_details.reasoning` as const;
+export const LLM_COST_COMPLETION_DETAILS_REASONING =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion_details.reasoning` as const;
 
 /** Cost of audio tokens in the completion in USD */
-export const LLM_COST_COMPLETION_DETAILS_AUDIO = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion_details.audio` as const;
+export const LLM_COST_COMPLETION_DETAILS_AUDIO =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.completion_details.audio` as const;
 
 /** Cost of prompt tokens written to cache in USD */
-export const LLM_COST_PROMPT_DETAILS_CACHE_WRITE = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.cache_write` as const;
+export const LLM_COST_PROMPT_DETAILS_CACHE_WRITE =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.cache_write` as const;
 
 /** Cost of prompt tokens read from cache in USD */
-export const LLM_COST_PROMPT_DETAILS_CACHE_READ = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.cache_read` as const;
+export const LLM_COST_PROMPT_DETAILS_CACHE_READ =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.cache_read` as const;
 
 /** Cost of input tokens in the prompt that were cached in USD */
-export const LLM_COST_PROMPT_DETAILS_CACHE_INPUT = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.cache_input` as const;
+export const LLM_COST_PROMPT_DETAILS_CACHE_INPUT =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.cache_input` as const;
 
 /** Cost of audio tokens in the prompt in USD */
-export const LLM_COST_PROMPT_DETAILS_AUDIO = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.audio` as const;
+export const LLM_COST_PROMPT_DETAILS_AUDIO =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}.prompt_details.audio` as const;
 
 /**
  * The role that the LLM assumes the message is from
@@ -587,7 +599,7 @@ export const PROMPT_URL =
   `${SemanticAttributePrefixes.prompt}.${PromptAttributePostfixes.url}` as const;
 
 /**
- * The name of the agent. Agents that perform the same functions should have the same name. 
+ * The name of the agent. Agents that perform the same functions should have the same name.
  */
 export const AGENT_NAME =
   `${SemanticAttributePrefixes.agent}.${AgentPostfixes.name}` as const;
