@@ -37,6 +37,7 @@ from ._types import (
     ToolCall,
     ToolCallFunction,
 )
+from .capture import capture_span_context
 from .config import (
     REDACTED_VALUE,
     TraceConfig,
@@ -59,6 +60,7 @@ from .helpers import safe_json_dumps
 __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
 __all__ = [
+    "capture_span_context",
     "get_attributes_from_context",
     "using_attributes",
     "using_metadata",
