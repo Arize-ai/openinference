@@ -108,10 +108,10 @@ class TestSpanAttributes:
                     "prompt": SpanAttributes.LLM_COST_PROMPT,
                     "prompt_details": {
                         "audio": SpanAttributes.LLM_COST_PROMPT_DETAILS_AUDIO,
+                        "input": SpanAttributes.LLM_COST_PROMPT_DETAILS_INPUT,
                         "cache_input": SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_INPUT,
                         "cache_read": SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_READ,
                         "cache_write": SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_WRITE,
-                        "input": SpanAttributes.LLM_COST_PROMPT_DETAILS_INPUT,
                     },
                     "total": SpanAttributes.LLM_COST_TOTAL,
                 },
@@ -131,15 +131,15 @@ class TestSpanAttributes:
                 "token_count": {
                     "completion": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
                     "completion_details": {
-                        "reasoning": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
                         "audio": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+                        "reasoning": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
                     },
                     "prompt": SpanAttributes.LLM_TOKEN_COUNT_PROMPT,
                     "prompt_details": {
-                        "cache_write": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-                        "cache_read": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
                         "audio": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
                         "cache_input": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT,
+                        "cache_read": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+                        "cache_write": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
                     },
                     "total": SpanAttributes.LLM_TOKEN_COUNT_TOTAL,
                 },
