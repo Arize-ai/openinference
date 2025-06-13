@@ -14,9 +14,6 @@ def _capture_span_context(span_context: SpanContext) -> None:
 
 
 class capture_span_context:
-    _contexts: list[SpanContext]
-    _token: Token["capture_span_context"]
-
     """
     Context manager for capturing OpenInference span context.
 
@@ -31,6 +28,9 @@ class capture_span_context:
                     ...
                 )
     """
+
+    _contexts: list[SpanContext]
+    _token: Token["capture_span_context"]
 
     def __init__(self) -> None:
         self._contexts = []
