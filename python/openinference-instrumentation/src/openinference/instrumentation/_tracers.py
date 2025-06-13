@@ -164,11 +164,15 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             otel_span = INVALID_SPAN
         else:
-            combined_attributes = {
-                **user_attributes,
-                **span_kind_attributes,
-                **context_attributes,
-            }
+            # Apply masking to attributes before passing to sampler to ensure
+            # samplers don't see sensitive data that should be masked
+            combined_attributes = self._get_masked_attributes_for_sampling(
+                {
+                    **user_attributes,
+                    **span_kind_attributes,
+                    **context_attributes,
+                }
+            )
 
             tracer = cast(Tracer, self.__wrapped__)
             otel_span = tracer.__class__.start_span(
@@ -194,6 +198,22 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             openinference_span.set_attributes(context_attributes)
 
         return openinference_span
+
+    def _get_masked_attributes_for_sampling(
+        self, attributes: Dict[str, AttributeValue]
+    ) -> Dict[str, AttributeValue]:
+        """Apply masking to attributes before passing to samplers.
+
+        This ensures samplers don't see sensitive data that should be masked
+        according to the TraceConfig, while maintaining the same masking logic
+        as OpenInferenceSpan.
+        """
+        masked_attributes = {}
+        for key, value in attributes.items():
+            masked_value = self._self_config.mask(key, value)
+            if masked_value is not None:
+                masked_attributes[key] = masked_value
+        return masked_attributes
 
     @overload  # for @tracer.agent usage (no parameters)
     def agent(
