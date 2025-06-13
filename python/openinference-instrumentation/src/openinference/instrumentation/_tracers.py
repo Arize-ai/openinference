@@ -152,25 +152,24 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
     ) -> OpenInferenceSpan:
-        user_attributes = dict(attributes) if attributes else {}
-        span_kind_attributes = (
-            get_span_kind_attributes(openinference_span_kind)
-            if openinference_span_kind is not None
-            else {}
-        )
-        context_attributes = dict(get_attributes_from_context())
-
         otel_span: Span
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             otel_span = INVALID_SPAN
         else:
             # Apply masking to attributes before passing to sampler to ensure
             # samplers don't see sensitive data that should be masked
+            user_attributes = dict(attributes) if attributes else {}
+            span_kind_attributes = (
+                get_span_kind_attributes(openinference_span_kind)
+                if openinference_span_kind is not None
+                else {}
+            )
+            context_attributes = dict(get_attributes_from_context())
             combined_attributes = self._get_masked_attributes_for_sampling(
                 {
+                    **context_attributes,
                     **user_attributes,
                     **span_kind_attributes,
-                    **context_attributes,
                 }
             )
 
