@@ -153,6 +153,10 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
     ) -> OpenInferenceSpan:
         otel_span: Span
+        user_attributes: Attributes = {}
+        span_kind_attributes: Attributes = {}
+        context_attributes: Attributes = {}
+
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             otel_span = INVALID_SPAN
         else:
