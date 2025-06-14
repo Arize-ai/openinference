@@ -35,9 +35,8 @@ async def main() -> None:
         model_client_stream=True,
     )
 
-    result = await agent.run(task="What is the weather in New York?")
+    _ = await agent.run(task="What is the weather in New York?")
     await model_client.close()
-    print(result)
 
 
 if __name__ == "__main__":
