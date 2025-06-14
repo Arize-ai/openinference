@@ -37,6 +37,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
             logger.exception("Failed to dump json")
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
+
     return _ValueAndType(str(obj), OpenInferenceMimeTypeValues.TEXT)
 
 
