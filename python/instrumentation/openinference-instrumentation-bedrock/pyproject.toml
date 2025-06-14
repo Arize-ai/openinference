@@ -46,6 +46,8 @@ test = [
   "anthropic>=0.47.0",
   "pydantic>=2.10.6",
   "pytest-vcr>=1.0.2",
+  "types-requests",
+  "requests"
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
