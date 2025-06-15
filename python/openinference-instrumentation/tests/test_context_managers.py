@@ -22,6 +22,7 @@ from openinference.instrumentation import (
     using_user,
 )
 from openinference.semconv.trace import SpanAttributes
+from opentelemetry.trace import SpanContext
 
 
 def test_suppress_tracing() -> None:
@@ -256,7 +257,7 @@ def test_capture_span_context() -> None:
         assert span1.get_span_context() != span2.get_span_context()
         assert capture.get_last_span_id() == f"{span2.get_span_context().span_id:016x}"
         assert capture.get_span_contexts() == [span1.get_span_context(), span2.get_span_context()]
-        cast(list, capture.get_span_contexts()).append("ignore this")
+        cast(list[SpanContext], capture.get_span_contexts()).append("ignore this")
         assert capture.get_span_contexts() == [span1.get_span_context(), span2.get_span_context()]
 
     assert capture.get_last_span_id() is None
