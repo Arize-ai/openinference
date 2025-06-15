@@ -7,6 +7,7 @@ from opentelemetry.context import (
     get_current,
     get_value,
 )
+from opentelemetry.trace import SpanContext
 
 from openinference.instrumentation import (
     TracerProvider,
@@ -22,7 +23,6 @@ from openinference.instrumentation import (
     using_user,
 )
 from openinference.semconv.trace import SpanAttributes
-from opentelemetry.trace import SpanContext
 
 
 def test_suppress_tracing() -> None:
