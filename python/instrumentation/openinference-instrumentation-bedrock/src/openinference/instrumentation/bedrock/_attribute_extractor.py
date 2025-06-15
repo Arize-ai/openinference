@@ -916,7 +916,7 @@ class AttributeExtractor:
         for citation in response.get("citations", []) or []:
             documents = citation.get("retrievedReferences", [])
             for document in documents:
-                attributes.update(cls.get_document_attributes(index, document))
+                attributes |= cls.get_document_attributes(index, document)
                 index += 1
         return {
             **attributes,
