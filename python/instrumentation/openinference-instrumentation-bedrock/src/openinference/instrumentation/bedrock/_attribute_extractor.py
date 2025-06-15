@@ -494,7 +494,7 @@ class AttributeExtractor:
         """
         attributes = dict()
         for i, ref in enumerate(retrieved_refs):
-            attributes.update(cls.get_document_attributes(i, ref))
+            attributes |= cls.get_document_attributes(i, ref)
         return attributes
 
     @classmethod
