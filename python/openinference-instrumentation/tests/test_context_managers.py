@@ -7,7 +7,7 @@ from opentelemetry.context import (
     get_current,
     get_value,
 )
-from opentelemetry.trace import SpanContext
+from opentelemetry.trace import INVALID_SPAN_CONTEXT, SpanContext
 
 from openinference.instrumentation import (
     TracerProvider,
@@ -257,7 +257,7 @@ def test_capture_span_context() -> None:
         assert span1.get_span_context() != span2.get_span_context()
         assert capture.get_last_span_id() == f"{span2.get_span_context().span_id:016x}"
         assert capture.get_span_contexts() == [span1.get_span_context(), span2.get_span_context()]
-        cast(list[SpanContext], capture.get_span_contexts()).append("ignore this")
+        cast(list[SpanContext], capture.get_span_contexts()).append(INVALID_SPAN_CONTEXT)
         assert capture.get_span_contexts() == [span1.get_span_context(), span2.get_span_context()]
 
     assert capture.get_last_span_id() is None
