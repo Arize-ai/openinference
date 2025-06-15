@@ -3,6 +3,7 @@ from types import TracebackType
 from typing import Optional, Sequence, Type
 
 from opentelemetry.trace import SpanContext
+from opentelemetry.trace.span import format_span_id
 
 _current_capture_span_context = ContextVar["capture_span_context"]("current_capture_span_context")
 
@@ -53,7 +54,7 @@ class capture_span_context:
         """
         Returns the last captured span ID, or None if no spans were captured.
         """
-        return self._contexts[-1].span_id if self._contexts else None
+        return format_span_id(self._contexts[-1].span_id) if self._contexts else None
 
     def get_span_contexts(self) -> Sequence[SpanContext]:
         """
