@@ -22,7 +22,7 @@ class capture_span_context:
         with capture_span_context() as capture:
             response = openai_client.chat.completions.create(...)
             phoenix_client.annotations.add_span_annotation(
-                span_id=capture.get_last_span_id()
+                span_id=capture.get_last_span_id(),
                 annotation_name="feedback",
                 ...
             )
