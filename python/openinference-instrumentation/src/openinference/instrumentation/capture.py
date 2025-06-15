@@ -21,12 +21,11 @@ class capture_span_context:
     Examples:
         with capture_span_context() as capture:
             response = openai_client.chat.completions.create(...)
-            if span_context:
-                phoenix_client.annotations.add_span_annotation(
-                    span_id=capture.get_last_span_id()
-                    annotation_name="feedback",
-                    ...
-                )
+            phoenix_client.annotations.add_span_annotation(
+                span_id=capture.get_last_span_id()
+                annotation_name="feedback",
+                ...
+            )
     """
 
     _contexts: list[SpanContext]
