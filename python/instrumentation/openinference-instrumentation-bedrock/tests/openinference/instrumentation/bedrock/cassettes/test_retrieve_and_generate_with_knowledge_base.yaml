@@ -1,0 +1,68 @@
+interactions:
+- request:
+    body: '{"input": {"text": "What is Task Decomposition?"}, "retrieveAndGenerateConfiguration":
+      {"knowledgeBaseConfiguration": {"knowledgeBaseId": "SSGLURQ9A5", "modelArn":
+      "anthropic.claude-3-haiku-20240307-v1:0"}, "type": "KNOWLEDGE_BASE"}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-agent-runtime.ap-south-1.amazonaws.com/retrieveAndGenerate
+  response:
+    body:
+      string: "{\"citations\":[{\"generatedResponsePart\":{\"textResponsePart\":{\"span\":{\"end\":209,\"start\":0},\"text\":\"Task
+        Decomposition is a technique used in LLM-powered autonomous agent systems
+        to break down complex tasks into smaller, more manageable steps. This allows
+        the agent to better plan and execute the overall task.\"}},\"retrievedReferences\":[{\"content\":{\"text\":\"Fig.
+        1. Overview of a LLM-powered autonomous agent system. Component One: Planning
+        A complicated task usually involves many steps. An agent needs to know what
+        they are and plan ahead.  Task Decomposition Chain of thought (CoT; Wei et
+        al. 2022) has become a standard prompting technique for enhancing model performance
+        on complex tasks. The model is instructed to \u201Cthink step by step\u201D
+        to utilize more test-time computation to decompose hard tasks into smaller
+        and simpler steps. CoT transforms big tasks into multiple manageable tasks
+        and shed lights into an interpretation of the model\u2019s thinking process.
+        \ Tree of Thoughts (Yao et al. 2023) extends CoT by exploring multiple reasoning
+        possibilities at each step. It first decomposes the problem into multiple
+        thought steps and generates multiple thoughts per step, creating a tree structure.
+        The search process can be BFS (breadth-first search) or DFS (depth-first search)
+        with each state evaluated by a classifier (via a prompt) or majority vote.
+        \ Task decomposition can be done (1) by LLM with simple prompting like \\\"Steps
+        for XYZ.\\\\n1.\\\", \\\"What are the subgoals for achieving XYZ?\\\", (2)
+        by using task-specific instructions; e.g. \\\"Write a story outline.\\\" for
+        writing a novel, or (3) with human inputs.\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"2222\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"2222\",\"x-amz-bedrock-kb-data-source-id\":\"VYV3J5D9O6\"}}]},{\"generatedResponsePart\":{\"textResponsePart\":{\"span\":{\"end\":644,\"start\":211},\"text\":\"Some
+        specific techniques for Task Decomposition include:\\n- Chain of Thought (CoT):
+        The model is instructed to \\\"think step by step\\\" to decompose the task
+        into smaller steps.\\n- Tree of Thoughts: The model explores multiple reasoning
+        possibilities at each step, creating a tree structure of potential solutions.\\nTask
+        decomposition can be done by the LLM itself through prompting, by using task-specific
+        instructions, or with human input.\"}},\"retrievedReferences\":[{\"content\":{\"text\":\"Fig.
+        1. Overview of a LLM-powered autonomous agent system. Component One: Planning
+        A complicated task usually involves many steps. An agent needs to know what
+        they are and plan ahead.  Task Decomposition Chain of thought (CoT; Wei et
+        al. 2022) has become a standard prompting technique for enhancing model performance
+        on complex tasks. The model is instructed to \u201Cthink step by step\u201D
+        to utilize more test-time computation to decompose hard tasks into smaller
+        and simpler steps. CoT transforms big tasks into multiple manageable tasks
+        and shed lights into an interpretation of the model\u2019s thinking process.
+        \ Tree of Thoughts (Yao et al. 2023) extends CoT by exploring multiple reasoning
+        possibilities at each step. It first decomposes the problem into multiple
+        thought steps and generates multiple thoughts per step, creating a tree structure.
+        The search process can be BFS (breadth-first search) or DFS (depth-first search)
+        with each state evaluated by a classifier (via a prompt) or majority vote.
+        \ Task decomposition can be done (1) by LLM with simple prompting like \\\"Steps
+        for XYZ.\\\\n1.\\\", \\\"What are the subgoals for achieving XYZ?\\\", (2)
+        by using task-specific instructions; e.g. \\\"Write a story outline.\\\" for
+        writing a novel, or (3) with human inputs.\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"2222\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"2222\",\"x-amz-bedrock-kb-data-source-id\":\"VYV3J5D9O6\"}}]}],\"output\":{\"text\":\"Task
+        Decomposition is a technique used in LLM-powered autonomous agent systems
+        to break down complex tasks into smaller, more manageable steps. This allows
+        the agent to better plan and execute the overall task. Some specific techniques
+        for Task Decomposition include:\\n- Chain of Thought (CoT): The model is instructed
+        to \\\"think step by step\\\" to decompose the task into smaller steps.\\n-
+        Tree of Thoughts: The model explores multiple reasoning possibilities at each
+        step, creating a tree structure of potential solutions.\\nTask decomposition
+        can be done by the LLM itself through prompting, by using task-specific instructions,
+        or with human input.\"},\"sessionId\":\"c86b69be-2f93-43c7-8b87-402acc8ebe6d\"}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

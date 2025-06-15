@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from opentelemetry.util.types import AttributeValue
 
@@ -17,6 +17,8 @@ from openinference.instrumentation import (
     get_input_attributes,
     get_llm_attributes,
     get_llm_input_message_attributes,
+    get_llm_invocation_parameter_attributes,
+    get_llm_model_name_attributes,
     get_llm_output_message_attributes,
     get_llm_token_count_attributes,
     get_output_attributes,
@@ -30,6 +32,7 @@ from openinference.instrumentation.bedrock.utils.json_utils import (
 from openinference.semconv.trace import (
     DocumentAttributes,
     OpenInferenceLLMProviderValues,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -455,39 +458,43 @@ class AttributeExtractor:
         }
 
     @classmethod
+    def get_document_attributes(cls, index: int, ref: Dict[str, Any]) -> Dict[str, Any]:
+        attributes = {}
+        base_key = f"{RETRIEVAL_DOCUMENTS}.{index}"
+        if document_id := ref.get("metadata", {}).get("x-amz-bedrock-kb-chunk-id", ""):
+            attributes[f"{base_key}.{DOCUMENT_ID}"] = document_id
+
+        if document_content := ref.get("content", {}).get("text"):
+            attributes[f"{base_key}.{DOCUMENT_CONTENT}"] = document_content
+
+        if document_score := ref.get("score", 0.0):
+            attributes[f"{base_key}.{DOCUMENT_SCORE}"] = document_score
+        metadata = json.dumps(
+            {
+                "location": ref.get("location", {}),
+                "metadata": ref.get("metadata", {}),
+                "type": ref.get("content", {}).get("type"),
+            }
+        )
+        attributes[f"{base_key}.{DOCUMENT_METADATA}"] = metadata
+        return attributes
+
+    @classmethod
     def get_attributes_from_knowledge_base_lookup_output(
-        cls, knowledge_base_lookup_output: dict[str, Any]
+        cls, retrieved_refs: List[Dict[str, Any]]
     ) -> dict[str, AttributeValue]:
         """
         Extract attributes from knowledge base lookup output.
 
         Args:
-            knowledge_base_lookup_output (dict[str, Any]): The knowledge base lookup
-            output dictionary.
+            retrieved_refs (list): The documents list.
 
         Returns:
             Dict[str, AttributeValue]: A dictionary of extracted attributes.
         """
-        retrieved_refs = knowledge_base_lookup_output.get("retrievedReferences", [])
         attributes = dict()
         for i, ref in enumerate(retrieved_refs):
-            base_key = f"{RETRIEVAL_DOCUMENTS}.{i}"
-            if document_id := ref.get("metadata", {}).get("x-amz-bedrock-kb-chunk-id", ""):
-                attributes[f"{base_key}.{DOCUMENT_ID}"] = document_id
-
-            if document_content := ref.get("content", {}).get("text"):
-                attributes[f"{base_key}.{DOCUMENT_CONTENT}"] = document_content
-
-            if document_score := ref.get("score", 0.0):
-                attributes[f"{base_key}.{DOCUMENT_SCORE}"] = document_score
-            metadata = json.dumps(
-                {
-                    "location": ref.get("location", {}),
-                    "metadata": ref.get("metadata", {}),
-                    "type": ref.get("content", {}).get("type"),
-                }
-            )
-            attributes[f"{base_key}.{DOCUMENT_METADATA}"] = metadata
+            attributes.update(cls.get_document_attributes(i, ref))
         return attributes
 
     @classmethod
@@ -604,7 +611,7 @@ class AttributeExtractor:
             )
         if "knowledgeBaseLookupOutput" in observation:
             return cls.get_attributes_from_knowledge_base_lookup_output(
-                observation["knowledgeBaseLookupOutput"]
+                observation["knowledgeBaseLookupOutput"].get("retrievedReferences", [])
             )
         if "agentCollaboratorInvocationOutput" in observation:
             return cls.get_attributes_from_agent_collaborator_invocation_output(
@@ -840,6 +847,81 @@ class AttributeExtractor:
         if failure_message:
             return get_output_attributes(failure_message)
         return {}
+
+    @classmethod
+    def extract_retrieve_invocation_params(cls, kwargs: dict[str, Any]) -> dict[str, Any]:
+        invocation_params = {"knowledgeBaseId": kwargs.get("knowledgeBaseId", "")}
+        if next_token := kwargs.get("nextToken"):
+            invocation_params["next_token"] = next_token
+        if retrieval_configuration := kwargs.get("retrievalConfiguration", {}):
+            invocation_params["retrieval_configuration"] = retrieval_configuration
+        return invocation_params
+
+    @classmethod
+    def get_model_name_for_rag(cls, kwargs: Dict[str, Any]) -> str:
+        retrieve_and_generate_config = kwargs.get("retrieveAndGenerateConfiguration", {})
+        if retrieve_and_generate_config.get("type") == "KNOWLEDGE_BASE":
+            return str(
+                retrieve_and_generate_config.get("knowledgeBaseConfiguration", {}).get(
+                    "modelArn", ""
+                )
+            )
+        return str(
+            retrieve_and_generate_config.get("externalSourcesConfiguration", {}).get("modelArn", "")
+        )
+
+    @classmethod
+    def extract_rag_invocation_params(cls, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        invocation_params = {}
+        if rag_configuration := kwargs.get("retrieveAndGenerateConfiguration"):
+            invocation_params["retrieveAndGenerateConfiguration"] = rag_configuration
+        if session_configuration := kwargs.get("sessionConfiguration"):
+            invocation_params["sessionConfiguration"] = session_configuration
+        if session_id := kwargs.get("sessionId"):
+            invocation_params["sessionId"] = session_id
+        return invocation_params
+
+    @classmethod
+    def extract_bedrock_retrieve_input_attributes(cls, kwargs: dict[str, Any]) -> dict[str, Any]:
+        input_text = kwargs.get("retrievalQuery", {}).get("text", "")
+        return {
+            **get_input_attributes(input_text, mime_type=OpenInferenceMimeTypeValues.TEXT),
+            **get_span_kind_attributes(OpenInferenceSpanKindValues.RETRIEVER),
+            **get_llm_invocation_parameter_attributes(
+                cls.extract_retrieve_invocation_params(kwargs)
+            ),
+        }
+
+    @classmethod
+    def extract_bedrock_rag_input_attributes(cls, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        input_text = kwargs.get("input", {}).get("text", "")
+        return {
+            **get_llm_model_name_attributes(cls.get_model_name_for_rag(kwargs)),
+            **get_input_attributes(input_text, mime_type=OpenInferenceMimeTypeValues.TEXT),
+            **get_span_kind_attributes(OpenInferenceSpanKindValues.RETRIEVER),
+            **get_llm_invocation_parameter_attributes(cls.extract_rag_invocation_params(kwargs)),
+        }
+
+    @classmethod
+    def extract_bedrock_retrieve_response_attributes(
+        cls, response: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        documents = response.get("retrievalResults", [])
+        return cls.get_attributes_from_knowledge_base_lookup_output(documents)
+
+    @classmethod
+    def extract_bedrock_rag_response_attributes(cls, response: Dict[str, Any]) -> Dict[str, Any]:
+        index = 0
+        attributes = {}
+        for citation in response.get("citations", []) or []:
+            documents = citation.get("retrievedReferences", [])
+            for document in documents:
+                attributes.update(cls.get_document_attributes(index, document))
+                index += 1
+        return {
+            **attributes,
+            **get_output_attributes(response.get("output", {}).get("text")),
+        }
 
 
 # Constants
