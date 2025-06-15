@@ -1,6 +1,6 @@
 from contextvars import ContextVar, Token
 from types import TracebackType
-from typing import Iterable, Optional, Type
+from typing import Optional, Sequence, Type
 
 from opentelemetry.trace import SpanContext
 
@@ -20,10 +20,9 @@ class capture_span_context:
     Examples:
         with capture_span_context() as capture:
             response = openai_client.chat.completions.create(...)
-            span_context = capture.get_last_span_context()
             if span_context:
                 phoenix_client.annotations.add_span_annotation(
-                    span_id=span_context.span_id,
+                    span_id=capture.get_last_span_id()
                     annotation_name="feedback",
                     ...
                 )
@@ -50,14 +49,14 @@ class capture_span_context:
             _current_capture_span_context.reset(self._token)
         self._contexts.clear()
 
-    def get_last_span_context(self) -> Optional[SpanContext]:
+    def get_last_span_id(self) -> Optional[str]:
         """
-        Returns the last captured span context, or None if no spans were captured.
+        Returns the last captured span ID, or None if no spans were captured.
         """
-        return self._contexts[-1] if self._contexts else None
+        return self._contexts[-1].span_id if self._contexts else None
 
-    def get_span_contexts(self) -> Iterable[SpanContext]:
+    def get_span_contexts(self) -> Sequence[SpanContext]:
         """
-        Returns a list of all captured span contexts.
+        Returns a sequence of all captured span contexts.
         """
-        return self._contexts
+        return self._contexts.copy()
