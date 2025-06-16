@@ -54,19 +54,19 @@ class TestOpenLLMetryInstrumentor:
         # Get spans
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) > 0
-        span = spans[0]
+        for span in spans:
 
-        # Check span attributes
-        attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+            # Check span attributes
+            attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
-        # Verify it's an OpenInference span
-        assert is_openinference_span(span)
+            # Verify it's an OpenInference span
+            assert is_openinference_span(span)
 
-        # Check that we have input and output values
-        assert SpanAttributes.INPUT_VALUE in attributes
-        assert SpanAttributes.OUTPUT_VALUE in attributes
+            # Check that we have input and output values
+            assert SpanAttributes.INPUT_VALUE in attributes
+            assert SpanAttributes.OUTPUT_VALUE in attributes
 
-        # Verify the model name is captured (exact attribute may vary)
-        model_name_attr = next((k for k in attributes.keys() if "model" in k.lower() and "name" in k.lower()), None)
-        assert model_name_attr is not None, "Model name attribute not found"
-        assert "gpt-4" in str(attributes[model_name_attr])
+            # Verify the model name is captured (exact attribute may vary)
+            model_name_attr = next((k for k in attributes if "model" in k.lower() and "name" in k.lower()), None)
+            assert model_name_attr is not None, "Model name attribute not found"
+            assert "gpt-4" in str(attributes[model_name_attr])

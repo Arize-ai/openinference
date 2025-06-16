@@ -150,8 +150,8 @@ def _collect_oi_messages(attrs: Dict[str, Any], prefix: str) -> List[oi.Message]
             msg['finish_reason'] = raw['finish_reason']
 
         # Build tool_calls if present
-        calls = raw.get('tool_calls')
-        if calls:
+
+        if calls:= raw.get('tool_calls'):
             oi_calls: List[oi.ToolCall] = []
             for tidx in sorted(calls):
                 entry = calls[tidx]

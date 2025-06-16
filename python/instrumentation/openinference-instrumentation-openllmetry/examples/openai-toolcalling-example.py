@@ -3,7 +3,7 @@ Tool-Calling OpenAI Chat with OpenLLMetry → Phoenix Observability
 
 This script shows how to:
 - Instrument OpenAI tool-calling requests with OpenTelemetry.
-- Convert traces to OpenInference format using OpenLLMetryToOpenInferenceProcessor.
+- Convert traces to OpenInference format using OpenLLToOIProcessor.
 - Export spans to Phoenix via OTLP gRPC.
 - Define tools (e.g., weather, traffic) and serve tool outputs.
 
@@ -21,7 +21,7 @@ from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
-from openllmetrytophoenixprocessor import OpenLLMetryToOpenInferenceProcessor
+from openinference.instrumentation.openllmetry import OpenLLToOIProcessor
 from phoenix.otel import register
 
 # --------------------------------------------------------------------------------
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     )
 
     provider.add_span_processor(DebugPrintProcessor())
-    provider.add_span_processor(OpenLLMetryToOpenInferenceProcessor())
+    provider.add_span_processor(OpenLLToOIProcessor())
     provider.add_span_processor(
         BatchSpanProcessor(
             OTLPSpanExporter(
