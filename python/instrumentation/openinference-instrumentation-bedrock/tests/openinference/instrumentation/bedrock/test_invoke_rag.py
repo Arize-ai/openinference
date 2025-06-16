@@ -150,37 +150,8 @@ def test_retrieve_and_generate_with_knowledge_base(
     assert not attrs, f"Unexpected attributes found: {attrs}"
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
-def test_retrieve_and_generate_with_external_s3_source(
-    tracer_provider: trace_sdk.TracerProvider, in_memory_span_exporter: InMemorySpanExporter
-) -> None:
-    client = boto3.client(
-        "bedrock-agent-runtime",
-        region_name="ap-south-1",
-        aws_access_key_id="123",
-        aws_secret_access_key="321",
-    )
-    response = client.retrieve_and_generate(
-        input={"text": "What is Telos?"},
-        retrieveAndGenerateConfiguration={
-            "externalSourcesConfiguration": {
-                "sources": [
-                    {
-                        "s3Location": {"uri": "s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf"},
-                        "sourceType": "S3",
-                    }
-                ],
-                "modelArn": "anthropic.claude-3-haiku-20240307-v1:0",
-            },
-            "type": "EXTERNAL_SOURCES",
-        },
-    )
-    assert isinstance(response, dict)
-    spans = in_memory_span_exporter.get_finished_spans()
+def validate_rag_span_attributes(memory_span_exporter: InMemorySpanExporter) -> None:
+    spans = memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attrs: Dict[str, Any] = dict(spans[0].attributes or {})
     assert attrs.pop("input.mime_type") == "text/plain"
@@ -214,3 +185,70 @@ def test_retrieve_and_generate_with_external_s3_source(
 
     # Final assertion: no unexpected attributes remain
     assert not attrs, f"Unexpected attributes found: {attrs}"
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_retrieve_and_generate_with_external_s3_source(
+    tracer_provider: trace_sdk.TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="ap-south-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    response = client.retrieve_and_generate(
+        input={"text": "What is Telos?"},
+        retrieveAndGenerateConfiguration={
+            "externalSourcesConfiguration": {
+                "sources": [
+                    {
+                        "s3Location": {"uri": "s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf"},
+                        "sourceType": "S3",
+                    }
+                ],
+                "modelArn": "anthropic.claude-3-haiku-20240307-v1:0",
+            },
+            "type": "EXTERNAL_SOURCES",
+        },
+    )
+    assert isinstance(response, dict)
+    validate_rag_span_attributes(in_memory_span_exporter)
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_retrieve_and_generate_stream(
+    tracer_provider: trace_sdk.TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+) -> None:
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="ap-south-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    response_stream = client.retrieve_and_generate_stream(
+        input={"text": "What is Telos?"},
+        retrieveAndGenerateConfiguration={
+            "externalSourcesConfiguration": {
+                "sources": [
+                    {
+                        "s3Location": {"uri": "s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf"},
+                        "sourceType": "S3",
+                    }
+                ],
+                "modelArn": "anthropic.claude-3-haiku-20240307-v1:0",
+            },
+            "type": "EXTERNAL_SOURCES",
+        },
+    )
+    response = list(response_stream["stream"])  # Collect all streamed responses
+    assert isinstance(response, list)
+    validate_rag_span_attributes(in_memory_span_exporter)

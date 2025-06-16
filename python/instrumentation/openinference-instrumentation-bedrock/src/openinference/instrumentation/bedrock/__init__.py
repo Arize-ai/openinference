@@ -44,6 +44,7 @@ from openinference.instrumentation.bedrock._rag_wrappers import (
 from openinference.instrumentation.bedrock._wrappers import (
     _InvokeAgentWithResponseStream,
     _InvokeModelWithResponseStream,
+    _RetrieveAndGenerateStream,
 )
 from openinference.instrumentation.bedrock.package import _instruments
 from openinference.instrumentation.bedrock.version import __version__
@@ -84,6 +85,9 @@ class InstrumentedClient(BaseClient):  # type: ignore
 
     retrieve_and_generate: Callable[..., Any]
     _unwrapped_retrieve_and_generate: Callable[..., Any]
+
+    retrieve_and_generate_stream: Callable[..., Any]
+    _unwrapped_retrieve_and_generate_stream: Callable[..., Any]
 
 
 class BufferedStreamingBody(StreamingBody):  # type: ignore
@@ -135,6 +139,11 @@ def _client_creation_wrapper(
 
             client._unwrapped_retrieve_and_generate = client.retrieve_and_generate
             client.retrieve_and_generate = _retrieve_and_generate_wrapper(tracer)(client)
+
+            client._unwrapped_retrieve_and_generate_stream = client.retrieve_and_generate_stream
+            client.retrieve_and_generate_stream = _RetrieveAndGenerateStream(tracer)(
+                client.retrieve_and_generate_stream
+            )
 
         if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
             client = cast(InstrumentedClient, client)
