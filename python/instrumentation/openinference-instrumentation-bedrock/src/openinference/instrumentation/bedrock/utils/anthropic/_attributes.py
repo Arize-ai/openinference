@@ -1,6 +1,17 @@
+"""
+Attribute extraction utilities for Anthropic models in AWS Bedrock.
+
+This module provides functions to extract and format attributes from Anthropic model
+requests and responses for OpenInference tracing. It handles message parsing, token
+counting, parameter validation, and attribute formatting specific to Anthropic's
+Claude VV3+ models running on AWS Bedrock.
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Tuple
+
+from opentelemetry.trace import Span
 
 from openinference.instrumentation import (
     Image,
@@ -25,6 +36,23 @@ from openinference.semconv.trace import (
 
 
 def _get_input_messages(content: Any) -> List[Message]:
+    """
+    Convert raw message content to OpenInference Message objects.
+
+    Processes various message types including text, images, tool calls, and tool results
+    from Anthropic message format into standardized Message objects for tracing.
+
+    Args:
+        content: Raw message content from the request, typically a list of message dictionaries
+
+    Returns:
+        List of Message objects with properly formatted content, roles, and tool calls
+        Handles multiple content types:
+        - Text messages
+        - Image messages (base64 encoded)
+        - Tool use calls
+        - Tool result responses
+    """
     messages = []
     for message in content:
         if isinstance(message.get("content"), str):
@@ -63,6 +91,21 @@ def _get_input_messages(content: Any) -> List[Message]:
 
 
 def _get_llm_token_counts(usage: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extract token count information from usage statistics.
+
+    Processes token usage data from Anthropic responses, including prompt tokens,
+    completion tokens, and cache-related token counts.
+
+    Args:
+        usage: Dictionary containing token usage statistics from the response
+
+    Yields:
+        Tuples of (attribute_name, token_count) for various token types:
+        - Prompt tokens (including cache creation and read)
+        - Completion tokens
+        - Cache-specific token details
+    """
     prompt_tokens = sum(
         usage.get(key, 0)
         for key in [
@@ -83,6 +126,19 @@ def _get_llm_token_counts(usage: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
 
 
 def _get_llm_model_name_from_input(model_id: str) -> str:
+    """
+    Extract the model name from a Bedrock model ID.
+
+    Parses Bedrock model IDs which typically follow the format "vendor.model_name"
+    and extracts just the model name portion.
+
+    Args:
+        model_id: The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229
+        -v1:0")
+
+    Returns:
+        The extracted model name, or the original model_id if parsing fails
+    """
     if model_id and model_id.count(".") == 1:
         vendor, model_name = model_id.split(".")
         return model_name
@@ -91,14 +147,34 @@ def _get_llm_model_name_from_input(model_id: str) -> str:
 
 def _get_invocation_parameters(kwargs: Mapping[str, Any]) -> Any:
     """
-    Extracts the invocation parameters from the call
+    Extract invocation parameters from the request kwargs.
+
+    Filters the request parameters to include only those that should be
+    recorded as invocation parameters, excluding standard fields like
+    messages and modelId.
+
+    Args:
+        kwargs: The complete request parameters mapping
+
+    Returns:
+        Dictionary containing only the invocation parameters that should
+        be recorded for tracing purposes
     """
     return {key: value for key, value in kwargs.items() if _validate_invocation_parameter(key)}
 
 
-def _get_output_messages(response: Any) -> Any:
+def _get_output_messages(response: Any) -> List[Message]:
     """
-    Extracts the tool call information from the response
+    Extract output messages and tool calls from the Anthropic response.
+
+    Processes the response content to extract both text messages and tool calls,
+    converting them into standardized Message objects for tracing.
+
+    Args:
+        response: The response body from the Anthropic model
+
+    Returns:
+        List of Message objects containing the response content and any tool calls
     """
     output_messages = []
     for block in response.get("content", []):
@@ -124,16 +200,44 @@ def _get_output_messages(response: Any) -> Any:
 
 def _validate_invocation_parameter(parameter: Any) -> bool:
     """
-    Validates the invocation parameters.
+    Validate whether a parameter should be included in invocation parameters.
+
+    Determines if a given parameter key should be recorded as part of the
+    invocation parameters for tracing purposes.
+
+    Args:
+        parameter: The parameter key to validate
+
+    Returns:
+        True if the parameter should be included in invocation parameters,
+        False if it should be excluded
     """
-    valid_params = (
+    excluded_params = (
         "messages",
         "modelId",
     )
-    return parameter not in valid_params
+    return parameter not in excluded_params
 
 
 def get_llm_input_attributes(request_body: Dict[str, Any], model_id: str) -> Dict[str, Any]:
+    """
+    Extract and format input attributes for LLM tracing from Anthropic request.
+
+    Processes the request body and model information to create a comprehensive
+    set of attributes for OpenInference tracing, including model details,
+    input messages, and invocation parameters.
+
+    Args:
+        request_body: The complete request body sent to the Anthropic model
+        model_id: The Bedrock model identifier
+
+    Returns:
+        Dictionary containing formatted attributes for tracing:
+        - LLM system and provider information
+        - Model name and parameters
+        - Input messages and content
+        - Span kind and input attributes
+    """
     invocation_parameters = _get_invocation_parameters(request_body)
     input_messages = _get_input_messages(request_body.get("messages"))
     return {
@@ -150,6 +254,22 @@ def get_llm_input_attributes(request_body: Dict[str, Any], model_id: str) -> Dic
 
 
 def get_llm_output_attributes(response_body: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract and format output attributes for LLM tracing from Anthropic response.
+
+    Processes the response body to create attributes for OpenInference tracing,
+    including output messages, token usage, and model information.
+
+    Args:
+        response_body: The complete response body from the Anthropic model
+
+    Returns:
+        Dictionary containing formatted attributes for tracing:
+        - Output messages and content
+        - Token count statistics
+        - Model name information
+        - General output attributes
+    """
     output_messages = _get_output_messages(response_body)
     return {
         **get_llm_output_message_attributes(output_messages),
@@ -159,6 +279,36 @@ def get_llm_output_attributes(response_body: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def set_input_attributes(span: Span, request_body: Dict[str, Any], model_id: str) -> None:
+    """
+    Set input attributes on the span for Anthropic model requests.
+
+    Convenience function that extracts and sets all input-related attributes
+    from the request body and model ID onto the provided span.
+
+    Args:
+        span: The OpenTelemetry span to set attributes on
+        request_body: The complete request body sent to the Anthropic model
+        model_id: The Bedrock model identifier
+    """
+    span.set_attributes(get_llm_input_attributes(request_body, model_id))
+
+
+def set_response_attributes(span: Span, response_body: Dict[str, Any]) -> None:
+    """
+    Set response attributes on the span for Anthropic model responses.
+
+    Convenience function that extracts and sets all response-related attributes
+    from the response body onto the provided span.
+
+    Args:
+        span: The OpenTelemetry span to set attributes on
+        response_body: The complete response body from the Anthropic model
+    """
+    span.set_attributes(get_llm_output_attributes(response_body))
+
+
+# Token count attribute constants for convenience
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
