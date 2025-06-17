@@ -298,6 +298,8 @@ class AttributeExtractor:
             llm_invocation_parameters["invocation_id"] = invocation_id
         if verb := action_input.get("verb"):
             llm_invocation_parameters["verb"] = verb
+        if api_path := action_input.get("apiPath"):
+            llm_invocation_parameters["api_path"] = api_path
         return {
             **get_span_kind_attributes(OpenInferenceSpanKindValues.TOOL),
             **get_llm_input_message_attributes(messages),

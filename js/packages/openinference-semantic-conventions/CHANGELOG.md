@@ -1,5 +1,16 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.0.0
+
+### Major Changes
+
+- c2ee804: Update the input and output to be under details
+- 5f904bf: Update semantic conventions to include detailed token count and cost attributes, adding support for tracking token usage details, cache performance, and cost breakdowns in LLM operations.
+
+### Minor Changes
+
+- 5f90a80: Adding agent and graph semantic conventions
+
 ## 1.1.0
 
 ### Minor Changes

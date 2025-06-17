@@ -102,13 +102,13 @@ class TestSpanAttributes:
                     "completion": SpanAttributes.LLM_COST_COMPLETION,
                     "completion_details": {
                         "audio": SpanAttributes.LLM_COST_COMPLETION_DETAILS_AUDIO,
+                        "output": SpanAttributes.LLM_COST_COMPLETION_DETAILS_OUTPUT,
                         "reasoning": SpanAttributes.LLM_COST_COMPLETION_DETAILS_REASONING,
                     },
-                    "input": SpanAttributes.LLM_COST_INPUT,
-                    "output": SpanAttributes.LLM_COST_OUTPUT,
                     "prompt": SpanAttributes.LLM_COST_PROMPT,
                     "prompt_details": {
                         "audio": SpanAttributes.LLM_COST_PROMPT_DETAILS_AUDIO,
+                        "input": SpanAttributes.LLM_COST_PROMPT_DETAILS_INPUT,
                         "cache_input": SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_INPUT,
                         "cache_read": SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_READ,
                         "cache_write": SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_WRITE,
@@ -131,15 +131,15 @@ class TestSpanAttributes:
                 "token_count": {
                     "completion": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
                     "completion_details": {
-                        "reasoning": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
                         "audio": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+                        "reasoning": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
                     },
                     "prompt": SpanAttributes.LLM_TOKEN_COUNT_PROMPT,
                     "prompt_details": {
-                        "cache_write": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-                        "cache_read": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
                         "audio": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
                         "cache_input": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT,
+                        "cache_read": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+                        "cache_write": SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
                     },
                     "total": SpanAttributes.LLM_TOKEN_COUNT_TOTAL,
                 },
@@ -362,9 +362,9 @@ def _get_attributes(cls: type[Any]) -> set[str]:
 
 
 _PREFIXES: list[str] = [
-    SpanAttributes.LLM_COST,
+    SpanAttributes.LLM_COST_PROMPT_DETAILS,
+    SpanAttributes.LLM_COST_COMPLETION_DETAILS,
     SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS,
-    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS,
 ]
 
 """List of OpenTelemetry span attribute prefixes that should be ignored during nesting.

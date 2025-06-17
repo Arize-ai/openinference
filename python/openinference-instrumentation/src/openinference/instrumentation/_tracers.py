@@ -154,6 +154,23 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
     ) -> OpenInferenceSpan:
         otel_span: Span
+        # Apply masking to attributes before passing to sampler to ensure
+        # samplers don't see sensitive data that should be masked
+        user_attributes = dict(attributes) if attributes else {}
+        span_kind_attributes = (
+            get_span_kind_attributes(openinference_span_kind)
+            if openinference_span_kind is not None
+            else {}
+        )
+        context_attributes = dict(get_attributes_from_context())
+        combined_attributes = self._get_masked_attributes_for_sampling(
+            {
+                **context_attributes,
+                **user_attributes,
+                **span_kind_attributes,
+            }
+        )
+
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             otel_span = INVALID_SPAN
         else:
@@ -163,22 +180,42 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 name=name,
                 context=context,
                 kind=kind,
-                attributes=None,
+                attributes=combined_attributes,  # Pass all attributes for sampling
                 links=links,
                 start_time=start_time,
                 record_exception=record_exception,
                 set_status_on_exception=set_status_on_exception,
             )
+
         openinference_span = OpenInferenceSpan(otel_span, config=self._self_config)
-        if attributes:
-            openinference_span.set_attributes(dict(attributes))
-        if openinference_span_kind is not None:
-            openinference_span.set_attributes(get_span_kind_attributes(openinference_span_kind))
-        openinference_span.set_attributes(dict(get_attributes_from_context()))
+
+        # Use OpenInferenceSpan wrapper's attribute handling
+        if user_attributes:
+            openinference_span.set_attributes(user_attributes)
+        if span_kind_attributes:
+            openinference_span.set_attributes(span_kind_attributes)
+        if context_attributes:
+            openinference_span.set_attributes(context_attributes)
 
         _capture_span_context(openinference_span.get_span_context())
 
         return openinference_span
+
+    def _get_masked_attributes_for_sampling(
+        self, attributes: Dict[str, AttributeValue]
+    ) -> Dict[str, AttributeValue]:
+        """Apply masking to attributes before passing to samplers.
+
+        This ensures samplers don't see sensitive data that should be masked
+        according to the TraceConfig, while maintaining the same masking logic
+        as OpenInferenceSpan.
+        """
+        masked_attributes = {}
+        for key, value in attributes.items():
+            masked_value = self._self_config.mask(key, value)
+            if masked_value is not None:
+                masked_attributes[key] = masked_value
+        return masked_attributes
 
     @overload  # for @tracer.agent usage (no parameters)
     def agent(

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.24...python-openinference-instrumentation-bedrock-v0.1.25) (2025-06-13)
+
+
+### Bug Fixes
+
+* **bedrock:** Included apipath into metadata ([#1775](https://github.com/Arize-ai/openinference/issues/1775)) ([081d630](https://github.com/Arize-ai/openinference/commit/081d630d2147134574cf2dd47630592d58e5f00d))
+
 ## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.23...python-openinference-instrumentation-bedrock-v0.1.24) (2025-06-03)
 
 
