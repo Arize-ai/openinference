@@ -308,7 +308,7 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
         arguments = _bind_arguments(wrapped, *args, **kwargs)
         span_name = f"{instance.__class__.__name__}.create"
 
-        messages = arguments.get("messages", None)
+        messages = arguments.get("messages")
         tools = arguments.get("tools", None)
         with self._tracer.start_as_current_span(
             span_name,
