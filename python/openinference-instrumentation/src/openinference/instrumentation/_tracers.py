@@ -56,6 +56,7 @@ from ._attributes import (
     get_span_kind_attributes,
     get_tool_attributes,
 )
+from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
@@ -195,6 +196,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             openinference_span.set_attributes(span_kind_attributes)
         if context_attributes:
             openinference_span.set_attributes(context_attributes)
+
+        _capture_span_context(openinference_span.get_span_context())
 
         return openinference_span
 
