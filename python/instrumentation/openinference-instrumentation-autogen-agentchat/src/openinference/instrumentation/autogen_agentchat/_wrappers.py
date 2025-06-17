@@ -309,7 +309,7 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
         span_name = f"{instance.__class__.__name__}.create"
 
         messages = arguments.get("messages")
-        tools = arguments.get("tools", None)
+        tools = arguments.get("tools")
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
