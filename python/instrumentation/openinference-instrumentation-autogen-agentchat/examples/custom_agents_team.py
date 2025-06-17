@@ -87,8 +87,7 @@ class ArithmeticAgent(BaseChatAgent):
             # Extract number from text (simple parsing)
             import re
 
-            numbers = re.findall(r"\d+", last_content)
-            if numbers:
+            if numbers := re.findall(r"\d+", last_content):
                 number = int(numbers[0])
                 result = self._operator_func(number)
                 response_message = TextMessage(
