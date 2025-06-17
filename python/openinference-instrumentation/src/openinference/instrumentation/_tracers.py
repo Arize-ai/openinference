@@ -56,8 +56,8 @@ from ._attributes import (
     get_span_kind_attributes,
     get_tool_attributes,
 )
+from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
-from .capture import _capture_span_context
 from .config import (
     TraceConfig,
 )

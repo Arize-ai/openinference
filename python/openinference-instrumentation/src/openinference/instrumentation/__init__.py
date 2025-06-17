@@ -21,6 +21,7 @@ from ._attributes import (
     get_tool_attributes,
     get_user_id_attributes,
 )
+from ._capture import capture_span_context
 from ._tracer_providers import TracerProvider
 from ._tracers import OITracer
 from ._types import (
@@ -37,7 +38,6 @@ from ._types import (
     ToolCall,
     ToolCallFunction,
 )
-from .capture import capture_span_context
 from .config import (
     REDACTED_VALUE,
     TraceConfig,
