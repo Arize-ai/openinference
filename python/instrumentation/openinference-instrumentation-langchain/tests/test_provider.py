@@ -1,8 +1,17 @@
-import pytest
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from openinference.instrumentation.langchain._tracer import parse_provider_and_model, _llm_provider, _llm_system
-from openinference.semconv.trace import OpenInferenceLLMProviderValues, OpenInferenceLLMSystemValues, SpanAttributes
+import pytest
+
+from openinference.instrumentation.langchain._tracer import (
+    _llm_provider,
+    _llm_system,
+    parse_provider_and_model,
+)
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    SpanAttributes,
+)
 
 
 @pytest.mark.parametrize(
@@ -146,4 +155,4 @@ def test_llm_system(extra: Optional[Dict[str, Any]], expected_system: Optional[s
         assert len(system_items) == 1
         attribute, value = system_items[0]
         assert attribute == SpanAttributes.LLM_SYSTEM
-        assert value == expected_system 
+        assert value == expected_system

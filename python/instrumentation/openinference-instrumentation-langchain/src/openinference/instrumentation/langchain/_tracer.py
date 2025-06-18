@@ -632,7 +632,7 @@ def parse_provider_and_model(model_str: Optional[str]) -> tuple[Optional[str], O
 def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
     """
     Extract the LLM provider from the extra information in a LangChain run.
-    
+
     This function attempts to extract the provider name through several strategies:
     1. From the provider field in invocation_params
     2. From the client_name in invocation_params
@@ -641,7 +641,7 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
     """
     if not extra:
         return
-    
+
     # Check for provider in invocation_params
     if invocation_params := extra.get("invocation_params"):
         # Direct provider field
@@ -659,7 +659,7 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
             else:
                 yield LLM_PROVIDER, provider
             return
-        
+
         # From client name (e.g., OpenAIClient -> openai)
         if client_name := invocation_params.get("client_name"):
             client_name_lower = client_name.lower()
@@ -679,7 +679,7 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
                 provider = client_name[:-6].lower()  # Remove "Client" suffix
                 yield LLM_PROVIDER, provider
                 return
-        
+
         # From model name in LiteLLM format (e.g., "openai/gpt-4")
         for key in ["model_name", "model"]:
             if model_str := invocation_params.get(key):
@@ -696,7 +696,7 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
                     else:
                         yield LLM_PROVIDER, provider
                     return
-    
+
     # From class name in id field
     if id_list := extra.get("id"):
         if isinstance(id_list, list) and len(id_list) > 2:
@@ -1080,17 +1080,18 @@ LLM_TOOLS = SpanAttributes.LLM_TOOLS
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 
+
 @stop_on_exception
 def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
     """
     Extract the LLM system (AI product) from the extra information in a LangChain run.
-    
+
     This function attempts to identify the AI system being used (OpenAI, Anthropic, etc.)
     based on available information in the run data.
     """
     if not extra:
         return
-    
+
     # Check for system in invocation_params
     if invocation_params := extra.get("invocation_params"):
         # From model name in LiteLLM format (e.g., "openai/gpt-4")
@@ -1108,7 +1109,7 @@ def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
                     elif provider in ["google", "vertex", "vertexai"]:
                         yield LLM_SYSTEM, OpenInferenceLLMSystemValues.VERTEXAI.value
                         return
-                
+
                 # Try to infer from model name
                 if model_name:
                     if model_name.startswith(("gpt-", "text-davinci")):
@@ -1120,7 +1121,7 @@ def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
                     elif model_name.startswith(("gemini-")):
                         yield LLM_SYSTEM, OpenInferenceLLMSystemValues.VERTEXAI.value
                         return
-    
+
     # From class name in id field
     if id_list := extra.get("id"):
         if isinstance(id_list, list) and len(id_list) > 2:
