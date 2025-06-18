@@ -47,6 +47,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -288,6 +290,8 @@ def _update_span(span: Span, run: Run) -> None:
                     _prompt_template(run),
                     _invocation_parameters(run),
                     _model_name(run.extra),
+                    _llm_provider(run.extra),
+                    _llm_system(run.extra),
                     _token_counts(run.outputs),
                     _function_calls(run.outputs),
                     _tools(run),
@@ -603,6 +607,114 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
         tools = invocation_parameters.get("tools", [])
         for idx, tool in enumerate(tools):
             yield f"{LLM_TOOLS}.{idx}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
+
+
+def parse_provider_and_model(model_str: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """
+    Parse a model string like 'openai/gpt-4', 'text-completion-openai/gpt-3.5-turbo-instruct/', etc.
+    Returns (provider, model_name), both lowercased and stripped of trailing slashes.
+    """
+    if not isinstance(model_str, str) or not model_str:
+        return None, None
+    model_str = model_str.strip().rstrip("/")
+    if "/" in model_str:
+        provider, model_name = model_str.split("/", 1)
+        provider = provider.strip().lower()
+        model_name = model_name.strip()
+        # Handle cases like 'text-completion-openai' -> 'openai'
+        if "-" in provider:
+            provider = provider.split("-")[-1]
+        return provider, model_name
+    return None, model_str.strip() if model_str else None
+
+
+@stop_on_exception
+def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+    """
+    Extract the LLM provider from the extra information in a LangChain run.
+    
+    This function attempts to extract the provider name through several strategies:
+    1. From the provider field in invocation_params
+    2. From the client_name in invocation_params
+    3. Parsing from the model string (e.g., "openai/gpt-4")
+    4. From the class name in the id field
+    """
+    if not extra:
+        return
+    
+    # Check for provider in invocation_params
+    if invocation_params := extra.get("invocation_params"):
+        # Direct provider field
+        if provider := invocation_params.get("provider"):
+            # Map to standardized provider value if possible
+            provider_lower = provider.lower()
+            if "openai" in provider_lower:
+                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+            elif "anthropic" in provider_lower:
+                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.ANTHROPIC.value
+            elif any(p in provider_lower for p in ["google", "vertex", "gemini"]):
+                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
+            elif "azure" in provider_lower:
+                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
+            else:
+                yield LLM_PROVIDER, provider
+            return
+        
+        # From client name (e.g., OpenAIClient -> openai)
+        if client_name := invocation_params.get("client_name"):
+            client_name_lower = client_name.lower()
+            if "openai" in client_name_lower:
+                if "azure" in client_name_lower:
+                    yield LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
+                else:
+                    yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+                return
+            elif "anthropic" in client_name_lower:
+                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.ANTHROPIC.value
+                return
+            elif any(p in client_name_lower for p in ["google", "vertex", "gemini"]):
+                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
+                return
+            elif client_name_lower.endswith("client"):
+                provider = client_name[:-6].lower()  # Remove "Client" suffix
+                yield LLM_PROVIDER, provider
+                return
+        
+        # From model name in LiteLLM format (e.g., "openai/gpt-4")
+        for key in ["model_name", "model"]:
+            if model_str := invocation_params.get(key):
+                provider, _ = parse_provider_and_model(model_str)
+                if provider:
+                    if provider == "openai":
+                        yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+                    elif provider == "anthropic":
+                        yield LLM_PROVIDER, OpenInferenceLLMProviderValues.ANTHROPIC.value
+                    elif provider in ["google", "vertex", "vertexai"]:
+                        yield LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
+                    elif provider == "azure":
+                        yield LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
+                    else:
+                        yield LLM_PROVIDER, provider
+                    return
+    
+    # From class name in id field
+    if id_list := extra.get("id"):
+        if isinstance(id_list, list) and len(id_list) > 2:
+            # Format is typically ["langchain", "llms", "openai", "OpenAI"]
+            # The provider is usually the second-to-last element
+            provider = id_list[-2].lower()
+            if "openai" in provider:
+                if "azure" in provider:
+                    yield LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
+                else:
+                    yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+            elif "anthropic" in provider:
+                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.ANTHROPIC.value
+            elif any(p in provider for p in ["google", "vertex", "gemini"]):
+                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
+            else:
+                yield LLM_PROVIDER, provider
+            return
 
 
 @stop_on_exception
@@ -965,3 +1077,61 @@ TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+
+@stop_on_exception
+def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+    """
+    Extract the LLM system (AI product) from the extra information in a LangChain run.
+    
+    This function attempts to identify the AI system being used (OpenAI, Anthropic, etc.)
+    based on available information in the run data.
+    """
+    if not extra:
+        return
+    
+    # Check for system in invocation_params
+    if invocation_params := extra.get("invocation_params"):
+        # From model name in LiteLLM format (e.g., "openai/gpt-4")
+        for key in ["model_name", "model"]:
+            if model_str := invocation_params.get(key):
+                provider, model_name = parse_provider_and_model(model_str)
+                if provider:
+                    # Map provider to system
+                    if provider == "openai":
+                        yield LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+                        return
+                    elif provider == "anthropic":
+                        yield LLM_SYSTEM, OpenInferenceLLMSystemValues.ANTHROPIC.value
+                        return
+                    elif provider in ["google", "vertex", "vertexai"]:
+                        yield LLM_SYSTEM, OpenInferenceLLMSystemValues.VERTEXAI.value
+                        return
+                
+                # Try to infer from model name
+                if model_name:
+                    if model_name.startswith(("gpt-", "text-davinci")):
+                        yield LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+                        return
+                    elif model_name.startswith(("claude-")):
+                        yield LLM_SYSTEM, OpenInferenceLLMSystemValues.ANTHROPIC.value
+                        return
+                    elif model_name.startswith(("gemini-")):
+                        yield LLM_SYSTEM, OpenInferenceLLMSystemValues.VERTEXAI.value
+                        return
+    
+    # From class name in id field
+    if id_list := extra.get("id"):
+        if isinstance(id_list, list) and len(id_list) > 2:
+            # Format is typically ["langchain", "llms", "openai", "OpenAI"]
+            provider = id_list[-2].lower()
+            if "openai" in provider:
+                yield LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+                return
+            elif "anthropic" in provider:
+                yield LLM_SYSTEM, OpenInferenceLLMSystemValues.ANTHROPIC.value
+                return
+            elif any(p in provider for p in ["google", "vertex", "gemini"]):
+                yield LLM_SYSTEM, OpenInferenceLLMSystemValues.VERTEXAI.value
+                return
