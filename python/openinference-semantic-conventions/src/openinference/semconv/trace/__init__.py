@@ -157,6 +157,12 @@ class SpanAttributes:
     as output by the model, which may be different from the completion cost if there are
     additional processing steps.
     """
+    LLM_COST_COMPLETION_DETAILS = "llm.cost.completion_details"
+    """
+    Key prefix for additional completion cost details. Each detail should be a separate attribute
+    with this prefix, e.g. llm.cost.completion_details.reasoning,
+    llm.cost.completion_details.audio. All values should be in USD.
+    """
     LLM_COST_COMPLETION_DETAILS_REASONING = "llm.cost.completion_details.reasoning"
     """
     Cost of reasoning steps in the completion in USD.
@@ -168,6 +174,12 @@ class SpanAttributes:
     LLM_COST_COMPLETION_DETAILS_IMAGE = "llm.cost.completion_details.image"
     """
     Cost of image tokens in the completion in USD.
+    """
+    LLM_COST_PROMPT_DETAILS = "llm.cost.prompt_details"
+    """
+    Key prefix for additional prompt cost details. Each detail should be a separate attribute
+    with this prefix, e.g. llm.cost.prompt_details.reasoning,
+    llm.cost.prompt_details.audio. All values should be in USD.
     """
     LLM_COST_PROMPT_DETAILS_CACHE_WRITE = "llm.cost.prompt_details.cache_write"
     """
