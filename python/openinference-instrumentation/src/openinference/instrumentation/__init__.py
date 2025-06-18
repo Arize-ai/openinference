@@ -21,6 +21,7 @@ from ._attributes import (
     get_tool_attributes,
     get_user_id_attributes,
 )
+from ._capture import capture_span_context
 from ._tracer_providers import TracerProvider
 from ._tracers import OITracer
 from ._types import (
@@ -59,6 +60,7 @@ from .helpers import safe_json_dumps
 __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
 __all__ = [
+    "capture_span_context",
     "get_attributes_from_context",
     "using_attributes",
     "using_metadata",
