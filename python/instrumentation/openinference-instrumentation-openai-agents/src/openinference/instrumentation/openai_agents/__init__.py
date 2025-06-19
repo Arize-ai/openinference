@@ -25,7 +25,7 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (exclusive_processor := kwargs.get("exclusive_processor")):
-            exclusive_processor = False
+            exclusive_processor = True
         if not (config := kwargs.get("config")):
             config = TraceConfig()
         else:
