@@ -82,6 +82,10 @@ class SpanAttributes:
     """
     Number of tokens used for reasoning steps in the completion (in tokens).
     """
+    LLM_TOKEN_COUNT_COMPLETION_DETAILS_IMAGE = "llm.token_count.completion_details.image"
+    """
+    The number of image tokens in the completion (in tokens).
+    """
     LLM_TOKEN_COUNT_PROMPT = "llm.token_count.prompt"
     """
     Number of tokens in the prompt.
@@ -107,6 +111,10 @@ class SpanAttributes:
     LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = "llm.token_count.prompt_details.cache_write"
     """
     Number of tokens in the prompt that were written to cache (in tokens).
+    """
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_IMAGE = "llm.token_count.prompt_details.image"
+    """
+    The number of image tokens in the prompt (in tokens).
     """
     LLM_TOKEN_COUNT_TOTAL = "llm.token_count.total"
     """
@@ -138,10 +146,37 @@ class SpanAttributes:
     """
     Cost of reasoning steps in the completion in USD.
     """
-    LLM_COST_PROMPT = "llm.cost.prompt"
+    LLM_COST_COMPLETION_DETAILS_IMAGE = "llm.cost.completion_details.image"
     """
-    Total cost of all input tokens sent to the LLM in USD. This includes all tokens that were
-    processed as part of the prompt, including system messages, user messages, and any other input.
+    Cost of image tokens in the completion in USD.
+    """
+    LLM_COST = "llm.cost"
+    """
+    Key prefix for cost information. When these keys are transformed into a JSON-like structure,
+    it would look like:
+    {
+        "prompt": 0.0021,  # Cost in USD
+        "completion": 0.0045,  # Cost in USD
+        "total": 0.0066,  # Cost in USD
+        "input": 0.0003,  # Cost in USD
+        "output": 0.0009,  # Cost in USD
+        "completion_details": {
+            "reasoning": 0.0024,    # Cost in USD (e.g., 80 tokens * $0.03/1K tokens)
+            "audio": 0.0012,  # Cost in USD (e.g., 40 tokens * $0.03/1K tokens)
+            "image": 0.0018   # Cost in USD (e.g., 60 tokens * $0.03/1K tokens)
+        },
+        "prompt_details": {
+            "cache_write": 0.0006,  # Cost in USD (e.g., 20 tokens * $0.03/1K tokens)
+            "cache_read": 0.0003,   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
+            "cache_input": 0.0006,  # Cost in USD (e.g., 20 tokens * $0.03/1K tokens)
+            "audio": 0.0003,   # Cost in USD (e.g., 10 tokens * $0.03/1K tokens)
+            "image": 0.0009    # Cost in USD (e.g., 30 tokens * $0.03/1K tokens)
+        }
+    }
+    Note: This is a key prefix - individual attributes are stored as separate span attributes
+    with this prefix, e.g. llm.cost.prompt, llm.cost.completion_details.reasoning, etc.
+    The JSON structure shown above represents how these separate attributes can be conceptually
+    organized. All monetary values are in USD with floating point precision.
     """
     LLM_COST_PROMPT_DETAILS = "llm.cost.prompt_details"
     """
@@ -170,6 +205,10 @@ class SpanAttributes:
     Total cost of input tokens in USD. This represents the cost of tokens that were used as
     input to the model, which may be different from the prompt cost if there are additional
     processing steps.
+    """
+    LLM_COST_PROMPT_DETAILS_IMAGE = "llm.cost.prompt_details.image"
+    """
+    Cost of image tokens in the prompt in USD.
     """
     LLM_COST_TOTAL = "llm.cost.total"
     """
