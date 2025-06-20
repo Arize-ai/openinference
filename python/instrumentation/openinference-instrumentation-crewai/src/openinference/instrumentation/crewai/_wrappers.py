@@ -118,12 +118,26 @@ class _ExecuteCoreWrapper:
             set_status_on_exception=False,
         ) as span:
             agent = args[0] if args else None
+            if agent:
+                span.set_attribute(SpanAttributes.GRAPH_NODE_ID, agent.role)
+
             crew = agent.crew if agent else None
             task = instance
 
-            if crew:
+            if crew and agent:
                 span.set_attribute("crew_key", crew.key)
                 span.set_attribute("crew_id", str(crew.id))
+
+                # Find the current agent, the previous agent is the parent node
+                for i, a in enumerate(crew.agents):
+                    if i == 0:
+                        continue
+                    elif a.role == agent.role:
+                        parent_agent = crew.agents[i - 1]
+                        if parent_agent.role:
+                            span.set_attribute(SpanAttributes.GRAPH_NODE_PARENT_ID, parent_agent.role)
+                        break
+
             span.set_attribute("task_key", task.key)
             span.set_attribute("task_id", str(task.id))
 
