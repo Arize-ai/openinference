@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.2...python-openinference-instrumentation-google-genai-v0.1.3) (2025-06-23)
+
+
+### Features
+
+* Google Gen AI Tool Code Support ([#1763](https://github.com/Arize-ai/openinference/issues/1763)) ([ec5cc3f](https://github.com/Arize-ai/openinference/commit/ec5cc3f535cfb546f08506d18b93c373b494c7c2))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.1...python-openinference-instrumentation-google-genai-v0.1.2) (2025-05-30)
 
 
