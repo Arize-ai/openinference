@@ -478,6 +478,9 @@ def test_callback_llm(
         # Ignore metadata since LC adds a bunch of unstable metadata
         oai_attributes.pop(METADATA, None)
         if status_code == 200:
+            # Also pop any LLM provider and system attributes that might have been added
+            oai_attributes.pop(SpanAttributes.LLM_PROVIDER, None)
+            oai_attributes.pop(SpanAttributes.LLM_SYSTEM, None)
             assert oai_attributes == {}
 
         assert spans_by_name == {}

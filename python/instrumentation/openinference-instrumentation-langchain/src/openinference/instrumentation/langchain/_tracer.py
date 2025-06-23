@@ -1127,12 +1127,12 @@ def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
         if isinstance(id_list, list) and len(id_list) > 2:
             # Format is typically ["langchain", "llms", "openai", "OpenAI"]
             provider = id_list[-2].lower()
-            if "openai" in provider:
+            if provider and "openai" in provider:
                 yield LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
                 return
-            elif "anthropic" in provider:
+            elif provider and "anthropic" in provider:
                 yield LLM_SYSTEM, OpenInferenceLLMSystemValues.ANTHROPIC.value
                 return
-            elif any(p in provider for p in ["google", "vertex", "gemini"]):
+            elif provider and any(p in provider for p in ["google", "vertex", "gemini"]):
                 yield LLM_SYSTEM, OpenInferenceLLMSystemValues.VERTEXAI.value
                 return
