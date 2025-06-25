@@ -11,6 +11,8 @@ import OpenAI, { APIPromise, AzureOpenAI } from "openai";
 import { Stream } from "openai/streaming";
 import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
 import { CreateEmbeddingResponse } from "openai/resources/embeddings";
+import { z } from "zod";
+import { zodResponseFormat } from "openai/helpers/zod";
 
 // Function tools
 async function getCurrentLocation() {
@@ -20,6 +22,8 @@ async function getCurrentLocation() {
 async function getWeather(_args: { location: string }) {
   return { temperature: 52, precipitation: "rainy" };
 }
+
+process.env.OPENAI_API_KEY = "fake-api-key";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -994,6 +998,99 @@ describe("OpenAIInstrumentation", () => {
   "output.mime_type": "text/plain",
   "output.value": "This is a test",
   "session.id": "session-id",
+}
+`);
+  });
+  it("creates a span for chat completions parse", async () => {
+    const response = {
+      id: "chatcmpl-parseTest",
+      object: "chat.completion",
+      created: 1706000000,
+      model: "gpt-4o-2024-08-06",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content:
+              '{"name":"science fair","date":"Friday","participants":["Alice","Bob"]}',
+          },
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 },
+    };
+
+    // Mock out the chat completions endpoint that will be called under the hood by `.parse`
+    jest
+      .spyOn(openai, "post")
+      .mockImplementation((): ReturnType<typeof openai.post> => {
+        return new APIPromise(
+          openai,
+          Promise.resolve({
+            requestLogID: "123",
+            retryOfRequestLogID: "123",
+            startTime: 123,
+            controller: new AbortController(),
+            options: {
+              method: "post",
+              path: "/chat/completions/create",
+            },
+            response: new Response(JSON.stringify(response), {
+              headers: {
+                "content-type": "application/json",
+              },
+              status: 200,
+              statusText: "OK",
+            }),
+          }),
+        );
+      });
+
+    const CalendarEvent = z.object({
+      name: z.string(),
+      date: z.string(),
+      participants: z.array(z.string()),
+    });
+
+    // Invoke the helper method under test
+    await openai.chat.completions.parse({
+      model: "gpt-4o-2024-08-06",
+      messages: [
+        { role: "system", content: "Extract the event information." },
+        {
+          role: "user",
+          content: "Alice and Bob are going to a science fair on Friday.",
+        },
+      ],
+      response_format: zodResponseFormat(CalendarEvent, "event"),
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"model":"gpt-4o-2024-08-06","messages":[{"role":"system","content":"Extract the event information."},{"role":"user","content":"Alice and Bob are going to a science fair on Friday."}],"response_format":{"type":"json_schema","json_schema":{"name":"event","strict":true,"schema":{"type":"object","properties":{"name":{"type":"string"},"date":{"type":"string"},"participants":{"type":"array","items":{"type":"string"}}},"required":["name","date","participants"],"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}}",
+  "llm.input_messages.0.message.content": "Extract the event information.",
+  "llm.input_messages.0.message.role": "system",
+  "llm.input_messages.1.message.content": "Alice and Bob are going to a science fair on Friday.",
+  "llm.input_messages.1.message.role": "user",
+  "llm.invocation_parameters": "{"model":"gpt-4o-2024-08-06","response_format":{"type":"json_schema","json_schema":{"name":"event","strict":true,"schema":{"type":"object","properties":{"name":{"type":"string"},"date":{"type":"string"},"participants":{"type":"array","items":{"type":"string"}}},"required":["name","date","participants"],"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}}",
+  "llm.model_name": "gpt-4o-2024-08-06",
+  "llm.output_messages.0.message.content": "{"name":"science fair","date":"Friday","participants":["Alice","Bob"]}",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "openai",
+  "llm.system": "openai",
+  "llm.token_count.completion": 10,
+  "llm.token_count.prompt": 20,
+  "llm.token_count.total": 30,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"chatcmpl-parseTest","object":"chat.completion","created":1706000000,"model":"gpt-4o-2024-08-06","choices":[{"index":0,"message":{"role":"assistant","content":"{\\"name\\":\\"science fair\\",\\"date\\":\\"Friday\\",\\"participants\\":[\\"Alice\\",\\"Bob\\"]}"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":10,"total_tokens":30}}",
 }
 `);
   });
