@@ -5,9 +5,8 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
-import OpenAI from "openai";
+import OpenAI, { APIPromise } from "openai";
 import { Stream } from "openai/streaming";
-import { APIPromise } from "openai/core";
 import { Response as ResponseType } from "openai/resources/responses/responses";
 
 const memoryExporter = new InMemorySpanExporter();
@@ -94,6 +93,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     // Mock out the responses endpoint
     jest.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
+        new OpenAI({}),
         new Promise((resolve) => {
           resolve({
             response: new Response(),
@@ -163,6 +163,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     // Mock out the responses endpoint
     jest.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
+        new OpenAI({}),
         new Promise((resolve) => {
           resolve({
             response: new Response(),
@@ -257,6 +258,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         const controller = new AbortController();
         const stream = new Stream(iterator, controller);
         return new APIPromise(
+          new OpenAI({}),
           // @ts-expect-error the response type is not correct - this is just for testing
           Promise.resolve({
             response: new Response(),
@@ -377,6 +379,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         const controller = new AbortController();
         const stream = new Stream(iterator, controller);
         return new APIPromise(
+          new OpenAI({}),
           // @ts-expect-error the response type is not correct - this is just for testing
           Promise.resolve({
             response: new Response(),
@@ -523,6 +526,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         const controller = new AbortController();
         const stream = new Stream(iterator, controller);
         return new APIPromise(
+          new OpenAI({}),
           // @ts-expect-error the response type is not correct - this is just for testing
           Promise.resolve({
             response: new Response(),

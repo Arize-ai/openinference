@@ -7,9 +7,8 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { suppressTracing } from "@opentelemetry/core";
 import { context } from "@opentelemetry/api";
 
-import OpenAI from "openai";
+import OpenAI, { APIPromise, AzureOpenAI } from "openai";
 import { Stream } from "openai/streaming";
-import { APIPromise } from "openai/core";
 import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
 import { CreateEmbeddingResponse } from "openai/resources/embeddings";
 
@@ -244,8 +243,12 @@ describe("OpenAIInstrumentation", () => {
     // Mock out the embedding create endpoint with proper Promise handling
     jest.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
+        new OpenAI({}),
         new Promise((resolve) => {
           resolve({
+            requestLogID: "123",
+            retryOfRequestLogID: "123",
+            startTime: 123,
             response: new Response(JSON.stringify(response), {
               headers: {
                 "content-type": "application/json",
@@ -431,7 +434,7 @@ describe("OpenAIInstrumentation", () => {
       );
 
     const messages = [];
-    const runner = openai.beta.chat.completions
+    const runner = openai.chat.completions
       .runTools({
         model: "gpt-3.5-turbo",
         messages: [{ role: "user", content: "How is the weather this week?" }],
@@ -1076,6 +1079,209 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
   "openinference.span.kind": "LLM",
   "output.mime_type": "text/plain",
   "output.value": "This is a test",
+}
+`);
+  });
+});
+
+describe("AzureOpenAIInstrumentation", () => {
+  const tracerProvider = new NodeTracerProvider();
+  tracerProvider.register();
+  const instrumentation = new OpenAIInstrumentation();
+  instrumentation.disable();
+  let azureOpenai: AzureOpenAI;
+
+  instrumentation.setTracerProvider(tracerProvider);
+  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+  instrumentation._modules[0].moduleExports = OpenAI;
+
+  beforeAll(() => {
+    instrumentation.enable();
+    azureOpenai = new AzureOpenAI({
+      apiKey: "fake-api-key",
+      endpoint: "https://my-azure-openai.openai.azure.com",
+      apiVersion: "2024-02-15-preview",
+    });
+  });
+  afterAll(() => {
+    instrumentation.disable();
+  });
+  beforeEach(() => {
+    memoryExporter.reset();
+  });
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("is patched", () => {
+    expect(
+      (OpenAI as { openInferencePatched?: boolean }).openInferencePatched,
+    ).toBe(true);
+    expect(isPatched()).toBe(true);
+  });
+
+  it("creates a span for chat completions", async () => {
+    const response = {
+      id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
+      object: "chat.completion",
+      created: 1703743645,
+      model: "gpt-35-turbo",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "This is a test.",
+          },
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 12,
+        completion_tokens: 5,
+        total_tokens: 17,
+      },
+    };
+    // Mock out the chat completions endpoint
+    jest.spyOn(azureOpenai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+    await azureOpenai.chat.completions.create({
+      messages: [{ role: "user", content: "Say this is a test" }],
+      model: "gpt-35-turbo",
+    });
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"messages":[{"role":"user","content":"Say this is a test"}],"model":"gpt-35-turbo"}",
+  "llm.input_messages.0.message.content": "Say this is a test",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"model":"gpt-35-turbo"}",
+  "llm.model_name": "gpt-35-turbo",
+  "llm.output_messages.0.message.content": "This is a test.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "openai",
+  "llm.system": "openai",
+  "llm.token_count.completion": 5,
+  "llm.token_count.prompt": 12,
+  "llm.token_count.total": 17,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-35-turbo","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+}
+`);
+  });
+
+  it("creates a span for embeddings", async () => {
+    const response: CreateEmbeddingResponse = {
+      object: "list",
+      data: [{ object: "embedding", index: 0, embedding: [1, 2, 3] }],
+      model: "text-embedding-ada-002",
+      usage: { prompt_tokens: 0, total_tokens: 0 },
+    };
+
+    // Mock out the embedding create endpoint with proper Promise handling
+    jest.spyOn(azureOpenai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({}),
+        new Promise((resolve) => {
+          resolve({
+            requestLogID: "123",
+            retryOfRequestLogID: "123",
+            startTime: 123,
+            response: new Response(JSON.stringify(response), {
+              headers: {
+                "content-type": "application/json",
+              },
+              status: 200,
+              statusText: "OK",
+            }),
+            options: {
+              method: "post",
+              path: "/embeddings",
+            },
+            controller: new AbortController(),
+          });
+        }),
+      );
+    });
+
+    await azureOpenai.embeddings.create({
+      input: "A happy moment",
+      model: "text-embedding-ada-002",
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Embeddings");
+    // Check the attributes
+    expect(span.attributes["embedding.embeddings.0.embedding.text"]).toBe(
+      "A happy moment",
+    );
+    expect(span.attributes["embedding.model_name"]).toBe(
+      "text-embedding-ada-002",
+    );
+    expect(span.attributes["input.mime_type"]).toBe("text/plain");
+    expect(span.attributes["input.value"]).toBe("A happy moment");
+    expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
+  });
+
+  it("can handle streaming responses", async () => {
+    // Mock out the post endpoint to return a stream
+    jest.spyOn(azureOpenai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        const iterator = () =>
+          (async function* () {
+            yield { choices: [{ delta: { content: "This is " } }] };
+            yield { choices: [{ delta: { content: "a test." } }] };
+            yield { choices: [{ delta: { finish_reason: "stop" } }] };
+          })();
+        const controller = new AbortController();
+        return new Stream(iterator, controller);
+      },
+    );
+    const stream = await azureOpenai.chat.completions.create({
+      messages: [{ role: "user", content: "Say this is a test" }],
+      model: "gpt-35-turbo",
+      stream: true,
+    });
+
+    let response = "";
+    for await (const chunk of stream) {
+      if (chunk.choices[0].delta.content)
+        response += chunk.choices[0].delta.content;
+    }
+    expect(response).toBe("This is a test.");
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"messages":[{"role":"user","content":"Say this is a test"}],"model":"gpt-35-turbo","stream":true}",
+  "llm.input_messages.0.message.content": "Say this is a test",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"model":"gpt-35-turbo","stream":true}",
+  "llm.model_name": "gpt-35-turbo",
+  "llm.output_messages.0.message.content": "This is a test.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "openai",
+  "llm.system": "openai",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "text/plain",
+  "output.value": "This is a test.",
 }
 `);
   });

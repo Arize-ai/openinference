@@ -123,7 +123,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   protected init(): InstrumentationModuleDefinition<typeof openai> {
     const module = new InstrumentationNodeModuleDefinition<typeof openai>(
       "openai",
-      ["^4.0.0"],
+      ["^5.0.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -208,6 +208,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               }
             },
           );
+
           const wrappedPromise = execPromise.then((result) => {
             if (isChatCompletionResponse(result)) {
               // Record the results
