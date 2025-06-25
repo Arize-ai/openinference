@@ -93,7 +93,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     // Mock out the responses endpoint
     jest.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
-        new OpenAI({}),
+        new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {
           resolve({
             response: new Response(),
@@ -163,7 +163,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     // Mock out the responses endpoint
     jest.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
-        new OpenAI({}),
+        new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {
           resolve({
             response: new Response(),
@@ -258,7 +258,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         const controller = new AbortController();
         const stream = new Stream(iterator, controller);
         return new APIPromise(
-          new OpenAI({}),
+          new OpenAI({ apiKey: "fake-api-key" }),
           // @ts-expect-error the response type is not correct - this is just for testing
           Promise.resolve({
             response: new Response(),
@@ -379,7 +379,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         const controller = new AbortController();
         const stream = new Stream(iterator, controller);
         return new APIPromise(
-          new OpenAI({}),
+          new OpenAI({ apiKey: "fake-api-key" }),
           // @ts-expect-error the response type is not correct - this is just for testing
           Promise.resolve({
             response: new Response(),
@@ -526,7 +526,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         const controller = new AbortController();
         const stream = new Stream(iterator, controller);
         return new APIPromise(
-          new OpenAI({}),
+          new OpenAI({ apiKey: "fake-api-key" }),
           // @ts-expect-error the response type is not correct - this is just for testing
           Promise.resolve({
             response: new Response(),

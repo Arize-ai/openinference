@@ -243,7 +243,7 @@ describe("OpenAIInstrumentation", () => {
     // Mock out the embedding create endpoint with proper Promise handling
     jest.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
-        new OpenAI({}),
+        new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {
           resolve({
             requestLogID: "123",
@@ -1192,7 +1192,7 @@ describe("AzureOpenAIInstrumentation", () => {
     // Mock out the embedding create endpoint with proper Promise handling
     jest.spyOn(azureOpenai, "post").mockImplementation(() => {
       return new APIPromise(
-        new OpenAI({}),
+        new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {
           resolve({
             requestLogID: "123",
