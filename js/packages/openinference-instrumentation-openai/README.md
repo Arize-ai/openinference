@@ -41,3 +41,12 @@ npx -y tsx examples/chat.ts # or responses.ts, embed.ts, etc
 ```
 
 For more information on OpenTelemetry Node.js SDK, see the [OpenTelemetry Node.js SDK documentation](https://opentelemetry.io/docs/instrumentation/js/getting-started/nodejs/).
+
+## Compatibility
+
+`@arizeai/openinference-instrumentation-openai` is compatible with the following versions of the `openai` package:
+
+| OpenAI Version | OpenInference Instrumentation Version  |
+| -------------- | -------------------------------------- |
+| ^5.0.0         | ^3.0.0                                 |
+| ^4.0.0         | ^2.0.0                                 |
