@@ -210,7 +210,7 @@ class _RunWrapper:
             return response
 
         agent = instance
-        if hasattr(agent, "name"):
+        if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
             agent_name = "Agent"
