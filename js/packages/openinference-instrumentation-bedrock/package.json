@@ -49,9 +49,13 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.693.0",
-    "@pollyjs/adapter-node-http": "^6.0.6",
-    "@pollyjs/core": "^6.0.6",
-    "jest": "^29.7.0"
+    "@opentelemetry/resources": "^1.25.1",
+    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@opentelemetry/sdk-trace-node": "^1.25.1",
+    "@opentelemetry/semantic-conventions": "^1.25.1",
+    "@types/node": "^20.14.11",
+    "jest": "^29.7.0",
+    "nock": "^13.5.0"
   },
   "peerDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.0.0"

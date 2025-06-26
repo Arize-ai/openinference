@@ -1,0 +1,68 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/invoke",
+    "body": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 100,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello, how are you?"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "msg_bdrk_013Ears62zVrJf8kRVWywwUc",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-5-sonnet-20240620",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hello! I'm doing well, thank you for asking. How are you doing today? Is there anything I can help you with?"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 13,
+        "output_tokens": 30
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 26 Jun 2025 20:22:07 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "354",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "7a43e487-eecb-47f5-9995-7eb1389fe9b1",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "957",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "30",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "13"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "120",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "8461b66c-3d18-4852-8a30-ac2c2829eaaa",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "AQoDYXdzEJr...<truncated>...EXAMPLESessionToken",
+      "x-amz-content-sha256": "4397ea78e572a78416ac06668db66fc6601ebf35cb56672e92f82a0f4ae25574",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=example-signature"
+    },
+    "responseIsBinary": false
+  }
+]
