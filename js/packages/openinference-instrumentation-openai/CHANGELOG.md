@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 3.1.0
+
+### Minor Changes
+
+- c9b96a7: feat: Add support for responses.parse and chat.parse method instrumentation
+
 ## 3.0.0
 
 ### Major Changes
