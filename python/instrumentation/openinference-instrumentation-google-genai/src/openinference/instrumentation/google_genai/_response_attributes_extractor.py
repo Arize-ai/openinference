@@ -129,16 +129,42 @@ class _ResponseAttributesExtractor:
 
     def _get_attributes_from_generate_content_usage(
         self,
-        usage_metadata: types.GenerateContentResponseUsageMetadata,
+        obj: types.GenerateContentResponseUsageMetadata,
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if total := usage_metadata.total_token_count:
+        if total := obj.total_token_count:
             yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total
-        if prompt := usage_metadata.prompt_token_count:
+        if obj.prompt_tokens_details:
+            prompt_details_audio = 0
+            for modality_token_count in obj.prompt_tokens_details:
+                if (
+                    modality_token_count.modality is types.MediaModality.AUDIO
+                    and modality_token_count.token_count
+                ):
+                    prompt_details_audio += modality_token_count.token_count
+            if prompt_details_audio:
+                yield (
+                    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+                    prompt_details_audio,
+                )
+        if prompt := obj.prompt_token_count:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
+        if obj.candidates_tokens_details:
+            completion_details_audio = 0
+            for modality_token_count in obj.candidates_tokens_details:
+                if (
+                    modality_token_count.modality is types.MediaModality.AUDIO
+                    and modality_token_count.token_count
+                ):
+                    completion_details_audio += modality_token_count.token_count
+            if completion_details_audio:
+                yield (
+                    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+                    completion_details_audio,
+                )
         completion = 0
-        if candidates := usage_metadata.candidates_token_count:
+        if candidates := obj.candidates_token_count:
             completion += candidates
-        if thoughts := usage_metadata.thoughts_token_count:
+        if thoughts := obj.thoughts_token_count:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
             completion += thoughts
         if completion:
