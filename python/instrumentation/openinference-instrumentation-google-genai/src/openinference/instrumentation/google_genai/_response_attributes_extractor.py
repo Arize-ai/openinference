@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Iterable, Iterator, Mapping, Tuple
 
+from google.genai import types
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
@@ -128,14 +129,20 @@ class _ResponseAttributesExtractor:
 
     def _get_attributes_from_generate_content_usage(
         self,
-        usage: object,
+        obj: types.GenerateContentResponseUsageMetadata,
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if (total_token_count := getattr(usage, "total_token_count", None)) is not None:
-            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
-        if (prompt_token_count := getattr(usage, "prompt_token_count", None)) is not None:
-            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_token_count
-        if (candidates_token_count := getattr(usage, "candidates_token_count", None)) is not None:
-            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, candidates_token_count
+        if total := obj.total_token_count:
+            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total
+        if prompt := obj.prompt_token_count:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
+        completion = 0
+        if candidates := obj.candidates_token_count:
+            completion += candidates
+        if thoughts := obj.thoughts_token_count:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
+            completion += thoughts
+        if completion:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion
 
     def _get_attributes_from_automatic_function_calling_history(
         self,
