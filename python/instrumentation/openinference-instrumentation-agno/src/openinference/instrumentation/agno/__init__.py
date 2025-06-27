@@ -57,7 +57,7 @@ def find_model_subclasses() -> List[Type[Any]]:
     # This ensures that subclasses are listed before their superclasses and that the 
     # most specific classes come first. If a base class's method was wrapped before 
     # the method of a subclass that inherits it, the resolution for the subclass would 
-    # find the already-wrapped base method (see wrap_function_wrapper excution flow).
+    # find the already-wrapped base method (see wrap_function_wrapper execution flow).
     # This would result in the wrapper being applied a second time, leading to incorrect 
     # behavior such as duplicated spans or metrics. By sorting from the most specific 
     # class to the most general, we ensure that any method is wrapped only once, 
