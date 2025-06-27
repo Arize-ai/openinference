@@ -129,16 +129,16 @@ class _ResponseAttributesExtractor:
 
     def _get_attributes_from_generate_content_usage(
         self,
-        obj: types.GenerateContentResponseUsageMetadata,
+        usage_metadata: types.GenerateContentResponseUsageMetadata,
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        if total := obj.total_token_count:
+        if total := usage_metadata.total_token_count:
             yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total
-        if prompt := obj.prompt_token_count:
+        if prompt := usage_metadata.prompt_token_count:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
         completion = 0
-        if candidates := obj.candidates_token_count:
+        if candidates := usage_metadata.candidates_token_count:
             completion += candidates
-        if thoughts := obj.thoughts_token_count:
+        if thoughts := usage_metadata.thoughts_token_count:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
             completion += thoughts
         if completion:
