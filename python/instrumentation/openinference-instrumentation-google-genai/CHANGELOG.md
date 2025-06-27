@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.3...python-openinference-instrumentation-google-genai-v0.1.4) (2025-06-27)
+
+
+### Bug Fixes
+
+* include reasoning and audio token count for genai and adk instrumentors ([#1812](https://github.com/Arize-ai/openinference/issues/1812)) ([921ff07](https://github.com/Arize-ai/openinference/commit/921ff073e28ac2755b651dcdfac9ab3dbd673e70))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.2...python-openinference-instrumentation-google-genai-v0.1.3) (2025-06-23)
 
 

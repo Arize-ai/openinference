@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.7...python-openinference-instrumentation-agno-v0.1.8) (2025-06-27)
+
+
+### Features
+
+* Prioritize subclasses method wrapping to prevent multiple spans ([#1809](https://github.com/Arize-ai/openinference/issues/1809)) ([cc37471](https://github.com/Arize-ai/openinference/commit/cc37471bcf2be18ff205ab4e49654be42c27daee))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.6...python-openinference-instrumentation-agno-v0.1.7) (2025-06-26)
 
 
