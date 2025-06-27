@@ -17,6 +17,7 @@ import {
   OpenInferenceSpanKind,
   MimeType,
   LLMSystem,
+  LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
 import {
   OITracer,
@@ -63,18 +64,17 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       // eslint-disable-next-line @typescript-eslint/no-this-alias
       const instrumentation = this;
       
-      // Patch the send method of BedrockRuntimeClient
+      // Wrap the client's send method to intercept commands
       this._wrap(
         moduleExports.BedrockRuntimeClient.prototype,
         "send",
         (original: any) => {
           return function patchedSend(this: unknown, command: any) {
-            // Check if this is an InvokeModelCommand
             if (command?.constructor?.name === 'InvokeModelCommand') {
               return instrumentation._handleInvokeModelCommand(command, original, this);
             }
             
-            // For other commands, pass through without instrumentation for now
+            // Pass through other commands without instrumentation
             return original.apply(this, [command]);
           };
         }
@@ -85,42 +85,19 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
   }
 
   private _handleInvokeModelCommand(command: any, original: any, client: any) {
-    // Extract request attributes
-    const modelId = command.input?.modelId || 'unknown';
-    const requestBody = command.input?.body ? JSON.parse(command.input.body) : {};
+    const requestAttributes = this._extractInvokeModelRequestAttributes(command);
     
-    // Start span with basic attributes
-    const spanAttributes: Record<string, any> = {
-      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-      [SemanticConventions.LLM_SYSTEM]: 'bedrock',
-      [SemanticConventions.LLM_MODEL_NAME]: modelId,
-      [SemanticConventions.INPUT_VALUE]: command.input?.body || '',
-      [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-    };
-
-    // Extract input messages for Anthropic Claude format
-    if (requestBody.messages && Array.isArray(requestBody.messages)) {
-      requestBody.messages.forEach((message: any, index: number) => {
-        if (message.role && message.content) {
-          spanAttributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
-          spanAttributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`] = message.content;
-        }
-      });
-    }
-
     const span = this.oiTracer.startSpan('bedrock.invoke_model', {
       kind: SpanKind.CLIENT,
-      attributes: spanAttributes,
+      attributes: requestAttributes,
     });
 
-    // Execute the original command
     try {
       const result = original.apply(client, [command]);
       
-      // Handle the result (which should be a Promise)
       if (result && typeof result.then === 'function') {
         return result.then((response: any) => {
-          this._processInvokeModelResponse(span, response);
+          this._extractInvokeModelResponseAttributes(span, response);
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
           return response;
@@ -131,8 +108,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
           throw error;
         });
       } else {
-        // Synchronous result (unlikely for AWS SDK)
-        this._processInvokeModelResponse(span, result);
+        this._extractInvokeModelResponseAttributes(span, result);
         span.setStatus({ code: SpanStatusCode.OK });
         span.end();
         return result;
@@ -145,52 +121,108 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     }
   }
 
-  private _processInvokeModelResponse(span: Span, response: any) {
-    try {
-      // Parse response body
-      if (response.body) {
-        const responseText = new TextDecoder().decode(response.body);
-        const responseBody = JSON.parse(responseText);
-        
-        // Set basic response attributes
-        span.setAttributes({
-          [SemanticConventions.OUTPUT_VALUE]: responseText,
-          [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-        });
+  /**
+   * Extracts semantic convention attributes from InvokeModel request command
+   */
+  private _extractInvokeModelRequestAttributes(command: any): Record<string, any> {
+    const modelId = command.input?.modelId || 'unknown';
+    const requestBody = command.input?.body ? JSON.parse(command.input.body) : {};
+    
+    // Extract user's message text as primary input value
+    let inputValue = '';
+    if (requestBody.messages && Array.isArray(requestBody.messages) && requestBody.messages.length > 0) {
+      const userMessage = requestBody.messages.find((msg: any) => msg.role === 'user');
+      if (userMessage && userMessage.content) {
+        inputValue = userMessage.content;
+      }
+    }
+    
+    const attributes: Record<string, any> = {
+      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      [SemanticConventions.LLM_SYSTEM]: 'bedrock',
+      [SemanticConventions.LLM_MODEL_NAME]: modelId,
+      [SemanticConventions.INPUT_VALUE]: inputValue,
+      [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+      [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
+    };
 
-        // Extract input/output messages for Anthropic Claude responses
-        if (responseBody.content && Array.isArray(responseBody.content)) {
-          responseBody.content.forEach((content: any, index: number) => {
-            if (content.type === 'text') {
-              span.setAttributes({
-                [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_ROLE}`]: 'assistant',
-                [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`]: content.text,
-              });
-            }
-          });
+    // Add structured input message attributes
+    if (requestBody.messages && Array.isArray(requestBody.messages)) {
+      requestBody.messages.forEach((message: any, index: number) => {
+        if (message.role && message.content) {
+          attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
+          attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`] = message.content;
         }
+      });
+    }
 
-        // Extract token usage
-        if (responseBody.usage) {
-          if (responseBody.usage.input_tokens) {
-            span.setAttributes({
-              [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: responseBody.usage.input_tokens,
-            });
-          }
-          if (responseBody.usage.output_tokens) {
-            span.setAttributes({
-              [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: responseBody.usage.output_tokens,
-            });
-          }
-          if (responseBody.usage.input_tokens && responseBody.usage.output_tokens) {
-            span.setAttributes({
-              [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: responseBody.usage.input_tokens + responseBody.usage.output_tokens,
-            });
-          }
+    // Add invocation parameters for model configuration
+    const invocationParams: Record<string, any> = {};
+    if (requestBody.anthropic_version) invocationParams.anthropic_version = requestBody.anthropic_version;
+    if (requestBody.max_tokens) invocationParams.max_tokens = requestBody.max_tokens;
+    
+    if (Object.keys(invocationParams).length > 0) {
+      attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] = JSON.stringify(invocationParams);
+    }
+
+    return attributes;
+  }
+
+  /**
+   * Extracts semantic convention attributes from InvokeModel response and adds them to the span
+   */
+  private _extractInvokeModelResponseAttributes(span: Span, response: any) {
+    try {
+      if (!response.body) return;
+
+      const responseText = new TextDecoder().decode(response.body);
+      const responseBody = JSON.parse(responseText);
+      
+      // Extract assistant's message text as primary output value
+      let outputValue = '';
+      if (responseBody.content && Array.isArray(responseBody.content)) {
+        const textContent = responseBody.content.find((content: any) => content.type === 'text');
+        if (textContent && textContent.text) {
+          outputValue = textContent.text;
         }
       }
+      
+      span.setAttributes({
+        [SemanticConventions.OUTPUT_VALUE]: outputValue,
+        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+      });
+
+      // Add structured output message attributes
+      if (responseBody.content && Array.isArray(responseBody.content)) {
+        responseBody.content.forEach((content: any, index: number) => {
+          if (content.type === 'text') {
+            span.setAttributes({
+              [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]: 'assistant',
+              [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]: content.text,
+            });
+          }
+        });
+      }
+
+      // Add token usage metrics
+      if (responseBody.usage) {
+        const tokenAttributes: Record<string, number> = {};
+        
+        if (responseBody.usage.input_tokens) {
+          tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = responseBody.usage.input_tokens;
+        }
+        if (responseBody.usage.output_tokens) {
+          tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = responseBody.usage.output_tokens;
+        }
+        if (responseBody.usage.input_tokens && responseBody.usage.output_tokens) {
+          tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = 
+            responseBody.usage.input_tokens + responseBody.usage.output_tokens;
+        }
+        
+        span.setAttributes(tokenAttributes);
+      }
     } catch (error) {
-      diag.warn('Failed to process InvokeModel response:', error);
+      diag.warn('Failed to extract InvokeModel response attributes:', error);
     }
   }
 
