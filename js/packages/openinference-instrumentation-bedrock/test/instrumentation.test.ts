@@ -20,6 +20,12 @@ const MOCK_AWS_CREDENTIALS = {
   sessionToken: "AQoDYXdzEJr...<truncated>...EXAMPLESessionToken",
 };
 
+const VALID_AWS_CREDENTIALS = {
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  sessionToken: process.env.AWS_SESSION_TOKEN!,
+}
+
 const MOCK_AUTH_HEADERS = {
   authorization: "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=example-signature",
   "x-amz-security-token": MOCK_AWS_CREDENTIALS.sessionToken,
@@ -115,9 +121,7 @@ describe("BedrockInstrumentation", () => {
         region: "us-east-1",
         credentials: isRecordingMode ? {
           // Recording mode: use real credentials from environment
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-          sessionToken: process.env.AWS_SESSION_TOKEN!,
+          ...VALID_AWS_CREDENTIALS,
         } : {
           // Replay mode: use mock credentials that match sanitized recordings
           ...MOCK_AWS_CREDENTIALS,
@@ -153,30 +157,164 @@ describe("BedrockInstrumentation", () => {
       expect(span.name).toBe("bedrock.invoke_model");
       expect(span.kind).toBe(SpanKind.CLIENT);
       
-      // Verify semantic conventions
-      const attributes = span.attributes;
-      expect(attributes[SemanticConventions.LLM_SYSTEM]).toBe("bedrock");
+      // Extract attributes following Python test patterns
+      const attributes = { ...span.attributes } as Record<string, any>;
+      
+      // Core LLM attributes (following Python patterns)
+      expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe("LLM");
       expect(attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(TEST_MODEL_ID);
+      expect(attributes[SemanticConventions.LLM_SYSTEM]).toBe("bedrock");
+      expect(attributes[SemanticConventions.LLM_PROVIDER]).toBe("aws");
       
+      // Token counts from response usage (Converse API style)
+      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]).toBe(13);
+      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]).toBe(30);
+      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBe(43);
       
-      // Verify input messages
-      expect(attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]).toBe("user");
-      expect(attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]).toBe(TEST_USER_MESSAGE);
+      // Input/Output values
+      expect(attributes[SemanticConventions.INPUT_VALUE]).toBe(TEST_USER_MESSAGE);
+      expect(attributes[SemanticConventions.OUTPUT_VALUE]).toBe("Hello! I'm doing well, thank you for asking. How are you doing today? Is there anything I can help you with?");
       
-      // Verify output messages (basic structure)
-      expect(attributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]).toBe("assistant");
-      expect(attributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]).toBeDefined();
+      // Input messages structure
+      expect(attributes["llm.input_messages.0.message.role"]).toBe("user");
+      expect(attributes["llm.input_messages.0.message.content"]).toBe(TEST_USER_MESSAGE);
       
-      // Verify token counts if present
-      if (attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]) {
-        expect(typeof attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]).toBe("number");
-      }
-      if (attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]) {
-        expect(typeof attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]).toBe("number");
-      }
-      if (attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]) {
-        expect(typeof attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBe("number");
-      }
+      // Output messages structure  
+      expect(attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(attributes["llm.output_messages.0.message.content"]).toBe("Hello! I'm doing well, thank you for asking. How are you doing today? Is there anything I can help you with?");
+      
+      // Invocation parameters (extracted from request body)
+      const invocationParamsStr = attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS];
+      expect(typeof invocationParamsStr).toBe("string");
+      const invocationParams = JSON.parse(invocationParamsStr);
+      expect(invocationParams).toEqual({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": TEST_MAX_TOKENS,
+      });
+    });
+
+    it("should handle missing token counts gracefully", async () => {
+      // Create a custom mock response with missing input token count (similar to Python test)
+      const mockResponseWithMissingTokens = {
+        "id": "msg_bdrk_013Ears62zVrJf8kRVWywwUc",
+        "type": "message", 
+        "role": "assistant",
+        "model": "claude-3-5-sonnet-20240620",
+        "content": [
+          {
+            "type": "text",
+            "text": "Hello! I'm doing well, thank you for asking."
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "usage": {
+          "output_tokens": 12  // Missing input_tokens
+        }
+      };
+
+      // Override the mock for this test
+      nock.cleanAll();
+      nock("https://bedrock-runtime.us-east-1.amazonaws.com")
+        .post(`/model/${encodeURIComponent(TEST_MODEL_ID)}/invoke`)
+        .reply(200, mockResponseWithMissingTokens);
+
+      const client = new BedrockRuntimeClient({ 
+        region: "us-east-1",
+        credentials: MOCK_AWS_CREDENTIALS,
+      });
+
+      const command = new InvokeModelCommand({
+        modelId: TEST_MODEL_ID,
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: TEST_MAX_TOKENS,
+          messages: [
+            {
+              role: "user",
+              content: TEST_USER_MESSAGE,
+            },
+          ],
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const result = await client.send(command);
+      expect(result.body).toBeDefined();
+      
+      // Verify spans were created
+      const spans = spanExporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      
+      const span = spans[0];
+      const attributes = { ...span.attributes } as Record<string, any>;
+      
+      // Core attributes should still be present
+      expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe("LLM");
+      expect(attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(TEST_MODEL_ID);
+      expect(attributes[SemanticConventions.LLM_SYSTEM]).toBe("bedrock");
+      
+      // Only output token count should be present  
+      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]).toBe(12);
+      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]).toBeUndefined();
+      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBeUndefined();
+      
+      // Other attributes should still work
+      expect(attributes[SemanticConventions.INPUT_VALUE]).toBe(TEST_USER_MESSAGE);
+      expect(attributes[SemanticConventions.OUTPUT_VALUE]).toBe("Hello! I'm doing well, thank you for asking.");
+    });
+
+    it("should capture raw input/output values with proper MIME types", async () => {
+      const client = new BedrockRuntimeClient({ 
+        region: "us-east-1",
+        credentials: MOCK_AWS_CREDENTIALS,
+      });
+
+      const command = new InvokeModelCommand({
+        modelId: TEST_MODEL_ID,
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: TEST_MAX_TOKENS,
+          messages: [
+            {
+              role: "user",
+              content: TEST_USER_MESSAGE,
+            },
+          ],
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const result = await client.send(command);
+      expect(result.body).toBeDefined();
+      
+      // Verify spans were created
+      const spans = spanExporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      
+      const span = spans[0];
+      const attributes = { ...span.attributes } as Record<string, any>;
+      
+      // Verify MIME types are captured
+      expect(attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe("application/json");
+      expect(attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe("application/json");
+      
+      // Verify raw input value contains the full command structure
+      const inputValue = attributes[SemanticConventions.INPUT_VALUE];
+      expect(typeof inputValue).toBe("string");
+      
+      // Verify raw output value contains the full response
+      const outputValue = attributes[SemanticConventions.OUTPUT_VALUE];
+      expect(typeof outputValue).toBe("string");
+      
+      // For Bedrock, the raw output should be the full response JSON
+      const parsedOutput = JSON.parse(outputValue);
+      expect(parsedOutput.id).toBe("msg_bdrk_013Ears62zVrJf8kRVWywwUc");
+      expect(parsedOutput.type).toBe("message");
+      expect(parsedOutput.role).toBe("assistant");
+      expect(parsedOutput.content[0].text).toBe("Hello! I'm doing well, thank you for asking. How are you doing today? Is there anything I can help you with?");
     });
   });
 });
