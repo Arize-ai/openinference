@@ -53,7 +53,21 @@ def find_model_subclasses() -> List[Type[Any]]:
         # If agno.models can't be imported, return empty list
         pass
 
-    return list(model_subclasses)
+    # Sort the model subclasses by their method resolution order (MRO) length.
+    # This ensures that subclasses are listed before their superclasses and that the 
+    # most specific classes come first. If a base class's method was wrapped before 
+    # the method of a subclass that inherits it, the resolution for the subclass would 
+    # find the already-wrapped base method (see wrap_function_wrapper excution flow).
+    # This would result in the wrapper being applied a second time, leading to incorrect 
+    # behavior such as duplicated spans or metrics. By sorting from the most specific 
+    # class to the most general, we ensure that any method is wrapped only once, 
+    # starting at the level of the most-derived class in the hierarchy.
+    sorted_models = sorted(
+        list(model_subclasses),
+        key=lambda cls: len(cls.__mro__),
+        reverse=True
+    )
+    return sorted_models
 
 
 class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
