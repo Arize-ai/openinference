@@ -1,0 +1,20 @@
+# Core dependencies
+openai>=1.0.0
+python-dotenv>=1.0.0
+
+# OpenTelemetry dependencies
+opentelemetry-api>=1.22.0
+opentelemetry-sdk>=1.22.0
+opentelemetry-instrumentation-openai>=0.35.0
+opentelemetry-exporter-otlp-proto-grpc>=1.22.0
+
+# OpenInference dependencies
+openinference-instrumentation>=0.1.27
+openinference-semantic-conventions>=0.1.17
+
+# Phoenix dependencies
+phoenix-client>=0.1.0
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0 
