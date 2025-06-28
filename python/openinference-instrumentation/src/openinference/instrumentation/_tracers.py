@@ -258,6 +258,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name: None = None,
+        process_input: None = None,
+        process_output: None = None,
     ) -> Callable[ParametersType, ReturnType]: ...
 
     @overload  # for @tracer.chain(name="name") usage (with parameters)
@@ -267,6 +269,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name: Optional[str] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
     ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
 
     def chain(
@@ -275,11 +279,19 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         /,
         *,
         name: Optional[str] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
     ) -> Union[
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.CHAIN, name=name)
+        return self._chain(
+            wrapped_function,
+            kind=OpenInferenceSpanKindValues.CHAIN,
+            name=name,
+            process_input=process_input,
+            process_output=process_output,
+        )
 
     def _chain(
         self,
@@ -288,6 +300,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         *,
         kind: OpenInferenceSpanKindValues,
         name: Optional[str] = None,
+        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
     ) -> Union[
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
@@ -303,6 +317,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             with _chain_context(
                 tracer=tracer,
                 name=name,
+                process_input=process_input,
+                process_output=process_output,
                 kind=kind,
                 wrapped=wrapped,
                 instance=instance,
@@ -324,6 +340,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
             with _chain_context(
                 tracer=tracer,
                 name=name,
+                process_input=process_input,
+                process_output=process_output,
                 kind=kind,
                 wrapped=wrapped,
                 instance=instance,
@@ -586,14 +604,27 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
 
 class _ChainContext:
-    def __init__(self, span: "OpenInferenceSpan") -> None:
+    def __init__(
+        self,
+        span: "OpenInferenceSpan",
+        process_output: Optional[Callable[[Any], "Mapping[str, AttributeValue]"]],
+    ) -> None:
         self._span = span
+        self._process_output = process_output
 
     def process_output(self, output: ReturnType) -> None:
-        attributes = getattr(self._span, "attributes", {})
+        attributes: "Mapping[str, AttributeValue]" = getattr(self._span, "attributes", {})
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
-            self._span.set_output(value=output)
+            if callable(self._process_output):
+                try:
+                    attributes = self._process_output(output)
+                except Exception as error:
+                    warnings.warn(f"Failed to get attributes from outputs: {error}")
+                else:
+                    self._span.set_attributes(attributes)
+            else:
+                self._span.set_output(value=output)
 
 
 @contextmanager
@@ -601,6 +632,8 @@ def _chain_context(
     *,
     tracer: "OITracer",
     name: Optional[str],
+    process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]],
+    process_output: Optional[Callable[[ReturnType], "Mapping[str, AttributeValue]"]],
     kind: OpenInferenceSpanKindValues,
     wrapped: Callable[ParametersType, ReturnType],
     instance: Any,
@@ -611,8 +644,13 @@ def _chain_context(
     bound_args = inspect.signature(wrapped).bind(*args, **kwargs)
     bound_args.apply_defaults()
     arguments = bound_args.arguments
-
-    if len(arguments) == 1:
+    input_attributes: "Mapping[str, AttributeValue]" = {}
+    if callable(process_input):
+        try:
+            input_attributes = process_input(*args, **kwargs)
+        except Exception as error:
+            warnings.warn(f"Failed to get attributes from inputs: {error}")
+    elif len(arguments) == 1:
         argument = next(iter(arguments.values()))
         input_attributes = get_input_attributes(argument)
     else:
@@ -623,7 +661,10 @@ def _chain_context(
         openinference_span_kind=kind,
         attributes=input_attributes,
     ) as span:
-        context = _ChainContext(span=span)
+        context = _ChainContext(
+            span=span,
+            process_output=process_output,
+        )
         yield context
         span.set_status(Status(StatusCode.OK))
 
@@ -638,7 +679,7 @@ class _LLMContext:
         self._process_output = process_output
 
     def process_output(self, output: Any) -> None:
-        attributes: "Mapping[str, AttributeValue]" = getattr(self._span, "attributes", {}) or {}
+        attributes: "Mapping[str, AttributeValue]" = getattr(self._span, "attributes", {})
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
             if callable(self._process_output):
