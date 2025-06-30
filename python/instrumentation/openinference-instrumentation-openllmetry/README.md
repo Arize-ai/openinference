@@ -34,7 +34,7 @@ import openai
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from phoenix.otel import register
-from openinference.instrumentation.openllmetry import OpenLLToOIProcessor
+from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 
 # Set your OpenAI API key
@@ -45,7 +45,7 @@ tracer_provider = register(
     project_name="default" #Phoenix project name
 )
 
-tracer_provider.add_span_processor(OpenLLToOIProcessor())
+tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
     
 tracer_provider.add_span_processor(
     BatchSpanProcessor(

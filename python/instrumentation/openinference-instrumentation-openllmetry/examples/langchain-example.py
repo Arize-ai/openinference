@@ -20,7 +20,7 @@ from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.langchain import LangchainInstrumentor
-from openinference.instrumentation.openllmetry import OpenLLToOIProcessor
+from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from phoenix.otel import register
 
 # --------------------------------------------------------------------------------
@@ -46,7 +46,7 @@ provider = register(
 # provider.add_span_processor(DebugPrintProcessor())
 
 # Required: convert OpenLLMetry spans → OpenInference
-provider.add_span_processor(OpenLLToOIProcessor())
+provider.add_span_processor(OpenInferenceSpanProcessor())
 
 # Export to OTLP-compatible backend (e.g., Phoenix, Arize)
 provider.add_span_processor(

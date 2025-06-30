@@ -4,7 +4,7 @@ import openai
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from phoenix.otel import register
-from openinference.instrumentation.openllmetry import OpenLLToOIProcessor
+from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -34,7 +34,7 @@ class TestOpenLLMetryInstrumentor:
             project_name="default" #Phoenix project name
         )
 
-        tracer_provider.add_span_processor(OpenLLToOIProcessor())
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
             
         tracer_provider.add_span_processor(
             SimpleSpanProcessor(

@@ -16,8 +16,9 @@ from openinference.instrumentation import (
     get_input_attributes,
     get_output_attributes,
 )
+import openinference.semconv.trace as sc
 
-__all__ = ["OpenLLToOIProcessor"]
+__all__ = ["OpenInferenceSpanProcessor"]
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -186,7 +187,7 @@ def _handle_tool_list(raw: Any, dst: Dict[str, Any]) -> List[oi.Tool]:
     return oi_tools
 
 
-class OpenLLToOIProcessor(SpanProcessor):
+class OpenInferenceSpanProcessor(SpanProcessor):
     """
     SpanProcessor that converts OpenLLMetry spans to OpenInference attributes.
     """
@@ -269,7 +270,7 @@ class OpenLLToOIProcessor(SpanProcessor):
 
         # Assemble OpenInference attributes
         oi_attrs = {
-            'openinference.span.kind': span_val,
+            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: span_val, #helper
             **get_llm_attributes(
                 provider=provider_val,
                 system=system_val,
@@ -282,8 +283,6 @@ class OpenLLToOIProcessor(SpanProcessor):
             ),
             **get_input_attributes(request_body),
             **get_output_attributes(response_body),
-            'llm.invocation_parameters': json.dumps(invocation_params, separators=(",", ":")),
         }
-
-        attrs.clear()
+        
         attrs.update(oi_attrs)
