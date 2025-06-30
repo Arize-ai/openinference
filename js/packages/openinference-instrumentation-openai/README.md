@@ -46,7 +46,7 @@ For more information on OpenTelemetry Node.js SDK, see the [OpenTelemetry Node.j
 
 `@arizeai/openinference-instrumentation-openai` is compatible with the following versions of the `openai` package:
 
-| OpenAI Version | OpenInference Instrumentation Version  |
-| -------------- | -------------------------------------- |
-| ^5.0.0         | ^3.0.0                                 |
-| ^4.0.0         | ^2.0.0                                 |
+| OpenAI Version | OpenInference Instrumentation Version |
+| -------------- | ------------------------------------- |
+| ^5.0.0         | ^3.0.0                                |
+| ^4.0.0         | ^2.0.0                                |
