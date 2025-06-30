@@ -111,6 +111,22 @@ languages.
 | [LangChain RAG Express App](js/examples/langchain-express)                                                               | A fully functional LangChain chatbot that uses RAG to answer user questions. It has a Next.js frontend and a LangChain Express backend, instrumented using `openinference-instrumentation-langchain` | Intermediate     |
 | [Next.js + OpenAI](js/examples/nextjs-openai-simple/)                                                                    | A Next.js 13 project bootstrapped with `create-next-app` that uses OpenAI to generate text                                                                                                           | Beginner         |
 
+## Java
+
+### Libraries
+
+| Package                                                                                                                                       | Description                                   | Version |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------- |
+| [`openinference-semantic-conventions`](./java/openinference-semantic-conventions)                                                             | Semantic conventions for tracing of LLM Apps. | 0.1.0-SNAPSHOT |
+| [`openinference-instrumentation`](./java/openinference-instrumentation)                                                                       | Base instrumentation utilities.               | 0.1.0-SNAPSHOT |
+| [`openinference-instrumentation-langchain4j`](./java/instrumentation/openinference-instrumentation-langchain4j)                               | OpenInference Instrumentation for LangChain4j.| 0.1.0-SNAPSHOT |
+
+### Examples
+
+| Name                                                                                                  | Description                                                                                  | Complexity Level |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------- |
+| [LangChain4j Example](java/examples/langchain4j-example)                                              | Simple example using LangChain4j with OpenAI                                                 | Beginner         |
+
 ## Supported Destinations
 
 OpenInference supports the following destinations as span collectors.
