@@ -7,35 +7,43 @@ It includes OpenLLMetry instrumentation and OpenLLMetry → OpenInference trace 
 for real-time tracing and observability in Phoenix or Arize.
 """
 
+import json
 import os
 import sys
-import json
+
 import grpc
-
-from typing_extensions import TypedDict, Literal
-
-from langgraph.graph import StateGraph, START, END
 from langchain.chat_models import ChatOpenAI
-from opentelemetry.sdk.trace import SpanProcessor
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from langgraph.graph import END, START, StateGraph
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.langchain import LangchainInstrumentor
-from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
+from opentelemetry.sdk.trace import SpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from phoenix.otel import register
+from typing_extensions import Literal, TypedDict
+
+from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 
 # --------------------------------------------------------------------------------
 # Setup OpenTelemetry Tracing
 # --------------------------------------------------------------------------------
 
+
 class DebugPrintProcessor(SpanProcessor):
     """Optional span processor for debugging."""
+
     def on_end(self, span):
         print(f"\n=== RAW OpenLLMetry span: {span.name} ===", file=sys.stderr)
         print(json.dumps(dict(span.attributes), default=str, indent=2), file=sys.stderr)
 
-    def on_start(self, span, parent_context=None): pass
-    def shutdown(self): return True
-    def force_flush(self, timeout_millis=None): return True
+    def on_start(self, span, parent_context=None):
+        pass
+
+    def shutdown(self):
+        return True
+
+    def force_flush(self, timeout_millis=None):
+        return True
+
 
 provider = register(
     project_name="email-agent-observability",
@@ -72,6 +80,7 @@ llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
 # State Definition
 # --------------------------------------------------------------------------------
 
+
 class EmailState(TypedDict, total=False):
     subject: str
     bullet_points: str
@@ -80,9 +89,11 @@ class EmailState(TypedDict, total=False):
     draft_email: str
     final_email: str
 
+
 # --------------------------------------------------------------------------------
 # Node Functions
 # --------------------------------------------------------------------------------
+
 
 def generate_outline(state: EmailState) -> EmailState:
     """Node 1: Generate outline from bullet points."""
@@ -95,6 +106,7 @@ def generate_outline(state: EmailState) -> EmailState:
     outline = llm.invoke(prompt).content
     return {"outline": outline}
 
+
 def write_email(state: EmailState) -> EmailState:
     """Node 2: Write email based on the outline and tone."""
     prompt = (
@@ -105,6 +117,7 @@ def write_email(state: EmailState) -> EmailState:
     email = llm.invoke(prompt).content
     return {"draft_email": email}
 
+
 def tone_gate(state: EmailState) -> Literal["Pass", "Fail"]:
     """Heuristic: Does email match the desired tone?"""
     prompt = (
@@ -113,6 +126,7 @@ def tone_gate(state: EmailState) -> Literal["Pass", "Fail"]:
         "If it does, return 'Pass'. Otherwise, return 'Fail'."
     )
     return llm.invoke(prompt).content.strip()
+
 
 def reform_tone(state: EmailState) -> EmailState:
     """Node 3: Rewrite the email to match the desired tone."""
@@ -123,6 +137,7 @@ def reform_tone(state: EmailState) -> EmailState:
     )
     final_email = llm.invoke(prompt).content
     return {"final_email": final_email}
+
 
 # --------------------------------------------------------------------------------
 # Build LangGraph Workflow
@@ -148,7 +163,10 @@ email_chain = graph.compile()
 if __name__ == "__main__":
     input_state = {
         "subject": "Quarterly Sales Recap & Next Steps",
-        "bullet_points": "- Q1 revenue up 18%\n- Need feedback on new pricing tiers\n- Reminder: submit pipeline forecasts by Friday",
+        "bullet_points": (
+            "- Q1 revenue up 18%\n- Need feedback on new pricing tiers\n"
+            "- Reminder: submit pipeline forecasts by Friday"
+        ),
         "desired_tone": "friendly",
     }
 

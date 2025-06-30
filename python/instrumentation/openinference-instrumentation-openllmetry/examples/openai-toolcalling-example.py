@@ -8,24 +8,27 @@ This script shows how to:
 - Define tools (e.g., weather, traffic) and serve tool outputs.
 """
 
+import json
 import os
 import sys
-import json
+
 import grpc
 import openai
 from dotenv import load_dotenv
-from opentelemetry.sdk.trace import SpanProcessor
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
-from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
+from opentelemetry.sdk.trace import SpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from phoenix.otel import register
+
+from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 
 # --------------------------------------------------------------------------------
 # Load environment variables
 # --------------------------------------------------------------------------------
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 
 # --------------------------------------------------------------------------------
 # Debug processor (optional)
@@ -37,9 +40,15 @@ class DebugPrintProcessor(SpanProcessor):
         print(f"\n=== RAW OpenLLMetry span: {span.name} ===", file=sys.stderr)
         print(json.dumps(dict(span.attributes), default=str, indent=2), file=sys.stderr)
 
-    def on_start(self, span, parent_context=None): pass
-    def shutdown(self): return True
-    def force_flush(self, timeout_millis=None): return True
+    def on_start(self, span, parent_context=None):
+        pass
+
+    def shutdown(self):
+        return True
+
+    def force_flush(self, timeout_millis=None):
+        return True
+
 
 # --------------------------------------------------------------------------------
 # Main execution
@@ -95,13 +104,13 @@ if __name__ == "__main__":
                     "properties": {
                         "location": {
                             "type": "string",
-                            "description": "City and country e.g. Bogotá, Colombia"
+                            "description": "City and country e.g. Bogotá, Colombia",
                         }
                     },
                     "required": ["location"],
-                    "additionalProperties": False
-                }
-            }
+                    "additionalProperties": False,
+                },
+            },
         },
         {
             "type": "function",
@@ -113,39 +122,33 @@ if __name__ == "__main__":
                     "properties": {
                         "location": {
                             "type": "string",
-                            "description": "City and country e.g. Bogotá, Colombia"
+                            "description": "City and country e.g. Bogotá, Colombia",
                         }
                     },
                     "required": ["location"],
-                    "additionalProperties": False
-                }
-            }
-        }
+                    "additionalProperties": False,
+                },
+            },
+        },
     ]
 
     # ------------------------------
     # Initial request
     # ------------------------------
-    messages = [
-        {"role": "user", "content": "What is the weather like in Paris today?"}
-    ]
+    messages = [{"role": "user", "content": "What is the weather like in Paris today?"}]
 
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=messages,
-        tools=tools
-    )
+    response = client.chat.completions.create(model="gpt-4.1", messages=messages, tools=tools)
 
     tool_registry = {
-    "get_weather": get_weather,
-    "get_traffic": get_traffic,
+        "get_weather": get_weather,
+        "get_traffic": get_traffic,
     }
 
     choice = response.choices[0]
     if choice.finish_reason == "tool_calls":
         tool_call = choice.message.tool_calls[0]
         function_name = tool_call.function.name
-        
+
         args = json.loads(tool_call.function.arguments)
         location = args["location"]
 
@@ -154,14 +157,16 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Tool function '{function_name}' not found.")
 
-        messages.extend([
-            choice.message,
-            {
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": tool_output,
-            }
-        ])
+        messages.extend(
+            [
+                choice.message,
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": tool_output,
+                },
+            ]
+        )
 
         # Final step: provide answer after tool output
         final = client.chat.completions.create(

@@ -598,13 +598,15 @@ def responses_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
     )
 
 
-def get_response_messages() -> List[
-    Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Tuple[List[bytes], List[Dict[str, Any]]],
+def get_response_messages() -> (
+    List[
+        Tuple[
+            List[Dict[str, Any]],
+            List[Dict[str, Any]],
+            Tuple[List[bytes], List[Dict[str, Any]]],
+        ]
     ]
-]:
+):
     messages: List[
         Tuple[
             List[Dict[str, Any]],

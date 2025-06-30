@@ -2,6 +2,7 @@ import os
 from typing import Mapping, cast
 
 import openai
+from openai.types.chat import ChatCompletionUserMessageParam
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -21,11 +22,12 @@ def is_openinference_span(span: ReadableSpan) -> bool:
 
 
 # Set your OpenAI API key
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+api_key: str = os.getenv("OPENAI_API_KEY") or ""
+os.environ["OPENAI_API_KEY"] = api_key
 
 
 class TestOpenLLMetryInstrumentor:
-    def test_openllmetry_instrumentor(self):
+    def test_openllmetry_instrumentor(self) -> None:
         in_memory_span_exporter = InMemorySpanExporter()
         in_memory_span_exporter.clear()
 
@@ -43,7 +45,9 @@ class TestOpenLLMetryInstrumentor:
         # Define and invoke your OpenAI model
         client = openai.OpenAI()
 
-        messages = [{"role": "user", "content": "What is the capital of Yemen?"}]
+        messages: list[ChatCompletionUserMessageParam] = [
+            {"role": "user", "content": "What is the capital of Yemen?"}
+        ]
 
         response = client.chat.completions.create(
             model="gpt-4.1",

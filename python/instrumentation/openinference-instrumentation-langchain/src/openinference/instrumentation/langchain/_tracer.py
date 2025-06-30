@@ -392,9 +392,9 @@ def _input_messages(
     # There may be more than one set of messages. We'll use just the first set.
     if not (multiple_messages := inputs.get("messages")):
         return
-    assert isinstance(multiple_messages, Iterable), (
-        f"expected Iterable, found {type(multiple_messages)}"
-    )
+    assert isinstance(
+        multiple_messages, Iterable
+    ), f"expected Iterable, found {type(multiple_messages)}"
     # This will only get the first set of messages.
     if not (first_messages := next(iter(multiple_messages), None)):
         return
@@ -432,15 +432,15 @@ def _output_messages(
     # There may be more than one set of generations. We'll use just the first set.
     if not (multiple_generations := outputs.get("generations")):
         return
-    assert isinstance(multiple_generations, Iterable), (
-        f"expected Iterable, found {type(multiple_generations)}"
-    )
+    assert isinstance(
+        multiple_generations, Iterable
+    ), f"expected Iterable, found {type(multiple_generations)}"
     # This will only get the first set of generations.
     if not (first_generations := next(iter(multiple_generations), None)):
         return
-    assert isinstance(first_generations, Iterable), (
-        f"expected Iterable, found {type(first_generations)}"
-    )
+    assert isinstance(
+        first_generations, Iterable
+    ), f"expected Iterable, found {type(first_generations)}"
     parsed_messages = []
     for generation in first_generations:
         assert hasattr(generation, "get"), f"expected Mapping, found {type(generation)}"
@@ -499,13 +499,13 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
             assert isinstance(name, str), f"expected str, found {type(name)}"
             yield MESSAGE_NAME, name
         if additional_kwargs := kwargs.get("additional_kwargs"):
-            assert hasattr(additional_kwargs, "get"), (
-                f"expected Mapping, found {type(additional_kwargs)}"
-            )
+            assert hasattr(
+                additional_kwargs, "get"
+            ), f"expected Mapping, found {type(additional_kwargs)}"
             if function_call := additional_kwargs.get("function_call"):
-                assert hasattr(function_call, "get"), (
-                    f"expected Mapping, found {type(function_call)}"
-                )
+                assert hasattr(
+                    function_call, "get"
+                ), f"expected Mapping, found {type(function_call)}"
                 if name := function_call.get("name"):
                     assert isinstance(name, str), f"expected str, found {type(name)}"
                     yield MESSAGE_FUNCTION_CALL_NAME, name
@@ -513,9 +513,9 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                     assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
                     yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
             if tool_calls := additional_kwargs.get("tool_calls"):
-                assert isinstance(tool_calls, Iterable), (
-                    f"expected Iterable, found {type(tool_calls)}"
-                )
+                assert isinstance(
+                    tool_calls, Iterable
+                ), f"expected Iterable, found {type(tool_calls)}"
                 message_tool_calls = []
                 for tool_call in tool_calls:
                     if message_tool_call := dict(_get_tool_call(tool_call)):
@@ -566,9 +566,9 @@ def _parse_prompt_template(
         message = messages[0]
         assert isinstance(message, Mapping), f"expected dict, found {type(message)}"
         if partial_variables := kwargs.get("partial_variables"):
-            assert isinstance(partial_variables, Mapping), (
-                f"expected dict, found {type(partial_variables)}"
-            )
+            assert isinstance(
+                partial_variables, Mapping
+            ), f"expected dict, found {type(partial_variables)}"
             inputs = {**partial_variables, **inputs}
         yield from _parse_prompt_template(inputs, message)
     elif _get_cls_name(serialized).endswith("PromptTemplate") and isinstance(
@@ -576,9 +576,9 @@ def _parse_prompt_template(
     ):
         yield LLM_PROMPT_TEMPLATE, template
         if input_variables := kwargs.get("input_variables"):
-            assert isinstance(input_variables, list), (
-                f"expected list, found {type(input_variables)}"
-            )
+            assert isinstance(
+                input_variables, list
+            ), f"expected list, found {type(input_variables)}"
             template_variables = {}
             for variable in input_variables:
                 if (value := inputs.get(variable)) is not None:
@@ -596,9 +596,9 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
         return
     assert hasattr(extra, "get"), f"expected Mapping, found {type(extra)}"
     if invocation_parameters := extra.get("invocation_params"):
-        assert isinstance(invocation_parameters, Mapping), (
-            f"expected Mapping, found {type(invocation_parameters)}"
-        )
+        assert isinstance(
+            invocation_parameters, Mapping
+        ), f"expected Mapping, found {type(invocation_parameters)}"
         yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
         tools = invocation_parameters.get("tools", [])
         for idx, tool in enumerate(tools):

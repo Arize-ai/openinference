@@ -111,9 +111,9 @@ def test_generate_content(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 @pytest.mark.vcr(
@@ -180,9 +180,9 @@ async def test_async_generate_content(
         )
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 @pytest.mark.vcr(
@@ -240,9 +240,9 @@ def test_multi_turn_conversation(
 
     # Verify attributes for first span
     for key, expected_value in expected_attributes1.items():
-        assert attributes1.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value for first span"
-        )
+        assert (
+            attributes1.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value for first span"
 
     # Check second span
     span2 = spans[1]
@@ -274,9 +274,9 @@ def test_multi_turn_conversation(
 
     # Verify attributes for second span in multi-turn conversation
     for key, expected_value in expected_attributes2.items():
-        assert attributes2.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value for second span. Expected: {expected_value}, Actual: {attributes2.get(key)} key: {key}"
-        )
+        assert (
+            attributes2.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value for second span. Expected: {expected_value}, Actual: {attributes2.get(key)} key: {key}"
 
 
 @pytest.mark.vcr(
@@ -341,9 +341,9 @@ def test_streaming_text_content(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 @pytest.mark.vcr(
@@ -409,9 +409,9 @@ async def test_async_streaming_text_content(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 @pytest.mark.vcr(
@@ -533,9 +533,9 @@ def test_generate_content_with_tool(
 
     if tool_call_name_key in attributes:
         # Model decided to call the tool, verify the tool call details
-        assert attributes.get(tool_call_name_key) == "get_weather", (
-            "Expected tool call to be 'get_weather'"
-        )
+        assert (
+            attributes.get(tool_call_name_key) == "get_weather"
+        ), "Expected tool call to be 'get_weather'"
 
         tool_call_args = attributes.get(tool_call_args_key)
         assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
@@ -544,9 +544,9 @@ def test_generate_content_with_tool(
         args = json.loads(tool_call_args)
         assert "location" in args, "Tool call should include 'location' parameter"
         # The location should be something reasonable for San Francisco
-        assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
-            "Tool call location should reference San Francisco"
-        )
+        assert (
+            "san francisco" in args["location"].lower() or "sf" in args["location"].lower()
+        ), "Tool call location should reference San Francisco"
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
@@ -677,9 +677,9 @@ def test_generate_content_with_raw_json_tool(
             "required": ["location"],
         },
     }
-    assert tool_schema == expected_tool_schema, (
-        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
-    )
+    assert (
+        tool_schema == expected_tool_schema
+    ), f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
 
     # Check if the model decided to call the tool
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -687,9 +687,9 @@ def test_generate_content_with_raw_json_tool(
 
     if tool_call_name_key in attributes:
         # Model decided to call the tool, verify the tool call details
-        assert attributes.get(tool_call_name_key) == "get_weather", (
-            "Expected tool call to be 'get_weather'"
-        )
+        assert (
+            attributes.get(tool_call_name_key) == "get_weather"
+        ), "Expected tool call to be 'get_weather'"
 
         tool_call_args = attributes.get(tool_call_args_key)
         assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
@@ -698,9 +698,9 @@ def test_generate_content_with_raw_json_tool(
         args = json.loads(tool_call_args)
         assert "location" in args, "Tool call should include 'location' parameter"
         # The location should be something reasonable for San Francisco
-        assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
-            "Tool call location should reference San Francisco"
-        )
+        assert (
+            "san francisco" in args["location"].lower() or "sf" in args["location"].lower()
+        ), "Tool call location should reference San Francisco"
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
@@ -714,9 +714,9 @@ def test_generate_content_with_raw_json_tool(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 @pytest.mark.vcr(
@@ -838,23 +838,23 @@ def test_streaming_content_with_tool(
             "required": ["location"],
         },
     }
-    assert tool_schema == expected_tool_schema, (
-        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
-    )
+    assert (
+        tool_schema == expected_tool_schema
+    ), f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
 
     # Check if the model decided to call the tool in streaming response
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
     tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
     # For this test, we expect a tool call since we're testing tool calling functionality
-    assert tool_call_name_key in attributes, (
-        f"Expected a tool call in the streaming response, but none found. Available keys: {list(attributes.keys())}"
-    )
+    assert (
+        tool_call_name_key in attributes
+    ), f"Expected a tool call in the streaming response, but none found. Available keys: {list(attributes.keys())}"
 
     # Model decided to call the tool, verify the tool call details
-    assert attributes.get(tool_call_name_key) == "get_weather", (
-        "Expected tool call to be 'get_weather'"
-    )
+    assert (
+        attributes.get(tool_call_name_key) == "get_weather"
+    ), "Expected tool call to be 'get_weather'"
 
     tool_call_args = attributes.get(tool_call_args_key)
     assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
@@ -863,9 +863,9 @@ def test_streaming_content_with_tool(
     args = json.loads(tool_call_args)
     assert "location" in args, "Tool call should include 'location' parameter"
     # The location should be something reasonable for San Francisco
-    assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
-        "Tool call location should reference San Francisco"
-    )
+    assert (
+        "san francisco" in args["location"].lower() or "sf" in args["location"].lower()
+    ), "Tool call location should reference San Francisco"
 
     # Check if token counts are available in the response from the last chunk
     if chunks and hasattr(chunks[-1], "usage_metadata") and chunks[-1].usage_metadata is not None:
@@ -881,9 +881,9 @@ def test_streaming_content_with_tool(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 @pytest.mark.vcr(
@@ -994,23 +994,23 @@ def test_chat_session_with_tool(
             "required": ["location"],
         },
     }
-    assert tool_schema == expected_tool_schema, (
-        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
-    )
+    assert (
+        tool_schema == expected_tool_schema
+    ), f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
 
     # Check if the model decided to call the tool
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
     tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
     # For chat session tool calling, we expect a tool call since we're testing tool calling functionality
-    assert tool_call_name_key in attributes, (
-        f"Expected a tool call in the chat session response, but none found. Available keys: {list(attributes.keys())}"
-    )
+    assert (
+        tool_call_name_key in attributes
+    ), f"Expected a tool call in the chat session response, but none found. Available keys: {list(attributes.keys())}"
 
     # Model decided to call the tool, verify the tool call details
-    assert attributes.get(tool_call_name_key) == "get_weather", (
-        "Expected tool call to be 'get_weather'"
-    )
+    assert (
+        attributes.get(tool_call_name_key) == "get_weather"
+    ), "Expected tool call to be 'get_weather'"
 
     tool_call_args = attributes.get(tool_call_args_key)
     assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
@@ -1019,9 +1019,9 @@ def test_chat_session_with_tool(
     args = json.loads(tool_call_args)
     assert "location" in args, "Tool call should include 'location' parameter"
     # The location should be something reasonable for San Francisco
-    assert "san francisco" in args["location"].lower() or "sf" in args["location"].lower(), (
-        "Tool call location should reference San Francisco"
-    )
+    assert (
+        "san francisco" in args["location"].lower() or "sf" in args["location"].lower()
+    ), "Tool call location should reference San Francisco"
 
     # Check if token counts are available in the response
     if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
@@ -1035,9 +1035,9 @@ def test_chat_session_with_tool(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
 
 # This test may be overkill, just want to make sure the logic in the accumulator works as expected. Tried to mock out
@@ -1121,20 +1121,20 @@ def test_streaming_tool_call_aggregation(
     tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
     # This tests that both name (from chunk1) and args (from chunk2) are present
-    assert attributes.get(tool_call_name_key) == "get_weather", (
-        f"Function name not found. Available keys: {list(attributes.keys())}"
-    )
+    assert (
+        attributes.get(tool_call_name_key) == "get_weather"
+    ), f"Function name not found. Available keys: {list(attributes.keys())}"
 
     tool_call_args = attributes.get(tool_call_args_key)
-    assert tool_call_args is not None, (
-        f"Function arguments not found. Available keys: {list(attributes.keys())}"
-    )
+    assert (
+        tool_call_args is not None
+    ), f"Function arguments not found. Available keys: {list(attributes.keys())}"
 
     # Parse and verify the merged arguments
     args = json.loads(tool_call_args)
-    assert args["location"] == "San Francisco", (
-        "Location argument missing from aggregated tool call"
-    )
+    assert (
+        args["location"] == "San Francisco"
+    ), "Location argument missing from aggregated tool call"
     assert args["unit"] == "fahrenheit", "Unit argument missing from aggregated tool call"
 
     # Verify token counts from final chunk
@@ -1218,9 +1218,9 @@ def test_generate_content_with_automatic_tool_calling(
     # Validate that the response contains weather information
     response_lower = response.text.lower()
     weather_keywords = ["weather", "temperature", "degrees", "san francisco", "condition"]
-    assert any(keyword in response_lower for keyword in weather_keywords), (
-        f"Response should contain weather-related information. Got: '{response.text}'"
-    )
+    assert any(
+        keyword in response_lower for keyword in weather_keywords
+    ), f"Response should contain weather-related information. Got: '{response.text}'"
 
     # Get the spans
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1275,9 +1275,9 @@ def test_generate_content_with_automatic_tool_calling(
 
     # Verify attributes
     for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+        assert (
+            attributes.get(key) == expected_value
+        ), f"Attribute {key} does not match expected value"
 
     # Note: For automatic tool calling, the function execution happens transparently
     # We may or may not see explicit tool call attributes in the span depending on

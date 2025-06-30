@@ -158,13 +158,13 @@ async def test_get_ancestor_spans(
     ancestors_after_execution = get_ancestor_spans()
     assert ancestors_after_execution == [], "No ancestors after execution"
 
-    assert len(ancestors_during_execution) == 2 * n, (
-        "Did not capture all ancestors during execution"
-    )
+    assert (
+        len(ancestors_during_execution) == 2 * n
+    ), "Did not capture all ancestors during execution"
 
-    assert len(set(id(span) for span in ancestors_during_execution)) == n, (
-        "Both Lambdas share the same ancestor"
-    )
+    assert (
+        len(set(id(span) for span in ancestors_during_execution)) == n
+    ), "Both Lambdas share the same ancestor"
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
@@ -202,13 +202,13 @@ async def test_get_ancestor_spans_async(
     ancestors_after_execution = get_ancestor_spans()
     assert ancestors_after_execution == [], "No ancestors after execution"
 
-    assert len(ancestors_during_execution) == 2 * n, (
-        "Did not capture all ancestors during execution"
-    )
+    assert (
+        len(ancestors_during_execution) == 2 * n
+    ), "Did not capture all ancestors during execution"
 
-    assert len(set(id(span) for span in ancestors_during_execution)) == n, (
-        "Both Lambdas share the same ancestor"
-    )
+    assert (
+        len(set(id(span) for span in ancestors_during_execution)) == n
+    ), "Both Lambdas share the same ancestor"
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"

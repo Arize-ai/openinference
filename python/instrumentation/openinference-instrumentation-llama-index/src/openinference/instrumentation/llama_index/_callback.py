@@ -511,9 +511,9 @@ def _message_payload_to_attributes(message: Any) -> Dict[str, Optional[str]]:
         if "name" in message.additional_kwargs:
             message_attributes[MESSAGE_NAME] = message.additional_kwargs["name"]
         if tool_calls := message.additional_kwargs.get("tool_calls"):
-            assert isinstance(tool_calls, Iterable), (
-                f"tool_calls must be Iterable, found {type(tool_calls)}"
-            )
+            assert isinstance(
+                tool_calls, Iterable
+            ), f"tool_calls must be Iterable, found {type(tool_calls)}"
             message_tool_calls = []
             for tool_call in tool_calls:
                 if message_tool_call := dict(_get_tool_call(tool_call)):
@@ -578,9 +578,9 @@ def _get_message(message: object) -> Iterator[Tuple[str, Any]]:
         assert isinstance(content, str), f"content must be str, found {type(content)}"
         yield MESSAGE_CONTENT, content
     if tool_calls := getattr(message, "tool_calls", None):
-        assert isinstance(tool_calls, Iterable), (
-            f"tool_calls must be Iterable, found {type(tool_calls)}"
-        )
+        assert isinstance(
+            tool_calls, Iterable
+        ), f"tool_calls must be Iterable, found {type(tool_calls)}"
         message_tool_calls = []
         for tool_call in tool_calls:
             if message_tool_call := dict(_get_tool_call(tool_call)):
