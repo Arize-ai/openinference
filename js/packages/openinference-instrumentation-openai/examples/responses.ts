@@ -2,6 +2,8 @@
 import "./instrumentation";
 import { isPatched } from "../src";
 import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
+import { z } from "zod";
 import { Response as ResponseType } from "openai/resources/responses/responses";
 // Check if OpenAI has been patched
 if (!isPatched()) {
@@ -107,6 +109,30 @@ async function main() {
     .then((response) => {
       console.log(response.output_text);
     });
+
+  // structured output
+  const CalendarEvent = z.object({
+    name: z.string(),
+    date: z.string(),
+    participants: z.array(z.string()),
+  });
+  const structured = await openai.responses.parse({
+    model: "gpt-4.1",
+    input: [
+      {
+        role: "system",
+        content: "Extract the event information.",
+      },
+      {
+        role: "user",
+        content: "Alice and Bob are going to a science fair on Friday.",
+      },
+    ],
+    text: {
+      format: zodTextFormat(CalendarEvent, "event"),
+    },
+  });
+  console.log(structured.output_parsed);
 }
 
 main();

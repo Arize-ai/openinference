@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.25...python-openinference-instrumentation-bedrock-v0.1.26) (2025-06-19)
+
+
+### Features
+
+* **bedrock:** added support for retrieve, retrieve and generate ([#1786](https://github.com/Arize-ai/openinference/issues/1786)) ([2652fa7](https://github.com/Arize-ai/openinference/commit/2652fa7372a02980b55425591f16b61626db297c))
+
+
+### Bug Fixes
+
+* **bedrock:** fixing invoke model api calls ([#1760](https://github.com/Arize-ai/openinference/issues/1760)) ([0ce91a5](https://github.com/Arize-ai/openinference/commit/0ce91a5da29c36160b16da7194c4c59dca24bed4))
+
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.24...python-openinference-instrumentation-bedrock-v0.1.25) (2025-06-13)
+
+
+### Bug Fixes
+
+* **bedrock:** Included apipath into metadata ([#1775](https://github.com/Arize-ai/openinference/issues/1775)) ([081d630](https://github.com/Arize-ai/openinference/commit/081d630d2147134574cf2dd47630592d58e5f00d))
+
 ## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.23...python-openinference-instrumentation-bedrock-v0.1.24) (2025-06-03)
 
 

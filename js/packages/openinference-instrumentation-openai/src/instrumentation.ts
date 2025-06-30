@@ -1,4 +1,4 @@
-import openai from "openai";
+import openai, { APIPromise } from "openai";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -123,7 +123,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   protected init(): InstrumentationModuleDefinition<typeof openai> {
     const module = new InstrumentationNodeModuleDefinition<typeof openai>(
       "openai",
-      ["^4.0.0"],
+      ["^5.0.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -188,9 +188,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             },
           );
           const execContext = getExecContext(span);
-          const execPromise = safeExecuteInTheMiddle<
-            ReturnType<ChatCompletionCreateType>
-          >(
+          const execPromise = safeExecuteInTheMiddle(
             () => {
               return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
@@ -208,7 +206,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               }
             },
           );
-          const wrappedPromise = execPromise.then((result) => {
+
+          const wrappedPromiseThen = (
+            result:
+              | Stream<openai.Chat.Completions.ChatCompletionChunk>
+              | openai.Chat.Completions.ChatCompletion,
+          ) => {
             if (isChatCompletionResponse(result)) {
               // Record the results
               span.setAttributes({
@@ -231,7 +234,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             }
 
             return result;
-          });
+          };
+          const wrappedPromise = invokeMaybeAPIPromise(
+            execPromise,
+            wrappedPromiseThen,
+          );
           return context.bind(execContext, wrappedPromise);
         };
       },
@@ -270,9 +277,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           );
           const execContext = getExecContext(span);
 
-          const execPromise = safeExecuteInTheMiddle<
-            ReturnType<CompletionsCreateType>
-          >(
+          const execPromise = safeExecuteInTheMiddle(
             () => {
               return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
@@ -290,7 +295,9 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               }
             },
           );
-          const wrappedPromise = execPromise.then((result) => {
+          const wrappedPromiseThen = (
+            result: Completion | Stream<Completion>,
+          ) => {
             if (isCompletionResponse(result)) {
               // Record the results
               span.setAttributes({
@@ -305,7 +312,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               span.end();
             }
             return result;
-          });
+          };
+          const wrappedPromise = invokeMaybeAPIPromise(
+            execPromise,
+            wrappedPromiseThen,
+          );
           return context.bind(execContext, wrappedPromise);
         };
       },
@@ -342,9 +353,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             },
           });
           const execContext = getExecContext(span);
-          const execPromise = safeExecuteInTheMiddle<
-            ReturnType<EmbeddingsCreateType>
-          >(
+          const execPromise = safeExecuteInTheMiddle(
             () => {
               return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
@@ -362,7 +371,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               }
             },
           );
-          const wrappedPromise = execPromise.then((result) => {
+          const wrappedPromiseThen = (result: CreateEmbeddingResponse) => {
             if (result) {
               // Record the results
               span.setAttributes({
@@ -373,7 +382,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             span.setStatus({ code: SpanStatusCode.OK });
             span.end();
             return result;
-          });
+          };
+          const wrappedPromise = invokeMaybeAPIPromise(
+            execPromise,
+            wrappedPromiseThen,
+          );
           return context.bind(execContext, wrappedPromise);
         };
       },
@@ -415,9 +428,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               },
             );
             const execContext = getExecContext(span);
-            const execPromise = safeExecuteInTheMiddle<
-              ReturnType<ResponsesCreateType>
-            >(
+            const execPromise = safeExecuteInTheMiddle(
               () => {
                 return context.with(trace.setSpan(execContext, span), () => {
                   return original.apply(this, args);
@@ -435,7 +446,9 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 }
               },
             );
-            const wrappedPromise = execPromise.then((result) => {
+            const wrappedPromiseThen = (
+              result: Stream<ResponseStreamEvent> | ResponseType,
+            ) => {
               const recordSpan = (result?: ResponseType) => {
                 if (!result) {
                   span.setStatus({ code: SpanStatusCode.ERROR });
@@ -468,7 +481,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               }
 
               return result;
-            });
+            };
+            const wrappedPromise = invokeMaybeAPIPromise(
+              execPromise,
+              wrappedPromiseThen,
+            );
             return context.bind(execContext, wrappedPromise);
           };
         },
@@ -924,4 +941,47 @@ function getToolAndFunctionCallAttributesFromStreamChunk(
       choice.delta.function_call.arguments;
   }
   return attributes;
+}
+
+/**
+ * Type-guard that checks if the promise is an APIPromise.
+ *
+ * APIPromise is a class from openai that wraps promises with special behavior.
+ *
+ * @param promise - The promise to check
+ * @returns True if the promise is an APIPromise, false otherwise
+ */
+function isAPIPromise<T>(promise: unknown): promise is APIPromise<T> {
+  return promise instanceof APIPromise;
+}
+
+/**
+ * Invokes the thennable of a promise or an APIPromise.
+ *
+ * This is necessary to safely invoke promises returned by openai sdk methods.
+ *
+ * Without this wrapper, instrumentation will "consume" returned APIPromise instances,
+ * Making them unusable by other openai sdk methods, such as when completions.parse internally
+ * calls completions.create, expecting an APIPromise which we would otherwise consume by calling `then` on it.
+ *
+ * @param promise - The promise to invoke the thennable of
+ * @param then - The thennable to invoke
+ * @returns The promise with the thennable invoked
+ */
+function invokeMaybeAPIPromise<T>(
+  promise: T,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  then: (value: any) => unknown,
+): T {
+  if (isAPIPromise<T>(promise)) {
+    return promise._thenUnwrap(then) as T;
+  } else if (promise instanceof Promise) {
+    return promise.then(then) as T;
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "Promise is not an APIPromise or a regular promise, cannot instrument.",
+    );
+    return promise;
+  }
 }

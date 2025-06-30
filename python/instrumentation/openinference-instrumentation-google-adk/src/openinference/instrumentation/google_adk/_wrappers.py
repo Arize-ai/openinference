@@ -25,7 +25,6 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.telemetry import _build_llm_request_for_trace
 from google.adk.tools import BaseTool
 from google.genai import types
-from google.genai.types import MediaModality
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -378,22 +377,44 @@ def _get_attributes_from_llm_response(
 def _get_attributes_from_usage_metadata(
     obj: types.GenerateContentResponseUsageMetadata,
 ) -> Iterator[tuple[str, AttributeValue]]:
-    if obj.candidates_token_count:
-        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, obj.candidates_token_count
+    if total := obj.total_token_count:
+        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total
+    if obj.prompt_tokens_details:
+        prompt_details_audio = 0
+        for modality_token_count in obj.prompt_tokens_details:
+            if (
+                modality_token_count.modality is types.MediaModality.AUDIO
+                and modality_token_count.token_count
+            ):
+                prompt_details_audio += modality_token_count.token_count
+        if prompt_details_audio:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+                prompt_details_audio,
+            )
+    if prompt := obj.prompt_token_count:
+        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
     if obj.candidates_tokens_details:
         completion_details_audio = 0
         for modality_token_count in obj.candidates_tokens_details:
             if (
-                modality_token_count.modality is MediaModality.AUDIO
+                modality_token_count.modality is types.MediaModality.AUDIO
                 and modality_token_count.token_count
             ):
                 completion_details_audio += modality_token_count.token_count
         if completion_details_audio:
-            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, completion_details_audio
-    if obj.prompt_token_count:
-        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, obj.prompt_token_count
-    if obj.total_token_count:
-        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, obj.total_token_count
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+                completion_details_audio,
+            )
+    completion = 0
+    if candidates := obj.candidates_token_count:
+        completion += candidates
+    if thoughts := obj.thoughts_token_count:
+        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
+        completion += thoughts
+    if completion:
+        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion
 
 
 @stop_on_exception

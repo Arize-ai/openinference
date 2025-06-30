@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import (
     Any,
     AsyncGenerator,
+    Callable,
     Dict,
     Generator,
     List,
@@ -2751,3 +2752,160 @@ TOOL = OpenInferenceSpanKindValues.TOOL.value
 
 # Session ID
 SESSION_ID = SpanAttributes.SESSION_ID
+
+
+class TestSamplerAttributeAccess:
+    """Test that samplers receive attributes during span creation for sampling decisions."""
+
+    def test_sampler_receives_all_attributes(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        captured_attributes: Dict[str, Any] = {}
+
+        from typing import Optional, Sequence
+
+        # Import the actual types used in the signature
+        import opentelemetry.trace
+        from opentelemetry.context import Context
+        from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
+        from opentelemetry.trace import Link
+        from opentelemetry.util.types import Attributes
+
+        class AttributeCapturingSampler(Sampler):
+            def should_sample(
+                self,
+                parent_context: Optional[Context],
+                trace_id: int,
+                name: str,
+                kind: Optional[opentelemetry.trace.SpanKind] = None,
+                attributes: Optional[Attributes] = None,
+                links: Optional[Sequence[Link]] = None,
+                trace_state: Optional[opentelemetry.trace.TraceState] = None,
+            ) -> SamplingResult:
+                print(f"SAMPLER CALLED: name={name}, attributes={attributes}")
+                if attributes:
+                    captured_attributes.update(attributes)
+                    print(f"CAPTURED: {captured_attributes}")
+                return SamplingResult(Decision.RECORD_AND_SAMPLE)
+
+            def get_description(self) -> str:
+                return "AttributeCapturingSampler"
+
+        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+        from openinference.instrumentation import TraceConfig, TracerProvider, using_attributes
+
+        # Create TracerProvider with custom sampler
+        tracer_provider = TracerProvider(config=TraceConfig(), sampler=AttributeCapturingSampler())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+        tracer = tracer_provider.get_tracer(__name__)
+
+        user_attributes = {"user.custom": "user_value", "user.id": "123"}
+
+        with using_attributes(session_id="session_123", metadata={"key": "value"}):
+            with tracer.start_as_current_span(
+                "test-span",
+                openinference_span_kind="chain",
+                attributes=user_attributes,
+            ) as span:
+                span.set_input("test input")
+                span.set_output("test output")
+                print(f"SPAN ATTRIBUTES: {getattr(span, 'attributes', 'no attributes attr')}")
+
+        print(f"FINAL CAPTURED ATTRIBUTES: {captured_attributes}")
+        spans = in_memory_span_exporter.get_finished_spans()
+        print(f"EXPORTED SPANS: {len(spans)}")
+        if spans:
+            print(f"EXPORTED SPAN ATTRIBUTES: {dict(spans[0].attributes or {})}")
+
+        assert "user.custom" in captured_attributes
+        assert captured_attributes["user.custom"] == "user_value"
+        assert "user.id" in captured_attributes
+        assert captured_attributes["user.id"] == "123"
+        assert "openinference.span.kind" in captured_attributes
+        assert captured_attributes["openinference.span.kind"] == "CHAIN"
+        assert "session.id" in captured_attributes
+        assert captured_attributes["session.id"] == "session_123"
+        assert "metadata" in captured_attributes  # metadata is JSON-encoded
+
+    def test_sampler_receives_masked_attributes(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        captured_attributes: Dict[str, Any] = {}
+
+        from typing import Optional, Sequence, Union
+
+        import opentelemetry.trace
+        from opentelemetry.context import Context
+        from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
+        from opentelemetry.trace import Link
+        from opentelemetry.util.types import Attributes
+
+        class AttributeCapturingSampler(Sampler):
+            def should_sample(
+                self,
+                parent_context: Optional[Context],
+                trace_id: int,
+                name: str,
+                kind: Optional[opentelemetry.trace.SpanKind] = None,
+                attributes: Optional[Attributes] = None,
+                links: Optional[Sequence[Link]] = None,
+                trace_state: Optional[opentelemetry.trace.TraceState] = None,
+            ) -> SamplingResult:
+                print(f"SAMPLER CALLED: name={name}, attributes={attributes}")
+                if attributes:
+                    captured_attributes.update(attributes)
+                    print(f"CAPTURED: {captured_attributes}")
+                return SamplingResult(Decision.RECORD_AND_SAMPLE)
+
+            def get_description(self) -> str:
+                return "AttributeCapturingSampler"
+
+        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+        from opentelemetry.util.types import AttributeValue
+
+        from openinference.instrumentation import TraceConfig, TracerProvider
+
+        class CustomTraceConfig(TraceConfig):
+            def mask(
+                self,
+                key: str,
+                value: Union[AttributeValue, Callable[[], AttributeValue]],
+            ) -> Optional[AttributeValue]:
+                if "sensitive" in key.lower() or "password" in key.lower():
+                    return "[MASKED]"
+                return super().mask(key, value)
+
+        trace_config = CustomTraceConfig()
+
+        # Create TracerProvider with custom sampler and config
+        tracer_provider = TracerProvider(config=trace_config, sampler=AttributeCapturingSampler())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+        tracer = tracer_provider.get_tracer(__name__)
+
+        sensitive_attributes = {
+            "user.password": "secret123",
+            "sensitive_data": "private_info",
+            "normal_attribute": "normal_value",
+        }
+
+        with tracer.start_as_current_span(
+            "test-span",
+            openinference_span_kind="llm",
+            attributes=sensitive_attributes,
+        ):
+            pass
+
+        assert "user.password" in captured_attributes
+        assert captured_attributes["user.password"] == "[MASKED]"
+        assert "sensitive_data" in captured_attributes
+        assert captured_attributes["sensitive_data"] == "[MASKED]"
+        assert "normal_attribute" in captured_attributes
+        assert captured_attributes["normal_attribute"] == "normal_value"
+        assert "openinference.span.kind" in captured_attributes
+        assert captured_attributes["openinference.span.kind"] == "LLM"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
