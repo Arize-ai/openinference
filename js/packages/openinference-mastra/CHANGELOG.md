@@ -1,5 +1,13 @@
 # @arizeai/openinference-vercel
 
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [34a4159]
+  - @arizeai/openinference-semantic-conventions@2.1.0
+  - @arizeai/openinference-vercel@2.2.2
+
 ## 2.1.1
 
 ### Patch Changes
