@@ -1,5 +1,5 @@
 ---
-"@arizeai/openinference-semantic-conventions": patch
+"@arizeai/openinference-semantic-conventions": minor
 ---
 
-add provider enums for xai and deepseek
+feat: add provider enums for xai and deepseek
