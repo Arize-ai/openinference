@@ -1,4 +1,3 @@
-from openinference.instrumentation.openllmetry.converter import OpenLLToOIProcessor
-from openinference.instrumentation.openllmetry.instrumentor import OpenLLMetryInstrumentor
+from openinference.instrumentation.openllmetry._span_processor import OpenLLToOIProcessor
 
-__all__ = ["OpenLLToOIProcessor", "OpenLLMetryInstrumentor"]
+__all__ = ["OpenLLToOIProcessor"]

@@ -7,9 +7,18 @@ from phoenix.otel import register
 from openinference.instrumentation.openllmetry import OpenLLToOIProcessor
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from openinference.instrumentation.openllmetry.utils import is_openinference_span
+
 from opentelemetry.util.types import AttributeValue
 from openinference.semconv.trace import SpanAttributes
+
+from opentelemetry.sdk.trace import ReadableSpan
+from openinference.semconv.trace import SpanAttributes
+
+def is_openinference_span(span: ReadableSpan) -> bool:
+    """Check if a span is an OpenInference span."""
+    if span.attributes is None:
+        return False
+    return SpanAttributes.OPENINFERENCE_SPAN_KIND in span.attributes
 
 
 # Set your OpenAI API key

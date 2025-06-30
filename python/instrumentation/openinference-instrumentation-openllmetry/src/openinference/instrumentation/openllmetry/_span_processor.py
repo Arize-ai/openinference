@@ -3,27 +3,13 @@ OpenLLMetry → OpenInference Span Processor
 
 This module provides a SpanProcessor that converts OpenLLMetry (TraceLoop) spans
 into OpenInference semantic conventions for Phoenix observability.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-You may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 """
 
 import json
 import re
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
-
-from opentelemetry.sdk.trace import SpanProcessor, ReadableSpan
-
+from opentelemetry.sdk.trace import SpanProcessor
 import openinference.instrumentation as oi
 from openinference.instrumentation import (
     get_llm_attributes,
@@ -205,7 +191,7 @@ class OpenLLToOIProcessor(SpanProcessor):
     SpanProcessor that converts OpenLLMetry spans to OpenInference attributes.
     """
 
-    def on_end(self, span: ReadableSpan) -> None:
+    def on_end(self, span) -> None:
         attrs: Dict[str, Any] = getattr(span, '_attributes', {})
 
         kind = attrs.get('traceloop.span.kind')
@@ -254,9 +240,9 @@ class OpenLLToOIProcessor(SpanProcessor):
         request_body = {
             'messages': [{'role': m.get('role'), 'content': m.get('content', '')} for m in inputs],
             'model': attrs.get('gen_ai.request.model'),
-            'max_tokens': invocation_params.get('max_tokens'),
-            'temperature': invocation_params.get('temperature'),
-            'top_p': invocation_params.get('top_p'),
+            'max_tokens': invocation_params.get('llm.request.max_tokens'),
+            'temperature': invocation_params.get('llm.request.temperature'),
+            'top_p': invocation_params.get('llm.request.top_p'),
             'tools': json.loads(attrs[tool_key]) if tool_key else None,
         }
         assistant_text = outputs[0].get('content', '') if outputs else ''

@@ -72,7 +72,7 @@ response = client.chat.completions.create(
     messages=messages,
 )
 
-# Now view your OpenLLMetry traces in Phoenix!
+# Now view your converted OpenLLMetry traces in Phoenix!
 ```
 ## This example:
 
