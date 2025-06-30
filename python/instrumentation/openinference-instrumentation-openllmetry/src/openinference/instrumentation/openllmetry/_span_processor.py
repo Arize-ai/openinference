@@ -6,7 +6,6 @@ into OpenInference semantic conventions for Phoenix observability.
 """
 
 import json
-import re
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 from opentelemetry.sdk.trace import SpanProcessor
@@ -16,6 +15,11 @@ from openinference.instrumentation import (
     get_input_attributes,
     get_output_attributes,
 )
+
+# Import OpenLLMetry constants from the official package
+from opentelemetry.semconv_ai import SpanAttributes, TraceloopSpanKindValues
+
+# Import OpenInference constants
 import openinference.semconv.trace as sc
 
 __all__ = ["OpenInferenceSpanProcessor"]
@@ -24,30 +28,23 @@ __all__ = ["OpenInferenceSpanProcessor"]
 # Constants
 # ---------------------------------------------------------------------------
 _SPAN_KIND_MAPPING: Dict[str, str] = {
-    "workflow": "CHAIN",
-    "task":     "TOOL",
-    "agent":    "AGENT",
-    "tool":     "TOOL",
-    "llm":      "LLM",
-    "unknown":  "UNKNOWN",
+    TraceloopSpanKindValues.WORKFLOW.value: sc.OpenInferenceSpanKindValues.CHAIN.value,
+    TraceloopSpanKindValues.TASK.value:     sc.OpenInferenceSpanKindValues.TOOL.value,
+    TraceloopSpanKindValues.AGENT.value:    sc.OpenInferenceSpanKindValues.AGENT.value,
+    TraceloopSpanKindValues.TOOL.value:     sc.OpenInferenceSpanKindValues.TOOL.value,
+    "llm":      sc.OpenInferenceSpanKindValues.LLM.value,
+    TraceloopSpanKindValues.UNKNOWN.value:  sc.OpenInferenceSpanKindValues.UNKNOWN.value,
 }
 
 _INVOCATION_PARAMETER_KEYS: List[str] = [
-    "gen_ai.request.max_tokens",
-    "gen_ai.request.temperature",
-    "gen_ai.request.top_p",
-    "gen_ai.request.top_k",
-    "gen_ai.request.stop_sequences",
-    "llm.request.max_tokens",
-    "llm.request.temperature",
-    "llm.request.top_p",
-    "llm.request.top_k",
-    "llm.request.repetition_penalty",
-    "llm.request.stop_sequences",
-    "llm.frequency_penalty",
-    "llm.presence_penalty",
-    "llm.top_k",
-    "llm.chat.stop_sequences",
+    SpanAttributes.LLM_REQUEST_MAX_TOKENS,
+    SpanAttributes.LLM_REQUEST_TEMPERATURE,
+    SpanAttributes.LLM_REQUEST_TOP_P,
+    SpanAttributes.LLM_TOP_K,
+    SpanAttributes.LLM_CHAT_STOP_SEQUENCES,
+    SpanAttributes.LLM_REQUEST_REPETITION_PENALTY,
+    SpanAttributes.LLM_FREQUENCY_PENALTY,
+    SpanAttributes.LLM_PRESENCE_PENALTY,
 ]
 
 _OPENINF_TOOL_LIST_KEY = "llm.tools"
@@ -78,19 +75,19 @@ def _map_generic_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
     Convert TraceLoop 'workflow' / 'task' / 'agent' / 'tool' spans
     to OpenInference semantic conventions.
     """
-    raw_kind = str(attrs.get("traceloop.span.kind", "unknown")).lower()
-    kind_val = _SPAN_KIND_MAPPING.get(raw_kind, "UNKNOWN")
+    raw_kind = str(attrs.get(SpanAttributes.TRACELOOP_SPAN_KIND, "unknown")).lower()
+    kind_val = _SPAN_KIND_MAPPING.get(raw_kind, sc.OpenInferenceSpanKindValues.UNKNOWN.value)
 
     mapped: Dict[str, Any] = {"openinference.span.kind": kind_val}
 
-    input_raw = attrs.get("traceloop.entity.input")
+    input_raw = attrs.get(SpanAttributes.TRACELOOP_ENTITY_INPUT)
     if input_raw is not None:
         mapped.update({
             "input.mime_type": "application/json",
             "input.value": _as_json_str(input_raw),
         })
 
-    output_raw = attrs.get("traceloop.entity.output")
+    output_raw = attrs.get(SpanAttributes.TRACELOOP_ENTITY_OUTPUT)
     if output_raw is not None:
         mapped.update({
             "output.mime_type": "application/json",
@@ -195,7 +192,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
     def on_end(self, span) -> None:
         attrs: Dict[str, Any] = getattr(span, '_attributes', {})
 
-        kind = attrs.get('traceloop.span.kind')
+        kind = attrs.get(SpanAttributes.TRACELOOP_SPAN_KIND)
         if kind and kind.lower() != 'llm':
             generic = _map_generic_span(attrs)
             attrs.clear()
@@ -211,10 +208,10 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         outputs = _collect_oi_messages(attrs, 'gen_ai.completion.')
 
         # Token usage
-        prompt_toks = _safe_int(attrs.get('gen_ai.usage.prompt_tokens')) or 0
-        comp_toks   = _safe_int(attrs.get('gen_ai.usage.completion_tokens')) or 0
-        total_toks  = _safe_int(attrs.get('llm.usage.total_tokens')) or (prompt_toks + comp_toks)
-        cache_read  = _safe_int(attrs.get('gen_ai.usage.cache_read_input_tokens')) or 0
+        prompt_toks = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_PROMPT_TOKENS)) or 0
+        comp_toks   = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_COMPLETION_TOKENS)) or 0
+        total_toks  = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_TOTAL_TOKENS)) or (prompt_toks + comp_toks)
+        cache_read  = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_CACHE_READ_INPUT_TOKENS)) or 0
         token_count = oi.TokenCount(
             prompt=prompt_toks,
             completion=comp_toks,
@@ -227,11 +224,10 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         for key in _INVOCATION_PARAMETER_KEYS:
             if key in attrs:
                 invocation_params[key.rsplit('.', 1)[-1]] = attrs[key]
-        if 'gen_ai.request.model' in attrs:
-            invocation_params.setdefault('model', attrs['gen_ai.request.model'])
-
+        if SpanAttributes.LLM_REQUEST_MODEL in attrs:
+            invocation_params.setdefault('model', attrs[SpanAttributes.LLM_REQUEST_MODEL])
         # Tools
-        tool_key = 'llm.request.functions' if 'llm.request.functions' in attrs else (
+        tool_key = SpanAttributes.LLM_REQUEST_FUNCTIONS if SpanAttributes.LLM_REQUEST_FUNCTIONS in attrs else (
                    'llm.request.tools' if 'llm.request.tools' in attrs else None)
         oi_tools: List[oi.Tool] = []
         if tool_key:
@@ -240,10 +236,10 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         # Build bodies for OpenInference
         request_body = {
             'messages': [{'role': m.get('role'), 'content': m.get('content', '')} for m in inputs],
-            'model': attrs.get('gen_ai.request.model'),
-            'max_tokens': invocation_params.get('llm.request.max_tokens'),
-            'temperature': invocation_params.get('llm.request.temperature'),
-            'top_p': invocation_params.get('llm.request.top_p'),
+            'model': attrs.get(SpanAttributes.LLM_REQUEST_MODEL),
+            'max_tokens': invocation_params.get('max_tokens'),
+            'temperature': invocation_params.get('temperature'),
+            'top_p': invocation_params.get('top_p'),
             'tools': json.loads(attrs[tool_key]) if tool_key else None,
         }
         assistant_text = outputs[0].get('content', '') if outputs else ''
@@ -258,19 +254,19 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                     'annotations': [],
                 }
             }],
-            'model': attrs.get('gen_ai.response.model') or attrs.get('gen_ai.request.model'),
+            'model': attrs.get(SpanAttributes.LLM_RESPONSE_MODEL) or attrs.get(SpanAttributes.LLM_REQUEST_MODEL),
             'usage': {'prompt_tokens': prompt_toks, 'completion_tokens': comp_toks, 'total_tokens': total_toks},
         }
 
-        system_val   = attrs.get('gen_ai.system', 'unknown')
+        system_val   = attrs.get(SpanAttributes.LLM_SYSTEM, 'unknown')
         provider_val = attrs.get('gen_ai.provider', system_val)
 
         # Span kind
-        span_val = _SPAN_KIND_MAPPING.get(str(kind).lower(), 'LLM') if kind else 'LLM'
+        span_val = _SPAN_KIND_MAPPING.get(str(kind).lower(), sc.OpenInferenceSpanKindValues.LLM.value) if kind else sc.OpenInferenceSpanKindValues.LLM.value
 
         # Assemble OpenInference attributes
         oi_attrs = {
-            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: span_val, #helper
+            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: span_val,
             **get_llm_attributes(
                 provider=provider_val,
                 system=system_val,
@@ -284,5 +280,5 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             **get_input_attributes(request_body),
             **get_output_attributes(response_body),
         }
-        
+
         attrs.update(oi_attrs)
