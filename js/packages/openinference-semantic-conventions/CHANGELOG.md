@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.1.0
+
+### Minor Changes
+
+- 34a4159: feat: add provider enums for xai and deepseek
+
 ## 2.0.0
 
 ### Major Changes
