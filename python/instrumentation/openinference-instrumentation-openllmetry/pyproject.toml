@@ -33,7 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-  "opentelemetry-instrumentation-openai>=0.40.9"
+  "opentelemetry-instrumentation-openai>=0.40.9",
   "opentelemetry-sdk>=1.20.0",
   "opentelemetry-exporter-otlp-proto-http",
   "openai>=1.90.0",
