@@ -639,13 +639,7 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
             "bedrock": "bedrock",
         }
 
-        if ls_provider_lower in langchain_provider_map:
-            yield LLM_PROVIDER, langchain_provider_map[ls_provider_lower]
-            return
-        else:
-            # Use the raw provider name if not in our mapping
-            yield LLM_PROVIDER, ls_provider_lower
-            return
+        yield LLM_PROVIDER, langchain_provider_map.get(ls_provider_lower) or ls_provider_lower
 
 
 @stop_on_exception
