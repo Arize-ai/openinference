@@ -716,8 +716,8 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
         else:
             yield LLM_PROVIDER, provider_lower
         return
-    
-    # 2.1. Check for client_name in invocation_params  
+
+    # 2.1. Check for client_name in invocation_params
     if client_name := invocation_params.get("client_name"):
         client_name_lower = client_name.lower()
         if "openai" in client_name_lower:
