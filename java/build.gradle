@@ -1,0 +1,108 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+allprojects {
+    group = 'io.openinference'
+    version = '0.1.0-SNAPSHOT'
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+        withJavadocJar()
+        withSourcesJar()
+    }
+
+    ext {
+        // OpenTelemetry versions
+        openTelemetryVersion = '1.49.0'
+        openTelemetryInstrumentationVersion = '2.14.0'
+        openTelemetryInstrumentationAlphaVersion = '2.14.0-alpha'
+        
+        // LangChain4j version
+        langchain4jVersion = '0.35.0'
+        
+        // Testing dependencies
+        junitVersion = '5.10.2'
+        mockitoVersion = '5.11.0'
+        assertjVersion = '3.25.3'
+        
+        // Other dependencies
+        jacksonVersion = '2.17.0'
+        slf4jVersion = '2.0.12'
+        autoServiceVersion = '1.1.1'
+    }
+
+    dependencies {
+        // Common test dependencies
+        testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+        testImplementation "org.mockito:mockito-core:${mockitoVersion}"
+        testImplementation "org.assertj:assertj-core:${assertjVersion}"
+        testImplementation "org.slf4j:slf4j-simple:${slf4jVersion}"
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+
+    tasks.withType(JavaCompile) {
+        options.encoding = 'UTF-8'
+        options.compilerArgs.add('-parameters')
+    }
+
+    // Configure javadoc
+    javadoc {
+        options.encoding = 'UTF-8'
+        options.addStringOption('Xdoclint:none', '-quiet')
+        
+        if (JavaVersion.current().isJava9Compatible()) {
+            options.addBooleanOption('html5', true)
+        }
+    }
+
+    // Publishing configuration
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                from components.java
+
+                pom {
+                    name = project.name
+                    description = project.description ?: 'OpenInference instrumentation for Java'
+                    url = 'https://github.com/openinference/openinference'
+                    
+                    licenses {
+                        license {
+                            name = 'Apache License, Version 2.0'
+                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        }
+                    }
+                    
+                    developers {
+                        developer {
+                            name = 'OpenInference Contributors'
+                            organization = 'OpenInference'
+                            organizationUrl = 'https://github.com/openinference'
+                        }
+                    }
+                    
+                    scm {
+                        connection = 'scm:git:git://github.com/openinference/openinference.git'
+                        developerConnection = 'scm:git:ssh://github.com:openinference/openinference.git'
+                        url = 'https://github.com/openinference/openinference/tree/main'
+                    }
+                }
+            }
+        }
+    }
+} 

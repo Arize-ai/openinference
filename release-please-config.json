@@ -113,6 +113,18 @@
         "python/instrumentation/openinference-instrumentation-google-adk": {
             "package-name": "python-openinference-instrumentation-google-adk",
             "release-type": "python"
+        },
+        "java/openinference-semantic-conventions": {
+            "package-name": "java-openinference-semantic-conventions",
+            "release-type": "java"
+        },
+        "java/openinference-instrumentation": {
+            "package-name": "java-openinference-instrumentation",
+            "release-type": "java"
+        },
+        "java/instrumentation/openinference-instrumentation-langchain4j": {
+            "package-name": "java-openinference-instrumentation-langchain4j",
+            "release-type": "java"
         }
     }
 }
