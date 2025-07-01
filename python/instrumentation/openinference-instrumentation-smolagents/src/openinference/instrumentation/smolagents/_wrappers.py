@@ -219,7 +219,7 @@ def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
                 oi_function: oi.ToolCallFunction = {}
                 if (name := getattr(function, "name", None)) is not None:
                     oi_function["name"] = name
-                if isinstance(arguments := getattr(function, "arguments", None), dict):
+                if isinstance(arguments := getattr(function, "arguments", None), str):
                     oi_function["arguments"] = arguments
                 oi_tool_call["function"] = oi_function
                 oi_tool_calls.append(oi_tool_call)
@@ -281,7 +281,7 @@ class _ModelWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         arguments = _bind_arguments(wrapped, *args, **kwargs)
-        span_name = f"{instance.__class__.__name__}.__call__"
+        span_name = f"{instance.__class__.__name__}.generate"
         model = instance
         with self._tracer.start_as_current_span(
             span_name,

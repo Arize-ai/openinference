@@ -424,7 +424,10 @@ def test_callback_llm(
         assert oai_span.context.trace_id == llm_span.context.trace_id
         oai_attributes = dict(oai_span.attributes or {})
         assert oai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
-        assert oai_attributes.pop(LLM_MODEL_NAME, None) is not None
+        if not is_stream and status_code == 200:
+            assert oai_attributes.pop(LLM_MODEL_NAME, None) == model_name
+        else:
+            assert oai_attributes.pop(LLM_MODEL_NAME, None) == "gpt-3.5-turbo"
         assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
         assert oai_attributes.pop(INPUT_VALUE, None) is not None
         assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value

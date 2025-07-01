@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.33...python-openinference-instrumentation-v0.1.34) (2025-06-17)
+
+
+### Features
+
+* add context manager for capturing openinference spans ([#1781](https://github.com/Arize-ai/openinference/issues/1781)) ([aab3386](https://github.com/Arize-ai/openinference/commit/aab33868276627705f3e83fe8898429b71a23695))
+
+
+### Bug Fixes
+
+* Enable sampling when using OpenInference tracer ([#1782](https://github.com/Arize-ai/openinference/issues/1782)) ([b4007cf](https://github.com/Arize-ai/openinference/commit/b4007cffc5857028d6004aebd369877cab96d801))
+
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.32...python-openinference-instrumentation-v0.1.33) (2025-06-10)
+
+
+### Features
+
+* add instrumentation for google-adk ([#1759](https://github.com/Arize-ai/openinference/issues/1759)) ([aeb1769](https://github.com/Arize-ai/openinference/commit/aeb17692d30cd8112bcad0990f1ec56491a59962))
+
 ## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.31...python-openinference-instrumentation-v0.1.32) (2025-05-27)
 
 

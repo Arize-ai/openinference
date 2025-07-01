@@ -1,0 +1,28 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What''s the weather like in San Francisco?"}],
+      "role": "user"}], "systemInstruction": {"parts": [{"text": "You are a helpful
+      assistant that can answer questions and help with tasks. Use the available tools
+      when appropriate."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Get current weather information for a given location", "name": "get_weather",
+      "parameters": {"properties": {"location": {"description": "The city and state/country
+      for weather information", "type": "STRING"}, "unit": {"description": "Temperature
+      unit", "enum": ["celsius", "fahrenheit"], "type": "STRING"}}, "required": ["location"],
+      "type": "OBJECT"}}]}], "generationConfig": {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse
+  response:
+    body:
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\":
+        {\"name\": \"get_weather\",\"args\": {\"location\": \"San Francisco\"}}}],\"role\":
+        \"model\"},\"finishReason\": \"STOP\"}],\"usageMetadata\": {\"promptTokenCount\":
+        63,\"candidatesTokenCount\": 6,\"totalTokenCount\": 69,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 63}],\"candidatesTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 6}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
+        \"HQs6aNCnPNHB7dcPwf7a4QY\"}\r\n\r\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

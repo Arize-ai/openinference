@@ -9,7 +9,10 @@
         },
         "python/openinference-instrumentation": {
             "package-name": "python-openinference-instrumentation",
-            "release-type": "python"
+            "release-type": "python",
+            "exclude-paths": [
+                ".gitignore"
+            ]
         },
         "python/instrumentation/openinference-instrumentation-agno": {
             "package-name": "python-openinference-instrumentation-agno",
@@ -105,6 +108,10 @@
         },
         "python/instrumentation/openinference-instrumentation-pydantic-ai": {
             "package-name": "python-openinference-instrumentation-pydantic-ai",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-google-adk": {
+            "package-name": "python-openinference-instrumentation-google-adk",
             "release-type": "python"
         }
     }

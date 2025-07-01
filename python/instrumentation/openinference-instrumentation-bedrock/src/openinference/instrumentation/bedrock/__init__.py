@@ -27,7 +27,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.trace import Tracer
+from opentelemetry.trace import Status, StatusCode, Tracer
 from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
 
@@ -37,11 +37,20 @@ from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
 )
+from openinference.instrumentation.bedrock._rag_wrappers import (
+    _retrieve_and_generate_wrapper,
+    _retrieve_wrapper,
+)
 from openinference.instrumentation.bedrock._wrappers import (
     _InvokeAgentWithResponseStream,
     _InvokeModelWithResponseStream,
+    _RetrieveAndGenerateStream,
 )
 from openinference.instrumentation.bedrock.package import _instruments
+from openinference.instrumentation.bedrock.utils import _extract_invoke_model_attributes
+from openinference.instrumentation.bedrock.utils.anthropic import (
+    _attributes as anthropic_attributes,
+)
 from openinference.instrumentation.bedrock.version import __version__
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -74,6 +83,15 @@ class InstrumentedClient(BaseClient):  # type: ignore
 
     invoke_agent: Callable[..., Any]
     _unwrapped_invoke_agent: Callable[..., Any]
+
+    retrieve: Callable[..., Any]
+    _unwrapped_retrieve: Callable[..., Any]
+
+    retrieve_and_generate: Callable[..., Any]
+    _unwrapped_retrieve_and_generate: Callable[..., Any]
+
+    retrieve_and_generate_stream: Callable[..., Any]
+    _unwrapped_retrieve_and_generate_stream: Callable[..., Any]
 
 
 class BufferedStreamingBody(StreamingBody):  # type: ignore
@@ -120,6 +138,17 @@ def _client_creation_wrapper(
             client._unwrapped_invoke_agent = client.invoke_agent
             client.invoke_agent = _InvokeAgentWithResponseStream(tracer)(client.invoke_agent)
 
+            client._unwrapped_retrieve = client.retrieve
+            client.retrieve = _retrieve_wrapper(tracer)(client)
+
+            client._unwrapped_retrieve_and_generate = client.retrieve_and_generate
+            client.retrieve_and_generate = _retrieve_and_generate_wrapper(tracer)(client)
+
+            client._unwrapped_retrieve_and_generate_stream = client.retrieve_and_generate_stream
+            client.retrieve_and_generate_stream = _RetrieveAndGenerateStream(tracer)(
+                client.retrieve_and_generate_stream
+            )
+
         if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
             client = cast(InstrumentedClient, client)
 
@@ -147,70 +176,43 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
 
             with tracer.start_as_current_span("bedrock.invoke_model") as span:
-                span.set_attribute(
-                    SpanAttributes.OPENINFERENCE_SPAN_KIND,
-                    OpenInferenceSpanKindValues.LLM.value,
+                request_body = json.loads(kwargs["body"])
+                model_id = str(kwargs.get("modelId"))
+                # Determine if this is a Claude Messages API model
+                is_claude_message_api = _extract_invoke_model_attributes.is_claude_message_api(
+                    model_id
                 )
-                response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
+
+                # Set input attributes based on model type
+                if is_claude_message_api:
+                    anthropic_attributes.set_input_attributes(span, request_body, model_id)
+                else:
+                    _extract_invoke_model_attributes.set_input_attributes(span, request_body)
+
+                # Execute the model invocation with proper error handling
+                try:
+                    response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
+                except Exception as e:
+                    span.set_status(Status(StatusCode.ERROR))
+                    span.end()
+                    raise e
+
+                # Process the streaming response body
                 response["body"] = BufferedStreamingBody(
                     response["body"]._raw_stream, response["body"]._content_length
                 )
-                raw_request_body = kwargs["body"]
-                request_body = json.loads(raw_request_body)
                 response_body = json.loads(response.get("body").read())
                 response["body"].reset()
 
-                prompt = request_body.pop("prompt", None)
-                invocation_parameters = safe_json_dumps(request_body)
-                _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
-                _set_span_attribute(
-                    span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
-                )
-
-                if metadata := response.get("ResponseMetadata"):
-                    if headers := metadata.get("HTTPHeaders"):
-                        if input_token_count := headers.get("x-amzn-bedrock-input-token-count"):
-                            input_token_count = int(input_token_count)
-                            _set_span_attribute(
-                                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count
-                            )
-                        if response_token_count := headers.get("x-amzn-bedrock-output-token-count"):
-                            response_token_count = int(response_token_count)
-                            _set_span_attribute(
-                                span,
-                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
-                                response_token_count,
-                            )
-                        if total_token_count := (
-                            input_token_count + response_token_count
-                            if input_token_count and response_token_count
-                            else None
-                        ):
-                            _set_span_attribute(
-                                span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
-                            )
-
-                if model_id := kwargs.get("modelId"):
-                    _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
-
-                    if isinstance(model_id, str):
-                        (vendor, *_) = model_id.split(".")
-
-                    if vendor == "ai21":
-                        content = str(response_body.get("completions"))
-                    elif vendor == "anthropic":
-                        content = str(response_body.get("completion"))
-                    elif vendor == "cohere":
-                        content = str(response_body.get("generations"))
-                    elif vendor == "meta":
-                        content = str(response_body.get("generation"))
-                    else:
-                        content = ""
-
-                    if content:
-                        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
-
+                # Set response attributes based on model type
+                if is_claude_message_api:
+                    anthropic_attributes.set_response_attributes(span, response_body)
+                else:
+                    _extract_invoke_model_attributes.set_response_attributes(
+                        span, kwargs, response_body, response
+                    )
                 span.set_attributes(dict(get_attributes_from_context()))
+                span.set_status(Status(StatusCode.OK))
                 return response  # type: ignore
 
         return instrumented_response

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.21...python-openinference-instrumentation-litellm-v0.1.22) (2025-06-13)
+
+
+### Bug Fixes
+
+* Missing Span Status In LiteLLM ([#1754](https://github.com/Arize-ai/openinference/issues/1754)) ([126f816](https://github.com/Arize-ai/openinference/commit/126f816577bf4450e0c15c3ac8fa8f7f754c58e5))
+
 ## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.20...python-openinference-instrumentation-litellm-v0.1.21) (2025-05-31)
 
 
