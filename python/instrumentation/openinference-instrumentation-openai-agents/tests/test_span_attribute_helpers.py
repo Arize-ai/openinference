@@ -196,7 +196,7 @@ from openinference.instrumentation.openai_agents._processor import (
         ),
         pytest.param(
             [
-                ResponseFunctionWebSearchParam(
+                ResponseFunctionWebSearchParam(  # type: ignore
                     type="web_search_call",
                     id="web-123",
                     status="searching",

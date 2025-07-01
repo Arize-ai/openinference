@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
@@ -386,12 +387,23 @@ def _get_attributes_from_chat_completions_message_dicts(
         msg_idx += 1
 
 
+def _get_tool_response(content: str) -> Any:
+    try:
+        tool_output = json.loads(content)
+        if tool_output.get("type") == "text":
+            return tool_output.get("text", content)
+    except json.JSONDecodeError:
+        return content
+    return content
+
+
 def _get_attributes_from_chat_completions_message_content(
     obj: Union[str, Iterable[Mapping[str, Any]]],
     prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     if isinstance(obj, str):
-        yield f"{prefix}{MESSAGE_CONTENT}", obj
+        content = _get_tool_response(obj)
+        yield f"{prefix}{MESSAGE_CONTENT}", content
     elif isinstance(obj, Iterable):
         for i, item in enumerate(obj):
             if not isinstance(item, Mapping):
@@ -455,9 +467,11 @@ def _get_attributes_from_function_span_data(
         yield INPUT_VALUE, obj.input
         yield INPUT_MIME_TYPE, JSON
     if obj.output is not None:
-        yield OUTPUT_VALUE, _convert_to_primitive(obj.output)
+        tool_output = _convert_to_primitive(obj.output)
         if isinstance(obj.output, str) and obj.output[0] == "{" and obj.output[-1] == "}":
+            tool_output = _get_tool_response(obj.output)
             yield OUTPUT_MIME_TYPE, JSON
+        yield OUTPUT_VALUE, tool_output
 
 
 def _get_attributes_from_message_content_list(
@@ -485,7 +499,7 @@ def _get_attributes_from_response(obj: Response) -> Iterator[tuple[str, Attribut
     yield from _get_attributes_from_tools(obj.tools)
     yield from _get_attributes_from_usage(obj.usage)
     yield from _get_attributes_from_response_output(obj.output)
-    yield from _get_attributes_from_response_instruction(obj.instructions)
+    yield from _get_attributes_from_response_instruction(obj.instructions)  # type: ignore[arg-type]
     yield LLM_MODEL_NAME, obj.model
     param = obj.model_dump(
         exclude_none=True,
