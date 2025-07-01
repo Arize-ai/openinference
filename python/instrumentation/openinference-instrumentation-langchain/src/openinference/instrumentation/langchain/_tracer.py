@@ -1232,7 +1232,7 @@ def _get_system_from_invocation_params(invocation_params: Mapping[str, Any]) -> 
     return None
 
 
-def _get_system_from_class_id(id_list: list) -> Optional[str]:
+def _get_system_from_class_id(id_list: List[Any]) -> Optional[str]:
     """Extract system from class ID list."""
     if not isinstance(id_list, list) or len(id_list) <= 2:
         return None
