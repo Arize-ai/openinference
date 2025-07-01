@@ -624,6 +624,7 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
             "openai": OpenInferenceLLMProviderValues.OPENAI.value,
             "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
             "azure": OpenInferenceLLMProviderValues.AZURE.value,
+            "azure_ai": OpenInferenceLLMProviderValues.AZURE.value,
             "google_genai": OpenInferenceLLMProviderValues.GOOGLE.value,
             "google": OpenInferenceLLMProviderValues.GOOGLE.value,
             "vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
