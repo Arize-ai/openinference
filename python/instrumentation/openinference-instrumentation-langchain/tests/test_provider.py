@@ -5,7 +5,6 @@ import pytest
 from openinference.instrumentation.langchain._tracer import (
     _llm_provider,
     _llm_system,
-    parse_provider_and_model,
 )
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
@@ -15,56 +14,48 @@ from openinference.semconv.trace import (
 
 
 @pytest.mark.parametrize(
-    "model_str,expected_provider,expected_model",
-    [
-        ("openai/gpt-4", "openai", "gpt-4"),
-        ("text-completion-openai/gpt-3.5-turbo-instruct", "openai", "gpt-3.5-turbo-instruct"),
-        ("anthropic/claude-2", "anthropic", "claude-2"),
-        ("gpt-4", None, "gpt-4"),
-        ("claude-2", None, "claude-2"),
-        (None, None, None),
-        ("", None, None),
-    ],
-)
-def test_parse_provider_and_model(
-    model_str: Optional[str], expected_provider: Optional[str], expected_model: Optional[str]
-) -> None:
-    provider, model = parse_provider_and_model(model_str)
-    assert provider == expected_provider
-    assert model == expected_model
-
-
-@pytest.mark.parametrize(
     "extra,expected_provider",
     [
-        # Provider directly in invocation_params
+        # Provider from ls_provider in metadata (LangChain's source of truth)
         (
-            {"invocation_params": {"provider": "openai"}},
+            {"metadata": {"ls_provider": "openai"}},
             OpenInferenceLLMProviderValues.OPENAI.value,
         ),
         (
-            {"invocation_params": {"client_name": "OpenAIClient"}},
-            OpenInferenceLLMProviderValues.OPENAI.value,
-        ),
-        # Provider from model name
-        (
-            {"invocation_params": {"model_name": "openai/gpt-4"}},
-            OpenInferenceLLMProviderValues.OPENAI.value,
-        ),
-        (
-            {"invocation_params": {"model": "text-completion-openai/gpt-3.5-turbo-instruct"}},
-            OpenInferenceLLMProviderValues.OPENAI.value,
-        ),
-        # Provider from class name
-        (
-            {"id": ["langchain", "llms", "openai", "OpenAI"]},
-            OpenInferenceLLMProviderValues.OPENAI.value,
-        ),
-        (
-            {"id": ["langchain", "llms", "anthropic", "ChatAnthropic"]},
+            {"metadata": {"ls_provider": "anthropic"}},
             OpenInferenceLLMProviderValues.ANTHROPIC.value,
         ),
-        # No provider info
+        (
+            {"metadata": {"ls_provider": "google"}},
+            OpenInferenceLLMProviderValues.GOOGLE.value,
+        ),
+        (
+            {"metadata": {"ls_provider": "azure"}},
+            OpenInferenceLLMProviderValues.AZURE.value,
+        ),
+        (
+            {"metadata": {"ls_provider": "cohere"}},
+            "cohere",
+        ),
+        (
+            {"metadata": {"ls_provider": "mistralai"}},
+            "mistralai",
+        ),
+        (
+            {"metadata": {"ls_provider": "ollama"}},
+            "ollama",
+        ),
+        # Unknown provider (should use raw value)
+        (
+            {"metadata": {"ls_provider": "unknown_provider"}},
+            "unknown_provider",
+        ),
+        # No provider info - no ls_provider in metadata
+        (
+            {"metadata": {"other_field": "value"}},
+            None,
+        ),
+        # No metadata at all
         (
             {"invocation_params": {"model_name": "gpt-4"}},
             None,
@@ -93,48 +84,48 @@ def test_llm_provider(extra: Optional[Dict[str, Any]], expected_provider: Option
 @pytest.mark.parametrize(
     "extra,expected_system",
     [
-        # System from model name with provider prefix
+        # System from ls_provider in metadata (LangChain's source of truth)
         (
-            {"invocation_params": {"model_name": "openai/gpt-4"}},
+            {"metadata": {"ls_provider": "openai"}},
             OpenInferenceLLMSystemValues.OPENAI.value,
         ),
         (
-            {"invocation_params": {"model": "anthropic/claude-2"}},
+            {"metadata": {"ls_provider": "anthropic"}},
             OpenInferenceLLMSystemValues.ANTHROPIC.value,
         ),
         (
-            {"invocation_params": {"model_name": "google/gemini-pro"}},
+            {"metadata": {"ls_provider": "google"}},
             OpenInferenceLLMSystemValues.VERTEXAI.value,
         ),
-        # System from model name pattern
+        (
+            {"metadata": {"ls_provider": "google_genai"}},
+            OpenInferenceLLMSystemValues.VERTEXAI.value,
+        ),
+        (
+            {"metadata": {"ls_provider": "vertex"}},
+            OpenInferenceLLMSystemValues.VERTEXAI.value,
+        ),
+        (
+            {"metadata": {"ls_provider": "vertexai"}},
+            OpenInferenceLLMSystemValues.VERTEXAI.value,
+        ),
+        # Provider not mapped to system (should return None)
+        (
+            {"metadata": {"ls_provider": "cohere"}},
+            None,
+        ),
+        (
+            {"metadata": {"ls_provider": "unknown_provider"}},
+            None,
+        ),
+        # No system info - no ls_provider in metadata
+        (
+            {"metadata": {"other_field": "value"}},
+            None,
+        ),
+        # No metadata at all
         (
             {"invocation_params": {"model_name": "gpt-4"}},
-            OpenInferenceLLMSystemValues.OPENAI.value,
-        ),
-        (
-            {"invocation_params": {"model": "claude-2"}},
-            OpenInferenceLLMSystemValues.ANTHROPIC.value,
-        ),
-        (
-            {"invocation_params": {"model_name": "gemini-pro"}},
-            OpenInferenceLLMSystemValues.VERTEXAI.value,
-        ),
-        # System from class name
-        (
-            {"id": ["langchain", "llms", "openai", "OpenAI"]},
-            OpenInferenceLLMSystemValues.OPENAI.value,
-        ),
-        (
-            {"id": ["langchain", "llms", "anthropic", "ChatAnthropic"]},
-            OpenInferenceLLMSystemValues.ANTHROPIC.value,
-        ),
-        (
-            {"id": ["langchain", "llms", "vertex", "ChatVertexAI"]},
-            OpenInferenceLLMSystemValues.VERTEXAI.value,
-        ),
-        # No system info
-        (
-            {"invocation_params": {"model_name": "unknown-model"}},
             None,
         ),
         (

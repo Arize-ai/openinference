@@ -396,9 +396,9 @@ def _input_messages(
     # There may be more than one set of messages. We'll use just the first set.
     if not (multiple_messages := inputs.get("messages")):
         return
-    assert isinstance(multiple_messages, Iterable), (
-        f"expected Iterable, found {type(multiple_messages)}"
-    )
+    assert isinstance(
+        multiple_messages, Iterable
+    ), f"expected Iterable, found {type(multiple_messages)}"
     # This will only get the first set of messages.
     if not (first_messages := next(iter(multiple_messages), None)):
         return
@@ -436,15 +436,15 @@ def _output_messages(
     # There may be more than one set of generations. We'll use just the first set.
     if not (multiple_generations := outputs.get("generations")):
         return
-    assert isinstance(multiple_generations, Iterable), (
-        f"expected Iterable, found {type(multiple_generations)}"
-    )
+    assert isinstance(
+        multiple_generations, Iterable
+    ), f"expected Iterable, found {type(multiple_generations)}"
     # This will only get the first set of generations.
     if not (first_generations := next(iter(multiple_generations), None)):
         return
-    assert isinstance(first_generations, Iterable), (
-        f"expected Iterable, found {type(first_generations)}"
-    )
+    assert isinstance(
+        first_generations, Iterable
+    ), f"expected Iterable, found {type(first_generations)}"
     parsed_messages = []
     for generation in first_generations:
         assert hasattr(generation, "get"), f"expected Mapping, found {type(generation)}"
@@ -503,13 +503,13 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
             assert isinstance(name, str), f"expected str, found {type(name)}"
             yield MESSAGE_NAME, name
         if additional_kwargs := kwargs.get("additional_kwargs"):
-            assert hasattr(additional_kwargs, "get"), (
-                f"expected Mapping, found {type(additional_kwargs)}"
-            )
+            assert hasattr(
+                additional_kwargs, "get"
+            ), f"expected Mapping, found {type(additional_kwargs)}"
             if function_call := additional_kwargs.get("function_call"):
-                assert hasattr(function_call, "get"), (
-                    f"expected Mapping, found {type(function_call)}"
-                )
+                assert hasattr(
+                    function_call, "get"
+                ), f"expected Mapping, found {type(function_call)}"
                 if name := function_call.get("name"):
                     assert isinstance(name, str), f"expected str, found {type(name)}"
                     yield MESSAGE_FUNCTION_CALL_NAME, name
@@ -517,9 +517,9 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                     assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
                     yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
             if tool_calls := additional_kwargs.get("tool_calls"):
-                assert isinstance(tool_calls, Iterable), (
-                    f"expected Iterable, found {type(tool_calls)}"
-                )
+                assert isinstance(
+                    tool_calls, Iterable
+                ), f"expected Iterable, found {type(tool_calls)}"
                 message_tool_calls = []
                 for tool_call in tool_calls:
                     if message_tool_call := dict(_get_tool_call(tool_call)):
@@ -570,9 +570,9 @@ def _parse_prompt_template(
         message = messages[0]
         assert isinstance(message, Mapping), f"expected dict, found {type(message)}"
         if partial_variables := kwargs.get("partial_variables"):
-            assert isinstance(partial_variables, Mapping), (
-                f"expected dict, found {type(partial_variables)}"
-            )
+            assert isinstance(
+                partial_variables, Mapping
+            ), f"expected dict, found {type(partial_variables)}"
             inputs = {**partial_variables, **inputs}
         yield from _parse_prompt_template(inputs, message)
     elif _get_cls_name(serialized).endswith("PromptTemplate") and isinstance(
@@ -580,9 +580,9 @@ def _parse_prompt_template(
     ):
         yield LLM_PROMPT_TEMPLATE, template
         if input_variables := kwargs.get("input_variables"):
-            assert isinstance(input_variables, list), (
-                f"expected list, found {type(input_variables)}"
-            )
+            assert isinstance(
+                input_variables, list
+            ), f"expected list, found {type(input_variables)}"
             template_variables = {}
             for variable in input_variables:
                 if (value := inputs.get(variable)) is not None:
@@ -600,71 +600,13 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
         return
     assert hasattr(extra, "get"), f"expected Mapping, found {type(extra)}"
     if invocation_parameters := extra.get("invocation_params"):
-        assert isinstance(invocation_parameters, Mapping), (
-            f"expected Mapping, found {type(invocation_parameters)}"
-        )
+        assert isinstance(
+            invocation_parameters, Mapping
+        ), f"expected Mapping, found {type(invocation_parameters)}"
         yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
         tools = invocation_parameters.get("tools", [])
         for idx, tool in enumerate(tools):
             yield f"{LLM_TOOLS}.{idx}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
-
-
-def parse_provider_and_model(model_str: Optional[str]) -> tuple[Optional[str], Optional[str]]:
-    """
-    Parse a model string like 'openai/gpt-4', 'text-completion-openai/gpt-3.5-turbo-instruct/', etc.
-    Returns (provider, model_name), both lowercased and stripped of trailing slashes.
-    """
-    if not isinstance(model_str, str) or not model_str:
-        return None, None
-    model_str = model_str.strip().rstrip("/")
-    if "/" in model_str:
-        provider, model_name = model_str.split("/", 1)
-        provider = provider.strip().lower()
-        model_name = model_name.strip()
-        # Handle cases like 'text-completion-openai' -> 'openai'
-        if "-" in provider:
-            provider = provider.split("-")[-1]
-        return provider, model_name
-    return None, model_str.strip() if model_str else None
-
-
-PROVIDER_TYPE_MAP = {
-    "openai": OpenInferenceLLMProviderValues.OPENAI.value,
-    "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
-    "vertexai": OpenInferenceLLMProviderValues.GOOGLE.value,
-    "vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
-    "google": OpenInferenceLLMProviderValues.GOOGLE.value,
-    "azure": OpenInferenceLLMProviderValues.AZURE.value,
-    "cohere": "cohere",
-    "mistralai": "mistralai",
-    "ollama": "ollama",
-    "fireworks": "fireworks",
-    "together": "together",
-    "groq": "groq",
-    # Add more as needed from LangChain's integrations
-}
-
-CLASS_PROVIDER_MAP = {
-    "ChatOpenAI": OpenInferenceLLMProviderValues.OPENAI.value,
-    "OpenAI": OpenInferenceLLMProviderValues.OPENAI.value,
-    "ChatAnthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
-    "Anthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
-    "ChatVertexAI": OpenInferenceLLMProviderValues.GOOGLE.value,
-    "VertexAI": OpenInferenceLLMProviderValues.GOOGLE.value,
-    "ChatCohere": "cohere",
-    "Cohere": "cohere",
-    "ChatMistralAI": "mistralai",
-    "MistralAI": "mistralai",
-    "ChatOllama": "ollama",
-    "Ollama": "ollama",
-    "ChatFireworks": "fireworks",
-    "Fireworks": "fireworks",
-    "ChatTogether": "together",
-    "Together": "together",
-    "ChatGroq": "groq",
-    "Groq": "groq",
-    # Add more as needed
-}
 
 
 @stop_on_exception
@@ -704,90 +646,6 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
             # Use the raw provider name if not in our mapping
             yield LLM_PROVIDER, ls_provider_lower
             return
-
-    invocation_params = extra.get("invocation_params", {})
-    id_list = extra.get("id", [])
-
-    # 2. Check for provider in invocation_params
-    if provider := invocation_params.get("provider"):
-        provider_lower = provider.lower()
-        if provider_lower in PROVIDER_TYPE_MAP:
-            yield LLM_PROVIDER, PROVIDER_TYPE_MAP[provider_lower]
-        else:
-            yield LLM_PROVIDER, provider_lower
-        return
-
-    # 2.1. Check for client_name in invocation_params
-    if client_name := invocation_params.get("client_name"):
-        client_name_lower = client_name.lower()
-        if "openai" in client_name_lower:
-            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-            return
-        elif "anthropic" in client_name_lower:
-            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.ANTHROPIC.value
-            return
-        elif any(keyword in client_name_lower for keyword in ["google", "vertex", "gemini"]):
-            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
-            return
-        elif "cohere" in client_name_lower:
-            yield LLM_PROVIDER, "cohere"
-            return
-
-    # 3. Check for _type field in invocation_params
-    if _type := invocation_params.get("_type"):
-        # Enhanced matching for _type field
-        _type_lower = _type.lower()
-        if "openai" in _type_lower:
-            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-            return
-        elif "anthropic" in _type_lower:
-            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.ANTHROPIC.value
-            return
-        elif any(keyword in _type_lower for keyword in ["google", "vertex", "gemini"]):
-            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
-            return
-        elif "azure" in _type_lower:
-            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
-            return
-        elif "cohere" in _type_lower:
-            yield LLM_PROVIDER, "cohere"
-            return
-        elif "mistral" in _type_lower:
-            yield LLM_PROVIDER, "mistralai"
-            return
-        elif "ollama" in _type_lower:
-            yield LLM_PROVIDER, "ollama"
-            return
-        elif "fireworks" in _type_lower:
-            yield LLM_PROVIDER, "fireworks"
-            return
-        elif "together" in _type_lower:
-            yield LLM_PROVIDER, "together"
-            return
-        elif "groq" in _type_lower:
-            yield LLM_PROVIDER, "groq"
-            return
-
-    # 4. Check for class name in id field
-    if isinstance(id_list, list) and len(id_list) > 1:
-        class_name = id_list[-1]
-        if class_name in CLASS_PROVIDER_MAP:
-            yield LLM_PROVIDER, CLASS_PROVIDER_MAP[class_name]
-            return
-        # Also check the provider in the second-to-last element
-        if len(id_list) > 2:
-            provider_hint = id_list[-2].lower()
-            if provider_hint in PROVIDER_TYPE_MAP:
-                yield LLM_PROVIDER, PROVIDER_TYPE_MAP[provider_hint]
-                return
-
-    # 5. Check for model name patterns (only with explicit provider prefixes)
-    for key in ["model_name", "model"]:
-        if model_str := invocation_params.get(key):
-            provider, model_name = parse_provider_and_model(model_str)
-            if provider and provider in PROVIDER_TYPE_MAP:
-                yield LLM_PROVIDER, PROVIDER_TYPE_MAP[provider]
-                return
 
 
 @stop_on_exception
@@ -1175,84 +1033,30 @@ LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 
 
-def _get_system_from_provider(provider: str) -> Optional[str]:
-    """Map provider name to system value."""
-    provider_mapping = {
-        "openai": OpenInferenceLLMSystemValues.OPENAI.value,
-        "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
-        "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
-        "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
-        "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
-    }
-    return provider_mapping.get(provider.lower())
-
-
-def _get_system_from_model_name(model_name: str) -> Optional[str]:
-    """Infer system from model name patterns."""
-    if model_name.startswith(("gpt-", "text-davinci")):
-        return OpenInferenceLLMSystemValues.OPENAI.value
-    elif model_name.startswith("claude-"):
-        return OpenInferenceLLMSystemValues.ANTHROPIC.value
-    elif model_name.startswith("gemini-"):
-        return OpenInferenceLLMSystemValues.VERTEXAI.value
-    return None
-
-
-def _get_system_from_invocation_params(invocation_params: Mapping[str, Any]) -> Optional[str]:
-    """Extract system from invocation parameters."""
-    # Check model name in LiteLLM format (e.g., "openai/gpt-4")
-    for key in ["model_name", "model"]:
-        if model_str := invocation_params.get(key):
-            provider, model_name = parse_provider_and_model(model_str)
-
-            # Try provider first
-            if provider and (system := _get_system_from_provider(provider)):
-                return system
-
-            # Try model name patterns
-            if model_name and (system := _get_system_from_model_name(model_name)):
-                return system
-
-    return None
-
-
-def _get_system_from_class_id(id_list: List[Any]) -> Optional[str]:
-    """Extract system from class ID list."""
-    if not isinstance(id_list, list) or len(id_list) <= 2:
-        return None
-
-    # Format is typically ["langchain", "llms", "openai", "OpenAI"]
-    provider = id_list[-2].lower()
-
-    if "openai" in provider:
-        return OpenInferenceLLMSystemValues.OPENAI.value
-    elif "anthropic" in provider:
-        return OpenInferenceLLMSystemValues.ANTHROPIC.value
-    elif any(p in provider for p in ["google", "vertex", "gemini"]):
-        return OpenInferenceLLMSystemValues.VERTEXAI.value
-
-    return None
-
-
 @stop_on_exception
 def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
     """
     Extract the LLM system (AI product) from the extra information in a LangChain run.
 
-    This function attempts to identify the AI system being used (OpenAI, Anthropic, etc.)
-    based on available information in the run data.
+    Derives the system from the ls_provider in metadata, which is LangChain's source of truth.
     """
     if not extra:
         return
 
-    # Check for system in invocation_params
-    if invocation_params := extra.get("invocation_params"):
-        if system := _get_system_from_invocation_params(invocation_params):
-            yield LLM_SYSTEM, system
-            return
+    # Derive system from ls_provider in metadata (LangChain's source of truth)
+    if (meta := extra.get("metadata")) and (ls_provider := meta.get("ls_provider")):
+        ls_provider_lower = ls_provider.lower()
 
-    # From class name in id field
-    if id_list := extra.get("id"):
-        if system := _get_system_from_class_id(id_list):
+        # Map provider to system value
+        provider_to_system = {
+            "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+            "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+            "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+            "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+            "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+            "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+        }
+
+        if system := provider_to_system.get(ls_provider_lower):
             yield LLM_SYSTEM, system
             return
