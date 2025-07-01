@@ -611,15 +611,16 @@ def _model_name(
     extra: Optional[Mapping[str, Any]],
 ) -> Iterator[Tuple[str, str]]:
     """Yields model name if present."""
-    if outputs:
-        assert hasattr(outputs, "get"), f"expected Mapping, found {type(outputs)}"
-        if (
-            (llm_output := outputs.get("llm_output"))
-            and hasattr(llm_output, "get")
-            and str(model_name := llm_output.get("model_name") or "").strip()
-        ):
-            yield LLM_MODEL_NAME, model_name
-            return
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (llm_output := outputs.get("llm_output"))
+        and hasattr(llm_output, "get")
+    ):
+        for key in "model_name", "model":
+            if str(name := llm_output.get(key) or "").strip():
+                yield LLM_MODEL_NAME, name
+                return
     if not extra:
         return
     assert hasattr(extra, "get"), f"expected Mapping, found {type(extra)}"
