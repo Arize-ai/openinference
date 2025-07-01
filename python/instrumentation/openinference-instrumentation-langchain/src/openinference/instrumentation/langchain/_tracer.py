@@ -1050,6 +1050,8 @@ def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
             "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
             "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
             "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+            "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+            "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
         }
 
         if system := provider_to_system.get(ls_provider_lower):
