@@ -37,7 +37,7 @@ test = [
   "opentelemetry-sdk>=1.20.0",
   "opentelemetry-exporter-otlp-proto-http",
   "openai>=1.90.0",
-  "arize-phoenix>=10.14.0"
+  "pytest-recording",
 ]
 
 [project.entry-points.openinference_instrumentor]

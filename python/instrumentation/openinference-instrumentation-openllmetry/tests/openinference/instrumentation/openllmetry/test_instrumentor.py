@@ -1,7 +1,7 @@
-import os
-from typing import Mapping, cast
+from typing import Any, Mapping, cast
 
 import openai
+import pytest
 from openai.types.chat import ChatCompletionUserMessageParam
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.sdk.trace import ReadableSpan
@@ -14,6 +14,11 @@ from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from openinference.semconv.trace import SpanAttributes
 
 
+@pytest.fixture
+def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-0123456789")
+
+
 def is_openinference_span(span: ReadableSpan) -> bool:
     """Check if a span is an OpenInference span."""
     if span.attributes is None:
@@ -21,13 +26,48 @@ def is_openinference_span(span: ReadableSpan) -> bool:
     return SpanAttributes.OPENINFERENCE_SPAN_KIND in span.attributes
 
 
-# Set your OpenAI API key
-api_key: str = os.getenv("OPENAI_API_KEY") or ""
-os.environ["OPENAI_API_KEY"] = api_key
+def remove_all_vcr_request_headers(request: Any) -> Any:
+    """
+    Removes all request headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_request_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    request.headers.clear()
+    return request
+
+
+def remove_all_vcr_response_headers(response: dict[str, Any]) -> dict[str, Any]:
+    """
+    Removes all response headers.
+
+    Example:
+    ```
+    @pytest.mark.vcr(
+        before_record_response=remove_all_vcr_response_headers
+    )
+    def test_openai() -> None:
+        # make request to OpenAI
+    """
+    response["headers"] = {}
+    return response
 
 
 class TestOpenLLMetryInstrumentor:
-    def test_openllmetry_instrumentor(self) -> None:
+    @pytest.mark.vcr(
+        decode_compressed_response=True,
+        before_record_request=remove_all_vcr_request_headers,
+        before_record_response=remove_all_vcr_response_headers,
+    )
+    def test_openllmetry_instrumentor(
+        self,
+        openai_api_key: str,
+    ) -> None:
         in_memory_span_exporter = InMemorySpanExporter()
         in_memory_span_exporter.clear()
 
