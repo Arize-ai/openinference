@@ -1054,4 +1054,3 @@ def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
 
         if system := provider_to_system.get(ls_provider_lower):
             yield LLM_SYSTEM, system
-            return
