@@ -70,7 +70,6 @@ testpaths = [
 
 [tool.mypy]
 strict = true
-warn_unused_ignores = false
 explicit_package_bases = true
 exclude = [
   "examples",

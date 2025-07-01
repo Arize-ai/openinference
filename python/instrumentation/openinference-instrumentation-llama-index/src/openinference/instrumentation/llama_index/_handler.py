@@ -101,7 +101,7 @@ from llama_index.core.instrumentation.events.retrieval import (
     RetrievalEndEvent,
     RetrievalStartEvent,
 )
-from llama_index.core.instrumentation.events.span import SpanDropEvent  # type: ignore[attr-defined]
+from llama_index.core.instrumentation.events.span import SpanDropEvent
 from llama_index.core.instrumentation.events.synthesis import (
     GetResponseEndEvent,
     GetResponseStartEvent,
@@ -114,7 +114,7 @@ from llama_index.core.multi_modal_llms import MultiModalLLM
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
 from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
-from llama_index.core.workflow.errors import WorkflowDone  # type: ignore[attr-defined]
+from llama_index.core.workflow.errors import WorkflowDone
 from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
@@ -1021,9 +1021,6 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
             yield TOOL_CALL_ID, tool_call_id
         if name := tool_call.get("name"):
             yield TOOL_CALL_FUNCTION_NAME, name
-        if function := tool_call.get("function"):
-            yield TOOL_CALL_FUNCTION_NAME, function.get("name")
-            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, function.get("arguments")
         if arguments := tool_call.get("input"):
             if isinstance(arguments, str):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
