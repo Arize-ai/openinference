@@ -619,6 +619,31 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
         # Normalize the provider name to match OpenInference standards
         ls_provider_lower = ls_provider.lower()
 
+<<<<<<< HEAD
+=======
+        # Map LangChain provider names to OpenInference provider values
+        langchain_provider_map = {
+            "openai": OpenInferenceLLMProviderValues.OPENAI.value,
+            "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
+            "azure": OpenInferenceLLMProviderValues.AZURE.value,
+            "azure_ai": OpenInferenceLLMProviderValues.AZURE.value,
+            "google_genai": OpenInferenceLLMProviderValues.GOOGLE.value,
+            "google": OpenInferenceLLMProviderValues.GOOGLE.value,
+            "vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
+            "vertexai": OpenInferenceLLMProviderValues.GOOGLE.value,
+            "cohere": OpenInferenceLLMProviderValues.COHERE.value,
+            "mistralai": OpenInferenceLLMProviderValues.MISTRALAI.value,
+            "ollama": "ollama",
+            "fireworks": "fireworks",
+            "together": "together",
+            "groq": "groq",
+            "nvidia": "nvidia",
+            "huggingface": "huggingface",
+            "bedrock": OpenInferenceLLMProviderValues.AWS.value,
+            "bedrock_converse": OpenInferenceLLMProviderValues.AWS.value,
+        }
+
+>>>>>>> 22622a03aac72fd9eb70de42a07805cd8da94ad0
         yield LLM_PROVIDER, langchain_provider_map.get(ls_provider_lower) or ls_provider_lower
 
 
