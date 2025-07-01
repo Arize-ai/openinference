@@ -1045,6 +1045,8 @@ def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
         # Map provider to system value
         provider_to_system = {
             "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+            "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+            "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
             "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
             "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
             "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
