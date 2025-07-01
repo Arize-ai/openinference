@@ -666,6 +666,7 @@ CLASS_PROVIDER_MAP = {
     # Add more as needed
 }
 
+
 @stop_on_exception
 def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
     if not extra:
