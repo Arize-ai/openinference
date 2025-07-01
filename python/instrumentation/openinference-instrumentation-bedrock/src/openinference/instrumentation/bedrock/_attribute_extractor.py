@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from opentelemetry.util.types import AttributeValue
 
@@ -17,6 +17,8 @@ from openinference.instrumentation import (
     get_input_attributes,
     get_llm_attributes,
     get_llm_input_message_attributes,
+    get_llm_invocation_parameter_attributes,
+    get_llm_model_name_attributes,
     get_llm_output_message_attributes,
     get_llm_token_count_attributes,
     get_output_attributes,
@@ -30,6 +32,7 @@ from openinference.instrumentation.bedrock.utils.json_utils import (
 from openinference.semconv.trace import (
     DocumentAttributes,
     OpenInferenceLLMProviderValues,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -455,39 +458,70 @@ class AttributeExtractor:
         }
 
     @classmethod
+    def get_document_attributes(cls, index: int, ref: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract document attributes from a retrieved reference for OpenTelemetry tracing.
+
+        This method processes a single document reference from Bedrock retrieval results
+        and extracts relevant attributes including document ID, content, score, and metadata.
+        The attributes are formatted according to OpenInference semantic conventions.
+
+        Args:
+            index (int): The index position of this document in the retrieval results,
+                        used to create unique attribute keys.
+            ref (Dict[str, Any]): A document reference dictionary containing:
+                - metadata: Document metadata including chunk ID
+                - content: Document content with text and type information
+                - score: Relevance score for the retrieved document
+                - location: Document location information
+
+        Returns:
+            Dict[str, Any]: A dictionary of OpenTelemetry attributes with keys formatted as:
+                - retrieval.documents.{index}.document.id: Document chunk ID
+                - retrieval.documents.{index}.document.content: Document text content
+                - retrieval.documents.{index}.document.score: Relevance score
+                - retrieval.documents.{index}.document.metadata: JSON-encoded metadata
+
+        Note:
+            The method follows OpenInference semantic conventions for document attributes
+            and handles missing fields gracefully by using default values.
+        """
+        attributes = {}
+        base_key = f"{RETRIEVAL_DOCUMENTS}.{index}"
+        if document_id := ref.get("metadata", {}).get("x-amz-bedrock-kb-chunk-id", ""):
+            attributes[f"{base_key}.{DOCUMENT_ID}"] = document_id
+
+        if document_content := ref.get("content", {}).get("text"):
+            attributes[f"{base_key}.{DOCUMENT_CONTENT}"] = document_content
+
+        if document_score := ref.get("score", 0.0):
+            attributes[f"{base_key}.{DOCUMENT_SCORE}"] = document_score
+        metadata = json.dumps(
+            {
+                "location": ref.get("location", {}),
+                "metadata": ref.get("metadata", {}),
+                "type": ref.get("content", {}).get("type"),
+            }
+        )
+        attributes[f"{base_key}.{DOCUMENT_METADATA}"] = metadata
+        return attributes
+
+    @classmethod
     def get_attributes_from_knowledge_base_lookup_output(
-        cls, knowledge_base_lookup_output: dict[str, Any]
+        cls, retrieved_refs: List[Dict[str, Any]]
     ) -> dict[str, AttributeValue]:
         """
         Extract attributes from knowledge base lookup output.
 
         Args:
-            knowledge_base_lookup_output (dict[str, Any]): The knowledge base lookup
-            output dictionary.
+            retrieved_refs (list): The documents list.
 
         Returns:
             Dict[str, AttributeValue]: A dictionary of extracted attributes.
         """
-        retrieved_refs = knowledge_base_lookup_output.get("retrievedReferences", [])
-        attributes = dict()
+        attributes: Dict[str, Any] = {}
         for i, ref in enumerate(retrieved_refs):
-            base_key = f"{RETRIEVAL_DOCUMENTS}.{i}"
-            if document_id := ref.get("metadata", {}).get("x-amz-bedrock-kb-chunk-id", ""):
-                attributes[f"{base_key}.{DOCUMENT_ID}"] = document_id
-
-            if document_content := ref.get("content", {}).get("text"):
-                attributes[f"{base_key}.{DOCUMENT_CONTENT}"] = document_content
-
-            if document_score := ref.get("score", 0.0):
-                attributes[f"{base_key}.{DOCUMENT_SCORE}"] = document_score
-            metadata = json.dumps(
-                {
-                    "location": ref.get("location", {}),
-                    "metadata": ref.get("metadata", {}),
-                    "type": ref.get("content", {}).get("type"),
-                }
-            )
-            attributes[f"{base_key}.{DOCUMENT_METADATA}"] = metadata
+            attributes |= cls.get_document_attributes(i, ref)
         return attributes
 
     @classmethod
@@ -604,7 +638,7 @@ class AttributeExtractor:
             )
         if "knowledgeBaseLookupOutput" in observation:
             return cls.get_attributes_from_knowledge_base_lookup_output(
-                observation["knowledgeBaseLookupOutput"]
+                observation["knowledgeBaseLookupOutput"].get("retrievedReferences", [])
             )
         if "agentCollaboratorInvocationOutput" in observation:
             return cls.get_attributes_from_agent_collaborator_invocation_output(
@@ -840,6 +874,246 @@ class AttributeExtractor:
         if failure_message:
             return get_output_attributes(failure_message)
         return {}
+
+    @classmethod
+    def extract_retrieve_invocation_params(cls, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Extract invocation parameters for Bedrock retrieve operations.
+
+        This method processes the keyword arguments from a Bedrock retrieve operation
+        and extracts relevant invocation parameters including knowledge base ID,
+        pagination tokens, and retrieval configuration settings.
+
+        Args:
+            kwargs (dict[str, Any]): Keyword arguments from the retrieve operation,
+                                   typically containing knowledgeBaseId, nextToken,
+                                   and retrievalConfiguration.
+
+        Returns:
+            dict[str, Any]: A dictionary containing extracted invocation parameters:
+                - knowledgeBaseId: The ID of the knowledge base being queried
+                - next_token: Pagination token for retrieving additional results (if present)
+                - retrieval_configuration: Configuration settings for the retrieval (if present)
+        """
+        invocation_params = {"knowledgeBaseId": kwargs.get("knowledgeBaseId", "")}
+        if next_token := kwargs.get("nextToken"):
+            invocation_params["next_token"] = next_token
+        if retrieval_configuration := kwargs.get("retrievalConfiguration", {}):
+            invocation_params["retrieval_configuration"] = retrieval_configuration
+        return invocation_params
+
+    @classmethod
+    def get_model_name_for_rag(cls, kwargs: Dict[str, Any]) -> str:
+        """
+        Extract the model name/ARN from RAG (Retrieve and Generate) operation parameters.
+
+        This method determines the model being used in a RAG operation by examining
+        the retrieveAndGenerateConfiguration. It handles both knowledge base and
+        external sources configurations to extract the appropriate model ARN.
+
+        Args:
+            kwargs (Dict[str, Any]): Keyword arguments from the RAG operation,
+                                   containing retrieveAndGenerateConfiguration with
+                                   either knowledgeBaseConfiguration or
+                                   externalSourcesConfiguration.
+
+        Returns:
+            str: The model ARN/name being used for the RAG operation. Returns empty
+                 string if no model ARN is found in the configuration.
+
+        Note:
+            The method checks the configuration type and extracts the model ARN from
+            the appropriate configuration section (knowledge base or external sources).
+        """
+        retrieve_and_generate_config = kwargs.get("retrieveAndGenerateConfiguration", {})
+        if retrieve_and_generate_config.get("type") == "KNOWLEDGE_BASE":
+            return str(
+                retrieve_and_generate_config.get("knowledgeBaseConfiguration", {}).get(
+                    "modelArn", ""
+                )
+            )
+        return str(
+            retrieve_and_generate_config.get("externalSourcesConfiguration", {}).get("modelArn", "")
+        )
+
+    @classmethod
+    def extract_rag_invocation_params(cls, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract invocation parameters for RAG (Retrieve and Generate) operations.
+
+        This method processes the keyword arguments from a Bedrock retrieve_and_generate
+        operation and extracts relevant invocation parameters including configuration
+        settings and session information.
+
+        Args:
+            kwargs (Dict[str, Any]): Keyword arguments from the retrieve_and_generate
+                                   operation, containing configuration and session parameters.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing extracted invocation parameters:
+                - retrieveAndGenerateConfiguration: Configuration for the RAG operation (if present)
+                - sessionConfiguration: Session-specific configuration settings (if present)
+                - sessionId: Unique identifier for the session (if present)
+
+        Note:
+            Only parameters that are present in the input kwargs are included in the
+            returned dictionary, allowing for flexible parameter handling.
+        """
+        invocation_params = {}
+        if rag_configuration := kwargs.get("retrieveAndGenerateConfiguration"):
+            invocation_params["retrieveAndGenerateConfiguration"] = rag_configuration
+        if session_configuration := kwargs.get("sessionConfiguration"):
+            invocation_params["sessionConfiguration"] = session_configuration
+        if session_id := kwargs.get("sessionId"):
+            invocation_params["sessionId"] = session_id
+        return invocation_params
+
+    @classmethod
+    def extract_bedrock_retrieve_input_attributes(cls, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Extract input attributes for Bedrock retrieve operations for OpenTelemetry tracing.
+
+        This method processes the input parameters of a Bedrock retrieve operation and
+        extracts relevant attributes for distributed tracing. It combines input text,
+        span kind classification, and invocation parameters into a comprehensive
+        attribute dictionary.
+
+        Args:
+            kwargs (dict[str, Any]): Keyword arguments from the retrieve operation,
+                                   typically containing:
+                                   - retrievalQuery: Query object with text field
+                                   - knowledgeBaseId: ID of the knowledge base
+                                   - nextToken: Pagination token (optional)
+                                   - retrievalConfiguration: Retrieval settings (optional)
+
+        Returns:
+            dict[str, Any]: A dictionary of OpenTelemetry attributes containing:
+                - Input attributes: Query text and MIME type
+                - Span kind: Set to RETRIEVER for retrieval operations
+                - Invocation parameters: Knowledge base ID, pagination, and configuration
+
+        Note:
+            The method follows OpenInference semantic conventions and sets the span
+            kind to RETRIEVER to properly categorize the operation in traces.
+        """
+        input_text = kwargs.get("retrievalQuery", {}).get("text", "")
+        return {
+            **get_input_attributes(input_text, mime_type=OpenInferenceMimeTypeValues.TEXT),
+            **get_span_kind_attributes(OpenInferenceSpanKindValues.RETRIEVER),
+            **get_llm_invocation_parameter_attributes(
+                cls.extract_retrieve_invocation_params(kwargs)
+            ),
+        }
+
+    @classmethod
+    def extract_bedrock_rag_input_attributes(cls, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract input attributes for Bedrock RAG (Retrieve and Generate) operations.
+
+        This method processes the input parameters of a Bedrock retrieve_and_generate
+        operation and extracts comprehensive attributes for OpenTelemetry tracing.
+        It combines model information, input text, span classification, and invocation
+        parameters into a complete attribute set.
+
+        Args:
+            kwargs (Dict[str, Any]): Keyword arguments from the retrieve_and_generate
+                                   operation, containing:
+                                   - input: Input object with text field
+                                   - retrieveAndGenerateConfiguration: RAG configuration
+                                   - sessionConfiguration: Session settings (optional)
+                                   - sessionId: Session identifier (optional)
+
+        Returns:
+            Dict[str, Any]: A dictionary of OpenTelemetry attributes containing:
+                - Model name: The LLM model being used for generation
+                - Input attributes: User input text and MIME type
+                - Span kind: Set to RETRIEVER for RAG operations
+                - Invocation parameters: RAG configuration and session information
+
+        Note:
+            RAG operations are classified as RETRIEVER span kind since they combine
+            both retrieval and generation phases in a single operation.
+        """
+        input_text = kwargs.get("input", {}).get("text", "")
+        return {
+            **get_llm_model_name_attributes(cls.get_model_name_for_rag(kwargs)),
+            **get_input_attributes(input_text, mime_type=OpenInferenceMimeTypeValues.TEXT),
+            **get_span_kind_attributes(OpenInferenceSpanKindValues.RETRIEVER),
+            **get_llm_invocation_parameter_attributes(cls.extract_rag_invocation_params(kwargs)),
+        }
+
+    @classmethod
+    def extract_bedrock_retrieve_response_attributes(
+        cls, response: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Extract response attributes from Bedrock retrieve operation results.
+
+        This method processes the response from a Bedrock retrieve operation and
+        extracts document attributes from the retrieved results. It handles the
+        retrievalResults array and converts each document into properly formatted
+        OpenTelemetry attributes.
+
+        Args:
+            response (Dict[str, Any]): Response dictionary from the retrieve operation,
+                                     containing:
+                                     - retrievalResults: List of retrieved documents
+                                     - nextToken: Pagination token (optional)
+
+        Returns:
+            Dict[str, Any]: A dictionary of OpenTelemetry attributes containing
+                          document information for each retrieved result, including
+                          document IDs, content, scores, and metadata formatted
+                          according to OpenInference semantic conventions.
+
+        Note:
+            This method delegates to get_attributes_from_knowledge_base_lookup_output
+            to ensure consistent document attribute formatting across different
+            retrieval operation types.
+        """
+        documents = response.get("retrievalResults", [])
+        return cls.get_attributes_from_knowledge_base_lookup_output(documents)
+
+    @classmethod
+    def extract_bedrock_rag_response_attributes(cls, response: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract response attributes from Bedrock RAG (Retrieve and Generate) operation results.
+
+        This method processes the response from a Bedrock retrieve_and_generate operation
+        and extracts both the generated output and the retrieved document citations.
+        It handles the complex structure of RAG responses that include both generation
+        results and retrieval citations.
+
+        Args:
+            response (Dict[str, Any]): Response dictionary from the retrieve_and_generate
+                                     operation, containing:
+                                     - output: Generated text output
+                                     - citations: List of citations with retrieved references
+                                     - sessionId: Session identifier (optional)
+
+        Returns:
+            Dict[str, Any]: A dictionary of OpenTelemetry attributes containing:
+                - Document attributes: Information about each retrieved document
+                  from citations, including IDs, content, scores, and metadata
+                - Output attributes: The generated text response
+
+        Note:
+            The method processes citations to extract retrieved references and assigns
+            sequential indices to each document for proper attribute key formatting.
+            It combines both retrieval and generation aspects of the RAG operation
+            into a comprehensive attribute set.
+        """
+        index = 0
+        attributes: Dict[str, Any] = {}
+        for citation in response.get("citations", []) or []:
+            documents = citation.get("retrievedReferences", [])
+            for document in documents:
+                attributes |= cls.get_document_attributes(index, document)
+                index += 1
+        return {
+            **attributes,
+            **get_output_attributes(response.get("output", {}).get("text")),
+        }
 
 
 # Constants

@@ -1,14 +1,16 @@
 # ruff: noqa: E501
 from collections import defaultdict
 from secrets import token_hex
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from google.adk import Agent
+from google.adk import Agent, __version__
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+_VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
 
 @pytest.mark.vcr(
@@ -146,6 +148,9 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes0.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
+    if _VERSION >= (1, 5, 0):
+        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 106
+        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 112
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
@@ -257,4 +262,7 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes1.pop("gcp.vertex.agent.session_id", None)
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
+    if _VERSION >= (1, 5, 0):
+        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 140
+        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 165
     assert not call_llm_attributes1

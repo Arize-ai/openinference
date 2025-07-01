@@ -1,5 +1,27 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [34a4159]
+  - @arizeai/openinference-semantic-conventions@2.1.0
+  - @arizeai/openinference-core@1.0.4
+
+## 3.1.0
+
+### Minor Changes
+
+- c9b96a7: feat: Add support for responses.parse and chat.parse method instrumentation
+
+## 3.0.0
+
+### Major Changes
+
+- 35f7b0e: feat: Add support for openai-node sdk 5.x
+
+  Support for openai@4.x has been dropped. Please upgrade to openai@5.x to continue using this package.
+
 ## 2.3.1
 
 ### Patch Changes
