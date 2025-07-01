@@ -1027,6 +1027,19 @@ LLM_TOOLS = SpanAttributes.LLM_TOOLS
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 
+# Map provider to system value
+provider_to_system = {
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+}
 
 @stop_on_exception
 def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
@@ -1041,20 +1054,6 @@ def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
     # Derive system from ls_provider in metadata (LangChain's source of truth)
     if (meta := extra.get("metadata")) and (ls_provider := meta.get("ls_provider")):
         ls_provider_lower = ls_provider.lower()
-
-        # Map provider to system value
-        provider_to_system = {
-            "openai": OpenInferenceLLMSystemValues.OPENAI.value,
-            "azure": OpenInferenceLLMSystemValues.OPENAI.value,
-            "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
-            "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
-            "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
-            "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
-            "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
-            "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
-            "cohere": OpenInferenceLLMSystemValues.COHERE.value,
-            "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
-        }
 
         if system := provider_to_system.get(ls_provider_lower):
             yield LLM_SYSTEM, system
