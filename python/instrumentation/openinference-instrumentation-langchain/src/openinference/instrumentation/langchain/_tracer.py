@@ -611,6 +611,14 @@ def _model_name(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
     if not extra:
         return
     assert hasattr(extra, "get"), f"expected Mapping, found {type(extra)}"
+    if (
+        (metadata := extra.get("metadata"))
+        and hasattr(metadata, "get")
+        and (name := str(metadata.get("ls_model_name") or "").strip())
+    ):
+        # See https://github.com/langchain-ai/langchain/blob/404d8408f40d86701d7fff81b039b7c76f77153e/libs/core/langchain_core/language_models/base.py#L44  # noqa: E501
+        yield LLM_MODEL_NAME, name
+        return
     if not (invocation_params := extra.get("invocation_params")):
         return
     for key in ["model_name", "model"]:
