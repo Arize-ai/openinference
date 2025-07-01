@@ -1,5 +1,5 @@
 import pytest
-from llama_index.core.instrumentation import get_dispatcher
+from llama_index.core.instrumentation import get_dispatcher  # type: ignore[attr-defined]
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
