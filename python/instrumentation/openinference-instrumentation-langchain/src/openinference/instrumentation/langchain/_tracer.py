@@ -287,7 +287,7 @@ def _update_span(span: Span, run: Run) -> None:
                     _output_messages(run.outputs),
                     _prompt_template(run),
                     _invocation_parameters(run),
-                    _model_name(run.extra),
+                    _model_name(run.outputs, run.extra),
                     _token_counts(run.outputs),
                     _function_calls(run.outputs),
                     _tools(run),
@@ -606,11 +606,32 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
 
 
 @stop_on_exception
-def _model_name(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+def _model_name(
+    outputs: Optional[Mapping[str, Any]],
+    extra: Optional[Mapping[str, Any]],
+) -> Iterator[Tuple[str, str]]:
     """Yields model name if present."""
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (llm_output := outputs.get("llm_output"))
+        and hasattr(llm_output, "get")
+    ):
+        for key in "model_name", "model":
+            if str(name := llm_output.get(key) or "").strip():
+                yield LLM_MODEL_NAME, name
+                return
     if not extra:
         return
     assert hasattr(extra, "get"), f"expected Mapping, found {type(extra)}"
+    if (
+        (metadata := extra.get("metadata"))
+        and hasattr(metadata, "get")
+        and (ls_model_name := str(metadata.get("ls_model_name") or "").strip())
+    ):
+        # See https://github.com/langchain-ai/langchain/blob/404d8408f40d86701d7fff81b039b7c76f77153e/libs/core/langchain_core/language_models/base.py#L44  # noqa: E501
+        yield LLM_MODEL_NAME, ls_model_name
+        return
     if not (invocation_params := extra.get("invocation_params")):
         return
     for key in ["model_name", "model"]:
