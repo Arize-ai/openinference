@@ -618,7 +618,7 @@ def _model_name(
         and hasattr(llm_output, "get")
     ):
         for key in "model_name", "model":
-            if str(name := llm_output.get(key) or "").strip():
+            if name := str(llm_output.get(key) or "").strip():
                 yield LLM_MODEL_NAME, name
                 return
     if not extra:
