@@ -113,6 +113,10 @@
         "python/instrumentation/openinference-instrumentation-google-adk": {
             "package-name": "python-openinference-instrumentation-google-adk",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-openllmetry": {
+            "package-name": "python-openinference-instrumentation-openllmetry",
+            "release-type": "python"
         }
     }
 }
