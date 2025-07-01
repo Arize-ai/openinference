@@ -716,6 +716,22 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
         else:
             yield LLM_PROVIDER, provider_lower
         return
+    
+    # 2.1. Check for client_name in invocation_params  
+    if client_name := invocation_params.get("client_name"):
+        client_name_lower = client_name.lower()
+        if "openai" in client_name_lower:
+            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+            return
+        elif "anthropic" in client_name_lower:
+            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.ANTHROPIC.value
+            return
+        elif any(keyword in client_name_lower for keyword in ["google", "vertex", "gemini"]):
+            yield LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
+            return
+        elif "cohere" in client_name_lower:
+            yield LLM_PROVIDER, "cohere"
+            return
 
     # 3. Check for _type field in invocation_params
     if _type := invocation_params.get("_type"):
@@ -765,45 +781,13 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
                 yield LLM_PROVIDER, PROVIDER_TYPE_MAP[provider_hint]
                 return
 
-    # 5. Check for model name patterns
+    # 5. Check for model name patterns (only with explicit provider prefixes)
     for key in ["model_name", "model"]:
         if model_str := invocation_params.get(key):
             provider, model_name = parse_provider_and_model(model_str)
             if provider and provider in PROVIDER_TYPE_MAP:
                 yield LLM_PROVIDER, PROVIDER_TYPE_MAP[provider]
                 return
-            # Fallbacks for common model name patterns
-            if model_name:
-                if model_name.startswith(("gpt-", "text-davinci")):
-                    yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-                    return
-                if model_name.startswith("claude-"):
-                    yield LLM_PROVIDER, OpenInferenceLLMProviderValues.ANTHROPIC.value
-                    return
-                if model_name.startswith("gemini-"):
-                    yield LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
-                    return
-                if model_name.startswith("command-"):
-                    yield LLM_PROVIDER, "cohere"
-                    return
-                if model_name.startswith("mistral-"):
-                    yield LLM_PROVIDER, "mistralai"
-                    return
-                if model_name.startswith("llama-"):
-                    yield LLM_PROVIDER, "ollama"
-                    return
-                if model_name.startswith("fireworks-"):
-                    yield LLM_PROVIDER, "fireworks"
-                    return
-                if model_name.startswith("together-"):
-                    yield LLM_PROVIDER, "together"
-                    return
-                if model_name.startswith("mixtral-"):
-                    yield LLM_PROVIDER, "mistralai"
-                    return
-                if model_name.startswith("groq-"):
-                    yield LLM_PROVIDER, "groq"
-                    return
 
 
 @stop_on_exception
