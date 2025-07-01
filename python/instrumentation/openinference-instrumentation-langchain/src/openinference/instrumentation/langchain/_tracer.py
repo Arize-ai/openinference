@@ -637,7 +637,8 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
             "groq": "groq",
             "nvidia": "nvidia",
             "huggingface": "huggingface",
-            "bedrock": "bedrock",
+            "bedrock": OpenInferenceLLMProviderValues.AWS.value,
+            "bedrock_converse": OpenInferenceLLMProviderValues.AWS.value,
         }
 
         yield LLM_PROVIDER, langchain_provider_map.get(ls_provider_lower) or ls_provider_lower
