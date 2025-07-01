@@ -1041,6 +1041,7 @@ provider_to_system = {
     "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
 }
 
+
 @stop_on_exception
 def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
     """
