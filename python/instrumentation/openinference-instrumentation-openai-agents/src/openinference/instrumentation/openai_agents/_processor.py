@@ -485,7 +485,10 @@ def _get_attributes_from_response(obj: Response) -> Iterator[tuple[str, Attribut
     yield from _get_attributes_from_tools(obj.tools)
     yield from _get_attributes_from_usage(obj.usage)
     yield from _get_attributes_from_response_output(obj.output)
-    yield from _get_attributes_from_response_instruction(obj.instructions)
+    if isinstance(obj.instructions, str):
+        yield from _get_attributes_from_response_instruction(obj.instructions)
+    else:
+        pass  # TODO: handle list instructions
     yield LLM_MODEL_NAME, obj.model
     param = obj.model_dump(
         exclude_none=True,
