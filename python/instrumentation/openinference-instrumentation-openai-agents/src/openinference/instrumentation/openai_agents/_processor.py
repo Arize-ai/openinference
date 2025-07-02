@@ -389,9 +389,10 @@ def _get_attributes_from_chat_completions_message_dicts(
 
 def _get_tool_response(content: str) -> Any:
     try:
-        tool_output = json.loads(content)
-        if tool_output.get("type") == "text":
-            return tool_output.get("text", content)
+        if isinstance(content, str) and content[0] == "{" and content[-1] == "}":
+            tool_output = json.loads(content)
+            if isinstance(tool_output, dict) and tool_output.get("type") == "text":
+                return tool_output.get("text", content)
     except json.JSONDecodeError:
         return content
     return content
