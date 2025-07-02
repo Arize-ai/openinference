@@ -21,6 +21,8 @@ from typing import Any, Callable, Dict, Optional, cast
 from beeai_framework.agents.base import BaseAgent
 from beeai_framework.agents.react.agent import ReActAgent
 from beeai_framework.agents.react.events import ReActAgentSuccessEvent
+from beeai_framework.agents.experimental.agent import RequirementAgent
+from beeai_framework.agents.experimental.events import RequirementAgentSuccessEvent
 from beeai_framework.agents.tool_calling.agent import ToolCallingAgent
 from beeai_framework.agents.tool_calling.events import ToolCallingAgentSuccessEvent
 from beeai_framework.backend import Role
@@ -254,7 +256,7 @@ def create_telemetry_middleware(
                             "text": m.text,
                             "role": m.role.value if hasattr(m.role, "value") else m.role,
                         }
-                        for m in tool_calling_typed_data.state.memory.messages
+                        for m in tool_calling_typed_data.state.memory.messages if m.text
                     ]
                     if (
                         hasattr(tool_calling_typed_data.state, "result")
@@ -266,6 +268,26 @@ def create_telemetry_middleware(
                             if hasattr(result_role, "value")
                             else result_role,
                             "text": tool_calling_typed_data.state.result.text,
+                        }
+                if isinstance(meta.creator, RequirementAgent):
+                    requirement_agent_typed_data = cast(RequirementAgentSuccessEvent, data)
+                    history = [
+                        {
+                            "text": m.text,
+                            "role": m.role.value if hasattr(m.role, "value") else m.role,
+                        }
+                        for m in requirement_agent_typed_data.state.memory.messages if m.text
+                    ]
+                    if (
+                        hasattr(requirement_agent_typed_data.state, "result")
+                        and requirement_agent_typed_data.state.result is not None
+                    ):
+                        result_role = requirement_agent_typed_data.state.answer.role
+                        generated_message = {
+                            "role": result_role.value
+                            if hasattr(result_role, "value")
+                            else result_role,
+                            "text": requirement_agent_typed_data.state.answer.text,
                         }
                 if isinstance(meta.creator, ReActAgent):
                     react_agent_typed_data = cast(ReActAgentSuccessEvent, data)
@@ -281,7 +303,7 @@ def create_telemetry_middleware(
                             "text": m.text,
                             "role": m.role.value if hasattr(m.role, "value") else m.role,
                         }
-                        for m in react_agent_typed_data.memory.messages
+                        for m in react_agent_typed_data.memory.messages if m.text
                     ]
             except Exception as e:
                 logger.error("Instrumentation error: failed to extract success message", exc_info=e)
