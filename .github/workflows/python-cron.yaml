@@ -33,7 +33,6 @@ jobs:
     needs: find-tox-testenv
     if: ${{ needs.find-tox-testenv.outputs.list != '[]' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -49,6 +48,7 @@ jobs:
           enable-cache: false
       - run: uvx --with tox-uv tox r -e ${{ matrix.testenv }} -- -ra -x
         working-directory: python
+        timeout-minutes: 10
       - run: touch ${{ runner.temp }}/${{ matrix.testenv }}
         if: failure()
       - uses: actions/upload-artifact@v4
