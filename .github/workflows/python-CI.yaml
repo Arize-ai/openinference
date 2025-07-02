@@ -68,7 +68,6 @@ jobs:
     needs: find-tox-testenv
     if: ${{ needs.find-tox-testenv.outputs.list != '[]' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -83,3 +82,4 @@ jobs:
           enable-cache: false
       - run: uvx --with tox-uv tox run -e ${{ matrix.testenv }}
         working-directory: python
+        timeout-minutes: 10
