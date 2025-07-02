@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-openai-agents"
+name = "openinference-instrumentation-openllmetry"
 dynamic = ["version"]
-description = "OpenInference OpenAI Agents Instrumentation"
+description = "OpenInference OpenLLMetry Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9, <3.14"
@@ -25,35 +25,34 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-  "opentelemetry-api",
-  "opentelemetry-instrumentation",
-  "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.17",
-  "typing-extensions",
-  "wrapt",
+  "opentelemetry-sdk>=1.20.0",
+  "openinference-instrumentation>=0.1.34",
+  "openinference-semantic-conventions>=0.1.21",
+  "opentelemetry-semantic-conventions-ai>=0.4.9"
 ]
 
 [project.optional-dependencies]
-instruments = [
-  "openai-agents >= 0.1.0",
+test = [
+  "opentelemetry-instrumentation-openai>=0.40.9",
+  "opentelemetry-sdk>=1.20.0",
+  "opentelemetry-exporter-otlp-proto-http",
+  "openai>=1.90.0",
+  "pytest-recording",
 ]
 
-[project.entry-points.opentelemetry_instrumentor]
-openai_agents = "openinference.instrumentation.openai_agents:OpenAIAgentsInstrumentor"
-
 [project.entry-points.openinference_instrumentor]
-openai_agents = "openinference.instrumentation.openai_agents:OpenAIAgentsInstrumentor"
+openllmetry = "openinference.instrumentation.openllmetry:OpenInferenceSpanProcessor"
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openai-agents"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openllmetry"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/openai_agents/version.py"
+path = "src/openinference/instrumentation/openllmetry/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
+  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -79,7 +78,6 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
-  "agents.*",
 ]
 
 [tool.ruff]
@@ -88,10 +86,9 @@ target-version = "py38"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
-"examples/*" = ["E501"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
-force-single-line = false
+force-single-line = false 

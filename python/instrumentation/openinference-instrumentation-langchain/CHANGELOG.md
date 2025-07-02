@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.44...python-openinference-instrumentation-langchain-v0.1.45) (2025-07-02)
+
+
+### Bug Fixes
+
+* small typo in str() call ([#1822](https://github.com/Arize-ai/openinference/issues/1822)) ([4a7385b](https://github.com/Arize-ai/openinference/commit/4a7385b968330e420c67a9a9066fc0f95b4109c5))
+
+## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.43...python-openinference-instrumentation-langchain-v0.1.44) (2025-07-01)
+
+
+### Bug Fixes
+
+* use `llm_output` and `metadata` for model name ([#1819](https://github.com/Arize-ai/openinference/issues/1819)) ([8cb7439](https://github.com/Arize-ai/openinference/commit/8cb7439daf45910f918468651624519de1c1b8de))
+
 ## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.42...python-openinference-instrumentation-langchain-v0.1.43) (2025-05-20)
 
 

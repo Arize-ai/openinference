@@ -29,6 +29,7 @@ from openai.types.responses import (
     ResponseUsage,
     Tool,
 )
+from openai.types.responses.response_function_web_search_param import ActionSearch
 from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
     FunctionCallOutput,
@@ -200,6 +201,10 @@ from openinference.instrumentation.openai_agents._processor import (
                     type="web_search_call",
                     id="web-123",
                     status="searching",
+                    action=ActionSearch(
+                        type="search",
+                        query="test query",
+                    ),
                 )
             ],
             {

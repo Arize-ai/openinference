@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-openai-agents"
+name = "openinference-instrumentation-openllmetry"
 dynamic = ["version"]
-description = "OpenInference OpenAI Agents Instrumentation"
+description = "OpenInference OpenLLMetry Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9, <3.14"
@@ -25,35 +25,43 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-  "opentelemetry-api",
-  "opentelemetry-instrumentation",
-  "opentelemetry-semantic-conventions",
+  "opentelemetry-api>=1.22.0",
+  "opentelemetry-sdk>=1.22.0",
+  "opentelemetry-instrumentation>=1.22.0",
+  "opentelemetry-semantic-conventions>=1.22.0",
   "openinference-instrumentation>=0.1.27",
   "openinference-semantic-conventions>=0.1.17",
-  "typing-extensions",
-  "wrapt",
+  "typing-extensions>=4.8.0",
+  "wrapt>=1.14.0",
+  "grpcio>=1.60.0",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "openai-agents >= 0.1.0",
+  "opentelemetry-instrumentation-openai>=0.35.0",
+  "opentelemetry-instrumentation-langchain>=0.35.0",
+  "opentelemetry-instrumentation-anthropic>=0.35.0",
 ]
 
-[project.entry-points.opentelemetry_instrumentor]
-openai_agents = "openinference.instrumentation.openai_agents:OpenAIAgentsInstrumentor"
+tests = [
+  "pytest>=7.4.0",
+  "pytest-cov>=4.1.0",
+  "python-dotenv>=1.0.0",
+]
 
 [project.entry-points.openinference_instrumentor]
-openai_agents = "openinference.instrumentation.openai_agents:OpenAIAgentsInstrumentor"
+openllmetry = "openinference.instrumentation.openllmetry:OpenLLMetryInstrumentor"
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openai-agents"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openllmetry"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/openai_agents/version.py"
+path = "src/openinference/instrumentation/openllmetry/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
+  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -79,7 +87,9 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
-  "agents.*",
+  "openai",
+  "langchain",
+  "langgraph",
 ]
 
 [tool.ruff]
@@ -88,10 +98,9 @@ target-version = "py38"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
-"examples/*" = ["E501"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
-force-single-line = false
+force-single-line = false 
