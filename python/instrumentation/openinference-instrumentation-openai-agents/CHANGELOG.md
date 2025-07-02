@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.14...python-openinference-instrumentation-openai-agents-v1.0.0) (2025-07-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* set openinference processor as the exclusive processor by default ([#1792](https://github.com/Arize-ai/openinference/issues/1792))
+
+### Features
+
+* set openinference processor as the exclusive processor by default ([#1792](https://github.com/Arize-ai/openinference/issues/1792)) ([d56abb1](https://github.com/Arize-ai/openinference/commit/d56abb1935aa4a96925214c39cef045381ab9b15))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.13...python-openinference-instrumentation-openai-agents-v0.1.14) (2025-05-30)
 
 
