@@ -14,6 +14,10 @@ from openinference.instrumentation.mistralai._chat_wrapper import (
     _AsyncStreamChatWrapper,
     _SyncChatWrapper,
 )
+from openinference.instrumentation.mistralai._ocr_wrapper import (
+    _AsyncOCRWrapper,
+    _SyncOCRWrapper,
+)
 from openinference.instrumentation.mistralai.package import _instruments
 from openinference.instrumentation.mistralai.version import __version__
 
@@ -38,6 +42,8 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_sync_stream_agent_method",
         "_original_async_agent_method",
         "_original_async_stream_agent_method",
+        "_original_sync_ocr_method",
+        "_original_async_ocr_method",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -59,6 +65,12 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
             import mistralai
             from mistralai.agents import Agents
             from mistralai.chat import Chat
+
+            Ocr: Any = None
+            try:
+                from mistralai.ocr import Ocr
+            except ImportError:
+                print("Outdated version of mistralai: currently version does not support Ocr")
         except ImportError as err:
             raise Exception(
                 "Could not import mistralai. Please install with `pip install mistralai`."
@@ -72,6 +84,10 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_sync_stream_agent_method = Agents.stream
         self._original_async_agent_method = Agents.complete_async
         self._original_async_stream_agent_method = Agents.stream_async
+        if Ocr is not None:
+            self._original_sync_ocr_method = Ocr.process
+            self._original_async_ocr_method = Ocr.process_async
+
         wrap_function_wrapper(
             module="mistralai.chat",
             name="Chat.complete",
@@ -120,6 +136,20 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_AsyncStreamChatWrapper("MistralAsyncClient.agents", self._tracer, mistralai),
         )
 
+        # Instrument OCR methods
+        if Ocr is not None:
+            wrap_function_wrapper(
+                module="mistralai.ocr",
+                name="Ocr.process",
+                wrapper=_SyncOCRWrapper("MistralClient.ocr", self._tracer, mistralai),
+            )
+
+            wrap_function_wrapper(
+                module="mistralai.ocr",
+                name="Ocr.process_async",
+                wrapper=_AsyncOCRWrapper("MistralAsyncClient.ocr", self._tracer, mistralai),
+            )
+
     def _uninstrument(self, **kwargs: Any) -> None:
         from mistralai.agents import Agents
         from mistralai.chat import Chat
@@ -132,3 +162,11 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         Agents.stream = self._original_sync_stream_agent_method  # type: ignore
         Agents.complete_async = self._original_async_agent_method  # type: ignore
         Agents.stream_async = self._original_async_stream_agent_method  # type: ignore
+        try:
+            from mistralai.ocr import Ocr
+
+            Ocr.process = self._original_sync_ocr_method  # type: ignore
+            Ocr.process_async = self._original_async_ocr_method  # type: ignore
+        except ImportError:
+            # OCR module not available, nothing to uninstrument
+            pass
