@@ -33,7 +33,7 @@ jobs:
     needs: find-tox-testenv
     if: ${{ needs.find-tox-testenv.outputs.list != '[]' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     continue-on-error: true
     strategy:
       fail-fast: false
