@@ -619,7 +619,7 @@ def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str
         # Normalize the provider name to match OpenInference standards
         ls_provider_lower = ls_provider.lower()
 
-        yield LLM_PROVIDER, langchain_provider_map.get(ls_provider_lower) or ls_provider_lower
+        yield LLM_PROVIDER, _LANGCHAIN_PROVIDER_MAP.get(ls_provider_lower) or ls_provider_lower
 
 
 @stop_on_exception
@@ -1006,39 +1006,63 @@ LLM_TOOLS = SpanAttributes.LLM_TOOLS
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 
+_NA = None
+
 # Map provider to system value
-provider_to_system = {
-    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+_PROVIDER_TO_SYSTEM = {
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
     "azure": OpenInferenceLLMSystemValues.OPENAI.value,
     "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
-    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "bedrock": _NA,  # TODO
+    "bedrock_converse": _NA,  # TODO
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "deepseek": _NA,  # TODO
+    "fireworks": _NA,  # TODO
     "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
     "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "groq": OpenInferenceLLMSystemValues.OPENAI.value,
+    "huggingface": _NA,  # TODO
+    "ibm": _NA,  # TODO
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "perplexity": _NA,  # TODO
+    "together": _NA,  # TODO
     "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
     "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
-    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
-    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "xai": _NA,  # TODO
 }
 
 # Map LangChain provider names to OpenInference provider values
-langchain_provider_map = {
-    "openai": OpenInferenceLLMProviderValues.OPENAI.value,
+_LANGCHAIN_PROVIDER_MAP = {
     "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
     "azure": OpenInferenceLLMProviderValues.AZURE.value,
     "azure_ai": OpenInferenceLLMProviderValues.AZURE.value,
-    "google_genai": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "azure_openai": OpenInferenceLLMProviderValues.AZURE.value,
+    "bedrock": OpenInferenceLLMProviderValues.AWS.value,
+    "bedrock_converse": OpenInferenceLLMProviderValues.AWS.value,
+    "cohere": OpenInferenceLLMProviderValues.COHERE.value,
+    "deepseek": OpenInferenceLLMProviderValues.DEEPSEEK.value,
+    "fireworks": "fireworks",
     "google": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "google_anthropic_vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "google_genai": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "google_vertexai": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "groq": "groq",
+    "huggingface": "huggingface",
+    "ibm": "ibm",
+    "mistralai": OpenInferenceLLMProviderValues.MISTRALAI.value,
+    "nvidia": "nvidia",
+    "ollama": "ollama",
+    "openai": OpenInferenceLLMProviderValues.OPENAI.value,
+    "perplexity": "perplexity",
+    "together": "together",
     "vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
     "vertexai": OpenInferenceLLMProviderValues.GOOGLE.value,
-    "cohere": OpenInferenceLLMProviderValues.COHERE.value,
-    "mistralai": OpenInferenceLLMProviderValues.MISTRALAI.value,
-    "ollama": "ollama",
-    "fireworks": "fireworks",
-    "together": "together",
-    "groq": "groq",
-    "nvidia": "nvidia",
-    "huggingface": "huggingface",
-    "bedrock": "bedrock",
+    "xai": OpenInferenceLLMProviderValues.XAI.value,
 }
 
 
@@ -1056,5 +1080,5 @@ def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
     if (meta := extra.get("metadata")) and (ls_provider := meta.get("ls_provider")):
         ls_provider_lower = ls_provider.lower()
 
-        if system := provider_to_system.get(ls_provider_lower):
+        if system := _PROVIDER_TO_SYSTEM.get(ls_provider_lower):
             yield LLM_SYSTEM, system
