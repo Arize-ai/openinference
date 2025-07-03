@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.45...python-openinference-instrumentation-langchain-v0.1.46) (2025-07-03)
+
+
+### Features
+
+* add span attributes `llm.provider` and `llm.system` to langchain instrumentation ([#1791](https://github.com/Arize-ai/openinference/issues/1791)) ([545f52d](https://github.com/Arize-ai/openinference/commit/545f52d25ce803410d92ba7f18da8bf2a8d87087))
+
 ## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.44...python-openinference-instrumentation-langchain-v0.1.45) (2025-07-02)
 
 
