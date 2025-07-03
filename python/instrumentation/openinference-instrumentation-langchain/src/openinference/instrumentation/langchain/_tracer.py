@@ -613,12 +613,8 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
 def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
     if not extra:
         return
-
-    # 1. PRIORITY: Check metadata for ls_provider (LangChain's source of truth)
     if (meta := extra.get("metadata")) and (ls_provider := meta.get("ls_provider")):
-        # Normalize the provider name to match OpenInference standards
         ls_provider_lower = ls_provider.lower()
-
         yield LLM_PROVIDER, _LANGCHAIN_PROVIDER_MAP.get(ls_provider_lower) or ls_provider_lower
 
 
@@ -1075,10 +1071,7 @@ def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]
     """
     if not extra:
         return
-
-    # Derive system from ls_provider in metadata (LangChain's source of truth)
     if (meta := extra.get("metadata")) and (ls_provider := meta.get("ls_provider")):
         ls_provider_lower = ls_provider.lower()
-
         if system := _PROVIDER_TO_SYSTEM.get(ls_provider_lower):
             yield LLM_SYSTEM, system
