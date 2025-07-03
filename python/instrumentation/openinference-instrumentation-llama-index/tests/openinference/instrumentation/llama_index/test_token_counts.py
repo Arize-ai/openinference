@@ -74,6 +74,7 @@ class TestTokenCounts:
         decode_compressed_response=True,
         before_record_request=lambda _: _.headers.clear() or _,
         before_record_response=lambda _: {**_, "headers": {}},
+        match_on=["method", "scheme", "host", "port", "path"],
     )
     def test_anthropic(
         self,
