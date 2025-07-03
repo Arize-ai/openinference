@@ -95,25 +95,20 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     try {
       const result = original.apply(client, [command]);
       
-      if (result && typeof result.then === 'function') {
-        return result.then((response: any) => {
-          this._extractInvokeModelResponseAttributes(span, response);
-          span.setStatus({ code: SpanStatusCode.OK });
-          span.end();
-          return response;
-        }).catch((error: any) => {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-          span.end();
-          throw error;
-        });
-      } else {
-        this._extractInvokeModelResponseAttributes(span, result);
+      // AWS SDK v3 send() method always returns a Promise
+      return result.then((response: any) => {
+        this._extractInvokeModelResponseAttributes(span, response);
         span.setStatus({ code: SpanStatusCode.OK });
         span.end();
-        return result;
-      }
+        return response;
+      }).catch((error: any) => {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+        span.end();
+        throw error;
+      });
     } catch (error: any) {
+      // Handle errors that occur before the Promise is returned (e.g. invalid parameters)
       span.recordException(error);
       span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
       span.end();
