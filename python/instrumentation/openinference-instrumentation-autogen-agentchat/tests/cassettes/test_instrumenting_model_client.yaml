@@ -1,0 +1,25 @@
+interactions:
+- request:
+    body: '{"messages":[{"name":"user","role":"user","content":"What is the capital
+      of France?"}],"model":"gpt-4o-2024-08-06","stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BiUahe3FXVBwz1ixoH99GEWRmFsJ8\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1749943723,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"The capital of France is Paris.\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        15,\n    \"completion_tokens\": 7,\n    \"total_tokens\": 22,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_a288987b44\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
