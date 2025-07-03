@@ -47,6 +47,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -287,6 +289,8 @@ def _update_span(span: Span, run: Run) -> None:
                     _output_messages(run.outputs),
                     _prompt_template(run),
                     _invocation_parameters(run),
+                    _llm_provider(run.extra),
+                    _llm_system(run.extra),
                     _model_name(run.outputs, run.extra),
                     _token_counts(run.outputs),
                     _function_calls(run.outputs),
@@ -603,6 +607,15 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
         tools = invocation_parameters.get("tools", [])
         for idx, tool in enumerate(tools):
             yield f"{LLM_TOOLS}.{idx}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
+
+
+@stop_on_exception
+def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+    if not extra:
+        return
+    if (meta := extra.get("metadata")) and (ls_provider := meta.get("ls_provider")):
+        ls_provider_lower = ls_provider.lower()
+        yield LLM_PROVIDER, _LANGCHAIN_PROVIDER_MAP.get(ls_provider_lower) or ls_provider_lower
 
 
 @stop_on_exception
@@ -986,3 +999,79 @@ TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+
+_NA = None
+
+# Map provider to system value
+_PROVIDER_TO_SYSTEM = {
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "bedrock": _NA,  # TODO
+    "bedrock_converse": _NA,  # TODO
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "deepseek": _NA,  # TODO
+    "fireworks": _NA,  # TODO
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "groq": OpenInferenceLLMSystemValues.OPENAI.value,
+    "huggingface": _NA,  # TODO
+    "ibm": _NA,  # TODO
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "perplexity": _NA,  # TODO
+    "together": _NA,  # TODO
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "xai": _NA,  # TODO
+}
+
+# Map LangChain provider names to OpenInference provider values
+_LANGCHAIN_PROVIDER_MAP = {
+    "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMProviderValues.AZURE.value,
+    "azure_ai": OpenInferenceLLMProviderValues.AZURE.value,
+    "azure_openai": OpenInferenceLLMProviderValues.AZURE.value,
+    "bedrock": OpenInferenceLLMProviderValues.AWS.value,
+    "bedrock_converse": OpenInferenceLLMProviderValues.AWS.value,
+    "cohere": OpenInferenceLLMProviderValues.COHERE.value,
+    "deepseek": OpenInferenceLLMProviderValues.DEEPSEEK.value,
+    "fireworks": "fireworks",
+    "google": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "google_anthropic_vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "google_genai": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "google_vertexai": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "groq": "groq",
+    "huggingface": "huggingface",
+    "ibm": "ibm",
+    "mistralai": OpenInferenceLLMProviderValues.MISTRALAI.value,
+    "nvidia": "nvidia",
+    "ollama": "ollama",
+    "openai": OpenInferenceLLMProviderValues.OPENAI.value,
+    "perplexity": "perplexity",
+    "together": "together",
+    "vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "vertexai": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "xai": OpenInferenceLLMProviderValues.XAI.value,
+}
+
+
+@stop_on_exception
+def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+    """
+    Extract the LLM system (AI product) from the extra information in a LangChain run.
+
+    Derives the system from the ls_provider in metadata, which is LangChain's source of truth.
+    """
+    if not extra:
+        return
+    if (meta := extra.get("metadata")) and (ls_provider := meta.get("ls_provider")):
+        ls_provider_lower = ls_provider.lower()
+        if system := _PROVIDER_TO_SYSTEM.get(ls_provider_lower):
+            yield LLM_SYSTEM, system
