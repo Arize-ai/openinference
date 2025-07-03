@@ -19,7 +19,7 @@ Install required packages.
 pip install arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp opentelemetry-instrumentation-openai
 ```
 
-Start Phoenix in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address. (Phoenix does not send data over the internet. It only operates locally on your machine.)
+Start Phoenix in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address.
 
 ```shell
 phoenix serve
