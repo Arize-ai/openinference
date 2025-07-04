@@ -584,23 +584,23 @@ class _FunctionCallWrapper:
         ) as span:
             response = wrapped(*args, **kwargs)
 
-            match response.status:
-                case "success":
-                    function_result = function_call.result
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attributes(
-                        dict(
-                            _output_value_and_mime_type_for_tool_span(
-                                result=function_result,
-                            )
+            if response.status == "success":
+                function_result = function_call.result
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(
+                    dict(
+                        _output_value_and_mime_type_for_tool_span(
+                            result=function_result,
                         )
                     )
-                case "error":
-                    function_error_message = function_call.error
-                    span.set_status(trace_api.StatusCode.ERROR, function_error_message)
-                    span.set_attributes(OUTPUT_VALUE, function_error_message)
-                case _:
-                    span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+                )
+            elif response.status == "failure":
+                function_error_message = function_call.error
+                span.set_status(trace_api.StatusCode.ERROR, function_error_message)
+                span.set_attributes(OUTPUT_VALUE, function_error_message)
+            else:
+                span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+
         return response
 
     async def arun(
@@ -630,23 +630,24 @@ class _FunctionCallWrapper:
             },
         ) as span:
             response = await wrapped(*args, **kwargs)
-            match response.status:
-                case "success":
-                    function_result = function_call.result
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attributes(
-                        dict(
-                            _output_value_and_mime_type_for_tool_span(
-                                result=function_result,
-                            )
+
+            if response.status == "success":
+                function_result = function_call.result
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(
+                    dict(
+                        _output_value_and_mime_type_for_tool_span(
+                            result=function_result,
                         )
                     )
-                case "error":
-                    function_error_message = function_call.error
-                    span.set_status(trace_api.StatusCode.ERROR, function_error_message)
-                    span.set_attributes(OUTPUT_VALUE, function_error_message)
-                case _:
-                    span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+                )
+            elif response.status == "failure":
+                function_error_message = function_call.error
+                span.set_status(trace_api.StatusCode.ERROR, function_error_message)
+                span.set_attributes(OUTPUT_VALUE, function_error_message)
+            else:
+                span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+
         return response
 
 
