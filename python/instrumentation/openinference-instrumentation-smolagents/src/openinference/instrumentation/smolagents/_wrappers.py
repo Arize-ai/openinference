@@ -165,7 +165,10 @@ class _StepWrapper:
             step_log = args[0]  # ActionStep
             span.set_attribute(OUTPUT_VALUE, step_log.observations)
             if step_log.error is not None:
-                span.record_exception(step_log.error)
+                span.add_event(
+                    name="agent.step_recovery",
+                    attributes=step_log.error.dict()
+                )
             span.set_status(trace_api.StatusCode.OK)
         return result
 
