@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 2.3.0
+
+### Minor Changes
+
+- aaed014: fix: Increase opentelemetry/api peer dependency ranges for compatibility with vercel ai
+
 ## 2.2.2
 
 ### Patch Changes
