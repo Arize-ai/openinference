@@ -71,13 +71,67 @@ describe("BedrockInstrumentation", () => {
     await provider.shutdown();
   });
 
-  // Generate recording file path based on test name
-  const getRecordingPath = (testName: string) => {
+  // Helper function to create sanitized recording path
+  const createRecordingPath = (testName: string) => {
     const sanitizedName = testName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
     return path.join(__dirname, "recordings", `${sanitizedName}.json`);
+  };
+
+  // Generate recording file path based on test name
+  const getRecordingPath = (testName: string) => {
+    return createRecordingPath(testName);
+  };
+
+  // Helper function to load mock response from recording file
+  const loadRecordingResponse = (recordingPath: string) => {
+    if (!fs.existsSync(recordingPath)) {
+      return null;
+    }
+    
+    try {
+      const recordingData = JSON.parse(fs.readFileSync(recordingPath, "utf8"));
+      return recordingData[0]?.response || null;
+    } catch (error) {
+      console.warn(`Failed to load recording from ${recordingPath}:`, error);
+      return null;
+    }
+  };
+
+  // Helper function to create nock mock for Bedrock API
+  const createNockMock = (mockResponse: any) => {
+    nock("https://bedrock-runtime.us-east-1.amazonaws.com")
+      .post(`/model/${encodeURIComponent(TEST_MODEL_ID)}/invoke`)
+      .reply(200, mockResponse);
+  };
+
+  // Helper function to sanitize auth headers in recordings
+  const sanitizeAuthHeaders = (recordings: any[]) => {
+    recordings.forEach((recording: any) => {
+      if (recording.reqheaders) {
+        Object.assign(recording.reqheaders, MOCK_AUTH_HEADERS);
+      }
+    });
+  };
+
+  // Helper function to verify response structure
+  const verifyResponseStructure = (result: any) => {
+    expect(result.body).toBeDefined();
+    expect(result.contentType).toBe("application/json");
+  };
+
+  // Helper function to verify basic span structure and return the span
+  const verifySpanBasics = (spanExporter: InMemorySpanExporter) => {
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    
+    const span = spans[0];
+    expect(span.name).toBe("bedrock.invoke_model");
+    expect(span.kind).toBe(SpanKind.CLIENT);
+    
+    return span;
   };
 
   // Helper function for tests to set up their specific recording
@@ -87,20 +141,34 @@ describe("BedrockInstrumentation", () => {
     
     if (!isRecordingMode) {
       // Replay mode: create mock from test-specific recording
-      const mockResponse = fs.existsSync(recordingsPath) ? 
-        JSON.parse(fs.readFileSync(recordingsPath, "utf8"))[0].response : 
-        null;
+      const mockResponse = loadRecordingResponse(recordingsPath);
         
       if (mockResponse) {
         console.log(`Creating mock from sanitized recording: ${path.basename(recordingsPath)}`);
-        
-        nock("https://bedrock-runtime.us-east-1.amazonaws.com")
-          .post(`/model/${encodeURIComponent(TEST_MODEL_ID)}/invoke`)
-          .reply(200, mockResponse);
+        createNockMock(mockResponse);
       } else {
         console.log(`No recordings found at ${recordingsPath}`);
       }
     }
+  };
+
+  // Helper function to create test client with consistent configuration
+  const createTestClient = () => {
+    return new BedrockRuntimeClient({ 
+      region: "us-east-1",
+      credentials: isRecordingMode ? {
+        // Recording mode: use real credentials from environment
+        ...VALID_AWS_CREDENTIALS,
+      } : {
+        // Replay mode: use mock credentials that match sanitized recordings
+        ...MOCK_AWS_CREDENTIALS,
+      },
+      // Disable connection reuse to ensure nock can intercept properly
+      requestHandler: {
+        connectionTimeout: 1000,
+        requestTimeout: 5000,
+      }
+    });
   };
 
   beforeEach(() => {
@@ -136,11 +204,7 @@ describe("BedrockInstrumentation", () => {
       console.log(`Captured ${recordings.length} recordings for test: ${currentTestName}`);
       if (recordings.length > 0) {
         // Sanitize auth headers - replace with mock credentials for replay compatibility
-        recordings.forEach((recording: any) => {
-          if (recording.reqheaders) {
-            Object.assign(recording.reqheaders, MOCK_AUTH_HEADERS);
-          }
-        });
+        sanitizeAuthHeaders(recordings);
         
         const recordingsDir = path.dirname(recordingsPath);
         if (!fs.existsSync(recordingsDir)) {
@@ -160,21 +224,7 @@ describe("BedrockInstrumentation", () => {
     it("should create spans for InvokeModel calls", async () => {
       setupTestRecording("should create spans for InvokeModel calls");
 
-      const client = new BedrockRuntimeClient({ 
-        region: "us-east-1",
-        credentials: isRecordingMode ? {
-          // Recording mode: use real credentials from environment
-          ...VALID_AWS_CREDENTIALS,
-        } : {
-          // Replay mode: use mock credentials that match sanitized recordings
-          ...MOCK_AWS_CREDENTIALS,
-        },
-        // Disable connection reuse to ensure nock can intercept properly
-        requestHandler: {
-          connectionTimeout: 1000,
-          requestTimeout: 5000,
-        }
-      });
+      const client = createTestClient();
 
       const command = new InvokeModelCommand({
         modelId: TEST_MODEL_ID,
@@ -193,17 +243,9 @@ describe("BedrockInstrumentation", () => {
       });
 
       const result = await client.send(command);
-      // Verify the response structure
-      expect(result.body).toBeDefined();
-      expect(result.contentType).toBe("application/json");
+      verifyResponseStructure(result);
       
-      // Verify spans were created
-      const spans = spanExporter.getFinishedSpans();
-      expect(spans).toHaveLength(1);
-      
-      const span = spans[0];
-      expect(span.name).toBe("bedrock.invoke_model");
-      expect(span.kind).toBe(SpanKind.CLIENT);
+      const span = verifySpanBasics(spanExporter);
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
@@ -241,21 +283,7 @@ describe("BedrockInstrumentation", () => {
         }
       };
 
-      const client = new BedrockRuntimeClient({ 
-        region: "us-east-1",
-        credentials: isRecordingMode ? {
-          // Recording mode: use real credentials from environment
-          ...VALID_AWS_CREDENTIALS,
-        } : {
-          // Replay mode: use mock credentials that match sanitized recordings
-          ...MOCK_AWS_CREDENTIALS,
-        },
-        // Disable connection reuse to ensure nock can intercept properly
-        requestHandler: {
-          connectionTimeout: 1000,
-          requestTimeout: 5000,
-        }
-      });
+      const client = createTestClient();
 
       const command = new InvokeModelCommand({
         modelId: TEST_MODEL_ID,
@@ -275,18 +303,9 @@ describe("BedrockInstrumentation", () => {
       });
 
       const result = await client.send(command);
+      verifyResponseStructure(result);
       
-      // Verify the response structure
-      expect(result.body).toBeDefined();
-      expect(result.contentType).toBe("application/json");
-      
-      // Verify spans were created
-      const spans = spanExporter.getFinishedSpans();
-      expect(spans).toHaveLength(1);
-      
-      const span = spans[0];
-      expect(span.name).toBe("bedrock.invoke_model");
-      expect(span.kind).toBe(SpanKind.CLIENT);
+      const span = verifySpanBasics(spanExporter);
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
