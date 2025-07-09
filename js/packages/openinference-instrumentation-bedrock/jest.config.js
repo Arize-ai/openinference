@@ -7,4 +7,6 @@ module.exports = {
     "src/**/*.ts",
     "!src/**/*.d.ts",
   ],
+  // Configure prettier to avoid Prettier 3.0+ inline snapshot issues
+  prettierPath: null,
 };

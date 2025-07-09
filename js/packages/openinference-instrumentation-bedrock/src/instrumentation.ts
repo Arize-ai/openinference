@@ -151,6 +151,22 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       });
     }
 
+    // Add input tools from request if present
+    if (requestBody.tools && Array.isArray(requestBody.tools)) {
+      requestBody.tools.forEach((tool: any, index: number) => {
+        // Convert Bedrock tool format to OpenAI format for consistent schema
+        const openAIToolFormat = {
+          type: "function",
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.input_schema
+          }
+        };
+        attributes[`${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`] = JSON.stringify(openAIToolFormat);
+      });
+    }
+
     // Add invocation parameters for model configuration
     const invocationParams: Record<string, any> = {};
     if (requestBody.anthropic_version) invocationParams.anthropic_version = requestBody.anthropic_version;
@@ -187,14 +203,31 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
         [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
       });
 
-      // Add structured output message attributes
+      // Add structured output message attributes and extract tool calls
       if (responseBody.content && Array.isArray(responseBody.content)) {
+        let toolCallIndex = 0;
         responseBody.content.forEach((content: any, index: number) => {
           if (content.type === 'text') {
             span.setAttributes({
               [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]: 'assistant',
               [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]: content.text,
             });
+          } else if (content.type === 'tool_use') {
+            // Extract tool call attributes following OpenAI pattern
+            const toolCallAttributes: Record<string, string> = {};
+            
+            if (content.name) {
+              toolCallAttributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
+            }
+            if (content.input) {
+              toolCallAttributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = JSON.stringify(content.input);
+            }
+            if (content.id) {
+              toolCallAttributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`] = content.id;
+            }
+            
+            span.setAttributes(toolCallAttributes);
+            toolCallIndex++;
           }
         });
       }
