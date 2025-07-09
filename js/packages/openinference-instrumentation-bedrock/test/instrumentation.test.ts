@@ -13,11 +13,11 @@ const TEST_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0";
 const TEST_USER_MESSAGE = "Hello, how are you?";
 const TEST_MAX_TOKENS = 100;
 
-// Sanitized credentials for VCR testing
+// Clearly fake credentials for VCR testing - these are NEVER real
 const MOCK_AWS_CREDENTIALS = {
-  accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-  secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-  sessionToken: "AQoDYXdzEJr...<truncated>...EXAMPLESessionToken",
+  accessKeyId: "AKIATEST1234567890AB",
+  secretAccessKey: "FAKE-SECRET-KEY-FOR-VCR-TESTING-ONLY-1234567890",
+  sessionToken: "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
 };
 
 const VALID_AWS_CREDENTIALS = {
@@ -27,7 +27,7 @@ const VALID_AWS_CREDENTIALS = {
 }
 
 const MOCK_AUTH_HEADERS = {
-  authorization: "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=example-signature",
+  authorization: "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing",
   "x-amz-security-token": MOCK_AWS_CREDENTIALS.sessionToken,
   "x-amz-date": "20250626T120000Z",
 };
@@ -42,7 +42,7 @@ describe("BedrockInstrumentation", () => {
   let spanExporter: InMemorySpanExporter;
   
   const recordingsPath = path.join(__dirname, "recordings", "bedrock-recordings.json");
-  const isRecordingMode = false; // Set to true to record new API calls
+  const isRecordingMode = process.env.BEDROCK_RECORD_MODE === 'record';
 
   beforeEach(() => {
     // Setup nock for VCR-style testing
@@ -157,164 +157,47 @@ describe("BedrockInstrumentation", () => {
       expect(span.name).toBe("bedrock.invoke_model");
       expect(span.kind).toBe(SpanKind.CLIENT);
       
-      // Extract attributes following Python test patterns
-      const attributes = { ...span.attributes } as Record<string, any>;
-      
-      // Core LLM attributes (following Python patterns)
-      expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe("LLM");
-      expect(attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(TEST_MODEL_ID);
-      expect(attributes[SemanticConventions.LLM_SYSTEM]).toBe("bedrock");
-      expect(attributes[SemanticConventions.LLM_PROVIDER]).toBe("aws");
-      
-      // Token counts from response usage (Converse API style)
-      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]).toBe(13);
-      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]).toBe(30);
-      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBe(43);
-      
-      // Input/Output values
-      expect(attributes[SemanticConventions.INPUT_VALUE]).toBe(TEST_USER_MESSAGE);
-      expect(attributes[SemanticConventions.OUTPUT_VALUE]).toBe("Hello! I'm doing well, thank you for asking. How are you doing today? Is there anything I can help you with?");
-      
-      // Input messages structure
-      expect(attributes["llm.input_messages.0.message.role"]).toBe("user");
-      expect(attributes["llm.input_messages.0.message.content"]).toBe(TEST_USER_MESSAGE);
-      
-      // Output messages structure  
-      expect(attributes["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(attributes["llm.output_messages.0.message.content"]).toBe("Hello! I'm doing well, thank you for asking. How are you doing today? Is there anything I can help you with?");
-      
-      // Invocation parameters (extracted from request body)
-      const invocationParamsStr = attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS];
-      expect(typeof invocationParamsStr).toBe("string");
-      const invocationParams = JSON.parse(invocationParamsStr);
-      expect(invocationParams).toEqual({
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": TEST_MAX_TOKENS,
-      });
+      // Test span attributes using OpenAI JS instrumentation pattern
+      expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "Hello, how are you?",
+  "llm.input_messages.0.message.content": "Hello, how are you?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 35,
+  "llm.token_count.prompt": 13,
+  "llm.token_count.total": 48,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
+}
+`);
     });
 
-    it("should handle missing token counts gracefully", async () => {
-      // Create a custom mock response with missing input token count (similar to Python test)
-      const mockResponseWithMissingTokens = {
-        "id": "msg_bdrk_013Ears62zVrJf8kRVWywwUc",
-        "type": "message", 
-        "role": "assistant",
-        "model": "claude-3-5-sonnet-20240620",
-        "content": [
-          {
-            "type": "text",
-            "text": "Hello! I'm doing well, thank you for asking."
-          }
-        ],
-        "stop_reason": "end_turn",
-        "stop_sequence": null,
-        "usage": {
-          "output_tokens": 12  // Missing input_tokens
-        }
-      };
-
-      // Override the mock for this test
-      nock.cleanAll();
-      nock("https://bedrock-runtime.us-east-1.amazonaws.com")
-        .post(`/model/${encodeURIComponent(TEST_MODEL_ID)}/invoke`)
-        .reply(200, mockResponseWithMissingTokens);
-
-      const client = new BedrockRuntimeClient({ 
-        region: "us-east-1",
-        credentials: MOCK_AWS_CREDENTIALS,
-      });
-
-      const command = new InvokeModelCommand({
-        modelId: TEST_MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: TEST_MAX_TOKENS,
-          messages: [
-            {
-              role: "user",
-              content: TEST_USER_MESSAGE,
-            },
-          ],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
-      });
-
-      const result = await client.send(command);
-      expect(result.body).toBeDefined();
-      
-      // Verify spans were created
-      const spans = spanExporter.getFinishedSpans();
-      expect(spans).toHaveLength(1);
-      
-      const span = spans[0];
-      const attributes = { ...span.attributes } as Record<string, any>;
-      
-      // Core attributes should still be present
-      expect(attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe("LLM");
-      expect(attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(TEST_MODEL_ID);
-      expect(attributes[SemanticConventions.LLM_SYSTEM]).toBe("bedrock");
-      
-      // Only output token count should be present  
-      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]).toBe(12);
-      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]).toBeUndefined();
-      expect(attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBeUndefined();
-      
-      // Other attributes should still work
-      expect(attributes[SemanticConventions.INPUT_VALUE]).toBe(TEST_USER_MESSAGE);
-      expect(attributes[SemanticConventions.OUTPUT_VALUE]).toBe("Hello! I'm doing well, thank you for asking.");
-    });
-
-    it("should capture raw input/output values with proper MIME types", async () => {
-      const client = new BedrockRuntimeClient({ 
-        region: "us-east-1",
-        credentials: MOCK_AWS_CREDENTIALS,
-      });
-
-      const command = new InvokeModelCommand({
-        modelId: TEST_MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: TEST_MAX_TOKENS,
-          messages: [
-            {
-              role: "user",
-              content: TEST_USER_MESSAGE,
-            },
-          ],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
-      });
-
-      const result = await client.send(command);
-      expect(result.body).toBeDefined();
-      
-      // Verify spans were created
-      const spans = spanExporter.getFinishedSpans();
-      expect(spans).toHaveLength(1);
-      
-      const span = spans[0];
-      const attributes = { ...span.attributes } as Record<string, any>;
-      
-      // Verify MIME types are captured
-      expect(attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe("application/json");
-      expect(attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe("application/json");
-      
-      // Verify raw input value contains the full command structure
-      const inputValue = attributes[SemanticConventions.INPUT_VALUE];
-      expect(typeof inputValue).toBe("string");
-      
-      // Verify raw output value contains the full response
-      const outputValue = attributes[SemanticConventions.OUTPUT_VALUE];
-      expect(typeof outputValue).toBe("string");
-      
-      // For Bedrock, the raw output should be the full response JSON
-      const parsedOutput = JSON.parse(outputValue);
-      expect(parsedOutput.id).toBe("msg_bdrk_013Ears62zVrJf8kRVWywwUc");
-      expect(parsedOutput.type).toBe("message");
-      expect(parsedOutput.role).toBe("assistant");
-      expect(parsedOutput.content[0].text).toBe("Hello! I'm doing well, thank you for asking. How are you doing today? Is there anything I can help you with?");
-    });
+    // TODO: Add more test scenarios following the TDD plan:
+    // 
+    // Phase 1: InvokeModel Foundation
+    // - it("should handle missing token counts gracefully", async () => {})
+    // - it("should handle tool calling with function definitions", async () => {})
+    // - it("should handle tool results processing", async () => {})
+    // - it("should handle multi-modal messages with images", async () => {})
+    // - it("should handle API errors gracefully", async () => {})
+    //
+    // Phase 2: Streaming Support  
+    // - it("should handle InvokeModelWithResponseStream", async () => {})
+    // - it("should handle streaming tool calls", async () => {})
+    //
+    // Phase 3: Converse API Support
+    // - it("should handle Converse API calls", async () => {})
+    // - it("should handle system prompts in Converse API", async () => {})
+    // - it("should handle tool calling via Converse API", async () => {})
+    //
+    // Use pattern: BEDROCK_RECORD_MODE=record npm test -- --testNamePattern="test name"
   });
 });

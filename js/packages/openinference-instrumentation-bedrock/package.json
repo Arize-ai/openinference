@@ -17,7 +17,10 @@
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "jest ."
+    "test": "jest .",
+    "test:record": "node scripts/record-helper.js && npm test",
+    "test:clear-recordings": "node scripts/clear-recordings.js",
+    "test:validate-recordings": "node scripts/validate-recordings.js"
   },
   "exports": {
     ".": {
