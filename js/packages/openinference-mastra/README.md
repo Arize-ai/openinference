@@ -71,7 +71,7 @@ npm create mastra@latest
 cd chosen-project-name
 npm install --save @arizeai/openinference-mastra
 # export some variables for mastra to use later on
-export PHOENIX_COLLECTOR_ENDPOINT="https://localhost:6006/v1/traces"
+export PHOENIX_COLLECTOR_ENDPOINT="http://localhost:6006/v1/traces"
 export PHOENIX_API_KEY="your-api-key"
 export OPENAI_API_KEY="your-openai-api-key"
 ```
