@@ -31,7 +31,7 @@ from .middleware import create_telemetry_middleware
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("beeai-framework >= 0.1.10",)
+_instruments = ("beeai-framework >= 0.1.29",)
 try:
     __version__ = version("beeai-framework")
 except PackageNotFoundError:
@@ -42,6 +42,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_react_agent_run",
         "_original_tool_calling_agent_run",
+        "_original_requirement_agent_run",
         "_original_chat_model_create",
         "_original_chat_model_create_structure",
         "_original_tool_run",
@@ -63,6 +64,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
             from beeai_framework.agents.base import BaseAgent
             from beeai_framework.agents.react.agent import ReActAgent
             from beeai_framework.agents.tool_calling.agent import ToolCallingAgent
+            from beeai_framework.agents.experimental.agent import RequirementAgent
             from beeai_framework.backend.chat import ChatModel
             from beeai_framework.tools import Tool
 
@@ -101,6 +103,10 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
                 import_module("beeai_framework.agents.tool_calling.agent"), "run", None
             )
             setattr(ToolCallingAgent, "run", run_wrapper(ToolCallingAgent.run))
+            self._original_requirement_agent_run = getattr(
+                import_module("beeai_framework.agents.experimental.agent"), "run", None
+            )
+            setattr(RequirementAgent, "run", run_wrapper(RequirementAgent.run))
             ## LLM support
             self._original_chat_model_create = getattr(
                 import_module("beeai_framework.backend.chat"), "create", None
@@ -131,6 +137,11 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
 
             setattr(ToolCallingAgent, "run", self._original_tool_calling_agent_run)
             self._original_tool_calling_agent_run = None
+        if self._original_requirement_agent_run is not None:
+            from beeai_framework.agents.experimental.agent import RequirementAgent
+
+            setattr(RequirementAgent, "run", self._original_requirement_agent_run)
+            self._original_requirement_agent_run = None
         if self._original_chat_model_create is not None:
             from beeai_framework.backend.chat import ChatModel
 

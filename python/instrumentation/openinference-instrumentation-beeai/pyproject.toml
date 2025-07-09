@@ -7,9 +7,8 @@ name = "openinference-instrumentation-beeai"
 dynamic = ["version"]
 description = "OpenInference BeeAI Instrumentation"
 license = "Apache-2.0"
-authors = [
-    {name = "Milan Gallas",email = "gallas.milan@gmail.com"}
-]
+authors = [{ name = "IBM Corp." }]
+maintainers = [{name = "Tomas Dvorak", email = "toomas2d@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 classifiers = [
@@ -33,10 +32,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "beeai-framework >= 0.1.10",
+  "beeai-framework >= 0.1.29",
 ]
 test = [
-  "beeai-framework >= 0.1.19",
+  "beeai-framework >= 0.1.29",
   "opentelemetry-sdk"
 ]
 
