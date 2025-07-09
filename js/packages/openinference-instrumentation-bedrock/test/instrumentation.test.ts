@@ -13,6 +13,7 @@ import nock from "nock";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import * as fs from "fs";
 import * as path from "path";
+import { generateToolResultMessage } from "./helpers/test-data-generators";
 
 // Test constants
 const TEST_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0";
@@ -349,11 +350,43 @@ describe("BedrockInstrumentation", () => {
 `);
     });
 
+    it("should handle tool result responses", async () => {
+      setupTestRecording("should handle tool result responses");
+      
+      const client = createTestClient();
+      
+      // Use existing generateToolResultMessage() from test-data-generators.js
+      const testData = generateToolResultMessage({
+        initialPrompt: "What's the weather in Paris?",
+        toolUseId: "toolu_123",
+        toolName: "get_weather",
+        toolInput: { location: "Paris, France" },
+        toolResult: "The weather in Paris is currently 22°C and sunny.",
+        followupPrompt: "Great! What should I wear?"
+      });
+      
+      const command = new InvokeModelCommand({
+        modelId: testData.modelId,
+        body: testData.body,
+        contentType: "application/json",
+        accept: "application/json",
+      });
+      
+      const result = await client.send(command);
+      verifyResponseStructure(result);
+      
+      const span = verifySpanBasics(spanExporter);
+      
+      // Verify tool result processing attributes
+      expect(span.attributes).toMatchInlineSnapshot(`
+        // Will be filled by Jest after running test
+      `);
+    });
+
     // TODO: Add more test scenarios following the TDD plan:
     //
     // Phase 1: InvokeModel Foundation
     // - it("should handle missing token counts gracefully", async () => {})
-    // - it("should handle tool results processing", async () => {})
     // - it("should handle multi-modal messages with images", async () => {})
     // - it("should handle API errors gracefully", async () => {})
     //
