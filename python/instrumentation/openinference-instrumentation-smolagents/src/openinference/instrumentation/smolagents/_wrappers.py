@@ -16,7 +16,7 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-from smolagents.utils import (
+from smolagents.utils import (  # type: ignore[import-untyped]
     AgentToolCallError,
     AgentToolExecutionError,
 )
