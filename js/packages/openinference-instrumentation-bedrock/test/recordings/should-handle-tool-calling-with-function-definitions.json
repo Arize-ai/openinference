@@ -18,9 +18,7 @@
                 "description": "The city and state"
               }
             },
-            "required": [
-              "location"
-            ]
+            "required": ["location"]
           }
         }
       ],
