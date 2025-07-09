@@ -194,11 +194,11 @@ function generateToolResultMessage(options = {}) {
             tool_use_id: toolUseId,
             content: toolResult,
           },
+          {
+            type: "text",
+            text: followupPrompt,
+          },
         ],
-      },
-      {
-        role: "user",
-        content: followupPrompt,
       },
     ],
   };
