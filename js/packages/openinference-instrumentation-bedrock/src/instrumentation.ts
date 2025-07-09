@@ -117,11 +117,37 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
   }
 
   /**
-   * Extracts semantic convention attributes from InvokeModel request command
+   * Extracts base request attributes (model, system, provider, invocation parameters)
    */
-  private _extractInvokeModelRequestAttributes(command: any): Record<string, any> {
+  private _extractBaseRequestAttributes(command: any): Record<string, any> {
     const modelId = command.input?.modelId || 'unknown';
     const requestBody = command.input?.body ? JSON.parse(command.input.body) : {};
+    
+    const attributes: Record<string, any> = {
+      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      [SemanticConventions.LLM_SYSTEM]: 'bedrock',
+      [SemanticConventions.LLM_MODEL_NAME]: modelId,
+      [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+      [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
+    };
+
+    // Add invocation parameters for model configuration
+    const invocationParams: Record<string, any> = {};
+    if (requestBody.anthropic_version) invocationParams.anthropic_version = requestBody.anthropic_version;
+    if (requestBody.max_tokens) invocationParams.max_tokens = requestBody.max_tokens;
+    
+    if (Object.keys(invocationParams).length > 0) {
+      attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] = JSON.stringify(invocationParams);
+    }
+
+    return attributes;
+  }
+
+  /**
+   * Extracts input messages attributes from request body
+   */
+  private _extractInputMessagesAttributes(requestBody: any): Record<string, any> {
+    const attributes: Record<string, any> = {};
     
     // Extract user's message text as primary input value
     let inputValue = '';
@@ -132,14 +158,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       }
     }
     
-    const attributes: Record<string, any> = {
-      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-      [SemanticConventions.LLM_SYSTEM]: 'bedrock',
-      [SemanticConventions.LLM_MODEL_NAME]: modelId,
-      [SemanticConventions.INPUT_VALUE]: inputValue,
-      [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-      [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
-    };
+    attributes[SemanticConventions.INPUT_VALUE] = inputValue;
 
     // Add structured input message attributes
     if (requestBody.messages && Array.isArray(requestBody.messages)) {
@@ -150,6 +169,15 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
         }
       });
     }
+
+    return attributes;
+  }
+
+  /**
+   * Extracts input tool attributes from request body
+   */
+  private _extractInputToolAttributes(requestBody: any): Record<string, any> {
+    const attributes: Record<string, any> = {};
 
     // Add input tools from request if present
     if (requestBody.tools && Array.isArray(requestBody.tools)) {
@@ -167,16 +195,107 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       });
     }
 
-    // Add invocation parameters for model configuration
-    const invocationParams: Record<string, any> = {};
-    if (requestBody.anthropic_version) invocationParams.anthropic_version = requestBody.anthropic_version;
-    if (requestBody.max_tokens) invocationParams.max_tokens = requestBody.max_tokens;
+    return attributes;
+  }
+
+  /**
+   * Extracts semantic convention attributes from InvokeModel request command
+   */
+  private _extractInvokeModelRequestAttributes(command: any): Record<string, any> {
+    const requestBody = command.input?.body ? JSON.parse(command.input.body) : {};
     
-    if (Object.keys(invocationParams).length > 0) {
-      attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] = JSON.stringify(invocationParams);
-    }
+    // Start with base attributes
+    const attributes = this._extractBaseRequestAttributes(command);
+    
+    // Add input messages attributes
+    Object.assign(attributes, this._extractInputMessagesAttributes(requestBody));
+
+    // Add input tool attributes
+    Object.assign(attributes, this._extractInputToolAttributes(requestBody));
 
     return attributes;
+  }
+
+  /**
+   * Extracts output messages attributes from response body
+   */
+  private _extractOutputMessagesAttributes(responseBody: any, span: Span) {
+    // Extract assistant's message text as primary output value
+    let outputValue = '';
+    if (responseBody.content && Array.isArray(responseBody.content)) {
+      const textContent = responseBody.content.find((content: any) => content.type === 'text');
+      if (textContent && textContent.text) {
+        outputValue = textContent.text;
+      }
+    }
+    
+    span.setAttributes({
+      [SemanticConventions.OUTPUT_VALUE]: outputValue,
+      [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+    });
+
+    // Add structured output message attributes for text content
+    if (responseBody.content && Array.isArray(responseBody.content)) {
+      responseBody.content.forEach((content: any, index: number) => {
+        if (content.type === 'text') {
+          span.setAttributes({
+            [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]: 'assistant',
+            [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]: content.text,
+          });
+        }
+      });
+    }
+  }
+
+  /**
+   * Extracts tool call attributes from response body
+   */
+  private _extractToolCallAttributes(responseBody: any, span: Span) {
+    if (responseBody.content && Array.isArray(responseBody.content)) {
+      let toolCallIndex = 0;
+      responseBody.content.forEach((content: any, index: number) => {
+        if (content.type === 'tool_use') {
+          // Extract tool call attributes following OpenAI pattern
+          const toolCallAttributes: Record<string, string> = {};
+          
+          if (content.name) {
+            toolCallAttributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
+          }
+          if (content.input) {
+            toolCallAttributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = JSON.stringify(content.input);
+          }
+          if (content.id) {
+            toolCallAttributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`] = content.id;
+          }
+          
+          span.setAttributes(toolCallAttributes);
+          toolCallIndex++;
+        }
+      });
+    }
+  }
+
+  /**
+   * Extracts usage attributes from response body
+   */
+  private _extractUsageAttributes(responseBody: any, span: Span) {
+    // Add token usage metrics
+    if (responseBody.usage) {
+      const tokenAttributes: Record<string, number> = {};
+      
+      if (responseBody.usage.input_tokens) {
+        tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = responseBody.usage.input_tokens;
+      }
+      if (responseBody.usage.output_tokens) {
+        tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = responseBody.usage.output_tokens;
+      }
+      if (responseBody.usage.input_tokens && responseBody.usage.output_tokens) {
+        tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = 
+          responseBody.usage.input_tokens + responseBody.usage.output_tokens;
+      }
+      
+      span.setAttributes(tokenAttributes);
+    }
   }
 
   /**
@@ -189,66 +308,14 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       const responseText = new TextDecoder().decode(response.body);
       const responseBody = JSON.parse(responseText);
       
-      // Extract assistant's message text as primary output value
-      let outputValue = '';
-      if (responseBody.content && Array.isArray(responseBody.content)) {
-        const textContent = responseBody.content.find((content: any) => content.type === 'text');
-        if (textContent && textContent.text) {
-          outputValue = textContent.text;
-        }
-      }
-      
-      span.setAttributes({
-        [SemanticConventions.OUTPUT_VALUE]: outputValue,
-        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-      });
+      // Extract output messages attributes
+      this._extractOutputMessagesAttributes(responseBody, span);
 
-      // Add structured output message attributes and extract tool calls
-      if (responseBody.content && Array.isArray(responseBody.content)) {
-        let toolCallIndex = 0;
-        responseBody.content.forEach((content: any, index: number) => {
-          if (content.type === 'text') {
-            span.setAttributes({
-              [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]: 'assistant',
-              [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]: content.text,
-            });
-          } else if (content.type === 'tool_use') {
-            // Extract tool call attributes following OpenAI pattern
-            const toolCallAttributes: Record<string, string> = {};
-            
-            if (content.name) {
-              toolCallAttributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
-            }
-            if (content.input) {
-              toolCallAttributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = JSON.stringify(content.input);
-            }
-            if (content.id) {
-              toolCallAttributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`] = content.id;
-            }
-            
-            span.setAttributes(toolCallAttributes);
-            toolCallIndex++;
-          }
-        });
-      }
+      // Extract tool call attributes
+      this._extractToolCallAttributes(responseBody, span);
 
-      // Add token usage metrics
-      if (responseBody.usage) {
-        const tokenAttributes: Record<string, number> = {};
-        
-        if (responseBody.usage.input_tokens) {
-          tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = responseBody.usage.input_tokens;
-        }
-        if (responseBody.usage.output_tokens) {
-          tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = responseBody.usage.output_tokens;
-        }
-        if (responseBody.usage.input_tokens && responseBody.usage.output_tokens) {
-          tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = 
-            responseBody.usage.input_tokens + responseBody.usage.output_tokens;
-        }
-        
-        span.setAttributes(tokenAttributes);
-      }
+      // Extract usage attributes
+      this._extractUsageAttributes(responseBody, span);
     } catch (error) {
       diag.warn('Failed to extract InvokeModel response attributes:', error);
     }
