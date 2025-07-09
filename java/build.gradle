@@ -1,10 +1,12 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
+    id 'org.jreleaser' version '1.19.0'
 }
 
 allprojects {
-    group = 'io.openinference'
+    group = 'com.arize'
     version = '0.1.0-SNAPSHOT'
 
     repositories {
@@ -15,6 +17,7 @@ allprojects {
 subprojects {
     apply plugin: 'java-library'
     apply plugin: 'maven-publish'
+    apply plugin: 'signing'
 
     java {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -69,40 +72,114 @@ subprojects {
             options.addBooleanOption('html5', true)
         }
     }
-
+    
     // Publishing configuration
     publishing {
         publications {
             maven(MavenPublication) {
                 from components.java
-
+                
+                // Ensure dependency versions are resolved in POM
+                versionMapping {
+                    usage('java-api') {
+                        fromResolutionOf('runtimeClasspath')
+                    }
+                    usage('java-runtime') {
+                        fromResolutionResult()
+                    }
+                }
+                
                 pom {
                     name = project.name
-                    description = project.description ?: 'OpenInference instrumentation for Java'
-                    url = 'https://github.com/openinference/openinference'
+                    description = project.description ?: 'OpenInference Java Library'
+                    url = 'https://github.com/Arize-ai/openinference'
                     
                     licenses {
                         license {
-                            name = 'Apache License, Version 2.0'
-                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                            name = 'The Apache License, Version 2.0'
+                            url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
                         }
                     }
                     
                     developers {
                         developer {
-                            name = 'OpenInference Contributors'
-                            organization = 'OpenInference'
-                            organizationUrl = 'https://github.com/openinference'
+                            id = 'arize'
+                            name = 'Arize AI'
+                            email = 'support@arize.com'
+                            organization = 'Arize AI'
+                            organizationUrl = 'https://arize.com'
                         }
                     }
                     
                     scm {
-                        connection = 'scm:git:git://github.com/openinference/openinference.git'
-                        developerConnection = 'scm:git:ssh://github.com:openinference/openinference.git'
-                        url = 'https://github.com/openinference/openinference/tree/main'
+                        connection = 'scm:git:git://github.com/Arize-ai/openinference.git'
+                        developerConnection = 'scm:git:ssh://github.com:Arize-ai/openinference.git'
+                        url = 'https://github.com/Arize-ai/openinference'
                     }
                 }
             }
         }
+        
+        repositories {
+            maven {
+                url = layout.buildDirectory.dir('staging-deploy')
+            }
+        }
     }
-} 
+    
+    // Signing configuration
+    signing {
+        required { !version.endsWith('SNAPSHOT') && gradle.taskGraph.hasTask('publish') }
+        sign publishing.publications.maven
+    }
+}
+
+// JReleaser configuration for Maven Central
+jreleaser {
+    signing {
+        active = 'ALWAYS'
+        armored = true
+        
+        // Determine mode based on available configuration
+        def hasFileKeys = findProperty('jreleaser.signing.secretKey') || System.getenv('JRELEASER_GPG_SECRETKEY')
+        mode = hasFileKeys ? 'FILE' : 'MEMORY'
+        
+        // For file mode - requires both public and secret key files
+        if (hasFileKeys) {
+            publicKey = findProperty('jreleaser.signing.publicKey') ?: System.getenv('JRELEASER_GPG_PUBLICKEY')
+            secretKey = findProperty('jreleaser.signing.secretKey') ?: System.getenv('JRELEASER_GPG_SECRETKEY')
+        }
+        // For memory mode - keys will be loaded from config.toml or environment variables
+    }
+    
+    deploy {
+        maven {
+            mavenCentral {
+                sonatype {
+                    active = 'ALWAYS'
+                    url = 'https://central.sonatype.com/api/v1/publisher'
+                    // Include all subproject staging directories
+                    stagingRepositories = [
+                        'openinference-semantic-conventions/build/staging-deploy',
+                        'openinference-instrumentation/build/staging-deploy', 
+                        'instrumentation/openinference-instrumentation-langchain4j/build/staging-deploy'
+                    ]
+                }
+            }
+            
+            /* Legacy OSSRH - uncomment if using old OSSRH account
+            nexus2 {
+                'maven-central' {
+                    active = 'ALWAYS'
+                    url = 'https://s01.oss.sonatype.org/service/local'
+                    snapshotUrl = 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
+                    closeRepository = true
+                    releaseRepository = true
+                    stagingRepository('build/staging-deploy')
+                }
+            }
+            */
+        }
+    }
+}
+
