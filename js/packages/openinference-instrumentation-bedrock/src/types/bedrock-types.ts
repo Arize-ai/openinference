@@ -49,7 +49,7 @@ export interface ToolDefinition {
   input_schema: {
     type: "object";
     properties: Record<string, any>;
-    required?: string[];
+    required: string[];
   };
 }
 

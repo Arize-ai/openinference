@@ -6,6 +6,8 @@
  * multi-modal content, and different message structures.
  */
 
+import { ToolDefinition } from "../../src/types/bedrock-types";
+
 // Type definitions
 interface BasicTextMessageOptions {
   prompt?: string;
@@ -63,15 +65,6 @@ interface AgentMessageOptions {
   enableTrace?: boolean;
 }
 
-interface ToolDefinition {
-  name: string;
-  description: string;
-  input_schema: {
-    type: "object";
-    properties: Record<string, any>;
-    required: string[];
-  };
-}
 
 interface ToolSchema {
   properties: Record<string, any>;
