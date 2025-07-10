@@ -11,7 +11,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import nock from "nock";
 import * as fs from "fs";
 import * as path from "path";
-import { generateToolResultMessage } from "./helpers/test-data-generators";
+import { generateToolResultMessage, generateToolCallMessage, commonTools } from "./helpers/test-data-generators";
 import { loadRecordingData, createNockMock, sanitizeAuthHeaders, createTestClient, getRecordingPath } from "./helpers/vcr-helpers";
 import { verifyResponseStructure, verifySpanBasics } from "./helpers/test-helpers";
 import { TEST_MODEL_ID, TEST_USER_MESSAGE, TEST_MAX_TOKENS } from "./config/constants";
@@ -560,12 +560,72 @@ Honeybees can recognize human faces.",
 `);
     });
 
+    it("should handle multiple tools in single request", async () => {
+      setupTestRecording("should handle multiple tools in single request");
+
+      const client = createTestClient(isRecordingMode);
+
+      const testData = generateToolCallMessage({
+        prompt: "What's the weather in San Francisco and what's 15 * 23?",
+        tools: [
+          commonTools.weather,
+          commonTools.calculator, 
+          commonTools.webSearch
+        ]
+      });
+
+      const command = new InvokeModelCommand({
+        modelId: testData.modelId,
+        body: testData.body,
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const result = await client.send(command);
+      verifyResponseStructure(result);
+
+      const span = verifySpanBasics(spanExporter);
+      expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "What's the weather in San Francisco and what's 15 * 23?",
+  "llm.input_messages.0.message.content": "What's the weather in San Francisco and what's 15 * 23?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
+  "llm.model_name": "anthropic.claude-3-sonnet-20240229-v1:0",
+  "llm.output_messages.0.message.content": "Okay, let's get the weather and do that calculation.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_bdrk_01FqpV1qX3bJ4bczkdtMhdGz",
+  "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments": "{}",
+  "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": "calculate",
+  "llm.output_messages.0.message.tool_calls.1.tool_call.id": "toolu_bdrk_01KMAmxrwkK8jh8h6YNQ495y",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 435,
+  "llm.token_count.total": 535,
+  "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"get_weather","description":"Get current weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}",
+  "llm.tools.1.tool.json_schema": "{"type":"function","function":{"name":"calculate","description":"Perform mathematical calculations","parameters":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}}}",
+  "llm.tools.2.tool.json_schema": "{"type":"function","function":{"name":"web_search","description":"Search the web for information","parameters":{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"num_results":{"type":"integer","description":"Number of results to return","minimum":1,"maximum":10}},"required":["query"]}}}",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "Okay, let's get the weather and do that calculation.",
+}
+`);
+    });
+
     // TODO: Add more test scenarios following the TDD plan:
     //
-    // Phase 1: InvokeModel Foundation
-    // - it("should handle multi-modal messages with images", async () => {})
-    // - it("should handle API errors gracefully", async () => {})
-    // - it("should handle multiple tools in single request", async () => {})
+    // Phase 1: InvokeModel Foundation ✅ COMPLETE (7/7 tests)
+    // ✅ Basic InvokeModel Text Messages
+    // ✅ Tool Call Support - Basic Function Call  
+    // ✅ Tool Results Processing
+    // ✅ Missing Token Count Handling
+    // ✅ Multi-Modal Messages (Text + Image)
+    // ✅ API Error Handling
+    // ✅ Multiple Tools in Single Request
     //
     // Phase 2: Streaming Support
     // - it("should handle InvokeModelWithResponseStream", async () => {})
