@@ -84,100 +84,153 @@ it("should handle InvokeModel with tool definitions and calls", async () => {
 - Tool call to OpenInference ToolCall conversion
 - Proper message attribution for tool calls
 
-#### Test 3: Tool Results Processing
-**File**: `test/recordings/tools/invoke-model-tool-result.json`
+#### Test 3: Tool Results Processing ✅
+**Status**: COMPLETED - Test passing with tool result processing
+**File**: `test/recordings/should-handle-tool-result-responses.json`
 
 ```typescript
 it("should handle tool result responses", async () => {
-  const messages = [
-    { role: "user", content: "What's the weather?" },
-    { 
-      role: "assistant", 
-      content: [
-        { type: "tool_use", id: "tool_1", name: "get_weather", input: { location: "SF" } }
-      ]
-    },
-    {
-      role: "user",
-      content: [
-        { 
-          type: "tool_result", 
-          tool_use_id: "tool_1", 
-          content: "Sunny, 72°F"
-        }
-      ]
-    },
-    { role: "user", content: "Thanks! Anything else I should know?" }
-  ];
+  const testData = generateToolResultMessage({
+    initialPrompt: "What's the weather in Paris?",
+    toolUseId: "toolu_123",
+    toolName: "get_weather",
+    toolInput: { location: "Paris, France" },
+    toolResult: "The weather in Paris is currently 22°C and sunny.",
+    followupPrompt: "Great! What should I wear?"
+  });
   
-  // Verify tool result parsing and message attribution
-  // Check multi-turn conversation handling
-  // Validate tool_call_id propagation
+  // Verifies tool result parsing and message attribution
+  // Checks multi-turn conversation handling  
+  // Validates tool_call_id propagation
+  // Tests complex content arrays (tool_result + text)
 });
 ```
 
-**New Implementation Requirements**:
-- Tool result content type parsing
-- Tool call ID tracking and attribution
-- Multi-turn conversation message processing
-- Tool result to OpenInference Message conversion
+**Completed Implementation**:
+- ✅ Tool result content type parsing
+- ✅ Tool call ID tracking and attribution  
+- ✅ Multi-turn conversation message processing
+- ✅ Tool result to OpenInference Message conversion
+- ✅ Complex content array handling
 
-#### Test 4: Multi-Modal Messages (Text + Image)
-**File**: `test/recordings/multimodal/invoke-model-image.json`
+## Priority 1: Core InvokeModel Completeness
+
+### Phase 1 Remaining Tests (4 tests needed for complete InvokeModel coverage)
+
+#### Test 4: Missing Token Count Handling
+**File**: `test/recordings/should-handle-missing-token-counts-gracefully.json`
+
+```typescript
+it("should handle missing token counts gracefully", async () => {
+  // Mock response with missing usage object
+  const mockResponse = {
+    id: "msg_test",
+    content: [{ type: "text", text: "Response without tokens" }],
+    // usage object intentionally omitted
+  };
+  
+  // Verify instrumentation doesn't crash
+  // Check that span completes successfully
+  // Ensure available attributes are still captured
+  // Validate graceful degradation
+});
+```
+
+**Implementation Requirements**:
+- Graceful handling when `response.usage` is undefined
+- No crashes or exceptions when token data missing
+- Optional token attribute setting
+- Comprehensive error boundary testing
+
+#### Test 5: Multi-Modal Messages (Text + Image)
+**File**: `test/recordings/should-handle-multi-modal-messages-with-images.json`
 
 ```typescript
 it("should handle multi-modal messages with images", async () => {
-  const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
-  
-  const messages = [{
-    role: "user",
-    content: [
-      { type: "text", text: "What do you see in this image?" },
-      { 
-        type: "image", 
-        source: { 
-          type: "base64", 
-          media_type: "image/png", 
-          data: imageData 
-        }
-      }
-    ]
-  }];
+  const testData = generateMultiModalMessage({
+    textPrompt: "What do you see in this image?",
+    imageData: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+    mediaType: "image/png"
+  });
   
   // Verify image content parsing and attribute extraction
   // Check multi-part message content handling
-  // Validate image URL formatting for OpenInference
+  // Validate image URL formatting: data:image/png;base64,{data}
+  // Test mixed content type message support
 });
 ```
 
-**New Implementation Requirements**:
+**Implementation Requirements**:
 - Multi-part message content processing
 - Image source parsing and base64 handling
-- Image URL formatting (`data:image/png;base64,{data}`)
-- Mixed content type message support
+- Image URL formatting for OpenInference (`data:image/png;base64,{data}`)
+- Mixed content type message support (text + image)
+- Proper MIME type detection and attribute assignment
 
-#### Test 5: Error Handling and Edge Cases
-**File**: `test/recordings/errors/invoke-model-error.json`
+#### Test 6: API Error Handling
+**File**: `test/recordings/should-handle-api-errors-gracefully.json`
 
 ```typescript
 it("should handle API errors gracefully", async () => {
-  // Test invalid model ID, malformed requests, rate limiting
+  // Test scenarios:
+  // 1. Invalid model ID (400 error)
+  // 2. Malformed request body (400 error)
+  // 3. Rate limiting (429 error)
+  // 4. Service unavailable (503 error)
+  
+  const invalidModelCommand = new InvokeModelCommand({
+    modelId: "invalid-model-id",
+    body: JSON.stringify({ messages: [{ role: "user", content: "test" }] })
+  });
+  
   // Verify proper span status setting (ERROR)
-  // Check exception recording
+  // Check exception recording and error details
   // Ensure span ends even on errors
-});
-
-it("should handle missing token counts gracefully", async () => {
-  // Test responses with partial/missing usage data
-  // Verify instrumentation doesn't crash
-  // Check that available tokens are still captured
+  // Validate error message attribution
 });
 ```
 
-### Phase 2: Streaming Support
+**Implementation Requirements**:
+- Proper span status setting (`span.setStatus({ code: SpanStatusCode.ERROR })`)
+- Exception recording with error details
+- Span lifecycle completion even on errors
+- Error message and code attribution
+- Different error type handling (4xx vs 5xx)
 
-#### Test 6: InvokeModel Streaming - Basic Text
-**File**: `test/recordings/streaming/invoke-model-stream-basic.json`
+#### Test 7: Multiple Tools in Single Request
+**File**: `test/recordings/should-handle-multiple-tools-in-single-request.json`
+
+```typescript
+it("should handle multiple tools in single request", async () => {
+  const testData = generateToolCallMessage({
+    prompt: "What's the weather in San Francisco and what's 15 * 23?",
+    tools: [
+      commonTools.weather,    // get_weather function
+      commonTools.calculator, // calculate function  
+      commonTools.webSearch   // web_search function
+    ]
+  });
+  
+  // Verify all tool definitions properly parsed
+  // Check tool schema conversion for multiple tools
+  // Validate tool call attribution when multiple tools available
+  // Test complex tool interaction scenarios
+});
+```
+
+**Implementation Requirements**:
+- Multiple tool definition parsing in single request
+- Tool schema conversion for all tool types
+- Proper indexing and attribution of multiple tools
+- Tool selection and call attribution validation
+- Complex tool interaction handling
+
+## Priority 2: Streaming Support
+
+### Streaming InvokeModel Tests (3 tests for streaming completeness)
+
+#### Test 8: InvokeModelWithResponseStream - Basic Text
+**File**: `test/recordings/should-handle-invoke-model-with-response-stream.json`
 
 ```typescript
 it("should handle InvokeModelWithResponseStream", async () => {
@@ -193,162 +246,60 @@ it("should handle InvokeModelWithResponseStream", async () => {
   // Verify streaming response handling
   // Check incremental content accumulation
   // Validate final span attributes after stream completion
+  // Test stream event processing (content_block_start, content_block_delta, etc.)
 });
 ```
 
-**New Implementation Requirements**:
+**Implementation Requirements**:
 - Streaming response body parsing
-- Event stream processing (content_block_start, content_block_delta, etc.)
+- Event stream processing (content_block_start, content_block_delta, message_stop)
 - Response accumulation across stream chunks
 - Proper span completion after stream ends
+- Stream error boundary handling
 
-#### Test 7: Streaming Tool Calls
-**File**: `test/recordings/streaming/invoke-model-stream-tools.json`
+#### Test 9: Streaming Tool Calls
+**File**: `test/recordings/should-handle-streaming-tool-calls.json`
 
 ```typescript
 it("should handle streaming responses with tool calls", async () => {
   // Test streaming tool call responses
   // Verify tool call assembly from stream chunks
   // Check proper tool call attribution in streaming context
+  // Validate tool ID tracking across stream boundaries
 });
 ```
 
-**New Implementation Requirements**:
+**Implementation Requirements**:
 - Streaming tool call event parsing
 - Tool call assembly from multiple stream events
 - Tool ID tracking across stream boundaries
+- Incremental tool call building and validation
 
-### Phase 3: Converse API Support
-
-#### Test 8: Basic Converse API
-**File**: `test/recordings/converse/converse-basic.json`
+#### Test 10: Stream Error Handling
+**File**: `test/recordings/should-handle-streaming-errors.json`
 
 ```typescript
-it("should handle Converse API calls", async () => {
-  const command = new ConverseCommand({
-    modelId: TEST_MODEL_ID,
-    messages: [{ role: "user", content: [{ text: "Hello!" }] }],
-    inferenceConfig: { maxTokens: 100 }
-  });
-  
-  // Verify Converse API specific attribute extraction
-  // Check structured message format handling
-  // Validate inference config parameter processing
+it("should handle streaming errors gracefully", async () => {
+  // Test connection drops during streaming
+  // Verify incomplete stream handling
+  // Check partial response processing
+  // Validate span lifecycle on stream failures
 });
 ```
 
-**New Implementation Requirements**:
-- Converse API command detection and handling
-- Structured message format processing
-- Inference config parameter extraction
-- Response format differences from InvokeModel
+**Implementation Requirements**:
+- Stream connection error handling
+- Partial response processing and recovery
+- Span lifecycle management during stream failures
+- Error attribution for streaming-specific issues
 
-#### Test 9: Converse with System Prompts
-**File**: `test/recordings/converse/converse-system.json`
+## Priority 3: Advanced Scenarios
 
-```typescript
-it("should handle system prompts in Converse API", async () => {
-  const command = new ConverseCommand({
-    modelId: TEST_MODEL_ID,
-    system: [{ text: "You are a helpful assistant." }],
-    messages: [{ role: "user", content: [{ text: "Hello!" }] }]
-  });
-  
-  // Verify system prompt extraction and attribution
-  // Check system message integration into message sequence
-});
-```
+### Advanced InvokeModel Tests (3 tests for complete coverage)
 
-#### Test 10: Converse Tool Calling (Modern API)
-**File**: `test/recordings/converse/converse-tools.json`
+#### Test 11: Context Attributes
+**File**: `test/recordings/should-handle-context-attributes.json`
 
-```typescript
-it("should handle tool calling via Converse API", async () => {
-  const toolConfig = {
-    tools: [{
-      toolSpec: {
-        name: "calculator",
-        description: "Perform mathematical calculations",
-        inputSchema: {
-          json: {
-            type: "object",
-            properties: {
-              expression: { type: "string" }
-            }
-          }
-        }
-      }
-    }]
-  };
-  
-  // Verify Converse-style tool definition handling
-  // Check toolSpec vs tools format differences
-  // Validate structured tool response parsing
-});
-```
-
-**New Implementation Requirements**:
-- Converse-specific tool definition format
-- ToolSpec parsing and conversion
-- Structured tool response handling
-- Tool config vs tools parameter differences
-
-### Phase 4: Advanced Features
-
-#### Test 11: Converse Streaming
-**File**: `test/recordings/streaming/converse-stream.json`
-
-```typescript
-it("should handle ConverseStream API", async () => {
-  // Test Converse streaming with structured messages
-  // Verify different streaming event format from InvokeModel
-  // Check tool calls in streaming Converse responses
-});
-```
-
-#### Test 12: InvokeAgent Support
-**File**: `test/recordings/agent/invoke-agent-basic.json`
-
-```typescript
-it("should handle InvokeAgent with hierarchical spans", async () => {
-  // Test complex agent workflow tracing
-  // Verify nested span relationships (Agent → Tool → LLM)
-  // Check knowledge base integration spans
-  // Validate agent session and workflow tracking
-});
-```
-
-**New Implementation Requirements**:
-- InvokeAgent command detection
-- Hierarchical span creation and management
-- Agent workflow step identification
-- Knowledge base span attribution
-
-#### Test 13: Knowledge Base Integration
-**File**: `test/recordings/agent/retrieve-and-generate.json`
-
-```typescript
-it("should handle Retrieve and RetrieveAndGenerate operations", async () => {
-  // Test RAG operation instrumentation
-  // Verify document retrieval span creation
-  // Check retrieval score and metadata extraction
-});
-```
-
-#### Test 14: Complex Multi-Agent Workflows
-**File**: `test/recordings/agent/multi-agent-workflow.json`
-
-```typescript
-it("should handle complex agent collaboration", async () => {
-  // Test multi-agent conversation flows
-  // Verify proper span hierarchy for agent interactions
-  // Check agent memory and state tracking
-});
-```
-
-### Phase 5: Context and Configuration
-
-#### Test 15: Context Propagation
 ```typescript
 it("should propagate OpenInference context attributes", async () => {
   // Test session, user, metadata context propagation
@@ -357,134 +308,97 @@ it("should propagate OpenInference context attributes", async () => {
 });
 ```
 
-#### Test 16: Trace Configuration
+#### Test 12: Non-Anthropic Models  
+**File**: `test/recordings/should-handle-non-anthropic-models.json`
+
 ```typescript
-it("should respect TraceConfig settings", async () => {
-  // Test privacy controls and data masking
-  // Verify payload size limits
-  // Check custom attribute filtering
+it("should handle non-Anthropic models via Bedrock", async () => {
+  // Test Amazon Titan models
+  // Test Mistral models  
+  // Test Meta Llama models
+  // Verify model-specific response parsing
 });
 ```
 
-## Implementation Architecture
+#### Test 13: Large Payload Edge Cases
+**File**: `test/recordings/should-handle-large-payloads.json`
 
-### Core Components
-
-#### 1. BedrockInstrumentation Class
 ```typescript
-export class BedrockInstrumentation extends InstrumentationBase {
-  protected _wrap(
-    BedrockRuntimeClient.prototype,
-    "send",
-    this._wrapSend.bind(this)
-  );
-}
+it("should handle large payloads and timeouts", async () => {
+  // Test very long messages (approaching token limits)
+  // Verify timeout handling
+  // Check memory efficiency with large responses
+  // Validate performance with complex conversations
+});
 ```
 
-#### 2. Command Pattern Detection
-```typescript
-private _wrapSend(original: Function) {
-  return function(command: any) {
-    if (command instanceof InvokeModelCommand) {
-      return handleInvokeModel(this, command, original);
-    } else if (command instanceof ConverseCommand) {
-      return handleConverse(this, command, original);
-    } else if (command instanceof InvokeAgentCommand) {
-      return handleInvokeAgent(this, command, original);
-    }
-    return original.apply(this, arguments);
-  };
-}
-```
+**Implementation Requirements**:
+- Memory efficient processing of large payloads
+- Timeout handling and graceful degradation
+- Performance optimization for complex conversations
+- Resource cleanup and memory management
 
-#### 3. Attribute Extraction Modules
-```typescript
-// src/attributes/
-├── anthropic-attributes.ts    // Tool calls, messages, tokens
-├── model-attributes.ts        // Model ID parsing, provider info
-├── request-attributes.ts      // Input parameters, body parsing
-└── response-attributes.ts     // Output parsing, token extraction
-```
+## InvokeModel API Test Coverage Summary
 
-#### 4. Streaming Response Handlers
-```typescript
-// src/streaming/
-├── invoke-model-stream.ts     // InvokeModel streaming handler
-├── converse-stream.ts         // Converse streaming handler
-└── response-accumulator.ts    // Stream event accumulation
-```
+### ✅ **Completed Tests (3/13)**
+1. **Test 1**: Basic InvokeModel Text Messages - COMPLETE
+2. **Test 2**: Tool Call Support - Basic Function Call - COMPLETE  
+3. **Test 3**: Tool Results Processing - COMPLETE
 
-## Success Criteria
+### 🎯 **Priority 1: Core Completeness (4 tests)**
+4. **Test 4**: Missing Token Count Handling
+5. **Test 5**: Multi-Modal Messages (Text + Image)
+6. **Test 6**: API Error Handling
+7. **Test 7**: Multiple Tools in Single Request
 
-### Test Coverage Goals
-- **100% Python Parity**: All Python features implemented
-- **Comprehensive Tool Support**: Input/output tool calls fully supported
-- **Streaming Support**: All streaming APIs properly instrumented
-- **Error Handling**: Graceful handling of all error conditions
-- **Performance**: Minimal overhead, efficient stream processing
+### 🚀 **Priority 2: Streaming Support (3 tests)**
+8. **Test 8**: InvokeModelWithResponseStream - Basic Text
+9. **Test 9**: Streaming Tool Calls
+10. **Test 10**: Stream Error Handling
 
-### Quality Standards
-- **Semantic Conventions**: Strict compliance with OpenInference spec
-- **VCR Testing**: All tests use real API recordings
-- **TypeScript**: Full type safety and proper interfaces
-- **Documentation**: Clear examples and API documentation
+### ⭐ **Priority 3: Advanced Scenarios (3 tests)**
+11. **Test 11**: Context Attributes
+12. **Test 12**: Non-Anthropic Models
+13. **Test 13**: Large Payload Edge Cases
 
-### Developer Experience
-- **Easy Test Writing**: Simple pattern for adding new test scenarios
-- **Clear Failures**: Descriptive error messages when tests fail
-- **Fast Iteration**: Quick test runs with cached recordings
-- **Debugging Support**: Easy to trace instrumentation issues
+### Next Implementation Goal
+**Today's Focus**: Complete Priority 1 tests (Tests 4-7) to achieve comprehensive InvokeModel API coverage for all core functionality scenarios.
 
-## Implementation Notes
+## Beyond InvokeModel API
 
-### JavaScript vs Python Differences
+### Future API Coverage (Not part of current InvokeModel focus)
+- **Converse API Support**: Modern structured message API
+- **InvokeAgent API Support**: Agent workflow tracing
+- **RAG Operations**: Retrieve and RetrieveAndGenerate
+- **Multi-Agent Collaboration**: Complex agent interactions
 
-#### Stream Handling
-- **JS Advantage**: `stream.tee()` for parallel processing
-- **Python**: Sequential accumulation with custom iterators
-
-#### AWS SDK Patterns
-- **JS**: Command-based (`client.send(command)`)
-- **Python**: Method-based (`client.invoke_model()`)
-
-#### Tool Call Processing
-- **JS**: Native JSON/object manipulation
-- **Python**: More complex type coercion
-
-### Key Technical Challenges
-
-1. **Streaming Tool Calls**: Assembly from multiple stream events
-2. **Hierarchical Spans**: Agent workflow span relationships
-3. **Context Propagation**: OpenTelemetry context in async streams
-4. **Error Boundaries**: Proper span lifecycle in error conditions
-5. **Memory Management**: Efficient stream processing without leaks
+This plan ensures complete InvokeModel API instrumentation before expanding to other Bedrock APIs.
 
 ## Current Implementation Status
 
-### ✅ Completed Features
+### ✅ Completed Features (Tests 1-3)
 - **VCR Testing Infrastructure**: Complete tooling suite with recording, validation, and cleanup
 - **Basic InvokeModel Support**: Core instrumentation with span creation and attribute extraction
-- **Tool Calling Support**: Tool definition parsing and tool call attribution
+- **Tool Calling Support**: Tool definition parsing and tool call attribution  
+- **Tool Results Processing**: Multi-turn conversations and complex content arrays
 - **Semantic Conventions**: OpenInference-compliant attribute mapping
-- **Code Quality**: Prettier formatting, ESLint compliance, TypeScript typing
+- **Code Quality**: Prettier formatting, working TypeScript compilation
 
 ### 🎯 Current Architecture
 - **BedrockInstrumentation Class**: Extends InstrumentationBase with AWS SDK wrapping
-- **Command Pattern Detection**: Identifies InvokeModelCommand and other command types
-- **Attribute Extraction**: Modular functions for request/response processing
-- **VCR Integration**: Nock-based recording system with credential sanitization
+- **Command Pattern Detection**: Identifies InvokeModelCommand with dynamic model ID support
+- **Attribute Extraction**: Modular functions for request/response processing including complex content
+- **VCR Integration**: Nock-based recording system with credential sanitization and flexible model ID handling
 
-### 📋 Next Implementation Priorities
-1. **Test 3**: Tool results processing and multi-turn conversations
-2. **Test 4**: Multi-modal messages with image support
-3. **Test 5**: Error handling and edge cases
-4. **Phase 2**: Streaming support (InvokeModelWithResponseStream)
-5. **Phase 3**: Converse API support
+### 📋 Next Implementation Priorities (Today's Goal)
+1. **Test 4**: Missing token count handling
+2. **Test 5**: Multi-modal messages with image support
+3. **Test 6**: API error handling and edge cases
+4. **Test 7**: Multiple tools in single request
 
-### 🔧 Technical Debt to Address
-- Fix remaining ESLint violations (unused imports, explicit any types)
-- Complete type checking compliance
-- Add comprehensive error handling tests
-- Implement streaming response support
+### 🔧 Current Status
+- **3 of 13 InvokeModel tests complete** (23% coverage)
+- **Priority 1 focus**: Complete core InvokeModel functionality (Tests 4-7)
+- **Future phases**: Streaming support and advanced scenarios
 
-This comprehensive test plan ensures full Python parity while leveraging JavaScript/TypeScript advantages for a robust, maintainable implementation.
+This focused approach ensures complete InvokeModel API coverage before expanding to other Bedrock APIs.
