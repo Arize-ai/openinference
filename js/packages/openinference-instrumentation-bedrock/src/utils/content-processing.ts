@@ -1,6 +1,6 @@
 /**
  * Content processing utilities for AWS Bedrock instrumentation
- * 
+ *
  * Handles extraction and conversion of various content types including:
  * - Text content
  * - Multi-modal content (images)
@@ -30,7 +30,7 @@ export function extractTextFromContent(content: MessageContent): string {
 
   if (Array.isArray(content)) {
     const textParts: string[] = [];
-    
+
     content.forEach((block) => {
       if (isTextContent(block)) {
         textParts.push(block.text);
@@ -46,7 +46,7 @@ export function extractTextFromContent(content: MessageContent): string {
         }
       }
     });
-    
+
     return textParts.join(" ");
   }
 
@@ -68,7 +68,9 @@ export function formatImageUrl(source: ImageSource): string {
  * Extracts tool use content blocks from message content
  * Returns array of tool use blocks for tool call attribute processing
  */
-export function extractToolUseBlocks(content: MessageContent): ToolUseContent[] {
+export function extractToolUseBlocks(
+  content: MessageContent,
+): ToolUseContent[] {
   if (typeof content === "string" || !Array.isArray(content)) {
     return [];
   }
@@ -80,7 +82,9 @@ export function extractToolUseBlocks(content: MessageContent): ToolUseContent[] 
  * Extracts tool result content blocks from message content
  * Returns array of tool result blocks for tool result attribute processing
  */
-export function extractToolResultBlocks(content: MessageContent): ToolResultContent[] {
+export function extractToolResultBlocks(
+  content: MessageContent,
+): ToolResultContent[] {
   if (typeof content === "string" || !Array.isArray(content)) {
     return [];
   }

@@ -11,18 +11,21 @@ Tests the Bedrock InvokeModel API instrumentation by making actual API calls and
 #### Prerequisites
 
 1. **AWS Credentials**: Ensure you have valid AWS credentials configured:
+
    ```bash
    export AWS_ACCESS_KEY_ID="your-access-key"
-   export AWS_SECRET_ACCESS_KEY="your-secret-key" 
+   export AWS_SECRET_ACCESS_KEY="your-secret-key"
    export AWS_REGION="us-east-1"  # or your preferred region
    ```
-   
+
    Or use AWS profiles:
+
    ```bash
    export AWS_PROFILE="your-profile"
    ```
 
 2. **Phoenix Setup**: Configure Phoenix for trace collection:
+
    ```bash
    export PHOENIX_ENDPOINT="https://your-phoenix-instance.com/v1/traces"
    export PHOENIX_API_KEY="your-phoenix-api-key"
@@ -76,6 +79,7 @@ The script replicates the test scenarios from the instrumentation test suite:
 #### Output
 
 The script provides detailed output including:
+
 - Instrumentation verification status
 - Test scenario results
 - Response summaries
@@ -92,6 +96,7 @@ The script provides detailed output including:
 #### Local Development
 
 When working on the instrumentation locally, this script helps verify:
+
 - Changes are working correctly
 - Local package linking is functioning
 - All test scenarios pass in real-world conditions

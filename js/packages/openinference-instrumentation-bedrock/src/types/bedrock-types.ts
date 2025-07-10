@@ -32,8 +32,8 @@ export interface ToolResultContent {
   content: string;
 }
 
-export type MessageContent = 
-  | string 
+export type MessageContent =
+  | string
   | (TextContent | ImageContent | ToolUseContent | ToolResultContent)[];
 
 // Message structures
@@ -66,7 +66,6 @@ export interface InvokeModelRequestBody {
   stop_sequences?: string[];
 }
 
-
 // Response structures
 export interface UsageInfo {
   input_tokens: number;
@@ -84,30 +83,42 @@ export interface InvokeModelResponseBody {
   usage: UsageInfo;
 }
 
-
 // Type guards for runtime validation
 export function isTextContent(content: any): content is TextContent {
-  return content && typeof content === "object" && content.type === "text" && typeof content.text === "string";
+  return (
+    content &&
+    typeof content === "object" &&
+    content.type === "text" &&
+    typeof content.text === "string"
+  );
 }
 
 export function isImageContent(content: any): content is ImageContent {
-  return content && 
-         typeof content === "object" && 
-         content.type === "image" && 
-         content.source &&
-         content.source.type === "base64";
+  return (
+    content &&
+    typeof content === "object" &&
+    content.type === "image" &&
+    content.source &&
+    content.source.type === "base64"
+  );
 }
 
 export function isToolUseContent(content: any): content is ToolUseContent {
-  return content && 
-         typeof content === "object" && 
-         content.type === "tool_use" && 
-         typeof content.name === "string";
+  return (
+    content &&
+    typeof content === "object" &&
+    content.type === "tool_use" &&
+    typeof content.name === "string"
+  );
 }
 
-export function isToolResultContent(content: any): content is ToolResultContent {
-  return content && 
-         typeof content === "object" && 
-         content.type === "tool_result" && 
-         typeof content.tool_use_id === "string";
+export function isToolResultContent(
+  content: any,
+): content is ToolResultContent {
+  return (
+    content &&
+    typeof content === "object" &&
+    content.type === "tool_result" &&
+    typeof content.tool_use_id === "string"
+  );
 }

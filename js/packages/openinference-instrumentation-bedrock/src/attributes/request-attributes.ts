@@ -1,6 +1,6 @@
 /**
  * Request attribute extraction for AWS Bedrock instrumentation
- * 
+ *
  * Handles extraction of semantic convention attributes from InvokeModel requests including:
  * - Base model and system attributes
  * - Input message processing
@@ -14,15 +14,9 @@ import {
   MimeType,
   LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
+import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { InvokeModelRequestBody, BedrockMessage } from "../types/bedrock-types";
 import {
-  InvokeModelCommand,
-  InvokeModelRequest,
-} from "@aws-sdk/client-bedrock-runtime";
-import {
-  InvokeModelRequestBody,
-  BedrockMessage,
-} from "../types/bedrock-types";
-import { 
   extractTextFromContent,
   extractToolResultBlocks,
 } from "../utils/content-processing";
@@ -30,7 +24,9 @@ import {
 /**
  * Extracts base request attributes (model, system, provider, invocation parameters)
  */
-export function extractBaseRequestAttributes(command: InvokeModelCommand): Record<string, any> {
+export function extractBaseRequestAttributes(
+  command: InvokeModelCommand,
+): Record<string, any> {
   const modelId = command.input?.modelId || "unknown";
   const requestBody = parseRequestBody(command);
 
@@ -55,7 +51,9 @@ export function extractBaseRequestAttributes(command: InvokeModelCommand): Recor
 /**
  * Extracts input messages attributes from request body
  */
-export function extractInputMessagesAttributes(requestBody: InvokeModelRequestBody): Record<string, any> {
+export function extractInputMessagesAttributes(
+  requestBody: InvokeModelRequestBody,
+): Record<string, any> {
   const attributes: Record<string, any> = {};
 
   // Extract user's message text as primary input value
@@ -75,7 +73,9 @@ export function extractInputMessagesAttributes(requestBody: InvokeModelRequestBo
 /**
  * Extracts input tool attributes from request body
  */
-export function extractInputToolAttributes(requestBody: InvokeModelRequestBody): Record<string, any> {
+export function extractInputToolAttributes(
+  requestBody: InvokeModelRequestBody,
+): Record<string, any> {
   const attributes: Record<string, any> = {};
 
   // Add input tools from request if present
@@ -102,7 +102,9 @@ export function extractInputToolAttributes(requestBody: InvokeModelRequestBody):
 /**
  * Extracts semantic convention attributes from InvokeModel request command
  */
-export function extractInvokeModelRequestAttributes(command: InvokeModelCommand): Record<string, any> {
+export function extractInvokeModelRequestAttributes(
+  command: InvokeModelCommand,
+): Record<string, any> {
   const requestBody = parseRequestBody(command);
 
   // Start with base attributes
@@ -127,18 +129,20 @@ function parseRequestBody(command: InvokeModelCommand): InvokeModelRequestBody {
     if (!command.input?.body) {
       return {} as InvokeModelRequestBody;
     }
-    
+
     // Handle both string (test format) and Uint8Array (SDK format)
     let bodyString: string;
-    if (typeof command.input.body === 'string') {
+    if (typeof command.input.body === "string") {
       bodyString = command.input.body;
     } else if (command.input.body instanceof Uint8Array) {
       bodyString = new TextDecoder().decode(command.input.body);
     } else {
       // Handle other blob types by converting to Uint8Array first
-      bodyString = new TextDecoder().decode(new Uint8Array(command.input.body as ArrayBuffer));
+      bodyString = new TextDecoder().decode(
+        new Uint8Array(command.input.body as ArrayBuffer),
+      );
     }
-      
+
     return JSON.parse(bodyString);
   } catch (error) {
     return {} as InvokeModelRequestBody;
@@ -148,9 +152,11 @@ function parseRequestBody(command: InvokeModelCommand): InvokeModelRequestBody {
 /**
  * Extracts invocation parameters from request body
  */
-function extractInvocationParameters(requestBody: InvokeModelRequestBody): Record<string, any> {
+function extractInvocationParameters(
+  requestBody: InvokeModelRequestBody,
+): Record<string, any> {
   const invocationParams: Record<string, any> = {};
-  
+
   if (requestBody.anthropic_version) {
     invocationParams.anthropic_version = requestBody.anthropic_version;
   }
@@ -174,7 +180,11 @@ function extractInvocationParameters(requestBody: InvokeModelRequestBody): Recor
  * Extracts the primary input value from user messages
  */
 function extractPrimaryInputValue(requestBody: InvokeModelRequestBody): string {
-  if (!requestBody.messages || !Array.isArray(requestBody.messages) || requestBody.messages.length === 0) {
+  if (
+    !requestBody.messages ||
+    !Array.isArray(requestBody.messages) ||
+    requestBody.messages.length === 0
+  ) {
     return "";
   }
 
@@ -189,7 +199,11 @@ function extractPrimaryInputValue(requestBody: InvokeModelRequestBody): string {
 /**
  * Adds message attributes to the attributes object
  */
-function addMessageAttributes(attributes: Record<string, any>, message: BedrockMessage, index: number): void {
+function addMessageAttributes(
+  attributes: Record<string, any>,
+  message: BedrockMessage,
+  index: number,
+): void {
   if (!message.role) return;
 
   attributes[

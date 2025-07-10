@@ -4,11 +4,7 @@ import {
   InstrumentationModuleDefinition,
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
-import {
-  diag,
-  SpanKind,
-  SpanStatusCode,
-} from "@opentelemetry/api";
+import { diag, SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
 import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
@@ -88,14 +84,18 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
           };
         },
       );
-      
+
       _isBedrockPatched = true;
     }
 
     return moduleExports;
   }
 
-  private _handleInvokeModelCommand(command: InvokeModelCommand, original: any, client: any) {
+  private _handleInvokeModelCommand(
+    command: InvokeModelCommand,
+    original: any,
+    client: any,
+  ) {
     const requestAttributes = extractInvokeModelRequestAttributes(command);
 
     const span = this.oiTracer.startSpan("bedrock.invoke_model", {
@@ -131,7 +131,6 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       throw error;
     }
   }
-
 
   private unpatch(moduleExports: any, moduleVersion?: string) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
