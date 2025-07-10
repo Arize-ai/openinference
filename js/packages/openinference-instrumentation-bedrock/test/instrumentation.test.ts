@@ -760,7 +760,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       const client = createTestClient(isRecordingMode);
 
       // Test invalid model ID with streaming (should trigger error)
-      const invalidModelCommand = new InvokeModelWithResponseStreamCommand({
+      const command = new InvokeModelWithResponseStreamCommand({
         modelId: "invalid-streaming-model-id",
         body: JSON.stringify({
           anthropic_version: "bedrock-2023-05-31",
@@ -777,7 +777,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       });
 
       // Expect the API call to throw an error
-      await expect(client.send(invalidModelCommand)).rejects.toThrow();
+      await expect(client.send(command)).rejects.toThrow();
 
       // Verify span was created and marked as error
       const span = verifySpanBasics(spanExporter);
