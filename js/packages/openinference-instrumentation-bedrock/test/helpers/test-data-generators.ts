@@ -65,7 +65,6 @@ interface AgentMessageOptions {
   enableTrace?: boolean;
 }
 
-
 interface ToolSchema {
   properties: Record<string, any>;
   required?: string[];
@@ -97,7 +96,9 @@ const defaults = {
 /**
  * Generates basic text message for InvokeModel API
  */
-function generateBasicTextMessage(options: BasicTextMessageOptions = {}): TestMessageResult {
+function generateBasicTextMessage(
+  options: BasicTextMessageOptions = {},
+): TestMessageResult {
   const {
     prompt = "Hello, how are you today?",
     modelId = defaults.modelId,
@@ -129,7 +130,11 @@ function generateBasicTextMessage(options: BasicTextMessageOptions = {}): TestMe
 /**
  * Generates tool definition for function calling
  */
-function generateToolDefinition(name: string, description: string, schema: ToolSchema): ToolDefinition {
+function generateToolDefinition(
+  name: string,
+  description: string,
+  schema: ToolSchema,
+): ToolDefinition {
   return {
     name,
     description,
@@ -202,7 +207,9 @@ const commonTools = {
 /**
  * Generates InvokeModel request with tool definitions
  */
-function generateToolCallMessage(options: ToolCallMessageOptions = {}): TestMessageResult {
+function generateToolCallMessage(
+  options: ToolCallMessageOptions = {},
+): TestMessageResult {
   const {
     prompt = "What's the weather like in San Francisco?",
     tools = [commonTools.weather],
@@ -231,7 +238,9 @@ function generateToolCallMessage(options: ToolCallMessageOptions = {}): TestMess
 /**
  * Generates message with tool result
  */
-function generateToolResultMessage(options: ToolResultMessageOptions = {}): TestMessageResult {
+function generateToolResultMessage(
+  options: ToolResultMessageOptions = {},
+): TestMessageResult {
   const {
     initialPrompt = "What's the weather in Paris?",
     toolUseId = "toolu_123",
@@ -290,7 +299,9 @@ function generateToolResultMessage(options: ToolResultMessageOptions = {}): Test
 /**
  * Generates multi-modal message with image
  */
-function generateMultiModalMessage(options: MultiModalMessageOptions = {}): TestMessageResult {
+function generateMultiModalMessage(
+  options: MultiModalMessageOptions = {},
+): TestMessageResult {
   const {
     textPrompt = "What do you see in this image?",
     imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
@@ -332,7 +343,9 @@ function generateMultiModalMessage(options: MultiModalMessageOptions = {}): Test
 /**
  * Generates Converse API request (modern API)
  */
-function generateConverseMessage(options: ConverseMessageOptions = {}): ConverseResult {
+function generateConverseMessage(
+  options: ConverseMessageOptions = {},
+): ConverseResult {
   const {
     messages = [{ role: "user", content: [{ text: "Hello!" }] }],
     system = null,
@@ -361,7 +374,9 @@ function generateConverseMessage(options: ConverseMessageOptions = {}): Converse
 /**
  * Generates Converse API request with tools
  */
-function generateConverseWithTools(options: ConverseWithToolsOptions = {}): ConverseResult {
+function generateConverseWithTools(
+  options: ConverseWithToolsOptions = {},
+): ConverseResult {
   const {
     prompt = "Calculate 15 * 23",
     tools = [
@@ -415,7 +430,10 @@ function generateAgentMessage(options: AgentMessageOptions = {}) {
 /**
  * Generates streaming request variants
  */
-function generateStreamingVariants(baseRequest: TestMessageResult | ConverseResult, apiType: string = "invokeModel") {
+function generateStreamingVariants(
+  baseRequest: TestMessageResult | ConverseResult,
+  apiType: string = "invokeModel",
+) {
   const variants: Record<string, TestMessageResult | ConverseResult> = {
     invokeModel: {
       ...baseRequest,

@@ -1,8 +1,5 @@
 import { BedrockInstrumentation } from "../src/instrumentation";
-import {
-  BedrockRuntimeClient,
-  InvokeModelCommand,
-} from "@aws-sdk/client-bedrock-runtime";
+import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
@@ -11,11 +8,27 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import nock from "nock";
 import * as fs from "fs";
 import * as path from "path";
-import { generateToolResultMessage, generateToolCallMessage, commonTools } from "./helpers/test-data-generators";
-import { loadRecordingData, createNockMock, sanitizeAuthHeaders, createTestClient, getRecordingPath } from "./helpers/vcr-helpers";
-import { verifyResponseStructure, verifySpanBasics } from "./helpers/test-helpers";
-import { TEST_MODEL_ID, TEST_USER_MESSAGE, TEST_MAX_TOKENS } from "./config/constants";
-
+import {
+  generateToolResultMessage,
+  generateToolCallMessage,
+  commonTools,
+} from "./helpers/test-data-generators";
+import {
+  loadRecordingData,
+  createNockMock,
+  sanitizeAuthHeaders,
+  createTestClient,
+  getRecordingPath,
+} from "./helpers/vcr-helpers";
+import {
+  verifyResponseStructure,
+  verifySpanBasics,
+} from "./helpers/test-helpers";
+import {
+  TEST_MODEL_ID,
+  TEST_USER_MESSAGE,
+  TEST_MAX_TOKENS,
+} from "./config/constants";
 
 describe("BedrockInstrumentation", () => {
   let instrumentation: BedrockInstrumentation;
@@ -52,11 +65,6 @@ describe("BedrockInstrumentation", () => {
     await provider.shutdown();
   });
 
-
-
-
-
-
   // Helper function for tests to set up their specific recording
   const setupTestRecording = (testName: string) => {
     currentTestName = testName;
@@ -81,7 +89,6 @@ describe("BedrockInstrumentation", () => {
       }
     }
   };
-
 
   beforeEach(() => {
     // Clear any existing nock mocks first
@@ -357,16 +364,22 @@ The key things are to dress for the warm temperatures and have layers you can",
       expect(span.attributes["openinference.span.kind"]).toBe("LLM");
 
       // Basic message attributes should still be present
-      expect(span.attributes["llm.input_messages.0.message.content"]).toBe("Tell me a short fact.");
+      expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
+        "Tell me a short fact.",
+      );
       expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
 
       // Output message should be captured
-      expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
+      expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+        "assistant",
+      );
+      expect(
+        span.attributes["llm.output_messages.0.message.content"],
+      ).toBeDefined();
 
       // Token count attributes should either be undefined or gracefully handled
       // This test verifies the implementation doesn't crash when usage is missing
-      const hasTokenCounts = 
+      const hasTokenCounts =
         span.attributes["llm.token_count.prompt"] !== undefined ||
         span.attributes["llm.token_count.completion"] !== undefined ||
         span.attributes["llm.token_count.total"] !== undefined;
@@ -374,13 +387,19 @@ The key things are to dress for the warm temperatures and have layers you can",
       // If token counts are present, they should be valid numbers
       if (hasTokenCounts) {
         if (span.attributes["llm.token_count.prompt"] !== undefined) {
-          expect(typeof span.attributes["llm.token_count.prompt"]).toBe("number");
+          expect(typeof span.attributes["llm.token_count.prompt"]).toBe(
+            "number",
+          );
         }
         if (span.attributes["llm.token_count.completion"] !== undefined) {
-          expect(typeof span.attributes["llm.token_count.completion"]).toBe("number");
+          expect(typeof span.attributes["llm.token_count.completion"]).toBe(
+            "number",
+          );
         }
         if (span.attributes["llm.token_count.total"] !== undefined) {
-          expect(typeof span.attributes["llm.token_count.total"]).toBe("number");
+          expect(typeof span.attributes["llm.token_count.total"]).toBe(
+            "number",
+          );
         }
       }
 
@@ -414,8 +433,9 @@ Honeybees can recognize human faces.",
       const client = createTestClient(isRecordingMode);
 
       // Create a multi-modal message with text and image
-      const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
-      
+      const imageData =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+
       const command = new InvokeModelCommand({
         modelId: TEST_MODEL_ID,
         body: JSON.stringify({
@@ -427,19 +447,19 @@ Honeybees can recognize human faces.",
               content: [
                 {
                   type: "text",
-                  text: "What do you see in this image?"
+                  text: "What do you see in this image?",
                 },
                 {
                   type: "image",
                   source: {
                     type: "base64",
                     media_type: "image/png",
-                    data: imageData
-                  }
-                }
-              ]
-            }
-          ]
+                    data: imageData,
+                  },
+                },
+              ],
+            },
+          ],
         }),
         contentType: "application/json",
         accept: "application/json",
@@ -458,26 +478,35 @@ Honeybees can recognize human faces.",
 
       // Check that input message content is properly handled
       expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-      
+
       // Check for image URL formatting: data:image/png;base64,{data}
       const expectedImageUrl = `data:image/png;base64,${imageData}`;
-      
+
       // The input.value should contain both text and image data
-      expect(span.attributes["input.value"]).toContain("What do you see in this image?");
+      expect(span.attributes["input.value"]).toContain(
+        "What do you see in this image?",
+      );
       expect(span.attributes["input.value"]).toContain(expectedImageUrl);
-      
+
       // Verify that multi-modal content is properly extracted
       // Text content should be captured
-      expect(span.attributes["llm.input_messages.0.message.content"]).toContain("What do you see in this image?");
-      
+      expect(span.attributes["llm.input_messages.0.message.content"]).toContain(
+        "What do you see in this image?",
+      );
+
       // Image content should be captured in OpenInference format
       // The message should contain the image URL in the expected format
-      const messageContent = span.attributes["llm.input_messages.0.message.content"];
+      const messageContent =
+        span.attributes["llm.input_messages.0.message.content"];
       expect(messageContent).toContain(expectedImageUrl);
 
       // Output message should be captured
-      expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
+      expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+        "assistant",
+      );
+      expect(
+        span.attributes["llm.output_messages.0.message.content"],
+      ).toBeDefined();
 
       // Snapshot the attributes to verify multi-modal message processing
       expect(span.attributes).toMatchInlineSnapshot(`
@@ -529,21 +558,23 @@ Honeybees can recognize human faces.",
 
       // Verify span was created and marked as error
       const span = verifySpanBasics(spanExporter);
-      
+
       // Verify span status is set to ERROR
       expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
       expect(span.status.message).toBeDefined();
-      
+
       // Verify basic attributes are still captured
       expect(span.attributes["llm.model_name"]).toBe("invalid-model-id");
       expect(span.attributes["llm.provider"]).toBe("aws");
       expect(span.attributes["llm.system"]).toBe("bedrock");
       expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-      
+
       // Verify input message attributes are captured
-      expect(span.attributes["llm.input_messages.0.message.content"]).toBe("This should fail");
+      expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
+        "This should fail",
+      );
       expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-      
+
       // Verify error details are recorded
       expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -569,9 +600,9 @@ Honeybees can recognize human faces.",
         prompt: "What's the weather in San Francisco and what's 15 * 23?",
         tools: [
           commonTools.weather,
-          commonTools.calculator, 
-          commonTools.webSearch
-        ]
+          commonTools.calculator,
+          commonTools.webSearch,
+        ],
       });
 
       const command = new InvokeModelCommand({
@@ -620,7 +651,7 @@ Honeybees can recognize human faces.",
     //
     // Phase 1: InvokeModel Foundation ✅ COMPLETE (7/7 tests)
     // ✅ Basic InvokeModel Text Messages
-    // ✅ Tool Call Support - Basic Function Call  
+    // ✅ Tool Call Support - Basic Function Call
     // ✅ Tool Results Processing
     // ✅ Missing Token Count Handling
     // ✅ Multi-Modal Messages (Text + Image)

@@ -19,16 +19,11 @@
               },
               "unit": {
                 "type": "string",
-                "enum": [
-                  "celsius",
-                  "fahrenheit"
-                ],
+                "enum": ["celsius", "fahrenheit"],
                 "description": "Temperature unit"
               }
             },
-            "required": [
-              "location"
-            ]
+            "required": ["location"]
           }
         },
         {
@@ -42,9 +37,7 @@
                 "description": "Mathematical expression to evaluate"
               }
             },
-            "required": [
-              "expression"
-            ]
+            "required": ["expression"]
           }
         },
         {
@@ -64,9 +57,7 @@
                 "maximum": 10
               }
             },
-            "required": [
-              "query"
-            ]
+            "required": ["query"]
           }
         }
       ],

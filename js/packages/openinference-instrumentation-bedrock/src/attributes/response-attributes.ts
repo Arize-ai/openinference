@@ -1,6 +1,6 @@
 /**
  * Response attribute extraction for AWS Bedrock instrumentation
- * 
+ *
  * Handles extraction of semantic convention attributes from InvokeModel responses including:
  * - Output message processing
  * - Tool call extraction
@@ -12,9 +12,7 @@ import {
   SemanticConventions,
   MimeType,
 } from "@arizeai/openinference-semantic-conventions";
-import {
-  InvokeModelResponse,
-} from "@aws-sdk/client-bedrock-runtime";
+import { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
 import {
   InvokeModelResponseBody,
   isTextContent,
@@ -25,7 +23,10 @@ import { TextDecoder } from "util";
 /**
  * Extracts output messages attributes from response body
  */
-export function extractOutputMessagesAttributes(responseBody: InvokeModelResponseBody, span: Span): void {
+export function extractOutputMessagesAttributes(
+  responseBody: InvokeModelResponseBody,
+  span: Span,
+): void {
   // Extract assistant's message text as primary output value
   const outputValue = extractPrimaryOutputValue(responseBody);
 
@@ -51,14 +52,17 @@ export function extractOutputMessagesAttributes(responseBody: InvokeModelRespons
 /**
  * Extracts tool call attributes from response body
  */
-export function extractToolCallAttributes(responseBody: InvokeModelResponseBody, span: Span): void {
+export function extractToolCallAttributes(
+  responseBody: InvokeModelResponseBody,
+  span: Span,
+): void {
   if (!responseBody.content || !Array.isArray(responseBody.content)) {
     return;
   }
 
   let toolCallIndex = 0;
   const toolUseBlocks = responseBody.content.filter(isToolUseContent);
-  
+
   toolUseBlocks.forEach((content) => {
     // Extract tool call attributes following OpenAI pattern
     const toolCallAttributes: Record<string, string> = {};
@@ -87,7 +91,10 @@ export function extractToolCallAttributes(responseBody: InvokeModelResponseBody,
 /**
  * Extracts usage attributes from response body
  */
-export function extractUsageAttributes(responseBody: InvokeModelResponseBody, span: Span): void {
+export function extractUsageAttributes(
+  responseBody: InvokeModelResponseBody,
+  span: Span,
+): void {
   // Add token usage metrics
   if (!responseBody.usage) {
     return;
@@ -114,7 +121,10 @@ export function extractUsageAttributes(responseBody: InvokeModelResponseBody, sp
 /**
  * Extracts semantic convention attributes from InvokeModel response and adds them to the span
  */
-export function extractInvokeModelResponseAttributes(span: Span, response: InvokeModelResponse): void {
+export function extractInvokeModelResponseAttributes(
+  span: Span,
+  response: InvokeModelResponse,
+): void {
   try {
     if (!response.body) return;
 
@@ -138,7 +148,9 @@ export function extractInvokeModelResponseAttributes(span: Span, response: Invok
 /**
  * Safely parses the response body
  */
-function parseResponseBody(response: InvokeModelResponse): InvokeModelResponseBody {
+function parseResponseBody(
+  response: InvokeModelResponse,
+): InvokeModelResponseBody {
   if (!response.body) {
     throw new Error("Response body is missing");
   }
@@ -149,7 +161,9 @@ function parseResponseBody(response: InvokeModelResponse): InvokeModelResponseBo
 /**
  * Extracts the primary output value from response content
  */
-function extractPrimaryOutputValue(responseBody: InvokeModelResponseBody): string {
+function extractPrimaryOutputValue(
+  responseBody: InvokeModelResponseBody,
+): string {
   if (!responseBody.content || !Array.isArray(responseBody.content)) {
     return "";
   }

@@ -2,13 +2,13 @@
 
 /**
  * Validation script for Bedrock InvokeModel instrumentation
- * 
+ *
  * This script tests the Bedrock instrumentation in a real-world scenario by:
  * 1. Setting up OpenTelemetry tracing to Phoenix
  * 2. Verifying the instrumentation is properly applied
  * 3. Making actual Bedrock API calls to replicate test scenarios
  * 4. Validating that traces appear correctly in Phoenix
- * 
+ *
  * Usage:
  *   npm run validate:invoke-model
  *   tsx scripts/validate-invoke-model.ts
@@ -16,23 +16,38 @@
  *   tsx scripts/validate-invoke-model.ts --debug
  */
 
+/* eslint-disable no-console, @typescript-eslint/no-explicit-any */
+
 import { BedrockInstrumentation, isPatched } from "../src/index";
-import { NodeTracerProvider, SimpleSpanProcessor, ConsoleSpanExporter } from "@opentelemetry/sdk-trace-node";
+import {
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+  ConsoleSpanExporter,
+} from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { SEMRESATTRS_PROJECT_NAME } from '@arizeai/openinference-semantic-conventions';
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 
 // Configuration from environment variables
-const PHOENIX_ENDPOINT = process.env.PHOENIX_ENDPOINT || process.env.PHOENIX_COLLECTOR_ENDPOINT ? 
-  `${process.env.PHOENIX_COLLECTOR_ENDPOINT}/v1/traces` : "http://localhost:6006/v1/traces";
+const PHOENIX_ENDPOINT =
+  process.env.PHOENIX_ENDPOINT || process.env.PHOENIX_COLLECTOR_ENDPOINT
+    ? `${process.env.PHOENIX_COLLECTOR_ENDPOINT}/v1/traces`
+    : "http://localhost:6006/v1/traces";
 const PHOENIX_API_KEY = process.env.PHOENIX_API_KEY;
 const AWS_REGION = process.env.AWS_REGION || "us-east-1";
-const MODEL_ID = process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-haiku-20240307-v1:0";
+const MODEL_ID =
+  process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-haiku-20240307-v1:0";
 
 // Test scenarios
-type TestScenario = "basic-text" | "tool-calling" | "multi-modal" | "tool-results" | "multiple-tools" | "all";
+type TestScenario =
+  | "basic-text"
+  | "tool-calling"
+  | "multi-modal"
+  | "tool-results"
+  | "multiple-tools"
+  | "all";
 
 interface ValidationOptions {
   scenario: TestScenario;
@@ -47,7 +62,7 @@ class InstrumentationValidator {
   private provider: NodeTracerProvider;
   private BedrockRuntimeClient: any;
   private InvokeModelCommand: any;
-  
+
   constructor(private options: ValidationOptions) {
     this.setupLogging();
   }
@@ -67,23 +82,26 @@ class InstrumentationValidator {
 
     // Setup exporters
     const exporters = [new ConsoleSpanExporter()];
-    
+
     if (this.options.phoenixEndpoint !== "console") {
       // Use OTEL_EXPORTER_OTLP_HEADERS or PHOENIX_CLIENT_HEADERS for API key
-      const apiKey = this.options.phoenixApiKey || 
-                    process.env.OTEL_EXPORTER_OTLP_HEADERS?.split('api_key=')[1] ||
-                    process.env.PHOENIX_CLIENT_HEADERS?.split('api_key=')[1];
-      
+      const apiKey =
+        this.options.phoenixApiKey ||
+        process.env.OTEL_EXPORTER_OTLP_HEADERS?.split("api_key=")[1] ||
+        process.env.PHOENIX_CLIENT_HEADERS?.split("api_key=")[1];
+
       const phoenixExporter = new OTLPTraceExporter({
         url: this.options.phoenixEndpoint,
-        headers: apiKey ? {
-          "api_key": apiKey
-        } : {},
+        headers: apiKey
+          ? {
+              api_key: apiKey,
+            }
+          : {},
       });
       exporters.push(phoenixExporter);
     }
 
-    exporters.forEach(exporter => {
+    exporters.forEach((exporter) => {
       this.provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
     });
 
@@ -103,11 +121,13 @@ class InstrumentationValidator {
       registerInstrumentations({
         instrumentations: [instrumentation],
       });
-      
+
       // Also manually patch the already-loaded module to ensure it works
-      const moduleExports = { BedrockRuntimeClient: awsModule.BedrockRuntimeClient };
+      const moduleExports = {
+        BedrockRuntimeClient: awsModule.BedrockRuntimeClient,
+      };
       (instrumentation as any).patch(moduleExports, "3.0.0");
-      
+
       console.log("✅ Bedrock instrumentation registered and manually applied");
     } else {
       console.log("✅ Bedrock instrumentation was already registered");
@@ -123,22 +143,28 @@ class InstrumentationValidator {
     // Check both the method signature and the global patch status
     const sendMethod = this.BedrockRuntimeClient.prototype.send;
     const globalPatchStatus = isPatched();
-    
+
     // The patched method should have different characteristics than the original
-    const methodPatched = sendMethod.toString().includes('patchedSend') || 
-                         sendMethod.name === 'patchedSend' ||
-                         sendMethod.__wrapped === true ||
-                         sendMethod.toString().length < 100; // Wrapped methods are typically shorter
-    
+    const methodPatched =
+      sendMethod.toString().includes("patchedSend") ||
+      sendMethod.name === "patchedSend" ||
+      sendMethod.__wrapped === true ||
+      sendMethod.toString().length < 100; // Wrapped methods are typically shorter
+
     if (globalPatchStatus && methodPatched) {
-      console.log("✅ Instrumentation verified: Both global status and method are patched");
+      console.log(
+        "✅ Instrumentation verified: Both global status and method are patched",
+      );
       return true;
     } else if (globalPatchStatus) {
       console.log("✅ Instrumentation verified: Global patch status is true");
       return true;
     } else {
       console.log("❌ Instrumentation verification failed");
-      console.log("   Send method signature:", sendMethod.toString().substring(0, 100) + "...");
+      console.log(
+        "   Send method signature:",
+        sendMethod.toString().substring(0, 100) + "...",
+      );
       console.log("   Global patch status:", globalPatchStatus);
       console.log("   Method appears patched:", methodPatched);
       return false;
@@ -155,19 +181,28 @@ class InstrumentationValidator {
     // Setup tracing and instrumentation
     this.setupTracing();
     await this.setupInstrumentation();
-    
+
     // Load Bedrock client AFTER instrumentation setup
     await this.loadBedrockClient();
 
     // Verify instrumentation is applied
     if (!this.verifyInstrumentation()) {
-      console.log("❌ Instrumentation verification failed - stopping validation");
+      console.log(
+        "❌ Instrumentation verification failed - stopping validation",
+      );
       return false;
     }
 
-    const scenarios = this.options.scenario === "all" 
-      ? ["basic-text", "tool-calling", "multi-modal", "tool-results", "multiple-tools"] as TestScenario[]
-      : [this.options.scenario];
+    const scenarios =
+      this.options.scenario === "all"
+        ? ([
+            "basic-text",
+            "tool-calling",
+            "multi-modal",
+            "tool-results",
+            "multiple-tools",
+          ] as TestScenario[])
+        : [this.options.scenario];
 
     let allPassed = true;
 
@@ -181,9 +216,9 @@ class InstrumentationValidator {
           console.log(`❌ Scenario ${scenario} failed`);
           allPassed = false;
         }
-        
+
         // Small delay between scenarios to ensure spans are processed
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (error) {
         console.log(`❌ Scenario ${scenario} threw error:`, error.message);
         allPassed = false;
@@ -191,12 +226,14 @@ class InstrumentationValidator {
     }
 
     console.log("\n📊 Validation Summary:");
-    console.log(allPassed ? "✅ All scenarios passed" : "❌ Some scenarios failed");
-    
+    console.log(
+      allPassed ? "✅ All scenarios passed" : "❌ Some scenarios failed",
+    );
+
     // Give time for traces to be exported
     console.log("\n⏳ Waiting for traces to be exported...");
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     return allPassed;
   }
 
@@ -219,149 +256,34 @@ class InstrumentationValidator {
 
   private async runBasicTextScenario(): Promise<boolean> {
     console.log("   📝 Testing basic text message...");
-    
+
     const command = new this.InvokeModelCommand({
       modelId: this.options.modelId,
       body: JSON.stringify({
         anthropic_version: "bedrock-2023-05-31",
         max_tokens: 100,
         messages: [
-          { role: "user", content: "Hello! Please respond with a short greeting." }
-        ]
-      })
+          {
+            role: "user",
+            content: "Hello! Please respond with a short greeting.",
+          },
+        ],
+      }),
     });
 
     const response = await this.client.send(command);
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-    
-    console.log("   💬 Response:", responseBody.content[0].text.substring(0, 50) + "...");
+
+    console.log(
+      "   💬 Response:",
+      responseBody.content[0].text.substring(0, 50) + "...",
+    );
     return true;
   }
 
   private async runToolCallingScenario(): Promise<boolean> {
     console.log("   🔧 Testing tool calling...");
-    
-    const command = new this.InvokeModelCommand({
-      modelId: this.options.modelId,
-      body: JSON.stringify({
-        anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 100,
-        tools: [{
-          name: "get_weather",
-          description: "Get current weather for a location",
-          input_schema: {
-            type: "object",
-            properties: {
-              location: { type: "string" }
-            }
-          }
-        }],
-        messages: [
-          { role: "user", content: "What's the weather in San Francisco?" }
-        ]
-      })
-    });
 
-    const response = await this.client.send(command);
-    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-    
-    const hasToolCall = responseBody.content.some((block: any) => block.type === "tool_use");
-    console.log("   🔧 Tool call detected:", hasToolCall);
-    
-    return true;
-  }
-
-  private async runMultiModalScenario(): Promise<boolean> {
-    console.log("   🖼️ Testing multi-modal message...");
-    
-    // Simple 1x1 red pixel PNG
-    const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
-    
-    const command = new this.InvokeModelCommand({
-      modelId: this.options.modelId,
-      body: JSON.stringify({
-        anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 100,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: "What do you see in this image?" },
-            { 
-              type: "image", 
-              source: { 
-                type: "base64", 
-                media_type: "image/png", 
-                data: imageData 
-              }
-            }
-          ]
-        }]
-      })
-    });
-
-    const response = await this.client.send(command);
-    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-    
-    console.log("   🖼️ Multi-modal response:", responseBody.content[0].text.substring(0, 50) + "...");
-    return true;
-  }
-
-  private async runToolResultsScenario(): Promise<boolean> {
-    console.log("   🔄 Testing tool results processing...");
-    
-    const command = new this.InvokeModelCommand({
-      modelId: this.options.modelId,
-      body: JSON.stringify({
-        anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 100,
-        tools: [{
-          name: "get_weather",
-          description: "Get current weather for a location",
-          input_schema: {
-            type: "object",
-            properties: {
-              location: { type: "string" }
-            }
-          }
-        }],
-        messages: [
-          { role: "user", content: "What's the weather in Paris?" },
-          { 
-            role: "assistant", 
-            content: [
-              {
-                type: "tool_use",
-                id: "toolu_123",
-                name: "get_weather",
-                input: { location: "Paris, France" }
-              }
-            ]
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "tool_result",
-                tool_use_id: "toolu_123",
-                content: "The weather in Paris is currently 22°C and sunny."
-              },
-              { type: "text", text: "Great! What should I wear?" }
-            ]
-          }
-        ]
-      })
-    });
-
-    const response = await this.client.send(command);
-    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-    
-    console.log("   🔄 Tool result response:", responseBody.content[0].text.substring(0, 50) + "...");
-    return true;
-  }
-
-  private async runMultipleToolsScenario(): Promise<boolean> {
-    console.log("   🛠️ Testing multiple tools...");
-    
     const command = new this.InvokeModelCommand({
       modelId: this.options.modelId,
       body: JSON.stringify({
@@ -374,9 +296,145 @@ class InstrumentationValidator {
             input_schema: {
               type: "object",
               properties: {
-                location: { type: "string" }
-              }
-            }
+                location: { type: "string" },
+              },
+            },
+          },
+        ],
+        messages: [
+          { role: "user", content: "What's the weather in San Francisco?" },
+        ],
+      }),
+    });
+
+    const response = await this.client.send(command);
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+    const hasToolCall = responseBody.content.some(
+      (block: any) => block.type === "tool_use",
+    );
+    console.log("   🔧 Tool call detected:", hasToolCall);
+
+    return true;
+  }
+
+  private async runMultiModalScenario(): Promise<boolean> {
+    console.log("   🖼️ Testing multi-modal message...");
+
+    // Simple 1x1 red pixel PNG
+    const imageData =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+
+    const command = new this.InvokeModelCommand({
+      modelId: this.options.modelId,
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 100,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "What do you see in this image?" },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: imageData,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const response = await this.client.send(command);
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+    console.log(
+      "   🖼️ Multi-modal response:",
+      responseBody.content[0].text.substring(0, 50) + "...",
+    );
+    return true;
+  }
+
+  private async runToolResultsScenario(): Promise<boolean> {
+    console.log("   🔄 Testing tool results processing...");
+
+    const command = new this.InvokeModelCommand({
+      modelId: this.options.modelId,
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 100,
+        tools: [
+          {
+            name: "get_weather",
+            description: "Get current weather for a location",
+            input_schema: {
+              type: "object",
+              properties: {
+                location: { type: "string" },
+              },
+            },
+          },
+        ],
+        messages: [
+          { role: "user", content: "What's the weather in Paris?" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: "toolu_123",
+                name: "get_weather",
+                input: { location: "Paris, France" },
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "toolu_123",
+                content: "The weather in Paris is currently 22°C and sunny.",
+              },
+              { type: "text", text: "Great! What should I wear?" },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const response = await this.client.send(command);
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+    console.log(
+      "   🔄 Tool result response:",
+      responseBody.content[0].text.substring(0, 50) + "...",
+    );
+    return true;
+  }
+
+  private async runMultipleToolsScenario(): Promise<boolean> {
+    console.log("   🛠️ Testing multiple tools...");
+
+    const command = new this.InvokeModelCommand({
+      modelId: this.options.modelId,
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 100,
+        tools: [
+          {
+            name: "get_weather",
+            description: "Get current weather for a location",
+            input_schema: {
+              type: "object",
+              properties: {
+                location: { type: "string" },
+              },
+            },
           },
           {
             name: "calculate",
@@ -384,33 +442,38 @@ class InstrumentationValidator {
             input_schema: {
               type: "object",
               properties: {
-                expression: { type: "string" }
-              }
-            }
+                expression: { type: "string" },
+              },
+            },
           },
           {
             name: "web_search",
             description: "Search the web for information",
             input_schema: {
-              type: "object", 
+              type: "object",
               properties: {
-                query: { type: "string" }
-              }
-            }
-          }
+                query: { type: "string" },
+              },
+            },
+          },
         ],
         messages: [
-          { role: "user", content: "What's the weather in San Francisco and what's 15 * 23?" }
-        ]
-      })
+          {
+            role: "user",
+            content: "What's the weather in San Francisco and what's 15 * 23?",
+          },
+        ],
+      }),
     });
 
     const response = await this.client.send(command);
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-    
-    const toolCalls = responseBody.content.filter((block: any) => block.type === "tool_use");
+
+    const toolCalls = responseBody.content.filter(
+      (block: any) => block.type === "tool_use",
+    );
     console.log("   🛠️ Multiple tool calls detected:", toolCalls.length);
-    
+
     return true;
   }
 

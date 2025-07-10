@@ -2,7 +2,11 @@ import nock from "nock";
 import * as fs from "fs";
 import * as path from "path";
 import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
-import { MOCK_AWS_CREDENTIALS, VALID_AWS_CREDENTIALS, MOCK_AUTH_HEADERS } from "../config/constants";
+import {
+  MOCK_AWS_CREDENTIALS,
+  VALID_AWS_CREDENTIALS,
+  MOCK_AUTH_HEADERS,
+} from "../config/constants";
 
 // Helper function to load mock response from recording file
 export const loadRecordingData = (recordingPath: string) => {
@@ -32,7 +36,12 @@ export const loadRecordingData = (recordingPath: string) => {
 };
 
 // Helper function to create nock mock for Bedrock API
-export const createNockMock = (mockResponse: any, modelId?: string, status: number = 200, defaultModelId: string = "anthropic.claude-3-5-sonnet-20240620-v1:0") => {
+export const createNockMock = (
+  mockResponse: any,
+  modelId?: string,
+  status: number = 200,
+  defaultModelId: string = "anthropic.claude-3-5-sonnet-20240620-v1:0",
+) => {
   const targetModelId = modelId || defaultModelId;
   nock("https://bedrock-runtime.us-east-1.amazonaws.com")
     .post(`/model/${encodeURIComponent(targetModelId)}/invoke`)
