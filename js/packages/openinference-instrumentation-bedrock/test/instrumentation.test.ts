@@ -189,7 +189,7 @@ describe("BedrockInstrumentation", () => {
   "llm.token_count.prompt": 13,
   "llm.token_count.total": 48,
   "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
+  "output.mime_type": "text/plain",
   "output.value": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
 }
 `);
@@ -255,7 +255,7 @@ describe("BedrockInstrumentation", () => {
   "llm.token_count.total": 467,
   "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"get_weather","description":"Get current weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state"}},"required":["location"]}}}",
   "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
+  "output.mime_type": "text/plain",
   "output.value": "Certainly! I can help you with that information. To get the current weather for San Francisco, I'll use the get_weather function. Let me fetch that data for you.",
 }
 `);
@@ -320,7 +320,7 @@ The key things are to dress for the warm temperatures and have layers you can",
   "llm.token_count.total": 464,
   "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"get_weather","description":"Get current weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}",
   "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
+  "output.mime_type": "text/plain",
   "output.value": "Since it's warm and sunny in Paris right now, you'll want to wear lightweight, breathable clothing. Some recommendations:
 
 - A light shirt or tank top
@@ -423,7 +423,7 @@ Honeybees can recognize human faces.",
   "llm.provider": "aws",
   "llm.system": "bedrock",
   "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
+  "output.mime_type": "text/plain",
   "output.value": "Here's a short fact for you:
 
 Honeybees can recognize human faces.",
@@ -529,7 +529,7 @@ Honeybees can recognize human faces.",
   "llm.token_count.prompt": 19,
   "llm.token_count.total": 119,
   "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
+  "output.mime_type": "text/plain",
   "output.value": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
 }
 `);
@@ -645,7 +645,7 @@ Honeybees can recognize human faces.",
   "llm.tools.1.tool.json_schema": "{"type":"function","function":{"name":"calculate","description":"Perform mathematical calculations","parameters":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}}}",
   "llm.tools.2.tool.json_schema": "{"type":"function","function":{"name":"web_search","description":"Search the web for information","parameters":{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"num_results":{"type":"integer","description":"Number of results to return","minimum":1,"maximum":10}},"required":["query"]}}}",
   "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
+  "output.mime_type": "text/plain",
   "output.value": "Okay, let's get the weather and do that calculation.",
 }
 `);
@@ -695,7 +695,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.token_count.prompt": 12,
   "llm.token_count.total": 112,
   "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
+  "output.mime_type": "text/plain",
   "output.value": "Here's a short story for you:
 
 The Last Leaf
