@@ -1,13 +1,12 @@
 package io.openinference.instrumentation;
 
+import io.openinference.semconv.trace.OpenInferenceSpanKind;
+import io.openinference.semconv.trace.SpanAttributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
-import io.openinference.semconv.trace.OpenInferenceSpanKind;
-import io.openinference.semconv.trace.SpanAttributes;
-
 import java.util.Objects;
 
 /**
@@ -15,26 +14,26 @@ import java.util.Objects;
  * with OpenInference semantic conventions.
  */
 public class OITracer {
-    
+
     private final Tracer tracer;
     private final TraceConfig config;
-    
+
     public OITracer(Tracer tracer) {
         this(tracer, TraceConfig.getDefault());
     }
-    
+
     public OITracer(Tracer tracer, TraceConfig config) {
         this.tracer = Objects.requireNonNull(tracer, "tracer must not be null");
         this.config = Objects.requireNonNull(config, "config must not be null");
     }
-    
+
     /**
      * Creates a span builder with the given name.
      */
     public SpanBuilder spanBuilder(String spanName) {
         return tracer.spanBuilder(spanName);
     }
-    
+
     /**
      * Creates a span builder for an LLM operation.
      */
@@ -43,12 +42,12 @@ public class OITracer {
         if (modelName != null && !modelName.isEmpty()) {
             spanName = operationName + " " + modelName;
         }
-        
+
         return spanBuilder(spanName)
                 .setSpanKind(SpanKind.CLIENT)
                 .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM.getValue());
     }
-    
+
     /**
      * Creates a span builder for a chain operation.
      */
@@ -57,7 +56,7 @@ public class OITracer {
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.CHAIN.getValue());
     }
-    
+
     /**
      * Creates a span builder for a tool operation.
      */
@@ -66,7 +65,7 @@ public class OITracer {
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.TOOL.getValue());
     }
-    
+
     /**
      * Creates a span builder for an agent operation.
      */
@@ -75,7 +74,7 @@ public class OITracer {
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.AGENT.getValue());
     }
-    
+
     /**
      * Creates a span builder for a retriever operation.
      */
@@ -84,7 +83,7 @@ public class OITracer {
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.RETRIEVER.getValue());
     }
-    
+
     /**
      * Creates a span builder for an embedding operation.
      */
@@ -93,12 +92,12 @@ public class OITracer {
         if (modelName != null && !modelName.isEmpty()) {
             spanName = operationName + " " + modelName;
         }
-        
+
         return spanBuilder(spanName)
                 .setSpanKind(SpanKind.CLIENT)
                 .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.EMBEDDING.getValue());
     }
-    
+
     /**
      * Creates a span builder for a reranker operation.
      */
@@ -107,7 +106,7 @@ public class OITracer {
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.RERANKER.getValue());
     }
-    
+
     /**
      * Creates a span builder for a guardrail operation.
      */
@@ -116,7 +115,7 @@ public class OITracer {
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.GUARDRAIL.getValue());
     }
-    
+
     /**
      * Creates a span builder for an evaluator operation.
      */
@@ -125,32 +124,32 @@ public class OITracer {
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.EVALUATOR.getValue());
     }
-    
+
     /**
      * Gets the current span from the context.
      */
     public Span getCurrentSpan() {
         return Span.current();
     }
-    
+
     /**
      * Gets the current span from the given context.
      */
     public Span getSpan(Context context) {
         return Span.fromContext(context);
     }
-    
+
     /**
      * Gets the trace configuration.
      */
     public TraceConfig getConfig() {
         return config;
     }
-    
+
     /**
      * Gets the underlying OpenTelemetry tracer.
      */
     public Tracer getTracer() {
         return tracer;
     }
-} 
+}

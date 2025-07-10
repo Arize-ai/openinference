@@ -14,19 +14,19 @@ public enum OpenInferenceSpanKind {
     UNKNOWN("UNKNOWN"),
     GUARDRAIL("GUARDRAIL"),
     EVALUATOR("EVALUATOR");
-    
+
     private final String value;
-    
+
     OpenInferenceSpanKind(String value) {
         this.value = value;
     }
-    
+
     public String getValue() {
         return value;
     }
-    
+
     @Override
     public String toString() {
         return value;
     }
-} 
+}

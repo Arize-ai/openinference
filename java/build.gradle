@@ -3,6 +3,7 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id 'org.jreleaser' version '1.19.0'
+    id "com.diffplug.spotless" version "6.8.0" apply false
 }
 
 allprojects {
@@ -18,6 +19,7 @@ subprojects {
     apply plugin: 'java-library'
     apply plugin: 'maven-publish'
     apply plugin: 'signing'
+    apply plugin: 'com.diffplug.spotless'
 
     java {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -72,7 +74,19 @@ subprojects {
             options.addBooleanOption('html5', true)
         }
     }
-    
+
+    spotless {
+        java {
+            target 'src/**/*.java'
+            toggleOffOn()
+            palantirJavaFormat()
+            removeUnusedImports()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+    }
+
+
     // Publishing configuration
     publishing {
         publications {
