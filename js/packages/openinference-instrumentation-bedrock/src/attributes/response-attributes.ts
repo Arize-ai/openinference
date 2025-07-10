@@ -14,6 +14,8 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import {
   InvokeModelResponse,
+} from "@aws-sdk/client-bedrock-runtime";
+import {
   InvokeModelResponseBody,
   isTextContent,
   isToolUseContent,
@@ -137,6 +139,9 @@ export function extractInvokeModelResponseAttributes(span: Span, response: Invok
  * Safely parses the response body
  */
 function parseResponseBody(response: InvokeModelResponse): InvokeModelResponseBody {
+  if (!response.body) {
+    throw new Error("Response body is missing");
+  }
   const responseText = new TextDecoder().decode(response.body);
   return JSON.parse(responseText);
 }

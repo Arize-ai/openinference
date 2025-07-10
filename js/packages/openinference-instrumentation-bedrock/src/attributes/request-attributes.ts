@@ -16,6 +16,9 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import {
   InvokeModelCommand,
+  InvokeModelRequest,
+} from "@aws-sdk/client-bedrock-runtime";
+import {
   InvokeModelRequestBody,
   BedrockMessage,
 } from "../types/bedrock-types";
@@ -121,7 +124,22 @@ export function extractInvokeModelRequestAttributes(command: InvokeModelCommand)
  */
 function parseRequestBody(command: InvokeModelCommand): InvokeModelRequestBody {
   try {
-    return command.input?.body ? JSON.parse(command.input.body) : {};
+    if (!command.input?.body) {
+      return {} as InvokeModelRequestBody;
+    }
+    
+    // Handle both string (test format) and Uint8Array (SDK format)
+    let bodyString: string;
+    if (typeof command.input.body === 'string') {
+      bodyString = command.input.body;
+    } else if (command.input.body instanceof Uint8Array) {
+      bodyString = new TextDecoder().decode(command.input.body);
+    } else {
+      // Handle other blob types by converting to Uint8Array first
+      bodyString = new TextDecoder().decode(new Uint8Array(command.input.body as ArrayBuffer));
+    }
+      
+    return JSON.parse(bodyString);
   } catch (error) {
     return {} as InvokeModelRequestBody;
   }
