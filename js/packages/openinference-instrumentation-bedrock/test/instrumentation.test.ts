@@ -94,14 +94,25 @@ describe("BedrockInstrumentation", () => {
   };
 
   // Helper function to load mock response from recording file
-  const loadRecordingResponse = (recordingPath: string) => {
+  const loadRecordingData = (recordingPath: string) => {
     if (!fs.existsSync(recordingPath)) {
       return null;
     }
 
     try {
       const recordingData = JSON.parse(fs.readFileSync(recordingPath, "utf8"));
-      return recordingData[0]?.response || null;
+      const recording = recordingData[0];
+      if (!recording) return null;
+
+      // Extract model ID from the path
+      const pathMatch = recording.path?.match(/\/model\/([^\/]+)\/invoke/);
+      const modelId = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+
+      return {
+        response: recording.response,
+        modelId,
+        recording,
+      };
     } catch (error) {
       console.warn(`Failed to load recording from ${recordingPath}:`, error);
       return null;
@@ -109,9 +120,10 @@ describe("BedrockInstrumentation", () => {
   };
 
   // Helper function to create nock mock for Bedrock API
-  const createNockMock = (mockResponse: any) => {
+  const createNockMock = (mockResponse: any, modelId?: string) => {
+    const targetModelId = modelId || TEST_MODEL_ID;
     nock("https://bedrock-runtime.us-east-1.amazonaws.com")
-      .post(`/model/${encodeURIComponent(TEST_MODEL_ID)}/invoke`)
+      .post(`/model/${encodeURIComponent(targetModelId)}/invoke`)
       .reply(200, mockResponse);
   };
 
@@ -149,13 +161,16 @@ describe("BedrockInstrumentation", () => {
 
     if (!isRecordingMode) {
       // Replay mode: create mock from test-specific recording
-      const mockResponse = loadRecordingResponse(recordingsPath);
+      const recordingData = loadRecordingData(recordingsPath);
 
-      if (mockResponse) {
+      if (recordingData?.response) {
         console.log(
           `Creating mock from sanitized recording: ${path.basename(recordingsPath)}`,
         );
-        createNockMock(mockResponse);
+        createNockMock(
+          recordingData.response,
+          recordingData.modelId || undefined,
+        );
       } else {
         console.log(`No recordings found at ${recordingsPath}`);
       }
@@ -352,9 +367,9 @@ describe("BedrockInstrumentation", () => {
 
     it("should handle tool result responses", async () => {
       setupTestRecording("should handle tool result responses");
-      
+
       const client = createTestClient();
-      
+
       // Use existing generateToolResultMessage() from test-data-generators.js
       const testData = generateToolResultMessage({
         initialPrompt: "What's the weather in Paris?",
@@ -362,25 +377,65 @@ describe("BedrockInstrumentation", () => {
         toolName: "get_weather",
         toolInput: { location: "Paris, France" },
         toolResult: "The weather in Paris is currently 22°C and sunny.",
-        followupPrompt: "Great! What should I wear?"
+        followupPrompt: "Great! What should I wear?",
       });
-      
+
       const command = new InvokeModelCommand({
         modelId: testData.modelId,
         body: testData.body,
         contentType: "application/json",
         accept: "application/json",
       });
-      
+
       const result = await client.send(command);
       verifyResponseStructure(result);
-      
+
       const span = verifySpanBasics(spanExporter);
-      
+
       // Verify tool result processing attributes
       expect(span.attributes).toMatchInlineSnapshot(`
-        // Will be filled by Jest after running test
-      `);
+{
+  "input.mime_type": "application/json",
+  "input.value": "What's the weather in Paris?",
+  "llm.input_messages.0.message.content": "What's the weather in Paris?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.input_messages.1.message.content": "[Tool Call: get_weather]",
+  "llm.input_messages.1.message.role": "assistant",
+  "llm.input_messages.2.message.content": "[Tool Result: The weather in Paris is currently 22°C and sunny.] Great! What should I wear?",
+  "llm.input_messages.2.message.role": "user",
+  "llm.input_messages.2.message.tool_calls.0.tool_call.function.arguments": "{"result":"The weather in Paris is currently 22°C and sunny."}",
+  "llm.input_messages.2.message.tool_calls.0.tool_call.id": "toolu_123",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
+  "llm.model_name": "anthropic.claude-3-sonnet-20240229-v1:0",
+  "llm.output_messages.0.message.content": "Since it's warm and sunny in Paris right now, you'll want to wear lightweight, breathable clothing. Some recommendations:
+
+- A light shirt or tank top
+- Shorts or a light skirt/dress
+- Sandals or other open-toed shoes
+- A hat or sunglasses for sun protection
+- A light jacket or sweater in case it cools off in the evening
+
+The key things are to dress for the warm temperatures and have layers you can",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 364,
+  "llm.token_count.total": 464,
+  "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"get_weather","description":"Get current weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "Since it's warm and sunny in Paris right now, you'll want to wear lightweight, breathable clothing. Some recommendations:
+
+- A light shirt or tank top
+- Shorts or a light skirt/dress
+- Sandals or other open-toed shoes
+- A hat or sunglasses for sun protection
+- A light jacket or sweater in case it cools off in the evening
+
+The key things are to dress for the warm temperatures and have layers you can",
+}
+`);
     });
 
     // TODO: Add more test scenarios following the TDD plan:
