@@ -30,9 +30,14 @@ export function extractOutputMessagesAttributes(
   // Extract assistant's message text as primary output value
   const outputValue = extractPrimaryOutputValue(responseBody);
 
+  // Use TEXT mime type for simple text content, JSON for complex structures
+  const mimeType = typeof outputValue === "string" && outputValue.trim() 
+    ? MimeType.TEXT 
+    : MimeType.JSON;
+
   span.setAttributes({
     [SemanticConventions.OUTPUT_VALUE]: outputValue,
-    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+    [SemanticConventions.OUTPUT_MIME_TYPE]: mimeType,
   });
 
   // Add structured output message attributes for text content
