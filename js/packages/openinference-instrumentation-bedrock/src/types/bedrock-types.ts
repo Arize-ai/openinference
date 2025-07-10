@@ -66,14 +66,6 @@ export interface InvokeModelRequestBody {
   stop_sequences?: string[];
 }
 
-export interface InvokeModelCommand {
-  input: {
-    modelId: string;
-    body: string; // JSON stringified InvokeModelRequestBody
-    contentType?: string;
-    accept?: string;
-  };
-}
 
 // Response structures
 export interface UsageInfo {
@@ -92,14 +84,6 @@ export interface InvokeModelResponseBody {
   usage: UsageInfo;
 }
 
-export interface InvokeModelResponse {
-  body: Uint8Array;
-  contentType: string;
-  $metadata: {
-    httpStatusCode: number;
-    requestId: string;
-  };
-}
 
 // Type guards for runtime validation
 export function isTextContent(content: any): content is TextContent {

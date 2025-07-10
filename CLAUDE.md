@@ -13,23 +13,22 @@ These files contain essential context about ongoing work, established patterns, 
 
 ## Development Insights on Code Quality Tools
 
-### Linting, Formatting, and Type Checking
-- **Purpose of Code Quality Tools**: Ensure consistent code style, catch potential errors early, and improve overall code maintainability
-- **Prettier**: Used for consistent code formatting across both Python and JavaScript/TypeScript projects
-  - Automatically formats code to a standard style
-  - Reduces bike-shedding about code formatting
-  - Integrated into CI/CD pipelines to enforce formatting
-- **Linting Strategies**:
-  - Python uses `ruff` for fast, comprehensive linting
-  - JavaScript/TypeScript uses ESLint for static code analysis
-  - Linters help identify potential bugs, style inconsistencies, and anti-patterns
-- **Type Checking**:
-  - Python uses `mypy` for static type checking
-  - TypeScript provides built-in type checking
-  - Type checking catches type-related errors before runtime
-  - Improves code reliability and serves as a form of documentation
-- **CI Integration**: All code quality checks are run in parallel during continuous integration to catch issues early
-- **Configuration Approach**: Maintain minimal, consistent configuration across packages to reduce maintenance overhead
+### JavaScript/TypeScript Quality Tools
+- **Purpose**: Ensure consistent code style, catch potential errors early, and improve overall code maintainability
+- **ESLint**: Workspace-level linting with TypeScript support for static code analysis
+  - Configuration at `/js/` workspace root applies to all packages
+  - Helps identify potential bugs, style inconsistencies, and anti-patterns
+  - Run with `pnpm run lint` from `/js/` directory
+- **Prettier**: Workspace-level code formatting for consistency across all packages
+  - Automatically formats code to a standard style across the entire monorepo
+  - Reduces formatting debates and maintains consistency
+  - Run `pnpm run prettier:write` from `/js/` directory to fix formatting
+- **TypeScript**: Static type checking at both workspace and package levels
+  - Workspace: `pnpm run type:check` (from `/js/`) checks all packages
+  - Package: `npm run type:check` (from individual package) checks single package
+  - Catches type-related errors before runtime and serves as documentation
+- **Configuration Strategy**: Centralized configuration at workspace level reduces maintenance overhead
+- **CI Integration**: All code quality checks run in parallel during continuous integration
 
 ## Architecture Overview
 
@@ -63,6 +62,86 @@ openinference/
 └── README.md
 ```
 
+### JavaScript Package Directory Reference
+
+For efficient navigation and search, here's a comprehensive guide to all JS packages:
+
+#### Core Infrastructure Packages
+- **`js/packages/openinference-core/`** (`@arizeai/openinference-core`)
+  - Shared utilities, tracing configuration, span management
+  - Key files: `src/trace/`, `src/utils/`
+  - Used by: All instrumentation packages
+
+- **`js/packages/openinference-semantic-conventions/`** (`@arizeai/openinference-semantic-conventions`)
+  - Standardized attribute definitions for AI observability
+  - Key files: `src/trace/SemanticConventions.ts`, `src/resource/`
+  - Used by: All instrumentation and utility packages
+
+#### AI Framework Instrumentation Packages
+- **`js/packages/openinference-instrumentation-openai/`** (`@arizeai/openinference-instrumentation-openai`)
+  - Auto-instrumentation for OpenAI SDK
+  - Key files: `src/instrumentation.ts`, `src/responsesAttributes.ts`
+  - Peer dependency: `openai`
+
+- **`js/packages/openinference-instrumentation-langchain/`** (`@arizeai/openinference-instrumentation-langchain`)
+  - Auto-instrumentation for LangChain.js framework
+  - Key files: `src/instrumentation.ts`, `src/instrumentationUtils.ts`
+  - Peer dependency: `@langchain/core`
+  - Multi-version support: v0.2, v0.3
+
+- **`js/packages/openinference-instrumentation-bedrock/`** (`@arizeai/openinference-instrumentation-bedrock`)
+  - Auto-instrumentation for AWS Bedrock Runtime
+  - Key files: `src/instrumentation.ts`, `src/attributes/`
+  - Peer dependency: `@aws-sdk/client-bedrock-runtime`
+  - Features: VCR testing, tool calling support
+
+- **`js/packages/openinference-instrumentation-beeai/`** (`@arizeai/openinference-instrumentation-beeai`)
+  - Auto-instrumentation for BeeAI framework
+  - Key files: `src/instrumentation.ts`, `src/middleware.ts`, `src/helpers/`
+  - Peer dependency: `beeai-framework`
+
+- **`js/packages/openinference-instrumentation-mcp/`** (`@arizeai/openinference-instrumentation-mcp`)
+  - Auto-instrumentation for Model Context Protocol (MCP)
+  - Key files: `src/mcp.ts`
+  - Dev dependency: `@modelcontextprotocol/sdk`
+
+#### Platform Integration Packages
+- **`js/packages/openinference-vercel/`** (`@arizeai/openinference-vercel`)
+  - Utilities for Vercel AI SDK span processing
+  - Key files: `src/OpenInferenceSpanProcessor.ts`, `src/utils.ts`
+  - Exports: Main, utils, types
+  - Platform: Vercel AI SDK, Next.js
+
+- **`js/packages/openinference-mastra/`** (`@arizeai/openinference-mastra`)
+  - Utilities for Mastra agent framework span ingestion
+  - Key files: `src/OpenInferenceTraceExporter.ts`, `src/attributes.ts`
+  - Build: ESM-only, uses Vitest
+  - Platform: Mastra agent framework
+
+#### Package Navigation Quick Reference
+
+**Search by Technology:**
+- OpenAI → `openinference-instrumentation-openai/`
+- LangChain → `openinference-instrumentation-langchain/`
+- AWS Bedrock → `openinference-instrumentation-bedrock/`
+- BeeAI → `openinference-instrumentation-beeai/`
+- MCP → `openinference-instrumentation-mcp/`
+- Vercel AI → `openinference-vercel/`
+- Mastra → `openinference-mastra/`
+
+**Search by Function:**
+- Core utilities → `openinference-core/`
+- Semantic conventions → `openinference-semantic-conventions/`
+- Auto-instrumentation → `openinference-instrumentation-*/`
+- Platform integration → `openinference-vercel/`, `openinference-mastra/`
+
+**Search by File Type:**
+- Instrumentation logic → `src/instrumentation.ts`
+- Attribute extraction → `src/attributes/`, `src/responsesAttributes.ts`
+- Test files → `test/`, `src/**/*.test.ts`
+- Examples → `examples/`
+- VCR recordings → `test/recordings/` (Bedrock only)
+
 ### Development Patterns
 
 - **Monorepo Architecture**: Uses pnpm workspaces for JavaScript packages
@@ -70,6 +149,80 @@ openinference/
 - **OpenTelemetry Integration**: Built on OpenTelemetry for tracing infrastructure
 - **Semantic Conventions**: Standardized attribute naming across all instrumentations
 - **Test-Driven Development**: Comprehensive test coverage with VCR-style testing
+
+#### Common File Patterns Across Packages
+
+**Standard Package Structure:**
+```
+src/
+├── index.ts              # Main entry point, exports instrumentation
+├── instrumentation.ts    # Core instrumentation logic (most packages)
+├── version.ts           # Auto-generated version info
+├── types.ts             # TypeScript type definitions
+└── utils.ts             # Shared utilities
+
+test/
+├── *.test.ts            # Jest test files
+├── fixtures.ts          # Test data and mocks (some packages)
+└── recordings/          # VCR test recordings (Bedrock only)
+```
+
+**Package-Specific Patterns:**
+- **Bedrock**: `src/attributes/` (request/response attribute extraction), `scripts/` (VCR management)
+- **BeeAI**: `src/helpers/` (trace building utilities), `src/middleware.ts`
+- **LangChain**: `src/instrumentationUtils.ts`, `src/tracer.ts` (custom tracer logic)
+- **OpenAI**: `src/responsesAttributes.ts` (response attribute extraction)
+- **Vercel**: Multi-export structure with utils and types
+- **Mastra**: ESM-only build, Vitest instead of Jest
+
+#### Testing Framework Usage
+
+**Jest (Most Packages):**
+- Standard unit testing framework
+- Configuration: `jest.config.js`
+- Run: `npm test` or `jest .`
+
+**Vitest (Mastra only):**
+- Modern alternative to Jest
+- Configuration: `vitest.config.ts`
+- Run: `npm test` or `vitest`
+
+**VCR Testing (Bedrock only):**
+- HTTP recording/replay with Nock
+- Recording mode: `BEDROCK_RECORD_MODE=record npm test`
+- Management scripts: `npm run test:clear-recordings`
+
+#### Build Configuration Patterns
+
+**TypeScript Configs (Standard across packages):**
+- `tsconfig.json` - CommonJS build
+- `tsconfig.esm.json` - ES modules build  
+- `tsconfig.esnext.json` - Latest JS features
+
+**Package.json Scripts (Standard):**
+```json
+{
+  "scripts": {
+    "prebuild": "rimraf dist && pnpm run version:update",
+    "build": "tsc --build [all three configs] && tsc-alias",
+    "postbuild": "echo module marker && rimraf dist/test",
+    "type:check": "tsc --noEmit",
+    "test": "jest ." // or "vitest" for Mastra
+  }
+}
+```
+
+**Exports Pattern (Standard):**
+```json
+{
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/src/index.js"
+    }
+  }
+}
+```
 
 ## Development Commands
 
@@ -85,27 +238,65 @@ pnpm test
 # Run tests for specific package
 pnpm test --filter @arizeai/openinference-instrumentation-bedrock
 
-# Type checking
-pnpm run type:check
-
-# Linting
-pnpm run lint
-
-# Formatting
-pnpm run prettier:check
-pnpm run prettier:write
-
 # Build all packages
 pnpm run build
 ```
 
-### Quality Assurance
+### Code Quality Tools
 
-- **ESLint**: Static code analysis with TypeScript support
-- **Prettier**: Consistent code formatting
-- **TypeScript**: Static type checking
-- **Jest**: Unit testing framework
-- **Nock**: HTTP mocking for VCR-style testing
+The project uses different levels for code quality checks:
+
+**Workspace Level (run from `/js/` directory):**
+```bash
+# Type checking - runs across all packages
+pnpm run type:check
+
+# Linting - covers entire workspace
+pnpm run lint
+
+# Prettier formatting
+pnpm run prettier:check  # Check formatting
+pnpm run prettier:write  # Fix formatting
+```
+
+**Individual Package Level (run from specific package directory):**
+```bash
+# Type checking for single package
+npm run type:check
+
+# Note: lint and prettier are managed at workspace level only
+# Individual packages don't have separate lint/prettier scripts
+```
+
+**Best Practices:**
+- **Always run code quality tools from workspace level** (`/js/`) for consistency
+- **Use `pnpm run type:check`** to check all packages at once
+- **Use `pnpm run lint`** to check entire codebase for style issues
+- **Use `pnpm run prettier:write`** to automatically fix formatting across all packages
+- Individual package `type:check` is available but workspace-level is preferred
+
+**Quick Reference:**
+```bash
+# Navigate to workspace root first
+cd /path/to/openinference/js
+
+# Code quality commands (run from /js/ directory)
+pnpm run lint                # Lint entire workspace
+pnpm run type:check          # Type check all packages
+pnpm run prettier:check      # Check formatting
+pnpm run prettier:write      # Fix formatting
+
+# Individual package commands (run from package directory)
+cd packages/openinference-instrumentation-bedrock
+npm run type:check           # Type check single package
+npm test                     # Run package tests
+```
+
+### Testing Framework
+
+- **Jest**: Unit testing framework with comprehensive coverage
+- **Nock**: HTTP mocking for VCR-style testing (used in Bedrock instrumentation)
+- **Test Organization**: Individual packages contain their own test suites
 
 ### Release Process
 

@@ -11,7 +11,7 @@ import {
 } from "@opentelemetry/api";
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
-import { InvokeModelCommand } from "./types/bedrock-types";
+import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { extractInvokeModelRequestAttributes } from "./attributes/request-attributes";
 import { extractInvokeModelResponseAttributes } from "./attributes/response-attributes";
 
