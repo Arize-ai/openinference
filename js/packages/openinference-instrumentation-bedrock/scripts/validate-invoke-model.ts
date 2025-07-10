@@ -47,6 +47,9 @@ type TestScenario =
   | "multi-modal"
   | "tool-results"
   | "multiple-tools"
+  | "streaming-basic"
+  | "streaming-tools"
+  | "streaming-errors"
   | "all";
 
 interface ValidationOptions {
@@ -62,6 +65,7 @@ class InstrumentationValidator {
   private provider: NodeTracerProvider;
   private BedrockRuntimeClient: any;
   private InvokeModelCommand: any;
+  private InvokeModelWithResponseStreamCommand: any;
 
   constructor(private options: ValidationOptions) {
     this.setupLogging();
@@ -113,6 +117,7 @@ class InstrumentationValidator {
     const awsModule = await import("@aws-sdk/client-bedrock-runtime");
     this.BedrockRuntimeClient = awsModule.BedrockRuntimeClient;
     this.InvokeModelCommand = awsModule.InvokeModelCommand;
+    this.InvokeModelWithResponseStreamCommand = awsModule.InvokeModelWithResponseStreamCommand;
 
     // Check if already patched
     if (!isPatched()) {
@@ -201,6 +206,9 @@ class InstrumentationValidator {
             "multi-modal",
             "tool-results",
             "multiple-tools",
+            "streaming-basic",
+            "streaming-tools",
+            "streaming-errors",
           ] as TestScenario[])
         : [this.options.scenario];
 
@@ -249,6 +257,12 @@ class InstrumentationValidator {
         return this.runToolResultsScenario();
       case "multiple-tools":
         return this.runMultipleToolsScenario();
+      case "streaming-basic":
+        return this.runStreamingBasicScenario();
+      case "streaming-tools":
+        return this.runStreamingToolsScenario();
+      case "streaming-errors":
+        return this.runStreamingErrorsScenario();
       default:
         throw new Error(`Unknown scenario: ${scenario}`);
     }
@@ -477,6 +491,151 @@ class InstrumentationValidator {
     return true;
   }
 
+  private async runStreamingBasicScenario(): Promise<boolean> {
+    console.log("   🌊 Testing streaming basic text...");
+
+    const command = new this.InvokeModelWithResponseStreamCommand({
+      modelId: this.options.modelId,
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 100,
+        messages: [
+          {
+            role: "user",
+            content: "Tell me a very short story about a robot learning to paint.",
+          },
+        ],
+      }),
+      contentType: "application/json",
+      accept: "application/json",
+    });
+
+    const response = await this.client.send(command);
+    let fullContent = "";
+    let eventCount = 0;
+
+    // Process the streaming response
+    for await (const chunk of response.body) {
+      if (chunk.chunk?.bytes) {
+        const chunkData = JSON.parse(new TextDecoder().decode(chunk.chunk.bytes));
+        if (chunkData.type === "content_block_delta" && chunkData.delta?.text) {
+          fullContent += chunkData.delta.text;
+        }
+        eventCount++;
+      }
+    }
+
+    console.log(
+      "   🌊 Streaming response length:",
+      fullContent.length,
+      "chars from",
+      eventCount,
+      "events"
+    );
+    console.log(
+      "   💬 Content preview:",
+      fullContent.substring(0, 80) + "..."
+    );
+
+    return true;
+  }
+
+  private async runStreamingToolsScenario(): Promise<boolean> {
+    console.log("   🌊🔧 Testing streaming tool calls...");
+
+    const command = new this.InvokeModelWithResponseStreamCommand({
+      modelId: this.options.modelId,
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 100,
+        tools: [
+          {
+            name: "get_weather",
+            description: "Get current weather for a location",
+            input_schema: {
+              type: "object",
+              properties: {
+                location: { type: "string" },
+              },
+            },
+          },
+          {
+            name: "calculate",
+            description: "Perform mathematical calculations",
+            input_schema: {
+              type: "object",
+              properties: {
+                expression: { type: "string" },
+              },
+            },
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content: "What's the weather in Tokyo and what's 7 * 9?",
+          },
+        ],
+      }),
+      contentType: "application/json",
+      accept: "application/json",
+    });
+
+    const response = await this.client.send(command);
+    let toolCallsDetected = 0;
+    let eventCount = 0;
+
+    // Process the streaming response
+    for await (const chunk of response.body) {
+      if (chunk.chunk?.bytes) {
+        const chunkData = JSON.parse(new TextDecoder().decode(chunk.chunk.bytes));
+        if (chunkData.type === "content_block_start" && chunkData.content_block?.type === "tool_use") {
+          toolCallsDetected++;
+        }
+        eventCount++;
+      }
+    }
+
+    console.log(
+      "   🌊🔧 Streaming tool calls detected:",
+      toolCallsDetected,
+      "from",
+      eventCount,
+      "events"
+    );
+
+    return true;
+  }
+
+  private async runStreamingErrorsScenario(): Promise<boolean> {
+    console.log("   🌊❌ Testing streaming error handling...");
+
+    const command = new this.InvokeModelWithResponseStreamCommand({
+      modelId: "invalid-streaming-model-id",
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 100,
+        messages: [
+          {
+            role: "user",
+            content: "This streaming request should fail",
+          },
+        ],
+      }),
+      contentType: "application/json",
+      accept: "application/json",
+    });
+
+    try {
+      await this.client.send(command);
+      console.log("   ⚠️ Expected error but request succeeded");
+      return false;
+    } catch (error: any) {
+      console.log("   ✅ Streaming error handled correctly:", error.name);
+      return true;
+    }
+  }
+
   async cleanup() {
     await this.provider.shutdown();
   }
@@ -515,7 +674,7 @@ function parseArgs(): ValidationOptions {
 Usage: tsx scripts/validate-invoke-model.ts [options]
 
 Options:
-  --scenario <scenario>     Test scenario: basic-text, tool-calling, multi-modal, tool-results, multiple-tools, all (default: all)
+  --scenario <scenario>     Test scenario: basic-text, tool-calling, multi-modal, tool-results, multiple-tools, streaming-basic, streaming-tools, streaming-errors, all (default: all)
   --debug                   Enable debug logging
   --phoenix-endpoint <url>  Phoenix endpoint URL (default: ${PHOENIX_ENDPOINT})
   --phoenix-api-key <key>   Phoenix API key (default: from PHOENIX_API_KEY env)
