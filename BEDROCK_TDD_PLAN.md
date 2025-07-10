@@ -359,19 +359,17 @@ it("should handle large payloads and timeouts", async () => {
 
 ## InvokeModel API Test Coverage Summary
 
-### ✅ **Completed Tests (6/13)**
+### ✅ **Completed Tests (8/13)**
 1. **Test 1**: Basic InvokeModel Text Messages - COMPLETE
 2. **Test 2**: Tool Call Support - Basic Function Call - COMPLETE  
 3. **Test 3**: Tool Results Processing - COMPLETE
 4. **Test 4**: Missing Token Count Handling - COMPLETE ✅
 5. **Test 5**: Multi-Modal Messages (Text + Image) - COMPLETE ✅
 6. **Test 6**: API Error Handling - COMPLETE ✅
+7. **Test 7**: Multiple Tools in Single Request - COMPLETE ✅
+8. **Test 8**: InvokeModelWithResponseStream - Basic Text - COMPLETE ✅
 
-### 🎯 **Priority 1: Core Completeness (1 test remaining)**
-7. **Test 7**: Multiple Tools in Single Request
-
-### 🚀 **Priority 2: Streaming Support (3 tests)**
-8. **Test 8**: InvokeModelWithResponseStream - Basic Text
+### 🚀 **Priority 2: Streaming Support (2 tests remaining)**
 9. **Test 9**: Streaming Tool Calls
 10. **Test 10**: Stream Error Handling
 
@@ -381,7 +379,7 @@ it("should handle large payloads and timeouts", async () => {
 13. **Test 13**: Large Payload Edge Cases
 
 ### Next Implementation Goal
-**Current Focus**: Complete Priority 1 with Test 7 (Multiple Tools) to achieve comprehensive InvokeModel API coverage for all core functionality scenarios.
+**Current Focus**: Complete Priority 2 streaming support with Tests 9-10 to achieve full InvokeModel streaming functionality.
 
 ## Beyond InvokeModel API
 
@@ -420,12 +418,15 @@ This plan ensures complete InvokeModel API instrumentation before expanding to o
 1. ✅ **Test 4**: Missing token count handling - **COMPLETED**
 2. ✅ **Test 5**: Multi-modal messages with image support - **COMPLETED**
 3. ✅ **Test 6**: API error handling and edge cases - **COMPLETED**
-4. **Test 7**: Multiple tools in single request - **NEXT**
+4. ✅ **Test 7**: Multiple tools in single request - **COMPLETED**
+5. ✅ **Test 8**: InvokeModelWithResponseStream - Basic Text - **COMPLETED**
+6. **Test 9**: Streaming Tool Calls - **NEXT**
 
 ### 🔧 Current Status
-- **6 of 13 InvokeModel tests complete** (46% coverage)
-- **Priority 1 progress**: 1 of 2 core functionality tests remaining (83% complete)
-- **Recent achievements**: API error handling + test infrastructure refactoring
+- **8 of 13 InvokeModel tests complete** (62% coverage)
+- **Priority 1**: COMPLETE ✅ (Core functionality 100% coverage)
+- **Priority 2 progress**: 1 of 3 streaming tests complete (33% streaming coverage)
+- **Recent achievements**: Streaming support implementation with VCR infrastructure working for binary eventstream responses
 
 ### 🔧 **Recent Refactoring Achievements**
 **Conservative Test Infrastructure Refactoring Completed (7 incremental steps)**:

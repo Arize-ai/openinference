@@ -1,5 +1,8 @@
 import { BedrockInstrumentation } from "../src/instrumentation";
-import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { 
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand 
+} from "@aws-sdk/client-bedrock-runtime";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
@@ -83,6 +86,7 @@ describe("BedrockInstrumentation", () => {
           recordingData.modelId || undefined,
           recordingData.status,
           TEST_MODEL_ID,
+          recordingData.isStreaming,
         );
       } else {
         console.log(`No recordings found at ${recordingsPath}`);
@@ -646,6 +650,51 @@ Honeybees can recognize human faces.",
 }
 `);
     });
+  });
+
+  describe("InvokeModelWithResponseStream support", () => {
+    it("should handle InvokeModelWithResponseStream", async () => {
+      setupTestRecording("should handle invoke model with response stream");
+
+      const client = createTestClient(isRecordingMode);
+
+      const command = new InvokeModelWithResponseStreamCommand({
+        modelId: TEST_MODEL_ID,
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: 100,
+          messages: [{ role: "user", content: "Tell me a short story" }]
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const response = await client.send(command);
+      
+      // Verify span was created
+      const span = verifySpanBasics(spanExporter);
+
+      // Basic span attributes should be present
+      expect(span.attributes["llm.model_name"]).toBe(TEST_MODEL_ID);
+      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.system"]).toBe("bedrock");
+      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+
+      // Input message should be captured
+      expect(span.attributes["llm.input_messages.0.message.content"]).toBe("Tell me a short story");
+      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+
+      // Output message should contain accumulated content from stream
+      expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
+      expect(span.attributes["llm.output_messages.0.message.content"]).toContain("Here's a short story");
+      
+      // Token counts should be captured from streaming response
+      expect(span.attributes["llm.token_count.prompt"]).toBe(12);
+      expect(span.attributes["llm.token_count.completion"]).toBe(100);
+      expect(span.attributes["llm.token_count.total"]).toBe(112);
+    });
 
     // TODO: Add more test scenarios following the TDD plan:
     //
@@ -657,10 +706,6 @@ Honeybees can recognize human faces.",
     // ✅ Multi-Modal Messages (Text + Image)
     // ✅ API Error Handling
     // ✅ Multiple Tools in Single Request
-    //
-    // Phase 2: Streaming Support
-    // - it("should handle InvokeModelWithResponseStream", async () => {})
-    // - it("should handle streaming tool calls", async () => {})
     //
     // Phase 3: Converse API Support
     // - it("should handle Converse API calls", async () => {})

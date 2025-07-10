@@ -19,15 +19,19 @@ export const loadRecordingData = (recordingPath: string) => {
     const recording = recordingData[0];
     if (!recording) return null;
 
-    // Extract model ID from the path
+    // Extract model ID from the path (handle both invoke and invoke-with-response-stream)
     const pathMatch = recording.path?.match(/\/model\/([^\/]+)\/invoke/);
     const modelId = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+    
+    // Determine if this is a streaming endpoint
+    const isStreaming = recording.path?.includes('invoke-with-response-stream');
 
     return {
       response: recording.response,
       modelId,
       recording,
       status: recording.status || 200,
+      isStreaming,
     };
   } catch (error) {
     console.warn(`Failed to load recording from ${recordingPath}:`, error);
@@ -41,11 +45,24 @@ export const createNockMock = (
   modelId?: string,
   status: number = 200,
   defaultModelId: string = "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  isStreaming: boolean = false,
 ) => {
   const targetModelId = modelId || defaultModelId;
-  nock("https://bedrock-runtime.us-east-1.amazonaws.com")
-    .post(`/model/${encodeURIComponent(targetModelId)}/invoke`)
-    .reply(status, mockResponse);
+  const endpoint = isStreaming ? 'invoke-with-response-stream' : 'invoke';
+  
+  const nockScope = nock("https://bedrock-runtime.us-east-1.amazonaws.com")
+    .post(`/model/${encodeURIComponent(targetModelId)}/${endpoint}`);
+  
+  if (isStreaming && typeof mockResponse === 'string') {
+    // For streaming responses, convert hex string to binary buffer
+    const binaryResponse = Buffer.from(mockResponse, 'hex');
+    nockScope.reply(status, binaryResponse, {
+      'Content-Type': 'application/vnd.amazon.eventstream',
+      'Transfer-Encoding': 'chunked'
+    });
+  } else {
+    nockScope.reply(status, mockResponse);
+  }
 };
 
 // Helper function to sanitize auth headers in recordings
