@@ -178,7 +178,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
         (msg: any) => msg.role === "user",
       );
       if (userMessage && userMessage.content) {
-        inputValue = userMessage.content;
+        inputValue = this._extractTextFromContent(userMessage.content);
       }
     }
 
@@ -187,18 +187,69 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     // Add structured input message attributes
     if (requestBody.messages && Array.isArray(requestBody.messages)) {
       requestBody.messages.forEach((message: any, index: number) => {
-        if (message.role && message.content) {
+        if (message.role) {
           attributes[
             `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_ROLE}`
           ] = message.role;
-          attributes[
-            `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`
-          ] = message.content;
+
+          // Handle both string and array content
+          if (message.content) {
+            const messageContent = this._extractTextFromContent(
+              message.content,
+            );
+            if (messageContent) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`
+              ] = messageContent;
+            }
+          }
+
+          // Handle complex content arrays (tool results, etc.)
+          if (Array.isArray(message.content)) {
+            message.content.forEach(
+              (contentBlock: any, contentIndex: number) => {
+                if (contentBlock.type === "tool_result") {
+                  // Extract tool result attributes
+                  attributes[
+                    `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.${SemanticConventions.TOOL_CALL_ID}`
+                  ] = contentBlock.tool_use_id;
+                  attributes[
+                    `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+                  ] = JSON.stringify({ result: contentBlock.content });
+                }
+              },
+            );
+          }
         }
       });
     }
 
     return attributes;
+  }
+
+  /**
+   * Extracts text content from various content formats (string or array)
+   */
+  private _extractTextFromContent(content: any): string {
+    if (typeof content === "string") {
+      return content;
+    }
+
+    if (Array.isArray(content)) {
+      const textParts: string[] = [];
+      content.forEach((block: any) => {
+        if (block.type === "text" && block.text) {
+          textParts.push(block.text);
+        } else if (block.type === "tool_result" && block.content) {
+          textParts.push(`[Tool Result: ${block.content}]`);
+        } else if (block.type === "tool_use") {
+          textParts.push(`[Tool Call: ${block.name}]`);
+        }
+      });
+      return textParts.join(" ");
+    }
+
+    return "";
   }
 
   /**
