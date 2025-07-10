@@ -6,6 +6,91 @@
  * multi-modal content, and different message structures.
  */
 
+// Type definitions
+interface BasicTextMessageOptions {
+  prompt?: string;
+  modelId?: string;
+  maxTokens?: number;
+  systemPrompt?: string | null;
+}
+
+interface ToolCallMessageOptions {
+  prompt?: string;
+  tools?: ToolDefinition[];
+  modelId?: string;
+  maxTokens?: number;
+}
+
+interface ToolResultMessageOptions {
+  initialPrompt?: string;
+  toolUseId?: string;
+  toolName?: string;
+  toolInput?: Record<string, any>;
+  toolResult?: string;
+  followupPrompt?: string;
+  tools?: ToolDefinition[];
+  modelId?: string;
+  maxTokens?: number;
+}
+
+interface MultiModalMessageOptions {
+  textPrompt?: string;
+  imageData?: string;
+  mediaType?: string;
+  modelId?: string;
+  maxTokens?: number;
+}
+
+interface ConverseMessageOptions {
+  messages?: any[];
+  system?: string | any[] | null;
+  toolConfig?: any | null;
+  inferenceConfig?: { maxTokens: number };
+  modelId?: string;
+}
+
+interface ConverseWithToolsOptions {
+  prompt?: string;
+  tools?: any[];
+  modelId?: string;
+}
+
+interface AgentMessageOptions {
+  agentId?: string;
+  agentAliasId?: string;
+  sessionId?: string;
+  inputText?: string;
+  enableTrace?: boolean;
+}
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  input_schema: {
+    type: "object";
+    properties: Record<string, any>;
+    required: string[];
+  };
+}
+
+interface ToolSchema {
+  properties: Record<string, any>;
+  required?: string[];
+}
+
+interface TestMessageResult {
+  modelId: string;
+  body: string;
+}
+
+interface ConverseResult {
+  modelId: string;
+  messages: any[];
+  inferenceConfig: { maxTokens: number };
+  system?: any[];
+  toolConfig?: any;
+}
+
 /**
  * Default test configuration
  */
@@ -19,7 +104,7 @@ const defaults = {
 /**
  * Generates basic text message for InvokeModel API
  */
-function generateBasicTextMessage(options: any = {}) {
+function generateBasicTextMessage(options: BasicTextMessageOptions = {}): TestMessageResult {
   const {
     prompt = "Hello, how are you today?",
     modelId = defaults.modelId,
@@ -51,7 +136,7 @@ function generateBasicTextMessage(options: any = {}) {
 /**
  * Generates tool definition for function calling
  */
-function generateToolDefinition(name: string, description: string, schema: any) {
+function generateToolDefinition(name: string, description: string, schema: ToolSchema): ToolDefinition {
   return {
     name,
     description,
@@ -124,7 +209,7 @@ const commonTools = {
 /**
  * Generates InvokeModel request with tool definitions
  */
-function generateToolCallMessage(options: any = {}) {
+function generateToolCallMessage(options: ToolCallMessageOptions = {}): TestMessageResult {
   const {
     prompt = "What's the weather like in San Francisco?",
     tools = [commonTools.weather],
@@ -153,7 +238,7 @@ function generateToolCallMessage(options: any = {}) {
 /**
  * Generates message with tool result
  */
-function generateToolResultMessage(options: any = {}) {
+function generateToolResultMessage(options: ToolResultMessageOptions = {}): TestMessageResult {
   const {
     initialPrompt = "What's the weather in Paris?",
     toolUseId = "toolu_123",
@@ -212,7 +297,7 @@ function generateToolResultMessage(options: any = {}) {
 /**
  * Generates multi-modal message with image
  */
-function generateMultiModalMessage(options: any = {}) {
+function generateMultiModalMessage(options: MultiModalMessageOptions = {}): TestMessageResult {
   const {
     textPrompt = "What do you see in this image?",
     imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
@@ -254,7 +339,7 @@ function generateMultiModalMessage(options: any = {}) {
 /**
  * Generates Converse API request (modern API)
  */
-function generateConverseMessage(options: any = {}) {
+function generateConverseMessage(options: ConverseMessageOptions = {}): ConverseResult {
   const {
     messages = [{ role: "user", content: [{ text: "Hello!" }] }],
     system = null,
@@ -283,7 +368,7 @@ function generateConverseMessage(options: any = {}) {
 /**
  * Generates Converse API request with tools
  */
-function generateConverseWithTools(options: any = {}) {
+function generateConverseWithTools(options: ConverseWithToolsOptions = {}): ConverseResult {
   const {
     prompt = "Calculate 15 * 23",
     tools = [
@@ -316,7 +401,7 @@ function generateConverseWithTools(options: any = {}) {
 /**
  * Generates InvokeAgent request for agent workflows
  */
-function generateAgentMessage(options: any = {}) {
+function generateAgentMessage(options: AgentMessageOptions = {}) {
   const {
     agentId = "test-agent-123",
     agentAliasId = "test-alias",
@@ -337,8 +422,8 @@ function generateAgentMessage(options: any = {}) {
 /**
  * Generates streaming request variants
  */
-function generateStreamingVariants(baseRequest: any, apiType: string = "invokeModel") {
-  const variants: any = {
+function generateStreamingVariants(baseRequest: TestMessageResult | ConverseResult, apiType: string = "invokeModel") {
+  const variants: Record<string, TestMessageResult | ConverseResult> = {
     invokeModel: {
       ...baseRequest,
       // InvokeModelWithResponseStream has same structure
@@ -360,22 +445,22 @@ function generateStreamingVariants(baseRequest: any, apiType: string = "invokeMo
  * Error scenario generators
  */
 const errorScenarios = {
-  invalidModel: (baseRequest: any) => ({
+  invalidModel: (baseRequest: TestMessageResult): TestMessageResult => ({
     ...baseRequest,
     modelId: "invalid-model-id",
   }),
 
-  malformedBody: (baseRequest: any) => ({
+  malformedBody: (baseRequest: TestMessageResult): TestMessageResult => ({
     ...baseRequest,
     body: '{"invalid": json',
   }),
 
-  missingRegion: (baseRequest: any) => ({
+  missingRegion: (baseRequest: TestMessageResult): TestMessageResult => ({
     ...baseRequest,
     // Will cause region-related errors
   }),
 
-  invalidToolSchema: (baseRequest: any) => {
+  invalidToolSchema: (baseRequest: TestMessageResult): TestMessageResult => {
     const parsed = JSON.parse(baseRequest.body);
     parsed.tools = [
       {
