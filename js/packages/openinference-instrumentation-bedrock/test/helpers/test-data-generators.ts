@@ -19,7 +19,7 @@ const defaults = {
 /**
  * Generates basic text message for InvokeModel API
  */
-function generateBasicTextMessage(options = {}) {
+function generateBasicTextMessage(options: any = {}) {
   const {
     prompt = "Hello, how are you today?",
     modelId = defaults.modelId,
@@ -27,7 +27,7 @@ function generateBasicTextMessage(options = {}) {
     systemPrompt = null,
   } = options;
 
-  const body = {
+  const body: any = {
     anthropic_version: defaults.anthropicVersion,
     max_tokens: maxTokens,
     messages: [
@@ -51,7 +51,7 @@ function generateBasicTextMessage(options = {}) {
 /**
  * Generates tool definition for function calling
  */
-function generateToolDefinition(name, description, schema) {
+function generateToolDefinition(name: string, description: string, schema: any) {
   return {
     name,
     description,
@@ -124,7 +124,7 @@ const commonTools = {
 /**
  * Generates InvokeModel request with tool definitions
  */
-function generateToolCallMessage(options = {}) {
+function generateToolCallMessage(options: any = {}) {
   const {
     prompt = "What's the weather like in San Francisco?",
     tools = [commonTools.weather],
@@ -132,7 +132,7 @@ function generateToolCallMessage(options = {}) {
     maxTokens = defaults.maxTokens,
   } = options;
 
-  const body = {
+  const body: any = {
     anthropic_version: defaults.anthropicVersion,
     max_tokens: maxTokens,
     tools,
@@ -153,7 +153,7 @@ function generateToolCallMessage(options = {}) {
 /**
  * Generates message with tool result
  */
-function generateToolResultMessage(options = {}) {
+function generateToolResultMessage(options: any = {}) {
   const {
     initialPrompt = "What's the weather in Paris?",
     toolUseId = "toolu_123",
@@ -166,7 +166,7 @@ function generateToolResultMessage(options = {}) {
     maxTokens = defaults.maxTokens,
   } = options;
 
-  const body = {
+  const body: any = {
     anthropic_version: defaults.anthropicVersion,
     max_tokens: maxTokens,
     tools,
@@ -212,7 +212,7 @@ function generateToolResultMessage(options = {}) {
 /**
  * Generates multi-modal message with image
  */
-function generateMultiModalMessage(options = {}) {
+function generateMultiModalMessage(options: any = {}) {
   const {
     textPrompt = "What do you see in this image?",
     imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
@@ -221,7 +221,7 @@ function generateMultiModalMessage(options = {}) {
     maxTokens = defaults.maxTokens,
   } = options;
 
-  const body = {
+  const body: any = {
     anthropic_version: defaults.anthropicVersion,
     max_tokens: maxTokens,
     messages: [
@@ -254,7 +254,7 @@ function generateMultiModalMessage(options = {}) {
 /**
  * Generates Converse API request (modern API)
  */
-function generateConverseMessage(options = {}) {
+function generateConverseMessage(options: any = {}) {
   const {
     messages = [{ role: "user", content: [{ text: "Hello!" }] }],
     system = null,
@@ -263,7 +263,7 @@ function generateConverseMessage(options = {}) {
     modelId = defaults.modelId,
   } = options;
 
-  const request = {
+  const request: any = {
     modelId,
     messages,
     inferenceConfig,
@@ -283,7 +283,7 @@ function generateConverseMessage(options = {}) {
 /**
  * Generates Converse API request with tools
  */
-function generateConverseWithTools(options = {}) {
+function generateConverseWithTools(options: any = {}) {
   const {
     prompt = "Calculate 15 * 23",
     tools = [
@@ -316,7 +316,7 @@ function generateConverseWithTools(options = {}) {
 /**
  * Generates InvokeAgent request for agent workflows
  */
-function generateAgentMessage(options = {}) {
+function generateAgentMessage(options: any = {}) {
   const {
     agentId = "test-agent-123",
     agentAliasId = "test-alias",
@@ -337,8 +337,8 @@ function generateAgentMessage(options = {}) {
 /**
  * Generates streaming request variants
  */
-function generateStreamingVariants(baseRequest, apiType = "invokeModel") {
-  const variants = {
+function generateStreamingVariants(baseRequest: any, apiType: string = "invokeModel") {
+  const variants: any = {
     invokeModel: {
       ...baseRequest,
       // InvokeModelWithResponseStream has same structure
@@ -360,22 +360,22 @@ function generateStreamingVariants(baseRequest, apiType = "invokeModel") {
  * Error scenario generators
  */
 const errorScenarios = {
-  invalidModel: (baseRequest) => ({
+  invalidModel: (baseRequest: any) => ({
     ...baseRequest,
     modelId: "invalid-model-id",
   }),
 
-  malformedBody: (baseRequest) => ({
+  malformedBody: (baseRequest: any) => ({
     ...baseRequest,
     body: '{"invalid": json',
   }),
 
-  missingRegion: (baseRequest) => ({
+  missingRegion: (baseRequest: any) => ({
     ...baseRequest,
     // Will cause region-related errors
   }),
 
-  invalidToolSchema: (baseRequest) => {
+  invalidToolSchema: (baseRequest: any) => {
     const parsed = JSON.parse(baseRequest.body);
     parsed.tools = [
       {
@@ -442,7 +442,7 @@ function generateTestSuite() {
   };
 }
 
-module.exports = {
+export {
   // Individual generators
   generateBasicTextMessage,
   generateToolCallMessage,
