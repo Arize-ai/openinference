@@ -4,7 +4,10 @@ import { SpanKind } from "@opentelemetry/api";
 // Helper function to verify response structure
 export const verifyResponseStructure = (result: any) => {
   expect(result.body).toBeDefined();
-  expect(result.contentType).toBe("application/json");
+  // Only check contentType for non-streaming responses
+  if (result.contentType !== undefined) {
+    expect(result.contentType).toBe("application/json");
+  }
 };
 
 // Helper function to verify basic span structure and return the span

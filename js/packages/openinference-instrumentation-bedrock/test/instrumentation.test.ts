@@ -669,31 +669,42 @@ Honeybees can recognize human faces.",
         accept: "application/json",
       });
 
-      const response = await client.send(command);
-      
-      // Verify span was created
+      const result = await client.send(command);
+      verifyResponseStructure(result);
+
       const span = verifySpanBasics(spanExporter);
+      expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "Tell me a short story",
+  "llm.input_messages.0.message.content": "Tell me a short story",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.content": "Here's a short story for you:
 
-      // Basic span attributes should be present
-      expect(span.attributes["llm.model_name"]).toBe(TEST_MODEL_ID);
-      expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.system"]).toBe("bedrock");
-      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+The Last Leaf
 
+Ella gazed out her window at the ivy-covered wall across the courtyard. She had been bedridden with pneumonia for weeks, and her spirits were low. The doctor had told her that she needed the will to live to recover, but Ella felt herself slipping away.
 
-      // Input message should be captured
-      expect(span.attributes["llm.input_messages.0.message.content"]).toBe("Tell me a short story");
-      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+She had been counting the ivy leaves as they fell, convinced that when the last leaf dropped, she too would die. Now",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 12,
+  "llm.token_count.total": 112,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "Here's a short story for you:
 
-      // Output message should contain accumulated content from stream
-      expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
-      expect(span.attributes["llm.output_messages.0.message.content"]).toContain("Here's a short story");
-      
-      // Token counts should be captured from streaming response
-      expect(span.attributes["llm.token_count.prompt"]).toBe(12);
-      expect(span.attributes["llm.token_count.completion"]).toBe(100);
-      expect(span.attributes["llm.token_count.total"]).toBe(112);
+The Last Leaf
+
+Ella gazed out her window at the ivy-covered wall across the courtyard. She had been bedridden with pneumonia for weeks, and her spirits were low. The doctor had told her that she needed the will to live to recover, but Ella felt herself slipping away.
+
+She had been counting the ivy leaves as they fell, convinced that when the last leaf dropped, she too would die. Now",
+}
+`);
     });
 
     // TODO: Add more test scenarios following the TDD plan:
