@@ -228,7 +228,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
   }
 
   /**
-   * Extracts text content from various content formats (string or array)
+   * Extracts content from various content formats (string or array) including multi-modal content
    */
   private _extractTextFromContent(content: any): string {
     if (typeof content === "string") {
@@ -244,11 +244,27 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
           textParts.push(`[Tool Result: ${block.content}]`);
         } else if (block.type === "tool_use") {
           textParts.push(`[Tool Call: ${block.name}]`);
+        } else if (block.type === "image" && block.source) {
+          // Handle image content in OpenInference format: data:{media_type};base64,{data}
+          const imageUrl = this._formatImageUrl(block.source);
+          if (imageUrl) {
+            textParts.push(imageUrl);
+          }
         }
       });
       return textParts.join(" ");
     }
 
+    return "";
+  }
+
+  /**
+   * Formats image source data into OpenInference data URL format
+   */
+  private _formatImageUrl(source: any): string {
+    if (source.type === "base64" && source.data && source.media_type) {
+      return `data:${source.media_type};base64,${source.data}`;
+    }
     return "";
   }
 

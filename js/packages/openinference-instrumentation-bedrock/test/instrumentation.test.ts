@@ -438,12 +438,191 @@ The key things are to dress for the warm temperatures and have layers you can",
 `);
     });
 
+    it("should handle missing token counts gracefully", async () => {
+      setupTestRecording("should handle missing token counts gracefully");
+
+      const client = createTestClient();
+
+      const command = new InvokeModelCommand({
+        modelId: TEST_MODEL_ID,
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: TEST_MAX_TOKENS,
+          messages: [
+            {
+              role: "user",
+              content: "Tell me a short fact.",
+            },
+          ],
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const result = await client.send(command);
+      verifyResponseStructure(result);
+
+      const span = verifySpanBasics(spanExporter);
+
+      // Verify that span completes successfully even without token counts
+      expect(span.status.code).toBe(1); // SpanStatusCode.OK
+      expect(span.attributes["llm.model_name"]).toBe(TEST_MODEL_ID);
+      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.system"]).toBe("bedrock");
+      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+      // Basic message attributes should still be present
+      expect(span.attributes["llm.input_messages.0.message.content"]).toBe("Tell me a short fact.");
+      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+
+      // Output message should be captured
+      expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
+
+      // Token count attributes should either be undefined or gracefully handled
+      // This test verifies the implementation doesn't crash when usage is missing
+      const hasTokenCounts = 
+        span.attributes["llm.token_count.prompt"] !== undefined ||
+        span.attributes["llm.token_count.completion"] !== undefined ||
+        span.attributes["llm.token_count.total"] !== undefined;
+
+      // If token counts are present, they should be valid numbers
+      if (hasTokenCounts) {
+        if (span.attributes["llm.token_count.prompt"] !== undefined) {
+          expect(typeof span.attributes["llm.token_count.prompt"]).toBe("number");
+        }
+        if (span.attributes["llm.token_count.completion"] !== undefined) {
+          expect(typeof span.attributes["llm.token_count.completion"]).toBe("number");
+        }
+        if (span.attributes["llm.token_count.total"] !== undefined) {
+          expect(typeof span.attributes["llm.token_count.total"]).toBe("number");
+        }
+      }
+
+      // Snapshot the attributes to verify token handling behavior
+      expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "Tell me a short fact.",
+  "llm.input_messages.0.message.content": "Tell me a short fact.",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.content": "Here's a short fact for you:
+
+Honeybees can recognize human faces.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "Here's a short fact for you:
+
+Honeybees can recognize human faces.",
+}
+`);
+    });
+
+    it("should handle multi-modal messages with images", async () => {
+      setupTestRecording("should handle multi-modal messages with images");
+
+      const client = createTestClient();
+
+      // Create a multi-modal message with text and image
+      const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+      
+      const command = new InvokeModelCommand({
+        modelId: TEST_MODEL_ID,
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: TEST_MAX_TOKENS,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "What do you see in this image?"
+                },
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: "image/png",
+                    data: imageData
+                  }
+                }
+              ]
+            }
+          ]
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const result = await client.send(command);
+      verifyResponseStructure(result);
+
+      const span = verifySpanBasics(spanExporter);
+
+      // Verify multi-modal message handling
+      expect(span.attributes["llm.model_name"]).toBe(TEST_MODEL_ID);
+      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.system"]).toBe("bedrock");
+      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+      // Check that input message content is properly handled
+      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+      
+      // Check for image URL formatting: data:image/png;base64,{data}
+      const expectedImageUrl = `data:image/png;base64,${imageData}`;
+      
+      // The input.value should contain both text and image data
+      expect(span.attributes["input.value"]).toContain("What do you see in this image?");
+      expect(span.attributes["input.value"]).toContain(expectedImageUrl);
+      
+      // Verify that multi-modal content is properly extracted
+      // Text content should be captured
+      expect(span.attributes["llm.input_messages.0.message.content"]).toContain("What do you see in this image?");
+      
+      // Image content should be captured in OpenInference format
+      // The message should contain the image URL in the expected format
+      const messageContent = span.attributes["llm.input_messages.0.message.content"];
+      expect(messageContent).toContain(expectedImageUrl);
+
+      // Output message should be captured
+      expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
+
+      // Snapshot the attributes to verify multi-modal message processing
+      expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "What do you see in this image? data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+  "llm.input_messages.0.message.content": "What do you see in this image? data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.content": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 19,
+  "llm.token_count.total": 119,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
+}
+`);
+    });
+
     // TODO: Add more test scenarios following the TDD plan:
     //
     // Phase 1: InvokeModel Foundation
-    // - it("should handle missing token counts gracefully", async () => {})
     // - it("should handle multi-modal messages with images", async () => {})
     // - it("should handle API errors gracefully", async () => {})
+    // - it("should handle multiple tools in single request", async () => {})
     //
     // Phase 2: Streaming Support
     // - it("should handle InvokeModelWithResponseStream", async () => {})
