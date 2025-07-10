@@ -16,10 +16,6 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-from smolagents.utils import (  # type: ignore[import-untyped]
-    AgentToolCallError,
-    AgentToolExecutionError,
-)
 
 if TYPE_CHECKING:
     from smolagents.tools import Tool  # type: ignore[import-untyped]
@@ -170,9 +166,8 @@ class _StepWrapper:
             span.set_attribute(OUTPUT_VALUE, step_log.observations)
             if step_log.error is not None:
                 # Check expected errors
-                is_expected = isinstance(
-                    step_log.error, (AgentToolCallError, AgentToolExecutionError)
-                )
+                error_type = step_log.error.__class__.__name__
+                is_expected = error_type in {"AgentToolCallError", "AgentToolExecutionError"}
                 if is_expected:
                     # Add a neutral event for recoverable errors
                     span.add_event(
