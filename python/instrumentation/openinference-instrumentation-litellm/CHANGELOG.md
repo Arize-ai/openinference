@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.22...python-openinference-instrumentation-litellm-v0.1.23) (2025-07-10)
+
+
+### Bug Fixes
+
+* **litellm:** Fixing Invocation Params, Output Messages ([#1838](https://github.com/Arize-ai/openinference/issues/1838)) ([9f15912](https://github.com/Arize-ai/openinference/commit/9f15912bc87e697e1021db0b63e9d2c8b3d1e377))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.21...python-openinference-instrumentation-litellm-v0.1.22) (2025-06-13)
 
 
