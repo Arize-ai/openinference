@@ -17,6 +17,18 @@ import { extractInvokeModelResponseAttributes } from "./attributes/response-attr
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
 
+/**
+ * Track if the Bedrock instrumentation is patched
+ */
+let _isBedrockPatched = false;
+
+/**
+ * Check if Bedrock instrumentation is enabled/disabled
+ */
+export function isPatched() {
+  return _isBedrockPatched;
+}
+
 export interface BedrockInstrumentationConfig extends InstrumentationConfig {
   traceConfig?: TraceConfigOptions;
 }
@@ -76,6 +88,8 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
           };
         },
       );
+      
+      _isBedrockPatched = true;
     }
 
     return moduleExports;
@@ -124,6 +138,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
 
     if (moduleExports?.BedrockRuntimeClient) {
       this._unwrap(moduleExports.BedrockRuntimeClient.prototype, "send");
+      _isBedrockPatched = false;
     }
   }
 }
