@@ -7,7 +7,10 @@ import {
 import { diag, SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
-import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { 
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand 
+} from "@aws-sdk/client-bedrock-runtime";
 import { extractInvokeModelRequestAttributes } from "./attributes/request-attributes";
 import { extractInvokeModelResponseAttributes } from "./attributes/response-attributes";
 
@@ -79,6 +82,14 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
               );
             }
 
+            if (command?.constructor?.name === "InvokeModelWithResponseStreamCommand") {
+              return instrumentation._handleInvokeModelWithResponseStreamCommand(
+                command,
+                original,
+                this,
+              );
+            }
+
             // Pass through other commands without instrumentation
             return original.apply(this, [command]);
           };
@@ -111,6 +122,119 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
         .then((response: any) => {
           extractInvokeModelResponseAttributes(span, response);
           span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+          return response;
+        })
+        .catch((error: any) => {
+          span.recordException(error);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message,
+          });
+          span.end();
+          throw error;
+        });
+    } catch (error: any) {
+      // Handle errors that occur before the Promise is returned (e.g. invalid parameters)
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      span.end();
+      throw error;
+    }
+  }
+
+  private _handleInvokeModelWithResponseStreamCommand(
+    command: InvokeModelWithResponseStreamCommand,
+    original: any,
+    client: any,
+  ) {
+    const requestAttributes = extractInvokeModelRequestAttributes(command as any);
+
+    const span = this.oiTracer.startSpan("bedrock.invoke_model", {
+      kind: SpanKind.CLIENT,
+      attributes: requestAttributes,
+    });
+
+    try {
+      const result = original.apply(client, [command]);
+
+      // AWS SDK v3 send() method always returns a Promise
+      return result
+        .then(async (response: any) => {
+          // For streaming responses, we need to process the stream to extract response attributes
+          try {
+            // Process the streaming response
+            let accumulatedResponse = {
+              id: "",
+              content: [] as any[],
+              usage: {} as any,
+            };
+
+            if (response.body) {
+              for await (const chunk of response.body) {
+                if (chunk.chunk?.bytes) {
+                  const text = new TextDecoder().decode(chunk.chunk.bytes);
+                  const lines = text.split('\n').filter(line => line.trim());
+                  
+                  for (const line of lines) {
+                    // Try to parse the line as JSON directly (Bedrock streaming format)
+                    if (line.trim()) {
+                      try {
+                        const data = JSON.parse(line);
+                        
+                        // Handle different event types
+                        if (data.type === 'message_start' && data.message) {
+                          accumulatedResponse.id = data.message.id;
+                          accumulatedResponse.usage = data.message.usage || {};
+                        }
+                        
+                        if (data.type === 'content_block_start' && data.content_block) {
+                          accumulatedResponse.content.push(data.content_block);
+                        }
+                        
+                        if (data.type === 'content_block_delta' && data.delta?.text) {
+                          // Find the last text content block and append the delta
+                          const lastTextBlock = accumulatedResponse.content.find(block => block.type === 'text');
+                          if (lastTextBlock) {
+                            lastTextBlock.text = (lastTextBlock.text || '') + data.delta.text;
+                          } else {
+                            // Create a new text block if none exists
+                            accumulatedResponse.content.push({
+                              type: 'text',
+                              text: data.delta.text
+                            });
+                          }
+                        }
+                        
+                        if (data.type === 'message_delta' && data.usage) {
+                          accumulatedResponse.usage = { ...accumulatedResponse.usage, ...data.usage };
+                        }
+                      } catch (e) {
+                        // Skip malformed JSON
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            // Extract response attributes from the accumulated response
+            // Convert accumulated response to the format expected by extractInvokeModelResponseAttributes
+            const mockResponse = {
+              body: new TextEncoder().encode(JSON.stringify(accumulatedResponse)),
+              contentType: "application/json",
+              $metadata: {}
+            };
+            extractInvokeModelResponseAttributes(span, mockResponse as any);
+            span.setStatus({ code: SpanStatusCode.OK });
+          } catch (streamError: any) {
+            span.recordException(streamError);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: streamError.message,
+            });
+          }
+          
           span.end();
           return response;
         })
