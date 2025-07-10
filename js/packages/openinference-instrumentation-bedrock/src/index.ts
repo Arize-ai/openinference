@@ -1,1 +1,1 @@
-export { BedrockInstrumentation } from "./instrumentation";
+export { BedrockInstrumentation, isPatched } from "./instrumentation";
