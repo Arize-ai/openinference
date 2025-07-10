@@ -707,9 +707,116 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 `);
     });
 
+    it("should handle streaming responses with tool calls", async () => {
+      setupTestRecording("should handle streaming responses with tool calls");
+
+      const client = createTestClient(isRecordingMode);
+
+      const testData = generateToolCallMessage({
+        prompt: "What's the weather in San Francisco?",
+        tools: [commonTools.weather],
+      });
+
+      const command = new InvokeModelWithResponseStreamCommand({
+        modelId: testData.modelId,
+        body: testData.body,
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const result = await client.send(command);
+      verifyResponseStructure(result);
+
+      const span = verifySpanBasics(spanExporter);
+      expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "What's the weather in San Francisco?",
+  "llm.input_messages.0.message.content": "What's the weather in San Francisco?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
+  "llm.model_name": "anthropic.claude-3-sonnet-20240229-v1:0",
+  "llm.output_messages.0.message.content": "Okay, let's get the current weather for San Francisco:",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 88,
+  "llm.token_count.prompt": 273,
+  "llm.token_count.total": 361,
+  "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"get_weather","description":"Get current weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "text/plain",
+  "output.value": "Okay, let's get the current weather for San Francisco:",
+}
+`);
+    });
+
+    it("should handle streaming errors gracefully", async () => {
+      setupTestRecording("should handle streaming errors");
+
+      const client = createTestClient(isRecordingMode);
+
+      // Test invalid model ID with streaming (should trigger error)
+      const invalidModelCommand = new InvokeModelWithResponseStreamCommand({
+        modelId: "invalid-streaming-model-id",
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: TEST_MAX_TOKENS,
+          messages: [
+            {
+              role: "user",
+              content: "This streaming request should fail",
+            },
+          ],
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      // Expect the API call to throw an error
+      await expect(client.send(invalidModelCommand)).rejects.toThrow();
+
+      // Verify span was created and marked as error
+      const span = verifySpanBasics(spanExporter);
+
+      // Verify span status is set to ERROR
+      expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
+      expect(span.status.message).toBeDefined();
+
+      // Verify basic attributes are still captured
+      expect(span.attributes["llm.model_name"]).toBe("invalid-streaming-model-id");
+      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.system"]).toBe("bedrock");
+      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+      // Verify input message attributes are captured
+      expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
+        "This streaming request should fail",
+      );
+      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+
+      // Verify error details are recorded
+      expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "This streaming request should fail",
+  "llm.input_messages.0.message.content": "This streaming request should fail",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
+  "llm.model_name": "invalid-streaming-model-id",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "openinference.span.kind": "LLM",
+}
+`);
+    });
+
     // TODO: Add more test scenarios following the TDD plan:
     //
-    // Phase 1: InvokeModel Foundation ✅ COMPLETE (7/7 tests)
+    // Phase 1: InvokeModel Foundation ✅ COMPLETE (8/8 tests)
     // ✅ Basic InvokeModel Text Messages
     // ✅ Tool Call Support - Basic Function Call
     // ✅ Tool Results Processing
@@ -717,6 +824,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
     // ✅ Multi-Modal Messages (Text + Image)
     // ✅ API Error Handling
     // ✅ Multiple Tools in Single Request
+    // ✅ InvokeModelWithResponseStream - Basic Text
+    // ✅ Streaming Tool Calls
+    // ✅ Stream Error Handling
     //
     // Phase 3: Converse API Support
     // - it("should handle Converse API calls", async () => {})
