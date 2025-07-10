@@ -46,9 +46,16 @@ subprojects {
         jacksonVersion = '2.17.0'
         slf4jVersion = '2.0.12'
         autoServiceVersion = '1.1.1'
+        lombokVersion = '1.18.30'
     }
 
     dependencies {
+        // Lombok
+        compileOnly "org.projectlombok:lombok:${lombokVersion}"
+        annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+        testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+        testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+        
         // Common test dependencies
         testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
         testImplementation "org.mockito:mockito-core:${mockitoVersion}"
@@ -175,6 +182,7 @@ jreleaser {
                     // Include all subproject staging directories
                     stagingRepositories = [
                         'openinference-semantic-conventions/build/staging-deploy',
+                        'openinference-common/build/staging-deploy',
                         'openinference-instrumentation/build/staging-deploy', 
                         'instrumentation/openinference-instrumentation-langchain4j/build/staging-deploy'
                     ]

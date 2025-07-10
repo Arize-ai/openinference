@@ -6,6 +6,7 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ChatMessageType;
 import dev.langchain4j.model.chat.listener.*;
+import io.openinference.common.ModelProvider;
 import io.openinference.instrumentation.OITracer;
 import io.openinference.semconv.trace.MessageAttributes;
 import io.openinference.semconv.trace.SpanAttributes;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -30,7 +32,7 @@ public class LangChain4jModelListener implements ChatModelListener {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final OITracer tracer;
-    private final Map<ChatModelRequest, SpanContext> activeSpans = new HashMap<>();
+    private final Map<ChatModelRequest, SpanContext> activeSpans = new ConcurrentHashMap<>();
 
     public LangChain4jModelListener(OITracer tracer) {
         this.tracer = tracer;
@@ -51,7 +53,7 @@ public class LangChain4jModelListener implements ChatModelListener {
         span.setAttribute(SpanAttributes.LLM_SYSTEM, "langchain4j");
 
         // Detect and set provider based on model name
-        String provider = detectProvider(modelName);
+        String provider = ModelProvider.detectProvider(modelName);
         if (provider != null) {
             span.setAttribute(SpanAttributes.LLM_PROVIDER, provider);
         }
@@ -122,18 +124,8 @@ public class LangChain4jModelListener implements ChatModelListener {
                 // Set output messages with proper structure
                 setOutputMessageAttributes(span, aiMessage);
 
-                // Also set output.value and output.mime_type for compatibility
-                Map<String, Object> outputData = new HashMap<>();
-                outputData.put("role", "assistant");
-                outputData.put("content", aiMessage.text());
-
-                try {
-                    String outputJson = objectMapper.writeValueAsString(outputData);
-                    span.setAttribute(SpanAttributes.OUTPUT_VALUE, aiMessage.text());
-                    span.setAttribute(SpanAttributes.OUTPUT_MIME_TYPE, "text/plain");
-                } catch (JsonProcessingException e) {
-                    logger.log(Level.WARNING, "Failed to serialize output", e);
-                }
+                span.setAttribute(SpanAttributes.OUTPUT_VALUE, aiMessage.text());
+                span.setAttribute(SpanAttributes.OUTPUT_MIME_TYPE, "text/plain");
             }
 
             // Set token usage if available
@@ -182,7 +174,7 @@ public class LangChain4jModelListener implements ChatModelListener {
 
             // Set content
             span.setAttribute(
-                    AttributeKey.stringKey(prefix + MessageAttributes.MESSAGE_CONTENT.getKey()), message.toString());
+                    AttributeKey.stringKey(prefix + MessageAttributes.MESSAGE_CONTENT.getKey()), message.text());
         }
     }
 
@@ -262,36 +254,6 @@ public class LangChain4jModelListener implements ChatModelListener {
         }
 
         return result;
-    }
-
-    private String detectProvider(String modelName) {
-        if (modelName == null) {
-            return null;
-        }
-
-        String lowerModel = modelName.toLowerCase();
-        if (lowerModel.contains("gpt")
-                || lowerModel.contains("dall-e")
-                || lowerModel.contains("whisper")
-                || lowerModel.contains("text-embedding")
-                || lowerModel.contains("davinci")
-                || lowerModel.contains("curie")
-                || lowerModel.contains("babbage")
-                || lowerModel.contains("ada")) {
-            return "openai";
-        } else if (lowerModel.contains("claude")) {
-            return "anthropic";
-        } else if (lowerModel.contains("gemini") || lowerModel.contains("palm")) {
-            return "google";
-        } else if (lowerModel.contains("llama") || lowerModel.contains("codellama")) {
-            return "meta";
-        } else if (lowerModel.contains("mistral") || lowerModel.contains("mixtral")) {
-            return "mistral";
-        } else if (lowerModel.contains("command") || lowerModel.contains("embed")) {
-            return "cohere";
-        }
-
-        return null;
     }
 
     private static class SpanContext {

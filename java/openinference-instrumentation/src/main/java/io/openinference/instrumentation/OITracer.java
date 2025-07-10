@@ -8,11 +8,13 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import java.util.Objects;
+import lombok.Getter;
 
 /**
  * OpenInference tracer wrapper that provides convenience methods for creating spans
  * with OpenInference semantic conventions.
  */
+@Getter
 public class OITracer {
 
     private final Tracer tracer;
@@ -137,19 +139,5 @@ public class OITracer {
      */
     public Span getSpan(Context context) {
         return Span.fromContext(context);
-    }
-
-    /**
-     * Gets the trace configuration.
-     */
-    public TraceConfig getConfig() {
-        return config;
-    }
-
-    /**
-     * Gets the underlying OpenTelemetry tracer.
-     */
-    public Tracer getTracer() {
-        return tracer;
     }
 }

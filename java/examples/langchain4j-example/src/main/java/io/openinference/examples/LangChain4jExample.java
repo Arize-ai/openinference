@@ -1,7 +1,10 @@
 package io.openinference.examples;
 
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.output.Response;
 import io.openinference.instrumentation.langchain4j.LangChain4jInstrumentor;
 import io.openinference.instrumentation.langchain4j.LangChain4jModelListener;
 import io.opentelemetry.api.common.AttributeKey;
@@ -12,6 +15,7 @@ import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporterBuilder;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
@@ -38,16 +42,11 @@ public class LangChain4jExample {
     private static final Logger logger = Logger.getLogger(LangChain4jExample.class.getName());
 
     public static void main(String[] args) {
-        // 1. Initialize OpenTelemetry FIRST
         initializeOpenTelemetry();
 
-        // 2. Instrument LangChain4j BEFORE creating models
         LangChain4jInstrumentor instrumentor = LangChain4jInstrumentor.instrument();
-
-        // 3. Create the model listener
         LangChain4jModelListener listener = instrumentor.createModelListener();
 
-        // 4. NOW create the model with the listener
         String apiKey = System.getenv("OPENAI_API_KEY");
         if (apiKey == null) {
             logger.log(Level.SEVERE, "Please set OPENAI_API_KEY environment variable");
@@ -56,7 +55,7 @@ public class LangChain4jExample {
 
         ChatLanguageModel model = OpenAiChatModel.builder()
                 .apiKey(apiKey)
-                .modelName("gpt-3.5-turbo")
+                .modelName("gpt-4.1")
                 .temperature(0.7)
                 .maxTokens(100)
                 .listeners(List.of(listener))
@@ -65,25 +64,38 @@ public class LangChain4jExample {
 
         // Use the model - traces will be automatically created
         logger.info("Sending request to OpenAI...");
-        String response = model.generate("What is the capital of France? Answer in one sentence.");
-        logger.info("Response: " + response);
+        Response<AiMessage> response =
+                model.generate(UserMessage.from("What is the capital of France? Answer in one sentence."));
+        logger.info("Response: " + response.content());
 
         // Example with multiple messages to show conversation tracing
         logger.info("\nSending another request...");
-        String response2 = model.generate("What about Germany?");
+        Response<AiMessage> response2 = model.generate(List.of(
+                UserMessage.from("What is the capital of France? Answer in one sentence."),
+                response.content(),
+                UserMessage.from("What about Germany?")));
         logger.info("Response: " + response2);
 
-        // Give time for spans to be exported
-        try {
-            logger.info("\nWaiting for traces to be exported to Phoenix...");
-            Thread.sleep(5000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
-        // Shutdown
         if (tracerProvider != null) {
-            tracerProvider.shutdown();
+            logger.info("Flushing and shutting down trace provider...");
+
+            // Force flush all pending spans
+            CompletableResultCode flushResult = tracerProvider.forceFlush();
+            flushResult.join(10, java.util.concurrent.TimeUnit.SECONDS);
+
+            if (flushResult.isSuccess()) {
+                logger.info("Successfully flushed all traces");
+            } else {
+                logger.warning("Failed to flush all traces");
+            }
+
+            // Shutdown the trace provider
+            CompletableResultCode shutdownResult = tracerProvider.shutdown();
+            shutdownResult.join(10, java.util.concurrent.TimeUnit.SECONDS);
+
+            if (!shutdownResult.isSuccess()) {
+                logger.warning("Failed to shutdown trace provider cleanly");
+            }
         }
 
         System.out.println("\nTraces have been sent to Phoenix at http://localhost:6006");
