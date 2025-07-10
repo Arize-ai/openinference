@@ -8,41 +8,14 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { SpanKind } from "@opentelemetry/api";
 import nock from "nock";
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import * as fs from "fs";
 import * as path from "path";
 import { generateToolResultMessage } from "./helpers/test-data-generators";
+import { loadRecordingData, createNockMock, sanitizeAuthHeaders, createTestClient, getRecordingPath } from "./helpers/vcr-helpers";
+import { verifyResponseStructure, verifySpanBasics } from "./helpers/test-helpers";
+import { TEST_MODEL_ID, TEST_USER_MESSAGE, TEST_MAX_TOKENS } from "./config/constants";
 
-// Test constants
-const TEST_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0";
-const TEST_USER_MESSAGE = "Hello, how are you?";
-const TEST_MAX_TOKENS = 100;
-
-// Clearly fake credentials for VCR testing - these are NEVER real
-const MOCK_AWS_CREDENTIALS = {
-  accessKeyId: "AKIATEST1234567890AB",
-  secretAccessKey: "FAKE-SECRET-KEY-FOR-VCR-TESTING-ONLY-1234567890",
-  sessionToken: "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
-};
-
-const VALID_AWS_CREDENTIALS = {
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  sessionToken: process.env.AWS_SESSION_TOKEN!,
-};
-
-const MOCK_AUTH_HEADERS = {
-  authorization:
-    "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing",
-  "x-amz-security-token": MOCK_AWS_CREDENTIALS.sessionToken,
-  "x-amz-date": "20250626T120000Z",
-};
-// console.log('AWS Keys available:', {
-//     accessKeyId: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'NOT_SET',
-//     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'NOT_SET'
-//   });
 
 describe("BedrockInstrumentation", () => {
   let instrumentation: BedrockInstrumentation;
@@ -79,86 +52,15 @@ describe("BedrockInstrumentation", () => {
     await provider.shutdown();
   });
 
-  // Helper function to create sanitized recording path
-  const createRecordingPath = (testName: string) => {
-    const sanitizedName = testName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    return path.join(__dirname, "recordings", `${sanitizedName}.json`);
-  };
 
-  // Generate recording file path based on test name
-  const getRecordingPath = (testName: string) => {
-    return createRecordingPath(testName);
-  };
 
-  // Helper function to load mock response from recording file
-  const loadRecordingData = (recordingPath: string) => {
-    if (!fs.existsSync(recordingPath)) {
-      return null;
-    }
 
-    try {
-      const recordingData = JSON.parse(fs.readFileSync(recordingPath, "utf8"));
-      const recording = recordingData[0];
-      if (!recording) return null;
 
-      // Extract model ID from the path
-      const pathMatch = recording.path?.match(/\/model\/([^\/]+)\/invoke/);
-      const modelId = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
-
-      return {
-        response: recording.response,
-        modelId,
-        recording,
-        status: recording.status || 200,
-      };
-    } catch (error) {
-      console.warn(`Failed to load recording from ${recordingPath}:`, error);
-      return null;
-    }
-  };
-
-  // Helper function to create nock mock for Bedrock API
-  const createNockMock = (mockResponse: any, modelId?: string, status: number = 200) => {
-    const targetModelId = modelId || TEST_MODEL_ID;
-    nock("https://bedrock-runtime.us-east-1.amazonaws.com")
-      .post(`/model/${encodeURIComponent(targetModelId)}/invoke`)
-      .reply(status, mockResponse);
-  };
-
-  // Helper function to sanitize auth headers in recordings
-  const sanitizeAuthHeaders = (recordings: any[]) => {
-    recordings.forEach((recording: any) => {
-      if (recording.reqheaders) {
-        Object.assign(recording.reqheaders, MOCK_AUTH_HEADERS);
-      }
-    });
-  };
-
-  // Helper function to verify response structure
-  const verifyResponseStructure = (result: any) => {
-    expect(result.body).toBeDefined();
-    expect(result.contentType).toBe("application/json");
-  };
-
-  // Helper function to verify basic span structure and return the span
-  const verifySpanBasics = (spanExporter: InMemorySpanExporter) => {
-    const spans = spanExporter.getFinishedSpans();
-    expect(spans).toHaveLength(1);
-
-    const span = spans[0];
-    expect(span.name).toBe("bedrock.invoke_model");
-    expect(span.kind).toBe(SpanKind.CLIENT);
-
-    return span;
-  };
 
   // Helper function for tests to set up their specific recording
   const setupTestRecording = (testName: string) => {
     currentTestName = testName;
-    recordingsPath = getRecordingPath(testName);
+    recordingsPath = getRecordingPath(testName, __dirname);
 
     if (!isRecordingMode) {
       // Replay mode: create mock from test-specific recording
@@ -172,6 +74,7 @@ describe("BedrockInstrumentation", () => {
           recordingData.response,
           recordingData.modelId || undefined,
           recordingData.status,
+          TEST_MODEL_ID,
         );
       } else {
         console.log(`No recordings found at ${recordingsPath}`);
@@ -179,26 +82,6 @@ describe("BedrockInstrumentation", () => {
     }
   };
 
-  // Helper function to create test client with consistent configuration
-  const createTestClient = () => {
-    return new BedrockRuntimeClient({
-      region: "us-east-1",
-      credentials: isRecordingMode
-        ? {
-            // Recording mode: use real credentials from environment
-            ...VALID_AWS_CREDENTIALS,
-          }
-        : {
-            // Replay mode: use mock credentials that match sanitized recordings
-            ...MOCK_AWS_CREDENTIALS,
-          },
-      // Disable connection reuse to ensure nock can intercept properly
-      requestHandler: {
-        connectionTimeout: 1000,
-        requestTimeout: 5000,
-      },
-    });
-  };
 
   beforeEach(() => {
     // Clear any existing nock mocks first
@@ -211,7 +94,7 @@ describe("BedrockInstrumentation", () => {
 
     // Set default test name (will be overridden by setupTestRecording)
     currentTestName = "default-test";
-    recordingsPath = getRecordingPath(currentTestName);
+    recordingsPath = getRecordingPath(currentTestName, __dirname);
 
     // Setup nock for VCR-style testing (recording mode only)
     if (isRecordingMode) {
@@ -257,7 +140,7 @@ describe("BedrockInstrumentation", () => {
     it("should create spans for InvokeModel calls", async () => {
       setupTestRecording("should create spans for InvokeModel calls");
 
-      const client = createTestClient();
+      const client = createTestClient(isRecordingMode);
 
       const command = new InvokeModelCommand({
         modelId: TEST_MODEL_ID,
@@ -318,7 +201,7 @@ describe("BedrockInstrumentation", () => {
         },
       };
 
-      const client = createTestClient();
+      const client = createTestClient(isRecordingMode);
 
       const command = new InvokeModelCommand({
         modelId: TEST_MODEL_ID,
@@ -370,7 +253,7 @@ describe("BedrockInstrumentation", () => {
     it("should handle tool result responses", async () => {
       setupTestRecording("should handle tool result responses");
 
-      const client = createTestClient();
+      const client = createTestClient(isRecordingMode);
 
       // Use existing generateToolResultMessage() from test-data-generators.js
       const testData = generateToolResultMessage({
@@ -443,7 +326,7 @@ The key things are to dress for the warm temperatures and have layers you can",
     it("should handle missing token counts gracefully", async () => {
       setupTestRecording("should handle missing token counts gracefully");
 
-      const client = createTestClient();
+      const client = createTestClient(isRecordingMode);
 
       const command = new InvokeModelCommand({
         modelId: TEST_MODEL_ID,
@@ -528,7 +411,7 @@ Honeybees can recognize human faces.",
     it("should handle multi-modal messages with images", async () => {
       setupTestRecording("should handle multi-modal messages with images");
 
-      const client = createTestClient();
+      const client = createTestClient(isRecordingMode);
 
       // Create a multi-modal message with text and image
       const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
@@ -622,7 +505,7 @@ Honeybees can recognize human faces.",
     it("should handle API errors gracefully", async () => {
       setupTestRecording("should handle api errors gracefully");
 
-      const client = createTestClient();
+      const client = createTestClient(isRecordingMode);
 
       // Test invalid model ID (should trigger 400 error)
       const invalidModelCommand = new InvokeModelCommand({
