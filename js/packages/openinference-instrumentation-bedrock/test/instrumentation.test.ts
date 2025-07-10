@@ -112,6 +112,7 @@ describe("BedrockInstrumentation", () => {
         response: recording.response,
         modelId,
         recording,
+        status: recording.status || 200,
       };
     } catch (error) {
       console.warn(`Failed to load recording from ${recordingPath}:`, error);
@@ -120,11 +121,11 @@ describe("BedrockInstrumentation", () => {
   };
 
   // Helper function to create nock mock for Bedrock API
-  const createNockMock = (mockResponse: any, modelId?: string) => {
+  const createNockMock = (mockResponse: any, modelId?: string, status: number = 200) => {
     const targetModelId = modelId || TEST_MODEL_ID;
     nock("https://bedrock-runtime.us-east-1.amazonaws.com")
       .post(`/model/${encodeURIComponent(targetModelId)}/invoke`)
-      .reply(200, mockResponse);
+      .reply(status, mockResponse);
   };
 
   // Helper function to sanitize auth headers in recordings
@@ -170,6 +171,7 @@ describe("BedrockInstrumentation", () => {
         createNockMock(
           recordingData.response,
           recordingData.modelId || undefined,
+          recordingData.status,
         );
       } else {
         console.log(`No recordings found at ${recordingsPath}`);
@@ -613,6 +615,64 @@ Honeybees can recognize human faces.",
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
   "output.value": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
+}
+`);
+    });
+
+    it("should handle API errors gracefully", async () => {
+      setupTestRecording("should handle api errors gracefully");
+
+      const client = createTestClient();
+
+      // Test invalid model ID (should trigger 400 error)
+      const invalidModelCommand = new InvokeModelCommand({
+        modelId: "invalid-model-id",
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: TEST_MAX_TOKENS,
+          messages: [
+            {
+              role: "user",
+              content: "This should fail",
+            },
+          ],
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      // Expect the API call to throw an error
+      await expect(client.send(invalidModelCommand)).rejects.toThrow();
+
+      // Verify span was created and marked as error
+      const span = verifySpanBasics(spanExporter);
+      
+      // Verify span status is set to ERROR
+      expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
+      expect(span.status.message).toBeDefined();
+      
+      // Verify basic attributes are still captured
+      expect(span.attributes["llm.model_name"]).toBe("invalid-model-id");
+      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.system"]).toBe("bedrock");
+      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+      
+      // Verify input message attributes are captured
+      expect(span.attributes["llm.input_messages.0.message.content"]).toBe("This should fail");
+      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+      
+      // Verify error details are recorded
+      expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "This should fail",
+  "llm.input_messages.0.message.content": "This should fail",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
+  "llm.model_name": "invalid-model-id",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "openinference.span.kind": "LLM",
 }
 `);
     });

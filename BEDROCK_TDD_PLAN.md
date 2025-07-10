@@ -117,55 +117,70 @@ it("should handle tool result responses", async () => {
 
 ### Phase 1 Remaining Tests (4 tests needed for complete InvokeModel coverage)
 
-#### Test 4: Missing Token Count Handling
+#### Test 4: Missing Token Count Handling ✅
+**Status**: COMPLETED - Test passing with graceful token handling
 **File**: `test/recordings/should-handle-missing-token-counts-gracefully.json`
 
 ```typescript
 it("should handle missing token counts gracefully", async () => {
-  // Mock response with missing usage object
+  // Modified response with missing usage object
   const mockResponse = {
-    id: "msg_test",
+    id: "msg_test", 
     content: [{ type: "text", text: "Response without tokens" }],
     // usage object intentionally omitted
   };
   
-  // Verify instrumentation doesn't crash
-  // Check that span completes successfully
-  // Ensure available attributes are still captured
-  // Validate graceful degradation
+  // Verified instrumentation doesn't crash
+  // Span completes successfully with SpanStatusCode.OK
+  // Available attributes are still captured
+  // Graceful degradation working correctly
 });
 ```
 
-**Implementation Requirements**:
-- Graceful handling when `response.usage` is undefined
-- No crashes or exceptions when token data missing
-- Optional token attribute setting
-- Comprehensive error boundary testing
+**Completed Implementation**:
+- ✅ Graceful handling when `response.usage` is undefined
+- ✅ No crashes or exceptions when token data missing
+- ✅ Optional token attribute setting (only set when present)
+- ✅ Comprehensive error boundary testing
+- ✅ Existing implementation already had proper error handling
 
-#### Test 5: Multi-Modal Messages (Text + Image)
+#### Test 5: Multi-Modal Messages (Text + Image) ✅
+**Status**: COMPLETED - Test passing with full multi-modal support
 **File**: `test/recordings/should-handle-multi-modal-messages-with-images.json`
 
 ```typescript
 it("should handle multi-modal messages with images", async () => {
-  const testData = generateMultiModalMessage({
-    textPrompt: "What do you see in this image?",
-    imageData: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
-    mediaType: "image/png"
+  const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+  
+  const command = new InvokeModelCommand({
+    modelId: TEST_MODEL_ID,
+    body: JSON.stringify({
+      anthropic_version: "bedrock-2023-05-31",
+      max_tokens: TEST_MAX_TOKENS,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: "What do you see in this image?" },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: imageData }}
+        ]
+      }]
+    })
   });
   
-  // Verify image content parsing and attribute extraction
-  // Check multi-part message content handling
-  // Validate image URL formatting: data:image/png;base64,{data}
-  // Test mixed content type message support
+  // Verified image content parsing and attribute extraction
+  // Multi-part message content handling working
+  // Image URL formatting: data:image/png;base64,{data} ✅
+  // Mixed content type message support confirmed
 });
 ```
 
-**Implementation Requirements**:
-- Multi-part message content processing
-- Image source parsing and base64 handling
-- Image URL formatting for OpenInference (`data:image/png;base64,{data}`)
-- Mixed content type message support (text + image)
-- Proper MIME type detection and attribute assignment
+**Completed Implementation**:
+- ✅ Multi-part message content processing via enhanced `_extractTextFromContent()`
+- ✅ Image source parsing and base64 handling from `source.data` field
+- ✅ Image URL formatting for OpenInference (`data:image/png;base64,{data}`) via new `_formatImageUrl()`
+- ✅ Mixed content type message support (text + image combined in content string)
+- ✅ Proper MIME type detection and attribute assignment using `source.media_type`
+- ✅ Full OpenInference compliance for multi-modal observability
 
 #### Test 6: API Error Handling
 **File**: `test/recordings/should-handle-api-errors-gracefully.json`
@@ -340,14 +355,14 @@ it("should handle large payloads and timeouts", async () => {
 
 ## InvokeModel API Test Coverage Summary
 
-### ✅ **Completed Tests (3/13)**
+### ✅ **Completed Tests (5/13)**
 1. **Test 1**: Basic InvokeModel Text Messages - COMPLETE
 2. **Test 2**: Tool Call Support - Basic Function Call - COMPLETE  
 3. **Test 3**: Tool Results Processing - COMPLETE
+4. **Test 4**: Missing Token Count Handling - COMPLETE ✅
+5. **Test 5**: Multi-Modal Messages (Text + Image) - COMPLETE ✅
 
-### 🎯 **Priority 1: Core Completeness (4 tests)**
-4. **Test 4**: Missing Token Count Handling
-5. **Test 5**: Multi-Modal Messages (Text + Image)
+### 🎯 **Priority 1: Core Completeness (2 tests remaining)**
 6. **Test 6**: API Error Handling
 7. **Test 7**: Multiple Tools in Single Request
 
@@ -376,29 +391,33 @@ This plan ensures complete InvokeModel API instrumentation before expanding to o
 
 ## Current Implementation Status
 
-### ✅ Completed Features (Tests 1-3)
+### ✅ Completed Features (Tests 1-5)
 - **VCR Testing Infrastructure**: Complete tooling suite with recording, validation, and cleanup
 - **Basic InvokeModel Support**: Core instrumentation with span creation and attribute extraction
 - **Tool Calling Support**: Tool definition parsing and tool call attribution  
 - **Tool Results Processing**: Multi-turn conversations and complex content arrays
+- **Missing Token Count Handling**: Graceful degradation when usage data is unavailable
+- **Multi-Modal Message Support**: Text + image content extraction with OpenInference data URL formatting
 - **Semantic Conventions**: OpenInference-compliant attribute mapping
 - **Code Quality**: Prettier formatting, working TypeScript compilation
 
 ### 🎯 Current Architecture
 - **BedrockInstrumentation Class**: Extends InstrumentationBase with AWS SDK wrapping
 - **Command Pattern Detection**: Identifies InvokeModelCommand with dynamic model ID support
-- **Attribute Extraction**: Modular functions for request/response processing including complex content
+- **Enhanced Content Extraction**: Modular functions for request/response processing including multi-modal content
+- **Multi-Modal Support**: `_extractTextFromContent()` and `_formatImageUrl()` for image data extraction
 - **VCR Integration**: Nock-based recording system with credential sanitization and flexible model ID handling
+- **Error Resilience**: Graceful handling of missing usage data and malformed responses
 
-### 📋 Next Implementation Priorities (Today's Goal)
-1. **Test 4**: Missing token count handling
-2. **Test 5**: Multi-modal messages with image support
-3. **Test 6**: API error handling and edge cases
+### 📋 Next Implementation Priorities (Updated Goal)
+1. ✅ **Test 4**: Missing token count handling - **COMPLETED**
+2. ✅ **Test 5**: Multi-modal messages with image support - **COMPLETED**
+3. **Test 6**: API error handling and edge cases - **NEXT**
 4. **Test 7**: Multiple tools in single request
 
 ### 🔧 Current Status
-- **3 of 13 InvokeModel tests complete** (23% coverage)
-- **Priority 1 focus**: Complete core InvokeModel functionality (Tests 4-7)
-- **Future phases**: Streaming support and advanced scenarios
+- **5 of 13 InvokeModel tests complete** (38% coverage)
+- **Priority 1 progress**: 3 of 5 core functionality tests remaining (60% complete)
+- **Recent achievements**: Token handling resilience + multi-modal support
 
 This focused approach ensures complete InvokeModel API coverage before expanding to other Bedrock APIs.
