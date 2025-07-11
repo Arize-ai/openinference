@@ -82,6 +82,7 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         cls=SafeJSONEncoder,
     )
 
+
 def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
     for i, a in enumerate(agents):
         if a.role == current_role and i != 0:
