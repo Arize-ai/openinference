@@ -1,15 +1,14 @@
-package io.openinference.instrumentation.langchain4j;
+package com.arize.instrumentation.langchain4j;
 
+import com.arize.common.ModelProvider;
+import com.arize.semconv.trace.SemanticConventions;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ChatMessageType;
 import dev.langchain4j.model.chat.listener.*;
-import io.openinference.common.ModelProvider;
-import io.openinference.instrumentation.OITracer;
-import io.openinference.semconv.trace.MessageAttributes;
-import io.openinference.semconv.trace.SpanAttributes;
+import com.arize.instrumentation.OITracer;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
@@ -49,13 +48,13 @@ public class LangChain4jModelListener implements ChatModelListener {
                 .startSpan();
 
         // Set basic attributes
-        span.setAttribute(SpanAttributes.LLM_MODEL_NAME, modelName);
-        span.setAttribute(SpanAttributes.LLM_SYSTEM, "langchain4j");
+        span.setAttribute(SemanticConventions.LLM_MODEL_NAME, modelName);
+        span.setAttribute(SemanticConventions.LLM_SYSTEM, "langchain4j");
 
         // Detect and set provider based on model name
         String provider = ModelProvider.detectProvider(modelName);
         if (provider != null) {
-            span.setAttribute(SpanAttributes.LLM_PROVIDER, provider);
+            span.setAttribute(SemanticConventions.LLM_PROVIDER, provider);
         }
 
         // Set invocation parameters as a single JSON object
@@ -72,7 +71,7 @@ public class LangChain4jModelListener implements ChatModelListener {
 
         try {
             span.setAttribute(
-                    SpanAttributes.LLM_INVOCATION_PARAMETERS, objectMapper.writeValueAsString(invocationParams));
+                    SemanticConventions.LLM_INVOCATION_PARAMETERS, objectMapper.writeValueAsString(invocationParams));
         } catch (JsonProcessingException e) {
             logger.log(Level.WARNING, "Failed to serialize invocation parameters", e);
         }
@@ -86,8 +85,8 @@ public class LangChain4jModelListener implements ChatModelListener {
                 // Also set input.value and input.mime_type for compatibility
                 List<Map<String, Object>> messagesList = convertMessages(request.messages());
                 String messagesJson = objectMapper.writeValueAsString(messagesList);
-                span.setAttribute(SpanAttributes.INPUT_VALUE, messagesJson);
-                span.setAttribute(SpanAttributes.INPUT_MIME_TYPE, "application/json");
+                span.setAttribute(SemanticConventions.INPUT_VALUE, messagesJson);
+                span.setAttribute(SemanticConventions.INPUT_MIME_TYPE, "application/json");
             } catch (JsonProcessingException e) {
                 logger.log(Level.WARNING, "Failed to serialize input messages", e);
             }
@@ -124,17 +123,17 @@ public class LangChain4jModelListener implements ChatModelListener {
                 // Set output messages with proper structure
                 setOutputMessageAttributes(span, aiMessage);
 
-                span.setAttribute(SpanAttributes.OUTPUT_VALUE, aiMessage.text());
-                span.setAttribute(SpanAttributes.OUTPUT_MIME_TYPE, "text/plain");
+                span.setAttribute(SemanticConventions.OUTPUT_VALUE, aiMessage.text());
+                span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, "text/plain");
             }
 
             // Set token usage if available
             if (response.tokenUsage() != null) {
-                span.setAttribute(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, (long)
+                span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_PROMPT, (long)
                         response.tokenUsage().inputTokenCount());
-                span.setAttribute(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, (long)
+                span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, (long)
                         response.tokenUsage().outputTokenCount());
-                span.setAttribute(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, (long)
+                span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_TOTAL, (long)
                         response.tokenUsage().totalTokenCount());
             }
 
@@ -166,27 +165,27 @@ public class LangChain4jModelListener implements ChatModelListener {
     private void setInputMessageAttributes(Span span, List<ChatMessage> messages) {
         for (int i = 0; i < messages.size(); i++) {
             ChatMessage message = messages.get(i);
-            String prefix = String.format("%s.%d.", SpanAttributes.LLM_INPUT_MESSAGES.getKey(), i);
+            String prefix = String.format("%s.%d.", SemanticConventions.LLM_INPUT_MESSAGES, i);
 
             // Set role
             String role = mapMessageRole(message.type());
-            span.setAttribute(AttributeKey.stringKey(prefix + MessageAttributes.MESSAGE_ROLE.getKey()), role);
+            span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), role);
 
             // Set content
             span.setAttribute(
-                    AttributeKey.stringKey(prefix + MessageAttributes.MESSAGE_CONTENT.getKey()), message.text());
+                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), message.text());
         }
     }
 
     private void setOutputMessageAttributes(Span span, AiMessage aiMessage) {
-        String prefix = String.format("%s.%d.", SpanAttributes.LLM_OUTPUT_MESSAGES.getKey(), 0);
+        String prefix = String.format("%s.%d.", SemanticConventions.LLM_OUTPUT_MESSAGES, 0);
 
         // Set role
-        span.setAttribute(AttributeKey.stringKey(prefix + MessageAttributes.MESSAGE_ROLE.getKey()), "assistant");
+        span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), "assistant");
 
         // Set content
         span.setAttribute(
-                AttributeKey.stringKey(prefix + MessageAttributes.MESSAGE_CONTENT.getKey()), aiMessage.text());
+                AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), aiMessage.text());
 
         // Set tool calls if present
         if (aiMessage.toolExecutionRequests() != null
@@ -194,10 +193,10 @@ public class LangChain4jModelListener implements ChatModelListener {
             for (int i = 0; i < aiMessage.toolExecutionRequests().size(); i++) {
                 // Add tool call attributes here if needed
                 span.setAttribute(
-                        AttributeKey.stringKey(prefix + MessageAttributes.MESSAGE_TOOL_CALL_ID.getKey()),
+                        AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALL_ID),
                         aiMessage.toolExecutionRequests().get(i).id());
                 span.setAttribute(
-                        AttributeKey.stringKey(prefix + MessageAttributes.MESSAGE_TOOL_CALLS.getKey()),
+                        AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS),
                         aiMessage.toolExecutionRequests().get(i).arguments());
             }
         }

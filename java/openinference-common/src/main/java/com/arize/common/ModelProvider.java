@@ -1,4 +1,4 @@
-package io.openinference.common;
+package com.arize.common;
 
 import java.util.HashMap;
 import java.util.Map;

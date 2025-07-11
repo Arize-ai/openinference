@@ -1,4 +1,4 @@
-package io.openinference.instrumentation;
+package com.arize.instrumentation;
 
 import lombok.Builder;
 import lombok.Getter;

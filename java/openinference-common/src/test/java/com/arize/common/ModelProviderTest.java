@@ -1,4 +1,4 @@
-package io.openinference.common;
+package com.arize.common;
 
 import static org.junit.jupiter.api.Assertions.*;
 

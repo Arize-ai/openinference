@@ -5,8 +5,8 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.output.Response;
-import io.openinference.instrumentation.langchain4j.LangChain4jInstrumentor;
-import io.openinference.instrumentation.langchain4j.LangChain4jModelListener;
+import com.arize.instrumentation.langchain4j.LangChain4jInstrumentor;
+import com.arize.instrumentation.langchain4j.LangChain4jModelListener;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import static com.arize.semconv.trace.SemanticResourceAttributes.SEMRESATTRS_PROJECT_NAME;
 
 /**
  * Example demonstrating OpenInference instrumentation with LangChain4j.
@@ -105,7 +107,8 @@ public class LangChain4jExample {
         // Create resource with service name
         Resource resource = Resource.getDefault()
                 .merge(Resource.create(Attributes.of(
-                        AttributeKey.stringKey("service.name"), "langchain4j-example",
+                        AttributeKey.stringKey("service.name"), "langchain4j",
+                        AttributeKey.stringKey(SEMRESATTRS_PROJECT_NAME), "langchain4j-project",
                         AttributeKey.stringKey("service.version"), "0.1.0")));
 
         String apiKey = System.getenv("PHOENIX_API_KEY");

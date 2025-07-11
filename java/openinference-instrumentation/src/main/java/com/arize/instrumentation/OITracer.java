@@ -1,7 +1,6 @@
-package io.openinference.instrumentation;
+package com.arize.instrumentation;
 
-import io.openinference.semconv.trace.OpenInferenceSpanKind;
-import io.openinference.semconv.trace.SpanAttributes;
+import com.arize.semconv.trace.SemanticConventions;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
@@ -15,7 +14,7 @@ import lombok.Getter;
  * with OpenInference semantic conventions.
  */
 @Getter
-public class OITracer {
+public class OITracer implements Tracer {
 
     private final Tracer tracer;
     private final TraceConfig config;
@@ -47,7 +46,7 @@ public class OITracer {
 
         return spanBuilder(spanName)
                 .setSpanKind(SpanKind.CLIENT)
-                .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM.getValue());
+                .setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.LLM.getValue());
     }
 
     /**
@@ -56,7 +55,7 @@ public class OITracer {
     public SpanBuilder chainSpanBuilder(String chainName) {
         return spanBuilder(chainName)
                 .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.CHAIN.getValue());
+                .setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.CHAIN.getValue());
     }
 
     /**
@@ -65,7 +64,7 @@ public class OITracer {
     public SpanBuilder toolSpanBuilder(String toolName) {
         return spanBuilder(toolName)
                 .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.TOOL.getValue());
+                .setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.TOOL.getValue());
     }
 
     /**
@@ -74,7 +73,7 @@ public class OITracer {
     public SpanBuilder agentSpanBuilder(String agentName) {
         return spanBuilder(agentName)
                 .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.AGENT.getValue());
+                .setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.AGENT.getValue());
     }
 
     /**
@@ -83,7 +82,7 @@ public class OITracer {
     public SpanBuilder retrieverSpanBuilder(String retrieverName) {
         return spanBuilder(retrieverName)
                 .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.RETRIEVER.getValue());
+                .setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.RETRIEVER.getValue());
     }
 
     /**
@@ -97,7 +96,7 @@ public class OITracer {
 
         return spanBuilder(spanName)
                 .setSpanKind(SpanKind.CLIENT)
-                .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.EMBEDDING.getValue());
+                .setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.EMBEDDING.getValue());
     }
 
     /**
@@ -106,7 +105,7 @@ public class OITracer {
     public SpanBuilder rerankerSpanBuilder(String rerankerName) {
         return spanBuilder(rerankerName)
                 .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.RERANKER.getValue());
+                .setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.RERANKER.getValue());
     }
 
     /**
@@ -115,7 +114,7 @@ public class OITracer {
     public SpanBuilder guardrailSpanBuilder(String guardrailName) {
         return spanBuilder(guardrailName)
                 .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.GUARDRAIL.getValue());
+                .setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.GUARDRAIL.getValue());
     }
 
     /**
@@ -124,7 +123,7 @@ public class OITracer {
     public SpanBuilder evaluatorSpanBuilder(String evaluatorName) {
         return spanBuilder(evaluatorName)
                 .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.EVALUATOR.getValue());
+                .setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.EVALUATOR.getValue());
     }
 
     /**

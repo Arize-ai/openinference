@@ -1,7 +1,7 @@
-package io.openinference.instrumentation.langchain4j;
+package com.arize.instrumentation.langchain4j;
 
-import io.openinference.instrumentation.OITracer;
-import io.openinference.instrumentation.TraceConfig;
+import com.arize.instrumentation.OITracer;
+import com.arize.instrumentation.TraceConfig;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.TracerProvider;
