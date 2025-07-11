@@ -29,6 +29,7 @@ import {
   withSafety,
 } from "@arizeai/openinference-core";
 import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import { ReadWriteSpan } from "./types";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(
@@ -405,16 +406,32 @@ const safelyGetMetadataAttributes = withSafety({
 
 /**
  * Gets the OpenInference attributes associated with the span from the initial attributes
- * @param attributesWithSpanKind the initial attributes of the span and the OpenInference span kind
- * @param attributesWithSpanKind.attributes the initial attributes of the span
- * @param attributesWithSpanKind.spanKind the OpenInference span kind
+ * @param attributes the initial attributes of the span
+ * @param span the span object (optional, for orphaned span detection)
+ * @param spanFilter the span filter (optional, for orphaned span detection)
  * @returns The OpenInference attributes associated with the span
  */
-const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
+const getOpenInferenceAttributes = (
+  attributes: Attributes,
+  span?: ReadableSpan,
+  spanFilter?: SpanFilter,
+): Attributes => {
   const spanKind = safelyGetOISpanKindFromAttributes(attributes);
-  const openInferenceAttributes = {
+  let openInferenceAttributes = {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind ?? undefined,
   };
+
+  // Handle orphaned spans when spanFilter is active
+  if (span && spanFilter && span.parentSpanId) {
+    // Add metadata to indicate this span should become a root span
+    openInferenceAttributes = {
+      ...openInferenceAttributes,
+      [`${SemanticConventions.METADATA}._should_be_root_span`]: true,
+      [`${SemanticConventions.METADATA}.original_parent_span_id`]:
+        span.parentSpanId,
+    };
+  }
+
   return AISemanticConventionsList.reduce(
     (openInferenceAttributes: Attributes, convention) => {
       /**
@@ -548,10 +565,18 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
 /**
  * {@link getOpenInferenceAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-export const safelyGetOpenInferenceAttributes = withSafety({
-  fn: getOpenInferenceAttributes,
-  onError: onErrorCallback(""),
-});
+export const safelyGetOpenInferenceAttributes = (
+  attributes: Attributes,
+  span?: ReadableSpan,
+  spanFilter?: SpanFilter,
+): Attributes | null => {
+  try {
+    return getOpenInferenceAttributes(attributes, span, spanFilter);
+  } catch (error) {
+    onErrorCallback("")(error);
+    return null;
+  }
+};
 
 export const isOpenInferenceSpan = (span: ReadableSpan) => {
   const maybeOpenInferenceSpanKind =
@@ -561,7 +586,7 @@ export const isOpenInferenceSpan = (span: ReadableSpan) => {
 
 /**
  * Determines whether a span should be exported based on configuration and the spans attributes.
- * @param span the spn to check for export eligibility.
+ * @param span the span to check for export eligibility.
  * @param spanFilter a filter to apply to a span before exporting. If it returns true for a given span, the span will be exported.
  * @returns true if the span should be exported, false otherwise.
  */
@@ -581,15 +606,40 @@ export const shouldExportSpan = ({
 /**
  * Adds OpenInference attributes to a span based on the span's existing attributes.
  * @param span - The span to add OpenInference attributes to.
+ * @param spanFilter - Optional span filter for orphaned span detection.
  */
-export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
-  const newAttributes = {
-    ...safelyGetOpenInferenceAttributes(span.attributes),
-  };
+export const addOpenInferenceAttributesToSpan = (
+  span: ReadableSpan,
+  spanFilter?: SpanFilter,
+): void => {
+  const newAttributes = safelyGetOpenInferenceAttributes(
+    span.attributes,
+    span,
+    spanFilter,
+  );
+
+  if (!newAttributes) {
+    return;
+  }
+
+  // Check if this span should be made a root span (based on attributes set by getOpenInferenceAttributes)
+  const shouldBeRootSpan =
+    newAttributes[`${SemanticConventions.METADATA}._should_be_root_span`];
+  if (shouldBeRootSpan && span.parentSpanId) {
+    // Cast to ReadWriteSpan to allow modification
+    const writableSpan = span as ReadWriteSpan;
+
+    // Clear the parent span ID to make this a root span
+    writableSpan.parentSpanId = undefined;
+  }
 
   // newer versions of opentelemetry will not allow you to reassign
   // the attributes object, so you must edit it by keyname instead
   Object.entries(newAttributes).forEach(([key, value]) => {
+    // Skip internal attributes that shouldn't be exported
+    if (key === `${SemanticConventions.METADATA}._should_be_root_span`) {
+      return;
+    }
     span.attributes[key] = value;
   });
 };
