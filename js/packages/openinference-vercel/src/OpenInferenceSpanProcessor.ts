@@ -30,35 +30,43 @@ import { Context } from "@opentelemetry/api";
  * ```
  */
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
-  private readonly spanFilter?: SpanFilter;
+  private spanFilter?: SpanFilter;
+
   constructor({
     exporter,
     spanFilter,
   }: {
-    /**
-     * The exporter to pass spans to.
-     */
-    readonly exporter: SpanExporter;
-    /**
-     * A filter to apply to spans before exporting. If it returns true for a given span, that span will be exported.
-     */
-    readonly spanFilter?: SpanFilter;
-
-    config?: BufferConfig;
+    exporter: SpanExporter;
+    spanFilter?: SpanFilter;
   }) {
     super(exporter);
     this.spanFilter = spanFilter;
+    // eslint-disable-next-line no-console
+    console.error(
+      `🚨 PROCESSOR DEBUG: OpenInferenceSimpleSpanProcessor created with spanFilter: ${spanFilter ? "enabled" : "disabled"}`,
+    );
   }
 
   onEnd(span: ReadableSpan): void {
-    addOpenInferenceAttributesToSpan(span);
+    // eslint-disable-next-line no-console
+    console.error(`🚨 PROCESSOR DEBUG: onEnd called for span "${span.name}"`);
+
+    addOpenInferenceAttributesToSpan(span, this.spanFilter);
+
     if (
       shouldExportSpan({
         span,
         spanFilter: this.spanFilter,
       })
     ) {
+      // eslint-disable-next-line no-console
+      console.error(`🚨 PROCESSOR DEBUG: Exporting span "${span.name}"`);
       super.onEnd(span);
+    } else {
+      // eslint-disable-next-line no-console
+      console.error(
+        `🚨 PROCESSOR DEBUG: NOT exporting span "${span.name}" (filtered out)`,
+      );
     }
   }
 }
@@ -120,7 +128,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   }
 
   onEnd(span: ReadableSpan): void {
-    addOpenInferenceAttributesToSpan(span);
+    addOpenInferenceAttributesToSpan(span, this.spanFilter);
     if (
       shouldExportSpan({
         span,
