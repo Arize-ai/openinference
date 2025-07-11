@@ -47,6 +47,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -287,7 +289,9 @@ def _update_span(span: Span, run: Run) -> None:
                     _output_messages(run.outputs),
                     _prompt_template(run),
                     _invocation_parameters(run),
-                    _model_name(run.extra),
+                    _llm_provider(run.extra),
+                    _llm_system(run.extra),
+                    _model_name(run.outputs, run.extra),
                     _token_counts(run.outputs),
                     _function_calls(run.outputs),
                     _tools(run),
@@ -606,11 +610,41 @@ def _invocation_parameters(run: Run) -> Iterator[Tuple[str, str]]:
 
 
 @stop_on_exception
-def _model_name(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+def _llm_provider(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+    if not extra:
+        return
+    if (meta := extra.get("metadata")) and (ls_provider := meta.get("ls_provider")):
+        ls_provider_lower = ls_provider.lower()
+        yield LLM_PROVIDER, _LANGCHAIN_PROVIDER_MAP.get(ls_provider_lower) or ls_provider_lower
+
+
+@stop_on_exception
+def _model_name(
+    outputs: Optional[Mapping[str, Any]],
+    extra: Optional[Mapping[str, Any]],
+) -> Iterator[Tuple[str, str]]:
     """Yields model name if present."""
+    if (
+        outputs
+        and hasattr(outputs, "get")
+        and (llm_output := outputs.get("llm_output"))
+        and hasattr(llm_output, "get")
+    ):
+        for key in "model_name", "model":
+            if name := str(llm_output.get(key) or "").strip():
+                yield LLM_MODEL_NAME, name
+                return
     if not extra:
         return
     assert hasattr(extra, "get"), f"expected Mapping, found {type(extra)}"
+    if (
+        (metadata := extra.get("metadata"))
+        and hasattr(metadata, "get")
+        and (ls_model_name := str(metadata.get("ls_model_name") or "").strip())
+    ):
+        # See https://github.com/langchain-ai/langchain/blob/404d8408f40d86701d7fff81b039b7c76f77153e/libs/core/langchain_core/language_models/base.py#L44  # noqa: E501
+        yield LLM_MODEL_NAME, ls_model_name
+        return
     if not (invocation_params := extra.get("invocation_params")):
         return
     for key in ["model_name", "model"]:
@@ -965,3 +999,79 @@ TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+
+_NA = None
+
+# Map provider to system value
+_PROVIDER_TO_SYSTEM = {
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "bedrock": _NA,  # TODO
+    "bedrock_converse": _NA,  # TODO
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "deepseek": _NA,  # TODO
+    "fireworks": _NA,  # TODO
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "groq": OpenInferenceLLMSystemValues.OPENAI.value,
+    "huggingface": _NA,  # TODO
+    "ibm": _NA,  # TODO
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "perplexity": _NA,  # TODO
+    "together": _NA,  # TODO
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "xai": _NA,  # TODO
+}
+
+# Map LangChain provider names to OpenInference provider values
+_LANGCHAIN_PROVIDER_MAP = {
+    "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMProviderValues.AZURE.value,
+    "azure_ai": OpenInferenceLLMProviderValues.AZURE.value,
+    "azure_openai": OpenInferenceLLMProviderValues.AZURE.value,
+    "bedrock": OpenInferenceLLMProviderValues.AWS.value,
+    "bedrock_converse": OpenInferenceLLMProviderValues.AWS.value,
+    "cohere": OpenInferenceLLMProviderValues.COHERE.value,
+    "deepseek": OpenInferenceLLMProviderValues.DEEPSEEK.value,
+    "fireworks": "fireworks",
+    "google": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "google_anthropic_vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "google_genai": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "google_vertexai": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "groq": "groq",
+    "huggingface": "huggingface",
+    "ibm": "ibm",
+    "mistralai": OpenInferenceLLMProviderValues.MISTRALAI.value,
+    "nvidia": "nvidia",
+    "ollama": "ollama",
+    "openai": OpenInferenceLLMProviderValues.OPENAI.value,
+    "perplexity": "perplexity",
+    "together": "together",
+    "vertex": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "vertexai": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "xai": OpenInferenceLLMProviderValues.XAI.value,
+}
+
+
+@stop_on_exception
+def _llm_system(extra: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+    """
+    Extract the LLM system (AI product) from the extra information in a LangChain run.
+
+    Derives the system from the ls_provider in metadata, which is LangChain's source of truth.
+    """
+    if not extra:
+        return
+    if (meta := extra.get("metadata")) and (ls_provider := meta.get("ls_provider")):
+        ls_provider_lower = ls_provider.lower()
+        if system := _PROVIDER_TO_SYSTEM.get(ls_provider_lower):
+            yield LLM_SYSTEM, system

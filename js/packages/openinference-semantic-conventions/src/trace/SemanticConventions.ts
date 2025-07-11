@@ -747,4 +747,6 @@ export enum LLMProvider {
   GOOGLE = "google",
   AWS = "aws",
   AZURE = "azure",
+  XAI = "xai",
+  DEEPSEEK = "deepseek",
 }

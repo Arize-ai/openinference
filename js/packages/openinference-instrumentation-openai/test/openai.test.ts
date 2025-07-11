@@ -7,11 +7,12 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { suppressTracing } from "@opentelemetry/core";
 import { context } from "@opentelemetry/api";
 
-import OpenAI from "openai";
+import OpenAI, { APIPromise, AzureOpenAI } from "openai";
 import { Stream } from "openai/streaming";
-import { APIPromise } from "openai/core";
 import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
 import { CreateEmbeddingResponse } from "openai/resources/embeddings";
+import { z } from "zod";
+import { zodResponseFormat } from "openai/helpers/zod";
 
 // Function tools
 async function getCurrentLocation() {
@@ -21,6 +22,8 @@ async function getCurrentLocation() {
 async function getWeather(_args: { location: string }) {
   return { temperature: 52, precipitation: "rainy" };
 }
+
+process.env.OPENAI_API_KEY = "fake-api-key";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -244,8 +247,12 @@ describe("OpenAIInstrumentation", () => {
     // Mock out the embedding create endpoint with proper Promise handling
     jest.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {
           resolve({
+            requestLogID: "123",
+            retryOfRequestLogID: "123",
+            startTime: 123,
             response: new Response(JSON.stringify(response), {
               headers: {
                 "content-type": "application/json",
@@ -431,7 +438,7 @@ describe("OpenAIInstrumentation", () => {
       );
 
     const messages = [];
-    const runner = openai.beta.chat.completions
+    const runner = openai.chat.completions
       .runTools({
         model: "gpt-3.5-turbo",
         messages: [{ role: "user", content: "How is the weather this week?" }],
@@ -994,6 +1001,99 @@ describe("OpenAIInstrumentation", () => {
 }
 `);
   });
+  it("creates a span for chat completions parse", async () => {
+    const response = {
+      id: "chatcmpl-parseTest",
+      object: "chat.completion",
+      created: 1706000000,
+      model: "gpt-4o-2024-08-06",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content:
+              '{"name":"science fair","date":"Friday","participants":["Alice","Bob"]}',
+          },
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 },
+    };
+
+    // Mock out the chat completions endpoint that will be called under the hood by `.parse`
+    jest
+      .spyOn(openai, "post")
+      .mockImplementation((): ReturnType<typeof openai.post> => {
+        return new APIPromise(
+          openai,
+          Promise.resolve({
+            requestLogID: "123",
+            retryOfRequestLogID: "123",
+            startTime: 123,
+            controller: new AbortController(),
+            options: {
+              method: "post",
+              path: "/chat/completions/create",
+            },
+            response: new Response(JSON.stringify(response), {
+              headers: {
+                "content-type": "application/json",
+              },
+              status: 200,
+              statusText: "OK",
+            }),
+          }),
+        );
+      });
+
+    const CalendarEvent = z.object({
+      name: z.string(),
+      date: z.string(),
+      participants: z.array(z.string()),
+    });
+
+    // Invoke the helper method under test
+    await openai.chat.completions.parse({
+      model: "gpt-4o-2024-08-06",
+      messages: [
+        { role: "system", content: "Extract the event information." },
+        {
+          role: "user",
+          content: "Alice and Bob are going to a science fair on Friday.",
+        },
+      ],
+      response_format: zodResponseFormat(CalendarEvent, "event"),
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"model":"gpt-4o-2024-08-06","messages":[{"role":"system","content":"Extract the event information."},{"role":"user","content":"Alice and Bob are going to a science fair on Friday."}],"response_format":{"type":"json_schema","json_schema":{"name":"event","strict":true,"schema":{"type":"object","properties":{"name":{"type":"string"},"date":{"type":"string"},"participants":{"type":"array","items":{"type":"string"}}},"required":["name","date","participants"],"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}}",
+  "llm.input_messages.0.message.content": "Extract the event information.",
+  "llm.input_messages.0.message.role": "system",
+  "llm.input_messages.1.message.content": "Alice and Bob are going to a science fair on Friday.",
+  "llm.input_messages.1.message.role": "user",
+  "llm.invocation_parameters": "{"model":"gpt-4o-2024-08-06","response_format":{"type":"json_schema","json_schema":{"name":"event","strict":true,"schema":{"type":"object","properties":{"name":{"type":"string"},"date":{"type":"string"},"participants":{"type":"array","items":{"type":"string"}}},"required":["name","date","participants"],"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}}",
+  "llm.model_name": "gpt-4o-2024-08-06",
+  "llm.output_messages.0.message.content": "{"name":"science fair","date":"Friday","participants":["Alice","Bob"]}",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "openai",
+  "llm.system": "openai",
+  "llm.token_count.completion": 10,
+  "llm.token_count.prompt": 20,
+  "llm.token_count.total": 30,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"chatcmpl-parseTest","object":"chat.completion","created":1706000000,"model":"gpt-4o-2024-08-06","choices":[{"index":0,"message":{"role":"assistant","content":"{\\"name\\":\\"science fair\\",\\"date\\":\\"Friday\\",\\"participants\\":[\\"Alice\\",\\"Bob\\"]}"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":10,"total_tokens":30}}",
+}
+`);
+  });
 });
 
 describe("OpenAIInstrumentation with TraceConfig", () => {
@@ -1076,6 +1176,209 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
   "openinference.span.kind": "LLM",
   "output.mime_type": "text/plain",
   "output.value": "This is a test",
+}
+`);
+  });
+});
+
+describe("AzureOpenAIInstrumentation", () => {
+  const tracerProvider = new NodeTracerProvider();
+  tracerProvider.register();
+  const instrumentation = new OpenAIInstrumentation();
+  instrumentation.disable();
+  let azureOpenai: AzureOpenAI;
+
+  instrumentation.setTracerProvider(tracerProvider);
+  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+  instrumentation._modules[0].moduleExports = OpenAI;
+
+  beforeAll(() => {
+    instrumentation.enable();
+    azureOpenai = new AzureOpenAI({
+      apiKey: "fake-api-key",
+      endpoint: "https://my-azure-openai.openai.azure.com",
+      apiVersion: "2024-02-15-preview",
+    });
+  });
+  afterAll(() => {
+    instrumentation.disable();
+  });
+  beforeEach(() => {
+    memoryExporter.reset();
+  });
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("is patched", () => {
+    expect(
+      (OpenAI as { openInferencePatched?: boolean }).openInferencePatched,
+    ).toBe(true);
+    expect(isPatched()).toBe(true);
+  });
+
+  it("creates a span for chat completions", async () => {
+    const response = {
+      id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
+      object: "chat.completion",
+      created: 1703743645,
+      model: "gpt-35-turbo",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "This is a test.",
+          },
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 12,
+        completion_tokens: 5,
+        total_tokens: 17,
+      },
+    };
+    // Mock out the chat completions endpoint
+    jest.spyOn(azureOpenai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+    await azureOpenai.chat.completions.create({
+      messages: [{ role: "user", content: "Say this is a test" }],
+      model: "gpt-35-turbo",
+    });
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"messages":[{"role":"user","content":"Say this is a test"}],"model":"gpt-35-turbo"}",
+  "llm.input_messages.0.message.content": "Say this is a test",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"model":"gpt-35-turbo"}",
+  "llm.model_name": "gpt-35-turbo",
+  "llm.output_messages.0.message.content": "This is a test.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "openai",
+  "llm.system": "openai",
+  "llm.token_count.completion": 5,
+  "llm.token_count.prompt": 12,
+  "llm.token_count.total": 17,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-35-turbo","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17}}",
+}
+`);
+  });
+
+  it("creates a span for embeddings", async () => {
+    const response: CreateEmbeddingResponse = {
+      object: "list",
+      data: [{ object: "embedding", index: 0, embedding: [1, 2, 3] }],
+      model: "text-embedding-ada-002",
+      usage: { prompt_tokens: 0, total_tokens: 0 },
+    };
+
+    // Mock out the embedding create endpoint with proper Promise handling
+    jest.spyOn(azureOpenai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        new Promise((resolve) => {
+          resolve({
+            requestLogID: "123",
+            retryOfRequestLogID: "123",
+            startTime: 123,
+            response: new Response(JSON.stringify(response), {
+              headers: {
+                "content-type": "application/json",
+              },
+              status: 200,
+              statusText: "OK",
+            }),
+            options: {
+              method: "post",
+              path: "/embeddings",
+            },
+            controller: new AbortController(),
+          });
+        }),
+      );
+    });
+
+    await azureOpenai.embeddings.create({
+      input: "A happy moment",
+      model: "text-embedding-ada-002",
+    });
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Embeddings");
+    // Check the attributes
+    expect(span.attributes["embedding.embeddings.0.embedding.text"]).toBe(
+      "A happy moment",
+    );
+    expect(span.attributes["embedding.model_name"]).toBe(
+      "text-embedding-ada-002",
+    );
+    expect(span.attributes["input.mime_type"]).toBe("text/plain");
+    expect(span.attributes["input.value"]).toBe("A happy moment");
+    expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
+  });
+
+  it("can handle streaming responses", async () => {
+    // Mock out the post endpoint to return a stream
+    jest.spyOn(azureOpenai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        const iterator = () =>
+          (async function* () {
+            yield { choices: [{ delta: { content: "This is " } }] };
+            yield { choices: [{ delta: { content: "a test." } }] };
+            yield { choices: [{ delta: { finish_reason: "stop" } }] };
+          })();
+        const controller = new AbortController();
+        return new Stream(iterator, controller);
+      },
+    );
+    const stream = await azureOpenai.chat.completions.create({
+      messages: [{ role: "user", content: "Say this is a test" }],
+      model: "gpt-35-turbo",
+      stream: true,
+    });
+
+    let response = "";
+    for await (const chunk of stream) {
+      if (chunk.choices[0].delta.content)
+        response += chunk.choices[0].delta.content;
+    }
+    expect(response).toBe("This is a test.");
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const span = spans[0];
+    expect(span.name).toBe("OpenAI Chat Completions");
+    expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"messages":[{"role":"user","content":"Say this is a test"}],"model":"gpt-35-turbo","stream":true}",
+  "llm.input_messages.0.message.content": "Say this is a test",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"model":"gpt-35-turbo","stream":true}",
+  "llm.model_name": "gpt-35-turbo",
+  "llm.output_messages.0.message.content": "This is a test.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "openai",
+  "llm.system": "openai",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "text/plain",
+  "output.value": "This is a test.",
 }
 `);
   });

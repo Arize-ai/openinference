@@ -220,7 +220,7 @@ export function getResponsesInputMessagesAttributes(
   if (typeof body.input === "string") {
     items.push({ content: body.input, role: "user" });
   } else {
-    items.push(...body.input);
+    items.push(...(body.input ?? []));
   }
   items.forEach((item, index) => {
     const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;

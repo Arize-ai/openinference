@@ -45,7 +45,7 @@ from openinference.semconv.trace import (
 )
 
 # Skip capture
-KEYS_TO_REDACT = ["api_key"]
+KEYS_TO_REDACT = ["api_key", "messages"]
 
 
 # Helper functions to set span attributes
@@ -59,6 +59,20 @@ T = TypeVar("T", bound=type)
 
 def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
     return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)
+
+
+def _set_output_message_value(span: trace_api.Span, result: ModelResponse) -> Any:
+    if (
+        result.choices
+        and isinstance(result.choices[-1], Choices)
+        and (output_value := result.choices[-1].message.content)
+    ):
+        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, output_value)
+    else:
+        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, result.model_dump_json())
+        _set_span_attribute(
+            span, SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+        )
 
 
 def _get_attributes_from_message_param(
@@ -194,11 +208,7 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
     if isinstance(result, ModelResponse):
-        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, result.model_dump_json())
-        _set_span_attribute(
-            span, SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
-        )
-
+        _set_output_message_value(span, result)
         for idx, choice in enumerate(result.choices):
             if not isinstance(choice, Choices):
                 continue

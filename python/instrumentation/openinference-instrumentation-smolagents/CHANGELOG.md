@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.13...python-openinference-instrumentation-smolagents-v0.1.14) (2025-07-10)
+
+
+### Features
+
+* **smolagents:** Improve Display Of Handled Errors ([#1845](https://github.com/Arize-ai/openinference/issues/1845)) ([fb7eb1f](https://github.com/Arize-ai/openinference/commit/fb7eb1fa36adb7bb5ff001dce196c32ceb244a18))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.12...python-openinference-instrumentation-smolagents-v0.1.13) (2025-06-09)
 
 

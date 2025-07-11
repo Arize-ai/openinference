@@ -2,7 +2,7 @@ from itertools import product
 from typing import Iterator
 
 import pytest
-from llama_index.core.instrumentation import get_dispatcher
+from llama_index.core.instrumentation import get_dispatcher  # type: ignore[attr-defined]
 from llama_index.core.instrumentation.events.embedding import EmbeddingEndEvent
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter

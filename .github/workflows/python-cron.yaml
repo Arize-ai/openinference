@@ -48,6 +48,7 @@ jobs:
           enable-cache: false
       - run: uvx --with tox-uv tox r -e ${{ matrix.testenv }} -- -ra -x
         working-directory: python
+        timeout-minutes: 10
       - run: touch ${{ runner.temp }}/${{ matrix.testenv }}
         if: failure()
       - uses: actions/upload-artifact@v4

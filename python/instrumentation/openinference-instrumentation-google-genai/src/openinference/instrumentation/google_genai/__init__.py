@@ -6,12 +6,6 @@ from opentelemetry.trace import get_tracer, get_tracer_provider
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.google_genai._wrappers import (
-    _AsyncGenerateContentStream,
-    _AsyncGenerateContentWrapper,
-    _SyncGenerateContent,
-    _SyncGenerateContentStream,
-)
 from openinference.instrumentation.google_genai.package import _instruments
 from openinference.instrumentation.google_genai.version import __version__
 
@@ -53,6 +47,13 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             raise Exception(
                 "Could not import google-genai. Please install with `pip install google-genai`."
             ) from err
+
+        from openinference.instrumentation.google_genai._wrappers import (
+            _AsyncGenerateContentStream,
+            _AsyncGenerateContentWrapper,
+            _SyncGenerateContent,
+            _SyncGenerateContentStream,
+        )
 
         self._original_generate_content = Models.generate_content
         wrap_function_wrapper(
