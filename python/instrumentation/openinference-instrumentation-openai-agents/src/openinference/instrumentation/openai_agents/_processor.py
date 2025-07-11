@@ -67,6 +67,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         self._root_spans: dict[str, OtelSpan] = {}
         self._otel_spans: dict[str, OtelSpan] = {}
         self._tokens: dict[str, object] = {}
+        self._reverse_handoffs_dict: dict[str, str] = {}
 
     def on_trace_start(self, trace: Trace) -> None:
         """Called when a trace is started.
@@ -159,6 +160,16 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         elif isinstance(data, MCPListToolsSpanData):
             for k, v in _get_attributes_from_mcp_list_tool_span_data(data):
                 otel_span.set_attribute(k, v)
+        if isinstance(data, HandoffSpanData):
+            # Set this dict to find the parent node when the agent span starts
+            self._reverse_handoffs_dict[data.to_agent] = data.from_agent
+        elif isinstance(data, AgentSpanData):
+            otel_span.set_attribute(GRAPH_NODE_ID, data.name)
+            # Lookup the parent node if exists
+            if parent_node := self._reverse_handoffs_dict.get(data.name):
+                otel_span.set_attribute(GRAPH_NODE_PARENT_ID, parent_node)
+                del self._reverse_handoffs_dict[data.name]
+
         end_time: Optional[int] = None
         if span.ended_at:
             try:
@@ -653,6 +664,8 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
+GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
