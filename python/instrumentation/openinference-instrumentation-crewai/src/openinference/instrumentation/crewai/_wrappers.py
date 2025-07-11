@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple, cast
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -88,7 +88,7 @@ def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
         if a.role == current_role and i != 0:
             parent_agent = agents[i - 1]
             if parent_agent.role:
-                return parent_agent.role
+                return cast(str, parent_agent.role)
     return None
 
 
