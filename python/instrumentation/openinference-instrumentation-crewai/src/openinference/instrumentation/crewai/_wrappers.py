@@ -82,6 +82,14 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         cls=SafeJSONEncoder,
     )
 
+def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
+    for i, a in enumerate(agents):
+        if a.role == current_role and i != 0:
+            parent_agent = agents[i - 1]
+            if parent_agent.role:
+                return parent_agent.role
+    return None
+
 
 class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
@@ -117,39 +125,35 @@ class _ExecuteCoreWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
+            span.set_attribute("task_key", instance.key)
+            span.set_attribute("task_id", str(instance.id))
+
             agent = args[0] if args else None
+            # Conditionally set attributes for the agent, crew, and task
             if agent:
                 span.set_attribute(SpanAttributes.GRAPH_NODE_ID, agent.role)
+                crew = agent.crew
+                if crew:
+                    span.set_attribute("crew_key", crew.key)
+                    span.set_attribute("crew_id", str(crew.id))
 
-            crew = agent.crew if agent else None
-            task = instance
+                    # Find the current agent, the previous agent is the parent node
+                    parent_agent_role = _find_parent_agent(agent.role, crew.agents)
+                    if parent_agent_role:
+                        span.set_attribute(SpanAttributes.GRAPH_NODE_PARENT_ID, parent_agent_role)
 
-            if crew and agent:
-                span.set_attribute("crew_key", crew.key)
-                span.set_attribute("crew_id", str(crew.id))
+                    if crew.share_crew:
+                        span.set_attribute("formatted_description", instance.description)
+                        span.set_attribute("formatted_expected_output", instance.expected_output)
 
-                # Find the current agent, the previous agent is the parent node
-                for i, a in enumerate(crew.agents):
-                    if i == 0:
-                        continue
-                    elif a.role == agent.role:
-                        parent_agent = crew.agents[i - 1]
-                        if parent_agent.role:
-                            span.set_attribute(SpanAttributes.GRAPH_NODE_PARENT_ID, parent_agent.role)
-                        break
-
-            span.set_attribute("task_key", task.key)
-            span.set_attribute("task_id", str(task.id))
-
-            if crew and crew.share_crew:
-                span.set_attribute("formatted_description", task.description)
-                span.set_attribute("formatted_expected_output", task.expected_output)
+            # Run the wrapped function, and capture errors before re-raising
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+
             span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(dict(get_output_attributes(response)))
             span.set_attributes(dict(get_attributes_from_context()))
