@@ -109,6 +109,7 @@ def test_crewai_instrumentation(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 4
     checked_spans = 0
+    agent_enum = 0
     for span in spans:
         attributes = dict(span.attributes or dict())
         if span.name == "Crew.kickoff":
@@ -137,6 +138,12 @@ def test_crewai_instrumentation(
             assert attributes.get("output.value")
             assert attributes["openinference.span.kind"] == "AGENT"
             assert attributes.get("input.value")
+            if agent_enum == 0:
+                assert attributes.get("graph.node.id") == "Senior Hello Sayer"
+            elif agent_enum == 1:
+                assert attributes.get("graph.node.id") == "Aristocrat"
+                assert attributes.get("graph.node.parent_id") == "Senior Hello Sayer"
+            agent_enum += 1
             assert span.status.is_ok
     assert checked_spans == 4
 

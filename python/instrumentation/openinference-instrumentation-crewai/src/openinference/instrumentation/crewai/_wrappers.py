@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple, cast
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -83,6 +83,15 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     )
 
 
+def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
+    for i, a in enumerate(agents):
+        if a.role == current_role and i != 0:
+            parent_agent = agents[i - 1]
+            if parent_agent.role:
+                return cast(str, parent_agent.role)
+    return None
+
+
 class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -117,25 +126,35 @@ class _ExecuteCoreWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
+            span.set_attribute("task_key", instance.key)
+            span.set_attribute("task_id", str(instance.id))
+
             agent = args[0] if args else None
-            crew = agent.crew if agent else None
-            task = instance
+            # Conditionally set attributes for the agent, crew, and task
+            if agent:
+                span.set_attribute(SpanAttributes.GRAPH_NODE_ID, agent.role)
+                crew = agent.crew
+                if crew:
+                    span.set_attribute("crew_key", crew.key)
+                    span.set_attribute("crew_id", str(crew.id))
 
-            if crew:
-                span.set_attribute("crew_key", crew.key)
-                span.set_attribute("crew_id", str(crew.id))
-            span.set_attribute("task_key", task.key)
-            span.set_attribute("task_id", str(task.id))
+                    # Find the current agent, the previous agent is the parent node
+                    parent_agent_role = _find_parent_agent(agent.role, crew.agents)
+                    if parent_agent_role:
+                        span.set_attribute(SpanAttributes.GRAPH_NODE_PARENT_ID, parent_agent_role)
 
-            if crew and crew.share_crew:
-                span.set_attribute("formatted_description", task.description)
-                span.set_attribute("formatted_expected_output", task.expected_output)
+                    if crew.share_crew:
+                        span.set_attribute("formatted_description", instance.description)
+                        span.set_attribute("formatted_expected_output", instance.expected_output)
+
+            # Run the wrapped function, and capture errors before re-raising
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+
             span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(dict(get_output_attributes(response)))
             span.set_attributes(dict(get_attributes_from_context()))
