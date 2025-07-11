@@ -162,7 +162,8 @@ class OpenInferenceTracingProcessor(TracingProcessor):
                 otel_span.set_attribute(k, v)
         if isinstance(data, HandoffSpanData):
             # Set this dict to find the parent node when the agent span starts
-            self._reverse_handoffs_dict[data.to_agent] = data.from_agent
+            if data.to_agent and data.from_agent:
+                self._reverse_handoffs_dict[data.to_agent] = data.from_agent
         elif isinstance(data, AgentSpanData):
             otel_span.set_attribute(GRAPH_NODE_ID, data.name)
             # Lookup the parent node if exists
