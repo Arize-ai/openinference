@@ -650,15 +650,18 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
   it("should not overwrite existing openinference.span.kind", () => {
     const tracer = trace.getTracer("test-tracer");
     const span = tracer.startSpan("ai.generateText.doGenerate");
-    
+
     // Set the span kind manually first
-    span.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.CHAIN);
+    span.setAttribute(
+      SemanticConventions.OPENINFERENCE_SPAN_KIND,
+      OpenInferenceSpanKind.CHAIN,
+    );
     span.setAttribute("operation.name", "ai.generateText.doGenerate");
-    
+
     span.end();
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
-    
+
     // The span kind should remain as CHAIN, not be overwritten to LLM
     expect(
       spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
@@ -738,16 +741,19 @@ describe("OpenInferenceBatchSpanProcessor", () => {
   it("should not overwrite existing openinference.span.kind", async () => {
     const tracer = trace.getTracer("test-tracer");
     const span = tracer.startSpan("ai.generateText.doGenerate");
-    
+
     // Set the span kind manually first
-    span.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.CHAIN);
+    span.setAttribute(
+      SemanticConventions.OPENINFERENCE_SPAN_KIND,
+      OpenInferenceSpanKind.CHAIN,
+    );
     span.setAttribute("operation.name", "ai.generateText.doGenerate");
-    
+
     span.end();
     await processor.forceFlush();
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
-    
+
     // The span kind should remain as CHAIN, not be overwritten to LLM
     expect(
       spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
