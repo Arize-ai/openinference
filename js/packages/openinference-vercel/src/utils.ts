@@ -56,7 +56,13 @@ const getVercelFunctionNameFromOperationName = (
  */
 const getOISpanKindFromAttributes = (
   attributes: Attributes,
-): OpenInferenceSpanKind | undefined => {
+): OpenInferenceSpanKind | string | undefined => {
+  // If the span kind is already set, just use it
+  const existingOISpanKind =
+    attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
+  if (existingOISpanKind != null && typeof existingOISpanKind === "string") {
+    return existingOISpanKind;
+  }
   const maybeOperationName = attributes["operation.name"];
   if (maybeOperationName == null || typeof maybeOperationName !== "string") {
     return;
@@ -590,10 +596,6 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
   // newer versions of opentelemetry will not allow you to reassign
   // the attributes object, so you must edit it by keyname instead
   Object.entries(newAttributes).forEach(([key, value]) => {
-    // Don't overwrite openinference.span.kind if it already exists
-    if (key === SemanticConventions.OPENINFERENCE_SPAN_KIND && span.attributes[key] !== undefined) {
-      return;
-    }
     span.attributes[key] = value as AttributeValue;
   });
 };
