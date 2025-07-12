@@ -1,5 +1,12 @@
 # @arizeai/openinference-vercel
 
+## 2.1.4
+
+### Patch Changes
+
+- Updated dependencies [fc7f97b]
+  - @arizeai/openinference-vercel@2.3.1
+
 ## 2.1.3
 
 ### Patch Changes
