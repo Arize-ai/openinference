@@ -590,6 +590,10 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
   // newer versions of opentelemetry will not allow you to reassign
   // the attributes object, so you must edit it by keyname instead
   Object.entries(newAttributes).forEach(([key, value]) => {
-    span.attributes[key] = value;
+    // Don't overwrite openinference.span.kind if it already exists
+    if (key === SemanticConventions.OPENINFERENCE_SPAN_KIND && span.attributes[key] !== undefined) {
+      return;
+    }
+    span.attributes[key] = value as AttributeValue;
   });
 };
