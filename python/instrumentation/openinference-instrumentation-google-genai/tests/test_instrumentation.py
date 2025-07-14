@@ -115,8 +115,9 @@ def test_generate_content(
             f"Attribute {key} does not match expected value"
         )
 
+
 @pytest.mark.vcr(
-    decode_compressed_response=True,    
+    decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
@@ -143,9 +144,7 @@ def test_generate_content_with_config_as_dict(
         "top_p": 0.95,
         "top_k": 40,
         "candidate_count": 1,
-        "thinking_config": {
-            "thinking_budget": 100
-        }
+        "thinking_config": {"thinking_budget": 100},
     }
 
     # # Make the API call
@@ -170,15 +169,15 @@ def test_generate_content_with_config_as_dict(
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
-        SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps({
-            "temperature": 0.5,
-            "top_p": 0.95,
-            "top_k": 40,
-            "candidate_count": 1,
-            "thinking_config": {
-                "thinking_budget": 100
+        SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(
+            {
+                "temperature": 0.5,
+                "top_p": 0.95,
+                "top_k": 40,
+                "candidate_count": 1,
+                "thinking_config": {"thinking_budget": 100},
             }
-        })
+        ),
     }
 
     # Check if token counts are available in the response
@@ -188,7 +187,7 @@ def test_generate_content_with_config_as_dict(
             completion_token_count += candidates
         if thoughts := response.usage_metadata.thoughts_token_count:
             completion_token_count += thoughts
-        
+
         expected_attributes.update(
             {
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
