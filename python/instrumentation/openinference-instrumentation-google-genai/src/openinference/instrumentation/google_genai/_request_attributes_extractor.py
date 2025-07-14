@@ -61,8 +61,11 @@ class _RequestAttributesExtractor:
         request_params_dict = dict(request_parameters)
         request_params_dict.pop("contents", None)  # Remove LLM input contents
         if config := request_params_dict.get("config", None):
-            # Config is a pydantic object, so we need to convert it to a JSON string
-            config_json = self._serialize_config_safely(config)
+            # config can either be a TypedDict or a pydantic object so we need to handle both cases
+            if isinstance(config, dict):
+                config_json = safe_json_dumps(config)
+            else:
+                config_json = self._serialize_config_safely(config)
             yield (
                 SpanAttributes.LLM_INVOCATION_PARAMETERS,
                 config_json,

@@ -1,0 +1,23 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Repeat: this is a test"}], "role": "user"}],
+      "generationConfig": {"temperature": 0.5, "topP": 0.95, "topK": 40.0, "candidateCount":
+      1, "thinkingConfig": {"thinkingBudget": 100}}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"this is a test\"\n          }\n        ],\n
+        \       \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n
+        \     \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        7,\n    \"candidatesTokenCount\": 4,\n    \"totalTokenCount\": 34,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 7\n      }\n
+        \   ],\n    \"thoughtsTokenCount\": 23\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n
+        \ \"responseId\": \"jHt0aPysGpmO6dkP5d2v2Qk\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
