@@ -188,19 +188,6 @@ jreleaser {
                     ]
                 }
             }
-            
-            /* Legacy OSSRH - uncomment if using old OSSRH account
-            nexus2 {
-                'maven-central' {
-                    active = 'ALWAYS'
-                    url = 'https://s01.oss.sonatype.org/service/local'
-                    snapshotUrl = 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
-                    closeRepository = true
-                    releaseRepository = true
-                    stagingRepository('build/staging-deploy')
-                }
-            }
-            */
         }
     }
 }
