@@ -1,5 +1,7 @@
 package com.arize.instrumentation.trace.config;
 
+import static com.arize.instrumentation.trace.config.MaskingUtils.mask;
+
 import com.arize.instrumentation.TraceConfig;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -7,17 +9,15 @@ import io.opentelemetry.api.common.Value;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.StatusCode;
+import java.util.concurrent.TimeUnit;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-
-import java.util.concurrent.TimeUnit;
-
-import static com.arize.instrumentation.trace.config.MaskingUtils.mask;
 
 @RequiredArgsConstructor
 public class OISpan implements Span {
     @NonNull
     private Span span;
+
     @NonNull
     private TraceConfig config;
 

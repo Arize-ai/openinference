@@ -1,6 +1,7 @@
 package com.arize.instrumentation.langchain4j;
 
 import com.arize.common.ModelProvider;
+import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,9 +9,9 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ChatMessageType;
 import dev.langchain4j.model.chat.listener.*;
-import com.arize.instrumentation.OITracer;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
@@ -43,11 +44,14 @@ public class LangChain4jModelListener implements ChatModelListener {
 
         // Create span for the LLM call
         String modelName = request.model() != null ? request.model() : "unknown";
-        Span span = tracer.llmSpanBuilder("chat", modelName)
+        Span span = tracer.spanBuilder("generate")
                 .setParent(Context.current())
+                .setSpanKind(SpanKind.CLIENT)
                 .startSpan();
 
         // Set basic attributes
+        span.setAttribute(
+                SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.LLM.getValue());
         span.setAttribute(SemanticConventions.LLM_MODEL_NAME, modelName);
         span.setAttribute(SemanticConventions.LLM_SYSTEM, "langchain4j");
 
@@ -172,8 +176,7 @@ public class LangChain4jModelListener implements ChatModelListener {
             span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), role);
 
             // Set content
-            span.setAttribute(
-                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), message.text());
+            span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), message.text());
         }
     }
 
@@ -184,8 +187,7 @@ public class LangChain4jModelListener implements ChatModelListener {
         span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), "assistant");
 
         // Set content
-        span.setAttribute(
-                AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), aiMessage.text());
+        span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), aiMessage.text());
 
         // Set tool calls if present
         if (aiMessage.toolExecutionRequests() != null

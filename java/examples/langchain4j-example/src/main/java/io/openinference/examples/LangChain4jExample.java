@@ -1,12 +1,14 @@
 package io.openinference.examples;
 
+import static com.arize.semconv.trace.SemanticResourceAttributes.SEMRESATTRS_PROJECT_NAME;
+
+import com.arize.instrumentation.langchain4j.LangChain4jInstrumentor;
+import com.arize.instrumentation.langchain4j.LangChain4jModelListener;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.output.Response;
-import com.arize.instrumentation.langchain4j.LangChain4jInstrumentor;
-import com.arize.instrumentation.langchain4j.LangChain4jModelListener;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -25,8 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import static com.arize.semconv.trace.SemanticResourceAttributes.SEMRESATTRS_PROJECT_NAME;
 
 /**
  * Example demonstrating OpenInference instrumentation with LangChain4j.
