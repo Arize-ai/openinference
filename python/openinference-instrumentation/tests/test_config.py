@@ -20,6 +20,7 @@ from openinference.instrumentation.config import (
     DEFAULT_HIDE_INPUT_TEXT,
     DEFAULT_HIDE_INPUTS,
     DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS,
+    DEFAULT_HIDE_PROMPTS,
     DEFAULT_HIDE_OUTPUT_MESSAGES,
     DEFAULT_HIDE_OUTPUT_TEXT,
     DEFAULT_HIDE_OUTPUTS,
@@ -28,6 +29,7 @@ from openinference.instrumentation.config import (
     OPENINFERENCE_HIDE_INPUT_MESSAGES,
     OPENINFERENCE_HIDE_INPUT_TEXT,
     OPENINFERENCE_HIDE_INPUTS,
+    OPENINFERENCE_HIDE_PROMPTS,
     OPENINFERENCE_HIDE_OUTPUT_MESSAGES,
     OPENINFERENCE_HIDE_OUTPUT_TEXT,
     OPENINFERENCE_HIDE_OUTPUTS,
@@ -46,6 +48,7 @@ def test_default_settings() -> None:
     assert config.hide_input_images == DEFAULT_HIDE_INPUT_IMAGES
     assert config.hide_input_text == DEFAULT_HIDE_INPUT_TEXT
     assert config.hide_output_text == DEFAULT_HIDE_OUTPUT_TEXT
+    assert config.hide_prompts == DEFAULT_HIDE_PROMPTS
     assert config.base64_image_max_length == DEFAULT_BASE64_IMAGE_MAX_LENGTH
 
 
@@ -117,6 +120,7 @@ def test_attribute_priority(k: str, in_memory_span_exporter: InMemorySpanExporte
 @pytest.mark.parametrize("hide_input_images", [False, True])
 @pytest.mark.parametrize("hide_input_text", [False, True])
 @pytest.mark.parametrize("hide_output_text", [False, True])
+@pytest.mark.parametrize("hide_prompts", [False, True])
 @pytest.mark.parametrize("base64_image_max_length", [10_000])
 def test_settings_from_env_vars_and_code(
     hide_inputs: bool,
@@ -126,6 +130,7 @@ def test_settings_from_env_vars_and_code(
     hide_input_images: bool,
     hide_input_text: bool,
     hide_output_text: bool,
+    hide_prompts: bool,
     base64_image_max_length: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -135,6 +140,7 @@ def test_settings_from_env_vars_and_code(
     monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_MESSAGES, str(hide_input_messages))
     monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_MESSAGES, str(hide_output_messages))
     monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_IMAGES, str(hide_input_images))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_PROMPTS, str(hide_prompts))
     monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_TEXT, str(hide_input_text))
     monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_TEXT, str(hide_output_text))
     monkeypatch.setenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, str(base64_image_max_length))
@@ -147,6 +153,7 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_input_images is parse_bool_from_env(OPENINFERENCE_HIDE_INPUT_IMAGES)
     assert config.hide_input_text is parse_bool_from_env(OPENINFERENCE_HIDE_INPUT_TEXT)
     assert config.hide_output_text is parse_bool_from_env(OPENINFERENCE_HIDE_OUTPUT_TEXT)
+    assert config.hide_prompts is parse_bool_from_env(OPENINFERENCE_HIDE_PROMPTS)
     assert config.base64_image_max_length == int(
         os.getenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, default=-1)
     )
@@ -161,6 +168,7 @@ def test_settings_from_env_vars_and_code(
     new_hide_input_images = not hide_input_images
     new_hide_input_text = not hide_input_text
     new_hide_output_text = not hide_output_text
+    new_hide_prompts = not hide_prompts
     config = TraceConfig(
         hide_inputs=new_hide_inputs,
         hide_outputs=new_hide_outputs,
@@ -169,6 +177,7 @@ def test_settings_from_env_vars_and_code(
         hide_input_images=new_hide_input_images,
         hide_input_text=new_hide_input_text,
         hide_output_text=new_hide_output_text,
+        hide_prompts=new_hide_prompts,
         base64_image_max_length=new_base64_image_max_length,
     )
     assert config.hide_inputs is new_hide_inputs
@@ -178,6 +187,7 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_input_images is new_hide_input_images
     assert config.hide_input_text is new_hide_input_text
     assert config.hide_output_text is new_hide_output_text
+    assert config.hide_prompts is new_hide_prompts
     assert config.base64_image_max_length == new_base64_image_max_length
 
 
