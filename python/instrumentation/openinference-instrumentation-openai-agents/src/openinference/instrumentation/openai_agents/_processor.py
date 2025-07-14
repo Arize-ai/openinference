@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
+from collections import OrderedDict
 
 from agents import MCPListToolsSpanData
 from agents.tracing import Span, Trace, TracingProcessor
@@ -62,12 +63,17 @@ logger = logging.getLogger(__name__)
 
 
 class OpenInferenceTracingProcessor(TracingProcessor):
+    _MAX_HANDOFFS_IN_FLIGHT = 1000
+
     def __init__(self, tracer: Tracer) -> None:
         self._tracer = tracer
         self._root_spans: dict[str, OtelSpan] = {}
         self._otel_spans: dict[str, OtelSpan] = {}
         self._tokens: dict[str, object] = {}
-        self._reverse_handoffs_dict: dict[str, str] = {}
+        # This captures handoff mappings that are in flight. Once the handoff is completed, the in flight entry is deleted
+        # If the handoff does not complete, the entry stays in the dict.
+        # So we use an OrderedDict and _MAX_HANDOFFS_IN_FLIGHT to cap the size of the dict in case there are large numbers of orphaned handoffs
+        self._reverse_handoffs_dict: OrderedDict[str, str] = OrderedDict()
 
     def on_trace_start(self, trace: Trace) -> None:
         """Called when a trace is started.
@@ -160,16 +166,21 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         elif isinstance(data, MCPListToolsSpanData):
             for k, v in _get_attributes_from_mcp_list_tool_span_data(data):
                 otel_span.set_attribute(k, v)
-        if isinstance(data, HandoffSpanData):
+        elif isinstance(data, HandoffSpanData):
             # Set this dict to find the parent node when the agent span starts
             if data.to_agent and data.from_agent:
-                self._reverse_handoffs_dict[data.to_agent] = data.from_agent
+                key = f"{data.to_agent}:{span.trace_id}"
+                self._reverse_handoffs_dict[key] = data.from_agent
+                # Cap the size of the dict
+                while len(self._reverse_handoffs_dict) > self._MAX_HANDOFFS_IN_FLIGHT:
+                    self._reverse_handoffs_dict.popitem(last=False)
         elif isinstance(data, AgentSpanData):
             otel_span.set_attribute(GRAPH_NODE_ID, data.name)
             # Lookup the parent node if exists
-            if parent_node := self._reverse_handoffs_dict.get(data.name):
+            key = f"{data.name}:{span.trace_id}"
+            if parent_node := self._reverse_handoffs_dict.get(key):
                 otel_span.set_attribute(GRAPH_NODE_PARENT_ID, parent_node)
-                del self._reverse_handoffs_dict[data.name]
+                del self._reverse_handoffs_dict[key]
 
         end_time: Optional[int] = None
         if span.ended_at:
