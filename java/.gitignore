@@ -1,6 +1,7 @@
 # Gradle
 .gradle/
 build/
+*.jar
 !gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
 .gradletasknamecache
@@ -20,7 +21,6 @@ out/
 
 # Compiled files
 *.class
-*.jar
 *.war
 *.ear
 

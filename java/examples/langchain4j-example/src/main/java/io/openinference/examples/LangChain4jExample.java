@@ -140,9 +140,6 @@ public class LangChain4jExample {
                 .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
                 .buildAndRegisterGlobal();
 
-        // Add shutdown hook
-        Runtime.getRuntime().addShutdownHook(new Thread(tracerProvider::shutdown));
-
         System.out.println("OpenTelemetry initialized. Traces will be sent to Phoenix at http://localhost:6006");
     }
 }
