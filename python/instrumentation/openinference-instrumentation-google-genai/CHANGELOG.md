@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.4...python-openinference-instrumentation-google-genai-v0.1.5) (2025-07-14)
+
+
+### Bug Fixes
+
+* fix config_json serialization for GoogleGenAIInstrumentor ([#1855](https://github.com/Arize-ai/openinference/issues/1855)) ([1702a1d](https://github.com/Arize-ai/openinference/commit/1702a1d755d8ebc64fb3fa17e36579a6935d9dbd))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.3...python-openinference-instrumentation-google-genai-v0.1.4) (2025-06-27)
 
 
