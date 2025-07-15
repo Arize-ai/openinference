@@ -41,6 +41,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -171,6 +172,16 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
     _set_span_attribute(
         span, SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
     )
+
+    # Capture tool schemas
+    if tools := kwargs.get("tools"):
+        if isinstance(tools, list):
+            for idx, tool in enumerate(tools):
+                _set_span_attribute(
+                    span,
+                    f"{SpanAttributes.LLM_TOOLS}.{idx}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                    safe_json_dumps(tool),
+                )
 
 
 def _instrument_func_type_embedding(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
