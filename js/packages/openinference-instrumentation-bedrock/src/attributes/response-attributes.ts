@@ -52,6 +52,9 @@ export function extractOutputMessagesAttributes(
       });
     });
   }
+
+  // Add detailed output message content structure
+  addOutputMessageContentAttributes(responseBody, span);
 }
 
 /**
@@ -120,7 +123,49 @@ export function extractUsageAttributes(
       responseBody.usage.input_tokens + responseBody.usage.output_tokens;
   }
 
+  // Add cache-related token attributes
+  if (responseBody.usage.cache_read_input_tokens !== undefined) {
+    tokenAttributes[`${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}.cache_read`] =
+      responseBody.usage.cache_read_input_tokens;
+  }
+  if (responseBody.usage.cache_creation_input_tokens !== undefined) {
+    tokenAttributes[`${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}.cache_write`] =
+      responseBody.usage.cache_creation_input_tokens;
+  }
+
   span.setAttributes(tokenAttributes);
+}
+
+/**
+ * Adds detailed output message content structure attributes
+ * Phase 2: Message Content Structure Enhancement
+ */
+function addOutputMessageContentAttributes(
+  responseBody: InvokeModelResponseBody,
+  span: Span,
+): void {
+  if (!responseBody.content || !Array.isArray(responseBody.content)) {
+    return;
+  }
+
+  // Process each content block in the response
+  responseBody.content.forEach((content, contentIndex) => {
+    const contentPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
+    
+    if (isTextContent(content)) {
+      span.setAttributes({
+        [`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: "text",
+        [`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]: content.text,
+      });
+    } else if (isToolUseContent(content)) {
+      span.setAttributes({
+        [`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: "tool_use",
+        [`${contentPrefix}.message_content.tool_use.name`]: content.name,
+        [`${contentPrefix}.message_content.tool_use.input`]: JSON.stringify(content.input),
+        [`${contentPrefix}.message_content.tool_use.id`]: content.id,
+      });
+    }
+  });
 }
 
 /**
