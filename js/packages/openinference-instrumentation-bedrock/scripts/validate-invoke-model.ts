@@ -27,8 +27,15 @@ import {
 import { Resource } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+import { diag, DiagConsoleLogger, DiagLogLevel, context } from "@opentelemetry/api";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import {
+  setSession,
+  setUser,
+  setMetadata,
+  setTags,
+  setPromptTemplate,
+} from "@arizeai/openinference-core";
 
 // Configuration from environment variables
 const PHOENIX_ENDPOINT =
@@ -50,6 +57,7 @@ type TestScenario =
   | "streaming-basic"
   | "streaming-tools"
   | "streaming-errors"
+  | "context-attributes"
   | "all";
 
 interface ValidationOptions {
@@ -209,6 +217,7 @@ class InstrumentationValidator {
             "streaming-basic",
             "streaming-tools",
             "streaming-errors",
+            "context-attributes",
           ] as TestScenario[])
         : [this.options.scenario];
 
@@ -263,6 +272,8 @@ class InstrumentationValidator {
         return this.runStreamingToolsScenario();
       case "streaming-errors":
         return this.runStreamingErrorsScenario();
+      case "context-attributes":
+        return this.runContextAttributesScenario();
       default:
         throw new Error(`Unknown scenario: ${scenario}`);
     }
@@ -636,6 +647,74 @@ class InstrumentationValidator {
     }
   }
 
+  private async runContextAttributesScenario(): Promise<boolean> {
+    console.log("   📋 Testing context attributes propagation...");
+
+    const command = new this.InvokeModelCommand({
+      modelId: this.options.modelId,
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 100,
+        messages: [
+          {
+            role: "user",
+            content: "Hello! This is a test with context attributes.",
+          },
+        ],
+      }),
+    });
+
+    // Setup comprehensive OpenInference context
+    const response = await context.with(
+      setSession(
+        setUser(
+          setMetadata(
+            setTags(
+              setPromptTemplate(
+                context.active(),
+                {
+                  template: "You are a helpful assistant. User message: {{message}}",
+                  version: "1.0.0",
+                  variables: { message: "Hello! This is a test with context attributes." }
+                }
+              ),
+              ["validation", "context", "bedrock", "phoenix"]
+            ),
+            {
+              experiment_name: "bedrock-context-validation",
+              version: "1.0.0",
+              environment: "validation",
+              script_name: "validate-invoke-model",
+              timestamp: new Date().toISOString()
+            }
+          ),
+          { userId: "validation-user-123" }
+        ),
+        { sessionId: "validation-session-456" }
+      ),
+      async () => {
+        const result = await this.client.send(command);
+        return result;
+      }
+    );
+
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+    console.log("   📋 Context attributes configured:");
+    console.log("      🆔 Session ID: validation-session-456");
+    console.log("      👤 User ID: validation-user-123");
+    console.log("      📊 Metadata: experiment_name=bedrock-context-validation");
+    console.log("      🏷️ Tags: [validation, context, bedrock, phoenix]");
+    console.log("      📝 Prompt Template: You are a helpful assistant...");
+    console.log(
+      "   💬 Response:",
+      responseBody.content[0].text.substring(0, 50) + "...",
+    );
+    console.log("   ✅ Context attributes should be visible in Phoenix trace");
+
+    return true;
+  }
+
   async cleanup() {
     await this.provider.shutdown();
   }
@@ -674,7 +753,7 @@ function parseArgs(): ValidationOptions {
 Usage: tsx scripts/validate-invoke-model.ts [options]
 
 Options:
-  --scenario <scenario>     Test scenario: basic-text, tool-calling, multi-modal, tool-results, multiple-tools, streaming-basic, streaming-tools, streaming-errors, all (default: all)
+  --scenario <scenario>     Test scenario: basic-text, tool-calling, multi-modal, tool-results, multiple-tools, streaming-basic, streaming-tools, streaming-errors, context-attributes, all (default: all)
   --debug                   Enable debug logging
   --phoenix-endpoint <url>  Phoenix endpoint URL (default: ${PHOENIX_ENDPOINT})
   --phoenix-api-key <key>   Phoenix API key (default: from PHOENIX_API_KEY env)

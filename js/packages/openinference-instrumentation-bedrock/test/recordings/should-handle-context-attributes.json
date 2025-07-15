@@ -15,38 +15,38 @@
     },
     "status": 200,
     "response": {
-      "id": "msg_bdrk_01NbSYHZqwJcEHCu39P1ZFNg",
+      "id": "msg_bdrk_019BDB7DS3PqsTTkAb4A2Y9U",
       "type": "message",
       "role": "assistant",
       "model": "claude-3-5-sonnet-20240620",
       "content": [
         {
           "type": "text",
-          "text": "Hello! I'm happy to help with any questions or tasks you may have. I don't actually see any specific context attributes provided, but I'm ready to assist you with whatever you'd like to discuss or work on. What can I help you with today?"
+          "text": "Hello! I'm happy to help with any test or questions you might have. Since you mentioned context attributes, I just want to let you know that I don't actually have any special context information beyond what's in our conversation. But I'm ready to engage on whatever topic you'd like to discuss or test!"
         }
       ],
       "stop_reason": "end_turn",
       "stop_sequence": null,
       "usage": {
         "input_tokens": 17,
-        "output_tokens": 56
+        "output_tokens": 66
       }
     },
     "rawHeaders": [
       "Date",
-      "Thu, 10 Jul 2025 20:47:35 GMT",
+      "Tue, 15 Jul 2025 14:52:40 GMT",
       "Content-Type",
       "application/json",
       "Content-Length",
-      "483",
+      "548",
       "Connection",
       "keep-alive",
       "x-amzn-RequestId",
-      "083e0ab8-1d9e-4523-9a22-3fad6a29ffc3",
+      "08b7b8f0-aa2d-4ea2-a278-54d20f11f7b0",
       "X-Amzn-Bedrock-Invocation-Latency",
-      "1846",
+      "2112",
       "X-Amzn-Bedrock-Output-Token-Count",
-      "56",
+      "66",
       "X-Amzn-Bedrock-Input-Token-Count",
       "17"
     ],
@@ -56,7 +56,7 @@
       "content-length": "147",
       "x-amz-user-agent": "aws-sdk-js/3.750.0",
       "host": "bedrock-runtime.us-east-1.amazonaws.com",
-      "amz-sdk-invocation-id": "12564dcd-b0b2-40a1-b018-ae1bf4937030",
+      "amz-sdk-invocation-id": "af1a95df-4fbe-4d64-b9c4-1c5d36f11dfb",
       "amz-sdk-request": "attempt=1; max=3",
       "x-amz-date": "20250626T120000Z",
       "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
