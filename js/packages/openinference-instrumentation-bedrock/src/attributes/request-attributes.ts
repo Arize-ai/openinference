@@ -19,6 +19,7 @@ import { InvokeModelRequestBody, BedrockMessage } from "../types/bedrock-types";
 import {
   extractTextFromContent,
   extractToolResultBlocks,
+  formatImageUrl,
 } from "../utils/content-processing";
 
 /**
@@ -32,8 +33,8 @@ export function extractBaseRequestAttributes(
 
   const attributes: Record<string, any> = {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-    [SemanticConventions.LLM_SYSTEM]: "bedrock",
-    [SemanticConventions.LLM_MODEL_NAME]: modelId,
+    [SemanticConventions.LLM_SYSTEM]: getSystemFromModelId(modelId),
+    [SemanticConventions.LLM_MODEL_NAME]: extractModelName(modelId),
     [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
     [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
   };
@@ -120,6 +121,40 @@ export function extractInvokeModelRequestAttributes(
 }
 
 // Helper functions
+
+/**
+ * Extracts vendor-specific system name from model ID
+ */
+function getSystemFromModelId(modelId: string): string {
+  if (modelId.includes("anthropic")) return "anthropic";
+  if (modelId.includes("ai21")) return "ai21";
+  if (modelId.includes("amazon")) return "amazon";
+  if (modelId.includes("cohere")) return "cohere";
+  if (modelId.includes("meta")) return "meta";
+  if (modelId.includes("mistral")) return "mistral";
+  return "bedrock"; // fallback
+}
+
+/**
+ * Extracts clean model name from full model ID
+ */
+function extractModelName(modelId: string): string {
+  // "anthropic.claude-3-haiku-20240307-v1:0" -> "claude-3-haiku-20240307"
+  // "amazon.titan-text-express-v1" -> "titan-text-express-v1"
+  const parts = modelId.split(".");
+  if (parts.length > 1) {
+    const modelPart = parts[1];
+    // For Anthropic models, remove version suffix like "-v1:0"
+    if (modelId.includes("anthropic")) {
+      const versionIndex = modelPart.indexOf("-v");
+      if (versionIndex > 0) {
+        return modelPart.substring(0, versionIndex);
+      }
+    }
+    return modelPart;
+  }
+  return modelId;
+}
 
 /**
  * Safely parses the request body JSON
@@ -220,6 +255,9 @@ function addMessageAttributes(
     }
   }
 
+  // Add detailed message content structure
+  addMessageContentAttributes(attributes, message, index);
+
   // Handle complex content arrays (tool results, etc.)
   if (Array.isArray(message.content)) {
     const toolResultBlocks = extractToolResultBlocks(message.content);
@@ -231,6 +269,56 @@ function addMessageAttributes(
       attributes[
         `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
       ] = JSON.stringify({ result: contentBlock.content });
+    });
+  }
+}
+
+/**
+ * Adds detailed message content structure attributes
+ * Phase 2: Message Content Structure Enhancement
+ */
+function addMessageContentAttributes(
+  attributes: Record<string, any>,
+  message: BedrockMessage,
+  messageIndex: number,
+): void {
+  if (!message.content) return;
+
+  // Handle string content
+  if (typeof message.content === "string") {
+    attributes[
+      `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`
+    ] = "text";
+    attributes[
+      `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+    ] = message.content;
+    return;
+  }
+
+  // Handle array content (multi-modal)
+  if (Array.isArray(message.content)) {
+    message.content.forEach((content, contentIndex) => {
+      const contentPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
+      
+      if (content.type === "text") {
+        attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+        attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.text;
+      } else if (content.type === "image") {
+        attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "image";
+        if (content.source) {
+          const imageUrl = formatImageUrl(content.source);
+          attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`] = imageUrl;
+        }
+      } else if (content.type === "tool_use") {
+        attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "tool_use";
+        attributes[`${contentPrefix}.message_content.tool_use.name`] = content.name;
+        attributes[`${contentPrefix}.message_content.tool_use.input`] = JSON.stringify(content.input);
+        attributes[`${contentPrefix}.message_content.tool_use.id`] = content.id;
+      } else if (content.type === "tool_result") {
+        attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "tool_result";
+        attributes[`${contentPrefix}.message_content.tool_result.tool_use_id`] = content.tool_use_id;
+        attributes[`${contentPrefix}.message_content.tool_result.content`] = content.content;
+      }
     });
   }
 }
