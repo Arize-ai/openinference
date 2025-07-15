@@ -31,7 +31,7 @@ from opentelemetry.util.types import AttributeValue
 
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
 from autogen_agentchat.base import Response, TaskResult
-from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage, BaseChatMessage
+from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage
 from autogen_agentchat.teams import BaseGroupChat
 from openinference.instrumentation import (
     get_attributes_from_context,
