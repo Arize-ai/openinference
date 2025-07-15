@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
-from collections import OrderedDict
 
 from agents import MCPListToolsSpanData
 from agents.tracing import Span, Trace, TracingProcessor
@@ -70,7 +70,7 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         self._root_spans: dict[str, OtelSpan] = {}
         self._otel_spans: dict[str, OtelSpan] = {}
         self._tokens: dict[str, object] = {}
-        # This captures in flight handoff mappings. Once the handoff is completed, the entry is deleted
+        # This captures in flight handoff. Once the handoff is complete, the entry is deleted
         # If the handoff does not complete, the entry stays in the dict.
         # Use an OrderedDict and _MAX_HANDOFFS_IN_FLIGHT to cap the size of the dict
         # in case there are large numbers of orphaned handoffs
