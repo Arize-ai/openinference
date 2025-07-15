@@ -184,13 +184,13 @@ const maskingRules: MaskingRule[] = [
   {
     condition: ({ config, key }) =>
       (config.hideInputs || config.hideInputMessages) &&
-    key.includes(SemanticConventions.LLM_INPUT_MESSAGES),
+      key.includes(SemanticConventions.LLM_INPUT_MESSAGES),
     action: () => undefined,
   },
   {
     condition: ({ config, key }) =>
       (config.hideOutputs || config.hideOutputMessages) &&
-    key.includes(SemanticConventions.LLM_OUTPUT_MESSAGES),
+      key.includes(SemanticConventions.LLM_OUTPUT_MESSAGES),
     action: () => undefined,
   },
   maskInputTextRule,
