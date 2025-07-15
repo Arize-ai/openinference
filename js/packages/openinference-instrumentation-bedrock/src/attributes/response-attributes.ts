@@ -40,21 +40,27 @@ export function extractOutputMessagesAttributes(
     [SemanticConventions.OUTPUT_MIME_TYPE]: mimeType,
   });
 
-  // Add structured output message attributes for text content
-  if (responseBody.content && Array.isArray(responseBody.content)) {
-    const textBlocks = responseBody.content.filter(isTextContent);
-    textBlocks.forEach((content) => {
+  // Determine if this is a simple text response or complex multimodal response
+  const isSimpleTextResponse = responseBody.content && 
+    Array.isArray(responseBody.content) && 
+    responseBody.content.length === 1 && 
+    isTextContent(responseBody.content[0]);
+
+  if (isSimpleTextResponse) {
+    // For simple text responses, use only the top-level message.content
+    const textBlock = responseBody.content[0];
+    if (isTextContent(textBlock)) {
       span.setAttributes({
         [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
           "assistant",
         [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
-          content.text,
+          textBlock.text,
       });
-    });
+    }
+  } else {
+    // For complex multimodal responses, use only the detailed message.contents structure
+    addOutputMessageContentAttributes(responseBody, span);
   }
-
-  // Add detailed output message content structure
-  addOutputMessageContentAttributes(responseBody, span);
 }
 
 /**

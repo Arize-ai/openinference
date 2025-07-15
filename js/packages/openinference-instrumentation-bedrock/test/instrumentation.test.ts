@@ -8,6 +8,23 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { context } from "@opentelemetry/api";
+import {
+  setSession,
+  setUser,
+  setMetadata,
+  setTags,
+  setPromptTemplate,
+} from "@arizeai/openinference-core";
+import {
+  SESSION_ID,
+  USER_ID,
+  METADATA,
+  TAG_TAGS,
+  PROMPT_TEMPLATE_TEMPLATE,
+  PROMPT_TEMPLATE_VERSION,
+  PROMPT_TEMPLATE_VARIABLES,
+} from "@arizeai/openinference-semantic-conventions";
 import nock from "nock";
 import * as fs from "fs";
 import * as path from "path";
@@ -178,14 +195,10 @@ describe("BedrockInstrumentation", () => {
   "input.mime_type": "application/json",
   "input.value": "Hello, how are you?",
   "llm.input_messages.0.message.content": "Hello, how are you?",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, how are you?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
-  "llm.output_messages.0.message.contents.0.message_content.text": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.system": "anthropic",
@@ -244,19 +257,15 @@ describe("BedrockInstrumentation", () => {
   "input.mime_type": "application/json",
   "input.value": "What's the weather like in San Francisco?",
   "llm.input_messages.0.message.content": "What's the weather like in San Francisco?",
-  "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather like in San Francisco?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.content": "Certainly! I can help you with that information. To get the current weather for San Francisco, I'll use the get_weather function. Let me fetch that data for you.",
   "llm.output_messages.0.message.contents.0.message_content.text": "Certainly! I can help you with that information. To get the current weather for San Francisco, I'll use the get_weather function. Let me fetch that data for you.",
   "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.contents.1.message_content.tool_use.id": "toolu_bdrk_01MqHGzs8QwkdkVjJYrbLTPp",
   "llm.output_messages.0.message.contents.1.message_content.tool_use.input": "{"location":"San Francisco, CA"}",
   "llm.output_messages.0.message.contents.1.message_content.tool_use.name": "get_weather",
   "llm.output_messages.0.message.contents.1.message_content.type": "tool_use",
-  "llm.output_messages.0.message.role": "assistant",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA"}",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_bdrk_01MqHGzs8QwkdkVjJYrbLTPp",
@@ -306,16 +315,12 @@ describe("BedrockInstrumentation", () => {
   "input.mime_type": "application/json",
   "input.value": "What's the weather in Paris?",
   "llm.input_messages.0.message.content": "What's the weather in Paris?",
-  "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather in Paris?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
-  "llm.input_messages.1.message.content": "[Tool Call: get_weather]",
   "llm.input_messages.1.message.contents.0.message_content.tool_use.id": "toolu_123",
   "llm.input_messages.1.message.contents.0.message_content.tool_use.input": "{"location":"Paris, France"}",
   "llm.input_messages.1.message.contents.0.message_content.tool_use.name": "get_weather",
   "llm.input_messages.1.message.contents.0.message_content.type": "tool_use",
   "llm.input_messages.1.message.role": "assistant",
-  "llm.input_messages.2.message.content": "[Tool Result: The weather in Paris is currently 22°C and sunny.] Great! What should I wear?",
   "llm.input_messages.2.message.contents.0.message_content.tool_result.content": "The weather in Paris is currently 22°C and sunny.",
   "llm.input_messages.2.message.contents.0.message_content.tool_result.tool_use_id": "toolu_123",
   "llm.input_messages.2.message.contents.0.message_content.type": "tool_result",
@@ -335,16 +340,6 @@ describe("BedrockInstrumentation", () => {
 - A light jacket or sweater in case it cools off in the evening
 
 The key things are to dress for the warm temperatures and have layers you can",
-  "llm.output_messages.0.message.contents.0.message_content.text": "Since it's warm and sunny in Paris right now, you'll want to wear lightweight, breathable clothing. Some recommendations:
-
-- A light shirt or tank top
-- Shorts or a light skirt/dress
-- Sandals or other open-toed shoes
-- A hat or sunglasses for sun protection
-- A light jacket or sweater in case it cools off in the evening
-
-The key things are to dress for the warm temperatures and have layers you can",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.system": "anthropic",
@@ -446,18 +441,12 @@ The key things are to dress for the warm temperatures and have layers you can",
   "input.mime_type": "application/json",
   "input.value": "Tell me a short fact.",
   "llm.input_messages.0.message.content": "Tell me a short fact.",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Tell me a short fact.",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "Here's a short fact for you:
 
 Honeybees can recognize human faces.",
-  "llm.output_messages.0.message.contents.0.message_content.text": "Here's a short fact for you:
-
-Honeybees can recognize human faces.",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.system": "anthropic",
@@ -532,16 +521,16 @@ Honeybees can recognize human faces.",
       expect(span.attributes["input.value"]).toContain(expectedImageUrl);
 
       // Verify that multi-modal content is properly extracted
-      // Text content should be captured
-      expect(span.attributes["llm.input_messages.0.message.content"]).toContain(
+      // Text content should be captured in detailed structure
+      expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toContain(
         "What do you see in this image?",
       );
 
       // Image content should be captured in OpenInference format
       // The message should contain the image URL in the expected format
-      const messageContent =
-        span.attributes["llm.input_messages.0.message.content"];
-      expect(messageContent).toContain(expectedImageUrl);
+      const imageContent =
+        span.attributes["llm.input_messages.0.message.contents.1.message_content.image.image.url"];
+      expect(imageContent).toBe(expectedImageUrl);
 
       // Output message should be captured
       expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
@@ -556,7 +545,6 @@ Honeybees can recognize human faces.",
 {
   "input.mime_type": "application/json",
   "input.value": "What do you see in this image? data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
-  "llm.input_messages.0.message.content": "What do you see in this image? data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
   "llm.input_messages.0.message.contents.0.message_content.text": "What do you see in this image?",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
@@ -565,8 +553,6 @@ Honeybees can recognize human faces.",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
-  "llm.output_messages.0.message.contents.0.message_content.text": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.system": "anthropic",
@@ -630,8 +616,6 @@ Honeybees can recognize human faces.",
   "input.mime_type": "application/json",
   "input.value": "This should fail",
   "llm.input_messages.0.message.content": "This should fail",
-  "llm.input_messages.0.message.contents.0.message_content.text": "This should fail",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "invalid-model-id",
@@ -672,12 +656,9 @@ Honeybees can recognize human faces.",
   "input.mime_type": "application/json",
   "input.value": "What's the weather in San Francisco and what's 15 * 23?",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco and what's 15 * 23?",
-  "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather in San Francisco and what's 15 * 23?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-sonnet-20240229",
-  "llm.output_messages.0.message.content": "Okay, let's get the weather and do that calculation.",
   "llm.output_messages.0.message.contents.0.message_content.text": "Okay, let's get the weather and do that calculation.",
   "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.contents.1.message_content.tool_use.id": "toolu_bdrk_01FqpV1qX3bJ4bczkdtMhdGz",
@@ -688,7 +669,6 @@ Honeybees can recognize human faces.",
   "llm.output_messages.0.message.contents.2.message_content.tool_use.input": "{}",
   "llm.output_messages.0.message.contents.2.message_content.tool_use.name": "calculate",
   "llm.output_messages.0.message.contents.2.message_content.type": "tool_use",
-  "llm.output_messages.0.message.role": "assistant",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_bdrk_01FqpV1qX3bJ4bczkdtMhdGz",
@@ -737,8 +717,6 @@ Honeybees can recognize human faces.",
   "input.mime_type": "application/json",
   "input.value": "Tell me a short story",
   "llm.input_messages.0.message.content": "Tell me a short story",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Tell me a short story",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -794,8 +772,6 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "input.mime_type": "application/json",
   "input.value": "What's the weather in San Francisco?",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco?",
-  "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather in San Francisco?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-sonnet-20240229",
@@ -867,8 +843,6 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "input.mime_type": "application/json",
   "input.value": "This streaming request should fail",
   "llm.input_messages.0.message.content": "This streaming request should fail",
-  "llm.input_messages.0.message.contents.0.message_content.text": "This streaming request should fail",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "invalid-streaming-model-id",
@@ -903,23 +877,41 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         contentType: "application/json",
         accept: "application/json",
       });
-
-      // Mock OpenInference context (would be set by user's application)
-      const contextAttributes = {
-        session_id: "test-session-123",
-        user_id: "test-user-456", 
-        metadata: JSON.stringify({
-          experiment_name: "context-test",
-          version: "1.0.0"
-        }),
-      };
-
-      // In real scenarios, these would be set via OpenInference context managers
-      // For this test, we'll verify the span can handle additional attributes
       
-      const response = await client.send(command);
-      verifyResponseStructure(response);
-
+      // Setup OpenInference context with all supported attributes
+      const response = await context.with(
+        setSession(
+          setUser(
+            setMetadata(
+              setTags(
+                setPromptTemplate(
+                  context.active(),
+                  {
+                    template: "You are a helpful assistant. User message: {{message}}",
+                    version: "1.0.0",
+                    variables: { message: "Hello! This is a test with context attributes." }
+                  }
+                ),
+                ["test", "context", "attributes"]
+              ),
+              {
+                experiment_name: "context-test",
+                version: "1.0.0",
+                environment: "testing"
+              }
+            ),
+            { userId: "test-user-456" }
+          ),
+          { sessionId: "test-session-123" }
+        ),
+        async () => {
+          // Make the API call within the context
+          const response = await client.send(command);
+          verifyResponseStructure(response);
+          return response;
+        }
+      );
+      
       // Verify span creation and basic attributes
       const span = verifySpanBasics(spanExporter);
       
@@ -937,8 +929,20 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
       expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
       
-      // Note: Context propagation would be handled by OpenInference context managers
-      // This test verifies the instrumentation doesn't interfere with context handling
+      // Verify context attributes are properly propagated to the span
+      expect(span.attributes[SESSION_ID]).toBe("test-session-123");
+      expect(span.attributes[USER_ID]).toBe("test-user-456");
+      expect(span.attributes[METADATA]).toBe(JSON.stringify({
+        experiment_name: "context-test",
+        version: "1.0.0",
+        environment: "testing"
+      }));
+      expect(span.attributes[TAG_TAGS]).toBe(JSON.stringify(["test", "context", "attributes"]));
+      expect(span.attributes[PROMPT_TEMPLATE_TEMPLATE]).toBe("You are a helpful assistant. User message: {{message}}");
+      expect(span.attributes[PROMPT_TEMPLATE_VERSION]).toBe("1.0.0");
+      expect(span.attributes[PROMPT_TEMPLATE_VARIABLES]).toBe(JSON.stringify({ 
+        message: "Hello! This is a test with context attributes." 
+      }));
     });
 
     it("should handle non-Anthropic models via Bedrock", async () => {

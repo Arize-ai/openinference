@@ -245,18 +245,22 @@ function addMessageAttributes(
     `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_ROLE}`
   ] = message.role;
 
-  // Handle both string and array content
-  if (message.content) {
+  // Determine if this is a simple text message or complex multimodal message
+  const isSimpleTextMessage = typeof message.content === "string" || 
+    (Array.isArray(message.content) && message.content.length === 1 && message.content[0].type === "text");
+
+  if (isSimpleTextMessage) {
+    // For simple text messages, use only the top-level message.content
     const messageContent = extractTextFromContent(message.content);
     if (messageContent) {
       attributes[
         `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`
       ] = messageContent;
     }
+  } else {
+    // For complex multimodal messages, use only the detailed message.contents structure
+    addMessageContentAttributes(attributes, message, index);
   }
-
-  // Add detailed message content structure
-  addMessageContentAttributes(attributes, message, index);
 
   // Handle complex content arrays (tool results, etc.)
   if (Array.isArray(message.content)) {
