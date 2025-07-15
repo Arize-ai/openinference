@@ -465,7 +465,7 @@ async def test_acompletion_with_tool_schema_capture(
     tool_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
     assert tool_schema is not None
 
-    tool_schema_dict = json.loads(tool_schema)
+    tool_schema_dict = json.loads(cast(str, tool_schema))
     assert tool_schema_dict["function"]["name"] == "get_time"
     assert tool_schema_dict["function"]["description"] == "Get current time in a timezone"
 
