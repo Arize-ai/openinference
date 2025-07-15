@@ -70,9 +70,10 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         self._root_spans: dict[str, OtelSpan] = {}
         self._otel_spans: dict[str, OtelSpan] = {}
         self._tokens: dict[str, object] = {}
-        # This captures handoff mappings that are in flight. Once the handoff is completed, the in flight entry is deleted
+        # This captures in flight handoff mappings. Once the handoff is completed, the entry is deleted
         # If the handoff does not complete, the entry stays in the dict.
-        # So we use an OrderedDict and _MAX_HANDOFFS_IN_FLIGHT to cap the size of the dict in case there are large numbers of orphaned handoffs
+        # Use an OrderedDict and _MAX_HANDOFFS_IN_FLIGHT to cap the size of the dict
+        # in case there are large numbers of orphaned handoffs
         self._reverse_handoffs_dict: OrderedDict[str, str] = OrderedDict()
 
     def on_trace_start(self, trace: Trace) -> None:
@@ -178,9 +179,8 @@ class OpenInferenceTracingProcessor(TracingProcessor):
             otel_span.set_attribute(GRAPH_NODE_ID, data.name)
             # Lookup the parent node if exists
             key = f"{data.name}:{span.trace_id}"
-            if parent_node := self._reverse_handoffs_dict.get(key):
+            if parent_node := self._reverse_handoffs_dict.pop(key, None):
                 otel_span.set_attribute(GRAPH_NODE_PARENT_ID, parent_node)
-                del self._reverse_handoffs_dict[key]
 
         end_time: Optional[int] = None
         if span.ended_at:
