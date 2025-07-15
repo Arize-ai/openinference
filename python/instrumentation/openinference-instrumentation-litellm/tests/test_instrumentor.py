@@ -23,6 +23,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -323,6 +324,152 @@ def test_completion_with_tool_calls(
     assert attributes.get(tool_call_function_args) == '{"location": "New York", "unit": "celsius"}'
 
     assert "The weather in New York is 22°C and sunny." == attributes.get(OUTPUT_VALUE)
+
+
+def test_completion_with_tool_schema_capture(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get current weather in a given location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                    },
+                    "required": ["location"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_forecast",
+                "description": "Get weather forecast for a location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {"type": "string"},
+                        "days": {"type": "integer", "minimum": 1, "maximum": 7},
+                    },
+                    "required": ["location", "days"],
+                },
+            },
+        },
+    ]
+
+    input_messages = [{"content": "What's the weather like in New York?", "role": "user"}]
+    litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        tools=tools,
+        tool_choice="auto",
+        mock_response="I'll check the weather for you.",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify basic attributes
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    # Verify tool schemas are captured
+    tool1_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
+    tool2_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_JSON_SCHEMA}")
+
+    assert tool1_schema is not None
+    assert tool2_schema is not None
+    assert isinstance(tool1_schema, str)
+    assert isinstance(tool2_schema, str)
+
+    # Verify first tool schema
+    tool1_schema_dict = json.loads(tool1_schema)
+    assert tool1_schema_dict["type"] == "function"
+    assert tool1_schema_dict["function"]["name"] == "get_weather"
+    assert tool1_schema_dict["function"]["description"] == "Get current weather in a given location"
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["location"]["type"] == "string"
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["unit"]["enum"] == [
+        "celsius",
+        "fahrenheit",
+    ]
+    assert tool1_schema_dict["function"]["parameters"]["required"] == ["location"]
+
+    # Verify second tool schema
+    tool2_schema_dict = json.loads(tool2_schema)
+    assert tool2_schema_dict["type"] == "function"
+    assert tool2_schema_dict["function"]["name"] == "get_forecast"
+    assert tool2_schema_dict["function"]["description"] == "Get weather forecast for a location"
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["location"]["type"] == "string"
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["days"]["type"] == "integer"
+    assert tool2_schema_dict["function"]["parameters"]["required"] == ["location", "days"]
+
+    assert "I'll check the weather for you." == attributes.get(OUTPUT_VALUE)
+
+
+async def test_acompletion_with_tool_schema_capture(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Test that async completion captures tool schemas correctly"""
+    in_memory_span_exporter.clear()
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_time",
+                "description": "Get current time in a timezone",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "timezone": {"type": "string", "description": "Timezone name"},
+                    },
+                    "required": ["timezone"],
+                },
+            },
+        }
+    ]
+
+    input_messages = [{"content": "What time is it in Tokyo?", "role": "user"}]
+    await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        tools=tools,
+        mock_response="I'll check the time in Tokyo for you.",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify tool schema is captured
+    tool_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
+    assert tool_schema is not None
+
+    tool_schema_dict = json.loads(tool_schema)
+    assert tool_schema_dict["function"]["name"] == "get_time"
+    assert tool_schema_dict["function"]["description"] == "Get current time in a timezone"
+
+    assert "I'll check the time in Tokyo for you." == attributes.get(OUTPUT_VALUE)
 
 
 def test_completion_with_multiple_messages(
