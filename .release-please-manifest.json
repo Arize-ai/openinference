@@ -12,7 +12,7 @@
     "python/instrumentation/openinference-instrumentation-vertexai": "0.1.11",
     "python/instrumentation/openinference-instrumentation-crewai": "0.1.10",
     "python/instrumentation/openinference-instrumentation-haystack": "0.1.24",
-    "python/instrumentation/openinference-instrumentation-litellm": "0.1.23",
+    "python/instrumentation/openinference-instrumentation-litellm": "0.1.24",
     "python/instrumentation/openinference-instrumentation-groq": "0.1.11",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.9",
     "python/instrumentation/openinference-instrumentation-anthropic": "0.1.18",
