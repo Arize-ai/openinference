@@ -68,7 +68,10 @@ export class BeeAIInstrumentation extends InstrumentationBase {
     this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
       tracer:
-        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
+        this.tracerProvider?.getTracer(
+          INSTRUMENTATION_NAME,
+          this.instrumentationVersion,
+        ) ?? this.tracer,
       traceConfig,
     });
   }
