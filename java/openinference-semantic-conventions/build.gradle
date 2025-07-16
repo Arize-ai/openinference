@@ -1,6 +1,5 @@
 description = 'OpenInference Semantic Conventions for Java'
 
-// testing release please
 
 dependencies {
     // OpenTelemetry API
