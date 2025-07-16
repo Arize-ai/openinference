@@ -160,6 +160,29 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     this.patch(module);
   }
 
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(
+        this.instrumentationName,
+        this.instrumentationVersion,
+      );
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.updateOITracer();
+  }
+
+  private updateOITracer(): void {
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
+  }
+
   /**
    * Patches the OpenAI module
    */
