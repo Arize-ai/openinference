@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.1...java-openinference-semantic-conventions-v0.1.2) (2025-07-16)
+
+
+### Bug Fixes
+
+* exclude java from python release path, read version from gradle.… ([#1877](https://github.com/Arize-ai/openinference/issues/1877)) ([f2a14bc](https://github.com/Arize-ai/openinference/commit/f2a14bc212491a01417eb08975be6ee0f9f99355))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.0...java-openinference-semantic-conventions-v0.1.1) (2025-07-16)
 
 
