@@ -120,15 +120,39 @@
         },
         "java/openinference-semantic-conventions": {
             "package-name": "java-openinference-semantic-conventions",
-            "release-type": "java"
+            "release-type": "simple",
+            "skip-snapshot": true,
+            "version-file": "java/openinference-semantic-conventions/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/openinference-semantic-conventions/gradle.properties"
+                }
+            ]
         },
         "java/openinference-instrumentation": {
             "package-name": "java-openinference-instrumentation",
-            "release-type": "java"
+            "release-type": "simple",
+            "skip-snapshot": true,
+            "version-file": "java/openinference-instrumentation/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/openinference-instrumentation/gradle.properties"
+                }
+            ]
         },
         "java/instrumentation/openinference-instrumentation-langchain4j": {
             "package-name": "java-openinference-instrumentation-langchain4j",
-            "release-type": "java"
+            "release-type": "simple",
+            "skip-snapshot": true,
+            "version-file": "java/instrumentation/openinference-instrumentation-langchain4j/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/instrumentation/openinference-instrumentation-langchain4j/gradle.properties"
+                }
+            ]
         }
     }
 }
