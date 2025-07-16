@@ -14,7 +14,7 @@ import java.util.logging.Logger;
 public class LangChain4jInstrumentor {
 
     private static final Logger logger = Logger.getLogger(LangChain4jInstrumentor.class.getName());
-    private static final String INSTRUMENTATION_NAME = "io.openinference.langchain4j";
+    private static final String INSTRUMENTATION_NAME = "com.arize.langchain4j";
     private static final AtomicBoolean isInstrumented = new AtomicBoolean(false);
 
     private final OITracer tracer;

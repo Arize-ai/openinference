@@ -1,6 +1,5 @@
 package com.arize.instrumentation.langchain4j;
 
-import com.arize.common.ModelProvider;
 import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -55,11 +54,8 @@ public class LangChain4jModelListener implements ChatModelListener {
         span.setAttribute(SemanticConventions.LLM_MODEL_NAME, modelName);
         span.setAttribute(SemanticConventions.LLM_SYSTEM, "langchain4j");
 
-        // Detect and set provider based on model name
-        String provider = ModelProvider.detectProvider(modelName);
-        if (provider != null) {
-            span.setAttribute(SemanticConventions.LLM_PROVIDER, provider);
-        }
+        // OpenAI Client only supported for now
+        span.setAttribute(SemanticConventions.LLM_PROVIDER, SemanticConventions.LLMProvider.OPENAI.getValue());
 
         // Set invocation parameters as a single JSON object
         Map<String, Object> invocationParams = new HashMap<>();

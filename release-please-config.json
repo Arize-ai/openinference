@@ -122,10 +122,6 @@
             "package-name": "java-openinference-semantic-conventions",
             "release-type": "java"
         },
-        "java/openinference-common": {
-            "package-name": "java-openinference-common",
-            "release-type": "java"
-        },
         "java/openinference-instrumentation": {
             "package-name": "java-openinference-instrumentation",
             "release-type": "java"

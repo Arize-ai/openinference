@@ -3,7 +3,6 @@ description = 'OpenInference Instrumentation for LangChain4j'
 dependencies {
     // OpenInference dependencies
     api project(':openinference-instrumentation')
-    implementation project(':openinference-common')
     
     // LangChain4j
     compileOnly "dev.langchain4j:langchain4j-core:${langchain4jVersion}"

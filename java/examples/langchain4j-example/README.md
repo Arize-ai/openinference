@@ -4,9 +4,9 @@ This example demonstrates how to use OpenInference instrumentation with LangChai
 
 ## Prerequisites
 
-1. Java 11 or higher (AWS Corretto recommended)
-2. Docker (for running Phoenix)
-3. OpenAI API key
+1. Java 11 or higher
+2. OpenAI API key
+3. (Optional) Phoenix API key if using auth
 
 ## Running the Example
 
@@ -57,41 +57,3 @@ The example traces:
 - Model parameters (temperature, max tokens)
 - Token usage (when available)
 - Timing information
-
-## Troubleshooting
-
-### Phoenix is not receiving traces
-
-1. Ensure Phoenix is running and accessible:
-   ```bash
-   curl http://localhost:4317
-   ```
-
-2. Check that the OTLP port (4317) is not blocked by a firewall
-
-3. Look for errors in the console output when running the example
-
-### Connection refused errors
-
-If you see connection refused errors, make sure:
-- Phoenix is running (`docker ps` to check)
-- The ports are correctly mapped (6006 and 4317)
-- You're using the correct endpoint in the code (`http://localhost:4317`)
-
-## Customizing the Configuration
-
-You can modify the OTLP exporter configuration in the `initializeOpenTelemetry()` method:
-
-```java
-OtlpGrpcSpanExporter otlpExporter = OtlpGrpcSpanExporter.builder()
-        .setEndpoint("http://localhost:4317")  // Change this for a different endpoint
-        .setTimeout(Duration.ofSeconds(2))
-        .build();
-```
-
-## Next Steps
-
-- Try modifying the example to make different types of LLM calls
-- Experiment with different models and parameters
-- Add custom attributes to your spans
-- Integrate the instrumentation into your own LangChain4j applications 

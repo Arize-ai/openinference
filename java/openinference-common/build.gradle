@@ -1,5 +1,0 @@
-description = 'OpenInference Common Utilities'
-
-dependencies {
-    // No external dependencies for now, just common utilities
-} 

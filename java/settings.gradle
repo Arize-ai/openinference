@@ -1,7 +1,6 @@
 rootProject.name = 'openinference-java'
 
 include 'openinference-semantic-conventions'
-include 'openinference-common'
 include 'openinference-instrumentation'
 include 'instrumentation:openinference-instrumentation-langchain4j'
 include 'examples:langchain4j-example' 

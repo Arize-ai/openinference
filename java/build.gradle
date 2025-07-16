@@ -182,7 +182,6 @@ jreleaser {
                     // Include all subproject staging directories
                     stagingRepositories = [
                         'openinference-semantic-conventions/build/staging-deploy',
-                        'openinference-common/build/staging-deploy',
                         'openinference-instrumentation/build/staging-deploy', 
                         'instrumentation/openinference-instrumentation-langchain4j/build/staging-deploy'
                     ]
