@@ -64,11 +64,14 @@ class TestAssistantAgent:
             == "What is the weather in New York?"
         )
         assert attributes.pop("llm.input_messages.2.message.role") == "assistant"
-        assert "FunctionCall" in attributes.pop("llm.input_messages.2.message.content")
+        assert "FunctionCall" in str(attributes.pop("llm.input_messages.2.message.content"))
         assert attributes.pop("llm.input_messages.3.message.role") == "function"
-        assert "get_weather" in attributes.pop("llm.input_messages.3.function.0")
+        assert "get_weather" in str(attributes.pop("llm.input_messages.3.function.0"))
         assert attributes.pop("output.mime_type") == "application/json"
         assert attributes.pop("openinference.span.kind") == "LLM"
-        output_value = json.loads(attributes.pop("output.value"))
-        assert output_value["content"].lower().startswith("the weather in new york is 73 degrees")
+        output_value = json.loads(str(attributes.pop("output.value")))
+        content_lower = output_value["content"].lower()
+        assert "the weather in new york" in content_lower
+        assert "73 degrees" in content_lower
+        assert "sunny" in content_lower
         assert not attributes
