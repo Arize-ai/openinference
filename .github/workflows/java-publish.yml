@@ -30,7 +30,7 @@ jobs:
     - name: Setup Gradle
       uses: gradle/gradle-build-action@v2
     
-    - name: Extract version from tag
+    - name: Extract version and component from tag
       id: version
       run: |
         TAG="${{ github.event.release.tag_name || github.event.inputs.tag }}"
@@ -38,14 +38,47 @@ jobs:
         VERSION=$(echo $TAG | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/v//')
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         echo "Extracted version: $VERSION"
+        
+        # Extract component name from tag
+        COMPONENT=$(echo $TAG | sed 's/-v[0-9]\+\.[0-9]\+\.[0-9]\+$//' | sed 's/^java-//')
+        echo "COMPONENT=$COMPONENT" >> $GITHUB_OUTPUT
+        echo "Extracted component: $COMPONENT"
     
-    - name: Update version in build.gradle
+    - name: Verify version matches gradle.properties
       working-directory: ./java
       run: |
-        # Remove -SNAPSHOT suffix if present and set the release version
-        sed -i "s/version = '[0-9]\+\.[0-9]\+\.[0-9]\+-SNAPSHOT'/version = '${{ steps.version.outputs.VERSION }}'/" build.gradle
-        sed -i "s/version = '[0-9]\+\.[0-9]\+\.[0-9]\+'/version = '${{ steps.version.outputs.VERSION }}'/" build.gradle
-        echo "Updated version in build.gradle to ${{ steps.version.outputs.VERSION }}"
+        # Map component names to directories
+        case "${{ steps.version.outputs.COMPONENT }}" in
+          "openinference-semantic-conventions")
+            GRADLE_PROPS="openinference-semantic-conventions/gradle.properties"
+            ;;
+          "openinference-instrumentation")
+            GRADLE_PROPS="openinference-instrumentation/gradle.properties"
+            ;;
+          "openinference-instrumentation-langchain4j")
+            GRADLE_PROPS="instrumentation/openinference-instrumentation-langchain4j/gradle.properties"
+            ;;
+          *)
+            echo "Unknown component: ${{ steps.version.outputs.COMPONENT }}"
+            exit 1
+            ;;
+        esac
+        
+        # Check if gradle.properties exists and contains the correct version
+        if [ -f "$GRADLE_PROPS" ]; then
+          PROPS_VERSION=$(grep "^version=" "$GRADLE_PROPS" | cut -d'=' -f2 | sed 's/-SNAPSHOT$//')
+          if [ "$PROPS_VERSION" = "${{ steps.version.outputs.VERSION }}" ]; then
+            echo "Version in $GRADLE_PROPS matches tag version: ${{ steps.version.outputs.VERSION }}"
+          else
+            echo "ERROR: Version mismatch!"
+            echo "Tag version: ${{ steps.version.outputs.VERSION }}"
+            echo "gradle.properties version: $PROPS_VERSION"
+            exit 1
+          fi
+        else
+          echo "ERROR: $GRADLE_PROPS not found!"
+          exit 1
+        fi
     
     - name: Stage artifacts locally
       working-directory: ./java
@@ -58,8 +91,8 @@ jobs:
         JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
         JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
         JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
-        JRELEASER_GPG_SECRETKEY: ${{ secrets.JRELEASER_GPG_SECRETKEY }}
-        JRELEASER_GPG_PUBLICKEY: ${{ secrets.JRELEASER_GPG_PUBLICKEY }}
+        JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRETKEY }}
+        JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLICKEY }}
       run: |
         ./gradlew jreleaserDeploy
     

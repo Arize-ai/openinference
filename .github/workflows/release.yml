@@ -28,6 +28,11 @@ jobs:
       fail-fast: false
       matrix:
         path: ${{ fromJSON(needs.release.outputs.paths_released) }}
+        exclude:
+          # Exclude Java packages from Python publishing
+          - path: java/openinference-semantic-conventions
+          - path: java/openinference-instrumentation
+          - path: java/instrumentation/openinference-instrumentation-langchain4j
     defaults:
       run:
         working-directory: ${{ matrix.path }}
