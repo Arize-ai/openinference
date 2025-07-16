@@ -6,9 +6,12 @@ plugins {
     id "com.diffplug.spotless" version "6.8.0" apply false
 }
 
+// Root project version for JReleaser
+version = '0.1.1'
+
 allprojects {
     group = 'com.arize'
-    version = '0.1.1-SNAPSHOT'
+    // Subproject versions are set in each module's gradle.properties
 
     repositories {
         mavenCentral()
