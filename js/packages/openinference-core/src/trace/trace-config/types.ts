@@ -14,6 +14,7 @@ export type TraceConfigOptions = {
   hideOutputText?: boolean;
   hideEmbeddingVectors?: boolean;
   base64ImageMaxLength?: number;
+  hidePrompts?: boolean;
 };
 
 /**
