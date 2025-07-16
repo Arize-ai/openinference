@@ -68,10 +68,7 @@ export class BeeAIInstrumentation extends InstrumentationBase {
     this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
       tracer:
-        this.tracerProvider?.getTracer(
-          INSTRUMENTATION_NAME,
-          this.instrumentationVersion,
-        ) ?? this.tracer,
+        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
       traceConfig,
     });
   }
@@ -108,10 +105,7 @@ export class BeeAIInstrumentation extends InstrumentationBase {
 
   get tracer(): Tracer {
     if (this.tracerProvider) {
-      return this.tracerProvider.getTracer(
-        this.instrumentationName,
-        this.instrumentationVersion,
-      );
+      return this.tracerProvider.getTracer(this.instrumentationName);
     }
     return super.tracer;
   }
