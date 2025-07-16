@@ -13,10 +13,6 @@ import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
 import { CreateEmbeddingResponse } from "openai/resources/embeddings";
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
-import {
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 
 // Function tools
