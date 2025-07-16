@@ -13,6 +13,10 @@ import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
 import { CreateEmbeddingResponse } from "openai/resources/embeddings";
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 
 // Function tools
 async function getCurrentLocation() {
@@ -1381,5 +1385,99 @@ describe("AzureOpenAIInstrumentation", () => {
   "output.value": "This is a test.",
 }
 `);
+  });
+});
+
+describe("LangChainInstrumentation with custom TracerProvider", () => {
+  let openai: OpenAI;
+  const customTracerProvider = new NodeTracerProvider();
+  const customMemoryExporter = new InMemorySpanExporter();
+
+  // Note: We don't register this provider globally.
+  customTracerProvider.addSpanProcessor(
+    new SimpleSpanProcessor(customMemoryExporter),
+  );
+
+  // Instantiate instrumentation with the custom provider
+  const instrumentation = new OpenAIInstrumentation({
+    tracerProvider: customTracerProvider,
+  });
+  instrumentation.disable();
+
+  // Mock the module exports like in other tests
+  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+  instrumentation._modules[0].moduleExports = OpenAI;
+
+  beforeAll(() => {
+    instrumentation.enable();
+  });
+
+  afterAll(() => {
+    instrumentation.disable();
+  });
+
+  beforeEach(() => {
+    openai = new OpenAI({
+      apiKey: "my-api-key",
+    });
+    // Reset both exporters before each test
+    memoryExporter.reset(); // The global one
+    customMemoryExporter.reset(); // The custom one
+  });
+
+  afterEach(() => {
+    jest.resetAllMocks();
+    jest.clearAllMocks();
+  });
+
+  it("should use the provided tracer provider instead of the global one", async () => {
+    const response = {
+      id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
+      object: "chat.completion",
+      created: 1703743645,
+      model: "gpt-3.5-turbo-0613",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "This is a test.",
+          },
+          logprobs: null,
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 12,
+        completion_tokens: 5,
+        total_tokens: 17,
+      },
+    };
+
+    // Mock out the chat completions endpoint
+    jest.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        return response;
+      },
+    );
+
+    await openai.chat.completions.create({
+      messages: [{ role: "user", content: "Say this is a test" }],
+      model: "gpt-3.5-turbo",
+    });
+
+    const customSpans = customMemoryExporter.getFinishedSpans();
+    const globalSpans = memoryExporter.getFinishedSpans();
+
+    // Spans should be in our custom exporter
+    expect(customSpans.length).toBe(1);
+    expect(customSpans[0]).toBeDefined();
+    expect(
+      customSpans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
+    ).toBe(OpenInferenceSpanKind.LLM);
+
+    // Spans should NOT be in the global exporter
+    expect(globalSpans.length).toBe(0);
   });
 });

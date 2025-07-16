@@ -7,11 +7,13 @@ import {
   isWrapped,
 } from "@opentelemetry/instrumentation";
 import { VERSION } from "./version";
-import { diag } from "@opentelemetry/api";
+import { diag, TracerProvider } from "@opentelemetry/api";
 import { addTracerToHandlers } from "./instrumentationUtils";
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 
 const MODULE_NAME = "@langchain/core/callbacks";
+
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-langchain";
 
 /**
  * Flag to check if the openai module has been patched
@@ -39,6 +41,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
   constructor({
     instrumentationConfig,
     traceConfig,
+    tracerProvider,
   }: {
     /**
      * The config for the instrumentation
@@ -50,14 +53,22 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
      * @see {@link TraceConfigOptions}
      */
     traceConfig?: TraceConfigOptions;
+    /**
+     * An optional custom trace provider to be used for tracing. If not provided, a tracer will be created using the global tracer provider.
+     * This is useful if you want to use a non-global tracer provider.
+     *
+     * @see {@link TracerProvider}
+     */
+    tracerProvider?: TracerProvider;
   } = {}) {
     super(
-      "@arizeai/openinference-instrumentation-langchain",
+      INSTRUMENTATION_NAME,
       VERSION,
       Object.assign({}, instrumentationConfig),
     );
     this.oiTracer = new OITracer({
-      tracer: this.tracer,
+      tracer:
+        tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ?? this.tracer,
       traceConfig,
     });
   }

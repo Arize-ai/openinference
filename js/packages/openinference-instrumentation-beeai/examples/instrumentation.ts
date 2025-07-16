@@ -30,7 +30,9 @@ const provider = new NodeTracerProvider({
   ],
 });
 
-const beeAIInstrumentation = new BeeAIInstrumentation();
+const beeAIInstrumentation = new BeeAIInstrumentation({
+  tracerProvider: provider,
+});
 beeAIInstrumentation.manuallyInstrument(beeaiFramework);
 
 provider.register();
