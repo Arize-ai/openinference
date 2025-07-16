@@ -15,6 +15,7 @@ import {
   SpanStatusCode,
   Span,
   TracerProvider,
+  Tracer,
 } from "@opentelemetry/api";
 import { VERSION } from "./version";
 import {
@@ -100,6 +101,8 @@ function getExecContext(span: Span) {
  */
 export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
   constructor({
     instrumentationConfig,
     traceConfig,
@@ -128,8 +131,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       VERSION,
       Object.assign({}, instrumentationConfig),
     );
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer: tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
+      tracer:
+        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ??
+        this.tracer,
       traceConfig,
     });
   }

@@ -7,7 +7,7 @@ import {
   isWrapped,
 } from "@opentelemetry/instrumentation";
 import { VERSION } from "./version";
-import { diag, TracerProvider } from "@opentelemetry/api";
+import { diag, Tracer, TracerProvider } from "@opentelemetry/api";
 import { addTracerToHandlers } from "./instrumentationUtils";
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 
@@ -37,6 +37,8 @@ type CallbackManagerModule = typeof CallbackManagerModuleV02;
  */
 export class LangChainInstrumentation extends InstrumentationBase<CallbackManagerModule> {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
 
   constructor({
     instrumentationConfig,
@@ -66,9 +68,12 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
       VERSION,
       Object.assign({}, instrumentationConfig),
     );
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
       tracer:
-        tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ?? this.tracer,
+        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ??
+        this.tracer,
       traceConfig,
     });
   }
@@ -87,6 +92,29 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
         this.unpatch.bind(this),
       );
     return module;
+  }
+
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(
+        this.instrumentationName,
+        this.instrumentationVersion,
+      );
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.updateOITracer();
+  }
+
+  private updateOITracer(): void {
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
   }
 
   private patch(

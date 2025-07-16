@@ -3,7 +3,7 @@ import {
   InstrumentationNodeModuleDefinition,
   InstrumentationConfig,
 } from "@opentelemetry/instrumentation";
-import { diag, TracerProvider } from "@opentelemetry/api";
+import { diag, Tracer, TracerProvider } from "@opentelemetry/api";
 import { Version } from "beeai-framework";
 import * as bee from "beeai-framework";
 
@@ -33,6 +33,8 @@ export function isPatched() {
 
 export class BeeAIInstrumentation extends InstrumentationBase {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
 
   constructor({
     instrumentationConfig,
@@ -62,8 +64,11 @@ export class BeeAIInstrumentation extends InstrumentationBase {
       Version,
       Object.assign({}, instrumentationConfig),
     );
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer: tracerProvider?.getTracer(INSTRUMENTATION_NAME) || this.tracer,
+      tracer:
+        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
       traceConfig,
     });
   }
@@ -96,6 +101,29 @@ export class BeeAIInstrumentation extends InstrumentationBase {
 
     diag.debug(`[BeeaiInstrumentation] Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
+  }
+
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(
+        this.instrumentationName,
+        this.instrumentationVersion,
+      );
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.updateOITracer();
+  }
+
+  private updateOITracer(): void {
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
   }
 
   private patch(module: typeof bee & { openInferencePatched?: boolean }) {

@@ -29,6 +29,7 @@ import {
   setSession,
 } from "@arizeai/openinference-core";
 import { context } from "@opentelemetry/api";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -760,65 +761,164 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
   });
 });
 
-describe("LangChainInstrumentation with custom TracerProvider", () => {
-  const customTracerProvider = new NodeTracerProvider();
-  const customMemoryExporter = new InMemorySpanExporter();
+describe("LangChainInstrumentation with a custom tracer provider", () => {
+  describe("LangChainInstrumentation with custom TracerProvider passed in", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
 
-  // Note: We don't register this provider globally.
-  customTracerProvider.addSpanProcessor(
-    new SimpleSpanProcessor(customMemoryExporter),
-  );
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
 
-  // Instantiate instrumentation with the custom provider
-  const instrumentation = new LangChainInstrumentation({
-    tracerProvider: customTracerProvider,
-  });
-  instrumentation.disable();
-
-  // Mock the module exports like in other tests
-  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-  instrumentation._modules[0].moduleExports = CallbackManager;
-
-  beforeAll(() => {
-    instrumentation.enable();
-  });
-
-  afterAll(() => {
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new LangChainInstrumentation({
+      tracerProvider: customTracerProvider,
+    });
     instrumentation.disable();
-  });
 
-  beforeEach(() => {
-    // Reset both exporters before each test
-    memoryExporter.reset(); // The global one
-    customMemoryExporter.reset(); // The custom one
-  });
+    // Mock the module exports like in other tests
+    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+    instrumentation._modules[0].moduleExports = CallbackManager;
 
-  afterEach(() => {
-    jest.resetAllMocks();
-    jest.clearAllMocks();
-  });
-
-  it("should use the provided tracer provider instead of the global one", async () => {
-    const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
-      modelName: "gpt-3.5-turbo",
-      temperature: 0,
+    beforeAll(() => {
+      instrumentation.enable();
     });
 
-    await chatModel.invoke("hello from the custom provider test");
+    afterAll(() => {
+      instrumentation.disable();
+    });
 
-    const customSpans = customMemoryExporter.getFinishedSpans();
-    const globalSpans = memoryExporter.getFinishedSpans();
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
 
-    // Spans should be in our custom exporter
-    expect(customSpans.length).toBe(1);
-    expect(customSpans[0]).toBeDefined();
-    expect(
-      customSpans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
-    ).toBe(OpenInferenceSpanKind.LLM);
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
 
-    // Spans should NOT be in the global exporter
-    expect(globalSpans.length).toBe(0);
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const chatModel = new ChatOpenAI({
+        openAIApiKey: "my-api-key",
+        modelName: "gpt-3.5-turbo",
+      });
+
+      await chatModel.invoke("test message", {
+        metadata: {
+          conversation_id: "conv-789",
+        },
+      });
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+    });
+  });
+
+  describe("LangChainInstrumentation with custom TracerProvider set", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new LangChainInstrumentation();
+    instrumentation.setTracerProvider(customTracerProvider);
+    instrumentation.disable();
+
+    // Mock the module exports like in other tests
+    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+    instrumentation._modules[0].moduleExports = CallbackManager;
+
+    beforeAll(() => {
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const chatModel = new ChatOpenAI({
+        openAIApiKey: "my-api-key",
+        modelName: "gpt-3.5-turbo",
+      });
+      await chatModel.invoke("test message");
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+    });
+  });
+
+  describe("LangChainInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new LangChainInstrumentation();
+    registerInstrumentations({
+      instrumentations: [instrumentation],
+      tracerProvider: customTracerProvider,
+    });
+    instrumentation.disable();
+
+    // Mock the module exports like in other tests
+    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+    instrumentation._modules[0].moduleExports = CallbackManager;
+
+    beforeAll(() => {
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const chatModel = new ChatOpenAI({
+        openAIApiKey: "my-api-key",
+        modelName: "gpt-3.5-turbo",
+      });
+      await chatModel.invoke("test message");
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+    });
   });
 });
 
