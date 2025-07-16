@@ -110,6 +110,18 @@ jobs:
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
 
+      - name: Remove SNAPSHOT from versions
+        working-directory: ./java
+        run: |
+          echo "Removing -SNAPSHOT from gradle.properties files..."
+          find . -name "gradle.properties" -type f | while read file; do
+            if grep -q "version=.*-SNAPSHOT" "$file"; then
+              echo "Updating $file"
+              sed -i 's/\(version=.*\)-SNAPSHOT/\1/' "$file"
+              echo "New version: $(grep version= "$file")"
+            fi
+          done
+
       - name: Stage artifacts locally
         working-directory: ./java
         run: |

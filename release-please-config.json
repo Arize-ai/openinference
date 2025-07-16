@@ -125,8 +125,9 @@
             "version-file": "java/openinference-semantic-conventions/gradle.properties",
             "extra-files": [
                 {
-                    "type": "generic",
-                    "path": "java/openinference-semantic-conventions/gradle.properties"
+                    "type": "plain",
+                    "path": "java/openinference-semantic-conventions/gradle.properties",
+                    "glob": "version=*"
                 }
             ]
         },
@@ -137,8 +138,9 @@
             "version-file": "java/openinference-instrumentation/gradle.properties",
             "extra-files": [
                 {
-                    "type": "generic",
-                    "path": "java/openinference-instrumentation/gradle.properties"
+                    "type": "plain",
+                    "path": "java/openinference-instrumentation/gradle.properties",
+                    "glob": "version=*"
                 }
             ]
         },
@@ -149,8 +151,9 @@
             "version-file": "java/instrumentation/openinference-instrumentation-langchain4j/gradle.properties",
             "extra-files": [
                 {
-                    "type": "generic",
-                    "path": "java/instrumentation/openinference-instrumentation-langchain4j/gradle.properties"
+                    "type": "plain",
+                    "path": "java/instrumentation/openinference-instrumentation-langchain4j/gradle.properties",
+                    "glob": "version=*"
                 }
             ]
         }
