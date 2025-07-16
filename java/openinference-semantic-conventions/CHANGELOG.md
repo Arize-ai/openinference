@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.2...java-openinference-semantic-conventions-v0.1.3) (2025-07-16)
+
+
+### Features
+
+* Java release only, please ([#1881](https://github.com/Arize-ai/openinference/issues/1881)) ([0c75997](https://github.com/Arize-ai/openinference/commit/0c759977688c05a813a5121255f9da063aa9b4b0))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.1...java-openinference-semantic-conventions-v0.1.2) (2025-07-16)
 
 
