@@ -161,16 +161,11 @@ jreleaser {
         active = 'ALWAYS'
         armored = true
         
-        // Determine mode based on available configuration
-        def hasFileKeys = findProperty('jreleaser.signing.secretKey') || System.getenv('JRELEASER_GPG_SECRETKEY')
-        mode = hasFileKeys ? 'FILE' : 'MEMORY'
+        // Always use MEMORY mode for GitHub Actions
+        mode = 'MEMORY'
         
-        // For file mode - requires both public and secret key files
-        if (hasFileKeys) {
-            publicKey = findProperty('jreleaser.signing.publicKey') ?: System.getenv('JRELEASER_GPG_PUBLICKEY')
-            secretKey = findProperty('jreleaser.signing.secretKey') ?: System.getenv('JRELEASER_GPG_SECRETKEY')
-        }
-        // For memory mode - keys will be loaded from config.toml or environment variables
+        // JReleaser will automatically read GPG keys from environment variables:
+        // JRELEASER_GPG_PUBLICKEY, JRELEASER_GPG_SECRETKEY, and JRELEASER_GPG_PASSPHRASE
     }
     
     deploy {

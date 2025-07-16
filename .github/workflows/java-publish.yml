@@ -1,18 +1,18 @@
-name: Publish Java to Maven Central
-
+name: Java Publish
 on:
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to publish'
+        description: 'Release tag to publish (e.g., java-openinference-semantic-conventions-v0.1.0)'
         required: true
         type: string
 
 jobs:
   publish:
-    if: startsWith(github.event.release.tag_name, 'java-') || github.event_name == 'workflow_dispatch'
+    # Only run for Java releases (tags starting with 'java-')
+    if: startsWith(github.event.release.tag_name, 'java-') || (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.tag, 'java-'))
     runs-on: ubuntu-latest
     
     steps:
@@ -55,15 +55,15 @@ jobs:
     - name: Deploy to Maven Central with JReleaser
       working-directory: ./java
       env:
-        JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-        JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-        JRELEASER_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
-        JRELEASER_GPG_SECRET_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
+        JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
+        JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
+        JRELEASER_GPG_SECRETKEY: ${{ secrets.JRELEASER_GPG_SECRETKEY }}
+        JRELEASER_GPG_PUBLICKEY: ${{ secrets.JRELEASER_GPG_PUBLICKEY }}
       run: |
         ./gradlew jreleaserDeploy
     
     - name: Clean up
       if: always()
       run: |
-        rm -rf ./java/build/staging-deploy 
+        rm -rf ./java/build/staging-deploy
