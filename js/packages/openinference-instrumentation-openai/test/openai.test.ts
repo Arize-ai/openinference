@@ -1388,7 +1388,7 @@ describe("AzureOpenAIInstrumentation", () => {
   });
 });
 
-describe("LangChainInstrumentation with custom TracerProvider", () => {
+describe("OpenAIInstrumentation with custom TracerProvider", () => {
   let openai: OpenAI;
   const customTracerProvider = new NodeTracerProvider();
   const customMemoryExporter = new InMemorySpanExporter();
