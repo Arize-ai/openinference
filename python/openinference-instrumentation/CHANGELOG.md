@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.34...python-openinference-instrumentation-v0.1.35) (2025-07-16)
+
+
+### Features
+
+* Allow to hide llm.prompts span from trace config ([#1863](https://github.com/Arize-ai/openinference/issues/1863)) ([7d633d8](https://github.com/Arize-ai/openinference/commit/7d633d8fcf6ab5dbd8596a5900f3982db8e88d89))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.33...python-openinference-instrumentation-v0.1.34) (2025-06-17)
 
 
