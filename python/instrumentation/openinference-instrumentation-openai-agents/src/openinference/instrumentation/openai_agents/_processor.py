@@ -456,7 +456,12 @@ def _get_attributes_from_function_span_data(
         yield INPUT_MIME_TYPE, JSON
     if obj.output is not None:
         yield OUTPUT_VALUE, _convert_to_primitive(obj.output)
-        if isinstance(obj.output, str) and len(obj.output) > 1 and obj.output[0] == "{" and obj.output[-1] == "}":
+        if (
+            isinstance(obj.output, str)
+            and len(obj.output) > 1
+            and obj.output[0] == "{"
+            and obj.output[-1] == "}"
+        ):
             yield OUTPUT_MIME_TYPE, JSON
 
 
