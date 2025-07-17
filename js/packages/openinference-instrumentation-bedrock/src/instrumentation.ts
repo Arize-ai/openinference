@@ -405,7 +405,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       return result
         .then((response: any) => {
           // Extract response attributes
-          extractConverseResponseAttributes(span, response);
+          extractConverseResponseAttributes(span, response as any);
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
           return response;

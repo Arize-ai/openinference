@@ -7,9 +7,9 @@ import {
   processMessages 
 } from "./attribute-helpers";
 import { 
-  ConverseRequestBody, 
   SystemPrompt, 
-  ConverseMessage 
+  ConverseMessage,
+  ConverseRequestBody
 } from "../types/bedrock-types";
 
 /**
@@ -17,7 +17,7 @@ import {
  * Following Python implementation patterns for incremental attribute building
  */
 export function extractConverseRequestAttributes(span: Span, command: ConverseCommand): void {
-  const input = command.input;
+  const input = command.input as ConverseRequestBody;
   if (!input) return;
 
   // Extract base request attributes
@@ -34,7 +34,7 @@ export function extractConverseRequestAttributes(span: Span, command: ConverseCo
  * Extracts base request attributes: model, system, provider, parameters
  * Following Python's incremental attribute building pattern
  */
-function extractBaseRequestAttributes(span: Span, input: any): void {
+function extractBaseRequestAttributes(span: Span, input: ConverseRequestBody): void {
   // Model identification
   if (input.modelId) {
     setSpanAttribute(span, SemanticConventions.LLM_MODEL_NAME, input.modelId);
@@ -43,16 +43,15 @@ function extractBaseRequestAttributes(span: Span, input: any): void {
   // System attribute for provider identification
   setSpanAttribute(span, SemanticConventions.LLM_SYSTEM, "bedrock");
 
-  // Inference configuration as invocation parameters
-  if (input.inferenceConfig) {
-    setSpanAttribute(
-      span, 
-      SemanticConventions.LLM_INVOCATION_PARAMETERS, 
-      JSON.stringify(input.inferenceConfig)
-    );
-  }
+  // Inference configuration as invocation parameters (always set, empty object if none)
+  const inferenceConfig = input.inferenceConfig || {};
+  setSpanAttribute(
+    span, 
+    SemanticConventions.LLM_INVOCATION_PARAMETERS, 
+    JSON.stringify(inferenceConfig)
+  );
 
-  // Set input value as JSON
+  // Set input value as full JSON (following semantic conventions)
   setSpanAttribute(span, SemanticConventions.INPUT_VALUE, JSON.stringify(input));
   setSpanAttribute(span, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
 }
@@ -61,7 +60,7 @@ function extractBaseRequestAttributes(span: Span, input: any): void {
  * Extracts input messages attributes with system prompt aggregation
  * Following Python's message processing patterns
  */
-function extractInputMessagesAttributes(span: Span, input: any): void {
+function extractInputMessagesAttributes(span: Span, input: ConverseRequestBody): void {
   const systemPrompts: SystemPrompt[] = input.system || [];
   const messages: ConverseMessage[] = input.messages || [];
 
@@ -76,12 +75,12 @@ function extractInputMessagesAttributes(span: Span, input: any): void {
  * Extracts tool configuration attributes
  * Following Python's tool processing patterns
  */
-function extractInputToolAttributes(span: Span, input: any): void {
+function extractInputToolAttributes(span: Span, input: ConverseRequestBody): void {
   const toolConfig = input.toolConfig;
   if (!toolConfig?.tools) return;
 
   // Process each tool definition
-  toolConfig.tools.forEach((tool: any, index: number) => {
+  toolConfig.tools.forEach((tool, index: number) => {
     if (tool.toolSpec) {
       setSpanAttribute(
         span,

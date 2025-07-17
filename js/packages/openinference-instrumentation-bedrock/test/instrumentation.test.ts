@@ -105,6 +105,7 @@ describe("BedrockInstrumentation", () => {
           recordingData.status,
           TEST_MODEL_ID,
           recordingData.isStreaming,
+          recordingData.isConverse,
         );
       } else {
         console.log(`No recordings found at ${recordingsPath}`);
@@ -1057,7 +1058,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
     describe("Basic Functionality", () => {
       it("should handle basic Converse API calls", async () => {
-        setupTestRecording("should handle basic Converse API calls");
+        setupTestRecording("should-handle-basic-converse-api-calls");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1091,31 +1092,35 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
         
-        // Verify basic span attributes for Converse API
-        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-        expect(span.attributes["llm.model_name"]).toBe(TEST_MODEL_ID);
-        expect(span.attributes["llm.system"]).toBe("bedrock");
-        
-        // Verify input message structure
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.type"]).toBe("text");
-        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("Hello, how are you?");
-        
-        // Verify output message structure
-        expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
-        expect(span.attributes["llm.output_messages.0.message.contents.0.message_content.type"]).toBe("text");
-        expect(typeof span.attributes["llm.output_messages.0.message.contents.0.message_content.text"]).toBe("string");
-        
-        // Verify token counts
-        expect(typeof span.attributes["llm.token_count.prompt"]).toBe("number");
-        expect(typeof span.attributes["llm.token_count.completion"]).toBe("number");
-        expect(typeof span.attributes["llm.token_count.total"]).toBe("number");
+        // Comprehensive span attributes snapshot matching Python implementation
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, how are you?",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 35,
+  "llm.token_count.prompt": 13,
+  "llm.token_count.total": 48,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":1071},"output":{"message":{"content":[{"text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":13,"outputTokens":35,"totalTokens":48}}",
+}
+`);
       });
     });
 
     describe("System Prompts", () => {
       it("should handle single system prompt in Converse API", async () => {
-        setupTestRecording("should handle single system prompt in Converse API");
+        setupTestRecording("should-handle-single-system-prompt-in-converse-api");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1146,19 +1151,36 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
         
-        // Verify system prompt processing - should be first message
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("system");
-        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.type"]).toBe("text");
-        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("You are a helpful assistant that responds concisely.");
-        
-        // Verify user message is second (index 1)
-        expect(span.attributes["llm.input_messages.1.message.role"]).toBe("user");
-        expect(span.attributes["llm.input_messages.1.message.contents.0.message_content.type"]).toBe("text");
-        expect(span.attributes["llm.input_messages.1.message.contents.0.message_content.text"]).toBe("What is the capital of France?");
+        // Comprehensive span attributes snapshot for single system prompt
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant that responds concisely."}],"messages":[{"role":"user","content":[{"text":"What is the capital of France?"}]}]}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "You are a helpful assistant that responds concisely.",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "system",
+  "llm.input_messages.1.message.contents.0.message_content.text": "What is the capital of France?",
+  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.role": "user",
+  "llm.invocation_parameters": "{}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "The capital of France is Paris.",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 10,
+  "llm.token_count.prompt": 25,
+  "llm.token_count.total": 35,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":455},"output":{"message":{"content":[{"text":"The capital of France is Paris."}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":25,"outputTokens":10,"totalTokens":35}}",
+}
+`);
       });
 
       it("should handle multiple system prompts concatenation in Converse API", async () => {
-        setupTestRecording("should handle multiple system prompts concatenation in Converse API");
+        setupTestRecording("should-handle-multiple-system-prompts-concatenation-in-converse-api");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1192,20 +1214,38 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
         
-        // Verify multiple system prompts are concatenated with space
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("system");
-        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.type"]).toBe("text");
-        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("You are a helpful assistant. Respond briefly.");
-        
-        // Verify user message is second (index 1)
-        expect(span.attributes["llm.input_messages.1.message.role"]).toBe("user");
-        expect(span.attributes["llm.input_messages.1.message.contents.0.message_content.text"]).toBe("What is TypeScript?");
+        // Comprehensive span attributes snapshot for multiple system prompts concatenation
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant."},{"text":"Respond briefly."}],"messages":[{"role":"user","content":[{"text":"What is TypeScript?"}]}]}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "You are a helpful assistant. Respond briefly.",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "system",
+  "llm.input_messages.1.message.contents.0.message_content.text": "What is TypeScript?",
+  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.role": "user",
+  "llm.invocation_parameters": "{}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "TypeScript is a superset of JavaScript developed by Microsoft. It adds optional static typing, classes, and other features to JavaScript, making it easier to develop and maintain large-scale applications. TypeScript code is transpiled into plain JavaScript, allowing it to run in any environment that supports JavaScript.",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 62,
+  "llm.token_count.prompt": 22,
+  "llm.token_count.total": 84,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":1930},"output":{"message":{"content":[{"text":"TypeScript is a superset of JavaScript developed by Microsoft. It adds optional static typing, classes, and other features to JavaScript, making it easier to develop and maintain large-scale applications. TypeScript code is transpiled into plain JavaScript, allowing it to run in any environment that supports JavaScript."}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":22,"outputTokens":62,"totalTokens":84}}",
+}
+`);
       });
     });
 
     describe("Configuration", () => {
       it("should handle inference config in Converse API", async () => {
-        setupTestRecording("should handle inference config in Converse API");
+        setupTestRecording("should-handle-inference-config-in-converse-api");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1239,19 +1279,38 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
         
-        // Verify inference config is captured as invocation parameters
-        const invocationParams = span.attributes["llm.invocation_parameters"];
-        expect(typeof invocationParams).toBe("string");
-        
-        const parsedParams = JSON.parse(invocationParams as string);
-        expect(parsedParams.maxTokens).toBe(150);
-        expect(parsedParams.temperature).toBe(0.7);
-        expect(parsedParams.topP).toBe(0.9);
-        expect(parsedParams.stopSequences).toEqual(["END", "STOP"]);
-        
-        // Verify basic message structure
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("Explain machine learning briefly.");
+        // Comprehensive span attributes snapshot for inference config
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Explain machine learning briefly."}]}],"inferenceConfig":{"maxTokens":150,"temperature":0.7,"topP":0.9,"stopSequences":["END","STOP"]}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Explain machine learning briefly.",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":150,"temperature":0.7,"topP":0.9,"stopSequences":["END","STOP"]}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "Machine learning is a branch of artificial intelligence that focuses on developing algorithms and statistical models that enable computer systems to improve their performance on a specific task through experience, without being explicitly programmed.
+
+In essence, machine learning allows computers to learn from data and make predictions or decisions without human intervention. Here's a brief overview of the key aspects of machine learning:
+
+1. Types of Machine Learning:
+   - Supervised Learning: The algorithm learns from labeled data to make predictions or classifications.
+   - Unsupervised Learning: The algorithm finds patterns in unlabeled data.
+   - Reinforcement Learning: The algorithm learns through interaction with an environment, receiving feedback in the form of rewards or penalties.
+
+2. Process:",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 150,
+  "llm.token_count.prompt": 13,
+  "llm.token_count.total": 163,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":3474},"output":{"message":{"content":[{"text":"Machine learning is a branch of artificial intelligence that focuses on developing algorithms and statistical models that enable computer systems to improve their performance on a specific task through experience, without being explicitly programmed.\\n\\nIn essence, machine learning allows computers to learn from data and make predictions or decisions without human intervention. Here's a brief overview of the key aspects of machine learning:\\n\\n1. Types of Machine Learning:\\n   - Supervised Learning: The algorithm learns from labeled data to make predictions or classifications.\\n   - Unsupervised Learning: The algorithm finds patterns in unlabeled data.\\n   - Reinforcement Learning: The algorithm learns through interaction with an environment, receiving feedback in the form of rewards or penalties.\\n\\n2. Process:"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":13,"outputTokens":150,"totalTokens":163}}",
+}
+`);
       });
     });
 

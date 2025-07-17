@@ -27,18 +27,15 @@ export function setSpanAttributes(span: Span, attributes: Record<string, Attribu
 // CONVERSE API HELPER FUNCTIONS (Following Python patterns)
 // ========================================================================
 
-import { ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import {
   SystemPrompt,
   ConverseMessage,
   ConverseContentBlock,
-  ConverseResponseBody,
   isConverseTextContent,
   isConverseImageContent,
   isConverseToolUseContent,
   isConverseToolResultContent,
 } from "../types/bedrock-types";
-import { SemanticConventions, MimeType } from "@arizeai/openinference-semantic-conventions";
 
 /**
  * Aggregates multiple system prompts into a single string with space separation
