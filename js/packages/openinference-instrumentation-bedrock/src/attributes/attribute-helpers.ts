@@ -1,10 +1,10 @@
-import { Span, AttributeValue } from "@opentelemetry/api";
+import { Span } from "@opentelemetry/api";
 
 /**
  * Sets a span attribute only if the value is not null or undefined
- * Matches Python's _set_span_attribute pattern
+ * Provides null-safe attribute setting for OpenTelemetry spans
  */
-export function setSpanAttribute(span: Span, key: string, value: AttributeValue | undefined): void {
+export function setSpanAttribute(span: Span, key: string, value: any) {
   if (value !== undefined && value !== null) {
     span.setAttribute(key, value);
   }
@@ -13,7 +13,7 @@ export function setSpanAttribute(span: Span, key: string, value: AttributeValue 
 /**
  * Sets multiple span attributes with null checking
  */
-export function setSpanAttributes(span: Span, attributes: Record<string, AttributeValue | undefined>): void {
+export function setSpanAttributes(span: Span, attributes: Record<string, any>) {
   Object.entries(attributes).forEach(([key, value]) => {
     setSpanAttribute(span, key, value);
   });

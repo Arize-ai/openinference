@@ -268,7 +268,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     if (usage) {
       setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, usage.input_tokens);
       setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens);
-      // Note: Don't calculate total, only set what's in response
+      // Set only token counts provided in the response
       // If the response includes total tokens, we could add:
       // setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, usage.total_tokens);
     }
