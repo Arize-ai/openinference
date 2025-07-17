@@ -1029,6 +1029,21 @@ def test_get_attributes_from_chat_completions_usage(
             },
             id="complex_json_data",
         ),
+        pytest.param(
+            FunctionSpanData(
+                name="test_func",
+                input=json.dumps({"k": "v"}),
+                output="",
+                mcp_data=None,
+            ),
+            {
+                "tool.name": "test_func",
+                "input.value": '{"k": "v"}',
+                "input.mime_type": "application/json",
+                "output.value": "",
+            },
+            id="empty_string_output",
+        ),
     ],
 )
 def test_get_attributes_from_function_span_data(
