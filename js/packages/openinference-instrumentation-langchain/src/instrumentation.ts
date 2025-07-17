@@ -107,10 +107,6 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
   setTracerProvider(tracerProvider: TracerProvider): void {
     super.setTracerProvider(tracerProvider);
     this.tracerProvider = tracerProvider;
-    this.updateOITracer();
-  }
-
-  private updateOITracer(): void {
     this.oiTracer = new OITracer({
       tracer: this.tracer,
       traceConfig: this.traceConfig,
