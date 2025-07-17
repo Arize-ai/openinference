@@ -212,23 +212,11 @@ function extractInvocationParameters(
 }
 
 /**
- * Extracts the primary input value from user messages
+ * Extracts the primary input value as full request body JSON
  */
 function extractPrimaryInputValue(requestBody: InvokeModelRequestBody): string {
-  if (
-    !requestBody.messages ||
-    !Array.isArray(requestBody.messages) ||
-    requestBody.messages.length === 0
-  ) {
-    return "";
-  }
-
-  const userMessage = requestBody.messages.find((msg) => msg.role === "user");
-  if (userMessage && userMessage.content) {
-    return extractTextFromContent(userMessage.content);
-  }
-
-  return "";
+  // Following OpenAI and LangChain pattern: use full request body as JSON
+  return JSON.stringify(requestBody);
 }
 
 /**

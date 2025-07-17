@@ -118,7 +118,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     const requestAttributes = extractInvokeModelRequestAttributes(command);
 
     const span = this.oiTracer.startSpan("bedrock.invoke_model", {
-      kind: SpanKind.CLIENT,
+      kind: SpanKind.INTERNAL,
       attributes: requestAttributes,
     });
 
@@ -220,14 +220,22 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       }
     }
 
-    // Set output value and MIME type attributes directly
-    const mimeType = typeof outputText === "string" && outputText.trim() 
-      ? MimeType.TEXT 
-      : MimeType.JSON;
+    // Create response body structure for consistency with non-streaming
+    const responseBody = {
+      id: "bedrock-streaming-response",
+      type: "message",
+      role: "assistant",
+      model: "bedrock-streaming", // This would need to be extracted from request
+      content: outputText ? [{ type: "text", text: outputText }] : [],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: usage
+    };
 
+    // Set output value as JSON (following OpenAI/LangChain pattern)
     span.setAttributes({
-      [SemanticConventions.OUTPUT_VALUE]: outputText,
-      [SemanticConventions.OUTPUT_MIME_TYPE]: mimeType,
+      [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(responseBody),
+      [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
     });
 
     // Set structured output message attributes for text content
@@ -274,10 +282,11 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       if (usage.output_tokens) {
         tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
       }
-      if (usage.input_tokens && usage.output_tokens) {
-        tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = 
-          usage.input_tokens + usage.output_tokens;
-      }
+      // Note: Following OpenAI pattern - don't calculate total, only set what's in response
+      // If the response includes total tokens, we could add:
+      // if (usage.total_tokens) {
+      //   tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = usage.total_tokens;
+      // }
 
       if (Object.keys(tokenAttributes).length > 0) {
         span.setAttributes(tokenAttributes);
@@ -308,7 +317,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     const requestAttributes = extractInvokeModelRequestAttributes(command as any);
 
     const span = this.oiTracer.startSpan("bedrock.invoke_model", {
-      kind: SpanKind.CLIENT,
+      kind: SpanKind.INTERNAL,
       attributes: requestAttributes,
     });
 

@@ -24,7 +24,7 @@ export const verifySpanBasics = (spanExporter: InMemorySpanExporter) => {
 
   const span = spans[0];
   expect(span.name).toBe("bedrock.invoke_model");
-  expect(span.kind).toBe(SpanKind.CLIENT);
+  expect(span.kind).toBe(SpanKind.INTERNAL);
 
   return span;
 };
