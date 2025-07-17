@@ -33,13 +33,15 @@ You can specify a custom tracer provider when creating the LangChain instrumenta
 
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { Resource } from "@opentelemetry/resources";
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
 import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 
 // Create a custom tracer provider
 const customTracerProvider = new NodeTracerProvider({
   resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: "my-langchain-service",
+    [SEMRESATTRS_PROJECT_NAME]: "my-langchain-project",
   }),
 });
 

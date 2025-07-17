@@ -86,14 +86,14 @@ You can specify a custom tracer provider when creating the BeeAI instrumentation
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
-import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 import { BeeAIInstrumentation } from "@arizeai/openinference-instrumentation-beeai";
 import * as beeaiFramework from "beeai-framework";
 
 // Create a custom tracer provider
 const customTracerProvider = new NodeTracerProvider({
   resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: "my-beeai-service",
+    [SEMRESATTRS_PROJECT_NAME]: "my-beeai-project",
   }),
 });
 

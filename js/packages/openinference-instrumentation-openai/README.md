@@ -49,14 +49,14 @@ You can specify a custom tracer provider when creating the OpenAI instrumentatio
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
-import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 
 // Create a custom tracer provider
 const customTracerProvider = new NodeTracerProvider({
   resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: "my-openai-service",
+    [SEMRESATTRS_PROJECT_NAME]: "my-openai-project",
   }),
 });
 
