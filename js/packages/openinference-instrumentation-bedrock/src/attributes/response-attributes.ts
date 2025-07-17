@@ -27,13 +27,11 @@ export function extractOutputMessagesAttributes(
   responseBody: InvokeModelResponseBody,
   span: Span,
 ): void {
-  // Extract assistant's message text as primary output value
+  // Extract full response body as primary output value
   const outputValue = extractPrimaryOutputValue(responseBody);
 
-  // Use TEXT mime type for simple text content, JSON for complex structures
-  const mimeType = typeof outputValue === "string" && outputValue.trim() 
-    ? MimeType.TEXT 
-    : MimeType.JSON;
+  // Use JSON mime type for full response body (following OpenAI/LangChain pattern)
+  const mimeType = MimeType.JSON;
 
   span.setAttributes({
     [SemanticConventions.OUTPUT_VALUE]: outputValue,
@@ -124,10 +122,11 @@ export function extractUsageAttributes(
     tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] =
       responseBody.usage.output_tokens;
   }
-  if (responseBody.usage.input_tokens && responseBody.usage.output_tokens) {
-    tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] =
-      responseBody.usage.input_tokens + responseBody.usage.output_tokens;
-  }
+  // Note: Following OpenAI pattern - don't calculate total, only set what's in response
+  // If the response includes total tokens, we could add:
+  // if (responseBody.usage.total_tokens) {
+  //   tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = responseBody.usage.total_tokens;
+  // }
 
   // Add cache-related token attributes
   if (responseBody.usage.cache_read_input_tokens !== undefined) {
@@ -215,15 +214,11 @@ function parseResponseBody(
 }
 
 /**
- * Extracts the primary output value from response content
+ * Extracts the primary output value as full response body JSON
  */
 function extractPrimaryOutputValue(
   responseBody: InvokeModelResponseBody,
 ): string {
-  if (!responseBody.content || !Array.isArray(responseBody.content)) {
-    return "";
-  }
-
-  const textContent = responseBody.content.find(isTextContent);
-  return textContent?.text || "";
+  // Following OpenAI and LangChain pattern: use full response body as JSON
+  return JSON.stringify(responseBody);
 }

@@ -193,7 +193,7 @@ describe("BedrockInstrumentation", () => {
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "Hello, how are you?",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Hello, how are you?"}]}",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -204,10 +204,9 @@ describe("BedrockInstrumentation", () => {
   "llm.system": "anthropic",
   "llm.token_count.completion": 35,
   "llm.token_count.prompt": 13,
-  "llm.token_count.total": 48,
   "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"msg_bdrk_01M7yZYBn3yhYTyMxjQK781b","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":13,"output_tokens":35}}",
 }
 `);
     });
@@ -255,7 +254,7 @@ describe("BedrockInstrumentation", () => {
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "What's the weather like in San Francisco?",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather like in San Francisco?"}]}",
   "llm.input_messages.0.message.content": "What's the weather like in San Francisco?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -273,11 +272,10 @@ describe("BedrockInstrumentation", () => {
   "llm.system": "anthropic",
   "llm.token_count.completion": 94,
   "llm.token_count.prompt": 373,
-  "llm.token_count.total": 467,
   "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"get_weather","description":"Get current weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state"}},"required":["location"]}}}",
   "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "Certainly! I can help you with that information. To get the current weather for San Francisco, I'll use the get_weather function. Let me fetch that data for you.",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"msg_bdrk_01UCkMJ9Yp7J1ZpAWtK8CdYN","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"Certainly! I can help you with that information. To get the current weather for San Francisco, I'll use the get_weather function. Let me fetch that data for you."},{"type":"tool_use","id":"toolu_bdrk_01MqHGzs8QwkdkVjJYrbLTPp","name":"get_weather","input":{"location":"San Francisco, CA"}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":373,"output_tokens":94}}",
 }
 `);
     });
@@ -313,7 +311,7 @@ describe("BedrockInstrumentation", () => {
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "What's the weather in Paris?",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather in Paris?"},{"role":"assistant","content":[{"type":"tool_use","id":"toolu_123","name":"get_weather","input":{"location":"Paris, France"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_123","content":"The weather in Paris is currently 22°C and sunny."},{"type":"text","text":"Great! What should I wear?"}]}]}",
   "llm.input_messages.0.message.content": "What's the weather in Paris?",
   "llm.input_messages.0.message.role": "user",
   "llm.input_messages.1.message.contents.0.message_content.tool_use.id": "toolu_123",
@@ -345,19 +343,10 @@ The key things are to dress for the warm temperatures and have layers you can",
   "llm.system": "anthropic",
   "llm.token_count.completion": 100,
   "llm.token_count.prompt": 364,
-  "llm.token_count.total": 464,
   "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"get_weather","description":"Get current weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}",
   "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "Since it's warm and sunny in Paris right now, you'll want to wear lightweight, breathable clothing. Some recommendations:
-
-- A light shirt or tank top
-- Shorts or a light skirt/dress
-- Sandals or other open-toed shoes
-- A hat or sunglasses for sun protection
-- A light jacket or sweater in case it cools off in the evening
-
-The key things are to dress for the warm temperatures and have layers you can",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"msg_bdrk_0192ZiMpnkcdHwvzYyWpps77","type":"message","role":"assistant","model":"claude-3-sonnet-20240229","content":[{"type":"text","text":"Since it's warm and sunny in Paris right now, you'll want to wear lightweight, breathable clothing. Some recommendations:\\n\\n- A light shirt or tank top\\n- Shorts or a light skirt/dress\\n- Sandals or other open-toed shoes\\n- A hat or sunglasses for sun protection\\n- A light jacket or sweater in case it cools off in the evening\\n\\nThe key things are to dress for the warm temperatures and have layers you can"}],"stop_reason":"max_tokens","stop_sequence":null,"usage":{"input_tokens":364,"output_tokens":100}}",
 }
 `);
     });
@@ -439,7 +428,7 @@ The key things are to dress for the warm temperatures and have layers you can",
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "Tell me a short fact.",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short fact."}]}",
   "llm.input_messages.0.message.content": "Tell me a short fact.",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -451,10 +440,8 @@ Honeybees can recognize human faces.",
   "llm.provider": "aws",
   "llm.system": "anthropic",
   "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "Here's a short fact for you:
-
-Honeybees can recognize human faces.",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"msg_bdrk_01WnczgPLNeFxGoqRLQnmKQR","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"Here's a short fact for you:\\n\\nHoneybees can recognize human faces."}],"stop_reason":"end_turn","stop_sequence":null}",
 }
 `);
     });
@@ -511,14 +498,11 @@ Honeybees can recognize human faces.",
       // Check that input message content is properly handled
       expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
 
-      // Check for image URL formatting: data:image/png;base64,{data}
-      const expectedImageUrl = `data:image/png;base64,${imageData}`;
-
-      // The input.value should contain both text and image data
+      // The input.value should contain the full JSON request body with image data
       expect(span.attributes["input.value"]).toContain(
         "What do you see in this image?",
       );
-      expect(span.attributes["input.value"]).toContain(expectedImageUrl);
+      expect(span.attributes["input.value"]).toContain(imageData);
 
       // Verify that multi-modal content is properly extracted
       // Text content should be captured in detailed structure
@@ -530,6 +514,7 @@ Honeybees can recognize human faces.",
       // The message should contain the image URL in the expected format
       const imageContent =
         span.attributes["llm.input_messages.0.message.contents.1.message_content.image.image.url"];
+      const expectedImageUrl = `data:image/png;base64,${imageData}`;
       expect(imageContent).toBe(expectedImageUrl);
 
       // Output message should be captured
@@ -544,7 +529,7 @@ Honeybees can recognize human faces.",
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "What do you see in this image? data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":[{"type":"text","text":"What do you see in this image?"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="}}]}]}",
   "llm.input_messages.0.message.contents.0.message_content.text": "What do you see in this image?",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
@@ -558,10 +543,9 @@ Honeybees can recognize human faces.",
   "llm.system": "anthropic",
   "llm.token_count.completion": 100,
   "llm.token_count.prompt": 19,
-  "llm.token_count.total": 119,
   "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"msg_bdrk_01GKV3gTrEVoxHSj4ErmzgRS","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is"}],"stop_reason":"max_tokens","stop_sequence":null,"usage":{"input_tokens":19,"output_tokens":100}}",
 }
 `);
     });
@@ -614,7 +598,7 @@ Honeybees can recognize human faces.",
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "This should fail",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"This should fail"}]}",
   "llm.input_messages.0.message.content": "This should fail",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -654,7 +638,7 @@ Honeybees can recognize human faces.",
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "What's the weather in San Francisco and what's 15 * 23?",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}},{"name":"calculate","description":"Perform mathematical calculations","input_schema":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}},{"name":"web_search","description":"Search the web for information","input_schema":{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"num_results":{"type":"integer","description":"Number of results to return","minimum":1,"maximum":10}},"required":["query"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco and what's 15 * 23?"}]}",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco and what's 15 * 23?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -679,13 +663,12 @@ Honeybees can recognize human faces.",
   "llm.system": "anthropic",
   "llm.token_count.completion": 100,
   "llm.token_count.prompt": 435,
-  "llm.token_count.total": 535,
   "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"get_weather","description":"Get current weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}",
   "llm.tools.1.tool.json_schema": "{"type":"function","function":{"name":"calculate","description":"Perform mathematical calculations","parameters":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}}}",
   "llm.tools.2.tool.json_schema": "{"type":"function","function":{"name":"web_search","description":"Search the web for information","parameters":{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"num_results":{"type":"integer","description":"Number of results to return","minimum":1,"maximum":10}},"required":["query"]}}}",
   "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "Okay, let's get the weather and do that calculation.",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"msg_bdrk_01VGSSxYibWoHmna5zwvqqCt","type":"message","role":"assistant","model":"claude-3-sonnet-20240229","content":[{"type":"text","text":"Okay, let's get the weather and do that calculation."},{"type":"tool_use","id":"toolu_bdrk_01FqpV1qX3bJ4bczkdtMhdGz","name":"get_weather","input":{"location":"San Francisco, CA","unit":"fahrenheit"}},{"type":"tool_use","id":"toolu_bdrk_01KMAmxrwkK8jh8h6YNQ495y","name":"calculate","input":{}}],"stop_reason":"max_tokens","stop_sequence":null,"usage":{"input_tokens":435,"output_tokens":100}}",
 }
 `);
     });
@@ -715,7 +698,7 @@ Honeybees can recognize human faces.",
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "Tell me a short story",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short story"}]}",
   "llm.input_messages.0.message.content": "Tell me a short story",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -732,16 +715,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.system": "anthropic",
   "llm.token_count.completion": 100,
   "llm.token_count.prompt": 12,
-  "llm.token_count.total": 112,
   "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "Here's a short story for you:
-
-The Last Leaf
-
-Ella gazed out her window at the ivy-covered wall across the courtyard. She had been bedridden with pneumonia for weeks, and her spirits were low. The doctor had told her that she needed the will to live to recover, but Ella felt herself slipping away.
-
-She had been counting the ivy leaves as they fell, convinced that when the last leaf dropped, she too would die. Now",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"bedrock-streaming-response","type":"message","role":"assistant","model":"bedrock-streaming","content":[{"type":"text","text":"Here's a short story for you:\\n\\nThe Last Leaf\\n\\nElla gazed out her window at the ivy-covered wall across the courtyard. She had been bedridden with pneumonia for weeks, and her spirits were low. The doctor had told her that she needed the will to live to recover, but Ella felt herself slipping away.\\n\\nShe had been counting the ivy leaves as they fell, convinced that when the last leaf dropped, she too would die. Now"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":12,"output_tokens":100}}",
 }
 `);
     });
@@ -770,7 +746,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "What's the weather in San Francisco?",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco?"}]}",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -784,11 +760,10 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.system": "anthropic",
   "llm.token_count.completion": 88,
   "llm.token_count.prompt": 273,
-  "llm.token_count.total": 361,
   "llm.tools.0.tool.json_schema": "{"type":"function","function":{"name":"get_weather","description":"Get current weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}",
   "openinference.span.kind": "LLM",
-  "output.mime_type": "text/plain",
-  "output.value": "Okay, let's get the current weather for San Francisco:",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"bedrock-streaming-response","type":"message","role":"assistant","model":"bedrock-streaming","content":[{"type":"text","text":"Okay, let's get the current weather for San Francisco:"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":273,"output_tokens":88}}",
 }
 `);
     });
@@ -841,7 +816,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
-  "input.value": "This streaming request should fail",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"This streaming request should fail"}]}",
   "llm.input_messages.0.message.content": "This streaming request should fail",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -879,7 +854,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       });
       
       // Setup OpenInference context with all supported attributes
-      const response = await context.with(
+      await context.with(
         setSession(
           setUser(
             setMetadata(
@@ -979,9 +954,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       expect(span.attributes["openinference.span.kind"]).toBe("LLM");
       
       // Verify input processing for Titan format
-      // Note: Current instrumentation is designed for Anthropic Messages API
-      // Titan uses inputText directly, not messages array, so input.value will be empty
-      expect(span.attributes["input.value"]).toBe("");
+      // Now using full JSON body approach, so input.value contains the complete request
+      expect(span.attributes["input.value"]).toContain("inputText");
+      expect(span.attributes["input.value"]).toContain("Write a short greeting message.");
       expect(span.attributes["input.mime_type"]).toBe("application/json");
       
       // Verify invocation parameters capture Titan-specific config
@@ -989,7 +964,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       // Titan uses different parameter names, so invocation_parameters may be empty
       const invocationParamsStr = span.attributes["llm.invocation_parameters"] as string;
       if (invocationParamsStr) {
-        const invocationParams = JSON.parse(invocationParamsStr);
+        const _invocationParams = JSON.parse(invocationParamsStr);
         // Titan-specific params are not currently extracted by Anthropic-focused extraction
         // This is expected behavior for now
       }
@@ -998,11 +973,8 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       expect(span.attributes["output.value"]).toBeDefined();
       expect(span.attributes["output.mime_type"]).toBe("application/json");
       
-      // Note: Non-Anthropic models may not have structured message format
-      // The instrumentation should handle this gracefully
-      // Current implementation expects Anthropic 'content' array format
-      // Titan uses 'results' array, so output.value will be empty for now
-      expect(span.attributes["output.value"]).toBe("");
+      // Now using full JSON body approach, so output.value contains the complete response
+      expect(span.attributes["output.value"]).toContain("results");
     });
 
     it("should handle large payloads and timeouts", async () => {
@@ -1054,7 +1026,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       // Verify token counting for large payloads
       expect(span.attributes["llm.token_count.prompt"]).toBeDefined();
       expect(span.attributes["llm.token_count.completion"]).toBeDefined();
-      expect(span.attributes["llm.token_count.total"]).toBeDefined();
+      // Note: Following OpenAI pattern - don't expect calculated total, only what's in response
       
       // Verify cache-related token attributes (Python parity)
       // Note: Current recordings don't have cache data, so these should be undefined
@@ -1069,7 +1041,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       // Verify reasonable token counts for large payload
       expect(inputTokens).toBeGreaterThan(100); // Should be substantial (large input)
       expect(outputTokens).toBeGreaterThanOrEqual(1); // May be minimal if model refused
-      expect(inputTokens + outputTokens).toBeLessThan(50000); // Should be within reasonable bounds
+      // Note: No longer calculating total tokens automatically
     });
 
     // TODO: Future API Coverage (Beyond InvokeModel)
