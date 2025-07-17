@@ -61,7 +61,7 @@ describe("BedrockInstrumentation", () => {
 
   // Global setup - initialize instrumentation once
   beforeAll(() => {
-    // Setup instrumentation and tracer provider (following OpenAI pattern)
+    // Setup instrumentation and tracer provider
     instrumentation = new BedrockInstrumentation();
     instrumentation.disable(); // Initially disabled
     spanExporter = new InMemorySpanExporter();
@@ -71,7 +71,7 @@ describe("BedrockInstrumentation", () => {
     provider.register();
     instrumentation.setTracerProvider(provider);
 
-    // Manually set module exports for testing (following OpenAI pattern)
+    // Manually set module exports for testing
     const BedrockRuntime = require("@aws-sdk/client-bedrock-runtime");
     (instrumentation as any)._modules[0].moduleExports = BedrockRuntime;
 
@@ -1026,9 +1026,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       // Verify token counting for large payloads
       expect(span.attributes["llm.token_count.prompt"]).toBeDefined();
       expect(span.attributes["llm.token_count.completion"]).toBeDefined();
-      // Note: Following OpenAI pattern - don't expect calculated total, only what's in response
+      // Note: Don't expect calculated total, only what's in response
       
-      // Verify cache-related token attributes (Python parity)
+      // Verify cache-related token attributes
       // Note: Current recordings don't have cache data, so these should be undefined
       expect(span.attributes["llm.token_count.prompt.cache_read"]).toBeUndefined();
       expect(span.attributes["llm.token_count.prompt.cache_write"]).toBeUndefined();

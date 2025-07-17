@@ -4,12 +4,13 @@ import {
   InstrumentationModuleDefinition,
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
-import { diag, SpanKind, SpanStatusCode, Span } from "@opentelemetry/api";
-import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
+import { diag, SpanKind, SpanStatusCode, Span, context } from "@opentelemetry/api";
 import {
   SemanticConventions,
   MimeType,
+  OpenInferenceSpanKind,
 } from "@arizeai/openinference-semantic-conventions";
+import { getAttributesFromContext } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
 import { 
   InvokeModelCommand,
@@ -17,6 +18,7 @@ import {
 } from "@aws-sdk/client-bedrock-runtime";
 import { extractInvokeModelRequestAttributes } from "./attributes/request-attributes";
 import { extractInvokeModelResponseAttributes } from "./attributes/response-attributes";
+import { setSpanAttribute } from "./attributes/attribute-helpers";
 import {
   isToolUseContent,
 } from "./types/bedrock-types";
@@ -37,14 +39,12 @@ export function isPatched() {
 }
 
 export interface BedrockInstrumentationConfig extends InstrumentationConfig {
-  traceConfig?: TraceConfigOptions;
+  // Remove traceConfig since we'll use direct OpenTelemetry API
 }
 
 export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumentationConfig> {
   static readonly COMPONENT = "@arizeai/openinference-instrumentation-bedrock";
   static readonly VERSION = VERSION;
-
-  private oiTracer: OITracer;
 
   constructor(config: BedrockInstrumentationConfig = {}) {
     super(
@@ -52,11 +52,6 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       BedrockInstrumentation.VERSION,
       config,
     );
-
-    this.oiTracer = new OITracer({
-      tracer: this.tracer,
-      traceConfig: config.traceConfig,
-    });
   }
 
   protected init(): InstrumentationModuleDefinition<unknown>[] {
@@ -115,12 +110,19 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     original: any,
     client: any,
   ) {
-    const requestAttributes = extractInvokeModelRequestAttributes(command);
-
-    const span = this.oiTracer.startSpan("bedrock.invoke_model", {
+    const span = this.tracer.startSpan("bedrock.invoke_model", {
       kind: SpanKind.INTERNAL,
-      attributes: requestAttributes,
     });
+
+    // Add OpenInference span kind attribute
+    span.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
+
+    // Add OpenInference context attributes
+    const contextAttributes = getAttributesFromContext(context.active());
+    span.setAttributes(contextAttributes);
+
+    // Extract request attributes directly onto the span
+    extractInvokeModelRequestAttributes(span, command);
 
     try {
       const result = original.apply(client, [command]);
@@ -232,65 +234,43 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       usage: usage
     };
 
-    // Set output value as JSON (following OpenAI/LangChain pattern)
-    span.setAttributes({
-      [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(responseBody),
-      [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-    });
+    // Set output value as JSON
+    setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, JSON.stringify(responseBody));
+    setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
     // Set structured output message attributes for text content
     if (outputText) {
-      span.setAttributes({
-        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
-        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]: outputText,
-      });
+      setSpanAttribute(span, `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`, "assistant");
+      setSpanAttribute(span, `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`, outputText);
     }
 
     // Extract tool call attributes from content blocks
     const toolUseBlocks = contentBlocks.filter(isToolUseContent);
     toolUseBlocks.forEach((content, toolCallIndex) => {
-      const toolCallAttributes: Record<string, string> = {};
-
-      if (content.name) {
-        toolCallAttributes[
-          `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-        ] = content.name;
-      }
-      if (content.input) {
-        toolCallAttributes[
-          `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] = JSON.stringify(content.input);
-      }
-      if (content.id) {
-        toolCallAttributes[
-          `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`
-        ] = content.id;
-      }
-
-      if (Object.keys(toolCallAttributes).length > 0) {
-        span.setAttributes(toolCallAttributes);
-      }
+      setSpanAttribute(
+        span,
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
+        content.name
+      );
+      setSpanAttribute(
+        span,
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+        content.input ? JSON.stringify(content.input) : undefined
+      );
+      setSpanAttribute(
+        span,
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`,
+        content.id
+      );
     });
 
     // Set usage attributes directly
     if (usage) {
-      const tokenAttributes: Record<string, number> = {};
-
-      if (usage.input_tokens) {
-        tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
-      }
-      if (usage.output_tokens) {
-        tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
-      }
-      // Note: Following OpenAI pattern - don't calculate total, only set what's in response
+      setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, usage.input_tokens);
+      setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens);
+      // Note: Don't calculate total, only set what's in response
       // If the response includes total tokens, we could add:
-      // if (usage.total_tokens) {
-      //   tokenAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = usage.total_tokens;
-      // }
-
-      if (Object.keys(tokenAttributes).length > 0) {
-        span.setAttributes(tokenAttributes);
-      }
+      // setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, usage.total_tokens);
     }
 
     span.setStatus({ code: SpanStatusCode.OK });
@@ -314,12 +294,19 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     original: any,
     client: any,
   ) {
-    const requestAttributes = extractInvokeModelRequestAttributes(command as any);
-
-    const span = this.oiTracer.startSpan("bedrock.invoke_model", {
+    const span = this.tracer.startSpan("bedrock.invoke_model", {
       kind: SpanKind.INTERNAL,
-      attributes: requestAttributes,
     });
+
+    // Add OpenInference span kind attribute
+    span.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
+
+    // Add OpenInference context attributes
+    const contextAttributes = getAttributesFromContext(context.active());
+    span.setAttributes(contextAttributes);
+
+    // Extract request attributes directly onto the span
+    extractInvokeModelRequestAttributes(span, command as any);
 
     try {
       const result = original.apply(client, [command]);
