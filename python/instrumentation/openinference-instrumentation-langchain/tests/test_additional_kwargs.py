@@ -2,7 +2,6 @@ import json
 
 from openinference.instrumentation.langchain._tracer import _parse_message_data
 
-
 def test_function_call_name() -> None:
     message_data = {
         "id": ["langchain", "schema", "messages", "AIMessage"],
