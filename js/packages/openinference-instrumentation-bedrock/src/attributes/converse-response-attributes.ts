@@ -1,12 +1,13 @@
 import { Span } from "@opentelemetry/api";
+import { ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { SemanticConventions, MimeType } from "@arizeai/openinference-semantic-conventions";
 import { 
   setSpanAttribute, 
   processMessages 
 } from "./attribute-helpers";
 import { 
-  ConverseResponseBody,
   ConverseMessage,
+  ConverseResponseBody,
   isConverseToolUseContent
 } from "../types/bedrock-types";
 
@@ -14,7 +15,7 @@ import {
  * Extracts response attributes from Converse response and sets them on the span
  * Following Python implementation patterns for incremental attribute building
  */
-export function extractConverseResponseAttributes(span: Span, response: any): void {
+export function extractConverseResponseAttributes(span: Span, response: ConverseResponseBody): void {
   if (!response) return;
 
   // Extract base response attributes
@@ -34,8 +35,8 @@ export function extractConverseResponseAttributes(span: Span, response: any): vo
  * Extracts base response attributes: output value, mime type
  * Following Python's incremental attribute building pattern
  */
-function extractBaseResponseAttributes(span: Span, response: any): void {
-  // Set output value as JSON
+function extractBaseResponseAttributes(span: Span, response: ConverseResponseBody): void {
+  // Set output value as full JSON (following semantic conventions)
   setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, JSON.stringify(response));
   setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
@@ -49,7 +50,7 @@ function extractBaseResponseAttributes(span: Span, response: any): void {
  * Extracts output message attributes from response
  * Following Python's message processing patterns
  */
-function extractOutputMessagesAttributes(span: Span, response: any): void {
+function extractOutputMessagesAttributes(span: Span, response: ConverseResponseBody): void {
   const outputMessage = response.output?.message;
   if (!outputMessage) return;
 
@@ -67,14 +68,14 @@ function extractOutputMessagesAttributes(span: Span, response: any): void {
  * Extracts tool call attributes from response content blocks
  * Following Python's tool call processing patterns
  */
-function extractToolCallAttributes(span: Span, response: any): void {
+function extractToolCallAttributes(span: Span, response: ConverseResponseBody): void {
   const outputMessage = response.output?.message;
   if (!outputMessage?.content) return;
 
   // Find tool use content blocks
   const toolUseBlocks = outputMessage.content.filter(isConverseToolUseContent);
   
-  toolUseBlocks.forEach((content: any, toolCallIndex: number) => {
+  toolUseBlocks.forEach((content, toolCallIndex: number) => {
     const toolUse = content.toolUse;
     if (toolUse) {
       setSpanAttribute(
@@ -100,7 +101,7 @@ function extractToolCallAttributes(span: Span, response: any): void {
  * Extracts usage statistics with null-safe handling for missing token counts
  * Following Python's token count extraction patterns
  */
-function extractUsageAttributes(span: Span, response: any): void {
+function extractUsageAttributes(span: Span, response: ConverseResponseBody): void {
   const usage = response.usage;
   if (!usage) return;
 

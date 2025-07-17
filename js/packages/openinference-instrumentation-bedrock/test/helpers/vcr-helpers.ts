@@ -19,12 +19,15 @@ export const loadRecordingData = (recordingPath: string) => {
     const recording = recordingData[0];
     if (!recording) return null;
 
-    // Extract model ID from the path (handle both invoke and invoke-with-response-stream)
-    const pathMatch = recording.path?.match(/\/model\/([^\/]+)\/invoke/);
-    const modelId = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+    // Extract model ID from the path (handle invoke, invoke-with-response-stream, and converse)
+    const invokeMatch = recording.path?.match(/\/model\/([^\/]+)\/invoke/);
+    const converseMatch = recording.path?.match(/\/model\/([^\/]+)\/converse/);
+    const modelId = invokeMatch ? decodeURIComponent(invokeMatch[1]) : 
+                   converseMatch ? decodeURIComponent(converseMatch[1]) : null;
     
-    // Determine if this is a streaming endpoint
+    // Determine endpoint type
     const isStreaming = recording.path?.includes('invoke-with-response-stream');
+    const isConverse = recording.path?.includes('/converse');
 
     return {
       response: recording.response,
@@ -32,6 +35,7 @@ export const loadRecordingData = (recordingPath: string) => {
       recording,
       status: recording.status || 200,
       isStreaming,
+      isConverse,
     };
   } catch (error) {
     console.warn(`Failed to load recording from ${recordingPath}:`, error);
@@ -46,9 +50,18 @@ export const createNockMock = (
   status: number = 200,
   defaultModelId: string = "anthropic.claude-3-5-sonnet-20240620-v1:0",
   isStreaming: boolean = false,
+  isConverse: boolean = false,
 ) => {
   const targetModelId = modelId || defaultModelId;
-  const endpoint = isStreaming ? 'invoke-with-response-stream' : 'invoke';
+  let endpoint: string;
+  
+  if (isConverse) {
+    endpoint = 'converse';
+  } else if (isStreaming) {
+    endpoint = 'invoke-with-response-stream';
+  } else {
+    endpoint = 'invoke';
+  }
   
   const nockScope = nock("https://bedrock-runtime.us-east-1.amazonaws.com")
     .post(`/model/${encodeURIComponent(targetModelId)}/${endpoint}`);
