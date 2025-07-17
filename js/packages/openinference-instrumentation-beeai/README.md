@@ -102,9 +102,6 @@ const beeAIInstrumentation = new BeeAIInstrumentation({
   tracerProvider: customTracerProvider,
 });
 
-// Register the custom tracer provider
-customTracerProvider.register();
-
 // Manually instrument the BeeAI framework
 beeAIInstrumentation.manuallyInstrument(beeaiFramework);
 ```

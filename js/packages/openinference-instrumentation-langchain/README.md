@@ -48,9 +48,6 @@ const lcInstrumentation = new LangChainInstrumentation({
   tracerProvider: customTracerProvider,
 });
 
-// Register the custom tracer provider
-customTracerProvider.register();
-
 // Manually instrument the LangChain module
 lcInstrumentation.manuallyInstrument(CallbackManagerModule);
 ```

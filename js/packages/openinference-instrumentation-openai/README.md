@@ -65,9 +65,6 @@ const openaiInstrumentation = new OpenAIInstrumentation({
   tracerProvider: customTracerProvider,
 });
 
-// Register the custom tracer provider
-customTracerProvider.register();
-
 // Register the instrumentation with the custom tracer provider
 registerInstrumentations({
   instrumentations: [openaiInstrumentation],
