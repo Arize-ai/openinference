@@ -13,6 +13,7 @@ import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
 import { CreateEmbeddingResponse } from "openai/resources/embeddings";
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 
 // Function tools
 async function getCurrentLocation() {
@@ -1381,5 +1382,272 @@ describe("AzureOpenAIInstrumentation", () => {
   "output.value": "This is a test.",
 }
 `);
+  });
+});
+
+describe("OpenAIInstrumentation with a custom tracer provider", () => {
+  describe("OpenAIInstrumentation with custom TracerProvider passed in", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+    let openai: OpenAI;
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new OpenAIInstrumentation({
+      tracerProvider: customTracerProvider,
+    });
+    instrumentation.disable();
+
+    // Mock the module exports like in other tests
+    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+    instrumentation._modules[0].moduleExports = OpenAI;
+
+    beforeAll(() => {
+      instrumentation.enable();
+      openai = new OpenAI({
+        apiKey: "fake-api-key",
+      });
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const response = {
+        id: "chatcmpl-test",
+        object: "chat.completion",
+        created: 1703743645,
+        model: "gpt-3.5-turbo-0613",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: "This is a test.",
+            },
+            logprobs: null,
+            finish_reason: "stop",
+          },
+        ],
+        usage: {
+          prompt_tokens: 12,
+          completion_tokens: 5,
+          total_tokens: 17,
+        },
+      };
+
+      jest.spyOn(openai, "post").mockImplementation(
+        // @ts-expect-error the response type is not correct - this is just for testing
+        async (): Promise<unknown> => {
+          return response;
+        },
+      );
+
+      await openai.chat.completions.create({
+        messages: [{ role: "user", content: "Say this is a test" }],
+        model: "gpt-3.5-turbo",
+      });
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+      const span = spans[0];
+      expect(span.name).toBe("OpenAI Chat Completions");
+      expect(span.attributes["llm.provider"]).toBe("openai");
+      expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo-0613");
+    });
+  });
+
+  describe("OpenAIInstrumentation with custom TracerProvider set", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+    let openai: OpenAI;
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new OpenAIInstrumentation();
+    instrumentation.setTracerProvider(customTracerProvider);
+    instrumentation.disable();
+
+    // Mock the module exports like in other tests
+    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+    instrumentation._modules[0].moduleExports = OpenAI;
+
+    beforeAll(() => {
+      instrumentation.enable();
+      openai = new OpenAI({
+        apiKey: "fake-api-key",
+      });
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const response = {
+        id: "chatcmpl-test",
+        object: "chat.completion",
+        created: 1703743645,
+        model: "gpt-3.5-turbo-0613",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: "This is a test.",
+            },
+            logprobs: null,
+            finish_reason: "stop",
+          },
+        ],
+        usage: {
+          prompt_tokens: 12,
+          completion_tokens: 5,
+          total_tokens: 17,
+        },
+      };
+
+      jest.spyOn(openai, "post").mockImplementation(
+        // @ts-expect-error the response type is not correct - this is just for testing
+        async (): Promise<unknown> => {
+          return response;
+        },
+      );
+
+      await openai.chat.completions.create({
+        messages: [{ role: "user", content: "Say this is a test" }],
+        model: "gpt-3.5-turbo",
+      });
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+      const span = spans[0];
+      expect(span.name).toBe("OpenAI Chat Completions");
+      expect(span.attributes["llm.provider"]).toBe("openai");
+      expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo-0613");
+    });
+  });
+
+  describe("OpenAIInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+    let openai: OpenAI;
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new OpenAIInstrumentation();
+    registerInstrumentations({
+      instrumentations: [instrumentation],
+      tracerProvider: customTracerProvider,
+    });
+    instrumentation.disable();
+
+    // Mock the module exports like in other tests
+    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+    instrumentation._modules[0].moduleExports = OpenAI;
+
+    beforeAll(() => {
+      instrumentation.enable();
+      openai = new OpenAI({
+        apiKey: "fake-api-key",
+      });
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const response = {
+        id: "chatcmpl-test",
+        object: "chat.completion",
+        created: 1703743645,
+        model: "gpt-3.5-turbo-0613",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: "This is a test.",
+            },
+            logprobs: null,
+            finish_reason: "stop",
+          },
+        ],
+        usage: {
+          prompt_tokens: 12,
+          completion_tokens: 5,
+          total_tokens: 17,
+        },
+      };
+
+      jest.spyOn(openai, "post").mockImplementation(
+        // @ts-expect-error the response type is not correct - this is just for testing
+        async (): Promise<unknown> => {
+          return response;
+        },
+      );
+
+      await openai.chat.completions.create({
+        messages: [{ role: "user", content: "Say this is a test" }],
+        model: "gpt-3.5-turbo",
+      });
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+      const span = spans[0];
+      expect(span.name).toBe("OpenAI Chat Completions");
+      expect(span.attributes["llm.provider"]).toBe("openai");
+      expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo-0613");
+    });
   });
 });

@@ -36,3 +36,68 @@ assertion.log
 
 # Git branches
 .git-branches.toml
+
+# Java specific
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Java build directories
+java/build/
+java/*/build/
+java/*/*/build/
+java/.gradle/
+java/*/gradle/
+java/gradle/wrapper/gradle-wrapper.jar
+java/.gradletasknamecache
+
+# Maven (if used in future)
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# IntelliJ IDEA
+*.iml
+*.ipr
+*.iws
+java/.idea/
+java/out/
+
+# NetBeans
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# VS Code Java
+.vscode/
+.factorypath
+
+# Java logs
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS specific
+Thumbs.db
+.DS_Store
+
+# Gradle wrapper (keep gradle-wrapper.properties)
+!gradle/wrapper/gradle-wrapper.properties

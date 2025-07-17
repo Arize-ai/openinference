@@ -54,7 +54,7 @@ languages.
 | [`openinference-instrumentation-anthropic`](./python/instrumentation/openinference-instrumentation-anthropic)                 | OpenInference Instrumentation for Anthropic.                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-anthropic.svg)](https://pypi.python.org/pypi/openinference-instrumentation-anthropic)                 |
 | [`openinference-instrumentation-beeai`](./python/instrumentation/openinference-instrumentation-beeai)                         | OpenInference Instrumentation for BeeAI.                       | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-beeai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-beeai)                         |
 | [`openinference-instrumentation-google-genai`](./python/instrumentation/openinference-instrumentation-google-genai)           | OpenInference Instrumentation for Google GenAI.                | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-google-genai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-google-genai)           |
-| [`openinference-instrumentation-google-adk`](./python/instrumentation/openinference-instrumentation-google-adk)       | OpenInference Instrumentation for Google ADK.        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-google-adk.svg)](https://pypi.python.org/pypi/openinference-instrumentation-google-adk)       |
+| [`openinference-instrumentation-google-adk`](./python/instrumentation/openinference-instrumentation-google-adk)               | OpenInference Instrumentation for Google ADK.                  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-google-adk.svg)](https://pypi.python.org/pypi/openinference-instrumentation-google-adk)               |
 | [`openinference-instrumentation-autogen-agentchat`](./python/instrumentation/openinference-instrumentation-autogen-agentchat) | OpenInference Instrumentation for Microsoft Autogen AgentChat. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-autogen-agentchat.svg)](https://pypi.python.org/pypi/openinference-instrumentation-autogen-agentchat) |
 | [`openinference-instrumentation-pydantic-ai`](./python/instrumentation/openinference-instrumentation-pydantic-ai)             | OpenInference Instrumentation for PydanticAI.                  | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-pydantic-ai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-pydantic-ai)             |
 
@@ -110,6 +110,22 @@ languages.
 | [LangChain OpenAI](js/packages/openinference-instrumentation-langchain/examples)                                         | A simple script to call OpenAI via LangChain, instrumented using `openinference-instrumentation-langchain`                                                                                           | Beginner         |
 | [LangChain RAG Express App](js/examples/langchain-express)                                                               | A fully functional LangChain chatbot that uses RAG to answer user questions. It has a Next.js frontend and a LangChain Express backend, instrumented using `openinference-instrumentation-langchain` | Intermediate     |
 | [Next.js + OpenAI](js/examples/nextjs-openai-simple/)                                                                    | A Next.js 13 project bootstrapped with `create-next-app` that uses OpenAI to generate text                                                                                                           | Beginner         |
+
+## Java
+
+### Libraries
+
+| Package                                                                                                         | Description                                    | Version                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`openinference-semantic-conventions`](./java/openinference-semantic-conventions)                               | Semantic conventions for tracing of LLM Apps.  | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-semantic-conventions)](https://central.sonatype.com/artifact/com.arize/openinference-semantic-conventions)               |
+| [`openinference-instrumentation`](./java/openinference-instrumentation)                                         | Base instrumentation utilities.                | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation)                         |
+| [`openinference-instrumentation-langchain4j`](./java/instrumentation/openinference-instrumentation-langchain4j) | OpenInference Instrumentation for LangChain4j. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-langchain4j)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-langchain4j) |
+
+### Examples
+
+| Name                                                     | Description                                  | Complexity Level |
+| -------------------------------------------------------- | -------------------------------------------- | ---------------- |
+| [LangChain4j Example](java/examples/langchain4j-example) | Simple example using LangChain4j with OpenAI | Beginner         |
 
 ## Supported Destinations
 

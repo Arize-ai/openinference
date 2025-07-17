@@ -14,6 +14,8 @@ import {
   Attributes,
   SpanStatusCode,
   Span,
+  TracerProvider,
+  Tracer,
 } from "@opentelemetry/api";
 import { VERSION } from "./version";
 import {
@@ -60,6 +62,8 @@ import {
 
 const MODULE_NAME = "openai";
 
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
+
 /**
  * Flag to check if the openai module has been patched
  * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
@@ -97,9 +101,12 @@ function getExecContext(span: Span) {
  */
 export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
   constructor({
     instrumentationConfig,
     traceConfig,
+    tracerProvider,
   }: {
     /**
      * The config for the instrumentation
@@ -111,13 +118,27 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
      * @see {@link TraceConfigOptions}
      */
     traceConfig?: TraceConfigOptions;
+    /**
+     * An optional custom trace provider to be used for tracing. If not provided, a tracer will be created using the global tracer provider.
+     * This is useful if you want to use a non-global tracer provider.
+     *
+     * @see {@link TracerProvider}
+     */
+    tracerProvider?: TracerProvider;
   } = {}) {
     super(
-      "@arizeai/openinference-instrumentation-openai",
+      INSTRUMENTATION_NAME,
       VERSION,
       Object.assign({}, instrumentationConfig),
     );
-    this.oiTracer = new OITracer({ tracer: this.tracer, traceConfig });
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
+    this.oiTracer = new OITracer({
+      tracer:
+        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ??
+        this.tracer,
+      traceConfig,
+    });
   }
 
   protected init(): InstrumentationModuleDefinition<typeof openai> {
@@ -137,6 +158,25 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   manuallyInstrument(module: typeof openai) {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
+  }
+
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(
+        this.instrumentationName,
+        this.instrumentationVersion,
+      );
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
   }
 
   /**
