@@ -14,10 +14,13 @@ import { getAttributesFromContext } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
 import { 
   InvokeModelCommand,
-  InvokeModelWithResponseStreamCommand 
+  InvokeModelWithResponseStreamCommand,
+  ConverseCommand 
 } from "@aws-sdk/client-bedrock-runtime";
 import { extractInvokeModelRequestAttributes } from "./attributes/request-attributes";
 import { extractInvokeModelResponseAttributes } from "./attributes/response-attributes";
+import { extractConverseRequestAttributes } from "./attributes/converse-request-attributes";
+import { extractConverseResponseAttributes } from "./attributes/converse-response-attributes";
 import { setSpanAttribute } from "./attributes/attribute-helpers";
 import {
   isToolUseContent,
@@ -87,6 +90,14 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
 
             if (command?.constructor?.name === "InvokeModelWithResponseStreamCommand") {
               return instrumentation._handleInvokeModelWithResponseStreamCommand(
+                command,
+                original,
+                this,
+              );
+            }
+
+            if (command?.constructor?.name === "ConverseCommand") {
+              return instrumentation._handleConverseCommand(
                 command,
                 original,
                 this,
@@ -349,6 +360,55 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
             span.end();
             return response;
           }
+        })
+        .catch((error: any) => {
+          span.recordException(error);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message,
+          });
+          span.end();
+          throw error;
+        });
+    } catch (error: any) {
+      // Handle errors that occur before the Promise is returned (e.g. invalid parameters)
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      span.end();
+      throw error;
+    }
+  }
+
+  private _handleConverseCommand(
+    command: ConverseCommand,
+    original: any,
+    client: any,
+  ) {
+    const span = this.tracer.startSpan("bedrock.converse", {
+      kind: SpanKind.INTERNAL,
+    });
+
+    // Add OpenInference span kind attribute
+    span.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
+
+    // Add OpenInference context attributes
+    const contextAttributes = getAttributesFromContext(context.active());
+    span.setAttributes(contextAttributes);
+
+    // Extract request attributes directly onto the span
+    extractConverseRequestAttributes(span, command);
+
+    try {
+      const result = original.apply(client, [command]);
+
+      // AWS SDK v3 send() method always returns a Promise
+      return result
+        .then((response: any) => {
+          // Extract response attributes
+          extractConverseResponseAttributes(span, response);
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+          return response;
         })
         .catch((error: any) => {
           span.recordException(error);

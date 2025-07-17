@@ -1,7 +1,8 @@
 import { BedrockInstrumentation } from "../src/instrumentation";
 import { 
   InvokeModelCommand,
-  InvokeModelWithResponseStreamCommand 
+  InvokeModelWithResponseStreamCommand,
+  ConverseCommand 
 } from "@aws-sdk/client-bedrock-runtime";
 import {
   InMemorySpanExporter,
@@ -1044,16 +1045,253 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       // Note: No longer calculating total tokens automatically
     });
 
-    // TODO: Future API Coverage (Beyond InvokeModel)
+  });
+
+  // ========================================================================
+  // CONVERSE API TESTS (NEW) - Nested describe for fine-grained control
+  // ========================================================================
+
+  describe("Converse API", () => {
+    // All Converse tests share the same setup/teardown as main describe block
+    // but can be run in isolation with: npm test -- --testNamePattern="Converse API"
+
+    describe("Basic Functionality", () => {
+      it("should handle basic Converse API calls", async () => {
+        setupTestRecording("should handle basic Converse API calls");
+
+        const client = createTestClient(isRecordingMode);
+
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "Hello, how are you?"
+                }
+              ]
+            }
+          ]
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification  
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Verify basic span attributes for Converse API
+        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+        expect(span.attributes["llm.model_name"]).toBe(TEST_MODEL_ID);
+        expect(span.attributes["llm.system"]).toBe("bedrock");
+        
+        // Verify input message structure
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.type"]).toBe("text");
+        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("Hello, how are you?");
+        
+        // Verify output message structure
+        expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+        expect(span.attributes["llm.output_messages.0.message.contents.0.message_content.type"]).toBe("text");
+        expect(typeof span.attributes["llm.output_messages.0.message.contents.0.message_content.text"]).toBe("string");
+        
+        // Verify token counts
+        expect(typeof span.attributes["llm.token_count.prompt"]).toBe("number");
+        expect(typeof span.attributes["llm.token_count.completion"]).toBe("number");
+        expect(typeof span.attributes["llm.token_count.total"]).toBe("number");
+      });
+    });
+
+    describe("System Prompts", () => {
+      it("should handle single system prompt in Converse API", async () => {
+        setupTestRecording("should handle single system prompt in Converse API");
+
+        const client = createTestClient(isRecordingMode);
+
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          system: [
+            {
+              text: "You are a helpful assistant that responds concisely."
+            }
+          ],
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "What is the capital of France?"
+                }
+              ]
+            }
+          ]
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Verify system prompt processing - should be first message
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("system");
+        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.type"]).toBe("text");
+        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("You are a helpful assistant that responds concisely.");
+        
+        // Verify user message is second (index 1)
+        expect(span.attributes["llm.input_messages.1.message.role"]).toBe("user");
+        expect(span.attributes["llm.input_messages.1.message.contents.0.message_content.type"]).toBe("text");
+        expect(span.attributes["llm.input_messages.1.message.contents.0.message_content.text"]).toBe("What is the capital of France?");
+      });
+
+      it("should handle multiple system prompts concatenation in Converse API", async () => {
+        setupTestRecording("should handle multiple system prompts concatenation in Converse API");
+
+        const client = createTestClient(isRecordingMode);
+
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          system: [
+            {
+              text: "You are a helpful assistant."
+            },
+            {
+              text: "Respond briefly."
+            }
+          ],
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "What is TypeScript?"
+                }
+              ]
+            }
+          ]
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Verify multiple system prompts are concatenated with space
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("system");
+        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.type"]).toBe("text");
+        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("You are a helpful assistant. Respond briefly.");
+        
+        // Verify user message is second (index 1)
+        expect(span.attributes["llm.input_messages.1.message.role"]).toBe("user");
+        expect(span.attributes["llm.input_messages.1.message.contents.0.message_content.text"]).toBe("What is TypeScript?");
+      });
+    });
+
+    describe("Configuration", () => {
+      it("should handle inference config in Converse API", async () => {
+        setupTestRecording("should handle inference config in Converse API");
+
+        const client = createTestClient(isRecordingMode);
+
+        const inferenceConfig = {
+          maxTokens: 150,
+          temperature: 0.7,
+          topP: 0.9,
+          stopSequences: ["END", "STOP"]
+        };
+
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "Explain machine learning briefly."
+                }
+              ]
+            }
+          ],
+          inferenceConfig: inferenceConfig
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Verify inference config is captured as invocation parameters
+        const invocationParams = span.attributes["llm.invocation_parameters"];
+        expect(typeof invocationParams).toBe("string");
+        
+        const parsedParams = JSON.parse(invocationParams as string);
+        expect(parsedParams.maxTokens).toBe(150);
+        expect(parsedParams.temperature).toBe(0.7);
+        expect(parsedParams.topP).toBe(0.9);
+        expect(parsedParams.stopSequences).toEqual(["END", "STOP"]);
+        
+        // Verify basic message structure
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+        expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("Explain machine learning briefly.");
+      });
+    });
+
+    // TODO: Future Converse API Coverage (Additional tests)
     //
-    // Phase 4: Converse API Support
-    // - it("should handle Converse API calls", async () => {})
-    // - it("should handle system prompts in Converse API", async () => {})
-    // - it("should handle tool calling via Converse API", async () => {})
+    // describe("Multi-Turn Conversations", () => {
+    //   // Phase 3.2: Multi-Turn Conversation Tests (Tests 5-6)
+    //   // - it("should handle two-turn conversation", async () => {})
+    //   // - it("should handle system prompt + multi-turn", async () => {})
+    // });
     //
-    // Phase 5: InvokeAgent API Support  
-    // - it("should handle InvokeAgent workflow tracing", async () => {})
-    // - it("should handle agent hierarchical spans", async () => {})
+    // describe("Multi-Modal Content", () => {
+    //   // Phase 3.3: Multi-Modal Content Tests (Tests 7-8)
+    //   // - it("should handle text + image content", async () => {})
+    //   // - it("should handle image format processing", async () => {})
+    // });
+    //
+    // describe("Cross-Vendor Models", () => {
+    //   // Phase 3.4: Cross-Vendor Model Tests (Tests 9-10)
+    //   // - it("should handle Mistral models", async () => {})
+    //   // - it("should handle Meta LLaMA models", async () => {})
+    // });
+    //
+    // describe("Error Handling", () => {
+    //   // Phase 3.5: Edge Cases and Error Handling (Tests 11-13)
+    //   // - it("should handle missing token counts", async () => {})
+    //   // - it("should handle API error scenarios", async () => {})
+    //   // - it("should handle empty/minimal response", async () => {})
+    // });
+    //
+    // describe("Tool Configuration", () => {
+    //   // Phase 3.6: Tool Configuration Tests (Tests 14-15)
+    //   // - it("should handle tool configuration", async () => {})
+    //   // - it("should handle tool response processing", async () => {})
+    // });
+    //
+    // describe("Context Attributes", () => {
+    //   // Phase 3.7: Context and VCR Infrastructure (Test 16)
+    //   // - it("should handle context attributes with Converse", async () => {})
+    // });
     //
     // Use pattern: BEDROCK_RECORD_MODE=record npm test -- --testNamePattern="test name"
   });
