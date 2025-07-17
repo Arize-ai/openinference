@@ -1,7 +1,6 @@
 description = 'OpenInference Instrumentation for LangChain4j'
 
 dependencies {
-    // OpenInference dependencies
     api project(':openinference-instrumentation')
     
     // LangChain4j
