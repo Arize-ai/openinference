@@ -155,7 +155,7 @@ test/
 ```
 
 **Package-Specific Patterns:**
-- **Bedrock**: `src/attributes/` (request/response attribute extraction), `scripts/` (VCR management)
+- **Bedrock**: `src/attributes/` (request/response attribute extraction), `scripts/` (validation utilities)
 - **BeeAI**: `src/helpers/` (trace building utilities), `src/middleware.ts`
 - **LangChain**: `src/instrumentationUtils.ts`, `src/tracer.ts` (custom tracer logic)
 - **OpenAI**: `src/responsesAttributes.ts` (response attribute extraction)
@@ -166,7 +166,7 @@ test/
 
 - **Jest**: Standard testing framework (most packages)
 - **Vitest**: Modern testing (Mastra only)
-- **VCR Testing**: HTTP recording/replay (Bedrock only)
+- **VCR Testing**: HTTP recording/replay for testing
 - **TypeScript**: Triple build targets (CommonJS, ESM, ESNext)
 - **Dual Exports**: CommonJS + ESM support
 
