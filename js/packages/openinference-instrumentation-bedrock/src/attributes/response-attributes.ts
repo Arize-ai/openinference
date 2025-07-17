@@ -115,7 +115,7 @@ export function extractUsageAttributes(
   setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, responseBody.usage.input_tokens);
   setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, responseBody.usage.output_tokens);
   
-  // Note: Don't calculate total, only set what's in response
+  // Set only token counts provided in the response
   // If the response includes total tokens, we could add:
   // setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, responseBody.usage.total_tokens);
 

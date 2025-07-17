@@ -626,9 +626,9 @@ except Exception as e:
   private normalizePythonSpan(span: PythonSpanData): NormalizedSpan {
     const normalized: NormalizedSpan = {
       name: span.name,
-      kind: span.kind,
+      kind: this.normalizePythonSpanKind(span.kind),
       attributes: span.attributes || {},
-      status: span.status.status_code,
+      status: this.normalizePythonStatus(span.status.status_code),
       events: span.events || [],
       links: span.links || [],
     };
@@ -654,6 +654,28 @@ except Exception as e:
   private normalizeStatus(code: number): string {
     const statusCodes = ["UNSET", "OK", "ERROR"];
     return statusCodes[code] || "UNSET";
+  }
+
+  /**
+   * Normalize Python span kind string to match JavaScript format
+   */
+  private normalizePythonSpanKind(kind: string): string {
+    // Convert "SpanKind.INTERNAL" to "INTERNAL"
+    if (kind.startsWith("SpanKind.")) {
+      return kind.substring(9); // Remove "SpanKind." prefix
+    }
+    return kind;
+  }
+
+  /**
+   * Normalize Python status code string to match JavaScript format
+   */
+  private normalizePythonStatus(status: string): string {
+    // Convert "StatusCode.OK" to "OK"
+    if (status.startsWith("StatusCode.")) {
+      return status.substring(11); // Remove "StatusCode." prefix
+    }
+    return status;
   }
 
   /**
