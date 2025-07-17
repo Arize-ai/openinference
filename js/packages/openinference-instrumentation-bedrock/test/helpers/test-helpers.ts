@@ -18,12 +18,17 @@ export const verifyResponseStructure = (result: any) => {
 };
 
 // Helper function to verify basic span structure and return the span
-export const verifySpanBasics = (spanExporter: InMemorySpanExporter) => {
+export const verifySpanBasics = (spanExporter: InMemorySpanExporter, expectedSpanName?: string) => {
   const spans = spanExporter.getFinishedSpans();
   expect(spans).toHaveLength(1);
 
   const span = spans[0];
-  expect(span.name).toBe("bedrock.invoke_model");
+  if (expectedSpanName) {
+    expect(span.name).toBe(expectedSpanName);
+  } else {
+    // Default to original behavior for backward compatibility
+    expect(span.name).toBe("bedrock.invoke_model");
+  }
   expect(span.kind).toBe(SpanKind.INTERNAL);
 
   return span;
