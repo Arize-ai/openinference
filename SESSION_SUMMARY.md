@@ -81,7 +81,7 @@ This project involved developing a complete JavaScript instrumentation package f
 **VCR Testing Implementation**:
 - **Nock-based VCR system**: Real API recording/replay with auth sanitization
 - **Test isolation**: Global instrumentation setup prevents module patching conflicts
-- **Helper scripts**: `record-helper.js`, `clear-recordings.js`, `validate-recordings.js`
+- **Helper scripts**: Test validation and data generation utilities
 - **13 Test Recordings**: Complete coverage with real AWS API responses
 
 ### 6. Core Instrumentation Features
@@ -141,10 +141,8 @@ js/packages/openinference-instrumentation-bedrock/
 ├── package.json                    # Complete dependency set with VCR testing
 ├── jest.config.js                 # Jest config with Prettier 3.0+ compatibility fix
 ├── tsconfig.*.json                 # TypeScript configurations for multiple targets
-├── scripts/                        # Advanced VCR tooling
-│   ├── record-helper.js           # Credential validation and recording setup
-│   ├── clear-recordings.js        # Interactive recording cleanup utility
-│   └── validate-recordings.js     # Recording validation and sanitization check
+├── scripts/                        # Test validation utilities
+│   └── validate-invoke-model.ts   # Model validation and testing script
 ├── src/
 │   ├── index.ts                   # Clean exports
 │   ├── instrumentation.ts         # Full BedrockInstrumentation implementation
@@ -176,10 +174,8 @@ js/packages/openinference-instrumentation-bedrock/
 - **Error Scenarios**: Comprehensive error handling validation
 
 ### Advanced Tooling Created
-**VCR Workflow Scripts**:
-- `npm run test:record` - Validates AWS credentials and records live API calls
-- `npm run test:clear-recordings` - Interactive cleanup with selective deletion
-- `npm run test:validate-recordings` - Schema validation and sensitive data detection
+**Development Scripts**:
+- `npm run validate:invoke-model` - Model validation and testing utility
 
 **Development Quality**:
 - **Prettier 3.0+ Fix**: Jest inline snapshots compatibility resolved  
@@ -258,7 +254,7 @@ The core InvokeModel API implementation is complete. These are potential future 
 ## Key Files for Future Reference
 1. **Core Implementation**: `src/instrumentation.ts` - Complete Bedrock instrumentation with refactored helpers
 2. **Test Suite**: `test/instrumentation.test.ts` - Comprehensive VCR-based tests with inline snapshots
-3. **VCR Tooling**: `scripts/` directory - Complete workflow tools for recording management
+3. **Testing Scripts**: `scripts/` directory - Development utilities for validation and testing
 4. **Documentation**: `CLAUDE.md` - Updated patterns and Bedrock-specific implementation details
 
 ---

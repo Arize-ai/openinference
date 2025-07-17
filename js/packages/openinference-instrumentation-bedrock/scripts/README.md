@@ -66,16 +66,6 @@ The script replicates the test scenarios from the instrumentation test suite:
 5. **multiple-tools**: Multiple tool definitions in single request
 6. **all**: Run all scenarios (default)
 
-#### What It Validates
-
-- ✅ Instrumentation is properly applied to the Bedrock client
-- ✅ Spans are created for InvokeModel API calls
-- ✅ Request attributes are correctly extracted
-- ✅ Response attributes are correctly extracted
-- ✅ Tool calling scenarios work properly
-- ✅ Multi-modal content is processed correctly
-- ✅ Traces are exported to Phoenix (when configured)
-
 #### Output
 
 The script provides detailed output including:
@@ -86,20 +76,3 @@ The script provides detailed output including:
 - Error details (if any)
 - Trace export confirmation
 
-#### Troubleshooting
-
-1. **Instrumentation not patched**: Make sure the instrumentation is registered before creating the Bedrock client
-2. **AWS credentials**: Verify your AWS credentials and region are correct
-3. **Model access**: Ensure you have access to the specified Bedrock model in your region
-4. **Phoenix connection**: Check your Phoenix endpoint and API key configuration
-
-#### Local Development
-
-When working on the instrumentation locally, this script helps verify:
-
-- Changes are working correctly
-- Local package linking is functioning
-- All test scenarios pass in real-world conditions
-- Traces appear correctly in Phoenix for manual verification
-
-This is especially useful since pnpm workspaces automatically link local packages, making it easy to test changes without publishing.
