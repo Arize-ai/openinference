@@ -39,7 +39,7 @@ instruments = [
 ]
 test = [
   "langchain_core == 0.3.50",
-  "langchain == 0.3.15",
+  "langchain == 0.3.26",
   "langchain_openai == 0.2.14",
   "langchain-community == 0.3.15",
   "langchain-google-vertexai == 2.0.12",
