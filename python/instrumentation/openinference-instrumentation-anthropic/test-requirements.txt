@@ -2,4 +2,4 @@ anthropic==0.41.0
 opentelemetry-sdk
 pytest-asyncio
 pytest.recording
-httpx<0.28
+httpx<0.29
