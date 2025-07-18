@@ -4,4 +4,4 @@ opentelemetry-instrumentation-httpx
 respx
 numpy
 pytest-vcr
-httpx<0.28
+httpx<0.29
