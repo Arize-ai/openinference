@@ -41,7 +41,7 @@ test = [
   "opentelemetry-instrumentation-httpx",
   "pytest-vcr",
   "tenacity",
-  "tokenizers==0.20.3; python_version == '3.8'"
+  "tokenizers==0.21.2; python_version == '3.8'"
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
