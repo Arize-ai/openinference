@@ -37,7 +37,7 @@ instruments = [
   "crewai >= 0.119.0",
 ]
 test = [
-  "crewai == 0.119.0",
+  "crewai == 0.148.0",
   "crewai-tools == 0.45.0",
   "opentelemetry-sdk",
   "responses",
