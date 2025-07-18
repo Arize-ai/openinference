@@ -1,4 +1,4 @@
-portkey-ai===1.11.2
+portkey-ai===1.14.1
 opentelemetry-sdk
 pytest-vcr
 urllib3<2.0.0
