@@ -19,7 +19,8 @@
     "type:check": "tsc --noEmit",
     "test": "jest .",
     "validate:invoke-model": "tsx scripts/validate-invoke-model.ts",
-    "validate:converse": "tsx scripts/validate-converse.ts"
+    "validate:converse": "tsx scripts/validate-converse.ts",
+    "validate:converse-comprehensive": "tsx scripts/validate-converse-comprehensive.ts"
   },
   "exports": {
     ".": {
