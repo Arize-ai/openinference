@@ -22,6 +22,7 @@ import {
   InvokeModelCommand,
   InvokeModelWithResponseStreamCommand,
   ConverseCommand,
+  BedrockRuntimeClient,
 } from "@aws-sdk/client-bedrock-runtime";
 import { extractInvokeModelRequestAttributes } from "./attributes/request-attributes";
 import { extractInvokeModelResponseAttributes } from "./attributes/response-attributes";
@@ -33,10 +34,33 @@ import { splitStream } from "@smithy/util-stream";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
 
+// AWS SDK module interface for proper typing (following OpenAI pattern)
+interface BedrockModuleExports {
+  BedrockRuntimeClient: typeof BedrockRuntimeClient;
+}
+
 /**
  * Track if the Bedrock instrumentation is patched
  */
 let _isBedrockPatched = false;
+
+/**
+ * Interface for streaming event data from Bedrock
+ */
+interface StreamEventData {
+  type: "message_start" | "content_block_start" | "content_block_delta" | "message_delta";
+  message?: {
+    usage?: Record<string, number>;
+  };
+  content_block?: {
+    type: string;
+    text?: string;
+  };
+  delta?: {
+    text?: string;
+  };
+  usage?: Record<string, number>;
+}
 
 /**
  * Check if Bedrock instrumentation is enabled/disabled
@@ -61,8 +85,8 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     );
   }
 
-  protected init(): InstrumentationModuleDefinition<unknown>[] {
-    const module = new InstrumentationNodeModuleDefinition<unknown>(
+  protected init(): InstrumentationModuleDefinition<BedrockModuleExports>[] {
+    const module = new InstrumentationNodeModuleDefinition<BedrockModuleExports>(
       MODULE_NAME,
       ["^3.0.0"],
       this.patch.bind(this),
@@ -71,7 +95,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     return [module];
   }
 
-  private patch(moduleExports: any, moduleVersion?: string) {
+  private patch(moduleExports: BedrockModuleExports, moduleVersion?: string) {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
 
     if (moduleExports?.BedrockRuntimeClient) {
@@ -196,33 +220,67 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
    *   .catch(error => { span.recordException(error); span.end(); });
    * ```
    */
+  /**
+   * Type guard to validate stream chunk structure
+   */
+  private _isValidStreamChunk(chunk: unknown): chunk is { chunk: { bytes: Uint8Array } } {
+    return (
+      chunk !== null &&
+      typeof chunk === "object" &&
+      "chunk" in chunk &&
+      chunk.chunk !== null &&
+      typeof chunk.chunk === "object" &&
+      "bytes" in chunk.chunk &&
+      chunk.chunk.bytes instanceof Uint8Array
+    );
+  }
+
+  /**
+   * Type guard to validate streaming event data structure
+   */
+  private _isValidStreamEventData(data: unknown): data is StreamEventData {
+    return (
+      data !== null &&
+      typeof data === "object" &&
+      "type" in data &&
+      typeof data.type === "string" &&
+      ["message_start", "content_block_start", "content_block_delta", "message_delta"].includes(data.type)
+    );
+  }
+
   private async _consumeBedrockStreamChunks(
-    stream: any,
+    stream: AsyncIterable<unknown>,
     span: Span,
   ): Promise<void> {
     let outputText = "";
-    const contentBlocks: any[] = [];
-    let usage: any = {};
+    const contentBlocks: Array<{ type: string; text?: string }> = [];
+    let usage: Record<string, number> = {};
 
     for await (const chunk of stream) {
-      if (chunk.chunk?.bytes) {
+      // Type guard for chunk structure
+      if (this._isValidStreamChunk(chunk)) {
         const text = new TextDecoder().decode(chunk.chunk.bytes);
         const lines = text.split("\n").filter((line) => line.trim());
 
         for (const line of lines) {
           if (line.trim()) {
-            const data = JSON.parse(line);
+            try {
+              const rawData = JSON.parse(line);
+              if (!this._isValidStreamEventData(rawData)) {
+                continue; // Skip invalid event data
+              }
+              const data: StreamEventData = rawData;
 
-            // Handle different event types
-            if (data.type === "message_start" && data.message) {
-              usage = data.message.usage || {};
-            }
+              // Handle different event types
+              if (data.type === "message_start" && data.message) {
+                usage = data.message.usage || {};
+              }
 
-            if (data.type === "content_block_start" && data.content_block) {
-              contentBlocks.push(data.content_block);
-            }
+              if (data.type === "content_block_start" && data.content_block) {
+                contentBlocks.push(data.content_block);
+              }
 
-            if (data.type === "content_block_delta" && data.delta?.text) {
+              if (data.type === "content_block_delta" && data.delta?.text) {
               // Accumulate text content
               outputText += data.delta.text;
 
@@ -243,6 +301,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
 
             if (data.type === "message_delta" && data.usage) {
               usage = { ...usage, ...data.usage };
+            }
+            } catch (parseError) {
+              // Skip malformed JSON lines silently
+              continue;
             }
           }
         }
@@ -475,7 +537,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     }
   }
 
-  private unpatch(moduleExports: any, moduleVersion?: string) {
+  private unpatch(moduleExports: BedrockModuleExports, moduleVersion?: string) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
 
     if (moduleExports?.BedrockRuntimeClient) {
