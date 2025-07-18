@@ -108,7 +108,7 @@ public class SemanticConventions {
     @UtilityClass
     public static class ToolCallAttributePostfixes {
         public static final String FUNCTION_NAME = "function.name";
-        public static final String FUNCTION_ARGUMENTS_JSON = "function.arguments";
+        public static final String FUNCTION_ARGUMENTS = "function.arguments";
         public static final String ID = "id";
     }
 
@@ -383,7 +383,7 @@ public class SemanticConventions {
      * tool_call.function.argument (JSON string)
      */
     public static final String TOOL_CALL_FUNCTION_ARGUMENTS_JSON =
-            SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.FUNCTION_ARGUMENTS_JSON;
+            SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.FUNCTION_ARGUMENTS;
 
     /**
      * The id of the tool call
