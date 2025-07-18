@@ -1,4 +1,4 @@
-openai==1.69.0
+openai==1.97.0
 opentelemetry-sdk
 opentelemetry-instrumentation-httpx
 respx
