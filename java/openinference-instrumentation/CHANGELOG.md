@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-v0.1.2...java-openinference-instrumentation-v0.1.3) (2025-07-18)
+
+
+### Features
+
+* add dependabot github action ([#1904](https://github.com/Arize-ai/openinference/issues/1904)) ([1283dfc](https://github.com/Arize-ai/openinference/commit/1283dfc3fcc9f728780f8c6a1ab865aa1f647a63))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-v0.1.1...java-openinference-instrumentation-v0.1.2) (2025-07-18)
 
 
