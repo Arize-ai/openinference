@@ -226,7 +226,6 @@ public class LangChain4jModelListener implements ChatModelListener {
                 && !aiMessage.toolExecutionRequests().isEmpty()) {
             toolCallExtraction(span, prefix, aiMessage);
         }
-        //        span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS), List.of());
     }
 
     private String mapMessageRole(ChatMessageType type) {
@@ -286,7 +285,6 @@ public class LangChain4jModelListener implements ChatModelListener {
                         ToolExecutionResultMessage toolExecutionResultMessage = (ToolExecutionResultMessage) message;
                         messageMap.put(SemanticConventions.MESSAGE_TOOL_CALL_ID, toolExecutionResultMessage.id());
                     }
-                    //                    messageMap.put(SemanticConventions.MESSAGE_TOOL_CALL_ID, message.)
                     break;
             }
 
