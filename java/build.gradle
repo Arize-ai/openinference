@@ -42,7 +42,7 @@ subprojects {
         
         // Testing dependencies
         junitVersion = '5.10.2'
-        mockitoVersion = '5.11.0'
+        mockitoVersion = '5.18.0'
         assertjVersion = '3.25.3'
         
         // Other dependencies
