@@ -1654,30 +1654,615 @@ At the top of the",
 `);
       });
     });
-    //
-    // describe("Cross-Vendor Models", () => {
-    //   // Phase 3.4: Cross-Vendor Model Tests (Tests 9-10)
-    //   // - it("should handle Mistral models", async () => {})
-    //   // - it("should handle Meta LLaMA models", async () => {})
-    // });
-    //
-    // describe("Error Handling", () => {
-    //   // Phase 3.5: Edge Cases and Error Handling (Tests 11-13)
-    //   // - it("should handle missing token counts", async () => {})
-    //   // - it("should handle API error scenarios", async () => {})
-    //   // - it("should handle empty/minimal response", async () => {})
-    // });
-    //
-    // describe("Tool Configuration", () => {
-    //   // Phase 3.6: Tool Configuration Tests (Tests 14-15)
-    //   // - it("should handle tool configuration", async () => {})
-    //   // - it("should handle tool response processing", async () => {})
-    // });
-    //
-    // describe("Context Attributes", () => {
-    //   // Phase 3.7: Context and VCR Infrastructure (Test 16)
-    //   // - it("should handle context attributes with Converse", async () => {})
-    // });
+    
+    describe("Cross-Vendor Models", () => {
+      // Phase 3.4: Cross-Vendor Model Tests (Tests 9-10)
+      
+      it("should handle Mistral models", async () => {
+        setupTestRecording("should-handle-mistral-models");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with Mistral model (different from Anthropic)
+        const mistralModelId = "mistral.mistral-7b-instruct-v0:2";
+        
+        const command = new ConverseCommand({
+          modelId: mistralModelId,
+          messages: [
+            {
+              role: "user",
+              content: [{ text: "Hello, can you tell me about yourself?" }]
+            }
+          ],
+          inferenceConfig: {
+            maxTokens: 100,
+            temperature: 0.1
+          }
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for Mistral model
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"mistral.mistral-7b-instruct-v0:2","messages":[{"role":"user","content":[{"text":"Hello, can you tell me about yourself?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, can you tell me about yourself?",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "mistral.mistral-7b-instruct-v0:2",
+  "llm.output_messages.0.message.contents.0.message_content.text": " I'm an artificial intelligence language model designed to assist with various tasks, answer questions, and engage in conversation. I don't have the ability to have a personal identity or emotions, but I can process and generate text based on the data I've been trained on. I'm here to help answer any questions you might have to the best of my ability. Let me know if there's something specific you'd like to know or discuss!",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 94,
+  "llm.token_count.prompt": 18,
+  "llm.token_count.total": 112,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":962},"output":{"message":{"content":[{"text":" I'm an artificial intelligence language model designed to assist with various tasks, answer questions, and engage in conversation. I don't have the ability to have a personal identity or emotions, but I can process and generate text based on the data I've been trained on. I'm here to help answer any questions you might have to the best of my ability. Let me know if there's something specific you'd like to know or discuss!"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":18,"outputTokens":94,"totalTokens":112}}",
+}
+`);
+      });
+
+      it("should handle Meta LLaMA models", async () => {
+        setupTestRecording("should-handle-meta-llama-models");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with Meta LLaMA model (different from Anthropic)
+        const llamaModelId = "meta.llama3-8b-instruct-v1:0";
+        
+        const command = new ConverseCommand({
+          modelId: llamaModelId,
+          messages: [
+            {
+              role: "user",
+              content: [{ text: "Hello, can you tell me about yourself?" }]
+            }
+          ],
+          inferenceConfig: {
+            maxTokens: 100,
+            temperature: 0.1
+          }
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for Meta LLaMA model
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"meta.llama3-8b-instruct-v1:0","messages":[{"role":"user","content":[{"text":"Hello, can you tell me about yourself?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, can you tell me about yourself?",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "meta.llama3-8b-instruct-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "
+
+I'd be happy to introduce myself.
+
+I am LLaMA, an AI assistant developed by Meta AI that can understand and respond to human input in a conversational manner. I'm a large language model, which means I've been trained on a massive dataset of text from various sources, including books, articles, and online conversations.
+
+I'm designed to be helpful and informative, and I can assist with a wide range of topics and tasks. I can answer questions, provide definitions, offer suggestions",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 23,
+  "llm.token_count.total": 123,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":1061},"output":{"message":{"content":[{"text":"\\n\\nI'd be happy to introduce myself.\\n\\nI am LLaMA, an AI assistant developed by Meta AI that can understand and respond to human input in a conversational manner. I'm a large language model, which means I've been trained on a massive dataset of text from various sources, including books, articles, and online conversations.\\n\\nI'm designed to be helpful and informative, and I can assist with a wide range of topics and tasks. I can answer questions, provide definitions, offer suggestions"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":23,"outputTokens":100,"totalTokens":123}}",
+}
+`);
+      });
+    });
+    
+    describe("Error Handling", () => {
+      // Phase 3.5: Edge Cases and Error Handling (Tests 11-13)
+      
+      it("should handle missing token counts via converse", async () => {
+        setupTestRecording("should-handle-missing-token-counts");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with request that might have partial token count information
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [
+            {
+              role: "user",
+              content: [{ text: "Brief response please." }]
+            }
+          ],
+          inferenceConfig: {
+            maxTokens: 50,
+            temperature: 0.1
+          }
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for handling missing token counts
+        // Note: This test demonstrates that when inputTokens and totalTokens are missing from the API response,
+        // the instrumentation gracefully handles it by only setting the available token count (outputTokens -> completion)
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Brief response please."}]}],"inferenceConfig":{"maxTokens":50,"temperature":0.1}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Brief response please.",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":50,"temperature":0.1}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "I apologize, but I don't have any previous context or question to provide a brief response to. Could you please ask a specific question or provide more information about what you'd like a brief response on? Once you do, I'll be happy",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 50,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":4083},"output":{"message":{"content":[{"text":"I apologize, but I don't have any previous context or question to provide a brief response to. Could you please ask a specific question or provide more information about what you'd like a brief response on? Once you do, I'll be happy"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"outputTokens":50}}",
+}
+`);
+      });
+
+      it("should handle API error scenarios", async () => {
+        setupTestRecording("should-handle-api-error-scenarios");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with invalid model ID to trigger error
+        const command = new ConverseCommand({
+          modelId: "invalid-model-id",
+          messages: [
+            {
+              role: "user",
+              content: [{ text: "This should fail" }]
+            }
+          ],
+          inferenceConfig: {
+            maxTokens: 50
+          }
+        });
+
+        let error: any;
+        try {
+          await client.send(command);
+        } catch (e) {
+          error = e;
+        }
+
+        // Should have captured error
+        expect(error).toBeDefined();
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for API error scenarios
+        // Even when API calls fail, the instrumentation captures request information
+        expect(span.attributes).toMatchInlineSnapshot(`
+          {
+            "input.mime_type": "application/json",
+            "input.value": "{"modelId":"invalid-model-id","messages":[{"role":"user","content":[{"text":"This should fail"}]}],"inferenceConfig":{"maxTokens":50}}",
+            "llm.input_messages.0.message.contents.0.message_content.text": "This should fail",
+            "llm.input_messages.0.message.contents.0.message_content.type": "text",
+            "llm.input_messages.0.message.role": "user",
+            "llm.invocation_parameters": "{"maxTokens":50}",
+            "llm.model_name": "invalid-model-id",
+            "llm.system": "bedrock",
+            "openinference.span.kind": "LLM",
+          }
+        `);
+      });
+
+      it("should handle empty/minimal response", async () => {
+        setupTestRecording("should-handle-empty-minimal-response");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with minimal parameters
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [
+            {
+              role: "user",
+              content: [{ text: "One word response." }]
+            }
+          ]
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for empty/minimal response
+        // Tests graceful handling of minimal API response with empty text content and missing optional fields
+        expect(span.attributes).toMatchInlineSnapshot(`
+          {
+            "input.mime_type": "application/json",
+            "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"One word response."}]}]}",
+            "llm.input_messages.0.message.contents.0.message_content.text": "One word response.",
+            "llm.input_messages.0.message.contents.0.message_content.type": "text",
+            "llm.input_messages.0.message.role": "user",
+            "llm.invocation_parameters": "{}",
+            "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            "llm.output_messages.0.message.contents.0.message_content.type": "text",
+            "llm.output_messages.0.message.role": "assistant",
+            "llm.stop_reason": "end_turn",
+            "llm.system": "bedrock",
+            "openinference.span.kind": "LLM",
+            "output.mime_type": "application/json",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"output":{"message":{"content":[{"text":""}],"role":"assistant"}},"stopReason":"end_turn"}",
+          }
+        `);
+      });
+    });
+    
+    describe("Tool Configuration", () => {
+      // Phase 3.6: Tool Configuration Tests (Tests 14-15)
+      
+      it("should handle tool configuration", async () => {
+        setupTestRecording("should-handle-tool-configuration");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with Converse-specific tool configuration
+        const toolConfig = {
+          tools: [
+            {
+              toolSpec: {
+                name: "get_weather",
+                description: "Get current weather for a location",
+                inputSchema: {
+                  json: {
+                    type: "object",
+                    properties: {
+                      location: {
+                        type: "string",
+                        description: "The city and state, e.g. San Francisco, CA"
+                      },
+                      unit: {
+                        type: "string",
+                        enum: ["celsius", "fahrenheit"],
+                        description: "Temperature unit"
+                      }
+                    },
+                    required: ["location"]
+                  }
+                }
+              }
+            }
+          ]
+        };
+
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [
+            {
+              role: "user",
+              content: [{ text: "What's the weather in San Francisco?" }]
+            }
+          ],
+          toolConfig: toolConfig,
+          inferenceConfig: {
+            maxTokens: 100,
+            temperature: 0.1
+          }
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for tool configuration
+        // Tests proper handling of tool definitions and tool use responses
+        expect(span.attributes).toMatchInlineSnapshot(`
+          {
+            "input.mime_type": "application/json",
+            "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's the weather in San Francisco?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}]},"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather in San Francisco?",
+            "llm.input_messages.0.message.contents.0.message_content.type": "text",
+            "llm.input_messages.0.message.role": "user",
+            "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+            "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            "llm.output_messages.0.message.contents.0.message_content.text": "Certainly! I'd be happy to check the current weather in San Francisco for you. To get this information, I'll need to use the weather tool. Let me fetch that data for you.",
+            "llm.output_messages.0.message.contents.0.message_content.type": "text",
+            "llm.output_messages.0.message.contents.1.message_content.tool_use.id": "tooluse_0ae1_ahYROawF4OObK5xBg",
+            "llm.output_messages.0.message.contents.1.message_content.tool_use.input": "{"location":"San Francisco, CA"}",
+            "llm.output_messages.0.message.contents.1.message_content.tool_use.name": "get_weather",
+            "llm.output_messages.0.message.contents.1.message_content.type": "tool_use",
+            "llm.output_messages.0.message.role": "assistant",
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA"}",
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+            "llm.output_messages.0.message.tool_calls.0.tool_call.id": "tooluse_0ae1_ahYROawF4OObK5xBg",
+            "llm.stop_reason": "max_tokens",
+            "llm.system": "bedrock",
+            "llm.token_count.completion": 100,
+            "llm.token_count.prompt": 408,
+            "llm.token_count.total": 508,
+            "llm.tools.0.tool.description": "Get current weather for a location",
+            "llm.tools.0.tool.json_schema": "{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}",
+            "llm.tools.0.tool.name": "get_weather",
+            "openinference.span.kind": "LLM",
+            "output.mime_type": "application/json",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":2930},"output":{"message":{"content":[{"text":"Certainly! I'd be happy to check the current weather in San Francisco for you. To get this information, I'll need to use the weather tool. Let me fetch that data for you."},{"toolUse":{"input":{"location":"San Francisco, CA"},"name":"get_weather","toolUseId":"tooluse_0ae1_ahYROawF4OObK5xBg"}}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":408,"outputTokens":100,"totalTokens":508}}",
+          }
+        `);
+      });
+
+      it("should handle tool response processing", async () => {
+        setupTestRecording("should-handle-tool-response-processing");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with tool usage in conversation
+        const toolConfig = {
+          tools: [
+            {
+              toolSpec: {
+                name: "calculate",
+                description: "Perform mathematical calculations",
+                inputSchema: {
+                  json: {
+                    type: "object",
+                    properties: {
+                      expression: {
+                        type: "string",
+                        description: "Mathematical expression to evaluate"
+                      }
+                    },
+                    required: ["expression"]
+                  }
+                }
+              }
+            }
+          ]
+        };
+
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [
+            {
+              role: "user",
+              content: [{ text: "What is 15 * 23?" }]
+            }
+          ],
+          toolConfig: toolConfig,
+          inferenceConfig: {
+            maxTokens: 100,
+            temperature: 0.1
+          }
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for tool response processing
+        // Tests natural completion with tool_use stop reason (vs max_tokens in test 14)
+        expect(span.attributes).toMatchInlineSnapshot(`
+          {
+            "input.mime_type": "application/json",
+            "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What is 15 * 23?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"calculate","description":"Perform mathematical calculations","inputSchema":{"json":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}}}}]},"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.input_messages.0.message.contents.0.message_content.text": "What is 15 * 23?",
+            "llm.input_messages.0.message.contents.0.message_content.type": "text",
+            "llm.input_messages.0.message.role": "user",
+            "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+            "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            "llm.output_messages.0.message.contents.0.message_content.text": "To calculate 15 * 23, I can use the \"calculate\" function. Let me do that for you.",
+            "llm.output_messages.0.message.contents.0.message_content.type": "text",
+            "llm.output_messages.0.message.contents.1.message_content.tool_use.id": "tooluse_RVjyNbnRRAqT_YlXqlJDUQ",
+            "llm.output_messages.0.message.contents.1.message_content.tool_use.input": "{"expression":"15 * 23"}",
+            "llm.output_messages.0.message.contents.1.message_content.tool_use.name": "calculate",
+            "llm.output_messages.0.message.contents.1.message_content.type": "tool_use",
+            "llm.output_messages.0.message.role": "assistant",
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"expression":"15 * 23"}",
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "calculate",
+            "llm.output_messages.0.message.tool_calls.0.tool_call.id": "tooluse_RVjyNbnRRAqT_YlXqlJDUQ",
+            "llm.stop_reason": "tool_use",
+            "llm.system": "bedrock",
+            "llm.token_count.completion": 81,
+            "llm.token_count.prompt": 369,
+            "llm.token_count.total": 450,
+            "llm.tools.0.tool.description": "Perform mathematical calculations",
+            "llm.tools.0.tool.json_schema": "{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}",
+            "llm.tools.0.tool.name": "calculate",
+            "openinference.span.kind": "LLM",
+            "output.mime_type": "application/json",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":2249},"output":{"message":{"content":[{"text":"To calculate 15 * 23, I can use the \\"calculate\\" function. Let me do that for you."},{"toolUse":{"input":{"expression":"15 * 23"},"name":"calculate","toolUseId":"tooluse_RVjyNbnRRAqT_YlXqlJDUQ"}}],"role":"assistant"}},"stopReason":"tool_use","usage":{"inputTokens":369,"outputTokens":81,"totalTokens":450}}",
+          }
+        `);
+      });
+    });
+    
+    describe("Context Attributes", () => {
+      // Phase 3.7: Context and VCR Infrastructure (Test 16)
+      
+      it("should handle context attributes with Converse", async () => {
+        setupTestRecording("should-handle-context-attributes-with-converse");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with OpenInference context attributes
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [
+            {
+              role: "user",
+              content: [{ text: "Hello, what's your name?" }]
+            }
+          ],
+          inferenceConfig: {
+            maxTokens: 100,
+            temperature: 0.1
+          }
+        });
+
+        // Setup OpenInference context with all supported attributes (same pattern as InvokeModel test)
+        await context.with(
+          setSession(
+            setUser(
+              setMetadata(
+                setTags(
+                  setPromptTemplate(
+                    context.active(),
+                    {
+                      template: "Hello {{user_input}}, what's your name?",
+                      version: "1.0.0",
+                      variables: { user_input: "user" }
+                    }
+                  ),
+                  ["test", "context", "converse"]
+                ),
+                {
+                  experiment_name: "converse-context-test",
+                  version: "1.0.0",
+                  environment: "testing"
+                }
+              ),
+              { userId: "test-user-converse" }
+            ),
+            { sessionId: "test-session-converse" }
+          ),
+          async () => {
+            // Make the API call within the context
+            const result = await client.send(command);
+            
+            // Basic response structure verification
+            expect(result).toBeDefined();
+            expect(result.output).toBeDefined();
+            
+            // Type-safe checks for nested properties
+            if (result.output?.message) {
+              expect(result.output.message).toBeDefined();
+              expect(result.output.message.role).toBe("assistant");
+            } else {
+              fail("Expected result.output.message to be defined");
+            }
+
+            return result;
+          }
+        );
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for context attributes
+        // Tests OpenInference context propagation including session, user, metadata, tags, and prompt template
+        expect(span.attributes).toMatchInlineSnapshot(`
+          {
+            "input.mime_type": "application/json",
+            "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, what's your name?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.input_messages.0.message.contents.0.message_content.text": "Hello, what's your name?",
+            "llm.input_messages.0.message.contents.0.message_content.type": "text",
+            "llm.input_messages.0.message.role": "user",
+            "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+            "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            "llm.output_messages.0.message.contents.0.message_content.text": "My name is Claude. It's nice to meet you!",
+            "llm.output_messages.0.message.contents.0.message_content.type": "text",
+            "llm.output_messages.0.message.role": "assistant",
+            "llm.prompt_template.template": "Hello {{user_input}}, what's your name?",
+            "llm.prompt_template.variables": "{"user_input":"user"}",
+            "llm.prompt_template.version": "1.0.0",
+            "llm.stop_reason": "end_turn",
+            "llm.system": "bedrock",
+            "llm.token_count.completion": 15,
+            "llm.token_count.prompt": 14,
+            "llm.token_count.total": 29,
+            "metadata": "{"experiment_name":"converse-context-test","version":"1.0.0","environment":"testing"}",
+            "openinference.span.kind": "LLM",
+            "output.mime_type": "application/json",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":761},"output":{"message":{"content":[{"text":"My name is Claude. It's nice to meet you!"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":14,"outputTokens":15,"totalTokens":29}}",
+            "session.id": "test-session-converse",
+            "tag.tags": "["test","context","converse"]",
+            "user.id": "test-user-converse",
+          }
+        `);
+      });
+    });
     //
     // Use pattern: BEDROCK_RECORD_MODE=record npm test -- --testNamePattern="test name"
   });
