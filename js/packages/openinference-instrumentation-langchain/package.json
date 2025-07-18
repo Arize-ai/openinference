@@ -45,7 +45,7 @@
   "devDependencies": {
     "@langchain/core": "^0.3.13",
     "@langchain/coreV0.2": "npm:@langchain/core@^0.2.0",
-    "@langchain/openai": "^0.3.17",
+    "@langchain/openai": "^0.6.2",
     "@langchain/openaiV0.2": "npm:@langchain/openai@^0.2.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
     "@opentelemetry/resources": "^1.25.1",
