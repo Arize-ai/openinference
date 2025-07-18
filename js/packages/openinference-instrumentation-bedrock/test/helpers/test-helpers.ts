@@ -18,7 +18,10 @@ export const verifyResponseStructure = (result: any) => {
 };
 
 // Helper function to verify basic span structure and return the span
-export const verifySpanBasics = (spanExporter: InMemorySpanExporter, expectedSpanName?: string) => {
+export const verifySpanBasics = (
+  spanExporter: InMemorySpanExporter,
+  expectedSpanName?: string,
+) => {
   const spans = spanExporter.getFinishedSpans();
   expect(spans).toHaveLength(1);
 
@@ -52,7 +55,9 @@ export interface TestContextOptions {
  * @param options - Context configuration options
  * @returns Context with OpenInference attributes set
  */
-export const createTestContext = (options: TestContextOptions = {}): Context => {
+export const createTestContext = (
+  options: TestContextOptions = {},
+): Context => {
   let testContext = context.active();
 
   if (options.sessionId) {
@@ -86,7 +91,7 @@ export const createTestContext = (options: TestContextOptions = {}): Context => 
  */
 export const withTestContext = async <T>(
   options: TestContextOptions,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> => {
   const testContext = createTestContext(options);
   return context.with(testContext, fn);
@@ -105,13 +110,13 @@ export const createStandardTestContext = (testName: string): Context => {
       test_name: testName,
       experiment_name: "bedrock-context-test",
       version: "1.0.0",
-      environment: "testing"
+      environment: "testing",
     },
     tags: ["test", "bedrock", "context"],
     promptTemplate: {
       template: "You are a helpful assistant. User message: {{message}}",
       version: "1.0.0",
-      variables: { message: "test message" }
-    }
+      variables: { message: "test message" },
+    },
   });
 };

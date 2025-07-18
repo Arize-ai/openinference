@@ -35,16 +35,32 @@ export function extractBaseRequestAttributes(
   const requestBody = parseRequestBody(command);
 
   // Set base attributes individually with null checking
-  setSpanAttribute(span, SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
-  setSpanAttribute(span, SemanticConventions.LLM_SYSTEM, getSystemFromModelId(modelId));
-  setSpanAttribute(span, SemanticConventions.LLM_MODEL_NAME, extractModelName(modelId));
+  setSpanAttribute(
+    span,
+    SemanticConventions.OPENINFERENCE_SPAN_KIND,
+    OpenInferenceSpanKind.LLM,
+  );
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_SYSTEM,
+    getSystemFromModelId(modelId),
+  );
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_MODEL_NAME,
+    extractModelName(modelId),
+  );
   setSpanAttribute(span, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
   setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, LLMProvider.AWS);
 
   // Add invocation parameters for model configuration
   const invocationParams = extractInvocationParameters(requestBody);
   if (Object.keys(invocationParams).length > 0) {
-    setSpanAttribute(span, SemanticConventions.LLM_INVOCATION_PARAMETERS, JSON.stringify(invocationParams));
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_INVOCATION_PARAMETERS,
+      JSON.stringify(invocationParams),
+    );
   }
 }
 
@@ -89,7 +105,7 @@ export function extractInputToolAttributes(
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
-        JSON.stringify(toolFormat)
+        JSON.stringify(toolFormat),
       );
     });
   }
@@ -226,12 +242,15 @@ function addMessageAttributes(
   setSpanAttribute(
     span,
     `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_ROLE}`,
-    message.role
+    message.role,
   );
 
   // Determine if this is a simple text message or complex multimodal message
-  const isSimpleTextMessage = typeof message.content === "string" || 
-    (Array.isArray(message.content) && message.content.length === 1 && message.content[0].type === "text");
+  const isSimpleTextMessage =
+    typeof message.content === "string" ||
+    (Array.isArray(message.content) &&
+      message.content.length === 1 &&
+      message.content[0].type === "text");
 
   if (isSimpleTextMessage) {
     // For simple text messages, use only the top-level message.content
@@ -240,7 +259,7 @@ function addMessageAttributes(
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`,
-        messageContent
+        messageContent,
       );
     }
   } else {
@@ -256,12 +275,12 @@ function addMessageAttributes(
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.${SemanticConventions.TOOL_CALL_ID}`,
-        contentBlock.tool_use_id
+        contentBlock.tool_use_id,
       );
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-        JSON.stringify({ result: contentBlock.content })
+        JSON.stringify({ result: contentBlock.content }),
       );
     });
   }
@@ -283,12 +302,12 @@ function addMessageContentAttributes(
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-      "text"
+      "text",
     );
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-      message.content
+      message.content,
     );
     return;
   }
@@ -297,25 +316,69 @@ function addMessageContentAttributes(
   if (Array.isArray(message.content)) {
     message.content.forEach((content, contentIndex) => {
       const contentPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
-      
+
       if (content.type === "text") {
-        setSpanAttribute(span, `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "text");
-        setSpanAttribute(span, `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`, content.text);
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+          "text",
+        );
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+          content.text,
+        );
       } else if (content.type === "image") {
-        setSpanAttribute(span, `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "image");
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+          "image",
+        );
         if (content.source) {
           const imageUrl = formatImageUrl(content.source);
-          setSpanAttribute(span, `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`, imageUrl);
+          setSpanAttribute(
+            span,
+            `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`,
+            imageUrl,
+          );
         }
       } else if (content.type === "tool_use") {
-        setSpanAttribute(span, `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "tool_use");
-        setSpanAttribute(span, `${contentPrefix}.message_content.tool_use.name`, content.name);
-        setSpanAttribute(span, `${contentPrefix}.message_content.tool_use.input`, JSON.stringify(content.input));
-        setSpanAttribute(span, `${contentPrefix}.message_content.tool_use.id`, content.id);
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+          "tool_use",
+        );
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.message_content.tool_use.name`,
+          content.name,
+        );
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.message_content.tool_use.input`,
+          JSON.stringify(content.input),
+        );
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.message_content.tool_use.id`,
+          content.id,
+        );
       } else if (content.type === "tool_result") {
-        setSpanAttribute(span, `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "tool_result");
-        setSpanAttribute(span, `${contentPrefix}.message_content.tool_result.tool_use_id`, content.tool_use_id);
-        setSpanAttribute(span, `${contentPrefix}.message_content.tool_result.content`, content.content);
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+          "tool_result",
+        );
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.message_content.tool_result.tool_use_id`,
+          content.tool_use_id,
+        );
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.message_content.tool_result.content`,
+          content.content,
+        );
       }
     });
   }

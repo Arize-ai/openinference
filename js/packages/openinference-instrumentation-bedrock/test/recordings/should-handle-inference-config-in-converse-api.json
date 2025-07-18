@@ -6,10 +6,7 @@
     "body": {
       "inferenceConfig": {
         "maxTokens": 150,
-        "stopSequences": [
-          "END",
-          "STOP"
-        ],
+        "stopSequences": ["END", "STOP"],
         "temperature": 0.7,
         "topP": 0.9
       },

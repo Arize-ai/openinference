@@ -155,7 +155,7 @@ export interface ConverseMessage {
 }
 
 // Converse content blocks (similar to ContentBlock but our structured format)
-export type ConverseContentBlock = 
+export type ConverseContentBlock =
   | ConverseTextContent
   | ConverseImageContent
   | ConverseToolUseContent
@@ -243,7 +243,12 @@ export interface ConverseResponseBody {
       content: ConverseContentBlock[];
     };
   };
-  stopReason: "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" | "content_filtered";
+  stopReason:
+    | "end_turn"
+    | "tool_use"
+    | "max_tokens"
+    | "stop_sequence"
+    | "content_filtered";
   usage: {
     inputTokens: number;
     outputTokens: number;
@@ -255,15 +260,17 @@ export interface ConverseResponseBody {
 }
 
 // Type guards for Converse content blocks
-export function isConverseTextContent(content: any): content is ConverseTextContent {
+export function isConverseTextContent(
+  content: any,
+): content is ConverseTextContent {
   return (
-    content &&
-    typeof content === "object" &&
-    typeof content.text === "string"
+    content && typeof content === "object" && typeof content.text === "string"
   );
 }
 
-export function isConverseImageContent(content: any): content is ConverseImageContent {
+export function isConverseImageContent(
+  content: any,
+): content is ConverseImageContent {
   return (
     content &&
     typeof content === "object" &&
@@ -273,7 +280,9 @@ export function isConverseImageContent(content: any): content is ConverseImageCo
   );
 }
 
-export function isConverseToolUseContent(content: any): content is ConverseToolUseContent {
+export function isConverseToolUseContent(
+  content: any,
+): content is ConverseToolUseContent {
   return (
     content &&
     typeof content === "object" &&
@@ -283,7 +292,9 @@ export function isConverseToolUseContent(content: any): content is ConverseToolU
   );
 }
 
-export function isConverseToolResultContent(content: any): content is ConverseToolResultContent {
+export function isConverseToolResultContent(
+  content: any,
+): content is ConverseToolResultContent {
   return (
     content &&
     typeof content === "object" &&
