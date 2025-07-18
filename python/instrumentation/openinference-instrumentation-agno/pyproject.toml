@@ -38,7 +38,7 @@ instruments = [
   "agno>=1.5.2",
 ]
 test = [
-  "agno==1.5.2",
+  "agno==1.7.5",
   "opentelemetry-sdk",
   "pytest-recording",
   "openai",
