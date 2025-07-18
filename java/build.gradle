@@ -41,7 +41,7 @@ subprojects {
         langchain4jVersion = '0.35.0'
         
         // Testing dependencies
-        junitVersion = '5.10.2'
+        junitVersion = '5.13.3'
         mockitoVersion = '5.11.0'
         assertjVersion = '3.25.3'
         
