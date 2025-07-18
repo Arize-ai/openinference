@@ -35,6 +35,7 @@ def generate_dependabot_config():
     # Add common settings to all
     for cfg in base_configs:
         cfg["schedule"] = {"interval": "weekly"}
+        cfg["open-pull-requests-limit"] = 0
         config["updates"].append(cfg)
     
     return yaml.dump(config, default_flow_style=False)
