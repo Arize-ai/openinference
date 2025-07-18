@@ -14,7 +14,6 @@ import {
 
 /**
  * Extracts request attributes from Converse command and sets them on the span
- * Following Python implementation patterns for incremental attribute building
  */
 export function extractConverseRequestAttributes(span: Span, command: ConverseCommand): void {
   const input = command.input as ConverseRequestBody;
@@ -32,7 +31,6 @@ export function extractConverseRequestAttributes(span: Span, command: ConverseCo
 
 /**
  * Extracts base request attributes: model, system, provider, parameters
- * Following Python's incremental attribute building pattern
  */
 function extractBaseRequestAttributes(span: Span, input: ConverseRequestBody): void {
   // Model identification
@@ -58,13 +56,12 @@ function extractBaseRequestAttributes(span: Span, input: ConverseRequestBody): v
 
 /**
  * Extracts input messages attributes with system prompt aggregation
- * Following Python's message processing patterns
  */
 function extractInputMessagesAttributes(span: Span, input: ConverseRequestBody): void {
   const systemPrompts: SystemPrompt[] = input.system || [];
   const messages: ConverseMessage[] = input.messages || [];
 
-  // Aggregate system prompts and messages following Python pattern
+  // Aggregate system prompts and messages 
   const aggregatedMessages = aggregateMessages(systemPrompts, messages);
 
   // Process all messages with proper indexing
@@ -73,7 +70,6 @@ function extractInputMessagesAttributes(span: Span, input: ConverseRequestBody):
 
 /**
  * Extracts tool configuration attributes
- * Following Python's tool processing patterns
  */
 function extractInputToolAttributes(span: Span, input: ConverseRequestBody): void {
   const toolConfig = input.toolConfig;

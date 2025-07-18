@@ -401,7 +401,7 @@ The key things are to dress for the warm temperatures and have layers you can",
       ).toBeDefined();
 
       // Token count attributes should either be undefined or gracefully handled
-      // This test verifies the implementation doesn't crash when usage is missing
+      // This test verifies graceful handling when usage is missing
       const hasTokenCounts =
         span.attributes["llm.token_count.prompt"] !== undefined ||
         span.attributes["llm.token_count.completion"] !== undefined ||
@@ -830,7 +830,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 `);
     });
 
-    // PRIORITY 3: Advanced InvokeModel Scenarios (3 tests for complete coverage)
+    // Advanced InvokeModel Scenarios (3 tests for complete coverage)
     
     it("should propagate OpenInference context attributes", async () => {
       const testName = "should-handle-context-attributes";
@@ -1092,7 +1092,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
         
-        // Comprehensive span attributes snapshot matching Python implementation
+        // Comprehensive span attributes snapshot
         expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
@@ -1315,7 +1315,7 @@ In essence, machine learning allows computers to learn from data and make predic
     });
 
     describe("Multi-Turn Conversations", () => {
-      // Phase 3.2: Multi-Turn Conversation Tests (Tests 5-6)
+      // Multi-Turn Conversation Tests (Tests 5-6)
       
       it("should handle two-turn conversation with proper message indexing", async () => {
         setupTestRecording("should-handle-two-turn-conversation-with-proper-message-indexing");
@@ -1496,7 +1496,7 @@ Ba dum tss! I hope that gave you a little chuckle. If not, don't worry - I've go
     });
 
     describe("Multi-Modal Content", () => {
-      // Phase 3.3: Multi-Modal Content Tests (Tests 7-8)
+      // Multi-Modal Content Tests (Tests 7-8)
       
       it("should handle text plus image content with detailed structure", async () => {
         setupTestRecording("should-handle-text-plus-image-content-with-detailed-structure");
@@ -1580,7 +1580,7 @@ While I can see the handwriting, I'm not able to read or transcribe the specific
 
         const client = createTestClient(isRecordingMode);
 
-        // Test with JPEG format (different from Test 7's PNG)
+        // Test with JPEG format (different from other image test PNG)
         // Use the same working image data format as InvokeModel test
         const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
         
@@ -1656,7 +1656,7 @@ At the top of the",
     });
     
     describe("Cross-Vendor Models", () => {
-      // Phase 3.4: Cross-Vendor Model Tests (Tests 9-10)
+      // Cross-Vendor Model Tests (Tests 9-10)
       
       it("should handle Mistral models", async () => {
         setupTestRecording("should-handle-mistral-models");
@@ -1792,7 +1792,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
     });
     
     describe("Error Handling", () => {
-      // Phase 3.5: Edge Cases and Error Handling (Tests 11-13)
+      // Edge Cases and Error Handling (Tests 11-13)
       
       it("should handle missing token counts via converse", async () => {
         setupTestRecording("should-handle-missing-token-counts");
@@ -1959,7 +1959,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
     });
     
     describe("Tool Configuration", () => {
-      // Phase 3.6: Tool Configuration Tests (Tests 14-15)
+      // Tool Configuration Tests
       
       it("should handle tool configuration", async () => {
         setupTestRecording("should-handle-tool-configuration");
@@ -2123,7 +2123,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
         
         // Comprehensive span attributes snapshot for tool response processing
-        // Tests natural completion with tool_use stop reason (vs max_tokens in test 14)
+        // Tests natural completion with tool_use stop reason (vs max_tokens in previous test)
         expect(span.attributes).toMatchInlineSnapshot(`
           {
             "input.mime_type": "application/json",
@@ -2160,7 +2160,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
     });
     
     describe("Context Attributes", () => {
-      // Phase 3.7: Context and VCR Infrastructure (Test 16)
+      // Context and VCR Infrastructure
       
       it("should handle context attributes with Converse", async () => {
         setupTestRecording("should-handle-context-attributes-with-converse");
@@ -2182,7 +2182,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           }
         });
 
-        // Setup OpenInference context with all supported attributes (same pattern as InvokeModel test)
+        // Setup OpenInference context with all supported attributes
         await context.with(
           setSession(
             setUser(

@@ -126,7 +126,6 @@ export function extractUsageAttributes(
 
 /**
  * Adds detailed output message content structure attributes
- * Phase 2: Message Content Structure Enhancement
  */
 function addOutputMessageContentAttributes(
   responseBody: InvokeModelResponseBody,
