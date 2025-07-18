@@ -1,4 +1,4 @@
-autogen-agentchat==0.5.1
+autogen-agentchat==0.6.4
 autogen-ext[openai]==0.5.1
 opentelemetry-sdk
 pytest-asyncio
