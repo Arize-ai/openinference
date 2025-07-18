@@ -14,7 +14,7 @@ import {
   MimeType,
   LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
-import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { InvokeModelCommand, InferenceConfiguration } from "@aws-sdk/client-bedrock-runtime";
 import { InvokeModelRequestBody, BedrockMessage } from "../types/bedrock-types";
 import {
   extractTextFromContent,
@@ -195,27 +195,44 @@ function parseRequestBody(command: InvokeModelCommand): InvokeModelRequestBody {
 }
 
 /**
- * Extracts invocation parameters from request body
+ * Interface for invocation parameters combining AWS SDK standard interface with vendor-specific parameters
+ * Uses AWS SDK's InferenceConfiguration for standard parameters across all model vendors
+ */
+interface ExtractedInvocationParameters extends Partial<InferenceConfiguration> {
+  // Vendor-specific parameters currently supported in the existing codebase
+  top_k?: number;                    // Used by Anthropic and other models
+  anthropic_version?: string;        // Anthropic-specific API version
+}
+
+/**
+ * Extracts invocation parameters from request body using AWS SDK standards
+ * Maps snake_case parameter names to camelCase AWS SDK convention where applicable
  */
 function extractInvocationParameters(
   requestBody: InvokeModelRequestBody,
-): Record<string, any> {
-  const invocationParams: Record<string, any> = {};
+): ExtractedInvocationParameters {
+  const invocationParams: ExtractedInvocationParameters = {};
 
-  if (requestBody.anthropic_version) {
-    invocationParams.anthropic_version = requestBody.anthropic_version;
-  }
+  // Standard AWS SDK parameters (using camelCase naming)
   if (requestBody.max_tokens) {
-    invocationParams.max_tokens = requestBody.max_tokens;
+    invocationParams.maxTokens = requestBody.max_tokens;
   }
   if (requestBody.temperature !== undefined) {
     invocationParams.temperature = requestBody.temperature;
   }
   if (requestBody.top_p !== undefined) {
-    invocationParams.top_p = requestBody.top_p;
+    invocationParams.topP = requestBody.top_p;
   }
+  if (requestBody.stop_sequences) {
+    invocationParams.stopSequences = requestBody.stop_sequences;
+  }
+
+  // Vendor-specific parameters currently supported in the existing codebase
   if (requestBody.top_k !== undefined) {
     invocationParams.top_k = requestBody.top_k;
+  }
+  if (requestBody.anthropic_version) {
+    invocationParams.anthropic_version = requestBody.anthropic_version;
   }
 
   return invocationParams;
