@@ -47,6 +47,6 @@
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "jest": "^29.7.0",
     "openai": "^5.7.0",
-    "zod": "^3.24.3"
+    "zod": "^4.0.5"
   }
 }
