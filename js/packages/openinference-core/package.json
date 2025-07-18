@@ -47,7 +47,7 @@
   "devDependencies": {
     "@opentelemetry/context-async-hooks": "^1.25.1",
     "@opentelemetry/resources": "^1.19.0",
-    "@opentelemetry/sdk-trace-base": "^1.19.0",
+    "@opentelemetry/sdk-trace-base": "^2.0.1",
     "@opentelemetry/sdk-trace-node": "^1.19.0",
     "@opentelemetry/semantic-conventions": "^1.19.0",
     "@types/jest": "^29.5.12",
