@@ -28,6 +28,6 @@
     "python/instrumentation/openinference-instrumentation-google-adk": "0.1.1",
     "python/instrumentation/openinference-instrumentation-openllmetry": "0.1.1",
     "java/openinference-semantic-conventions": "0.1.5",
-    "java/openinference-instrumentation": "0.1.2",
+    "java/openinference-instrumentation": "0.1.3",
     "java/instrumentation/openinference-instrumentation-langchain4j": "0.1.2"
 }
