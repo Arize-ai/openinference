@@ -2,20 +2,12 @@
  * Test Data Generators for AWS Bedrock Instrumentation Tests
  *
  * This module provides utilities for generating varied test inputs to ensure
- * comprehensive coverage of Bedrock API scenarios including tool calls,
- * multi-modal content, and different message structures.
+ * comprehensive coverage of Bedrock API scenarios including tool calls.
  */
 
 import { ToolDefinition } from "../../src/types/bedrock-types";
 
-// Type definitions
-interface BasicTextMessageOptions {
-  prompt?: string;
-  modelId?: string;
-  maxTokens?: number;
-  systemPrompt?: string | null;
-}
-
+// Type definitions for the functions we actually use
 interface ToolCallMessageOptions {
   prompt?: string;
   tools?: ToolDefinition[];
@@ -35,52 +27,9 @@ interface ToolResultMessageOptions {
   maxTokens?: number;
 }
 
-interface MultiModalMessageOptions {
-  textPrompt?: string;
-  imageData?: string;
-  mediaType?: string;
-  modelId?: string;
-  maxTokens?: number;
-}
-
-interface ConverseMessageOptions {
-  messages?: unknown[];
-  system?: string | unknown[] | null;
-  toolConfig?: unknown | null;
-  inferenceConfig?: { maxTokens: number };
-  modelId?: string;
-}
-
-interface ConverseWithToolsOptions {
-  prompt?: string;
-  tools?: unknown[];
-  modelId?: string;
-}
-
-interface AgentMessageOptions {
-  agentId?: string;
-  agentAliasId?: string;
-  sessionId?: string;
-  inputText?: string;
-  enableTrace?: boolean;
-}
-
-interface ToolSchema {
-  properties: Record<string, any>;
-  required?: string[];
-}
-
 interface TestMessageResult {
   modelId: string;
   body: string;
-}
-
-interface ConverseResult {
-  modelId: string;
-  messages: unknown[];
-  inferenceConfig: { maxTokens: number };
-  system?: unknown[];
-  toolConfig?: unknown;
 }
 
 /**
@@ -88,44 +37,9 @@ interface ConverseResult {
  */
 const defaults = {
   modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
-  region: "us-east-1",
   maxTokens: 100,
   anthropicVersion: "bedrock-2023-05-31",
 };
-
-/**
- * Generates basic text message for InvokeModel API
- */
-function generateBasicTextMessage(
-  options: BasicTextMessageOptions = {},
-): TestMessageResult {
-  const {
-    prompt = "Hello, how are you today?",
-    modelId = defaults.modelId,
-    maxTokens = defaults.maxTokens,
-    systemPrompt = null,
-  } = options;
-
-  const body: Record<string, unknown> = {
-    anthropic_version: defaults.anthropicVersion,
-    max_tokens: maxTokens,
-    messages: [
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  };
-
-  if (systemPrompt) {
-    body.system = systemPrompt;
-  }
-
-  return {
-    modelId,
-    body: JSON.stringify(body),
-  };
-}
 
 /**
  * Generates tool definition for function calling
@@ -133,7 +47,7 @@ function generateBasicTextMessage(
 function generateToolDefinition(
   name: string,
   description: string,
-  schema: ToolSchema,
+  schema: { properties: Record<string, any>; required?: string[] },
 ): ToolDefinition {
   return {
     name,
@@ -296,269 +210,9 @@ function generateToolResultMessage(
   };
 }
 
-/**
- * Generates multi-modal message with image
- */
-function generateMultiModalMessage(
-  options: MultiModalMessageOptions = {},
-): TestMessageResult {
-  const {
-    textPrompt = "What do you see in this image?",
-    imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
-    mediaType = "image/png",
-    modelId = defaults.modelId,
-    maxTokens = defaults.maxTokens,
-  } = options;
-
-  const body: Record<string, unknown> = {
-    anthropic_version: defaults.anthropicVersion,
-    max_tokens: maxTokens,
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: textPrompt,
-          },
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: mediaType,
-              data: imageData,
-            },
-          },
-        ],
-      },
-    ],
-  };
-
-  return {
-    modelId,
-    body: JSON.stringify(body),
-  };
-}
-
-/**
- * Generates Converse API request (modern API)
- */
-function generateConverseMessage(
-  options: ConverseMessageOptions = {},
-): ConverseResult {
-  const {
-    messages = [{ role: "user", content: [{ text: "Hello!" }] }],
-    system = null,
-    toolConfig = null,
-    inferenceConfig = { maxTokens: defaults.maxTokens },
-    modelId = defaults.modelId,
-  } = options;
-
-  const request: ConverseResult = {
-    modelId,
-    messages,
-    inferenceConfig,
-  };
-
-  if (system) {
-    request.system = Array.isArray(system) ? system : [{ text: system }];
-  }
-
-  if (toolConfig) {
-    request.toolConfig = toolConfig;
-  }
-
-  return request;
-}
-
-/**
- * Generates Converse API request with tools
- */
-function generateConverseWithTools(
-  options: ConverseWithToolsOptions = {},
-): ConverseResult {
-  const {
-    prompt = "Calculate 15 * 23",
-    tools = [
-      {
-        toolSpec: {
-          name: "calculator",
-          description: "Perform mathematical calculations",
-          inputSchema: {
-            json: {
-              type: "object",
-              properties: {
-                expression: { type: "string" },
-              },
-              required: ["expression"],
-            },
-          },
-        },
-      },
-    ],
-    modelId = defaults.modelId,
-  } = options;
-
-  return generateConverseMessage({
-    messages: [{ role: "user", content: [{ text: prompt }] }],
-    toolConfig: { tools },
-    modelId,
-  });
-}
-
-/**
- * Generates InvokeAgent request for agent workflows
- */
-function generateAgentMessage(options: AgentMessageOptions = {}) {
-  const {
-    agentId = "test-agent-123",
-    agentAliasId = "test-alias",
-    sessionId = "test-session-456",
-    inputText = "Help me plan a trip to Japan",
-    enableTrace = true,
-  } = options;
-
-  return {
-    agentId,
-    agentAliasId,
-    sessionId,
-    inputText,
-    enableTrace,
-  };
-}
-
-/**
- * Generates streaming request variants
- */
-function generateStreamingVariants(
-  baseRequest: TestMessageResult | ConverseResult,
-  apiType: string = "invokeModel",
-) {
-  const variants: Record<string, TestMessageResult | ConverseResult> = {
-    invokeModel: {
-      ...baseRequest,
-      // InvokeModelWithResponseStream has same structure
-    },
-    converse: {
-      ...baseRequest,
-      // ConverseStream has same structure
-    },
-    agent: {
-      ...baseRequest,
-      // Agent calls are always streaming
-    },
-  };
-
-  return variants[apiType] || baseRequest;
-}
-
-/**
- * Error scenario generators
- */
-const errorScenarios = {
-  invalidModel: (baseRequest: TestMessageResult): TestMessageResult => ({
-    ...baseRequest,
-    modelId: "invalid-model-id",
-  }),
-
-  malformedBody: (baseRequest: TestMessageResult): TestMessageResult => ({
-    ...baseRequest,
-    body: '{"invalid": json',
-  }),
-
-  missingRegion: (baseRequest: TestMessageResult): TestMessageResult => ({
-    ...baseRequest,
-    // Will cause region-related errors
-  }),
-
-  invalidToolSchema: (baseRequest: TestMessageResult): TestMessageResult => {
-    const parsed = JSON.parse(baseRequest.body);
-    parsed.tools = [
-      {
-        name: "invalid_tool",
-        // Missing required fields
-      },
-    ];
-    return {
-      ...baseRequest,
-      body: JSON.stringify(parsed),
-    };
-  },
-};
-
-/**
- * Generates test data for different complexity levels
- */
-function generateTestSuite() {
-  return {
-    basic: {
-      simple: generateBasicTextMessage(),
-      withSystem: generateBasicTextMessage({
-        systemPrompt: "You are a helpful assistant.",
-      }),
-      longPrompt: generateBasicTextMessage({
-        prompt: "Tell me a detailed story about " + "adventure ".repeat(50),
-      }),
-    },
-
-    tools: {
-      singleTool: generateToolCallMessage(),
-      multipleTools: generateToolCallMessage({
-        tools: [commonTools.weather, commonTools.calculator],
-      }),
-      toolResult: generateToolResultMessage(),
-    },
-
-    multimodal: {
-      textAndImage: generateMultiModalMessage(),
-      multipleImages: generateMultiModalMessage({
-        // Would need to be expanded for multiple images
-      }),
-    },
-
-    converse: {
-      basic: generateConverseMessage(),
-      withTools: generateConverseWithTools(),
-      withSystem: generateConverseMessage({
-        system: "You are a helpful assistant",
-        messages: [{ role: "user", content: [{ text: "Hello!" }] }],
-      }),
-    },
-
-    agent: {
-      basic: generateAgentMessage(),
-      withTrace: generateAgentMessage({ enableTrace: true }),
-    },
-
-    errors: {
-      invalidModel: errorScenarios.invalidModel(generateBasicTextMessage()),
-      malformedBody: errorScenarios.malformedBody(generateBasicTextMessage()),
-      invalidTool: errorScenarios.invalidToolSchema(generateToolCallMessage()),
-    },
-  };
-}
-
 export {
-  // Individual generators
-  generateBasicTextMessage,
+  // Used functions only
   generateToolCallMessage,
   generateToolResultMessage,
-  generateMultiModalMessage,
-  generateConverseMessage,
-  generateConverseWithTools,
-  generateAgentMessage,
-  generateStreamingVariants,
-
-  // Tool definitions
-  generateToolDefinition,
   commonTools,
-
-  // Error scenarios
-  errorScenarios,
-
-  // Test suite
-  generateTestSuite,
-
-  // Constants
-  defaults,
 };
