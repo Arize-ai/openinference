@@ -1937,11 +1937,11 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           },
         });
 
-        let error: any;
+        let error: Error | undefined;
         try {
           await client.send(command);
         } catch (e) {
-          error = e;
+          error = e as Error;
         }
 
         // Should have captured error

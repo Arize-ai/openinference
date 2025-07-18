@@ -44,16 +44,16 @@ interface MultiModalMessageOptions {
 }
 
 interface ConverseMessageOptions {
-  messages?: any[];
-  system?: string | any[] | null;
-  toolConfig?: any | null;
+  messages?: unknown[];
+  system?: string | unknown[] | null;
+  toolConfig?: unknown | null;
   inferenceConfig?: { maxTokens: number };
   modelId?: string;
 }
 
 interface ConverseWithToolsOptions {
   prompt?: string;
-  tools?: any[];
+  tools?: unknown[];
   modelId?: string;
 }
 
@@ -77,10 +77,10 @@ interface TestMessageResult {
 
 interface ConverseResult {
   modelId: string;
-  messages: any[];
+  messages: unknown[];
   inferenceConfig: { maxTokens: number };
-  system?: any[];
-  toolConfig?: any;
+  system?: unknown[];
+  toolConfig?: unknown;
 }
 
 /**
@@ -106,7 +106,7 @@ function generateBasicTextMessage(
     systemPrompt = null,
   } = options;
 
-  const body: any = {
+  const body: Record<string, unknown> = {
     anthropic_version: defaults.anthropicVersion,
     max_tokens: maxTokens,
     messages: [
@@ -217,7 +217,7 @@ function generateToolCallMessage(
     maxTokens = defaults.maxTokens,
   } = options;
 
-  const body: any = {
+  const body: Record<string, unknown> = {
     anthropic_version: defaults.anthropicVersion,
     max_tokens: maxTokens,
     tools,
@@ -253,7 +253,7 @@ function generateToolResultMessage(
     maxTokens = defaults.maxTokens,
   } = options;
 
-  const body: any = {
+  const body: Record<string, unknown> = {
     anthropic_version: defaults.anthropicVersion,
     max_tokens: maxTokens,
     tools,
@@ -310,7 +310,7 @@ function generateMultiModalMessage(
     maxTokens = defaults.maxTokens,
   } = options;
 
-  const body: any = {
+  const body: Record<string, unknown> = {
     anthropic_version: defaults.anthropicVersion,
     max_tokens: maxTokens,
     messages: [
@@ -354,7 +354,7 @@ function generateConverseMessage(
     modelId = defaults.modelId,
   } = options;
 
-  const request: any = {
+  const request: ConverseResult = {
     modelId,
     messages,
     inferenceConfig,

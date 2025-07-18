@@ -83,9 +83,15 @@ export const createNockMock = (
 };
 
 // Helper function to sanitize auth headers in recordings
-export const sanitizeAuthHeaders = (recordings: any[]) => {
-  recordings.forEach((recording: any) => {
-    if (recording.reqheaders) {
+export const sanitizeAuthHeaders = (recordings: unknown[]) => {
+  recordings.forEach((recording) => {
+    if (
+      recording &&
+      typeof recording === "object" &&
+      "reqheaders" in recording &&
+      recording.reqheaders &&
+      typeof recording.reqheaders === "object"
+    ) {
       Object.assign(recording.reqheaders, MOCK_AUTH_HEADERS);
     }
   });

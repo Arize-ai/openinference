@@ -8,8 +8,14 @@ import {
   setPromptTemplate,
 } from "@arizeai/openinference-core";
 
+// Interface for API response structure verification
+interface ApiResponse {
+  body: unknown;
+  contentType?: string;
+}
+
 // Helper function to verify response structure
-export const verifyResponseStructure = (result: any) => {
+export const verifyResponseStructure = (result: ApiResponse) => {
   expect(result.body).toBeDefined();
   // Only check contentType for non-streaming responses
   if (result.contentType !== undefined) {
