@@ -34,7 +34,7 @@ subprojects {
     ext {
         // OpenTelemetry versions
         openTelemetryVersion = '1.49.0'
-        openTelemetryInstrumentationVersion = '2.14.0'
+        openTelemetryInstrumentationVersion = '2.18.0'
         openTelemetryInstrumentationAlphaVersion = '2.14.0-alpha'
         
         // LangChain4j version
