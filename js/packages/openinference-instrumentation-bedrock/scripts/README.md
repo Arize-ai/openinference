@@ -8,9 +8,9 @@ This directory contains validation scripts for testing the Bedrock instrumentati
 
 Tests the Bedrock InvokeModel API instrumentation by making actual API calls and verifying traces are created correctly.
 
-### `validate-converse.ts`
+### `validate-converse-comprehensive.ts`
 
-Tests the Bedrock Converse API instrumentation by executing a comprehensive conversation scenario that combines multiple test cases into a single realistic conversation flow.
+Tests the Bedrock Converse API instrumentation with 6 comprehensive scenarios that cover all major test cases: basic flow, multi-turn conversation, tool calling, multi-modal content, context attributes, and error handling.
 
 #### Prerequisites
 
@@ -86,54 +86,68 @@ The script provides detailed output including:
 
 ---
 
-## Converse API Validation
+## Converse API Comprehensive Validation
 
-### `validate-converse.ts`
+### `validate-converse-comprehensive.ts`
 
-The Converse API validation script tests the modern Bedrock Converse API instrumentation through a single comprehensive conversation that combines multiple test scenarios.
+The Converse API comprehensive validation script tests the modern Bedrock Converse API instrumentation through 6 distinct scenarios that cover all major test cases and send separate spans to Phoenix for detailed analysis.
 
 #### Usage
 
 ```bash
-# Run comprehensive Converse API validation
-npm run validate:converse
+# Run all 6 comprehensive scenarios
+npm run validate:converse-comprehensive
 
 # Or use tsx directly
-npx tsx scripts/validate-converse.ts
+npx tsx scripts/validate-converse-comprehensive.ts
+
+# Run specific scenario
+npx tsx scripts/validate-converse-comprehensive.ts --scenario tool-calling
 
 # Test with different model
-npx tsx scripts/validate-converse.ts --model-id anthropic.claude-3-5-sonnet-20240620-v1:0
+npx tsx scripts/validate-converse-comprehensive.ts --model-id anthropic.claude-3-5-sonnet-20240620-v1:0
 
 # Enable debug logging
-npx tsx scripts/validate-converse.ts --debug
+npx tsx scripts/validate-converse-comprehensive.ts --debug
 
 # Use console output only (no Phoenix export)
-npx tsx scripts/validate-converse.ts --phoenix-endpoint console
+npx tsx scripts/validate-converse-comprehensive.ts --phoenix-endpoint console
 ```
 
-#### Comprehensive Test Scenario
+#### Six Comprehensive Test Scenarios
 
-The script executes a single realistic conversation that tests:
+The script executes 6 separate scenarios, each creating its own span in Phoenix:
 
-1. **System Prompt Integration**: Multiple system prompts that are concatenated
-2. **Multi-Turn Conversation**: 3-turn conversation with full history
-3. **Multi-Modal Content**: Text + image content processing
-4. **Tool Configuration**: 3 available tools (data analysis, visualization, web search)
-5. **Inference Configuration**: maxTokens, temperature, topP, stopSequences
-6. **OpenInference Context**: Session, user, metadata, tags, prompt template attributes
-7. **Complex Message Structure**: Detailed content structure with proper indexing
-8. **Response Processing**: Tool call detection and response validation
+1. **basic-flow**: Simple conversation with system prompt and inference configuration
+2. **multi-turn**: Complex conversation history with multiple turns
+3. **tool-calling**: Tool configuration and usage with multiple tools (weather + calculator)
+4. **multi-modal**: Text + image content using PNG data
+5. **context-attributes**: Comprehensive OpenInference context propagation (session, user, metadata, tags, prompt template)
+6. **error-case**: API error handling with invalid model ID
+
+#### Available Scenarios
+
+Run individual scenarios with `--scenario <name>`:
+
+- `basic-flow` - Simple conversation with system prompt
+- `multi-turn` - Complex conversation history
+- `tool-calling` - Tool configuration and usage
+- `multi-modal` - Text + image content
+- `context-attributes` - OpenInference context propagation
+- `error-case` - API error handling
+- `all` - Run all scenarios (default)
 
 #### Expected Output
 
 The validation script provides comprehensive feedback on:
 
 - ✅ Instrumentation verification and setup
-- 📊 Comprehensive conversation execution
+- 📊 Six distinct scenario executions
 - 🔧 Tool call detection and analysis
+- 🖼️ Multi-modal content processing
 - 💬 Response content validation
-- 📈 Token usage statistics
+- 📈 Token usage statistics for each scenario
 - 📋 Complete test scenario coverage confirmation
-- ⏳ Trace export to Phoenix
+- ⏳ Trace export to Phoenix (6 separate spans)
 
-This single conversation scenario is designed to match the complexity and coverage of multiple unit tests, providing a realistic validation of the Converse API instrumentation in a production-like environment.
+This comprehensive validation approach provides detailed testing of the Converse API instrumentation across all major use cases, with each scenario creating a separate trace in Phoenix for granular analysis and debugging.
