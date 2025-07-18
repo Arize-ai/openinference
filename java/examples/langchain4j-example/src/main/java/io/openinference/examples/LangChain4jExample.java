@@ -4,7 +4,6 @@ import static com.arize.semconv.trace.SemanticResourceAttributes.SEMRESATTRS_PRO
 
 import com.arize.instrumentation.langchain4j.LangChain4jInstrumentor;
 import com.arize.instrumentation.langchain4j.LangChain4jModelListener;
-import dev.ai4j.openai4j.chat.ToolMessage;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -55,13 +54,10 @@ public class LangChain4jExample {
     static class WeatherTools {
 
         @Tool("Returns the weather forecast for a given city")
-        String getWeather(
-                @P("The city for which the weather forecast should be returned") String city
-        ) {
+        String getWeather(@P("The city for which the weather forecast should be returned") String city) {
             return "85 degrees";
         }
     }
-
 
     public static void main(String[] args) {
         initializeOpenTelemetry();
@@ -94,22 +90,26 @@ public class LangChain4jExample {
 
         // Example with multiple messages to show conversation tracing
         logger.info("\nSending another request...");
-        Response<AiMessage> response2 = model.generate(List.of(
-                UserMessage.from("What is the capital of France? Answer in one sentence."),
-                response.content(),
-                UserMessage.from("What about Germany? also whats the weather like in germany")), toolSpecifications);
-        logger.info("Response: " + response2);
-
-        Stream<ToolExecutionResultMessage> toolExecutionResultMessages = response2.content().toolExecutionRequests().stream().map(t -> ToolExecutionResultMessage.from(t, "The weather will be 80 degrees."));
-
-        List<ChatMessage> messages = Stream.concat(
-                Stream.of(
+        Response<AiMessage> response2 = model.generate(
+                List.of(
                         UserMessage.from("What is the capital of France? Answer in one sentence."),
                         response.content(),
-                        UserMessage.from("What about Germany? also whats the weather like in germany"),
-                        response2.content()
-                ),
-                toolExecutionResultMessages).collect(Collectors.toList());
+                        UserMessage.from("What about Germany? also whats the weather like in germany")),
+                toolSpecifications);
+        logger.info("Response: " + response2);
+
+        Stream<ToolExecutionResultMessage> toolExecutionResultMessages =
+                response2.content().toolExecutionRequests().stream()
+                        .map(t -> ToolExecutionResultMessage.from(t, "The weather will be 80 degrees."));
+
+        List<ChatMessage> messages = Stream.concat(
+                        Stream.of(
+                                UserMessage.from("What is the capital of France? Answer in one sentence."),
+                                response.content(),
+                                UserMessage.from("What about Germany? also whats the weather like in germany"),
+                                response2.content()),
+                        toolExecutionResultMessages)
+                .collect(Collectors.toList());
 
         model.generate(messages, toolSpecifications);
 

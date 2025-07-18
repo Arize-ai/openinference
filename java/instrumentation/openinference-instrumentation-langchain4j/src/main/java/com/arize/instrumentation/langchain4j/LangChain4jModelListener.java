@@ -4,7 +4,6 @@ import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ChatMessageType;
@@ -179,8 +178,8 @@ public class LangChain4jModelListener implements ChatModelListener {
             // Set ToolCall
             if (message.type().equals(ChatMessageType.AI)) {
                 AiMessage aiMessage = (AiMessage) message;
-                if (aiMessage.toolExecutionRequests()!= null && !aiMessage.toolExecutionRequests().isEmpty())
-                    toolCallExtraction(span, prefix, aiMessage);
+                if (aiMessage.toolExecutionRequests() != null
+                        && !aiMessage.toolExecutionRequests().isEmpty()) toolCallExtraction(span, prefix, aiMessage);
             }
 
             // Set Tool Response
@@ -198,15 +197,17 @@ public class LangChain4jModelListener implements ChatModelListener {
         for (int i = 0; i < aiMessage.toolExecutionRequests().size(); i++) {
             // Add tool call attributes here if needed
             span.setAttribute(
-                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS + "." + i + "." + SemanticConventions.TOOL_CALL_ID),
+                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS + "." + i + "."
+                            + SemanticConventions.TOOL_CALL_ID),
                     aiMessage.toolExecutionRequests().get(i).id());
             span.setAttribute(
-                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS + "." + i + "." + SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON),
+                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS + "." + i + "."
+                            + SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON),
                     aiMessage.toolExecutionRequests().get(i).arguments());
             span.setAttribute(
-                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS + "." + i + "." + SemanticConventions.TOOL_CALL_FUNCTION_NAME),
-                    aiMessage.toolExecutionRequests().get(i).name()
-            );
+                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS + "." + i + "."
+                            + SemanticConventions.TOOL_CALL_FUNCTION_NAME),
+                    aiMessage.toolExecutionRequests().get(i).name());
         }
     }
 
@@ -225,7 +226,7 @@ public class LangChain4jModelListener implements ChatModelListener {
                 && !aiMessage.toolExecutionRequests().isEmpty()) {
             toolCallExtraction(span, prefix, aiMessage);
         }
-//        span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS), List.of());
+        //        span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS), List.of());
     }
 
     private String mapMessageRole(ChatMessageType type) {
@@ -265,8 +266,16 @@ public class LangChain4jModelListener implements ChatModelListener {
                         AiMessage aiMessage = (AiMessage) message;
                         if (aiMessage.toolExecutionRequests() != null
                                 && !aiMessage.toolExecutionRequests().isEmpty()) {
-                            messageMap.put("content", Map.of("tool_calls",
-                                    aiMessage.toolExecutionRequests().stream().map(t -> Map.of("id", t.id(), "function", Map.of("arguments", t.arguments(), "name", t.name())))));
+                            messageMap.put(
+                                    "content",
+                                    Map.of(
+                                            "tool_calls",
+                                            aiMessage.toolExecutionRequests().stream()
+                                                    .map(t -> Map.of(
+                                                            "id",
+                                                            t.id(),
+                                                            "function",
+                                                            Map.of("arguments", t.arguments(), "name", t.name())))));
                         }
                     }
                     break;
@@ -277,7 +286,7 @@ public class LangChain4jModelListener implements ChatModelListener {
                         ToolExecutionResultMessage toolExecutionResultMessage = (ToolExecutionResultMessage) message;
                         messageMap.put(SemanticConventions.MESSAGE_TOOL_CALL_ID, toolExecutionResultMessage.id());
                     }
-//                    messageMap.put(SemanticConventions.MESSAGE_TOOL_CALL_ID, message.)
+                    //                    messageMap.put(SemanticConventions.MESSAGE_TOOL_CALL_ID, message.)
                     break;
             }
 
