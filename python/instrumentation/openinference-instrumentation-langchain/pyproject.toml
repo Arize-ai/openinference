@@ -41,7 +41,7 @@ test = [
   "langchain_core == 0.3.50",
   "langchain == 0.3.15",
   "langchain_openai == 0.2.14",
-  "langchain-community == 0.3.15",
+  "langchain-community == 0.3.27",
   "langchain-google-vertexai == 2.0.12",
   "opentelemetry-sdk",
   "respx",
