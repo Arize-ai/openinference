@@ -31,7 +31,7 @@
     "prettier": "^3.6.2",
     "rimraf": "^5.0.9",
     "ts-jest": "^29.2.2",
-    "tsc-alias": "^1.8.10",
+    "tsc-alias": "^1.8.16",
     "typescript": "^5.5.4"
   },
   "engines": {
