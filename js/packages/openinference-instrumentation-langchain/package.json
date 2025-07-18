@@ -53,7 +53,7 @@
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.11",
+    "@types/node": "^24.0.14",
     "dotenv": "^16.4.5",
     "jest": "^29.7.0",
     "langchain": "^0.3.3",

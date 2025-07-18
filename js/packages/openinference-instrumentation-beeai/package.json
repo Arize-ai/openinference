@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.11",
+    "@types/node": "^24.0.14",
     "@types/semver": "7.7.0",
     "beeai-framework": "^0.1.13",
     "import-in-the-middle": "^1.13.0",
