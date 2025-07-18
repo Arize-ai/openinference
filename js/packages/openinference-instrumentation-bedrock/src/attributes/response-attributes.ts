@@ -38,9 +38,10 @@ export function extractOutputMessagesAttributes(
   setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, mimeType);
 
   // Determine if this is a simple text response or complex multimodal response
-  const isSimpleTextResponse = responseBody.content && 
-    Array.isArray(responseBody.content) && 
-    responseBody.content.length === 1 && 
+  const isSimpleTextResponse =
+    responseBody.content &&
+    Array.isArray(responseBody.content) &&
+    responseBody.content.length === 1 &&
     isTextContent(responseBody.content[0]);
 
   if (isSimpleTextResponse) {
@@ -50,12 +51,12 @@ export function extractOutputMessagesAttributes(
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`,
-        "assistant"
+        "assistant",
       );
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`,
-        textBlock.text
+        textBlock.text,
       );
     }
   } else {
@@ -83,17 +84,17 @@ export function extractToolCallAttributes(
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
-      content.name
+      content.name,
     );
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-      content.input ? JSON.stringify(content.input) : undefined
+      content.input ? JSON.stringify(content.input) : undefined,
     );
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`,
-      content.id
+      content.id,
     );
 
     toolCallIndex++;
@@ -112,16 +113,32 @@ export function extractUsageAttributes(
     return;
   }
 
-  setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, responseBody.usage.input_tokens);
-  setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, responseBody.usage.output_tokens);
-  
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
+    responseBody.usage.input_tokens,
+  );
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
+    responseBody.usage.output_tokens,
+  );
+
   // Set only token counts provided in the response
   // If the response includes total tokens, we could add:
   // setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, responseBody.usage.total_tokens);
 
   // Add cache-related token attributes
-  setSpanAttribute(span, `${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}.cache_read`, responseBody.usage.cache_read_input_tokens);
-  setSpanAttribute(span, `${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}.cache_write`, responseBody.usage.cache_creation_input_tokens);
+  setSpanAttribute(
+    span,
+    `${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}.cache_read`,
+    responseBody.usage.cache_read_input_tokens,
+  );
+  setSpanAttribute(
+    span,
+    `${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}.cache_write`,
+    responseBody.usage.cache_creation_input_tokens,
+  );
 }
 
 /**
@@ -138,15 +155,39 @@ function addOutputMessageContentAttributes(
   // Process each content block in the response
   responseBody.content.forEach((content, contentIndex) => {
     const contentPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
-    
+
     if (isTextContent(content)) {
-      setSpanAttribute(span, `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "text");
-      setSpanAttribute(span, `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`, content.text);
+      setSpanAttribute(
+        span,
+        `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+        "text",
+      );
+      setSpanAttribute(
+        span,
+        `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+        content.text,
+      );
     } else if (isToolUseContent(content)) {
-      setSpanAttribute(span, `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "tool_use");
-      setSpanAttribute(span, `${contentPrefix}.message_content.tool_use.name`, content.name);
-      setSpanAttribute(span, `${contentPrefix}.message_content.tool_use.input`, JSON.stringify(content.input));
-      setSpanAttribute(span, `${contentPrefix}.message_content.tool_use.id`, content.id);
+      setSpanAttribute(
+        span,
+        `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+        "tool_use",
+      );
+      setSpanAttribute(
+        span,
+        `${contentPrefix}.message_content.tool_use.name`,
+        content.name,
+      );
+      setSpanAttribute(
+        span,
+        `${contentPrefix}.message_content.tool_use.input`,
+        JSON.stringify(content.input),
+      );
+      setSpanAttribute(
+        span,
+        `${contentPrefix}.message_content.tool_use.id`,
+        content.id,
+      );
     }
   });
 }

@@ -3,8 +3,8 @@
 /**
  * Cross-Platform Bedrock Instrumentation Assertion Script
  *
- * This script runs identical Bedrock API calls using both JavaScript and Python 
- * instrumentations, captures spans in memory, and performs strict attribute-by-attribute 
+ * This script runs identical Bedrock API calls using both JavaScript and Python
+ * instrumentations, captures spans in memory, and performs strict attribute-by-attribute
  * assertions that the instrumentations produce identical results.
  *
  * Usage:
@@ -32,7 +32,8 @@ import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conven
 
 // Configuration
 const AWS_REGION = process.env.AWS_REGION || "us-east-1";
-const MODEL_ID = process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-haiku-20240307-v1:0";
+const MODEL_ID =
+  process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-haiku-20240307-v1:0";
 
 // Test scenarios
 type TestScenario = "basic-text";
@@ -115,12 +116,14 @@ class InstrumentationAsserter {
     // 5. Assert each attribute individually
     const attributeAssertions = this.assertAttributesIdentical(
       jsSpan.attributes,
-      pythonSpan.attributes
+      pythonSpan.attributes,
     );
     passedAssertions += attributeAssertions;
 
     // 6. Assert events are identical
-    if (this.assertArraysIdentical("events", jsSpan.events, pythonSpan.events)) {
+    if (
+      this.assertArraysIdentical("events", jsSpan.events, pythonSpan.events)
+    ) {
       passedAssertions++;
     }
 
@@ -131,7 +134,9 @@ class InstrumentationAsserter {
 
     // Report final results
     if (this.failures.length > 0) {
-      console.log(`\n❌ ASSERTION FAILURES DETECTED: ${this.failures.length} total failures`);
+      console.log(
+        `\n❌ ASSERTION FAILURES DETECTED: ${this.failures.length} total failures`,
+      );
       console.log(`📊 Assertions passed: ${passedAssertions}`);
       console.log(`\n💥 DETAILED FAILURES:`);
       this.failures.forEach((failure, index) => {
@@ -140,7 +145,9 @@ class InstrumentationAsserter {
       this.logInstrumentationMismatch();
       process.exit(1);
     } else {
-      console.log(`\n🎉 SUCCESS: All attributes identical between JavaScript and Python instrumentations!`);
+      console.log(
+        `\n🎉 SUCCESS: All attributes identical between JavaScript and Python instrumentations!`,
+      );
       console.log(`📊 Total assertions passed: ${passedAssertions}`);
     }
   }
@@ -148,7 +155,11 @@ class InstrumentationAsserter {
   /**
    * Assert two values are equal with detailed error reporting
    */
-  private assertEqual<T>(attributeName: string, jsValue: T, pythonValue: T): boolean {
+  private assertEqual<T>(
+    attributeName: string,
+    jsValue: T,
+    pythonValue: T,
+  ): boolean {
     if (!this.deepEqual(jsValue, pythonValue)) {
       this.recordFailure(attributeName, jsValue, pythonValue);
       return false;
@@ -162,10 +173,13 @@ class InstrumentationAsserter {
    */
   private assertAttributesIdentical(
     jsAttrs: Record<string, any>,
-    pythonAttrs: Record<string, any>
+    pythonAttrs: Record<string, any>,
   ): number {
     // Get all unique attribute keys from both spans
-    const allKeys = new Set([...Object.keys(jsAttrs), ...Object.keys(pythonAttrs)]);
+    const allKeys = new Set([
+      ...Object.keys(jsAttrs),
+      ...Object.keys(pythonAttrs),
+    ]);
     let assertions = 0;
 
     for (const key of Array.from(allKeys).sort()) {
@@ -198,7 +212,11 @@ class InstrumentationAsserter {
   /**
    * Assert arrays are identical
    */
-  private assertArraysIdentical(name: string, jsArray: any[], pythonArray: any[]): boolean {
+  private assertArraysIdentical(
+    name: string,
+    jsArray: any[],
+    pythonArray: any[],
+  ): boolean {
     if (!this.deepEqual(jsArray, pythonArray)) {
       this.recordFailure(name, jsArray, pythonArray);
       return false;
@@ -227,14 +245,16 @@ class InstrumentationAsserter {
       const keysA = Object.keys(a);
       const keysB = Object.keys(b);
       if (keysA.length !== keysB.length) return false;
-      return keysA.every(key => key in b && this.deepEqual(a[key], b[key]));
+      return keysA.every((key) => key in b && this.deepEqual(a[key], b[key]));
     }
 
     // Handle primitive type coercion (unless strict types is enabled)
     if (!this.options.strictTypes) {
       // Allow string/number coercion for common cases
-      if ((typeof a === "string" && typeof b === "number") ||
-          (typeof a === "number" && typeof b === "string")) {
+      if (
+        (typeof a === "string" && typeof b === "number") ||
+        (typeof a === "number" && typeof b === "string")
+      ) {
         return String(a) === String(b);
       }
     }
@@ -245,7 +265,11 @@ class InstrumentationAsserter {
   /**
    * Record assertion failure for later reporting
    */
-  private recordFailure(attributeName: string, jsValue: any, pythonValue: any): void {
+  private recordFailure(
+    attributeName: string,
+    jsValue: any,
+    pythonValue: any,
+  ): void {
     const failure = `❌ ${attributeName}\n  JavaScript: ${JSON.stringify(jsValue)}\n  Python:     ${JSON.stringify(pythonValue)}`;
     this.failures.push(failure);
   }
@@ -255,7 +279,9 @@ class InstrumentationAsserter {
    */
   private logInstrumentationMismatch(): void {
     console.error(`\n💥 INSTRUMENTATION MISMATCH DETECTED!`);
-    console.error(`🔧 The instrumentations produce different results and need alignment.`);
+    console.error(
+      `🔧 The instrumentations produce different results and need alignment.`,
+    );
   }
 }
 
@@ -307,28 +333,33 @@ class CrossPlatformTester {
 
       if (this.options.fullSpanOutput) {
         console.log("\n📋 FULL SPAN OUTPUT:");
-        console.log("=" .repeat(80));
+        console.log("=".repeat(80));
         console.log("🔍 RAW JAVASCRIPT SPAN (serializable parts):");
-        console.log(JSON.stringify({
-          name: jsSpan.name,
-          kind: jsSpan.kind,
-          attributes: jsSpan.attributes,
-          status: jsSpan.status,
-          events: jsSpan.events,
-          links: jsSpan.links,
-          startTime: jsSpan.startTime,
-          endTime: jsSpan.endTime
-        }, null, 2));
+        console.log(
+          JSON.stringify(
+            {
+              name: jsSpan.name,
+              kind: jsSpan.kind,
+              attributes: jsSpan.attributes,
+              status: jsSpan.status,
+              events: jsSpan.events,
+              links: jsSpan.links,
+              startTime: jsSpan.startTime,
+              endTime: jsSpan.endTime,
+            },
+            null,
+            2,
+          ),
+        );
         console.log("\n🐍 RAW PYTHON SPAN:");
         console.log(JSON.stringify(pythonSpan, null, 2));
-        console.log("=" .repeat(80));
+        console.log("=".repeat(80));
       }
 
       // Run assertions
       console.log();
       const asserter = new InstrumentationAsserter(this.options);
       asserter.assert(normalizedJsSpan, normalizedPythonSpan);
-
     } catch (error) {
       console.error(`\n❌ Test failed: ${error.message}`);
       process.exit(1);
@@ -343,7 +374,7 @@ class CrossPlatformTester {
   private async runJavaScriptTest(): Promise<JSSpanData> {
     // Setup tracing first
     this.setupJavaScriptTracing();
-    
+
     // Setup instrumentation (following validation script pattern)
     await this.setupJavaScriptInstrumentation();
 
@@ -351,7 +382,11 @@ class CrossPlatformTester {
     const client = new this.BedrockRuntimeClient({ region: AWS_REGION });
 
     // Execute test scenario
-    const spans = await this.executeScenario(client, this.InvokeModelCommand, this.options.scenario);
+    const spans = await this.executeScenario(
+      client,
+      this.InvokeModelCommand,
+      this.options.scenario,
+    );
 
     if (spans.length === 0) {
       throw new Error("No spans captured from JavaScript instrumentation");
@@ -364,7 +399,9 @@ class CrossPlatformTester {
    * Setup JavaScript tracing
    */
   private setupJavaScriptTracing(): void {
-    this.jsProvider.addSpanProcessor(new SimpleSpanProcessor(this.jsSpanExporter));
+    this.jsProvider.addSpanProcessor(
+      new SimpleSpanProcessor(this.jsSpanExporter),
+    );
     this.jsProvider.register();
   }
 
@@ -392,7 +429,9 @@ class CrossPlatformTester {
       (instrumentation as any).patch(moduleExports, "3.0.0");
 
       if (this.options.debug) {
-        console.log("✅ Bedrock instrumentation registered and manually applied");
+        console.log(
+          "✅ Bedrock instrumentation registered and manually applied",
+        );
       }
     } else {
       if (this.options.debug) {
@@ -407,7 +446,11 @@ class CrossPlatformTester {
   /**
    * Execute the test scenario with the given client
    */
-  private async executeScenario(client: any, InvokeModelCommand: any, scenario: TestScenario): Promise<JSSpanData[]> {
+  private async executeScenario(
+    client: any,
+    InvokeModelCommand: any,
+    scenario: TestScenario,
+  ): Promise<JSSpanData[]> {
     switch (scenario) {
       case "basic-text":
         return this.executeBasicTextScenario(client, InvokeModelCommand);
@@ -419,7 +462,10 @@ class CrossPlatformTester {
   /**
    * Execute basic text scenario
    */
-  private async executeBasicTextScenario(client: any, InvokeModelCommand: any): Promise<JSSpanData[]> {
+  private async executeBasicTextScenario(
+    client: any,
+    InvokeModelCommand: any,
+  ): Promise<JSSpanData[]> {
     const command = new InvokeModelCommand({
       modelId: this.options.modelId,
       body: JSON.stringify({
@@ -437,7 +483,7 @@ class CrossPlatformTester {
     await client.send(command);
 
     // Small delay to ensure spans are processed
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     return this.jsSpanExporter.getFinishedSpans();
   }
@@ -572,7 +618,7 @@ except Exception as e:
     return new Promise((resolve, reject) => {
       const python = spawn("python", [scriptPath], {
         stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env }
+        env: { ...process.env },
       });
 
       let stdout = "";
@@ -588,7 +634,9 @@ except Exception as e:
 
       python.on("close", (code) => {
         if (code !== 0) {
-          reject(new Error(`Python script failed with code ${code}: ${stderr}`));
+          reject(
+            new Error(`Python script failed with code ${code}: ${stderr}`),
+          );
         } else {
           resolve(stdout.trim());
         }

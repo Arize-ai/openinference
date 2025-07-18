@@ -1,8 +1,8 @@
 import { BedrockInstrumentation } from "../src/instrumentation";
-import { 
+import {
   InvokeModelCommand,
   InvokeModelWithResponseStreamCommand,
-  ConverseCommand 
+  ConverseCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 import {
   InMemorySpanExporter,
@@ -381,7 +381,9 @@ The key things are to dress for the warm temperatures and have layers you can",
 
       // Verify that span completes successfully even without token counts
       expect(span.status.code).toBe(1); // SpanStatusCode.OK
-      expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-5-sonnet-20240620",
+      );
       expect(span.attributes["llm.provider"]).toBe("aws");
       expect(span.attributes["llm.system"]).toBe("anthropic");
       expect(span.attributes["openinference.span.kind"]).toBe("LLM");
@@ -492,7 +494,9 @@ Honeybees can recognize human faces.",
       const span = verifySpanBasics(spanExporter);
 
       // Verify multi-modal message handling
-      expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-5-sonnet-20240620",
+      );
       expect(span.attributes["llm.provider"]).toBe("aws");
       expect(span.attributes["llm.system"]).toBe("anthropic");
       expect(span.attributes["openinference.span.kind"]).toBe("LLM");
@@ -508,14 +512,18 @@ Honeybees can recognize human faces.",
 
       // Verify that multi-modal content is properly extracted
       // Text content should be captured in detailed structure
-      expect(span.attributes["llm.input_messages.0.message.contents.0.message_content.text"]).toContain(
-        "What do you see in this image?",
-      );
+      expect(
+        span.attributes[
+          "llm.input_messages.0.message.contents.0.message_content.text"
+        ],
+      ).toContain("What do you see in this image?");
 
       // Image content should be captured in OpenInference format
       // The message should contain the image URL in the expected format
       const imageContent =
-        span.attributes["llm.input_messages.0.message.contents.1.message_content.image.image.url"];
+        span.attributes[
+          "llm.input_messages.0.message.contents.1.message_content.image.image.url"
+        ];
       const expectedImageUrl = `data:image/png;base64,${imageData}`;
       expect(imageContent).toBe(expectedImageUrl);
 
@@ -687,7 +695,7 @@ Honeybees can recognize human faces.",
         body: JSON.stringify({
           anthropic_version: "bedrock-2023-05-31",
           max_tokens: 100,
-          messages: [{ role: "user", content: "Tell me a short story" }]
+          messages: [{ role: "user", content: "Tell me a short story" }],
         }),
         contentType: "application/json",
         accept: "application/json",
@@ -803,7 +811,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       expect(span.status.message).toBeDefined();
 
       // Verify basic attributes are still captured
-      expect(span.attributes["llm.model_name"]).toBe("invalid-streaming-model-id");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "invalid-streaming-model-id",
+      );
       expect(span.attributes["llm.provider"]).toBe("aws");
       expect(span.attributes["llm.system"]).toBe("bedrock");
       expect(span.attributes["openinference.span.kind"]).toBe("LLM");
@@ -831,13 +841,13 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
     });
 
     // Advanced InvokeModel Scenarios (3 tests for complete coverage)
-    
+
     it("should propagate OpenInference context attributes", async () => {
       const testName = "should-handle-context-attributes";
       setupTestRecording(testName);
-      
+
       const client = createTestClient(isRecordingMode);
-      
+
       // Test with OpenInference context attributes
       const command = new InvokeModelCommand({
         modelId: TEST_MODEL_ID,
@@ -854,80 +864,94 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         contentType: "application/json",
         accept: "application/json",
       });
-      
+
       // Setup OpenInference context with all supported attributes
       await context.with(
         setSession(
           setUser(
             setMetadata(
               setTags(
-                setPromptTemplate(
-                  context.active(),
-                  {
-                    template: "You are a helpful assistant. User message: {{message}}",
-                    version: "1.0.0",
-                    variables: { message: "Hello! This is a test with context attributes." }
-                  }
-                ),
-                ["test", "context", "attributes"]
+                setPromptTemplate(context.active(), {
+                  template:
+                    "You are a helpful assistant. User message: {{message}}",
+                  version: "1.0.0",
+                  variables: {
+                    message: "Hello! This is a test with context attributes.",
+                  },
+                }),
+                ["test", "context", "attributes"],
               ),
               {
                 experiment_name: "context-test",
                 version: "1.0.0",
-                environment: "testing"
-              }
+                environment: "testing",
+              },
             ),
-            { userId: "test-user-456" }
+            { userId: "test-user-456" },
           ),
-          { sessionId: "test-session-123" }
+          { sessionId: "test-session-123" },
         ),
         async () => {
           // Make the API call within the context
           const response = await client.send(command);
           verifyResponseStructure(response);
           return response;
-        }
+        },
       );
-      
+
       // Verify span creation and basic attributes
       const span = verifySpanBasics(spanExporter);
-      
+
       // Verify core InvokeModel attributes are present
-      expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-5-sonnet-20240620",
+      );
       expect(span.attributes["llm.provider"]).toBe("aws");
       expect(span.attributes["llm.system"]).toBe("anthropic");
       expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-      
+
       // Verify input/output message structure
       expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
       expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
-        "Hello! This is a test with context attributes."
+        "Hello! This is a test with context attributes.",
       );
-      expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
-      
+      expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+        "assistant",
+      );
+      expect(
+        span.attributes["llm.output_messages.0.message.content"],
+      ).toBeDefined();
+
       // Verify context attributes are properly propagated to the span
       expect(span.attributes[SESSION_ID]).toBe("test-session-123");
       expect(span.attributes[USER_ID]).toBe("test-user-456");
-      expect(span.attributes[METADATA]).toBe(JSON.stringify({
-        experiment_name: "context-test",
-        version: "1.0.0",
-        environment: "testing"
-      }));
-      expect(span.attributes[TAG_TAGS]).toBe(JSON.stringify(["test", "context", "attributes"]));
-      expect(span.attributes[PROMPT_TEMPLATE_TEMPLATE]).toBe("You are a helpful assistant. User message: {{message}}");
+      expect(span.attributes[METADATA]).toBe(
+        JSON.stringify({
+          experiment_name: "context-test",
+          version: "1.0.0",
+          environment: "testing",
+        }),
+      );
+      expect(span.attributes[TAG_TAGS]).toBe(
+        JSON.stringify(["test", "context", "attributes"]),
+      );
+      expect(span.attributes[PROMPT_TEMPLATE_TEMPLATE]).toBe(
+        "You are a helpful assistant. User message: {{message}}",
+      );
       expect(span.attributes[PROMPT_TEMPLATE_VERSION]).toBe("1.0.0");
-      expect(span.attributes[PROMPT_TEMPLATE_VARIABLES]).toBe(JSON.stringify({ 
-        message: "Hello! This is a test with context attributes." 
-      }));
+      expect(span.attributes[PROMPT_TEMPLATE_VARIABLES]).toBe(
+        JSON.stringify({
+          message: "Hello! This is a test with context attributes.",
+        }),
+      );
     });
 
     it("should handle non-Anthropic models via Bedrock", async () => {
       const testName = "should-handle-non-anthropic-models";
       setupTestRecording(testName);
-      
+
       const client = createTestClient(isRecordingMode);
-      
+
       // Test with Amazon Titan model (different response format)
       const titanModelId = "amazon.titan-text-express-v1";
       const command = new InvokeModelCommand({
@@ -948,33 +972,37 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
       // Verify span creation for non-Anthropic model
       const span = verifySpanBasics(spanExporter);
-      
+
       // Verify model-specific attributes
       expect(span.attributes["llm.model_name"]).toBe("titan-text-express-v1");
       expect(span.attributes["llm.provider"]).toBe("aws");
       expect(span.attributes["llm.system"]).toBe("amazon");
       expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-      
+
       // Verify input processing for Titan format
       // Now using full JSON body approach, so input.value contains the complete request
       expect(span.attributes["input.value"]).toContain("inputText");
-      expect(span.attributes["input.value"]).toContain("Write a short greeting message.");
+      expect(span.attributes["input.value"]).toContain(
+        "Write a short greeting message.",
+      );
       expect(span.attributes["input.mime_type"]).toBe("application/json");
-      
+
       // Verify invocation parameters capture Titan-specific config
       // Note: Current instrumentation extracts anthropic_version, max_tokens, etc.
       // Titan uses different parameter names, so invocation_parameters may be empty
-      const invocationParamsStr = span.attributes["llm.invocation_parameters"] as string;
+      const invocationParamsStr = span.attributes[
+        "llm.invocation_parameters"
+      ] as string;
       if (invocationParamsStr) {
         const _invocationParams = JSON.parse(invocationParamsStr);
         // Titan-specific params are not currently extracted by Anthropic-focused extraction
         // This is expected behavior for now
       }
-      
+
       // Verify output processing
       expect(span.attributes["output.value"]).toBeDefined();
       expect(span.attributes["output.mime_type"]).toBe("application/json");
-      
+
       // Now using full JSON body approach, so output.value contains the complete response
       expect(span.attributes["output.value"]).toContain("results");
     });
@@ -982,16 +1010,16 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
     it("should handle large payloads and timeouts", async () => {
       const testName = "should-handle-large-payloads";
       setupTestRecording(testName);
-      
+
       const client = createTestClient(isRecordingMode);
-      
+
       // Create a large message payload (approaching token limits)
       const largeText = "This is a large test message. ".repeat(500); // ~15,000 characters
       const complexConversation = Array.from({ length: 10 }, (_, i) => ({
         role: i % 2 === 0 ? "user" : "assistant",
         content: `${largeText} Message ${i + 1} in a complex conversation.`,
       }));
-      
+
       const command = new InvokeModelCommand({
         modelId: TEST_MODEL_ID,
         body: JSON.stringify({
@@ -1008,44 +1036,59 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
       // Verify span creation for large payload
       const span = verifySpanBasics(spanExporter);
-      
+
       // Verify basic attributes are still captured
-      expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-5-sonnet-20240620",
+      );
       expect(span.attributes["llm.provider"]).toBe("aws");
       expect(span.attributes["llm.system"]).toBe("anthropic");
       expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-      
+
       // Verify large message handling
       expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-      expect(span.attributes["llm.input_messages.0.message.content"]).toBeDefined();
-      expect(span.attributes["llm.input_messages.9.message.role"]).toBe("assistant");
-      expect(span.attributes["llm.input_messages.9.message.content"]).toBeDefined();
-      
+      expect(
+        span.attributes["llm.input_messages.0.message.content"],
+      ).toBeDefined();
+      expect(span.attributes["llm.input_messages.9.message.role"]).toBe(
+        "assistant",
+      );
+      expect(
+        span.attributes["llm.input_messages.9.message.content"],
+      ).toBeDefined();
+
       // Verify response processing (may be empty if model refused large payload)
       // In this case, the response has empty content array, so no output messages
-      expect(span.attributes["llm.output_messages.0.message.role"]).toBeUndefined();
-      
+      expect(
+        span.attributes["llm.output_messages.0.message.role"],
+      ).toBeUndefined();
+
       // Verify token counting for large payloads
       expect(span.attributes["llm.token_count.prompt"]).toBeDefined();
       expect(span.attributes["llm.token_count.completion"]).toBeDefined();
       // Note: Don't expect calculated total, only what's in response
-      
+
       // Verify cache-related token attributes
       // Note: Current recordings don't have cache data, so these should be undefined
-      expect(span.attributes["llm.token_count.prompt.cache_read"]).toBeUndefined();
-      expect(span.attributes["llm.token_count.prompt.cache_write"]).toBeUndefined();
-      
+      expect(
+        span.attributes["llm.token_count.prompt.cache_read"],
+      ).toBeUndefined();
+      expect(
+        span.attributes["llm.token_count.prompt.cache_write"],
+      ).toBeUndefined();
+
       // Performance validation - large payloads should not cause memory issues
       // The instrumentation should handle large responses efficiently
       const inputTokens = span.attributes["llm.token_count.prompt"] as number;
-      const outputTokens = span.attributes["llm.token_count.completion"] as number;
-      
+      const outputTokens = span.attributes[
+        "llm.token_count.completion"
+      ] as number;
+
       // Verify reasonable token counts for large payload
       expect(inputTokens).toBeGreaterThan(100); // Should be substantial (large input)
       expect(outputTokens).toBeGreaterThanOrEqual(1); // May be minimal if model refused
       // Note: No longer calculating total tokens automatically
     });
-
   });
 
   // ========================================================================
@@ -1069,19 +1112,19 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
               role: "user",
               content: [
                 {
-                  text: "Hello, how are you?"
-                }
-              ]
-            }
-          ]
+                  text: "Hello, how are you?",
+                },
+              ],
+            },
+          ],
         });
 
         const result = await client.send(command);
-        
-        // Basic response structure verification  
+
+        // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -1091,7 +1134,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1120,7 +1163,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
     describe("System Prompts", () => {
       it("should handle single system prompt in Converse API", async () => {
-        setupTestRecording("should-handle-single-system-prompt-in-converse-api");
+        setupTestRecording(
+          "should-handle-single-system-prompt-in-converse-api",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -1128,29 +1173,29 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
           modelId: TEST_MODEL_ID,
           system: [
             {
-              text: "You are a helpful assistant that responds concisely."
-            }
+              text: "You are a helpful assistant that responds concisely.",
+            },
           ],
           messages: [
             {
               role: "user",
               content: [
                 {
-                  text: "What is the capital of France?"
-                }
-              ]
-            }
-          ]
+                  text: "What is the capital of France?",
+                },
+              ],
+            },
+          ],
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for single system prompt
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1180,7 +1225,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       });
 
       it("should handle multiple system prompts concatenation in Converse API", async () => {
-        setupTestRecording("should-handle-multiple-system-prompts-concatenation-in-converse-api");
+        setupTestRecording(
+          "should-handle-multiple-system-prompts-concatenation-in-converse-api",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -1188,32 +1235,32 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
           modelId: TEST_MODEL_ID,
           system: [
             {
-              text: "You are a helpful assistant."
+              text: "You are a helpful assistant.",
             },
             {
-              text: "Respond briefly."
-            }
+              text: "Respond briefly.",
+            },
           ],
           messages: [
             {
               role: "user",
               content: [
                 {
-                  text: "What is TypeScript?"
-                }
-              ]
-            }
-          ]
+                  text: "What is TypeScript?",
+                },
+              ],
+            },
+          ],
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for multiple system prompts concatenation
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1253,7 +1300,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
           maxTokens: 150,
           temperature: 0.7,
           topP: 0.9,
-          stopSequences: ["END", "STOP"]
+          stopSequences: ["END", "STOP"],
         };
 
         const command = new ConverseCommand({
@@ -1263,22 +1310,22 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
               role: "user",
               content: [
                 {
-                  text: "Explain machine learning briefly."
-                }
-              ]
-            }
+                  text: "Explain machine learning briefly.",
+                },
+              ],
+            },
           ],
-          inferenceConfig: inferenceConfig
+          inferenceConfig: inferenceConfig,
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for inference config
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1316,9 +1363,11 @@ In essence, machine learning allows computers to learn from data and make predic
 
     describe("Multi-Turn Conversations", () => {
       // Multi-Turn Conversation Tests (Tests 5-6)
-      
+
       it("should handle two-turn conversation with proper message indexing", async () => {
-        setupTestRecording("should-handle-two-turn-conversation-with-proper-message-indexing");
+        setupTestRecording(
+          "should-handle-two-turn-conversation-with-proper-message-indexing",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -1327,17 +1376,19 @@ In essence, machine learning allows computers to learn from data and make predic
         // 2. Second turn: previous messages + assistant response + new user message
         const firstUserMessage = {
           role: "user" as const,
-          content: [{ text: "Hello, what's your name?" }]
+          content: [{ text: "Hello, what's your name?" }],
         };
-        
+
         const assistantResponse = {
           role: "assistant" as const,
-          content: [{ text: "I'm Claude, an AI assistant. How can I help you today?" }]
+          content: [
+            { text: "I'm Claude, an AI assistant. How can I help you today?" },
+          ],
         };
-        
+
         const secondUserMessage = {
           role: "user" as const,
-          content: [{ text: "Can you tell me a joke?" }]
+          content: [{ text: "Can you tell me a joke?" }],
         };
 
         // Create command with full conversation history (simulating second turn)
@@ -1345,17 +1396,17 @@ In essence, machine learning allows computers to learn from data and make predic
           modelId: TEST_MODEL_ID,
           messages: [firstUserMessage, assistantResponse, secondUserMessage],
           inferenceConfig: {
-            maxTokens: 100,  // Keep response brief to avoid timeout
-            temperature: 0.1
-          }
+            maxTokens: 100, // Keep response brief to avoid timeout
+            temperature: 0.1,
+          },
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -1365,7 +1416,7 @@ In essence, machine learning allows computers to learn from data and make predic
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for two-turn conversation
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1404,28 +1455,34 @@ I hope that gave you a little chuckle. Do you have any favorite types of jokes?"
       });
 
       it("should handle system prompt with multi-turn conversation", async () => {
-        setupTestRecording("should-handle-system-prompt-with-multi-turn-conversation");
+        setupTestRecording(
+          "should-handle-system-prompt-with-multi-turn-conversation",
+        );
 
         const client = createTestClient(isRecordingMode);
 
         // System prompts combined with conversation history
         const systemPrompts = [
-          { text: "You are a helpful assistant that tells jokes." }
+          { text: "You are a helpful assistant that tells jokes." },
         ];
-        
+
         const conversationHistory = [
           {
             role: "user" as const,
-            content: [{ text: "Tell me about yourself." }]
+            content: [{ text: "Tell me about yourself." }],
           },
           {
             role: "assistant" as const,
-            content: [{ text: "I'm Claude, an AI assistant who loves to help and tell jokes!" }]
+            content: [
+              {
+                text: "I'm Claude, an AI assistant who loves to help and tell jokes!",
+              },
+            ],
           },
           {
             role: "user" as const,
-            content: [{ text: "Great! Tell me a joke then." }]
-          }
+            content: [{ text: "Great! Tell me a joke then." }],
+          },
         ];
 
         // Create command with system prompt + conversation history
@@ -1434,17 +1491,17 @@ I hope that gave you a little chuckle. Do you have any favorite types of jokes?"
           system: systemPrompts,
           messages: conversationHistory,
           inferenceConfig: {
-            maxTokens: 100,  // Keep response brief to avoid timeout
-            temperature: 0.1
-          }
+            maxTokens: 100, // Keep response brief to avoid timeout
+            temperature: 0.1,
+          },
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -1454,7 +1511,7 @@ I hope that gave you a little chuckle. Do you have any favorite types of jokes?"
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for system prompt + multi-turn conversation
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1497,44 +1554,47 @@ Ba dum tss! I hope that gave you a little chuckle. If not, don't worry - I've go
 
     describe("Multi-Modal Content", () => {
       // Multi-Modal Content Tests (Tests 7-8)
-      
+
       it("should handle text plus image content with detailed structure", async () => {
-        setupTestRecording("should-handle-text-plus-image-content-with-detailed-structure");
+        setupTestRecording(
+          "should-handle-text-plus-image-content-with-detailed-structure",
+        );
 
         const client = createTestClient(isRecordingMode);
 
         // Create a message with both text and image content
         // Use the same working image data format as InvokeModel test
-        const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
-        
+        const imageData =
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+
         const multiModalMessage = {
           role: "user" as const,
           content: [
             { text: "What's in this image?" },
-            { 
-              image: { 
+            {
+              image: {
                 format: "png" as const,
-                source: { bytes: Buffer.from(imageData, "base64") }
-              }
-            }
-          ]
+                source: { bytes: Buffer.from(imageData, "base64") },
+              },
+            },
+          ],
         };
 
         const command = new ConverseCommand({
           modelId: TEST_MODEL_ID,
           messages: [multiModalMessage],
           inferenceConfig: {
-            maxTokens: 100,  // Keep response brief to avoid timeout
-            temperature: 0.1
-          }
+            maxTokens: 100, // Keep response brief to avoid timeout
+            temperature: 0.1,
+          },
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -1544,7 +1604,7 @@ Ba dum tss! I hope that gave you a little chuckle. If not, don't worry - I've go
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for text + image content
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1576,42 +1636,45 @@ While I can see the handwriting, I'm not able to read or transcribe the specific
       });
 
       it("should handle different image formats with correct MIME types", async () => {
-        setupTestRecording("should-handle-different-image-formats-with-correct-mime-types");
+        setupTestRecording(
+          "should-handle-different-image-formats-with-correct-mime-types",
+        );
 
         const client = createTestClient(isRecordingMode);
 
         // Test with JPEG format (different from other image test PNG)
         // Use the same working image data format as InvokeModel test
-        const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
-        
+        const imageData =
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+
         const imageMessage = {
           role: "user" as const,
           content: [
             { text: "Describe this JPEG image." },
-            { 
-              image: { 
+            {
+              image: {
                 format: "jpeg" as const,
-                source: { bytes: Buffer.from(imageData, "base64") }
-              }
-            }
-          ]
+                source: { bytes: Buffer.from(imageData, "base64") },
+              },
+            },
+          ],
         };
 
         const command = new ConverseCommand({
           modelId: TEST_MODEL_ID,
           messages: [imageMessage],
           inferenceConfig: {
-            maxTokens: 100,  // Keep response brief to avoid timeout
-            temperature: 0.1
-          }
+            maxTokens: 100, // Keep response brief to avoid timeout
+            temperature: 0.1,
+          },
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -1621,7 +1684,7 @@ While I can see the handwriting, I'm not able to read or transcribe the specific
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for image format handling
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1654,10 +1717,10 @@ At the top of the",
 `);
       });
     });
-    
+
     describe("Cross-Vendor Models", () => {
       // Cross-Vendor Model Tests (Tests 9-10)
-      
+
       it("should handle Mistral models", async () => {
         setupTestRecording("should-handle-mistral-models");
 
@@ -1665,27 +1728,27 @@ At the top of the",
 
         // Test with Mistral model (different from Anthropic)
         const mistralModelId = "mistral.mistral-7b-instruct-v0:2";
-        
+
         const command = new ConverseCommand({
           modelId: mistralModelId,
           messages: [
             {
               role: "user",
-              content: [{ text: "Hello, can you tell me about yourself?" }]
-            }
+              content: [{ text: "Hello, can you tell me about yourself?" }],
+            },
           ],
           inferenceConfig: {
             maxTokens: 100,
-            temperature: 0.1
-          }
+            temperature: 0.1,
+          },
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -1695,7 +1758,7 @@ At the top of the",
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for Mistral model
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1728,27 +1791,27 @@ At the top of the",
 
         // Test with Meta LLaMA model (different from Anthropic)
         const llamaModelId = "meta.llama3-8b-instruct-v1:0";
-        
+
         const command = new ConverseCommand({
           modelId: llamaModelId,
           messages: [
             {
               role: "user",
-              content: [{ text: "Hello, can you tell me about yourself?" }]
-            }
+              content: [{ text: "Hello, can you tell me about yourself?" }],
+            },
           ],
           inferenceConfig: {
             maxTokens: 100,
-            temperature: 0.1
-          }
+            temperature: 0.1,
+          },
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -1758,7 +1821,7 @@ At the top of the",
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for Meta LLaMA model
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -1790,10 +1853,10 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
 `);
       });
     });
-    
+
     describe("Error Handling", () => {
       // Edge Cases and Error Handling (Tests 11-13)
-      
+
       it("should handle missing token counts via converse", async () => {
         setupTestRecording("should-handle-missing-token-counts");
 
@@ -1805,21 +1868,21 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           messages: [
             {
               role: "user",
-              content: [{ text: "Brief response please." }]
-            }
+              content: [{ text: "Brief response please." }],
+            },
           ],
           inferenceConfig: {
             maxTokens: 50,
-            temperature: 0.1
-          }
+            temperature: 0.1,
+          },
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -1829,7 +1892,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for handling missing token counts
         // Note: This test demonstrates that when inputTokens and totalTokens are missing from the API response,
         // the instrumentation gracefully handles it by only setting the available token count (outputTokens -> completion)
@@ -1866,12 +1929,12 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           messages: [
             {
               role: "user",
-              content: [{ text: "This should fail" }]
-            }
+              content: [{ text: "This should fail" }],
+            },
           ],
           inferenceConfig: {
-            maxTokens: 50
-          }
+            maxTokens: 50,
+          },
         });
 
         let error: any;
@@ -1885,7 +1948,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         expect(error).toBeDefined();
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for API error scenarios
         // Even when API calls fail, the instrumentation captures request information
         expect(span.attributes).toMatchInlineSnapshot(`
@@ -1914,17 +1977,17 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           messages: [
             {
               role: "user",
-              content: [{ text: "One word response." }]
-            }
-          ]
+              content: [{ text: "One word response." }],
+            },
+          ],
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -1934,7 +1997,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for empty/minimal response
         // Tests graceful handling of minimal API response with empty text content and missing optional fields
         expect(span.attributes).toMatchInlineSnapshot(`
@@ -1957,10 +2020,10 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         `);
       });
     });
-    
+
     describe("Tool Configuration", () => {
       // Tool Configuration Tests
-      
+
       it("should handle tool configuration", async () => {
         setupTestRecording("should-handle-tool-configuration");
 
@@ -1979,20 +2042,21 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
                     properties: {
                       location: {
                         type: "string",
-                        description: "The city and state, e.g. San Francisco, CA"
+                        description:
+                          "The city and state, e.g. San Francisco, CA",
                       },
                       unit: {
                         type: "string",
                         enum: ["celsius", "fahrenheit"],
-                        description: "Temperature unit"
-                      }
+                        description: "Temperature unit",
+                      },
                     },
-                    required: ["location"]
-                  }
-                }
-              }
-            }
-          ]
+                    required: ["location"],
+                  },
+                },
+              },
+            },
+          ],
         };
 
         const command = new ConverseCommand({
@@ -2000,22 +2064,22 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           messages: [
             {
               role: "user",
-              content: [{ text: "What's the weather in San Francisco?" }]
-            }
+              content: [{ text: "What's the weather in San Francisco?" }],
+            },
           ],
           toolConfig: toolConfig,
           inferenceConfig: {
             maxTokens: 100,
-            temperature: 0.1
-          }
+            temperature: 0.1,
+          },
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -2025,7 +2089,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for tool configuration
         // Tests proper handling of tool definitions and tool use responses
         expect(span.attributes).toMatchInlineSnapshot(`
@@ -2080,15 +2144,15 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
                     properties: {
                       expression: {
                         type: "string",
-                        description: "Mathematical expression to evaluate"
-                      }
+                        description: "Mathematical expression to evaluate",
+                      },
                     },
-                    required: ["expression"]
-                  }
-                }
-              }
-            }
-          ]
+                    required: ["expression"],
+                  },
+                },
+              },
+            },
+          ],
         };
 
         const command = new ConverseCommand({
@@ -2096,22 +2160,22 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           messages: [
             {
               role: "user",
-              content: [{ text: "What is 15 * 23?" }]
-            }
+              content: [{ text: "What is 15 * 23?" }],
+            },
           ],
           toolConfig: toolConfig,
           inferenceConfig: {
             maxTokens: 100,
-            temperature: 0.1
-          }
+            temperature: 0.1,
+          },
         });
 
         const result = await client.send(command);
-        
+
         // Basic response structure verification
         expect(result).toBeDefined();
         expect(result.output).toBeDefined();
-        
+
         // Type-safe checks for nested properties
         if (result.output?.message) {
           expect(result.output.message).toBeDefined();
@@ -2121,7 +2185,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         }
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for tool response processing
         // Tests natural completion with tool_use stop reason (vs max_tokens in previous test)
         expect(span.attributes).toMatchInlineSnapshot(`
@@ -2158,10 +2222,10 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         `);
       });
     });
-    
+
     describe("Context Attributes", () => {
       // Context and VCR Infrastructure
-      
+
       it("should handle context attributes with Converse", async () => {
         setupTestRecording("should-handle-context-attributes-with-converse");
 
@@ -2173,13 +2237,13 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           messages: [
             {
               role: "user",
-              content: [{ text: "Hello, what's your name?" }]
-            }
+              content: [{ text: "Hello, what's your name?" }],
+            },
           ],
           inferenceConfig: {
             maxTokens: 100,
-            temperature: 0.1
-          }
+            temperature: 0.1,
+          },
         });
 
         // Setup OpenInference context with all supported attributes
@@ -2188,34 +2252,31 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
             setUser(
               setMetadata(
                 setTags(
-                  setPromptTemplate(
-                    context.active(),
-                    {
-                      template: "Hello {{user_input}}, what's your name?",
-                      version: "1.0.0",
-                      variables: { user_input: "user" }
-                    }
-                  ),
-                  ["test", "context", "converse"]
+                  setPromptTemplate(context.active(), {
+                    template: "Hello {{user_input}}, what's your name?",
+                    version: "1.0.0",
+                    variables: { user_input: "user" },
+                  }),
+                  ["test", "context", "converse"],
                 ),
                 {
                   experiment_name: "converse-context-test",
                   version: "1.0.0",
-                  environment: "testing"
-                }
+                  environment: "testing",
+                },
               ),
-              { userId: "test-user-converse" }
+              { userId: "test-user-converse" },
             ),
-            { sessionId: "test-session-converse" }
+            { sessionId: "test-session-converse" },
           ),
           async () => {
             // Make the API call within the context
             const result = await client.send(command);
-            
+
             // Basic response structure verification
             expect(result).toBeDefined();
             expect(result.output).toBeDefined();
-            
+
             // Type-safe checks for nested properties
             if (result.output?.message) {
               expect(result.output.message).toBeDefined();
@@ -2225,11 +2286,11 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
             }
 
             return result;
-          }
+          },
         );
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
-        
+
         // Comprehensive span attributes snapshot for context attributes
         // Tests OpenInference context propagation including session, user, metadata, tags, and prompt template
         expect(span.attributes).toMatchInlineSnapshot(`

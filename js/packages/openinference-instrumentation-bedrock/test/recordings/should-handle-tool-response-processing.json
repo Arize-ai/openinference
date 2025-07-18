@@ -32,9 +32,7 @@
                       "description": "Mathematical expression to evaluate"
                     }
                   },
-                  "required": [
-                    "expression"
-                  ]
+                  "required": ["expression"]
                 }
               },
               "name": "calculate"

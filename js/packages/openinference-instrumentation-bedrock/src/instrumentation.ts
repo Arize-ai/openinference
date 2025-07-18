@@ -4,7 +4,13 @@ import {
   InstrumentationModuleDefinition,
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
-import { diag, SpanKind, SpanStatusCode, Span, context } from "@opentelemetry/api";
+import {
+  diag,
+  SpanKind,
+  SpanStatusCode,
+  Span,
+  context,
+} from "@opentelemetry/api";
 import {
   SemanticConventions,
   MimeType,
@@ -12,19 +18,17 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import { getAttributesFromContext } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
-import { 
+import {
   InvokeModelCommand,
   InvokeModelWithResponseStreamCommand,
-  ConverseCommand 
+  ConverseCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 import { extractInvokeModelRequestAttributes } from "./attributes/request-attributes";
 import { extractInvokeModelResponseAttributes } from "./attributes/response-attributes";
 import { extractConverseRequestAttributes } from "./attributes/converse-request-attributes";
 import { extractConverseResponseAttributes } from "./attributes/converse-response-attributes";
 import { setSpanAttribute } from "./attributes/attribute-helpers";
-import {
-  isToolUseContent,
-} from "./types/bedrock-types";
+import { isToolUseContent } from "./types/bedrock-types";
 import { splitStream } from "@smithy/util-stream";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
@@ -88,7 +92,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
               );
             }
 
-            if (command?.constructor?.name === "InvokeModelWithResponseStreamCommand") {
+            if (
+              command?.constructor?.name ===
+              "InvokeModelWithResponseStreamCommand"
+            ) {
               return instrumentation._handleInvokeModelWithResponseStreamCommand(
                 command,
                 original,
@@ -126,7 +133,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     });
 
     // Add OpenInference span kind attribute
-    span.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
+    span.setAttribute(
+      SemanticConventions.OPENINFERENCE_SPAN_KIND,
+      OpenInferenceSpanKind.LLM,
+    );
 
     // Add OpenInference context attributes
     const contextAttributes = getAttributesFromContext(context.active());
@@ -166,17 +176,17 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
 
   /**
    * Consumes AWS Bedrock streaming response chunks and extracts attributes for OpenTelemetry span.
-   * 
+   *
    * This function processes the Bedrock streaming format which consists of JSON lines
    * containing different event types (message_start, content_block_delta, etc.).
    * It accumulates the response content and sets appropriate semantic convention attributes
    * on the provided span. This function is designed to run in the background without
    * blocking the user's stream consumption.
-   * 
+   *
    * @param stream - The Bedrock response stream (AsyncIterable), typically from splitStream()
    * @param span - The OpenTelemetry span to set attributes on
    * @throws {Error} If critical stream processing errors occur
-   * 
+   *
    * @example
    * ```typescript
    * // Background processing after stream splitting
@@ -186,7 +196,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
    *   .catch(error => { span.recordException(error); span.end(); });
    * ```
    */
-  private async _consumeBedrockStreamChunks(stream: any, span: Span): Promise<void> {
+  private async _consumeBedrockStreamChunks(
+    stream: any,
+    span: Span,
+  ): Promise<void> {
     let outputText = "";
     const contentBlocks: any[] = [];
     let usage: any = {};
@@ -194,38 +207,41 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     for await (const chunk of stream) {
       if (chunk.chunk?.bytes) {
         const text = new TextDecoder().decode(chunk.chunk.bytes);
-        const lines = text.split('\n').filter(line => line.trim());
-        
+        const lines = text.split("\n").filter((line) => line.trim());
+
         for (const line of lines) {
           if (line.trim()) {
             const data = JSON.parse(line);
-            
+
             // Handle different event types
-            if (data.type === 'message_start' && data.message) {
+            if (data.type === "message_start" && data.message) {
               usage = data.message.usage || {};
             }
-            
-            if (data.type === 'content_block_start' && data.content_block) {
+
+            if (data.type === "content_block_start" && data.content_block) {
               contentBlocks.push(data.content_block);
             }
-            
-            if (data.type === 'content_block_delta' && data.delta?.text) {
+
+            if (data.type === "content_block_delta" && data.delta?.text) {
               // Accumulate text content
               outputText += data.delta.text;
-              
+
               // Also update the content block for tool processing
-              const lastTextBlock = contentBlocks.find(block => block.type === 'text');
+              const lastTextBlock = contentBlocks.find(
+                (block) => block.type === "text",
+              );
               if (lastTextBlock) {
-                lastTextBlock.text = (lastTextBlock.text || '') + data.delta.text;
+                lastTextBlock.text =
+                  (lastTextBlock.text || "") + data.delta.text;
               } else {
                 contentBlocks.push({
-                  type: 'text',
-                  text: data.delta.text
+                  type: "text",
+                  text: data.delta.text,
                 });
               }
             }
-            
-            if (data.type === 'message_delta' && data.usage) {
+
+            if (data.type === "message_delta" && data.usage) {
               usage = { ...usage, ...data.usage };
             }
           }
@@ -242,17 +258,29 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       content: outputText ? [{ type: "text", text: outputText }] : [],
       stop_reason: "end_turn",
       stop_sequence: null,
-      usage: usage
+      usage: usage,
     };
 
     // Set output value as JSON
-    setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, JSON.stringify(responseBody));
+    setSpanAttribute(
+      span,
+      SemanticConventions.OUTPUT_VALUE,
+      JSON.stringify(responseBody),
+    );
     setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
     // Set structured output message attributes for text content
     if (outputText) {
-      setSpanAttribute(span, `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`, "assistant");
-      setSpanAttribute(span, `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`, outputText);
+      setSpanAttribute(
+        span,
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`,
+        "assistant",
+      );
+      setSpanAttribute(
+        span,
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`,
+        outputText,
+      );
     }
 
     // Extract tool call attributes from content blocks
@@ -261,24 +289,32 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
-        content.name
+        content.name,
       );
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-        content.input ? JSON.stringify(content.input) : undefined
+        content.input ? JSON.stringify(content.input) : undefined,
       );
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`,
-        content.id
+        content.id,
       );
     });
 
     // Set usage attributes directly
     if (usage) {
-      setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, usage.input_tokens);
-      setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens);
+      setSpanAttribute(
+        span,
+        SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
+        usage.input_tokens,
+      );
+      setSpanAttribute(
+        span,
+        SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
+        usage.output_tokens,
+      );
       // Set only token counts provided in the response
       // If the response includes total tokens, we could add:
       // setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, usage.total_tokens);
@@ -289,12 +325,12 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
 
   /**
    * Handles streaming InvokeModel commands with stream preservation.
-   * 
+   *
    * Uses @smithy/util-stream splitStream to create two identical streams:
    * one for instrumentation processing and one for user consumption.
    * The instrumentation processing happens in the background while the
    * user receives their stream immediately for optimal performance.
-   * 
+   *
    * @param command - The InvokeModelWithResponseStreamCommand
    * @param original - The original AWS SDK send method
    * @param client - The Bedrock client instance
@@ -310,7 +346,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     });
 
     // Add OpenInference span kind attribute
-    span.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
+    span.setAttribute(
+      SemanticConventions.OPENINFERENCE_SPAN_KIND,
+      OpenInferenceSpanKind.LLM,
+    );
 
     // Add OpenInference context attributes
     const contextAttributes = getAttributesFromContext(context.active());
@@ -327,8 +366,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
         .then(async (response: any) => {
           try {
             // Split the stream for instrumentation and user consumption
-            const [instrumentationStream, userStream] = await splitStream(response.body);
-            
+            const [instrumentationStream, userStream] = await splitStream(
+              response.body,
+            );
+
             // Process instrumentation stream in background (non-blocking)
             this._consumeBedrockStreamChunks(instrumentationStream, span)
               .then(() => {
@@ -342,12 +383,15 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
                 });
                 span.end();
               });
-            
+
             // Return response with user stream immediately
             return { ...response, body: userStream };
           } catch (splitError: any) {
             // If stream splitting fails, fall back to original behavior
-            diag.warn("Stream splitting failed, falling back to direct consumption:", splitError);
+            diag.warn(
+              "Stream splitting failed, falling back to direct consumption:",
+              splitError,
+            );
             try {
               await this._consumeBedrockStreamChunks(response.body, span);
             } catch (streamError: any) {
@@ -389,7 +433,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     });
 
     // Add OpenInference span kind attribute
-    span.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
+    span.setAttribute(
+      SemanticConventions.OPENINFERENCE_SPAN_KIND,
+      OpenInferenceSpanKind.LLM,
+    );
 
     // Add OpenInference context attributes
     const contextAttributes = getAttributesFromContext(context.active());

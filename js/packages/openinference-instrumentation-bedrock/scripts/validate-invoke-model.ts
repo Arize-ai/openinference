@@ -27,7 +27,12 @@ import {
 import { Resource } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import { diag, DiagConsoleLogger, DiagLogLevel, context } from "@opentelemetry/api";
+import {
+  diag,
+  DiagConsoleLogger,
+  DiagLogLevel,
+  context,
+} from "@opentelemetry/api";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import {
   setSession,
@@ -125,7 +130,8 @@ class InstrumentationValidator {
     const awsModule = await import("@aws-sdk/client-bedrock-runtime");
     this.BedrockRuntimeClient = awsModule.BedrockRuntimeClient;
     this.InvokeModelCommand = awsModule.InvokeModelCommand;
-    this.InvokeModelWithResponseStreamCommand = awsModule.InvokeModelWithResponseStreamCommand;
+    this.InvokeModelWithResponseStreamCommand =
+      awsModule.InvokeModelWithResponseStreamCommand;
 
     // Check if already patched
     if (!isPatched()) {
@@ -513,7 +519,8 @@ class InstrumentationValidator {
         messages: [
           {
             role: "user",
-            content: "Tell me a very short story about a robot learning to paint.",
+            content:
+              "Tell me a very short story about a robot learning to paint.",
           },
         ],
       }),
@@ -528,7 +535,9 @@ class InstrumentationValidator {
     // Process the streaming response
     for await (const chunk of response.body) {
       if (chunk.chunk?.bytes) {
-        const chunkData = JSON.parse(new TextDecoder().decode(chunk.chunk.bytes));
+        const chunkData = JSON.parse(
+          new TextDecoder().decode(chunk.chunk.bytes),
+        );
         if (chunkData.type === "content_block_delta" && chunkData.delta?.text) {
           fullContent += chunkData.delta.text;
         }
@@ -541,12 +550,9 @@ class InstrumentationValidator {
       fullContent.length,
       "chars from",
       eventCount,
-      "events"
+      "events",
     );
-    console.log(
-      "   💬 Content preview:",
-      fullContent.substring(0, 80) + "..."
-    );
+    console.log("   💬 Content preview:", fullContent.substring(0, 80) + "...");
 
     return true;
   }
@@ -599,8 +605,13 @@ class InstrumentationValidator {
     // Process the streaming response
     for await (const chunk of response.body) {
       if (chunk.chunk?.bytes) {
-        const chunkData = JSON.parse(new TextDecoder().decode(chunk.chunk.bytes));
-        if (chunkData.type === "content_block_start" && chunkData.content_block?.type === "tool_use") {
+        const chunkData = JSON.parse(
+          new TextDecoder().decode(chunk.chunk.bytes),
+        );
+        if (
+          chunkData.type === "content_block_start" &&
+          chunkData.content_block?.type === "tool_use"
+        ) {
           toolCallsDetected++;
         }
         eventCount++;
@@ -612,7 +623,7 @@ class InstrumentationValidator {
       toolCallsDetected,
       "from",
       eventCount,
-      "events"
+      "events",
     );
 
     return true;
@@ -670,32 +681,32 @@ class InstrumentationValidator {
         setUser(
           setMetadata(
             setTags(
-              setPromptTemplate(
-                context.active(),
-                {
-                  template: "You are a helpful assistant. User message: {{message}}",
-                  version: "1.0.0",
-                  variables: { message: "Hello! This is a test with context attributes." }
-                }
-              ),
-              ["validation", "context", "bedrock", "phoenix"]
+              setPromptTemplate(context.active(), {
+                template:
+                  "You are a helpful assistant. User message: {{message}}",
+                version: "1.0.0",
+                variables: {
+                  message: "Hello! This is a test with context attributes.",
+                },
+              }),
+              ["validation", "context", "bedrock", "phoenix"],
             ),
             {
               experiment_name: "bedrock-context-validation",
               version: "1.0.0",
               environment: "validation",
               script_name: "validate-invoke-model",
-              timestamp: new Date().toISOString()
-            }
+              timestamp: new Date().toISOString(),
+            },
           ),
-          { userId: "validation-user-123" }
+          { userId: "validation-user-123" },
         ),
-        { sessionId: "validation-session-456" }
+        { sessionId: "validation-session-456" },
       ),
       async () => {
         const result = await this.client.send(command);
         return result;
-      }
+      },
     );
 
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
@@ -703,7 +714,9 @@ class InstrumentationValidator {
     console.log("   📋 Context attributes configured:");
     console.log("      🆔 Session ID: validation-session-456");
     console.log("      👤 User ID: validation-user-123");
-    console.log("      📊 Metadata: experiment_name=bedrock-context-validation");
+    console.log(
+      "      📊 Metadata: experiment_name=bedrock-context-validation",
+    );
     console.log("      🏷️ Tags: [validation, context, bedrock, phoenix]");
     console.log("      📝 Prompt Template: You are a helpful assistant...");
     console.log(

@@ -22,12 +22,15 @@ export const loadRecordingData = (recordingPath: string) => {
     // Extract model ID from the path (handle invoke, invoke-with-response-stream, and converse)
     const invokeMatch = recording.path?.match(/\/model\/([^\/]+)\/invoke/);
     const converseMatch = recording.path?.match(/\/model\/([^\/]+)\/converse/);
-    const modelId = invokeMatch ? decodeURIComponent(invokeMatch[1]) : 
-                   converseMatch ? decodeURIComponent(converseMatch[1]) : null;
-    
+    const modelId = invokeMatch
+      ? decodeURIComponent(invokeMatch[1])
+      : converseMatch
+        ? decodeURIComponent(converseMatch[1])
+        : null;
+
     // Determine endpoint type
-    const isStreaming = recording.path?.includes('invoke-with-response-stream');
-    const isConverse = recording.path?.includes('/converse');
+    const isStreaming = recording.path?.includes("invoke-with-response-stream");
+    const isConverse = recording.path?.includes("/converse");
 
     return {
       response: recording.response,
@@ -54,24 +57,25 @@ export const createNockMock = (
 ) => {
   const targetModelId = modelId || defaultModelId;
   let endpoint: string;
-  
+
   if (isConverse) {
-    endpoint = 'converse';
+    endpoint = "converse";
   } else if (isStreaming) {
-    endpoint = 'invoke-with-response-stream';
+    endpoint = "invoke-with-response-stream";
   } else {
-    endpoint = 'invoke';
+    endpoint = "invoke";
   }
-  
-  const nockScope = nock("https://bedrock-runtime.us-east-1.amazonaws.com")
-    .post(`/model/${encodeURIComponent(targetModelId)}/${endpoint}`);
-  
-  if (isStreaming && typeof mockResponse === 'string') {
+
+  const nockScope = nock(
+    "https://bedrock-runtime.us-east-1.amazonaws.com",
+  ).post(`/model/${encodeURIComponent(targetModelId)}/${endpoint}`);
+
+  if (isStreaming && typeof mockResponse === "string") {
     // For streaming responses, convert hex string to binary buffer
-    const binaryResponse = Buffer.from(mockResponse, 'hex');
+    const binaryResponse = Buffer.from(mockResponse, "hex");
     nockScope.reply(status, binaryResponse, {
-      'Content-Type': 'application/vnd.amazon.eventstream',
-      'Transfer-Encoding': 'chunked'
+      "Content-Type": "application/vnd.amazon.eventstream",
+      "Transfer-Encoding": "chunked",
     });
   } else {
     nockScope.reply(status, mockResponse);

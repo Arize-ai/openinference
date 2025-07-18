@@ -137,4 +137,3 @@ The validation script provides comprehensive feedback on:
 - ⏳ Trace export to Phoenix
 
 This single conversation scenario is designed to match the complexity and coverage of multiple unit tests, providing a realistic validation of the Converse API instrumentation in a production-like environment.
-

@@ -35,7 +35,12 @@ import {
 import { Resource } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import { diag, DiagConsoleLogger, DiagLogLevel, context } from "@opentelemetry/api";
+import {
+  diag,
+  DiagConsoleLogger,
+  DiagLogLevel,
+  context,
+} from "@opentelemetry/api";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import {
   setSession,
@@ -180,7 +185,9 @@ class ConverseValidator {
     console.log("🚀 Starting Bedrock Converse API instrumentation validation");
     console.log(`📊 Phoenix endpoint: ${this.options.phoenixEndpoint}`);
     console.log(`🤖 Model ID: ${this.options.modelId}`);
-    console.log(`💬 Comprehensive conversation scenario combining multiple test cases`);
+    console.log(
+      `💬 Comprehensive conversation scenario combining multiple test cases`,
+    );
     console.log();
 
     // Setup tracing and instrumentation
@@ -199,13 +206,17 @@ class ConverseValidator {
     }
 
     try {
-      console.log(`\n📋 Running comprehensive Converse API validation scenario`);
-      
+      console.log(
+        `\n📋 Running comprehensive Converse API validation scenario`,
+      );
+
       // Run the comprehensive conversation that combines multiple test scenarios
       const passed = await this.runComprehensiveConversation();
-      
+
       if (passed) {
-        console.log(`✅ Comprehensive conversation scenario completed successfully`);
+        console.log(
+          `✅ Comprehensive conversation scenario completed successfully`,
+        );
       } else {
         console.log(`❌ Comprehensive conversation scenario failed`);
         return false;
@@ -226,7 +237,9 @@ class ConverseValidator {
   }
 
   private async runComprehensiveConversation(): Promise<boolean> {
-    console.log("🌟 Executing comprehensive conversation covering multiple test scenarios:");
+    console.log(
+      "🌟 Executing comprehensive conversation covering multiple test scenarios:",
+    );
     console.log("   📝 System prompt integration");
     console.log("   🔄 Multi-turn conversation history");
     console.log("   🖼️ Multi-modal content (text + image)");
@@ -236,12 +249,15 @@ class ConverseValidator {
     console.log();
 
     // Simple 1x1 transparent PNG for multi-modal testing
-    const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+    const imageData =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 
     // System prompt that sets up the assistant's behavior
     const systemPrompts = [
-      { text: "You are a helpful AI assistant specializing in data analysis and visualization." },
-      { text: "You always respond concisely but informatively." }
+      {
+        text: "You are a helpful AI assistant specializing in data analysis and visualization.",
+      },
+      { text: "You always respond concisely but informatively." },
     ];
 
     // Multi-turn conversation history to simulate real conversation flow
@@ -250,29 +266,35 @@ class ConverseValidator {
       {
         role: "user" as const,
         content: [
-          { text: "Hello! I'm working on a data analysis project. Can you help me understand what tools are available?" }
-        ]
+          {
+            text: "Hello! I'm working on a data analysis project. Can you help me understand what tools are available?",
+          },
+        ],
       },
       // Turn 2: Assistant responds with tool information
       {
         role: "assistant" as const,
         content: [
-          { text: "I'd be happy to help with your data analysis project! I have access to several tools that can assist you, including data visualization, statistical analysis, and web search capabilities. What specific type of analysis are you looking to perform?" }
-        ]
+          {
+            text: "I'd be happy to help with your data analysis project! I have access to several tools that can assist you, including data visualization, statistical analysis, and web search capabilities. What specific type of analysis are you looking to perform?",
+          },
+        ],
       },
       // Turn 3: User asks about data visualization with an image
       {
         role: "user" as const,
         content: [
-          { text: "I have some sample data visualization here. Can you analyze this chart and also search for best practices in data visualization?" },
-          { 
-            image: { 
+          {
+            text: "I have some sample data visualization here. Can you analyze this chart and also search for best practices in data visualization?",
+          },
+          {
+            image: {
               format: "png" as const,
-              source: { bytes: Buffer.from(imageData, "base64") }
-            }
-          }
-        ]
-      }
+              source: { bytes: Buffer.from(imageData, "base64") },
+            },
+          },
+        ],
+      },
     ];
 
     // Tools available for the assistant to use (using correct Converse API tool format)
@@ -285,13 +307,19 @@ class ConverseValidator {
             json: {
               type: "object",
               properties: {
-                dataset: { type: "string", description: "The dataset to analyze" },
-                analysis_type: { type: "string", description: "Type of analysis to perform" }
+                dataset: {
+                  type: "string",
+                  description: "The dataset to analyze",
+                },
+                analysis_type: {
+                  type: "string",
+                  description: "Type of analysis to perform",
+                },
               },
-              required: ["dataset", "analysis_type"]
-            }
-          }
-        }
+              required: ["dataset", "analysis_type"],
+            },
+          },
+        },
       },
       {
         toolSpec: {
@@ -301,31 +329,44 @@ class ConverseValidator {
             json: {
               type: "object",
               properties: {
-                chart_type: { type: "string", description: "Type of chart to create" },
-                data_source: { type: "string", description: "Source of the data" },
-                title: { type: "string", description: "Title for the visualization" }
+                chart_type: {
+                  type: "string",
+                  description: "Type of chart to create",
+                },
+                data_source: {
+                  type: "string",
+                  description: "Source of the data",
+                },
+                title: {
+                  type: "string",
+                  description: "Title for the visualization",
+                },
               },
-              required: ["chart_type", "data_source"]
-            }
-          }
-        }
+              required: ["chart_type", "data_source"],
+            },
+          },
+        },
       },
       {
         toolSpec: {
           name: "web_search",
-          description: "Search the web for information about data science topics",
+          description:
+            "Search the web for information about data science topics",
           inputSchema: {
             json: {
               type: "object",
               properties: {
                 query: { type: "string", description: "Search query" },
-                focus_area: { type: "string", description: "Specific area to focus on" }
+                focus_area: {
+                  type: "string",
+                  description: "Specific area to focus on",
+                },
               },
-              required: ["query"]
-            }
-          }
-        }
-      }
+              required: ["query"],
+            },
+          },
+        },
+      },
     ];
 
     // Inference configuration for controlled response
@@ -333,7 +374,7 @@ class ConverseValidator {
       maxTokens: 200,
       temperature: 0.7,
       topP: 0.9,
-      stopSequences: ["Human:", "Assistant:"]
+      stopSequences: ["Human:", "Assistant:"],
     };
 
     // Create the comprehensive Converse command
@@ -342,9 +383,9 @@ class ConverseValidator {
       system: systemPrompts,
       messages: conversationHistory,
       toolConfig: {
-        tools: tools
+        tools: tools,
       },
-      inferenceConfig: inferenceConfig
+      inferenceConfig: inferenceConfig,
     });
 
     console.log("🔄 Executing Converse API call with comprehensive context...");
@@ -355,19 +396,25 @@ class ConverseValidator {
         setUser(
           setMetadata(
             setTags(
-              setPromptTemplate(
-                context.active(),
-                {
-                  template: "System: {{system_prompt}}\n\nConversation History: {{conversation}}\n\nUser: {{user_message}}",
-                  version: "2.0.0",
-                  variables: { 
-                    system_prompt: systemPrompts.map(p => p.text).join(" "),
-                    conversation: "Multi-turn conversation with data analysis context",
-                    user_message: "Analyze chart and search for best practices"
-                  }
-                }
-              ),
-              ["validation", "converse", "comprehensive", "multi-modal", "tools", "multi-turn"]
+              setPromptTemplate(context.active(), {
+                template:
+                  "System: {{system_prompt}}\n\nConversation History: {{conversation}}\n\nUser: {{user_message}}",
+                version: "2.0.0",
+                variables: {
+                  system_prompt: systemPrompts.map((p) => p.text).join(" "),
+                  conversation:
+                    "Multi-turn conversation with data analysis context",
+                  user_message: "Analyze chart and search for best practices",
+                },
+              }),
+              [
+                "validation",
+                "converse",
+                "comprehensive",
+                "multi-modal",
+                "tools",
+                "multi-turn",
+              ],
             ),
             {
               experiment_name: "converse-comprehensive-validation",
@@ -376,22 +423,22 @@ class ConverseValidator {
               script_name: "validate-converse",
               scenario: "comprehensive-conversation",
               features: "system-prompt,multi-turn,multi-modal,tools,context",
-              timestamp: new Date().toISOString()
-            }
+              timestamp: new Date().toISOString(),
+            },
           ),
-          { userId: "converse-validation-user-789" }
+          { userId: "converse-validation-user-789" },
         ),
-        { sessionId: "converse-validation-session-123" }
+        { sessionId: "converse-validation-session-123" },
       ),
       async () => {
         const result = await this.client.send(command);
         return result;
-      }
+      },
     );
 
     // Process and analyze the response
     console.log("📊 Analyzing response...");
-    
+
     if (!response.output?.message) {
       console.log("❌ No message in response");
       return false;
@@ -399,11 +446,12 @@ class ConverseValidator {
 
     const outputMessage = response.output.message;
     console.log("✅ Response received successfully");
-    
+
     // Check for tool calls in the response
-    const toolCalls = outputMessage.content?.filter((block: any) => block.toolUse) || [];
+    const toolCalls =
+      outputMessage.content?.filter((block: any) => block.toolUse) || [];
     console.log(`🔧 Tool calls in response: ${toolCalls.length}`);
-    
+
     if (toolCalls.length > 0) {
       toolCalls.forEach((toolCall: any, index: number) => {
         console.log(`   Tool ${index + 1}: ${toolCall.toolUse.name}`);
@@ -413,7 +461,10 @@ class ConverseValidator {
     // Check for text content in the response
     const textContent = outputMessage.content?.find((block: any) => block.text);
     if (textContent) {
-      console.log("💬 Text response preview:", textContent.text.substring(0, 100) + "...");
+      console.log(
+        "💬 Text response preview:",
+        textContent.text.substring(0, 100) + "...",
+      );
     }
 
     // Check usage statistics
@@ -435,8 +486,12 @@ class ConverseValidator {
     console.log("   ✅ Multi-turn conversation (3 conversation turns)");
     console.log("   ✅ Multi-modal content (text + PNG image)");
     console.log("   ✅ Tool configuration (3 available tools)");
-    console.log("   ✅ Inference configuration (maxTokens, temperature, topP, stopSequences)");
-    console.log("   ✅ OpenInference context attributes (session, user, metadata, tags, prompt template)");
+    console.log(
+      "   ✅ Inference configuration (maxTokens, temperature, topP, stopSequences)",
+    );
+    console.log(
+      "   ✅ OpenInference context attributes (session, user, metadata, tags, prompt template)",
+    );
     console.log("   ✅ Complex message content structure");
     console.log("   ✅ Response processing and validation");
 

@@ -5,9 +5,9 @@ import { Span, AttributeValue } from "@opentelemetry/api";
  * Provides null-safe attribute setting for OpenTelemetry spans
  */
 export function setSpanAttribute(
-  span: Span, 
-  key: string, 
-  value: AttributeValue | null | undefined
+  span: Span,
+  key: string,
+  value: AttributeValue | null | undefined,
 ): void {
   if (value !== undefined && value !== null && value !== "") {
     span.setAttribute(key, value);
@@ -17,7 +17,10 @@ export function setSpanAttribute(
 /**
  * Sets multiple span attributes with null checking
  */
-export function setSpanAttributes(span: Span, attributes: Record<string, AttributeValue | null | undefined>) {
+export function setSpanAttributes(
+  span: Span,
+  attributes: Record<string, AttributeValue | null | undefined>,
+) {
   Object.entries(attributes).forEach(([key, value]) => {
     setSpanAttribute(span, key, value);
   });
@@ -42,7 +45,7 @@ import {
  */
 export function aggregateSystemPrompts(systemPrompts: SystemPrompt[]): string {
   return systemPrompts
-    .map(prompt => prompt.text || "")
+    .map((prompt) => prompt.text || "")
     .join(" ")
     .trim();
 }
@@ -52,17 +55,17 @@ export function aggregateSystemPrompts(systemPrompts: SystemPrompt[]): string {
  */
 export function aggregateMessages(
   systemPrompts: SystemPrompt[] = [],
-  messages: ConverseMessage[] = []
+  messages: ConverseMessage[] = [],
 ): ConverseMessage[] {
   const aggregated: ConverseMessage[] = [];
-  
+
   if (systemPrompts.length > 0) {
     aggregated.push({
       role: "system" as const,
-      content: [{ text: aggregateSystemPrompts(systemPrompts) }]
+      content: [{ text: aggregateSystemPrompts(systemPrompts) }],
     });
   }
-  
+
   aggregated.push(...messages);
   return aggregated;
 }
@@ -71,12 +74,12 @@ export function aggregateMessages(
  * Generator function to extract attributes from a single message
  */
 export function* getAttributesFromMessage(
-  message: ConverseMessage
+  message: ConverseMessage,
 ): Generator<[string, AttributeValue]> {
   if (message.role) {
     yield ["message.role", message.role];
   }
-  
+
   if (message.content) {
     for (const [index, content] of message.content.entries()) {
       for (const [key, value] of getAttributesFromMessageContent(content)) {
@@ -90,7 +93,7 @@ export function* getAttributesFromMessage(
  * Generator function to extract attributes from message content
  */
 export function* getAttributesFromMessageContent(
-  content: ConverseContentBlock
+  content: ConverseContentBlock,
 ): Generator<[string, AttributeValue]> {
   if (isConverseTextContent(content)) {
     yield ["message_content.type", "text"];
@@ -102,26 +105,37 @@ export function* getAttributesFromMessageContent(
     }
     if (content.image.source.bytes) {
       // Convert bytes to base64 data URL for consistent representation
-      const base64 = Buffer.from(content.image.source.bytes).toString('base64');
+      const base64 = Buffer.from(content.image.source.bytes).toString("base64");
       const mimeType = `image/${content.image.format}`;
-      yield ["message_content.image.image.url", `data:${mimeType};base64,${base64}`];
+      yield [
+        "message_content.image.image.url",
+        `data:${mimeType};base64,${base64}`,
+      ];
     }
   } else if (isConverseToolUseContent(content)) {
     yield ["message_content.type", "tool_use"];
     yield ["message_content.tool_use.id", content.toolUse.toolUseId];
     yield ["message_content.tool_use.name", content.toolUse.name];
     if (content.toolUse.input) {
-      yield ["message_content.tool_use.input", JSON.stringify(content.toolUse.input)];
+      yield [
+        "message_content.tool_use.input",
+        JSON.stringify(content.toolUse.input),
+      ];
     }
   } else if (isConverseToolResultContent(content)) {
     yield ["message_content.type", "tool_result"];
-    yield ["message_content.tool_result.tool_use_id", content.toolResult.toolUseId];
+    yield [
+      "message_content.tool_result.tool_use_id",
+      content.toolResult.toolUseId,
+    ];
     if (content.toolResult.status) {
       yield ["message_content.tool_result.status", content.toolResult.status];
     }
     // Process nested content in tool result
     for (const [index, nestedContent] of content.toolResult.content.entries()) {
-      for (const [key, value] of getAttributesFromMessageContent(nestedContent)) {
+      for (const [key, value] of getAttributesFromMessageContent(
+        nestedContent,
+      )) {
         yield [`message_content.tool_result.content.${index}.${key}`, value];
       }
     }
@@ -131,7 +145,11 @@ export function* getAttributesFromMessageContent(
 /**
  * Processes multiple messages and sets attributes on span with proper indexing
  */
-export function processMessages(span: Span, messages: ConverseMessage[], baseKey: string): void {
+export function processMessages(
+  span: Span,
+  messages: ConverseMessage[],
+  baseKey: string,
+): void {
   for (const [index, message] of messages.entries()) {
     for (const [key, value] of getAttributesFromMessage(message)) {
       setSpanAttribute(span, `${baseKey}.${index}.${key}`, value);
