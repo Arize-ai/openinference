@@ -40,7 +40,7 @@ instruments = [
   "boto3 >= 1.38.17",
 ]
 test = [
-  "boto3 == 1.38.17",
+  "boto3 == 1.39.9",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "anthropic>=0.47.0",
