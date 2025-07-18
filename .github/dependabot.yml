@@ -1,68 +1,150 @@
-version: 2
 updates:
 - directory: /java
   package-ecosystem: gradle
+  schedule:
+    interval: weekly
 - directory: /js
   package-ecosystem: npm
+  schedule:
+    interval: weekly
 - directory: /python
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-autogen-agentchat
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-anthropic
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-openai-agents
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-agno
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-crewai
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-autogen
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-litellm
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-instructor
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-bedrock
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-llama-index
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-google-genai
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-google-adk
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-openllmetry
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-guardrails
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-dspy
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-beeai
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-portkey
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-pydantic-ai
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-openai
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-mcp
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-smolagents
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-mistralai
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-groq
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-langchain
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-vertexai
   package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-haystack
   package-ecosystem: pip
+  schedule:
+    interval: weekly
+- directory: js/packages/openinference-vercel
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
+- directory: js/packages/openinference-mastra
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
+- directory: js/packages/openinference-semantic-conventions
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
 - directory: js/packages/openinference-instrumentation-beeai
   package-ecosystem: npm
+  schedule:
+    interval: weekly
+- directory: js/packages/openinference-core
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
 - directory: js/packages/openinference-instrumentation-openai
   package-ecosystem: npm
+  schedule:
+    interval: weekly
 - directory: js/packages/openinference-instrumentation-mcp
   package-ecosystem: npm
+  schedule:
+    interval: weekly
 - directory: js/packages/openinference-instrumentation-langchain
-  package-ecosystem: npm 
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
+version: 2 
