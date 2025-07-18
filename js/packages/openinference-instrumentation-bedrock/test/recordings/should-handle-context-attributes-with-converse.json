@@ -1,0 +1,70 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello, what's your name?"
+            }
+          ],
+          "role": "user"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 761
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "My name is Claude. It's nice to meet you!"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 14,
+        "outputTokens": 15,
+        "totalTokens": 29
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Fri, 18 Jul 2025 19:20:19 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "222",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "8073d474-20b7-4aaa-abb7-fa2cca488784"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "132",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "d2bcae32-e044-4709-b212-a813706becd9",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "39db9e9fc87ad5db0d73deb5c3b181fd7a3004fb9e3f257e6aa6cd1afc512a74",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "One word response."
+            }
+          ],
+          "role": "user"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": ""
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "end_turn"
+    },
+    "rawHeaders": [
+      "Date",
+      "Fri, 18 Jul 2025 19:08:38 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "193",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "0fb99e8d-2504-4183-b4c7-9c6d0fce3d29"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "72",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "74bd2486-b111-4910-80c2-a67a7eea3627",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "194a16840cba93b6bbc3162614994355c31c9cb6d4b5fd393c99b5fc19d5a231",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

@@ -1,392 +1,39 @@
-# Bedrock Instrumentation - Remaining Optional Enhancements
+# Bedrock Instrumentation - Remaining Enhancements
 
 ## Overview
 
-The JavaScript AWS Bedrock instrumentation is **complete and production-ready** with 100% InvokeModel API coverage. This document outlines optional future enhancements that could be implemented to expand beyond the core InvokeModel API, with detailed implementation plans incorporating lessons learned from the Python implementation.
+The JavaScript AWS Bedrock instrumentation is **complete and production-ready** with comprehensive coverage of both InvokeModel and Converse APIs. This document outlines the remaining optional enhancements for specialized use cases and quality improvements.
 
-## Current Status: Production Ready ✅ + Converse API Phase 1-3 Complete
+## Current Status: Production Ready ✅
 
-### InvokeModel API (Production Ready)
-- **13/13 Tests Passing**: Complete InvokeModel API coverage
-- **Python Parity**: Full alignment with Python implementation patterns
-- **Context Attributes**: Complete OpenInference context propagation
-- **Streaming Support**: Full streaming implementation with tool calls
-- **Multi-Modal**: Text + image content support
-- **VCR Testing**: Comprehensive test coverage with real API recordings
+### ✅ **Complete Implementation**
+- **InvokeModel API**: 13/13 tests passing - Complete coverage
+- **Converse API**: 16/16 tests passing - Complete coverage  
+- **Combined Coverage**: 29/29 total tests passing across both APIs
+- **Cross-vendor compatibility**: Anthropic, Mistral, Meta LLaMA, and others
+- **Multi-modal support**: Text, images, and tool interactions
+- **Streaming support**: Full streaming implementation with tool calls
+- **Context attributes**: Complete OpenInference context propagation
+- **VCR test coverage**: Real API recordings with comprehensive snapshots
 
-### Converse API (Phase 1-3 Complete - January 2025) ✅
-- **4/16 Tests Passing**: Basic Converse API functionality complete
-- **TypeScript-First**: Zero `any` usage in Converse implementation
-- **Python Pattern Alignment**: Exact semantic attribute structure matching
-- **VCR Infrastructure**: Real API recordings with comprehensive snapshots
-- **Null-Safe Implementation**: Robust attribute handling throughout
-- **Foundation Ready**: Infrastructure in place for remaining 12 tests
+---
 
-## Priority 1: Converse API Support (Modern Bedrock API)
+## 🔄 **Remaining Enhancements**
 
-**Status**: ✅ **PHASES 1-3 COMPLETE** (January 2025) - First 4 Tests Implemented and Passing
+### Priority 1: TypeScript Modernization (Complete `any` Elimination)
 
-**Updated Assessment**: After comprehensive analysis of the Python implementation and test cases, Converse API support is significantly more complex than initially estimated. The Python tests reveal critical features that were not apparent in the initial assessment:
+**Status**: ⚠️ **HIGHEST PRIORITY** - Critical for production-quality codebase
 
-### Critical Missing Features Identified
+**Problem**: The document previously mentioned "59 TypeScript linting errors from extensive `any` usage" but current status is unclear given the claims of "zero `any` usage" in Converse implementation.
 
-1. **Multi-Turn Conversation Support**: Converse API supports full conversation history with assistant responses included in subsequent requests
-2. **Multiple System Prompt Concatenation**: System prompts are aggregated with space separation  
-3. **Cross-Vendor Model Support**: Extensive testing across Mistral, Meta LLaMA, and other non-Anthropic models
-4. **Detailed Message Content Structure**: Complex attribute patterns for multi-modal content with precise indexing
-5. **Image Format Processing**: Separate format field handling beyond basic base64 encoding
+**Required Assessment**:
+1. **Audit Current TypeScript Usage**: Run `npx tsc --noUnusedLocals --noUnusedParameters --strict` to identify actual `any` usage
+2. **Linting Analysis**: Run ESLint with TypeScript rules to identify type safety issues
+3. **Verify Claims**: Confirm if "zero `any` usage" is actually achieved across entire codebase
 
-### Comprehensive TDD Implementation Plan
-
-#### Phase 1: Type System Foundation (TypeScript-First Approach) ✅ **COMPLETE**
-
-**Implementation Pattern**: Following TypeScript Modernization Plan Phase 1
-
-**1.1 Converse-Specific Type Creation** ✅ **COMPLETE**
-- ✅ Import AWS SDK types: `ConverseCommand`, `ConverseCommandInput`, `ConverseCommandOutput`
-- ✅ Define `ConverseRequestBody` interface with proper typing for:
-  - ✅ `system?: SystemPrompt[]` (array of text prompts for concatenation)
-  - ✅ `messages: Message[]` (conversation history including assistant responses)  
-  - ✅ `inferenceConfig?: InferenceConfig`
-  - ✅ `toolConfig?: ToolConfiguration`
-- ✅ Create `ConverseResponseBody` interface following AWS SDK structure
-- ✅ Define union types for multi-turn conversation support
-- ✅ Eliminate all `any` usage from the start
-
-**1.2 Core Instrumentation Update** ✅ **COMPLETE**
-- ✅ Add `ConverseCommand` to command union type in `patch()` method
-- ✅ Create `_handleConverseCommand()` method following InvokeModel patterns
-- ✅ Use proper AWS SDK types throughout (no `any` usage)
-
-#### Phase 2: Incremental Attribute Building (Python Pattern Implementation) ✅ **COMPLETE**
-
-**Implementation Pattern**: Following Python's `_set_span_attribute()` methodology
-
-**2.1 Null-Safe Attribute Helper** ✅ **COMPLETE**
-```typescript
-function setSpanAttribute(
-  span: Span, 
-  key: string, 
-  value: AttributeValue | null | undefined
-): void {
-  if (value !== undefined && value !== null && value !== "") {
-    span.setAttribute(key, value);
-  }
-}
-```
-
-**2.2 Structured Helper Functions** (Following Python patterns) ✅ **COMPLETE**
-- ✅ `extractConverseRequestAttributes(span, command)` - Request processing
-  - ✅ Model identification and vendor detection
-  - ✅ System prompt aggregation and concatenation  
-  - ✅ Message history processing with proper indexing
-  - ✅ InferenceConfig extraction and JSON serialization
-  - ✅ ToolConfig processing
-- ✅ `extractConverseResponseAttributes(span, response)` - Response processing
-  - ✅ Output message extraction with detailed content structure
-  - ✅ Tool call processing from response content
-  - ✅ Usage statistics extraction with missing token handling
-- ✅ `processMessageContent(span, messages, baseAttributeKey)` - Message processing
-  - ✅ Iterative message processing with proper indexing
-  - ✅ Content type discrimination (text, image, tool_use, tool_result)
-  - ✅ Multi-modal content extraction
-
-#### Phase 3: Core Test-Driven Implementation (16 Comprehensive Tests) ✅ **FIRST 4 TESTS COMPLETE**
-
-**3.1 Basic Converse Tests (Tests 1-4)** ✅ **COMPLETE**
-
-**Test 1: Basic Single-Message Converse** ✅ **COMPLETE**
-- ✅ **Red Phase**: Basic user message → assistant response
-- ✅ **Green Phase**: Minimal Converse command detection and span creation
-- ✅ **Attributes**: model_name, span_kind, input/output values
-- ✅ **VCR Recording**: Real API recording with comprehensive span attribute verification
-
-**Test 2: Single System Prompt** ✅ **COMPLETE**
-- ✅ **Red Phase**: System prompt aggregation into message array
-- ✅ **Green Phase**: System prompt processing as first message
-- ✅ **Attributes**: Proper input message structure with system role
-- ✅ **VCR Recording**: Real API recording with system prompt verification
-
-**Test 3: Multiple System Prompts** ⭐ **NEW** (Python pattern) ✅ **COMPLETE**
-- ✅ **Red Phase**: Multiple system prompts: `[{"text": "prompt1"}, {"text": "prompt2"}]`
-- ✅ **Green Phase**: Concatenation logic: `"prompt1 prompt2"`
-- ✅ **Attributes**: Single system message with concatenated text
-- ✅ **VCR Recording**: Real API recording with system prompt concatenation verification
-
-**Test 4: Inference Config** ✅ **COMPLETE**
-- ✅ **Red Phase**: InferenceConfig parameter extraction
-- ✅ **Green Phase**: JSON serialization of inference parameters
-- ✅ **Attributes**: `llm.invocation_parameters` with proper JSON structure
-- ✅ **VCR Recording**: Real API recording with inference config verification
-
-### ✅ **COMPLETED IMPLEMENTATION DETAILS (January 2025)**
-
-**Key Files Implemented:**
-- ✅ `src/attributes/converse-request-attributes.ts` - Complete request attribute extraction
-- ✅ `src/attributes/converse-response-attributes.ts` - Complete response attribute extraction  
-- ✅ `src/attributes/attribute-helpers.ts` - Enhanced with Converse-specific helpers
-- ✅ `src/types/bedrock-types.ts` - Enhanced with comprehensive Converse types
-- ✅ `src/instrumentation.ts` - Enhanced with `_handleConverseCommand()` method
-- ✅ `test/helpers/vcr-helpers.ts` - Enhanced to support Converse API endpoints
-- ✅ `test/instrumentation.test.ts` - 4 comprehensive Converse tests with inline snapshots
-
-**Technical Achievements:**
-- ✅ **Full TypeScript Compliance**: Zero `any` usage in Converse implementation
-- ✅ **Python Pattern Alignment**: Exact semantic attribute structure matching
-- ✅ **VCR Testing Infrastructure**: Complete test coverage with real API recordings
-- ✅ **Comprehensive Snapshots**: Inline snapshots with full span attribute verification
-- ✅ **Semantic Conventions**: Proper JSON stringification of input/output values
-- ✅ **Null-Safe Implementation**: Robust null/undefined handling throughout
-
-**3.2 Multi-Turn Conversation Tests (Tests 5-6)** ⭐ **CRITICAL NEW FEATURE**
-
-**Test 5: Two-Turn Conversation** ⭐ **NEW**
-- **Red Phase**: Simulate realistic conversation flow:
-  1. First call: user message → assistant response  
-  2. Second call: previous messages + assistant response + new user message
-- **Green Phase**: Multi-turn message processing with proper indexing
-- **Attributes**: Correct `llm.input_messages.{idx}` for all message types
-- **Pattern**: `[user_msg] → [user_msg, assistant_response, user_msg2]`
-
-**Test 6: System Prompt + Multi-Turn** ⭐ **NEW**
-- **Red Phase**: System prompts combined with conversation history
-- **Green Phase**: Complex message aggregation preserving order
-- **Attributes**: Proper message ordering: system, user, assistant, user
-- **Pattern**: `system + conversation_history`
-
-**3.3 Multi-Modal Content Tests (Tests 7-8)**
-
-**Test 7: Text + Image Content** (Following Python detailed structure)
-- **Red Phase**: Message with both text and image content
-- **Green Phase**: Detailed content parsing with type attribution
-- **Attributes**: 
-  - `llm.input_messages.{i}.message.contents.{j}.message_content.type`
-  - `llm.input_messages.{i}.message.contents.{j}.message_content.text`
-  - `llm.input_messages.{i}.message.contents.{j}.message_content.image.image.url`
-
-**Test 8: Image Format Handling** ⭐ **NEW** (Python pattern)
-- **Red Phase**: Different image formats (webp, jpeg, png)
-- **Green Phase**: Format field processing separate from source bytes
-- **Attributes**: Proper data URL generation with correct MIME types
-
-**3.4 Cross-Vendor Model Tests (Tests 9-10)** ⭐ **NEW REQUIREMENT**
-
-**Test 9: Mistral Models** ⭐ **NEW**
-- **Red Phase**: Test `mistral.mistral-7b-instruct-v0:2`, `mistral.mixtral-8x7b-instruct-v0:1`
-- **Green Phase**: Vendor-agnostic response parsing
-- **Attributes**: Proper model name extraction and system attribution
-
-**Test 10: Meta LLaMA Models** ⭐ **NEW**  
-- **Red Phase**: Test `meta.llama3-8b-instruct-v1:0`, `meta.llama3-70b-instruct-v1:0`
-- **Green Phase**: Cross-vendor compatibility validation
-- **Attributes**: Consistent attribute extraction across vendors
-
-**3.5 Edge Cases and Error Handling (Tests 11-13)**
-
-**Test 11: Missing Token Counts** ⭐ **UPDATED** (Python pattern)
-- **Red Phase**: Response with only `outputTokens`, missing `inputTokens`/`totalTokens`
-- **Green Phase**: Robust token count extraction with null-safe handling
-- **Attributes**: Only available token counts are set
-
-**Test 12: API Error Scenarios**
-- **Red Phase**: Mock Bedrock API error response for Converse
-- **Green Phase**: Error handling following InvokeModel patterns
-- **Attributes**: Proper error status and exception recording
-
-**Test 13: Empty/Minimal Response**
-- **Red Phase**: Minimal response handling without exceptions
-- **Green Phase**: Null-safe attribute extraction throughout
-
-**3.6 Tool Configuration Tests (Tests 14-15)**
-
-**Test 14: Tool Configuration** ⭐ **ENHANCED**
-- **Red Phase**: Converse-specific toolConfig format (different from InvokeModel)
-- **Green Phase**: Converse tool definition extraction
-- **Attributes**: `llm.tools.*` attributes following Converse format
-
-**Test 15: Tool Response Processing**
-- **Red Phase**: Tool call extraction from Converse response format
-- **Green Phase**: Tool call processing from response content blocks
-- **Attributes**: Tool call attributes with proper indexing
-
-**3.7 Context and VCR Infrastructure (Test 16)**
-
-**Test 16: Context Attributes**
-- **Red Phase**: OpenInference context propagation with Converse
-- **Green Phase**: Verify context attributes work with new API
-- **Attributes**: Session, user, metadata, tags, prompt template
-
-#### Phase 4: VCR Testing Infrastructure
-
-**4.1 Converse-Specific VCR Setup**
-- Real API recordings for all 16 test scenarios
-- Credential sanitization for Converse endpoints  
-- Recording validation for Converse response formats
-- Support for multi-turn conversation recordings
-
-**4.2 Test Isolation and Management**
-- Global instrumentation setup following existing patterns
-- Proper test cleanup and span isolation
-- Recording management for complex multi-turn scenarios
-
-#### Phase 5: Python Implementation Pattern Integration
-
-**5.1 Incremental Message Processing** (Python `_get_attributes_from_message_param` pattern)
-```typescript
-function* getAttributesFromMessageParam(
-  message: ConverseMessage
-): Generator<[string, AttributeValue]> {
-  if (message.role) {
-    yield [MessageAttributes.MESSAGE_ROLE, message.role];
-  }
-  
-  if (message.content) {
-    for (const [index, content] of message.content.entries()) {
-      for (const [key, value] of getAttributesFromMessageContent(content)) {
-        yield [`${MessageAttributes.MESSAGE_CONTENTS}.${index}.${key}`, value];
-      }
-    }
-  }
-}
-```
-
-**5.2 System Prompt Aggregation** (Python pattern)
-```typescript
-function aggregateSystemPrompts(systemPrompts: SystemPrompt[]): string {
-  return systemPrompts
-    .map(prompt => prompt.text || "")
-    .join(" ")
-    .trim();
-}
-```
-
-**5.3 Message Aggregation** (Python pattern)
-```typescript
-function aggregateMessages(
-  systemPrompts: SystemPrompt[] = [],
-  messages: ConverseMessage[] = []
-): ConverseMessage[] {
-  const aggregated: ConverseMessage[] = [];
-  
-  if (systemPrompts.length > 0) {
-    aggregated.push({
-      role: "system",
-      content: [{ text: aggregateSystemPrompts(systemPrompts) }]
-    });
-  }
-  
-  aggregated.push(...messages);
-  return aggregated;
-}
-```
-
-### Implementation Effort: High (4-5 weeks) ⚠️ **REVISED: 3-4 weeks remaining**
-
-**Revised Complexity Assessment**:
-- ✅ **4/16 comprehensive tests complete** (first 4 basic tests implemented)
-- ⚠️ **Multi-turn conversation support** (completely new requirement) - **REMAINING**
-- ⚠️ **Cross-vendor model testing** (Mistral, Meta LLaMA extensive coverage) - **REMAINING**
-- ⚠️ **Detailed message content structure** (complex attribute patterns) - **REMAINING**
-- ✅ **TypeScript modernization integration** (eliminate all `any` usage) - **COMPLETE for Phase 1-3**
-- ✅ **Python implementation pattern alignment** (incremental attribute building) - **COMPLETE**
-
-### Success Criteria
-
-🔄 **4/16 comprehensive tests** covering all Converse API features - **25% COMPLETE**  
-✅ **100% TypeScript compliance** with zero `any` usage - **COMPLETE for Phase 1-3**  
-✅ **Full Python parity** for semantic attribute structure - **COMPLETE for Phase 1-3**  
-⚠️ **Multi-turn conversation support** (critical feature) - **REMAINING**  
-⚠️ **Cross-vendor model compatibility** (Mistral, Meta LLaMA) - **REMAINING**  
-🔄 **Complete VCR test coverage** with real API recordings - **25% COMPLETE**  
-✅ **Incremental attribute building** following Python patterns - **COMPLETE**  
-✅ **Null-safe attribute helpers** throughout implementation - **COMPLETE**  
-
-## Priority 2: Multi-Model Vendor Support Enhancement
-
-**Status**: Partially implemented (Anthropic complete, others basic)
-
-**Current Coverage**:
-- ✅ Anthropic (Claude): Complete support with Messages API
-- ⚠️ Other vendors: Basic system attribution only
-
-**Enhanced Implementation** (Building on Converse API work):
-- **Amazon Titan**: Response parsing and attribute extraction
-- **AI21 Labs**: Model-specific response handling  
-- **Cohere**: Response format and attribute mapping
-- **Meta LLaMA**: Enhanced response structure parsing (from Converse work)
-- **Mistral**: Enhanced model-specific attributes (from Converse work)
-
-**Implementation Effort**: Medium (2-3 weeks)
-- Leverage Converse API cross-vendor patterns
-- Vendor-specific response parsers
-- Extended test coverage for each vendor
-- Response format validation
-
-## Priority 3: Advanced Streaming Enhancements
-
-**Status**: Core streaming complete, advanced features optional
-
-**Current Coverage**:
-- ✅ Basic streaming event processing
-- ✅ Tool call streaming assembly
-- ✅ Error handling for streaming
-
-**Optional Enhancements**:
-- **Stream Interruption**: Handling client-side stream cancellation
-- **Partial Response Recovery**: Resume interrupted streams
-- **Stream Performance Metrics**: Latency and throughput tracking
-- **Advanced Event Processing**: Custom event handlers
-
-**Implementation Effort**: Low (1 week)
-- Enhanced error boundary handling
-- Performance metric collection
-- Stream lifecycle optimization
-
-## Priority 4: Knowledge Base Integration
-
-**Status**: Not implemented (specialized Bedrock feature)
-
-**Scope**:
-- Retrieve API instrumentation
-- RetrieveAndGenerate API support
-- Document retrieval scoring
-- Knowledge base metadata attribution
-
-**Implementation Effort**: Medium (2 weeks)
-- New API command patterns
-- Document retrieval attribute extraction
-- Relevance scoring and metadata handling
-- RAG-specific test scenarios
-
-## Deferred: InvokeAgent API Support
-
-**Status**: **DEFERRED** (specialized use case with high complexity)
-
-**Rationale for Deferral**:
-1. **Specialized Use Case**: InvokeAgent serves a narrow agent workflow use case
-2. **High Implementation Complexity**: Requires complex span hierarchy management
-3. **Limited Demand**: No current user requests for this specific API
-4. **Resource Allocation**: Focus on higher-impact Converse API and cross-vendor support
-
-**Deferred Scope**:
-- Complex agent workflow tracing
-- Hierarchical span structures for agent steps
-- Knowledge base integration attributes
-- Agent action and observation tracking
-
-**Future Consideration**: This feature can be revisited based on user demand and after completing higher-priority enhancements.
-
-## Final Phase: TypeScript Modernization (Complete `any` Elimination)
-
-**Status**: Critical for production-quality codebase
-
-**Current State**: 59 TypeScript linting errors from extensive `any` usage
-
-### Implementation Phases
+**Implementation Phases** (if needed):
 
 #### Phase 1: AWS SDK Type Integration
-**Problem**: Ignoring comprehensive AWS SDK types in favor of `any`
-
 **Solution**: Full AWS SDK type integration
 ```typescript
 import { 
@@ -411,8 +58,6 @@ type BedrockCommand =
 ```
 
 #### Phase 2: Domain-Specific Type Creation
-**Problem**: Using `Record<string, any>` for domain structures
-
 **Solution**: Specific domain interfaces
 ```typescript
 interface InvocationParameters {
@@ -433,8 +78,6 @@ interface ConverseInvocationParameters {
 ```
 
 #### Phase 3: OpenTelemetry Type Alignment
-**Problem**: Using `any` for OpenTelemetry attributes
-
 **Solution**: Proper `AttributeValue` usage
 ```typescript
 import { AttributeValue } from "@opentelemetry/api";
@@ -451,8 +94,6 @@ export function setSpanAttribute(
 ```
 
 #### Phase 4: Type Guard Modernization
-**Problem**: Type guards using `any` instead of discriminated unions
-
 **Solution**: Proper discriminated unions
 ```typescript
 type MessageContent = 
@@ -467,8 +108,6 @@ export function isTextContent(content: MessageContent): content is TextContent {
 ```
 
 #### Phase 5: Test Code Cleanup
-**Problem**: Extensive `any` usage in test code
-
 **Solution**: Proper test types
 ```typescript
 interface TestConverseCommand {
@@ -481,66 +120,71 @@ interface TestConverseCommand {
 }
 ```
 
-### Expected Outcomes
-
-**Before Implementation**:
-- 59 TypeScript linting errors
-- No compile-time type safety
-- Poor IDE support
-- Runtime type errors
-
-**After Implementation**:
+**Expected Outcomes**:
 - 0 TypeScript linting errors
 - Full compile-time type safety
 - Excellent IDE support with autocomplete
 - Self-documenting code through types
 
-## Implementation Priority Assessment
+**Implementation Effort**: Low-Medium (1-2 weeks)
 
-### Immediate High Value
-1. **Converse API Support**: Modern API with multi-turn conversations and cross-vendor support
-2. **TypeScript Modernization**: Critical for maintainable, production-quality code
+### Priority 2: Advanced Streaming Enhancements
 
-### Medium-Term Value
-3. **Multi-Model Vendor Support**: Expands ecosystem compatibility
-4. **Advanced Streaming Enhancements**: Production observability improvements
+**Status**: Optional enhancements - core streaming is complete
 
-### Lower Priority
-5. **Knowledge Base Integration**: Valuable for RAG applications but specialized
-6. **InvokeAgent API Support**: **DEFERRED** - Specialized use case
+**Current Coverage**:
+- ✅ Basic streaming event processing
+- ✅ Tool call streaming assembly
+- ✅ Error handling for streaming
+
+**Optional Enhancements**:
+- **Stream Interruption**: Handling client-side stream cancellation
+- **Partial Response Recovery**: Resume interrupted streams
+- **Stream Performance Metrics**: Latency and throughput tracking
+- **Advanced Event Processing**: Custom event handlers
+
+**Implementation Effort**: Low (1 week)
+- Enhanced error boundary handling
+- Performance metric collection
+- Stream lifecycle optimization
+
+### Priority 3: Knowledge Base Integration
+
+**Status**: Not implemented - specialized Bedrock feature
+
+**Scope**:
+- **Retrieve API instrumentation**: Basic document retrieval
+- **RetrieveAndGenerate API support**: RAG workflow instrumentation
+- **Document retrieval scoring**: Relevance and confidence metrics
+- **Knowledge base metadata attribution**: Source document tracking
+
+**Implementation Effort**: Medium (2 weeks)
+- New API command patterns
+- Document retrieval attribute extraction
+- Relevance scoring and metadata handling
+- RAG-specific test scenarios
+
+### Priority 4: InvokeAgent API Support
+
+**Status**: **DEFERRED** - specialized use case with high complexity
+
+**Rationale for Deferral**:
+1. **Specialized Use Case**: InvokeAgent serves a narrow agent workflow use case
+2. **High Implementation Complexity**: Requires complex span hierarchy management
+3. **Limited Demand**: No current user requests for this specific API
+4. **Resource Allocation**: Focus on higher-impact TypeScript modernization
+
+**Deferred Scope**:
+- Complex agent workflow tracing
+- Hierarchical span structures for agent steps
+- Knowledge base integration attributes
+- Agent action and observation tracking
+
+**Future Consideration**: This feature can be revisited based on user demand and after completing higher-priority enhancements.
+
+---
 
 ## Implementation Guidelines
-
-### Python Implementation Pattern Integration
-
-**1. Incremental Attribute Building**
-- Use small, focused helper functions for attribute extraction
-- Build attributes incrementally through composed function calls
-- Follow null-safe attribute setting patterns
-
-**2. Structured Helper Functions**
-```typescript
-// Request-side extraction (command → attributes)
-extractBaseRequestAttributes()     // Model, system, provider, parameters
-extractInputMessagesAttributes()   // User messages and structured input  
-extractInputToolAttributes()       // Tool schema conversion
-
-// Response-side extraction (response + span → void)  
-extractOutputMessagesAttributes()  // Assistant messages and output value
-extractToolCallAttributes()        // Tool calls from response content blocks
-extractUsageAttributes()           // Token counts and usage statistics
-```
-
-**3. Iterative Message Processing**
-```typescript
-function processMessages(span: Span, messages: Message[], baseKey: string): void {
-  for (const [index, message] of messages.entries()) {
-    for (const [key, value] of getAttributesFromMessage(message)) {
-      setSpanAttribute(span, `${baseKey}.${index}.${key}`, value);
-    }
-  }
-}
-```
 
 ### Quality Standards
 
@@ -551,16 +195,21 @@ function processMessages(span: Span, messages: Message[], baseKey: string): void
 - **Performance**: No degradation in instrumentation overhead
 - **Backward Compatibility**: Maintain existing API compatibility
 
+### Development Priorities
+
+1. **TypeScript Modernization**: Critical for maintainable, production-quality code
+2. **Advanced Streaming**: Production observability improvements
+3. **Knowledge Base Integration**: Valuable for RAG applications but specialized
+4. **InvokeAgent API**: Specialized use case - lowest priority
+
+---
+
 ## Conclusion
 
-The JavaScript Bedrock instrumentation has evolved from **feature-complete for InvokeModel** to **ready for comprehensive Converse API implementation**. The detailed analysis of Python implementation patterns and test cases reveals that Converse API support is a substantial undertaking requiring:
+The JavaScript Bedrock instrumentation is **complete and production-ready** with comprehensive coverage of all major AWS Bedrock APIs. The remaining work consists of:
 
-1. **Multi-turn conversation support** (critical missing feature)
-2. **Cross-vendor model compatibility** (Mistral, Meta LLaMA)
-3. **Complex message content structure handling** 
-4. **Complete TypeScript modernization** (eliminate all `any` usage)
-5. **Python implementation pattern alignment** (incremental attribute building)
+1. **TypeScript Modernization** (Priority 1): Ensure complete type safety throughout codebase
+2. **Optional Enhancements** (Priority 2-3): Specialized features for advanced use cases
+3. **Deferred Features** (Priority 4): Complex specialized APIs with limited demand
 
-The **InvokeAgent API has been deferred** to focus resources on higher-impact enhancements that serve broader use cases.
-
-Any future work should prioritize **Converse API Support** combined with **TypeScript Modernization** as these provide the highest value for expanding the Bedrock ecosystem compatibility while establishing a robust, type-safe foundation for long-term maintainability.
+The **highest priority** is confirming and completing TypeScript modernization to ensure a fully type-safe, production-quality codebase. All other enhancements are optional and can be implemented based on user demand and specific use case requirements.

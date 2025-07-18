@@ -18,7 +18,8 @@
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
     "test": "jest .",
-    "validate:invoke-model": "tsx scripts/validate-invoke-model.ts"
+    "validate:invoke-model": "tsx scripts/validate-invoke-model.ts",
+    "validate:converse": "tsx scripts/validate-converse.ts"
   },
   "exports": {
     ".": {
