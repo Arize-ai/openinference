@@ -269,7 +269,7 @@ function addMessageAttributes(
 
 /**
  * Adds detailed message content structure attributes
- * Phase 2: Message Content Structure Enhancement
+ * Message Content Structure Enhancement
  */
 function addMessageContentAttributes(
   span: Span,

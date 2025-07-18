@@ -2,7 +2,7 @@ import { Span, AttributeValue } from "@opentelemetry/api";
 
 /**
  * Sets a span attribute only if the value is not null, undefined, or empty string
- * Provides null-safe attribute setting for OpenTelemetry spans following Python pattern
+ * Provides null-safe attribute setting for OpenTelemetry spans
  */
 export function setSpanAttribute(
   span: Span, 
@@ -24,7 +24,7 @@ export function setSpanAttributes(span: Span, attributes: Record<string, Attribu
 }
 
 // ========================================================================
-// CONVERSE API HELPER FUNCTIONS (Following Python patterns)
+// CONVERSE API HELPER FUNCTIONS
 // ========================================================================
 
 import {
@@ -39,7 +39,6 @@ import {
 
 /**
  * Aggregates multiple system prompts into a single string with space separation
- * Following Python implementation pattern
  */
 export function aggregateSystemPrompts(systemPrompts: SystemPrompt[]): string {
   return systemPrompts
@@ -50,7 +49,6 @@ export function aggregateSystemPrompts(systemPrompts: SystemPrompt[]): string {
 
 /**
  * Aggregates system prompts and messages into a single message array
- * Following Python implementation pattern
  */
 export function aggregateMessages(
   systemPrompts: SystemPrompt[] = [],
@@ -71,7 +69,6 @@ export function aggregateMessages(
 
 /**
  * Generator function to extract attributes from a single message
- * Following Python's _get_attributes_from_message_param pattern
  */
 export function* getAttributesFromMessage(
   message: ConverseMessage
@@ -91,7 +88,6 @@ export function* getAttributesFromMessage(
 
 /**
  * Generator function to extract attributes from message content
- * Following Python implementation pattern
  */
 export function* getAttributesFromMessageContent(
   content: ConverseContentBlock
@@ -134,7 +130,6 @@ export function* getAttributesFromMessageContent(
 
 /**
  * Processes multiple messages and sets attributes on span with proper indexing
- * Following Python pattern for iterative message processing
  */
 export function processMessages(span: Span, messages: ConverseMessage[], baseKey: string): void {
   for (const [index, message] of messages.entries()) {
