@@ -4,9 +4,11 @@ import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ChatMessageType;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.model.chat.listener.*;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
@@ -173,6 +175,38 @@ public class LangChain4jModelListener implements ChatModelListener {
 
             // Set content
             span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), message.text());
+
+            // Set ToolCall
+            if (message.type().equals(ChatMessageType.AI)) {
+                AiMessage aiMessage = (AiMessage) message;
+                if (aiMessage.toolExecutionRequests()!= null && !aiMessage.toolExecutionRequests().isEmpty())
+                    toolCallExtraction(span, prefix, aiMessage);
+            }
+
+            // Set Tool Response
+            if (message.type().equals(ChatMessageType.TOOL_EXECUTION_RESULT)) {
+                ToolExecutionResultMessage toolExecutionResultMessage = (ToolExecutionResultMessage) message;
+
+                span.setAttribute(
+                        AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALL_ID),
+                        toolExecutionResultMessage.id());
+            }
+        }
+    }
+
+    private void toolCallExtraction(Span span, String prefix, AiMessage aiMessage) {
+        for (int i = 0; i < aiMessage.toolExecutionRequests().size(); i++) {
+            // Add tool call attributes here if needed
+            span.setAttribute(
+                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS + "." + i + "." + SemanticConventions.TOOL_CALL_ID),
+                    aiMessage.toolExecutionRequests().get(i).id());
+            span.setAttribute(
+                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS + "." + i + "." + SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON),
+                    aiMessage.toolExecutionRequests().get(i).arguments());
+            span.setAttribute(
+                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS + "." + i + "." + SemanticConventions.TOOL_CALL_FUNCTION_NAME),
+                    aiMessage.toolExecutionRequests().get(i).name()
+            );
         }
     }
 
@@ -186,18 +220,12 @@ public class LangChain4jModelListener implements ChatModelListener {
         span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), aiMessage.text());
 
         // Set tool calls if present
+
         if (aiMessage.toolExecutionRequests() != null
                 && !aiMessage.toolExecutionRequests().isEmpty()) {
-            for (int i = 0; i < aiMessage.toolExecutionRequests().size(); i++) {
-                // Add tool call attributes here if needed
-                span.setAttribute(
-                        AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALL_ID),
-                        aiMessage.toolExecutionRequests().get(i).id());
-                span.setAttribute(
-                        AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS),
-                        aiMessage.toolExecutionRequests().get(i).arguments());
-            }
+            toolCallExtraction(span, prefix, aiMessage);
         }
+//        span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALLS), List.of());
     }
 
     private String mapMessageRole(ChatMessageType type) {
@@ -237,13 +265,19 @@ public class LangChain4jModelListener implements ChatModelListener {
                         AiMessage aiMessage = (AiMessage) message;
                         if (aiMessage.toolExecutionRequests() != null
                                 && !aiMessage.toolExecutionRequests().isEmpty()) {
-                            messageMap.put("tool_calls", aiMessage.toolExecutionRequests());
+                            messageMap.put("content", Map.of("tool_calls",
+                                    aiMessage.toolExecutionRequests().stream().map(t -> Map.of("id", t.id(), "function", Map.of("arguments", t.arguments(), "name", t.name())))));
                         }
                     }
                     break;
                 case TOOL_EXECUTION_RESULT:
                     messageMap.put("role", "tool");
                     messageMap.put("content", message.text());
+                    if (message.type().equals(ChatMessageType.TOOL_EXECUTION_RESULT)) {
+                        ToolExecutionResultMessage toolExecutionResultMessage = (ToolExecutionResultMessage) message;
+                        messageMap.put(SemanticConventions.MESSAGE_TOOL_CALL_ID, toolExecutionResultMessage.id());
+                    }
+//                    messageMap.put(SemanticConventions.MESSAGE_TOOL_CALL_ID, message.)
                     break;
             }
 

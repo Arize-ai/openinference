@@ -24,7 +24,7 @@ def generate_dependabot_config():
     npm_instrumentation_dir = "js/packages"
     print(os.listdir(npm_instrumentation_dir))
     for package in os.listdir(npm_instrumentation_dir):
-        if package.startswith("openinference-instrumentation-"):
+        if package.startswith("openinference-"):
             path = f"{npm_instrumentation_dir}/{package}"
             print(path)
             if os.path.exists(f"{path}/package.json"):
