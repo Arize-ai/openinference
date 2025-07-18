@@ -166,33 +166,34 @@ describe("BedrockInstrumentation", () => {
     nock.restore();
   });
 
-  describe("InvokeModel basic instrumentation", () => {
-    it("should create spans for InvokeModel calls", async () => {
-      setupTestRecording("should create spans for InvokeModel calls");
+  describe("InvokeModel API", () => {
+    describe("Basic Instrumentation", () => {
+      it("should create spans for InvokeModel calls", async () => {
+        setupTestRecording("should create spans for InvokeModel calls");
 
-      const client = createTestClient(isRecordingMode);
+        const client = createTestClient(isRecordingMode);
 
-      const command = new InvokeModelCommand({
-        modelId: TEST_MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: TEST_MAX_TOKENS,
-          messages: [
-            {
-              role: "user",
-              content: TEST_USER_MESSAGE,
-            },
-          ],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
-      });
+        const command = new InvokeModelCommand({
+          modelId: TEST_MODEL_ID,
+          body: JSON.stringify({
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: TEST_MAX_TOKENS,
+            messages: [
+              {
+                role: "user",
+                content: TEST_USER_MESSAGE,
+              },
+            ],
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
 
-      const result = await client.send(command);
-      verifyResponseStructure(result);
+        const result = await client.send(command);
+        verifyResponseStructure(result);
 
-      const span = verifySpanBasics(spanExporter);
-      expect(span.attributes).toMatchInlineSnapshot(`
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Hello, how are you?"}]}",
@@ -211,49 +212,50 @@ describe("BedrockInstrumentation", () => {
   "output.value": "{"id":"msg_bdrk_01M7yZYBn3yhYTyMxjQK781b","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":13,"output_tokens":35}}",
 }
 `);
-    });
-
-    it("should handle tool calling with function definitions", async () => {
-      setupTestRecording(
-        "should handle tool calling with function definitions",
-      );
-
-      const toolDefinition = {
-        name: "get_weather",
-        description: "Get current weather for a location",
-        input_schema: {
-          type: "object",
-          properties: {
-            location: { type: "string", description: "The city and state" },
-          },
-          required: ["location"],
-        },
-      };
-
-      const client = createTestClient(isRecordingMode);
-
-      const command = new InvokeModelCommand({
-        modelId: TEST_MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: TEST_MAX_TOKENS,
-          tools: [toolDefinition],
-          messages: [
-            {
-              role: "user",
-              content: "What's the weather like in San Francisco?",
-            },
-          ],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
       });
+    });
+    describe("Tool Calling", () => {
+      it("should handle tool calling with function definitions", async () => {
+        setupTestRecording(
+          "should handle tool calling with function definitions",
+        );
 
-      const result = await client.send(command);
-      verifyResponseStructure(result);
+        const toolDefinition = {
+          name: "get_weather",
+          description: "Get current weather for a location",
+          input_schema: {
+            type: "object",
+            properties: {
+              location: { type: "string", description: "The city and state" },
+            },
+            required: ["location"],
+          },
+        };
 
-      const span = verifySpanBasics(spanExporter);
-      expect(span.attributes).toMatchInlineSnapshot(`
+        const client = createTestClient(isRecordingMode);
+
+        const command = new InvokeModelCommand({
+          modelId: TEST_MODEL_ID,
+          body: JSON.stringify({
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: TEST_MAX_TOKENS,
+            tools: [toolDefinition],
+            messages: [
+              {
+                role: "user",
+                content: "What's the weather like in San Francisco?",
+              },
+            ],
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather like in San Francisco?"}]}",
@@ -280,37 +282,37 @@ describe("BedrockInstrumentation", () => {
   "output.value": "{"id":"msg_bdrk_01UCkMJ9Yp7J1ZpAWtK8CdYN","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"Certainly! I can help you with that information. To get the current weather for San Francisco, I'll use the get_weather function. Let me fetch that data for you."},{"type":"tool_use","id":"toolu_bdrk_01MqHGzs8QwkdkVjJYrbLTPp","name":"get_weather","input":{"location":"San Francisco, CA"}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":373,"output_tokens":94}}",
 }
 `);
-    });
-
-    it("should handle tool result responses", async () => {
-      setupTestRecording("should handle tool result responses");
-
-      const client = createTestClient(isRecordingMode);
-
-      // Use existing generateToolResultMessage() from test-data-generators.js
-      const testData = generateToolResultMessage({
-        initialPrompt: "What's the weather in Paris?",
-        toolUseId: "toolu_123",
-        toolName: "get_weather",
-        toolInput: { location: "Paris, France" },
-        toolResult: "The weather in Paris is currently 22°C and sunny.",
-        followupPrompt: "Great! What should I wear?",
       });
 
-      const command = new InvokeModelCommand({
-        modelId: testData.modelId,
-        body: testData.body,
-        contentType: "application/json",
-        accept: "application/json",
-      });
+      it("should handle tool result responses", async () => {
+        setupTestRecording("should handle tool result responses");
 
-      const result = await client.send(command);
-      verifyResponseStructure(result);
+        const client = createTestClient(isRecordingMode);
 
-      const span = verifySpanBasics(spanExporter);
+        // Use existing generateToolResultMessage() from test-data-generators.js
+        const testData = generateToolResultMessage({
+          initialPrompt: "What's the weather in Paris?",
+          toolUseId: "toolu_123",
+          toolName: "get_weather",
+          toolInput: { location: "Paris, France" },
+          toolResult: "The weather in Paris is currently 22°C and sunny.",
+          followupPrompt: "Great! What should I wear?",
+        });
 
-      // Verify tool result processing attributes
-      expect(span.attributes).toMatchInlineSnapshot(`
+        const command = new InvokeModelCommand({
+          modelId: testData.modelId,
+          body: testData.body,
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+
+        // Verify tool result processing attributes
+        expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather in Paris?"},{"role":"assistant","content":[{"type":"tool_use","id":"toolu_123","name":"get_weather","input":{"location":"Paris, France"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_123","content":"The weather in Paris is currently 22°C and sunny."},{"type":"text","text":"Great! What should I wear?"}]}]}",
@@ -351,301 +353,33 @@ The key things are to dress for the warm temperatures and have layers you can",
   "output.value": "{"id":"msg_bdrk_0192ZiMpnkcdHwvzYyWpps77","type":"message","role":"assistant","model":"claude-3-sonnet-20240229","content":[{"type":"text","text":"Since it's warm and sunny in Paris right now, you'll want to wear lightweight, breathable clothing. Some recommendations:\\n\\n- A light shirt or tank top\\n- Shorts or a light skirt/dress\\n- Sandals or other open-toed shoes\\n- A hat or sunglasses for sun protection\\n- A light jacket or sweater in case it cools off in the evening\\n\\nThe key things are to dress for the warm temperatures and have layers you can"}],"stop_reason":"max_tokens","stop_sequence":null,"usage":{"input_tokens":364,"output_tokens":100}}",
 }
 `);
-    });
+      });
+      it("should handle multiple tools in single request", async () => {
+        setupTestRecording("should handle multiple tools in single request");
 
-    it("should handle missing token counts gracefully", async () => {
-      setupTestRecording("should handle missing token counts gracefully");
+        const client = createTestClient(isRecordingMode);
 
-      const client = createTestClient(isRecordingMode);
-
-      const command = new InvokeModelCommand({
-        modelId: TEST_MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: TEST_MAX_TOKENS,
-          messages: [
-            {
-              role: "user",
-              content: "Tell me a short fact.",
-            },
+        const testData = generateToolCallMessage({
+          prompt: "What's the weather in San Francisco and what's 15 * 23?",
+          tools: [
+            commonTools.weather,
+            commonTools.calculator,
+            commonTools.webSearch,
           ],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
-      });
+        });
 
-      const result = await client.send(command);
-      verifyResponseStructure(result);
+        const command = new InvokeModelCommand({
+          modelId: testData.modelId,
+          body: testData.body,
+          contentType: "application/json",
+          accept: "application/json",
+        });
 
-      const span = verifySpanBasics(spanExporter);
+        const result = await client.send(command);
+        verifyResponseStructure(result);
 
-      // Verify that span completes successfully even without token counts
-      expect(span.status.code).toBe(1); // SpanStatusCode.OK
-      expect(span.attributes["llm.model_name"]).toBe(
-        "claude-3-5-sonnet-20240620",
-      );
-      expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.system"]).toBe("anthropic");
-      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-
-      // Basic message attributes should still be present
-      expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
-        "Tell me a short fact.",
-      );
-      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-
-      // Output message should be captured
-      expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-        "assistant",
-      );
-      expect(
-        span.attributes["llm.output_messages.0.message.content"],
-      ).toBeDefined();
-
-      // Token count attributes should either be undefined or gracefully handled
-      // This test verifies graceful handling when usage is missing
-      const hasTokenCounts =
-        span.attributes["llm.token_count.prompt"] !== undefined ||
-        span.attributes["llm.token_count.completion"] !== undefined ||
-        span.attributes["llm.token_count.total"] !== undefined;
-
-      // If token counts are present, they should be valid numbers
-      if (hasTokenCounts) {
-        if (span.attributes["llm.token_count.prompt"] !== undefined) {
-          expect(typeof span.attributes["llm.token_count.prompt"]).toBe(
-            "number",
-          );
-        }
-        if (span.attributes["llm.token_count.completion"] !== undefined) {
-          expect(typeof span.attributes["llm.token_count.completion"]).toBe(
-            "number",
-          );
-        }
-        if (span.attributes["llm.token_count.total"] !== undefined) {
-          expect(typeof span.attributes["llm.token_count.total"]).toBe(
-            "number",
-          );
-        }
-      }
-
-      // Snapshot the attributes to verify token handling behavior
-      expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short fact."}]}",
-  "llm.input_messages.0.message.content": "Tell me a short fact.",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
-  "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.content": "Here's a short fact for you:
-
-Honeybees can recognize human faces.",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.system": "anthropic",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"id":"msg_bdrk_01WnczgPLNeFxGoqRLQnmKQR","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"Here's a short fact for you:\\n\\nHoneybees can recognize human faces."}],"stop_reason":"end_turn","stop_sequence":null}",
-}
-`);
-    });
-
-    it("should handle multi-modal messages with images", async () => {
-      setupTestRecording("should handle multi-modal messages with images");
-
-      const client = createTestClient(isRecordingMode);
-
-      // Create a multi-modal message with text and image
-      const imageData =
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
-
-      const command = new InvokeModelCommand({
-        modelId: TEST_MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: TEST_MAX_TOKENS,
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "What do you see in this image?",
-                },
-                {
-                  type: "image",
-                  source: {
-                    type: "base64",
-                    media_type: "image/png",
-                    data: imageData,
-                  },
-                },
-              ],
-            },
-          ],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
-      });
-
-      const result = await client.send(command);
-      verifyResponseStructure(result);
-
-      const span = verifySpanBasics(spanExporter);
-
-      // Verify multi-modal message handling
-      expect(span.attributes["llm.model_name"]).toBe(
-        "claude-3-5-sonnet-20240620",
-      );
-      expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.system"]).toBe("anthropic");
-      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-
-      // Check that input message content is properly handled
-      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-
-      // The input.value should contain the full JSON request body with image data
-      expect(span.attributes["input.value"]).toContain(
-        "What do you see in this image?",
-      );
-      expect(span.attributes["input.value"]).toContain(imageData);
-
-      // Verify that multi-modal content is properly extracted
-      // Text content should be captured in detailed structure
-      expect(
-        span.attributes[
-          "llm.input_messages.0.message.contents.0.message_content.text"
-        ],
-      ).toContain("What do you see in this image?");
-
-      // Image content should be captured in OpenInference format
-      // The message should contain the image URL in the expected format
-      const imageContent =
-        span.attributes[
-          "llm.input_messages.0.message.contents.1.message_content.image.image.url"
-        ];
-      const expectedImageUrl = `data:image/png;base64,${imageData}`;
-      expect(imageContent).toBe(expectedImageUrl);
-
-      // Output message should be captured
-      expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-        "assistant",
-      );
-      expect(
-        span.attributes["llm.output_messages.0.message.content"],
-      ).toBeDefined();
-
-      // Snapshot the attributes to verify multi-modal message processing
-      expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":[{"type":"text","text":"What do you see in this image?"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="}}]}]}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "What do you see in this image?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
-  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
-  "llm.input_messages.0.message.contents.1.message_content.type": "image",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
-  "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.content": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.system": "anthropic",
-  "llm.token_count.completion": 100,
-  "llm.token_count.prompt": 19,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"id":"msg_bdrk_01GKV3gTrEVoxHSj4ErmzgRS","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is"}],"stop_reason":"max_tokens","stop_sequence":null,"usage":{"input_tokens":19,"output_tokens":100}}",
-}
-`);
-    });
-
-    it("should handle API errors gracefully", async () => {
-      setupTestRecording("should handle api errors gracefully");
-
-      const client = createTestClient(isRecordingMode);
-
-      // Test invalid model ID (should trigger 400 error)
-      const invalidModelCommand = new InvokeModelCommand({
-        modelId: "invalid-model-id",
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: TEST_MAX_TOKENS,
-          messages: [
-            {
-              role: "user",
-              content: "This should fail",
-            },
-          ],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
-      });
-
-      // Expect the API call to throw an error
-      await expect(client.send(invalidModelCommand)).rejects.toThrow();
-
-      // Verify span was created and marked as error
-      const span = verifySpanBasics(spanExporter);
-
-      // Verify span status is set to ERROR
-      expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
-      expect(span.status.message).toBeDefined();
-
-      // Verify basic attributes are still captured
-      expect(span.attributes["llm.model_name"]).toBe("invalid-model-id");
-      expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.system"]).toBe("bedrock");
-      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-
-      // Verify input message attributes are captured
-      expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
-        "This should fail",
-      );
-      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-
-      // Verify error details are recorded
-      expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"This should fail"}]}",
-  "llm.input_messages.0.message.content": "This should fail",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
-  "llm.model_name": "invalid-model-id",
-  "llm.provider": "aws",
-  "llm.system": "bedrock",
-  "openinference.span.kind": "LLM",
-}
-`);
-    });
-
-    it("should handle multiple tools in single request", async () => {
-      setupTestRecording("should handle multiple tools in single request");
-
-      const client = createTestClient(isRecordingMode);
-
-      const testData = generateToolCallMessage({
-        prompt: "What's the weather in San Francisco and what's 15 * 23?",
-        tools: [
-          commonTools.weather,
-          commonTools.calculator,
-          commonTools.webSearch,
-        ],
-      });
-
-      const command = new InvokeModelCommand({
-        modelId: testData.modelId,
-        body: testData.body,
-        contentType: "application/json",
-        accept: "application/json",
-      });
-
-      const result = await client.send(command);
-      verifyResponseStructure(result);
-
-      const span = verifySpanBasics(spanExporter);
-      expect(span.attributes).toMatchInlineSnapshot(`
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}},{"name":"calculate","description":"Perform mathematical calculations","input_schema":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}},{"name":"web_search","description":"Search the web for information","input_schema":{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"num_results":{"type":"integer","description":"Number of results to return","minimum":1,"maximum":10}},"required":["query"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco and what's 15 * 23?"}]}",
@@ -681,31 +415,307 @@ Honeybees can recognize human faces.",
   "output.value": "{"id":"msg_bdrk_01VGSSxYibWoHmna5zwvqqCt","type":"message","role":"assistant","model":"claude-3-sonnet-20240229","content":[{"type":"text","text":"Okay, let's get the weather and do that calculation."},{"type":"tool_use","id":"toolu_bdrk_01FqpV1qX3bJ4bczkdtMhdGz","name":"get_weather","input":{"location":"San Francisco, CA","unit":"fahrenheit"}},{"type":"tool_use","id":"toolu_bdrk_01KMAmxrwkK8jh8h6YNQ495y","name":"calculate","input":{}}],"stop_reason":"max_tokens","stop_sequence":null,"usage":{"input_tokens":435,"output_tokens":100}}",
 }
 `);
+      });
+    });
+    describe("Multi-Modal", () => {
+      it("should handle multi-modal messages with images", async () => {
+        setupTestRecording("should handle multi-modal messages with images");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Create a multi-modal message with text and image
+        const imageData =
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+
+        const command = new InvokeModelCommand({
+          modelId: TEST_MODEL_ID,
+          body: JSON.stringify({
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: TEST_MAX_TOKENS,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "What do you see in this image?",
+                  },
+                  {
+                    type: "image",
+                    source: {
+                      type: "base64",
+                      media_type: "image/png",
+                      data: imageData,
+                    },
+                  },
+                ],
+              },
+            ],
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+
+        // Verify multi-modal message handling
+        expect(span.attributes["llm.model_name"]).toBe(
+          "claude-3-5-sonnet-20240620",
+        );
+        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.system"]).toBe("anthropic");
+        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+        // Check that input message content is properly handled
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
+          "user",
+        );
+
+        // The input.value should contain the full JSON request body with image data
+        expect(span.attributes["input.value"]).toContain(
+          "What do you see in this image?",
+        );
+        expect(span.attributes["input.value"]).toContain(imageData);
+
+        // Verify that multi-modal content is properly extracted
+        // Text content should be captured in detailed structure
+        expect(
+          span.attributes[
+            "llm.input_messages.0.message.contents.0.message_content.text"
+          ],
+        ).toContain("What do you see in this image?");
+
+        // Image content should be captured in OpenInference format
+        // The message should contain the image URL in the expected format
+        const imageContent =
+          span.attributes[
+            "llm.input_messages.0.message.contents.1.message_content.image.image.url"
+          ];
+        const expectedImageUrl = `data:image/png;base64,${imageData}`;
+        expect(imageContent).toBe(expectedImageUrl);
+
+        // Output message should be captured
+        expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+          "assistant",
+        );
+        expect(
+          span.attributes["llm.output_messages.0.message.content"],
+        ).toBeDefined();
+
+        // Snapshot the attributes to verify multi-modal message processing
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":[{"type":"text","text":"What do you see in this image?"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="}}]}]}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "What do you see in this image?",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+  "llm.input_messages.0.message.contents.1.message_content.type": "image",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.model_name": "claude-3-5-sonnet-20240620",
+  "llm.output_messages.0.message.content": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "anthropic",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 19,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"msg_bdrk_01GKV3gTrEVoxHSj4ErmzgRS","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is"}],"stop_reason":"max_tokens","stop_sequence":null,"usage":{"input_tokens":19,"output_tokens":100}}",
+}
+`);
+      });
+    });
+    describe("Error Handling", () => {
+      it("should handle missing token counts gracefully", async () => {
+        setupTestRecording("should handle missing token counts gracefully");
+
+        const client = createTestClient(isRecordingMode);
+
+        const command = new InvokeModelCommand({
+          modelId: TEST_MODEL_ID,
+          body: JSON.stringify({
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: TEST_MAX_TOKENS,
+            messages: [
+              {
+                role: "user",
+                content: "Tell me a short fact.",
+              },
+            ],
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+
+        // Verify that span completes successfully even without token counts
+        expect(span.status.code).toBe(1); // SpanStatusCode.OK
+        expect(span.attributes["llm.model_name"]).toBe(
+          "claude-3-5-sonnet-20240620",
+        );
+        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.system"]).toBe("anthropic");
+        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+        // Basic message attributes should still be present
+        expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
+          "Tell me a short fact.",
+        );
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
+          "user",
+        );
+
+        // Output message should be captured
+        expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+          "assistant",
+        );
+        expect(
+          span.attributes["llm.output_messages.0.message.content"],
+        ).toBeDefined();
+
+        // Token count attributes should either be undefined or gracefully handled
+        // This test verifies graceful handling when usage is missing
+        const hasTokenCounts =
+          span.attributes["llm.token_count.prompt"] !== undefined ||
+          span.attributes["llm.token_count.completion"] !== undefined ||
+          span.attributes["llm.token_count.total"] !== undefined;
+
+        // If token counts are present, they should be valid numbers
+        if (hasTokenCounts) {
+          if (span.attributes["llm.token_count.prompt"] !== undefined) {
+            expect(typeof span.attributes["llm.token_count.prompt"]).toBe(
+              "number",
+            );
+          }
+          if (span.attributes["llm.token_count.completion"] !== undefined) {
+            expect(typeof span.attributes["llm.token_count.completion"]).toBe(
+              "number",
+            );
+          }
+          if (span.attributes["llm.token_count.total"] !== undefined) {
+            expect(typeof span.attributes["llm.token_count.total"]).toBe(
+              "number",
+            );
+          }
+        }
+
+        // Snapshot the attributes to verify token handling behavior
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short fact."}]}",
+  "llm.input_messages.0.message.content": "Tell me a short fact.",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.model_name": "claude-3-5-sonnet-20240620",
+  "llm.output_messages.0.message.content": "Here's a short fact for you:
+
+Honeybees can recognize human faces.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "anthropic",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"msg_bdrk_01WnczgPLNeFxGoqRLQnmKQR","type":"message","role":"assistant","model":"claude-3-5-sonnet-20240620","content":[{"type":"text","text":"Here's a short fact for you:\\n\\nHoneybees can recognize human faces."}],"stop_reason":"end_turn","stop_sequence":null}",
+}
+`);
+      });
+      it("should handle API errors gracefully", async () => {
+        setupTestRecording("should handle api errors gracefully");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test invalid model ID (should trigger 400 error)
+        const invalidModelCommand = new InvokeModelCommand({
+          modelId: "invalid-model-id",
+          body: JSON.stringify({
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: TEST_MAX_TOKENS,
+            messages: [
+              {
+                role: "user",
+                content: "This should fail",
+              },
+            ],
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        // Expect the API call to throw an error
+        await expect(client.send(invalidModelCommand)).rejects.toThrow();
+
+        // Verify span was created and marked as error
+        const span = verifySpanBasics(spanExporter);
+
+        // Verify span status is set to ERROR
+        expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
+        expect(span.status.message).toBeDefined();
+
+        // Verify basic attributes are still captured
+        expect(span.attributes["llm.model_name"]).toBe("invalid-model-id");
+        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.system"]).toBe("bedrock");
+        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+        // Verify input message attributes are captured
+        expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
+          "This should fail",
+        );
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
+          "user",
+        );
+
+        // Verify error details are recorded
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"This should fail"}]}",
+  "llm.input_messages.0.message.content": "This should fail",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.model_name": "invalid-model-id",
+  "llm.provider": "aws",
+  "llm.system": "bedrock",
+  "openinference.span.kind": "LLM",
+}
+`);
+      });
     });
   });
 
-  describe("InvokeModelWithResponseStream support", () => {
-    it("should handle InvokeModelWithResponseStream", async () => {
-      setupTestRecording("should handle invoke model with response stream");
+  describe("InvokeModelWithResponseStream", () => {
+    describe("Basic Function and Tool Calling", () => {
+      it("should handle InvokeModelWithResponseStream", async () => {
+        setupTestRecording("should handle invoke model with response stream");
 
-      const client = createTestClient(isRecordingMode);
+        const client = createTestClient(isRecordingMode);
 
-      const command = new InvokeModelWithResponseStreamCommand({
-        modelId: TEST_MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: 100,
-          messages: [{ role: "user", content: "Tell me a short story" }],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
-      });
+        const command = new InvokeModelWithResponseStreamCommand({
+          modelId: TEST_MODEL_ID,
+          body: JSON.stringify({
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: 100,
+            messages: [{ role: "user", content: "Tell me a short story" }],
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
 
-      const result = await client.send(command);
-      verifyResponseStructure(result);
+        const result = await client.send(command);
+        verifyResponseStructure(result);
 
-      const span = verifySpanBasics(spanExporter);
-      expect(span.attributes).toMatchInlineSnapshot(`
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short story"}]}",
@@ -730,30 +740,30 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "output.value": "{"id":"bedrock-streaming-response","type":"message","role":"assistant","model":"bedrock-streaming","content":[{"type":"text","text":"Here's a short story for you:\\n\\nThe Last Leaf\\n\\nElla gazed out her window at the ivy-covered wall across the courtyard. She had been bedridden with pneumonia for weeks, and her spirits were low. The doctor had told her that she needed the will to live to recover, but Ella felt herself slipping away.\\n\\nShe had been counting the ivy leaves as they fell, convinced that when the last leaf dropped, she too would die. Now"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":12,"output_tokens":100}}",
 }
 `);
-    });
-
-    it("should handle streaming responses with tool calls", async () => {
-      setupTestRecording("should handle streaming responses with tool calls");
-
-      const client = createTestClient(isRecordingMode);
-
-      const testData = generateToolCallMessage({
-        prompt: "What's the weather in San Francisco?",
-        tools: [commonTools.weather],
       });
 
-      const command = new InvokeModelWithResponseStreamCommand({
-        modelId: testData.modelId,
-        body: testData.body,
-        contentType: "application/json",
-        accept: "application/json",
-      });
+      it("should handle streaming responses with tool calls", async () => {
+        setupTestRecording("should handle streaming responses with tool calls");
 
-      const result = await client.send(command);
-      verifyResponseStructure(result);
+        const client = createTestClient(isRecordingMode);
 
-      const span = verifySpanBasics(spanExporter);
-      expect(span.attributes).toMatchInlineSnapshot(`
+        const testData = generateToolCallMessage({
+          prompt: "What's the weather in San Francisco?",
+          tools: [commonTools.weather],
+        });
+
+        const command = new InvokeModelWithResponseStreamCommand({
+          modelId: testData.modelId,
+          body: testData.body,
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco?"}]}",
@@ -776,56 +786,59 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "output.value": "{"id":"bedrock-streaming-response","type":"message","role":"assistant","model":"bedrock-streaming","content":[{"type":"text","text":"Okay, let's get the current weather for San Francisco:"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":273,"output_tokens":88}}",
 }
 `);
-    });
-
-    it("should handle streaming errors gracefully", async () => {
-      setupTestRecording("should handle streaming errors");
-
-      const client = createTestClient(isRecordingMode);
-
-      // Test invalid model ID with streaming (should trigger error)
-      const command = new InvokeModelWithResponseStreamCommand({
-        modelId: "invalid-streaming-model-id",
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: TEST_MAX_TOKENS,
-          messages: [
-            {
-              role: "user",
-              content: "This streaming request should fail",
-            },
-          ],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
       });
+    });
+    describe("Error Handling", () => {
+      it("should handle streaming errors gracefully", async () => {
+        setupTestRecording("should handle streaming errors");
 
-      // Expect the API call to throw an error
-      await expect(client.send(command)).rejects.toThrow();
+        const client = createTestClient(isRecordingMode);
 
-      // Verify span was created and marked as error
-      const span = verifySpanBasics(spanExporter);
+        // Test invalid model ID with streaming (should trigger error)
+        const command = new InvokeModelWithResponseStreamCommand({
+          modelId: "invalid-streaming-model-id",
+          body: JSON.stringify({
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: TEST_MAX_TOKENS,
+            messages: [
+              {
+                role: "user",
+                content: "This streaming request should fail",
+              },
+            ],
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
 
-      // Verify span status is set to ERROR
-      expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
-      expect(span.status.message).toBeDefined();
+        // Expect the API call to throw an error
+        await expect(client.send(command)).rejects.toThrow();
 
-      // Verify basic attributes are still captured
-      expect(span.attributes["llm.model_name"]).toBe(
-        "invalid-streaming-model-id",
-      );
-      expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.system"]).toBe("bedrock");
-      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+        // Verify span was created and marked as error
+        const span = verifySpanBasics(spanExporter);
 
-      // Verify input message attributes are captured
-      expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
-        "This streaming request should fail",
-      );
-      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+        // Verify span status is set to ERROR
+        expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
+        expect(span.status.message).toBeDefined();
 
-      // Verify error details are recorded
-      expect(span.attributes).toMatchInlineSnapshot(`
+        // Verify basic attributes are still captured
+        expect(span.attributes["llm.model_name"]).toBe(
+          "invalid-streaming-model-id",
+        );
+        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.system"]).toBe("bedrock");
+        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+        // Verify input message attributes are captured
+        expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
+          "This streaming request should fail",
+        );
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
+          "user",
+        );
+
+        // Verify error details are recorded
+        expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"This streaming request should fail"}]}",
@@ -838,256 +851,259 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "openinference.span.kind": "LLM",
 }
 `);
-    });
-
-    // Advanced InvokeModel Scenarios (3 tests for complete coverage)
-
-    it("should propagate OpenInference context attributes", async () => {
-      const testName = "should-handle-context-attributes";
-      setupTestRecording(testName);
-
-      const client = createTestClient(isRecordingMode);
-
-      // Test with OpenInference context attributes
-      const command = new InvokeModelCommand({
-        modelId: TEST_MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: TEST_MAX_TOKENS,
-          messages: [
-            {
-              role: "user",
-              content: "Hello! This is a test with context attributes.",
-            },
-          ],
-        }),
-        contentType: "application/json",
-        accept: "application/json",
       });
+      it("should handle large payloads and timeouts", async () => {
+        const testName = "should-handle-large-payloads";
+        setupTestRecording(testName);
 
-      // Setup OpenInference context with all supported attributes
-      await context.with(
-        setSession(
-          setUser(
-            setMetadata(
-              setTags(
-                setPromptTemplate(context.active(), {
-                  template:
-                    "You are a helpful assistant. User message: {{message}}",
-                  version: "1.0.0",
-                  variables: {
-                    message: "Hello! This is a test with context attributes.",
-                  },
-                }),
-                ["test", "context", "attributes"],
-              ),
+        const client = createTestClient(isRecordingMode);
+
+        // Create a large message payload (approaching token limits)
+        const largeText = "This is a large test message. ".repeat(500); // ~15,000 characters
+        const complexConversation = Array.from({ length: 10 }, (_, i) => ({
+          role: i % 2 === 0 ? "user" : "assistant",
+          content: `${largeText} Message ${i + 1} in a complex conversation.`,
+        }));
+
+        const command = new InvokeModelCommand({
+          modelId: TEST_MODEL_ID,
+          body: JSON.stringify({
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: 1000, // Larger response
+            messages: complexConversation,
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const response = await client.send(command);
+        verifyResponseStructure(response);
+
+        // Verify span creation for large payload
+        const span = verifySpanBasics(spanExporter);
+
+        // Verify basic attributes are still captured
+        expect(span.attributes["llm.model_name"]).toBe(
+          "claude-3-5-sonnet-20240620",
+        );
+        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.system"]).toBe("anthropic");
+        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+        // Verify large message handling
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
+          "user",
+        );
+        expect(
+          span.attributes["llm.input_messages.0.message.content"],
+        ).toBeDefined();
+        expect(span.attributes["llm.input_messages.9.message.role"]).toBe(
+          "assistant",
+        );
+        expect(
+          span.attributes["llm.input_messages.9.message.content"],
+        ).toBeDefined();
+
+        // Verify response processing (may be empty if model refused large payload)
+        // In this case, the response has empty content array, so no output messages
+        expect(
+          span.attributes["llm.output_messages.0.message.role"],
+        ).toBeUndefined();
+
+        // Verify token counting for large payloads
+        expect(span.attributes["llm.token_count.prompt"]).toBeDefined();
+        expect(span.attributes["llm.token_count.completion"]).toBeDefined();
+        // Note: Don't expect calculated total, only what's in response
+
+        // Verify cache-related token attributes
+        // Note: Current recordings don't have cache data, so these should be undefined
+        expect(
+          span.attributes["llm.token_count.prompt.cache_read"],
+        ).toBeUndefined();
+        expect(
+          span.attributes["llm.token_count.prompt.cache_write"],
+        ).toBeUndefined();
+
+        // Performance validation - large payloads should not cause memory issues
+        // The instrumentation should handle large responses efficiently
+        const inputTokens = span.attributes["llm.token_count.prompt"] as number;
+        const outputTokens = span.attributes[
+          "llm.token_count.completion"
+        ] as number;
+
+        // Verify reasonable token counts for large payload
+        expect(inputTokens).toBeGreaterThan(100); // Should be substantial (large input)
+        expect(outputTokens).toBeGreaterThanOrEqual(1); // May be minimal if model refused
+        // Note: No longer calculating total tokens automatically
+      });
+    });
+    describe("Edge Cases", () => {
+      it("should propagate OpenInference context attributes", async () => {
+        const testName = "should-handle-context-attributes";
+        setupTestRecording(testName);
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with OpenInference context attributes
+        const command = new InvokeModelCommand({
+          modelId: TEST_MODEL_ID,
+          body: JSON.stringify({
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: TEST_MAX_TOKENS,
+            messages: [
               {
-                experiment_name: "context-test",
-                version: "1.0.0",
-                environment: "testing",
+                role: "user",
+                content: "Hello! This is a test with context attributes.",
               },
+            ],
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        // Setup OpenInference context with all supported attributes
+        await context.with(
+          setSession(
+            setUser(
+              setMetadata(
+                setTags(
+                  setPromptTemplate(context.active(), {
+                    template:
+                      "You are a helpful assistant. User message: {{message}}",
+                    version: "1.0.0",
+                    variables: {
+                      message: "Hello! This is a test with context attributes.",
+                    },
+                  }),
+                  ["test", "context", "attributes"],
+                ),
+                {
+                  experiment_name: "context-test",
+                  version: "1.0.0",
+                  environment: "testing",
+                },
+              ),
+              { userId: "test-user-456" },
             ),
-            { userId: "test-user-456" },
+            { sessionId: "test-session-123" },
           ),
-          { sessionId: "test-session-123" },
-        ),
-        async () => {
-          // Make the API call within the context
-          const response = await client.send(command);
-          verifyResponseStructure(response);
-          return response;
-        },
-      );
-
-      // Verify span creation and basic attributes
-      const span = verifySpanBasics(spanExporter);
-
-      // Verify core InvokeModel attributes are present
-      expect(span.attributes["llm.model_name"]).toBe(
-        "claude-3-5-sonnet-20240620",
-      );
-      expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.system"]).toBe("anthropic");
-      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-
-      // Verify input/output message structure
-      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-      expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
-        "Hello! This is a test with context attributes.",
-      );
-      expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-        "assistant",
-      );
-      expect(
-        span.attributes["llm.output_messages.0.message.content"],
-      ).toBeDefined();
-
-      // Verify context attributes are properly propagated to the span
-      expect(span.attributes[SESSION_ID]).toBe("test-session-123");
-      expect(span.attributes[USER_ID]).toBe("test-user-456");
-      expect(span.attributes[METADATA]).toBe(
-        JSON.stringify({
-          experiment_name: "context-test",
-          version: "1.0.0",
-          environment: "testing",
-        }),
-      );
-      expect(span.attributes[TAG_TAGS]).toBe(
-        JSON.stringify(["test", "context", "attributes"]),
-      );
-      expect(span.attributes[PROMPT_TEMPLATE_TEMPLATE]).toBe(
-        "You are a helpful assistant. User message: {{message}}",
-      );
-      expect(span.attributes[PROMPT_TEMPLATE_VERSION]).toBe("1.0.0");
-      expect(span.attributes[PROMPT_TEMPLATE_VARIABLES]).toBe(
-        JSON.stringify({
-          message: "Hello! This is a test with context attributes.",
-        }),
-      );
-    });
-
-    it("should handle non-Anthropic models via Bedrock", async () => {
-      const testName = "should-handle-non-anthropic-models";
-      setupTestRecording(testName);
-
-      const client = createTestClient(isRecordingMode);
-
-      // Test with Amazon Titan model (different response format)
-      const titanModelId = "amazon.titan-text-express-v1";
-      const command = new InvokeModelCommand({
-        modelId: titanModelId,
-        body: JSON.stringify({
-          inputText: "Write a short greeting message.",
-          textGenerationConfig: {
-            maxTokenCount: 100,
-            temperature: 0.7,
+          async () => {
+            // Make the API call within the context
+            const response = await client.send(command);
+            verifyResponseStructure(response);
+            return response;
           },
-        }),
-        contentType: "application/json",
-        accept: "application/json",
+        );
+
+        // Verify span creation and basic attributes
+        const span = verifySpanBasics(spanExporter);
+
+        // Verify core InvokeModel attributes are present
+        expect(span.attributes["llm.model_name"]).toBe(
+          "claude-3-5-sonnet-20240620",
+        );
+        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.system"]).toBe("anthropic");
+        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+
+        // Verify input/output message structure
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
+          "user",
+        );
+        expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
+          "Hello! This is a test with context attributes.",
+        );
+        expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+          "assistant",
+        );
+        expect(
+          span.attributes["llm.output_messages.0.message.content"],
+        ).toBeDefined();
+
+        // Verify context attributes are properly propagated to the span
+        expect(span.attributes[SESSION_ID]).toBe("test-session-123");
+        expect(span.attributes[USER_ID]).toBe("test-user-456");
+        expect(span.attributes[METADATA]).toBe(
+          JSON.stringify({
+            experiment_name: "context-test",
+            version: "1.0.0",
+            environment: "testing",
+          }),
+        );
+        expect(span.attributes[TAG_TAGS]).toBe(
+          JSON.stringify(["test", "context", "attributes"]),
+        );
+        expect(span.attributes[PROMPT_TEMPLATE_TEMPLATE]).toBe(
+          "You are a helpful assistant. User message: {{message}}",
+        );
+        expect(span.attributes[PROMPT_TEMPLATE_VERSION]).toBe("1.0.0");
+        expect(span.attributes[PROMPT_TEMPLATE_VARIABLES]).toBe(
+          JSON.stringify({
+            message: "Hello! This is a test with context attributes.",
+          }),
+        );
       });
 
-      const response = await client.send(command);
-      verifyResponseStructure(response);
+      it("should handle non-Anthropic models via Bedrock", async () => {
+        const testName = "should-handle-non-anthropic-models";
+        setupTestRecording(testName);
 
-      // Verify span creation for non-Anthropic model
-      const span = verifySpanBasics(spanExporter);
+        const client = createTestClient(isRecordingMode);
 
-      // Verify model-specific attributes
-      expect(span.attributes["llm.model_name"]).toBe("titan-text-express-v1");
-      expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.system"]).toBe("amazon");
-      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+        // Test with Amazon Titan model (different response format)
+        const titanModelId = "amazon.titan-text-express-v1";
+        const command = new InvokeModelCommand({
+          modelId: titanModelId,
+          body: JSON.stringify({
+            inputText: "Write a short greeting message.",
+            textGenerationConfig: {
+              maxTokenCount: 100,
+              temperature: 0.7,
+            },
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
 
-      // Verify input processing for Titan format
-      // Now using full JSON body approach, so input.value contains the complete request
-      expect(span.attributes["input.value"]).toContain("inputText");
-      expect(span.attributes["input.value"]).toContain(
-        "Write a short greeting message.",
-      );
-      expect(span.attributes["input.mime_type"]).toBe("application/json");
+        const response = await client.send(command);
+        verifyResponseStructure(response);
 
-      // Verify invocation parameters capture Titan-specific config
-      // Note: Current instrumentation extracts anthropic_version, max_tokens, etc.
-      // Titan uses different parameter names, so invocation_parameters may be empty
-      const invocationParamsStr = span.attributes[
-        "llm.invocation_parameters"
-      ] as string;
-      if (invocationParamsStr) {
-        const _invocationParams = JSON.parse(invocationParamsStr);
-        // Titan-specific params are not currently extracted by Anthropic-focused extraction
-        // This is expected behavior for now
-      }
+        // Verify span creation for non-Anthropic model
+        const span = verifySpanBasics(spanExporter);
 
-      // Verify output processing
-      expect(span.attributes["output.value"]).toBeDefined();
-      expect(span.attributes["output.mime_type"]).toBe("application/json");
+        // Verify model-specific attributes
+        expect(span.attributes["llm.model_name"]).toBe("titan-text-express-v1");
+        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.system"]).toBe("amazon");
+        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
 
-      // Now using full JSON body approach, so output.value contains the complete response
-      expect(span.attributes["output.value"]).toContain("results");
-    });
+        // Verify input processing for Titan format
+        // Now using full JSON body approach, so input.value contains the complete request
+        expect(span.attributes["input.value"]).toContain("inputText");
+        expect(span.attributes["input.value"]).toContain(
+          "Write a short greeting message.",
+        );
+        expect(span.attributes["input.mime_type"]).toBe("application/json");
 
-    it("should handle large payloads and timeouts", async () => {
-      const testName = "should-handle-large-payloads";
-      setupTestRecording(testName);
+        // Verify invocation parameters capture Titan-specific config
+        // Note: Current instrumentation extracts anthropic_version, max_tokens, etc.
+        // Titan uses different parameter names, so invocation_parameters may be empty
+        const invocationParamsStr = span.attributes[
+          "llm.invocation_parameters"
+        ] as string;
+        if (invocationParamsStr) {
+          const _invocationParams = JSON.parse(invocationParamsStr);
+          // Titan-specific params are not currently extracted by Anthropic-focused extraction
+          // This is expected behavior for now
+        }
 
-      const client = createTestClient(isRecordingMode);
+        // Verify output processing
+        expect(span.attributes["output.value"]).toBeDefined();
+        expect(span.attributes["output.mime_type"]).toBe("application/json");
 
-      // Create a large message payload (approaching token limits)
-      const largeText = "This is a large test message. ".repeat(500); // ~15,000 characters
-      const complexConversation = Array.from({ length: 10 }, (_, i) => ({
-        role: i % 2 === 0 ? "user" : "assistant",
-        content: `${largeText} Message ${i + 1} in a complex conversation.`,
-      }));
-
-      const command = new InvokeModelCommand({
-        modelId: TEST_MODEL_ID,
-        body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
-          max_tokens: 1000, // Larger response
-          messages: complexConversation,
-        }),
-        contentType: "application/json",
-        accept: "application/json",
+        // Now using full JSON body approach, so output.value contains the complete response
+        expect(span.attributes["output.value"]).toContain("results");
       });
-
-      const response = await client.send(command);
-      verifyResponseStructure(response);
-
-      // Verify span creation for large payload
-      const span = verifySpanBasics(spanExporter);
-
-      // Verify basic attributes are still captured
-      expect(span.attributes["llm.model_name"]).toBe(
-        "claude-3-5-sonnet-20240620",
-      );
-      expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.system"]).toBe("anthropic");
-      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-
-      // Verify large message handling
-      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-      expect(
-        span.attributes["llm.input_messages.0.message.content"],
-      ).toBeDefined();
-      expect(span.attributes["llm.input_messages.9.message.role"]).toBe(
-        "assistant",
-      );
-      expect(
-        span.attributes["llm.input_messages.9.message.content"],
-      ).toBeDefined();
-
-      // Verify response processing (may be empty if model refused large payload)
-      // In this case, the response has empty content array, so no output messages
-      expect(
-        span.attributes["llm.output_messages.0.message.role"],
-      ).toBeUndefined();
-
-      // Verify token counting for large payloads
-      expect(span.attributes["llm.token_count.prompt"]).toBeDefined();
-      expect(span.attributes["llm.token_count.completion"]).toBeDefined();
-      // Note: Don't expect calculated total, only what's in response
-
-      // Verify cache-related token attributes
-      // Note: Current recordings don't have cache data, so these should be undefined
-      expect(
-        span.attributes["llm.token_count.prompt.cache_read"],
-      ).toBeUndefined();
-      expect(
-        span.attributes["llm.token_count.prompt.cache_write"],
-      ).toBeUndefined();
-
-      // Performance validation - large payloads should not cause memory issues
-      // The instrumentation should handle large responses efficiently
-      const inputTokens = span.attributes["llm.token_count.prompt"] as number;
-      const outputTokens = span.attributes[
-        "llm.token_count.completion"
-      ] as number;
-
-      // Verify reasonable token counts for large payload
-      expect(inputTokens).toBeGreaterThan(100); // Should be substantial (large input)
-      expect(outputTokens).toBeGreaterThanOrEqual(1); // May be minimal if model refused
-      // Note: No longer calculating total tokens automatically
     });
   });
 
