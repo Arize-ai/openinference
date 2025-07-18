@@ -38,7 +38,7 @@ instruments = [
   "google-cloud-aiplatform >= 1.49.0",
 ]
 test = [
-  "vertexai == 1.49.0",
+  "vertexai == 1.71.1",
   "opentelemetry-sdk",
 ]
 
