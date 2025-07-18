@@ -42,7 +42,7 @@
   "devDependencies": {
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
     "@opentelemetry/resources": "^1.25.1",
-    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@opentelemetry/sdk-trace-base": "^2.0.1",
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "jest": "^29.7.0",
