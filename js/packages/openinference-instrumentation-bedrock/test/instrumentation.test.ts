@@ -1314,19 +1314,346 @@ In essence, machine learning allows computers to learn from data and make predic
       });
     });
 
-    // TODO: Future Converse API Coverage (Additional tests)
-    //
-    // describe("Multi-Turn Conversations", () => {
-    //   // Phase 3.2: Multi-Turn Conversation Tests (Tests 5-6)
-    //   // - it("should handle two-turn conversation", async () => {})
-    //   // - it("should handle system prompt + multi-turn", async () => {})
-    // });
-    //
-    // describe("Multi-Modal Content", () => {
-    //   // Phase 3.3: Multi-Modal Content Tests (Tests 7-8)
-    //   // - it("should handle text + image content", async () => {})
-    //   // - it("should handle image format processing", async () => {})
-    // });
+    describe("Multi-Turn Conversations", () => {
+      // Phase 3.2: Multi-Turn Conversation Tests (Tests 5-6)
+      
+      it("should handle two-turn conversation with proper message indexing", async () => {
+        setupTestRecording("should-handle-two-turn-conversation-with-proper-message-indexing");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Simulate realistic two-turn conversation flow:
+        // 1. First turn: user message → assistant response
+        // 2. Second turn: previous messages + assistant response + new user message
+        const firstUserMessage = {
+          role: "user" as const,
+          content: [{ text: "Hello, what's your name?" }]
+        };
+        
+        const assistantResponse = {
+          role: "assistant" as const,
+          content: [{ text: "I'm Claude, an AI assistant. How can I help you today?" }]
+        };
+        
+        const secondUserMessage = {
+          role: "user" as const,
+          content: [{ text: "Can you tell me a joke?" }]
+        };
+
+        // Create command with full conversation history (simulating second turn)
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [firstUserMessage, assistantResponse, secondUserMessage],
+          inferenceConfig: {
+            maxTokens: 100,  // Keep response brief to avoid timeout
+            temperature: 0.1
+          }
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for two-turn conversation
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, what's your name?"}]},{"role":"assistant","content":[{"text":"I'm Claude, an AI assistant. How can I help you today?"}]},{"role":"user","content":[{"text":"Can you tell me a joke?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, what's your name?",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.input_messages.1.message.contents.0.message_content.text": "I'm Claude, an AI assistant. How can I help you today?",
+  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.role": "assistant",
+  "llm.input_messages.2.message.contents.0.message_content.text": "Can you tell me a joke?",
+  "llm.input_messages.2.message.contents.0.message_content.type": "text",
+  "llm.input_messages.2.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "Sure, I'd be happy to tell you a joke! Here's one for you:
+
+Why don't scientists trust atoms?
+
+Because they make up everything!
+
+I hope that gave you a little chuckle. Do you have any favorite types of jokes?",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 57,
+  "llm.token_count.prompt": 42,
+  "llm.token_count.total": 99,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":1705},"output":{"message":{"content":[{"text":"Sure, I'd be happy to tell you a joke! Here's one for you:\\n\\nWhy don't scientists trust atoms?\\n\\nBecause they make up everything!\\n\\nI hope that gave you a little chuckle. Do you have any favorite types of jokes?"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":42,"outputTokens":57,"totalTokens":99}}",
+}
+`);
+      });
+
+      it("should handle system prompt with multi-turn conversation", async () => {
+        setupTestRecording("should-handle-system-prompt-with-multi-turn-conversation");
+
+        const client = createTestClient(isRecordingMode);
+
+        // System prompts combined with conversation history
+        const systemPrompts = [
+          { text: "You are a helpful assistant that tells jokes." }
+        ];
+        
+        const conversationHistory = [
+          {
+            role: "user" as const,
+            content: [{ text: "Tell me about yourself." }]
+          },
+          {
+            role: "assistant" as const,
+            content: [{ text: "I'm Claude, an AI assistant who loves to help and tell jokes!" }]
+          },
+          {
+            role: "user" as const,
+            content: [{ text: "Great! Tell me a joke then." }]
+          }
+        ];
+
+        // Create command with system prompt + conversation history
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          system: systemPrompts,
+          messages: conversationHistory,
+          inferenceConfig: {
+            maxTokens: 100,  // Keep response brief to avoid timeout
+            temperature: 0.1
+          }
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for system prompt + multi-turn conversation
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant that tells jokes."}],"messages":[{"role":"user","content":[{"text":"Tell me about yourself."}]},{"role":"assistant","content":[{"text":"I'm Claude, an AI assistant who loves to help and tell jokes!"}]},{"role":"user","content":[{"text":"Great! Tell me a joke then."}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "You are a helpful assistant that tells jokes.",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "system",
+  "llm.input_messages.1.message.contents.0.message_content.text": "Tell me about yourself.",
+  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.role": "user",
+  "llm.input_messages.2.message.contents.0.message_content.text": "I'm Claude, an AI assistant who loves to help and tell jokes!",
+  "llm.input_messages.2.message.contents.0.message_content.type": "text",
+  "llm.input_messages.2.message.role": "assistant",
+  "llm.input_messages.3.message.contents.0.message_content.text": "Great! Tell me a joke then.",
+  "llm.input_messages.3.message.contents.0.message_content.type": "text",
+  "llm.input_messages.3.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "Alright, here's a joke for you:
+
+Why don't scientists trust atoms?
+Because they make up everything!
+
+Ba dum tss! I hope that gave you a little chuckle. If not, don't worry - I've got plenty more where that came from. Just remember, if at first you don't succeed, skydiving is not for you!",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 83,
+  "llm.token_count.prompt": 50,
+  "llm.token_count.total": 133,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":2597},"output":{"message":{"content":[{"text":"Alright, here's a joke for you:\\n\\nWhy don't scientists trust atoms?\\nBecause they make up everything!\\n\\nBa dum tss! I hope that gave you a little chuckle. If not, don't worry - I've got plenty more where that came from. Just remember, if at first you don't succeed, skydiving is not for you!"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":50,"outputTokens":83,"totalTokens":133}}",
+}
+`);
+      });
+    });
+
+    describe("Multi-Modal Content", () => {
+      // Phase 3.3: Multi-Modal Content Tests (Tests 7-8)
+      
+      it("should handle text plus image content with detailed structure", async () => {
+        setupTestRecording("should-handle-text-plus-image-content-with-detailed-structure");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Create a message with both text and image content
+        // Use the same working image data format as InvokeModel test
+        const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+        
+        const multiModalMessage = {
+          role: "user" as const,
+          content: [
+            { text: "What's in this image?" },
+            { 
+              image: { 
+                format: "png" as const,
+                source: { bytes: Buffer.from(imageData, "base64") }
+              }
+            }
+          ]
+        };
+
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [multiModalMessage],
+          inferenceConfig: {
+            maxTokens: 100,  // Keep response brief to avoid timeout
+            temperature: 0.1
+          }
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for text + image content
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's in this image?"},{"image":{"format":"png","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,252,255,159,161,30,0,7,130,2,127,61,200,72,239,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "What's in this image?",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.contents.1.message_content.image.image.format": "png",
+  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+  "llm.input_messages.0.message.contents.1.message_content.type": "image",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "This image appears to be a handwritten note or message. The text is written in cursive script on what looks like lined notebook or notepad paper. The writing is in blue ink.
+
+While I can see the handwriting, I'm not able to read or transcribe the specific content of the note. Handwritten text, especially in cursive, can be challenging for AI systems to accurately interpret. If you have any specific questions about what you see in the image or need clarification",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 17,
+  "llm.token_count.total": 117,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":3802},"output":{"message":{"content":[{"text":"This image appears to be a handwritten note or message. The text is written in cursive script on what looks like lined notebook or notepad paper. The writing is in blue ink.\\n\\nWhile I can see the handwriting, I'm not able to read or transcribe the specific content of the note. Handwritten text, especially in cursive, can be challenging for AI systems to accurately interpret. If you have any specific questions about what you see in the image or need clarification"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":17,"outputTokens":100,"totalTokens":117}}",
+}
+`);
+      });
+
+      it("should handle different image formats with correct MIME types", async () => {
+        setupTestRecording("should-handle-different-image-formats-with-correct-mime-types");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Test with JPEG format (different from Test 7's PNG)
+        // Use the same working image data format as InvokeModel test
+        const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+        
+        const imageMessage = {
+          role: "user" as const,
+          content: [
+            { text: "Describe this JPEG image." },
+            { 
+              image: { 
+                format: "jpeg" as const,
+                source: { bytes: Buffer.from(imageData, "base64") }
+              }
+            }
+          ]
+        };
+
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [imageMessage],
+          inferenceConfig: {
+            maxTokens: 100,  // Keep response brief to avoid timeout
+            temperature: 0.1
+          }
+        });
+
+        const result = await client.send(command);
+        
+        // Basic response structure verification
+        expect(result).toBeDefined();
+        expect(result.output).toBeDefined();
+        
+        // Type-safe checks for nested properties
+        if (result.output?.message) {
+          expect(result.output.message).toBeDefined();
+          expect(result.output.message.role).toBe("assistant");
+        } else {
+          fail("Expected result.output.message to be defined");
+        }
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        
+        // Comprehensive span attributes snapshot for image format handling
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Describe this JPEG image."},{"image":{"format":"jpeg","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,252,255,159,161,30,0,7,130,2,127,61,200,72,239,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Describe this JPEG image.",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.contents.1.message_content.image.image.format": "jpeg",
+  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+  "llm.input_messages.0.message.contents.1.message_content.type": "image",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and appears to be in blue ink. The paper has horizontal blue lines typical of notebook or writing paper.
+
+The text is not entirely clear or legible in this image, but it seems to be several lines of writing that fill most of the visible portion of the page. The handwriting style looks fluid and connected, characteristic of cursive penmanship.
+
+At the top of the",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 18,
+  "llm.token_count.total": 118,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":3361},"output":{"message":{"content":[{"text":"This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and appears to be in blue ink. The paper has horizontal blue lines typical of notebook or writing paper.\\n\\nThe text is not entirely clear or legible in this image, but it seems to be several lines of writing that fill most of the visible portion of the page. The handwriting style looks fluid and connected, characteristic of cursive penmanship.\\n\\nAt the top of the"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":18,"outputTokens":100,"totalTokens":118}}",
+}
+`);
+      });
+    });
     //
     // describe("Cross-Vendor Models", () => {
     //   // Phase 3.4: Cross-Vendor Model Tests (Tests 9-10)
