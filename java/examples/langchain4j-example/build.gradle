@@ -9,7 +9,7 @@ repositories {
 
 dependencies {
     // OpenInference instrumentation
-    implementation project(':instrumentation:openinference-instrumentation-langchain4j')
+    implementation 'com.arize:openinference-instrumentation-langchain4j:0.1.2'
     
     // LangChain4j
     implementation "dev.langchain4j:langchain4j:${langchain4jVersion}"
