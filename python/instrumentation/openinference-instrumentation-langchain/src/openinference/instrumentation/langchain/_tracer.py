@@ -514,8 +514,10 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                     assert isinstance(name, str), f"expected str, found {type(name)}"
                     yield MESSAGE_FUNCTION_CALL_NAME, name
                 if arguments := function_call.get("arguments"):
-                    assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
-                    yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
+                    if isinstance(arguments, str):
+                        yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
+                    else:
+                        yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, safe_json_dumps(arguments)
             if tool_calls := additional_kwargs.get("tool_calls"):
                 assert isinstance(tool_calls, Iterable), (
                     f"expected Iterable, found {type(tool_calls)}"
@@ -539,8 +541,10 @@ def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str
             assert isinstance(name, str), f"expected str, found {type(name)}"
             yield TOOL_CALL_FUNCTION_NAME, name
         if arguments := function.get("arguments"):
-            assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
-            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            if isinstance(arguments, str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
 
 
 @stop_on_exception
