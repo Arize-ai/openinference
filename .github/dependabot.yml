@@ -1,186 +1,371 @@
 updates:
 - directory: /java
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: gradle
   schedule:
     interval: weekly
 - directory: /js
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: npm
   schedule:
     interval: weekly
 - directory: /python
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-autogen-agentchat
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-anthropic
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-openai-agents
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-agno
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-crewai
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-autogen
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-litellm
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-instructor
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-bedrock
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-llama-index
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-google-genai
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-google-adk
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-openllmetry
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-guardrails
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-dspy
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-beeai
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-portkey
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-pydantic-ai
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-openai
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-mcp
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-smolagents
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-mistralai
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-groq
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-langchain
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-vertexai
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-haystack
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: pip
   schedule:
     interval: weekly
 - directory: js/packages/openinference-vercel
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: npm
   schedule:
     interval: weekly
 - directory: js/packages/openinference-mastra
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: npm
   schedule:
     interval: weekly
 - directory: js/packages/openinference-semantic-conventions
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: npm
   schedule:
     interval: weekly
 - directory: js/packages/openinference-instrumentation-beeai
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: npm
   schedule:
     interval: weekly
 - directory: js/packages/openinference-core
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: npm
   schedule:
     interval: weekly
 - directory: js/packages/openinference-instrumentation-openai
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: npm
   schedule:
     interval: weekly
 - directory: js/packages/openinference-instrumentation-mcp
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: npm
   schedule:
     interval: weekly
 - directory: js/packages/openinference-instrumentation-langchain
-  open-pull-requests-limit: 0
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
   package-ecosystem: npm
   schedule:
     interval: weekly
