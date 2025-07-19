@@ -21,12 +21,10 @@ def generate_dependabot_config():
                     "package-ecosystem": "pip",
                     "directory": path
                 })
-    npm_instrumentation_dir = "js/packages"
-    print(os.listdir(npm_instrumentation_dir))
+    npm_instrumentation_dir = "js/packages" 
     for package in os.listdir(npm_instrumentation_dir):
         if package.startswith("openinference-"):
-            path = f"{npm_instrumentation_dir}/{package}"
-            print(path)
+            path = f"{npm_instrumentation_dir}/{package}" 
             if os.path.exists(f"{path}/package.json"):
                 base_configs.append({
                     "package-ecosystem": "npm",
@@ -35,6 +33,7 @@ def generate_dependabot_config():
     # Add common settings to all
     for cfg in base_configs:
         cfg["schedule"] = {"interval": "weekly"}
+        cfg["ignore"] = [{"dependency-name": "*", "update-types": ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]}]
         config["updates"].append(cfg)
     
     return yaml.dump(config, default_flow_style=False)
