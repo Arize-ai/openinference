@@ -78,3 +78,37 @@ console.log(`Agent 🤖 : `, response.result.text);
 ```
 
 For more information on OpenTelemetry Node.js SDK, see the [OpenTelemetry Node.js SDK documentation](https://opentelemetry.io/docs/instrumentation/js/getting-started/nodejs/).
+
+## Using a Custom Tracer Provider
+
+You can specify a custom tracer provider when creating the BeeAI instrumentation. This is useful when you want to use a non-global tracer provider or have more control over the tracing configuration.
+
+```typescript
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { Resource } from "@opentelemetry/resources";
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+import { BeeAIInstrumentation } from "@arizeai/openinference-instrumentation-beeai";
+import * as beeaiFramework from "beeai-framework";
+
+// Create a custom tracer provider
+const customTracerProvider = new NodeTracerProvider({
+  resource: new Resource({
+    [SEMRESATTRS_PROJECT_NAME]: "my-beeai-project",
+  }),
+});
+
+// Pass the custom tracer provider to the instrumentation
+const beeAIInstrumentation = new BeeAIInstrumentation({
+  tracerProvider: customTracerProvider,
+});
+
+// Manually instrument the BeeAI framework
+beeAIInstrumentation.manuallyInstrument(beeaiFramework);
+```
+
+Alternatively, you can set the tracer provider after creating the instrumentation:
+
+```typescript
+const beeAIInstrumentation = new BeeAIInstrumentation();
+beeAIInstrumentation.setTracerProvider(customTracerProvider);
+```
