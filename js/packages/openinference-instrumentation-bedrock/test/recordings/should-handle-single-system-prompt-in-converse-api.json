@@ -1,0 +1,71 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What is the capital of France?"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "system": [
+        {
+          "text": "You are a helpful assistant that responds concisely."
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 455
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "The capital of France is Paris."
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 25,
+        "outputTokens": 10,
+        "totalTokens": 35
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 17 Jul 2025 03:49:15 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "212",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "ae68a14e-09f7-4631-bdc6-eea42ab967b5"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "159",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "c11308ff-c566-410e-b565-039e2deee35c",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "72dc40efa4a7db4223f76a7f7885f8f1094ad929bf119fe6ad2cccb52ae05c72",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]
