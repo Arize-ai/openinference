@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.47](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.46...python-openinference-instrumentation-langchain-v0.1.47) (2025-07-20)
+
+
+### Bug Fixes
+
+* **Langchain:** Handle custom data in additional kwargs ([#1898](https://github.com/Arize-ai/openinference/issues/1898)) ([c7f71e1](https://github.com/Arize-ai/openinference/commit/c7f71e19a128ff6054cd66120bb00b79d70e51ef))
+
 ## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.45...python-openinference-instrumentation-langchain-v0.1.46) (2025-07-03)
 
 

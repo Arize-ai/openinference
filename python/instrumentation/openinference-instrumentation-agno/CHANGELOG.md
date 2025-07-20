@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.8...python-openinference-instrumentation-agno-v0.1.9) (2025-07-20)
+
+
+### Features
+
+* enhance function call span attributes with input value and erro… ([#1836](https://github.com/Arize-ai/openinference/issues/1836)) ([5d239df](https://github.com/Arize-ai/openinference/commit/5d239dfbebcfaf34f276e9169be644b91eeafd09))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.7...python-openinference-instrumentation-agno-v0.1.8) (2025-06-27)
 
 
