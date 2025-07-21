@@ -135,7 +135,7 @@ class _RunWrapper:
         # Set the tracing context for downstream spans
         context = trace_api.set_span_in_context(span)
         token = context_api.attach(context)
-        agent_output = None
+        agent_output = []
 
         try:
             agent_output = wrapped(*args, **kwargs)
