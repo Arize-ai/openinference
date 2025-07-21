@@ -135,84 +135,89 @@ class _RunWrapper:
         # Set the tracing context for downstream spans
         context = trace_api.set_span_in_context(span)
         token = context_api.attach(context)
-        is_generator = False
+        agent_output = None
 
         try:
             agent_output = wrapped(*args, **kwargs)
-
-            # Handle streaming (generator) run
-            if isinstance(agent_output, Generator):
-                is_generator = True
-                output_chunks: list[str] = []
-
-                def wrapped_generator() -> Generator[str, None, None]:
-                    try:
-                        # Collect chunks for final output
-                        for chunk in agent_output:
-                            output_chunks.append(str(chunk))
-                            yield chunk
-                    except Exception as e:
-                        # Record unexpected errors properly
-                        span.record_exception(e)
-                        span.set_status(trace_api.StatusCode.ERROR)
-                        raise
-                    finally:
-                        # Set output value from the last observation
-                        steps = getattr(agent.monitor, "steps", [])
-                        history = getattr(agent.monitor, "history", [])
-
-                        if steps:
-                            observation = getattr(steps[-1], "observations", None)
-                            if observation:
-                                span.set_attribute(OUTPUT_VALUE, observation)
-                        elif history:
-                            observation = getattr(history[-1], "observations", None)
-                            if observation:
-                                span.set_attribute(OUTPUT_VALUE, observation)
-                        elif output_chunks:
-                            if output_chunks:
-                                span.set_attribute(OUTPUT_VALUE, "".join(output_chunks))
-
-                        # Record token usage metadata
-                        span.set_attribute(
-                            LLM_TOKEN_COUNT_PROMPT, agent.monitor.total_input_token_count
-                        )
-                        span.set_attribute(
-                            LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count
-                        )
-                        span.set_attribute(
-                            LLM_TOKEN_COUNT_TOTAL,
-                            agent.monitor.total_input_token_count
-                            + agent.monitor.total_output_token_count,
-                        )
-
-                        # Finalize span for streaming (generator) run
-                        span.set_status(trace_api.StatusCode.OK)
-                        span.end()
-                        context_api.detach(token)
-
-                return wrapped_generator()
-
-            # Handle non-streaming (normal) run
-            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, agent.monitor.total_input_token_count)
-            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count)
-            span.set_attribute(
-                LLM_TOKEN_COUNT_TOTAL,
-                agent.monitor.total_input_token_count + agent.monitor.total_output_token_count,
-            )
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(OUTPUT_VALUE, str(agent_output))
-            return agent_output
-
         except Exception as e:
-            # Record unexpected errors properly
             span.record_exception(e)
             span.set_status(trace_api.StatusCode.ERROR)
             raise
 
-        finally:
-            # Finalize span for non-streaming (normal) run
-            if not is_generator:
+        is_generator = isinstance(agent_output, Generator)
+
+        # Handle streaming (generator) run
+        if is_generator:
+            output_chunks: list[str] = []
+
+            def wrapped_generator() -> Generator[str, None, None]:
+                try:
+                    # Collect chunks for final output
+                    for chunk in agent_output:
+                        output_chunks.append(str(chunk))
+                        yield chunk
+                except Exception as e:
+                    span.record_exception(e)
+                    span.set_status(trace_api.StatusCode.ERROR)
+                    raise
+                finally:
+                    # Set output value from the last observation
+                    steps = getattr(agent.monitor, "steps", [])
+                    history = getattr(agent.monitor, "history", [])
+
+                    if steps:
+                        observation = getattr(steps[-1], "observations", None)
+                        if observation:
+                            span.set_attribute(OUTPUT_VALUE, observation)
+                    elif history:
+                        observation = getattr(history[-1], "observations", None)
+                        if observation:
+                            span.set_attribute(OUTPUT_VALUE, observation)
+                    elif output_chunks:
+                        span.set_attribute(OUTPUT_VALUE, "".join(output_chunks))
+
+                    # Record token usage metadata
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_PROMPT, agent.monitor.total_input_token_count
+                    )
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count
+                    )
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_TOTAL,
+                        agent.monitor.total_input_token_count
+                        + agent.monitor.total_output_token_count,
+                    )
+
+                    span.set_status(trace_api.StatusCode.OK)
+                    span.end()
+                    context_api.detach(token)
+
+            return wrapped_generator()
+
+        # Handle non-streaming (normal) run
+        else:
+            try:
+                # Set output value from the agent output
+                span.set_attribute(OUTPUT_VALUE, str(agent_output))
+                # Record token usage metadata
+                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, agent.monitor.total_input_token_count)
+                span.set_attribute(
+                    LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count
+                )
+                span.set_attribute(
+                    LLM_TOKEN_COUNT_TOTAL,
+                    agent.monitor.total_input_token_count + agent.monitor.total_output_token_count,
+                )
+                return agent_output
+
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(trace_api.StatusCode.ERROR)
+                raise
+
+            finally:
+                span.set_status(trace_api.StatusCode.OK)
                 span.end()
                 context_api.detach(token)
 
