@@ -1,4 +1,14 @@
 import { Span, AttributeValue } from "@opentelemetry/api";
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import {
+  SystemPrompt,
+  ConverseMessage,
+  ConverseContentBlock,
+  isConverseTextContent,
+  isConverseImageContent,
+  isConverseToolUseContent,
+  isConverseToolResultContent,
+} from "../types/bedrock-types";
 
 /**
  * Sets a span attribute only if the value is not null, undefined, or empty string
@@ -9,7 +19,7 @@ export function setSpanAttribute(
   key: string,
   value: AttributeValue | null | undefined,
 ): void {
-  if (value !== undefined && value !== null && value !== "") {
+  if (value != null && value !== "") {
     span.setAttribute(key, value);
   }
 }
@@ -26,26 +36,12 @@ export function setSpanAttributes(
   });
 }
 
-// ========================================================================
-// CONVERSE API HELPER FUNCTIONS
-// ========================================================================
-
-import {
-  SystemPrompt,
-  ConverseMessage,
-  ConverseContentBlock,
-  isConverseTextContent,
-  isConverseImageContent,
-  isConverseToolUseContent,
-  isConverseToolResultContent,
-} from "../types/bedrock-types";
-
 /**
  * Aggregates multiple system prompts into a single string with space separation
  */
 export function aggregateSystemPrompts(systemPrompts: SystemPrompt[]): string {
   return systemPrompts
-    .map((prompt) => prompt.text || "")
+    .map((prompt) => prompt.text)
     .join(" ")
     .trim();
 }
@@ -71,75 +67,92 @@ export function aggregateMessages(
 }
 
 /**
- * Generator function to extract attributes from a single message
+ * Extracts attributes from a single message
  */
-export function* getAttributesFromMessage(
+export function getAttributesFromMessage(
   message: ConverseMessage,
-): Generator<[string, AttributeValue]> {
+): Record<string, AttributeValue> {
+  const attributes: Record<string, AttributeValue> = {};
+
   if (message.role) {
-    yield ["message.role", message.role];
+    attributes[SemanticConventions.MESSAGE_ROLE] = message.role;
   }
 
   if (message.content) {
+    let toolCallIndex = 0;
+
     for (const [index, content] of message.content.entries()) {
-      for (const [key, value] of getAttributesFromMessageContent(content)) {
-        yield [`message.contents.${index}.${key}`, value];
+      const contentAttributes = getAttributesFromMessageContent(content);
+      for (const [key, value] of Object.entries(contentAttributes)) {
+        attributes[`${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`] =
+          value;
+      }
+
+      // Handle tool calls and tool results using proper semantic conventions
+      if (isConverseToolUseContent(content)) {
+        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
+        attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
+          content.toolUse.toolUseId;
+        attributes[
+          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
+        ] = content.toolUse.name;
+        if (content.toolUse.input) {
+          attributes[
+            `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+          ] = JSON.stringify(content.toolUse.input);
+        }
+        toolCallIndex++;
+      } else if (isConverseToolResultContent(content)) {
+        attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] =
+          content.toolResult.toolUseId;
       }
     }
   }
+
+  return attributes;
 }
 
 /**
- * Generator function to extract attributes from message content
+ * Extracts attributes from message content
  */
-export function* getAttributesFromMessageContent(
+export function getAttributesFromMessageContent(
   content: ConverseContentBlock,
-): Generator<[string, AttributeValue]> {
+): Record<string, AttributeValue> {
+  const attributes: Record<string, AttributeValue> = {};
+
   if (isConverseTextContent(content)) {
-    yield ["message_content.type", "text"];
-    yield ["message_content.text", content.text];
+    attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "text";
+    attributes[SemanticConventions.MESSAGE_CONTENT_TEXT] = content.text;
   } else if (isConverseImageContent(content)) {
-    yield ["message_content.type", "image"];
+    attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "image";
     if (content.image.format) {
-      yield ["message_content.image.image.format", content.image.format];
+      attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.image.format`] =
+        content.image.format;
     }
     if (content.image.source.bytes) {
       // Convert bytes to base64 data URL for consistent representation
       const base64 = Buffer.from(content.image.source.bytes).toString("base64");
       const mimeType = `image/${content.image.format}`;
-      yield [
-        "message_content.image.image.url",
-        `data:${mimeType};base64,${base64}`,
-      ];
-    }
-  } else if (isConverseToolUseContent(content)) {
-    yield ["message_content.type", "tool_use"];
-    yield ["message_content.tool_use.id", content.toolUse.toolUseId];
-    yield ["message_content.tool_use.name", content.toolUse.name];
-    if (content.toolUse.input) {
-      yield [
-        "message_content.tool_use.input",
-        JSON.stringify(content.toolUse.input),
-      ];
+      attributes[
+        `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
+      ] = `data:${mimeType};base64,${base64}`;
     }
   } else if (isConverseToolResultContent(content)) {
-    yield ["message_content.type", "tool_result"];
-    yield [
-      "message_content.tool_result.tool_use_id",
-      content.toolResult.toolUseId,
-    ];
+    attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "tool_result";
+    attributes[`${SemanticConventions.MESSAGE_CONTENT_TEXT}.tool_result.tool_use_id`] = content.toolResult.toolUseId;
     if (content.toolResult.status) {
-      yield ["message_content.tool_result.status", content.toolResult.status];
+      attributes[`${SemanticConventions.MESSAGE_CONTENT_TEXT}.tool_result.status`] = content.toolResult.status;
     }
     // Process nested content in tool result
     for (const [index, nestedContent] of content.toolResult.content.entries()) {
-      for (const [key, value] of getAttributesFromMessageContent(
-        nestedContent,
-      )) {
-        yield [`message_content.tool_result.content.${index}.${key}`, value];
+      const nestedAttributes = getAttributesFromMessageContent(nestedContent);
+      for (const [key, value] of Object.entries(nestedAttributes)) {
+        attributes[`${SemanticConventions.MESSAGE_CONTENT_TEXT}.tool_result.content.${index}.${key}`] = value;
       }
     }
   }
+
+  return attributes;
 }
 
 /**
@@ -151,7 +164,8 @@ export function processMessages(
   baseKey: string,
 ): void {
   for (const [index, message] of messages.entries()) {
-    for (const [key, value] of getAttributesFromMessage(message)) {
+    const messageAttributes = getAttributesFromMessage(message);
+    for (const [key, value] of Object.entries(messageAttributes)) {
       setSpanAttribute(span, `${baseKey}.${index}.${key}`, value);
     }
   }
