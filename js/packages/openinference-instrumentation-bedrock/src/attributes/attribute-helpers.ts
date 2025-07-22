@@ -144,7 +144,7 @@ export function getAttributesFromMessageContent(
 export function processMessages(
   span: Span,
   messages: ConverseMessage[],
-  baseKey: string,
+  baseKey: typeof SemanticConventions.LLM_INPUT_MESSAGES | typeof SemanticConventions.LLM_OUTPUT_MESSAGES,
 ): void {
   for (const [index, message] of messages.entries()) {
     const messageAttributes = getAttributesFromMessage(message);
