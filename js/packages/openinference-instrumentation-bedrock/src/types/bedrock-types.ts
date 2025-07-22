@@ -144,6 +144,7 @@ export function isToolResultContent(
 // Converse API specific types - properly typed following AWS SDK patterns
 
 // System prompt for Converse API (different from InvokeModel)
+// Note: AWS SDK types don't yet support cachePoint, but runtime does
 export interface SystemPrompt {
   text: string;
 }
