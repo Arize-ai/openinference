@@ -24,8 +24,8 @@ import {
   ConverseCommand,
   BedrockRuntimeClient,
 } from "@aws-sdk/client-bedrock-runtime";
-import { extractInvokeModelRequestAttributes } from "./attributes/request-attributes";
-import { extractInvokeModelResponseAttributes } from "./attributes/response-attributes";
+import { extractInvokeModelRequestAttributes } from "./attributes/invoke-model-request-attributes";
+import { extractInvokeModelResponseAttributes } from "./attributes/invoke-model-response-attributes";
 import { extractConverseRequestAttributes } from "./attributes/converse-request-attributes";
 import { extractConverseResponseAttributes } from "./attributes/converse-response-attributes";
 import { setSpanAttribute } from "./attributes/attribute-helpers";
@@ -167,7 +167,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     span.setAttributes(contextAttributes);
 
     // Extract request attributes directly onto the span
-    extractInvokeModelRequestAttributes(span, command);
+    extractInvokeModelRequestAttributes({ span, command });
 
     try {
       const result = original.apply(client, [command]);
@@ -175,7 +175,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       // AWS SDK v3 send() method always returns a Promise
       return result
         .then((response: any) => {
-          extractInvokeModelResponseAttributes(span, response);
+          extractInvokeModelResponseAttributes({ span, response });
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
           return response;
@@ -418,7 +418,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     span.setAttributes(contextAttributes);
 
     // Extract request attributes directly onto the span
-    extractInvokeModelRequestAttributes(span, command as any);
+    extractInvokeModelRequestAttributes({ span, command: command as any });
 
     try {
       const result = original.apply(client, [command]);
@@ -505,7 +505,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     span.setAttributes(contextAttributes);
 
     // Extract request attributes directly onto the span
-    extractConverseRequestAttributes(span, command);
+    extractConverseRequestAttributes({ span, command });
 
     try {
       const result = original.apply(client, [command]);
@@ -514,7 +514,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       return result
         .then((response: any) => {
           // Extract response attributes
-          extractConverseResponseAttributes(span, response as any);
+          extractConverseResponseAttributes({ span, response: response as any });
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
           return response;

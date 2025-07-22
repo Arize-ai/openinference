@@ -31,7 +31,7 @@ function isConverseResponseBody(response: unknown): response is ConverseResponse
  * Extracts base response attributes: output value, mime type
  */
 const extractBaseResponseAttributes = withSafety({
-  fn: (span: Span, response: ConverseResponseBody): void => {
+  fn: ({ span, response }: { span: Span; response: ConverseResponseBody }): void => {
     setSpanAttribute(
       span,
       SemanticConventions.OUTPUT_VALUE,
@@ -52,7 +52,7 @@ const extractBaseResponseAttributes = withSafety({
  * Extracts output message attributes from response
  */
 const extractOutputMessagesAttributes = withSafety({
-  fn: (span: Span, response: ConverseResponseBody): void => {
+  fn: ({ span, response }: { span: Span; response: ConverseResponseBody }): void => {
     const outputMessage = response.output?.message;
     if (!outputMessage) return;
 
@@ -61,7 +61,11 @@ const extractOutputMessagesAttributes = withSafety({
       content: outputMessage.content || [],
     };
 
-    processMessages(span, [message], SemanticConventions.LLM_OUTPUT_MESSAGES);
+    processMessages({
+      span,
+      messages: [message],
+      baseKey: SemanticConventions.LLM_OUTPUT_MESSAGES,
+    });
   },
   onError: (error) => {
     diag.warn("Error extracting output messages attributes:", error);
@@ -72,7 +76,7 @@ const extractOutputMessagesAttributes = withSafety({
  * Extracts tool call attributes from response content blocks
  */
 const extractToolCallAttributes = withSafety({
-  fn: (span: Span, response: ConverseResponseBody): void => {
+  fn: ({ span, response }: { span: Span; response: ConverseResponseBody }): void => {
     const outputMessage = response.output?.message;
     if (!outputMessage?.content) return;
 
@@ -108,7 +112,7 @@ const extractToolCallAttributes = withSafety({
  * Extracts usage statistics with null-safe handling for missing token counts
  */
 const extractUsageAttributes = withSafety({
-  fn: (span: Span, response: ConverseResponseBody): void => {
+  fn: ({ span, response }: { span: Span; response: ConverseResponseBody }): void => {
     const usage = response.usage;
     if (!usage) return;
 
@@ -137,15 +141,15 @@ const extractUsageAttributes = withSafety({
  * Extracts response attributes from Converse response and sets them on the span
  */
 export const extractConverseResponseAttributes = withSafety({
-  fn: (span: Span, response: ConverseResponseBody): void => {
+  fn: ({ span, response }: { span: Span; response: ConverseResponseBody }): void => {
     if (!response || !isConverseResponseBody(response)) {
       return;
     }
 
-    extractBaseResponseAttributes(span, response);
-    extractOutputMessagesAttributes(span, response);
-    extractToolCallAttributes(span, response);
-    extractUsageAttributes(span, response);
+    extractBaseResponseAttributes({ span, response });
+    extractOutputMessagesAttributes({ span, response });
+    extractToolCallAttributes({ span, response });
+    extractUsageAttributes({ span, response });
   },
   onError: (error) => {
     diag.warn("Error extracting Converse response attributes:", error);

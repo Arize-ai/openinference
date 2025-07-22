@@ -141,11 +141,15 @@ export function getAttributesFromMessageContent(
 /**
  * Processes multiple messages and sets attributes on span with proper indexing
  */
-export function processMessages(
-  span: Span,
-  messages: ConverseMessage[],
-  baseKey: typeof SemanticConventions.LLM_INPUT_MESSAGES | typeof SemanticConventions.LLM_OUTPUT_MESSAGES,
-): void {
+export function processMessages({
+  span,
+  messages,
+  baseKey,
+}: {
+  span: Span;
+  messages: ConverseMessage[];
+  baseKey: typeof SemanticConventions.LLM_INPUT_MESSAGES | typeof SemanticConventions.LLM_OUTPUT_MESSAGES;
+}): void {
   for (const [index, message] of messages.entries()) {
     const messageAttributes = getAttributesFromMessage(message);
     for (const [key, value] of Object.entries(messageAttributes)) {

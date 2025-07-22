@@ -24,10 +24,13 @@ import { setSpanAttribute } from "./attribute-helpers";
 /**
  * Extracts output messages attributes from response body
  */
-export function extractOutputMessagesAttributes(
-  responseBody: InvokeModelResponseBody,
-  span: Span,
-): void {
+export function extractOutputMessagesAttributes({
+  responseBody,
+  span,
+}: {
+  responseBody: InvokeModelResponseBody;
+  span: Span;
+}): void {
   // Extract full response body as primary output value
   const outputValue = extractPrimaryOutputValue(responseBody);
 
@@ -61,17 +64,20 @@ export function extractOutputMessagesAttributes(
     }
   } else {
     // For complex multimodal responses, use only the detailed message.contents structure
-    addOutputMessageContentAttributes(responseBody, span);
+    addOutputMessageContentAttributes({ responseBody, span });
   }
 }
 
 /**
  * Extracts tool call attributes from response body
  */
-export function extractToolCallAttributes(
-  responseBody: InvokeModelResponseBody,
-  span: Span,
-): void {
+export function extractToolCallAttributes({
+  responseBody,
+  span,
+}: {
+  responseBody: InvokeModelResponseBody;
+  span: Span;
+}): void {
   if (!responseBody.content || !Array.isArray(responseBody.content)) {
     return;
   }
@@ -104,10 +110,13 @@ export function extractToolCallAttributes(
 /**
  * Extracts usage attributes from response body
  */
-export function extractUsageAttributes(
-  responseBody: InvokeModelResponseBody,
-  span: Span,
-): void {
+export function extractUsageAttributes({
+  responseBody,
+  span,
+}: {
+  responseBody: InvokeModelResponseBody;
+  span: Span;
+}): void {
   // Add token usage metrics
   if (!responseBody.usage) {
     return;
@@ -144,10 +153,13 @@ export function extractUsageAttributes(
 /**
  * Adds detailed output message content structure attributes
  */
-function addOutputMessageContentAttributes(
-  responseBody: InvokeModelResponseBody,
-  span: Span,
-): void {
+function addOutputMessageContentAttributes({
+  responseBody,
+  span,
+}: {
+  responseBody: InvokeModelResponseBody;
+  span: Span;
+}): void {
   if (!responseBody.content || !Array.isArray(responseBody.content)) {
     return;
   }
@@ -195,23 +207,26 @@ function addOutputMessageContentAttributes(
 /**
  * Extracts semantic convention attributes from InvokeModel response and adds them to the span
  */
-export function extractInvokeModelResponseAttributes(
-  span: Span,
-  response: InvokeModelResponse,
-): void {
+export function extractInvokeModelResponseAttributes({
+  span,
+  response,
+}: {
+  span: Span;
+  response: InvokeModelResponse;
+}): void {
   try {
     if (!response.body) return;
 
     const responseBody = parseResponseBody(response);
 
     // Extract output messages attributes
-    extractOutputMessagesAttributes(responseBody, span);
+    extractOutputMessagesAttributes({ responseBody, span });
 
     // Extract tool call attributes
-    extractToolCallAttributes(responseBody, span);
+    extractToolCallAttributes({ responseBody, span });
 
     // Extract usage attributes
-    extractUsageAttributes(responseBody, span);
+    extractUsageAttributes({ responseBody, span });
   } catch (error) {
     diag.warn("Failed to extract InvokeModel response attributes:", error);
   }
