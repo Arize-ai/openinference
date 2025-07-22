@@ -1,9 +1,9 @@
-import { Span } from "@opentelemetry/api";
-import { ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
+import { Span, diag } from "@opentelemetry/api";
 import {
   SemanticConventions,
   MimeType,
 } from "@arizeai/openinference-semantic-conventions";
+import { withSafety } from "@arizeai/openinference-core";
 import { setSpanAttribute, processMessages } from "./attribute-helpers";
 import {
   ConverseMessage,
@@ -12,127 +12,142 @@ import {
 } from "../types/bedrock-types";
 
 /**
+ * Type guard to safely validate ConverseResponseBody structure
+ */
+function isConverseResponseBody(response: unknown): response is ConverseResponseBody {
+  if (!response || typeof response !== "object" || response === null) {
+    return false;
+  }
+  
+  const obj = response as Record<string, unknown>;
+  return (
+    "output" in obj &&
+    typeof obj.output === "object" &&
+    obj.output !== null
+  );
+}
+
+/**
  * Extracts response attributes from Converse response and sets them on the span
  */
-export function extractConverseResponseAttributes(
-  span: Span,
-  response: ConverseResponseBody,
-): void {
-  if (!response) return;
+export const extractConverseResponseAttributes = withSafety({
+  fn: (span: Span, response: ConverseResponseBody): void => {
+    if (!response || !isConverseResponseBody(response)) {
+      return;
+    }
 
-  // Extract base response attributes
-  extractBaseResponseAttributes(span, response);
-
-  // Extract output messages attributes
-  extractOutputMessagesAttributes(span, response);
-
-  // Extract tool call attributes from response content
-  extractToolCallAttributes(span, response);
-
-  // Extract usage statistics
-  extractUsageAttributes(span, response);
-}
+    extractBaseResponseAttributes(span, response);
+    extractOutputMessagesAttributes(span, response);
+    extractToolCallAttributes(span, response);
+    extractUsageAttributes(span, response);
+  },
+  onError: (error) => {
+    diag.warn("Error extracting Converse response attributes:", error);
+  },
+});
 
 /**
  * Extracts base response attributes: output value, mime type
  */
-function extractBaseResponseAttributes(
-  span: Span,
-  response: ConverseResponseBody,
-): void {
-  // Set output value as full JSON (following semantic conventions)
-  setSpanAttribute(
-    span,
-    SemanticConventions.OUTPUT_VALUE,
-    JSON.stringify(response),
-  );
-  setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
+const extractBaseResponseAttributes = withSafety({
+  fn: (span: Span, response: ConverseResponseBody): void => {
+    setSpanAttribute(
+      span,
+      SemanticConventions.OUTPUT_VALUE,
+      JSON.stringify(response),
+    );
+    setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
-  // Stop reason if available
-  if (response.stopReason) {
-    setSpanAttribute(span, "llm.stop_reason", response.stopReason);
-  }
-}
+    if (response.stopReason) {
+      setSpanAttribute(span, "llm.stop_reason", response.stopReason);
+    }
+  },
+  onError: (error) => {
+    diag.warn("Error extracting base response attributes:", error);
+  },
+});
 
 /**
  * Extracts output message attributes from response
  */
-function extractOutputMessagesAttributes(
-  span: Span,
-  response: ConverseResponseBody,
-): void {
-  const outputMessage = response.output?.message;
-  if (!outputMessage) return;
+const extractOutputMessagesAttributes = withSafety({
+  fn: (span: Span, response: ConverseResponseBody): void => {
+    const outputMessage = response.output?.message;
+    if (!outputMessage) return;
 
-  // Convert to our message format for processing
-  const message: ConverseMessage = {
-    role: outputMessage.role || "assistant",
-    content: outputMessage.content || [],
-  };
+    const message: ConverseMessage = {
+      role: outputMessage.role || "assistant",
+      content: outputMessage.content || [],
+    };
 
-  // Process the single output message (index 0)
-  processMessages(span, [message], SemanticConventions.LLM_OUTPUT_MESSAGES);
-}
+    processMessages(span, [message], SemanticConventions.LLM_OUTPUT_MESSAGES);
+  },
+  onError: (error) => {
+    diag.warn("Error extracting output messages attributes:", error);
+  },
+});
 
 /**
  * Extracts tool call attributes from response content blocks
  */
-function extractToolCallAttributes(
-  span: Span,
-  response: ConverseResponseBody,
-): void {
-  const outputMessage = response.output?.message;
-  if (!outputMessage?.content) return;
+const extractToolCallAttributes = withSafety({
+  fn: (span: Span, response: ConverseResponseBody): void => {
+    const outputMessage = response.output?.message;
+    if (!outputMessage?.content) return;
 
-  // Find tool use content blocks
-  const toolUseBlocks = outputMessage.content.filter(isConverseToolUseContent);
+    const toolUseBlocks = outputMessage.content.filter(isConverseToolUseContent);
 
-  toolUseBlocks.forEach((content, toolCallIndex: number) => {
-    const toolUse = content.toolUse;
-    if (toolUse) {
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
-        toolUse.name,
-      );
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-        toolUse.input ? JSON.stringify(toolUse.input) : undefined,
-      );
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`,
-        toolUse.toolUseId,
-      );
-    }
-  });
-}
+    toolUseBlocks.forEach((content, toolCallIndex: number) => {
+      const toolUse = content.toolUse;
+      if (toolUse) {
+        setSpanAttribute(
+          span,
+          `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
+          toolUse.name,
+        );
+        setSpanAttribute(
+          span,
+          `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+          toolUse.input ? JSON.stringify(toolUse.input) : undefined,
+        );
+        setSpanAttribute(
+          span,
+          `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`,
+          toolUse.toolUseId,
+        );
+      }
+    });
+  },
+  onError: (error) => {
+    diag.warn("Error extracting tool call attributes:", error);
+  },
+});
 
 /**
  * Extracts usage statistics with null-safe handling for missing token counts
  */
-function extractUsageAttributes(
-  span: Span,
-  response: ConverseResponseBody,
-): void {
-  const usage = response.usage;
-  if (!usage) return;
+const extractUsageAttributes = withSafety({
+  fn: (span: Span, response: ConverseResponseBody): void => {
+    const usage = response.usage;
+    if (!usage) return;
 
-  // Set only token counts that are available (null-safe)
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-    usage.inputTokens,
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-    usage.outputTokens,
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_TOTAL,
-    usage.totalTokens,
-  );
-}
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
+      usage.inputTokens,
+    );
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
+      usage.outputTokens,
+    );
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_TOTAL,
+      usage.totalTokens,
+    );
+  },
+  onError: (error) => {
+    diag.warn("Error extracting usage attributes:", error);
+  },
+});
