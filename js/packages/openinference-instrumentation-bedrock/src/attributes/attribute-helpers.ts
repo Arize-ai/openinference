@@ -133,19 +133,6 @@ export function getAttributesFromMessageContent(
         `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
       ] = `data:${mimeType};base64,${base64}`;
     }
-  } else if (isConverseToolResultContent(content)) {
-    attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "tool_result";
-    attributes[`${SemanticConventions.MESSAGE_CONTENT_TEXT}.tool_result.tool_use_id`] = content.toolResult.toolUseId;
-    if (content.toolResult.status) {
-      attributes[`${SemanticConventions.MESSAGE_CONTENT_TEXT}.tool_result.status`] = content.toolResult.status;
-    }
-    // Process nested content in tool result
-    for (const [index, nestedContent] of content.toolResult.content.entries()) {
-      const nestedAttributes = getAttributesFromMessageContent(nestedContent);
-      for (const [key, value] of Object.entries(nestedAttributes)) {
-        attributes[`${SemanticConventions.MESSAGE_CONTENT_TEXT}.tool_result.content.${index}.${key}`] = value;
-      }
-    }
   }
 
   return attributes;
