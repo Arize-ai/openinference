@@ -122,6 +122,10 @@ class TestTokenCounts:
 
         # Get usage_metadata from the raw response
         raw_response = resp.raw.get("_raw_response")
+
+        if not raw_response:
+            raise ValueError("No raw response")
+            
         usage_metadata = raw_response.usage_metadata
 
         assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == usage_metadata.prompt_token_count
