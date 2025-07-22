@@ -125,10 +125,6 @@ export function getAttributesFromMessageContent(
     attributes[SemanticConventions.MESSAGE_CONTENT_TEXT] = content.text;
   } else if (isConverseImageContent(content)) {
     attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "image";
-    if (content.image.format) {
-      attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.image.format`] =
-        content.image.format;
-    }
     if (content.image.source.bytes) {
       // Convert bytes to base64 data URL for consistent representation
       const base64 = Buffer.from(content.image.source.bytes).toString("base64");
