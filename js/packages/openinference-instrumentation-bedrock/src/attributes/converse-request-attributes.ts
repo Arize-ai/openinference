@@ -37,7 +37,7 @@ function isConverseRequestBody(input: unknown): input is ConverseRequestBody {
  * Extracts base request attributes: model, system, provider, parameters
  */
 const extractBaseRequestAttributes = withSafety({
-  fn: (span: Span, input: ConverseRequestBody): void => {
+  fn: ({ span, input }: { span: Span; input: ConverseRequestBody }): void => {
     if (input.modelId) {
       setSpanAttribute(span, SemanticConventions.LLM_MODEL_NAME, input.modelId);
     }
@@ -67,17 +67,17 @@ const extractBaseRequestAttributes = withSafety({
  * Extracts input messages attributes with system prompt aggregation
  */
 const extractInputMessagesAttributes = withSafety({
-  fn: (span: Span, input: ConverseRequestBody): void => {
+  fn: ({ span, input }: { span: Span; input: ConverseRequestBody }): void => {
     const systemPrompts: SystemPrompt[] = input.system || [];
     const messages: ConverseMessage[] = input.messages || [];
 
     const aggregatedMessages = aggregateMessages(systemPrompts, messages);
 
-    processMessages(
+    processMessages({
       span,
-      aggregatedMessages,
-      SemanticConventions.LLM_INPUT_MESSAGES,
-    );
+      messages: aggregatedMessages,
+      baseKey: SemanticConventions.LLM_INPUT_MESSAGES,
+    });
   },
   onError: (error) => {
     diag.warn("Error extracting input messages attributes:", error);
@@ -88,7 +88,7 @@ const extractInputMessagesAttributes = withSafety({
  * Extracts tool configuration attributes
  */
 const extractInputToolAttributes = withSafety({
-  fn: (span: Span, input: ConverseRequestBody): void => {
+  fn: ({ span, input }: { span: Span; input: ConverseRequestBody }): void => {
     const toolConfig = input.toolConfig;
     if (!toolConfig?.tools) return;
 
@@ -121,15 +121,15 @@ const extractInputToolAttributes = withSafety({
  * Extracts request attributes from Converse command and sets them on the span
  */
 export const extractConverseRequestAttributes = withSafety({
-  fn: (span: Span, command: ConverseCommand): void => {
+  fn: ({ span, command }: { span: Span; command: ConverseCommand }): void => {
     const input = command.input;
     if (!input || !isConverseRequestBody(input)) {
       return;
     }
 
-    extractBaseRequestAttributes(span, input);
-    extractInputMessagesAttributes(span, input);
-    extractInputToolAttributes(span, input);
+    extractBaseRequestAttributes({ span, input });
+    extractInputMessagesAttributes({ span, input });
+    extractInputToolAttributes({ span, input });
   },
   onError: (error) => {
     diag.warn("Error extracting Converse request attributes:", error);

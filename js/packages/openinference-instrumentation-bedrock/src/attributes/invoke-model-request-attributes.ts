@@ -27,10 +27,13 @@ import { Span } from "@opentelemetry/api";
 /**
  * Extracts base request attributes (model, system, provider, invocation parameters)
  */
-export function extractBaseRequestAttributes(
-  span: Span,
-  command: InvokeModelCommand,
-): void {
+export function extractBaseRequestAttributes({
+  span,
+  command,
+}: {
+  span: Span;
+  command: InvokeModelCommand;
+}): void {
   const modelId = command.input?.modelId || "unknown";
   const requestBody = parseRequestBody(command);
 
@@ -67,10 +70,13 @@ export function extractBaseRequestAttributes(
 /**
  * Extracts input messages attributes from request body
  */
-export function extractInputMessagesAttributes(
-  span: Span,
-  requestBody: InvokeModelRequestBody,
-): void {
+export function extractInputMessagesAttributes({
+  span,
+  requestBody,
+}: {
+  span: Span;
+  requestBody: InvokeModelRequestBody;
+}): void {
   // Extract user's message text as primary input value
   const inputValue = extractPrimaryInputValue(requestBody);
   setSpanAttribute(span, SemanticConventions.INPUT_VALUE, inputValue);
@@ -78,7 +84,7 @@ export function extractInputMessagesAttributes(
   // Add structured input message attributes
   if (requestBody.messages && Array.isArray(requestBody.messages)) {
     requestBody.messages.forEach((message, index) => {
-      addMessageAttributes(span, message, index);
+      addMessageAttributes({ span, message, index });
     });
   }
 }
@@ -86,10 +92,13 @@ export function extractInputMessagesAttributes(
 /**
  * Extracts input tool attributes from request body
  */
-export function extractInputToolAttributes(
-  span: Span,
-  requestBody: InvokeModelRequestBody,
-): void {
+export function extractInputToolAttributes({
+  span,
+  requestBody,
+}: {
+  span: Span;
+  requestBody: InvokeModelRequestBody;
+}): void {
   // Add input tools from request if present
   if (requestBody.tools && Array.isArray(requestBody.tools)) {
     requestBody.tools.forEach((tool, index) => {
@@ -114,20 +123,23 @@ export function extractInputToolAttributes(
 /**
  * Extracts semantic convention attributes from InvokeModel request command
  */
-export function extractInvokeModelRequestAttributes(
-  span: Span,
-  command: InvokeModelCommand,
-): void {
+export function extractInvokeModelRequestAttributes({
+  span,
+  command,
+}: {
+  span: Span;
+  command: InvokeModelCommand;
+}): void {
   const requestBody = parseRequestBody(command);
 
   // Extract base attributes
-  extractBaseRequestAttributes(span, command);
+  extractBaseRequestAttributes({ span, command });
 
   // Add input messages attributes
-  extractInputMessagesAttributes(span, requestBody);
+  extractInputMessagesAttributes({ span, requestBody });
 
   // Add input tool attributes
-  extractInputToolAttributes(span, requestBody);
+  extractInputToolAttributes({ span, requestBody });
 }
 
 // Helper functions
@@ -180,7 +192,7 @@ function parseRequestBody(command: InvokeModelCommand): InvokeModelRequestBody {
     if (typeof command.input.body === "string") {
       bodyString = command.input.body;
     } else if (command.input.body instanceof Uint8Array) {
-      bodyString = new TextDecoder().decode(command.input.body);
+      bodyString = new TextDecoder().decode(command.input.body as Uint8Array);
     } else {
       // Handle other blob types by converting to Uint8Array first
       bodyString = new TextDecoder().decode(
@@ -249,11 +261,15 @@ function extractPrimaryInputValue(requestBody: InvokeModelRequestBody): string {
 /**
  * Adds message attributes to the span
  */
-function addMessageAttributes(
-  span: Span,
-  message: BedrockMessage,
-  index: number,
-): void {
+function addMessageAttributes({
+  span,
+  message,
+  index,
+}: {
+  span: Span;
+  message: BedrockMessage;
+  index: number;
+}): void {
   if (!message.role) return;
 
   setSpanAttribute(
@@ -279,10 +295,10 @@ function addMessageAttributes(
         messageContent,
       );
     }
-  } else {
-    // For complex multimodal messages, use only the detailed message.contents structure
-    addMessageContentAttributes(span, message, index);
-  }
+      } else {
+      // For complex multimodal messages, use only the detailed message.contents structure
+      addMessageContentAttributes({ span, message, messageIndex: index });
+    }
 
   // Handle complex content arrays (tool results, etc.)
   if (Array.isArray(message.content)) {
@@ -307,11 +323,15 @@ function addMessageAttributes(
  * Adds detailed message content structure attributes
  * Message Content Structure Enhancement
  */
-function addMessageContentAttributes(
-  span: Span,
-  message: BedrockMessage,
-  messageIndex: number,
-): void {
+function addMessageContentAttributes({
+  span,
+  message,
+  messageIndex,
+}: {
+  span: Span;
+  message: BedrockMessage;
+  messageIndex: number;
+}): void {
   if (!message.content) return;
 
   // Handle string content
