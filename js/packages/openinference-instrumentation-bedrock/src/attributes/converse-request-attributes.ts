@@ -25,13 +25,8 @@ export function extractConverseRequestAttributes(
   const input = command.input as ConverseRequestBody;
   if (!input) return;
 
-  // Extract base request attributes
   extractBaseRequestAttributes(span, input);
-
-  // Extract input messages attributes
   extractInputMessagesAttributes(span, input);
-
-  // Extract tool configuration attributes
   extractInputToolAttributes(span, input);
 }
 
@@ -47,10 +42,8 @@ function extractBaseRequestAttributes(
     setSpanAttribute(span, SemanticConventions.LLM_MODEL_NAME, input.modelId);
   }
 
-  // System attribute for provider identification
   setSpanAttribute(span, SemanticConventions.LLM_SYSTEM, "bedrock");
 
-  // Inference configuration as invocation parameters (always set, empty object if none)
   const inferenceConfig = input.inferenceConfig || {};
   setSpanAttribute(
     span,
@@ -58,7 +51,6 @@ function extractBaseRequestAttributes(
     JSON.stringify(inferenceConfig),
   );
 
-  // Set input value as full JSON (following semantic conventions)
   setSpanAttribute(
     span,
     SemanticConventions.INPUT_VALUE,
@@ -77,10 +69,8 @@ function extractInputMessagesAttributes(
   const systemPrompts: SystemPrompt[] = input.system || [];
   const messages: ConverseMessage[] = input.messages || [];
 
-  // Aggregate system prompts and messages
   const aggregatedMessages = aggregateMessages(systemPrompts, messages);
 
-  // Process all messages with proper indexing
   processMessages(
     span,
     aggregatedMessages,
@@ -98,7 +88,6 @@ function extractInputToolAttributes(
   const toolConfig = input.toolConfig;
   if (!toolConfig?.tools) return;
 
-  // Process each tool definition
   toolConfig.tools.forEach((tool, index: number) => {
     if (tool.toolSpec) {
       setSpanAttribute(
