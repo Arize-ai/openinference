@@ -28,25 +28,6 @@ function isConverseResponseBody(response: unknown): response is ConverseResponse
 }
 
 /**
- * Extracts response attributes from Converse response and sets them on the span
- */
-export const extractConverseResponseAttributes = withSafety({
-  fn: (span: Span, response: ConverseResponseBody): void => {
-    if (!response || !isConverseResponseBody(response)) {
-      return;
-    }
-
-    extractBaseResponseAttributes(span, response);
-    extractOutputMessagesAttributes(span, response);
-    extractToolCallAttributes(span, response);
-    extractUsageAttributes(span, response);
-  },
-  onError: (error) => {
-    diag.warn("Error extracting Converse response attributes:", error);
-  },
-});
-
-/**
  * Extracts base response attributes: output value, mime type
  */
 const extractBaseResponseAttributes = withSafety({
@@ -149,5 +130,24 @@ const extractUsageAttributes = withSafety({
   },
   onError: (error) => {
     diag.warn("Error extracting usage attributes:", error);
+  },
+});
+
+/**
+ * Extracts response attributes from Converse response and sets them on the span
+ */
+export const extractConverseResponseAttributes = withSafety({
+  fn: (span: Span, response: ConverseResponseBody): void => {
+    if (!response || !isConverseResponseBody(response)) {
+      return;
+    }
+
+    extractBaseResponseAttributes(span, response);
+    extractOutputMessagesAttributes(span, response);
+    extractToolCallAttributes(span, response);
+    extractUsageAttributes(span, response);
+  },
+  onError: (error) => {
+    diag.warn("Error extracting Converse response attributes:", error);
   },
 });
