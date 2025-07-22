@@ -117,6 +117,7 @@ class TestLM:
             cache=False,
             temperature=0.1,  # non-default
             top_p=0.1,
+            api_key=openai_api_key,  # explicitly set api key as an argument to ensure it is masked
         )
         prompt = "Who won the World Cup in 2018?"
         responses = lm(
