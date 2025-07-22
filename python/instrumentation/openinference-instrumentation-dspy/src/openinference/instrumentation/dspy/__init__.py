@@ -1056,7 +1056,9 @@ def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
 def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
     kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
-    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(lm_kwargs | kwargs)
+    combined_kwargs = lm_kwargs | kwargs
+    combined_kwargs.pop("api_key", None)
+    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(combined_kwargs)
 
 
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
