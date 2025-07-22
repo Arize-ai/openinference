@@ -2354,17 +2354,10 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         // Define a substantial system prompt that should benefit from caching
         const systemPrompt = "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant.";
 
-        // First call - with substantial system prompt
-        // NOTE: AWS Bedrock prompt caching with cachePoint is NOT currently supported 
-        // in the JavaScript SDK, despite being documented for Python/boto3.
-        // See: https://github.com/langchain-ai/langchain-aws/issues/326
-        // "Prompt caching does not work, cachePoint object not supported"
-        // 
-        // When JS SDK support is added, this test should be updated to include:
-        // system: [
-        //   { text: systemPrompt },
-        //   { cachePoint: { type: "default" } }
-        // ]
+        // First call - structured for caching when AWS JS SDK fully supports it
+        // NOTE: While caching works with LangChain wrappers (ChatBedrockConverse),
+        // the direct AWS JavaScript SDK still has serialization issues with cachePoint
+        // objects in both system and content arrays. LangChain handles the translation layer.
         const firstCommand = new ConverseCommand({
           modelId: TEST_MODEL_ID,
           system: [
@@ -2397,7 +2390,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           system: [{ text: systemPrompt }],
           messages: [{ 
             role: "user", 
-            content: [{ text: "What is the capital of Italy?" }] 
+            content: [{ text: "What is the capital of Italy?" }]
           }],
           inferenceConfig: { maxTokens: 100, temperature: 0.1 },
         }));
@@ -2408,7 +2401,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           system: [{ text: systemPrompt }],
           messages: [{ 
             role: "user", 
-            content: [{ text: "What is the capital of Germany?" }] 
+            content: [{ text: "What is the capital of Germany?" }]
           }],
           inferenceConfig: { maxTokens: 100, temperature: 0.1 },
         }));
@@ -2416,11 +2409,9 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         // Get the span from the final call for comprehensive token analysis
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
 
-        // This test is structured for future prompt caching support but currently
-        // cannot test cache tokens because AWS JavaScript SDK does not support 
-        // cachePoint configuration (see GitHub issue referenced above).
+        // This test is ready for caching but the direct AWS SDK doesn't support it yet:
         // 
-        // When caching becomes available in JS SDK, we should expect:
+        // We should expect to see:
         // - cacheReadInputTokens and cacheWriteInputTokens in API responses
         // - Corresponding llm.token_count.prompt.cache_read and llm.token_count.prompt.cache_write 
         //   attributes in instrumentation spans
