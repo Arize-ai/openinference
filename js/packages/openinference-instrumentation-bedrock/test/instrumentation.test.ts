@@ -93,20 +93,36 @@ describe("BedrockInstrumentation", () => {
 
     if (!isRecordingMode) {
       // Replay mode: create mock from test-specific recording
-      const recordingData = loadRecordingData(recordingsPath);
-
-      if (recordingData?.response) {
+      if (fs.existsSync(recordingsPath)) {
+        const recordingData = JSON.parse(fs.readFileSync(recordingsPath, "utf8"));
         console.log(
-          `Creating mock from sanitized recording: ${path.basename(recordingsPath)}`,
+          `Creating mocks from recording: ${path.basename(recordingsPath)} (${recordingData.length} requests)`,
         );
-        createNockMock(
-          recordingData.response,
-          recordingData.modelId || undefined,
-          recordingData.status,
-          TEST_MODEL_ID,
-          recordingData.isStreaming,
-          recordingData.isConverse,
-        );
+        
+        // Create mocks for all recorded requests
+        recordingData.forEach((recording: any) => {
+          // Extract model ID from the path
+          const invokeMatch = recording.path?.match(/\/model\/([^\/]+)\/invoke/);
+          const converseMatch = recording.path?.match(/\/model\/([^\/]+)\/converse/);
+          const modelId = invokeMatch
+            ? decodeURIComponent(invokeMatch[1])
+            : converseMatch
+              ? decodeURIComponent(converseMatch[1])
+              : null;
+
+          // Determine endpoint type
+          const isStreaming = recording.path?.includes("invoke-with-response-stream");
+          const isConverse = recording.path?.includes("/converse");
+
+          createNockMock(
+            recording.response,
+            modelId || undefined,
+            recording.status || 200,
+            TEST_MODEL_ID,
+            isStreaming,
+            isConverse,
+          );
+        });
       } else {
         console.log(`No recordings found at ${recordingsPath}`);
       }
@@ -2329,7 +2345,123 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
           }
         `);
       });
+
+      it("should comprehensively test all token count types", async () => {
+        setupTestRecording("should-comprehensively-test-all-token-count-types");
+
+        const client = createTestClient(isRecordingMode);
+
+        // Define a substantial system prompt that should benefit from caching
+        const systemPrompt = "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant.";
+
+        // First call - with substantial system prompt
+        // NOTE: AWS Bedrock prompt caching with cachePoint is NOT currently supported 
+        // in the JavaScript SDK, despite being documented for Python/boto3.
+        // See: https://github.com/langchain-ai/langchain-aws/issues/326
+        // "Prompt caching does not work, cachePoint object not supported"
+        // 
+        // When JS SDK support is added, this test should be updated to include:
+        // system: [
+        //   { text: systemPrompt },
+        //   { cachePoint: { type: "default" } }
+        // ]
+        const firstCommand = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          system: [
+            {
+              text: systemPrompt,
+            },
+          ],
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "What is the capital of France?",
+                },
+              ],
+            },
+          ],
+          inferenceConfig: {
+            maxTokens: 100,
+            temperature: 0.1,
+          },
+        });
+
+        // Execute all three calls to test comprehensive token counting
+        await client.send(firstCommand);
+        spanExporter.reset();
+
+        await client.send(new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          system: [{ text: systemPrompt }],
+          messages: [{ 
+            role: "user", 
+            content: [{ text: "What is the capital of Italy?" }] 
+          }],
+          inferenceConfig: { maxTokens: 100, temperature: 0.1 },
+        }));
+        spanExporter.reset();
+
+        await client.send(new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          system: [{ text: systemPrompt }],
+          messages: [{ 
+            role: "user", 
+            content: [{ text: "What is the capital of Germany?" }] 
+          }],
+          inferenceConfig: { maxTokens: 100, temperature: 0.1 },
+        }));
+
+        // Get the span from the final call for comprehensive token analysis
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+
+        // This test is structured for future prompt caching support but currently
+        // cannot test cache tokens because AWS JavaScript SDK does not support 
+        // cachePoint configuration (see GitHub issue referenced above).
+        // 
+        // When caching becomes available in JS SDK, we should expect:
+        // - cacheReadInputTokens and cacheWriteInputTokens in API responses
+        // - Corresponding llm.token_count.prompt.cache_read and llm.token_count.prompt.cache_write 
+        //   attributes in instrumentation spans
+
+        // Comprehensive span attributes snapshot - captures current token counting behavior
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant."}],"messages":[{"role":"user","content":[{"text":"What is the capital of Germany?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant.",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "system",
+  "llm.input_messages.1.message.contents.0.message_content.text": "What is the capital of Germany?",
+  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "The capital of Germany is Berlin. 
+
+Berlin has a rich and complex history as the capital city:
+
+1. It became the capital of Prussia in 1701 and later the German Empire in 1871.
+
+2. After World War I, it remained the capital of the Weimar Republic.
+
+3. During the Cold War, Berlin was divided into East and West sectors. East Berlin served as the capital of East Germany, while Bonn became the provisional capital of",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "bedrock",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 57,
+  "llm.token_count.total": 157,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":2847},"output":{"message":{"content":[{"text":"The capital of Germany is Berlin. \\n\\nBerlin has a rich and complex history as the capital city:\\n\\n1. It became the capital of Prussia in 1701 and later the German Empire in 1871.\\n\\n2. After World War I, it remained the capital of the Weimar Republic.\\n\\n3. During the Cold War, Berlin was divided into East and West sectors. East Berlin served as the capital of East Germany, while Bonn became the provisional capital of"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":57,"outputTokens":100,"totalTokens":157}}",
+}
+`);
+      }, 15000); // Increase timeout for recording mode with multiple API calls
     });
+
     //
     // Use pattern: BEDROCK_RECORD_MODE=record npm test -- --testNamePattern="test name"
   });
