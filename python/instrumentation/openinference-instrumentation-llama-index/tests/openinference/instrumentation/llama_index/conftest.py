@@ -1,5 +1,7 @@
 from typing import Iterator
+from unittest.mock import Mock, patch
 
+import google.auth.credentials
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -39,5 +41,12 @@ def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def google_cloud_project(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "fake-project")
+def mock_google_auth() -> Iterator[Mock]:
+    """Mock Google authentication to prevent network calls during testing."""
+    with patch("google.auth.default") as mock_auth:
+        mock_credentials = Mock(spec=google.auth.credentials.Credentials)
+        mock_credentials.token = "fake_token"
+        mock_credentials.valid = True
+        mock_credentials.expired = False
+        mock_auth.return_value = (mock_credentials, "fake-project")
+        yield mock_auth
