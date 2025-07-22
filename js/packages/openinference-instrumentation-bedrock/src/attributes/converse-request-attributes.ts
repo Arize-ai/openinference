@@ -34,25 +34,6 @@ function isConverseRequestBody(input: unknown): input is ConverseRequestBody {
 }
 
 /**
- * Extracts request attributes from Converse command and sets them on the span
- */
-export const extractConverseRequestAttributes = withSafety({
-  fn: (span: Span, command: ConverseCommand): void => {
-    const input = command.input;
-    if (!input || !isConverseRequestBody(input)) {
-      return;
-    }
-
-    extractBaseRequestAttributes(span, input);
-    extractInputMessagesAttributes(span, input);
-    extractInputToolAttributes(span, input);
-  },
-  onError: (error) => {
-    diag.warn("Error extracting Converse request attributes:", error);
-  },
-});
-
-/**
  * Extracts base request attributes: model, system, provider, parameters
  */
 const extractBaseRequestAttributes = withSafety({
@@ -133,5 +114,24 @@ const extractInputToolAttributes = withSafety({
   },
   onError: (error) => {
     diag.warn("Error extracting tool configuration attributes:", error);
+  },
+});
+
+/**
+ * Extracts request attributes from Converse command and sets them on the span
+ */
+export const extractConverseRequestAttributes = withSafety({
+  fn: (span: Span, command: ConverseCommand): void => {
+    const input = command.input;
+    if (!input || !isConverseRequestBody(input)) {
+      return;
+    }
+
+    extractBaseRequestAttributes(span, input);
+    extractInputMessagesAttributes(span, input);
+    extractInputToolAttributes(span, input);
+  },
+  onError: (error) => {
+    diag.warn("Error extracting Converse request attributes:", error);
   },
 });
