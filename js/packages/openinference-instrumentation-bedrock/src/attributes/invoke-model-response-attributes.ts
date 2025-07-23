@@ -86,22 +86,25 @@ export function extractToolCallAttributes({
   const toolUseBlocks = responseBody.content.filter(isToolUseContent);
 
   toolUseBlocks.forEach((content) => {
-    // Extract tool call attributes
+    // Extract tool call attributes at the message level using proper semantic conventions
+    const toolCallPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
     setSpanAttribute(
       span,
-      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
-      content.name,
-    );
-    setSpanAttribute(
-      span,
-      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-      content.input ? JSON.stringify(content.input) : undefined,
-    );
-    setSpanAttribute(
-      span,
-      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`,
+      `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
       content.id,
     );
+    setSpanAttribute(
+      span,
+      `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
+      content.name,
+    );
+    if (content.input) {
+      setSpanAttribute(
+        span,
+        `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+        JSON.stringify(content.input),
+      );
+    }
 
     toolCallIndex++;
   });
@@ -178,27 +181,6 @@ function addOutputMessageContentAttributes({
         span,
         `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
         content.text,
-      );
-    } else if (isToolUseContent(content)) {
-      setSpanAttribute(
-        span,
-        `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-        "tool_use",
-      );
-      setSpanAttribute(
-        span,
-        `${contentPrefix}.message_content.tool_use.name`,
-        content.name,
-      );
-      setSpanAttribute(
-        span,
-        `${contentPrefix}.message_content.tool_use.input`,
-        JSON.stringify(content.input),
-      );
-      setSpanAttribute(
-        span,
-        `${contentPrefix}.message_content.tool_use.id`,
-        content.id,
       );
     }
   });
