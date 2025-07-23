@@ -8,6 +8,7 @@ from beeai_framework.agents.react import (
     ReActAgentUpdateEvent,
 )
 from beeai_framework.backend import UserMessage
+from beeai_framework.context import RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 
 from instrumentation.beeai._utils import _unpack_object, stringify
@@ -16,7 +17,7 @@ from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttribu
 
 
 class ReActAgentProcessor(AgentProcessor):
-    def __init__(self, event: Any, meta: EventMeta):
+    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
         super().__init__(event, meta)
         self._last_chunk_index = 0
 

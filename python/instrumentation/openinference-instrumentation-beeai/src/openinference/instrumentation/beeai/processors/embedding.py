@@ -5,7 +5,7 @@ from beeai_framework.backend import (
     EmbeddingModelStartEvent,
     EmbeddingModelSuccessEvent,
 )
-from beeai_framework.context import RunContext
+from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 
 from instrumentation.beeai.processors.base import Processor
@@ -19,7 +19,7 @@ from openinference.semconv.trace import (
 class EmbeddingModelProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.EMBEDDING
 
-    def __init__(self, event: Any, meta: EventMeta):
+    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
         super().__init__(event, meta)
 
         assert isinstance(meta.creator, RunContext)

@@ -5,6 +5,7 @@ from beeai_framework.agents.experimental.events import (
     RequirementAgentSuccessEvent,
 )
 from beeai_framework.agents.experimental.types import RequirementAgentRunStateStep
+from beeai_framework.context import RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 
 from instrumentation.beeai._utils import _unpack_object
@@ -13,7 +14,7 @@ from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttribu
 
 
 class RequirementAgentProcessor(AgentProcessor):
-    def __init__(self, event: Any, meta: EventMeta):
+    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
         super().__init__(event, meta)
         self._steps: list[RequirementAgentRunStateStep] = []
 

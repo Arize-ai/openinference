@@ -52,7 +52,7 @@ P = ParamSpec("P")
 
 def exception_handler(func: Callable[P, T]) -> Callable[P, T]:
     @functools.wraps(func)
-    async def wrapped(*args, **kwargs):
+    async def wrapped(*args: P.args, **kwargs: P.kwargs) -> T:
         try:
             await func(*args, **kwargs)
         except Exception as e:

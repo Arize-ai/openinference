@@ -13,7 +13,7 @@ from beeai_framework.backend import (
     MessageToolCallContent,
     MessageToolResultContent,
 )
-from beeai_framework.context import RunContext
+from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 from beeai_framework.tools import AnyTool
 from beeai_framework.utils.lists import remove_falsy
@@ -35,7 +35,7 @@ from openinference.semconv.trace import (
 class ChatModelProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.LLM
 
-    def __init__(self, event: Any, meta: EventMeta):
+    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
         super().__init__(event, meta)
 
         self._last_updated_at = datetime.now()

@@ -1,6 +1,6 @@
 from typing import Any, ClassVar, override
 
-from beeai_framework.context import RunContext
+from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 from beeai_framework.workflows import (
     Workflow,
@@ -23,7 +23,7 @@ from openinference.semconv.trace import (
 class WorkflowProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.CHAIN
 
-    def __init__(self, event: Any, meta: EventMeta):
+    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
         super().__init__(event, meta)
 
         assert isinstance(meta.creator, RunContext)
