@@ -30,7 +30,7 @@ class SpanWrapper:
     def child(
         self, name: str | None = None, event: tuple[Any, EventMeta] | None = None
     ) -> "SpanWrapper":
-        child = SpanWrapper(name=name, kind=self.kind)
+        child = SpanWrapper(name=name or f"{self.name}_child", kind=self.kind)
         if event is not None:
             value, meta = event
 

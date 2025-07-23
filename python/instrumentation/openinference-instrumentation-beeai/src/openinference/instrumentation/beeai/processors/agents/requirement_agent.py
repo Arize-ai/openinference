@@ -58,7 +58,7 @@ class RequirementAgentProcessor(AgentProcessor):
                 # TODO: cleanup old keys
                 self._steps.clear()
                 self._sync_steps(steps)
-                continue
+                return
 
             if new_step in new_items or new_step != old_step:
                 self._steps[idx] = new_step
