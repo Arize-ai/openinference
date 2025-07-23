@@ -635,6 +635,7 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                 if message_tool_calls:
                     yield MESSAGE_TOOL_CALLS, message_tool_calls
         if tool_calls := kwargs.get("tool_calls"):
+            # https://github.com/langchain-ai/langchain/blob/a7d0e42f3fa5b147fea9109f60e799229f30a68b/libs/core/langchain_core/messages/ai.py#L167  # noqa: E501
             assert isinstance(tool_calls, Iterable), f"expected Iterable, found {type(tool_calls)}"
             message_tool_calls = []
             for tool_call in tool_calls:
@@ -662,6 +663,7 @@ def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str
             else:
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
     else:
+        # https://github.com/langchain-ai/langchain/blob/a7d0e42f3fa5b147fea9109f60e799229f30a68b/libs/core/langchain_core/messages/tool.py#L179  # noqa: E501
         if name := tool_call.get("name"):
             assert isinstance(name, str), f"expected str, found {type(name)}"
             yield TOOL_CALL_FUNCTION_NAME, name
