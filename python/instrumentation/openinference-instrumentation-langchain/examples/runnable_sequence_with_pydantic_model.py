@@ -5,7 +5,7 @@ from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage, SystemMessage
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 from pydantic import BaseModel, Field
 
 from openinference.instrumentation.langchain import LangChainInstrumentor
