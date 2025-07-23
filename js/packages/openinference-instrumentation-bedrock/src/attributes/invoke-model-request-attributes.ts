@@ -272,18 +272,40 @@ function addMessageAttributes({
     addMessageContentAttributes({ span, message, messageIndex: index });
   }
 
+  // Handle tool calls at the message level using proper semantic conventions
   if (Array.isArray(message.content)) {
+    let toolCallIndex = 0;
+    message.content.forEach((content) => {
+      if (content.type === "tool_use") {
+        const toolCallPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
+        setSpanAttribute(
+          span,
+          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
+          content.id,
+        );
+        setSpanAttribute(
+          span,
+          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
+          content.name,
+        );
+        if (content.input) {
+          setSpanAttribute(
+            span,
+            `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+            JSON.stringify(content.input),
+          );
+        }
+        toolCallIndex++;
+      }
+    });
+
+    // Handle tool results
     const toolResultBlocks = extractToolResultBlocks(message.content);
-    toolResultBlocks.forEach((contentBlock, contentIndex: number) => {
+    toolResultBlocks.forEach((contentBlock) => {
       setSpanAttribute(
         span,
-        `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.${SemanticConventions.TOOL_CALL_ID}`,
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`,
         contentBlock.tool_use_id,
-      );
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-        JSON.stringify({ result: contentBlock.content }),
       );
     });
   }
@@ -347,43 +369,6 @@ function addMessageContentAttributes({
             imageUrl,
           );
         }
-      } else if (content.type === "tool_use") {
-        setSpanAttribute(
-          span,
-          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-          "tool_use",
-        );
-        setSpanAttribute(
-          span,
-          `${contentPrefix}.message_content.tool_use.name`,
-          content.name,
-        );
-        setSpanAttribute(
-          span,
-          `${contentPrefix}.message_content.tool_use.input`,
-          JSON.stringify(content.input),
-        );
-        setSpanAttribute(
-          span,
-          `${contentPrefix}.message_content.tool_use.id`,
-          content.id,
-        );
-      } else if (content.type === "tool_result") {
-        setSpanAttribute(
-          span,
-          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-          "tool_result",
-        );
-        setSpanAttribute(
-          span,
-          `${contentPrefix}.message_content.tool_result.tool_use_id`,
-          content.tool_use_id,
-        );
-        setSpanAttribute(
-          span,
-          `${contentPrefix}.message_content.tool_result.content`,
-          content.content,
-        );
       }
     });
   }
