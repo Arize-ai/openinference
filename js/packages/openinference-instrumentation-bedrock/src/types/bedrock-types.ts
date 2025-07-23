@@ -1,20 +1,92 @@
 /**
  * TypeScript type definitions for AWS Bedrock Runtime API structures
+ * 
+ * This file imports official AWS SDK types wherever possible and only defines
+ * custom types for structures not exposed by the SDK.
  */
 
-// AWS SDK imports for proper typing
+// Import official AWS SDK types
 import {
-  ConverseCommand,
-  ConverseCommandInput,
-  ConverseCommandOutput,
-  InferenceConfiguration,
-  SystemContentBlock,
-  Message as AwsConverseMessage,
+  // Core content and message types from SDK
   ContentBlock,
-  ToolConfiguration,
+  Message,
+  SystemContentBlock,
+  ConversationRole,
+  
+  // Tool-related types
+  Tool,
+  ToolUseBlock,
+  ToolResultBlock,
+  ToolChoice,
+  ToolInputSchema,
+  
+  // Configuration types
+  InferenceConfiguration,
+  
+  // Streaming types
+  ContentBlockStart,
+  ContentBlockDelta,
+  ContentBlockDeltaEvent,
+  ContentBlockStartEvent,
+  ContentBlockStopEvent,
 } from "@aws-sdk/client-bedrock-runtime";
 
-// Core content types
+// Re-export AWS SDK types for convenience
+export {
+  ContentBlock,
+  Message,
+  SystemContentBlock,
+  ConversationRole,
+  Tool,
+  ToolUseBlock,
+  ToolResultBlock,
+  ToolChoice,
+  ToolInputSchema,
+  InferenceConfiguration,
+  ContentBlockStart,
+  ContentBlockDelta,
+  ContentBlockDeltaEvent,
+  ContentBlockStartEvent,
+  ContentBlockStopEvent,
+};
+
+// Custom types that extend or aren't available in the SDK
+
+// Legacy InvokeModel API types (not fully exposed in new SDK versions)
+export interface InvokeModelRequestBody {
+  anthropic_version: string;
+  max_tokens: number;
+  messages: BedrockMessage[];
+  tools?: ToolDefinition[];
+  system?: string;
+  temperature?: number;
+  top_p?: number;
+  top_k?: number;
+  stop_sequences?: string[];
+}
+
+export interface InvokeModelResponseBody {
+  id: string;
+  type: "message";
+  role: "assistant";
+  content: (TextContent | ToolUseContent)[];
+  model: string;
+  stop_reason: string;
+  stop_sequence?: string;
+  usage: UsageInfo;
+}
+
+// Legacy message format for InvokeModel (different from Converse Message)
+export interface BedrockMessage {
+  role: "user" | "assistant";
+  content: MessageContent;
+}
+
+export type MessageContent =
+  | string
+  | (TextContent | ImageContent | ToolUseContent | ToolResultContent)[];
+
+// Content types for legacy InvokeModel API
 export interface TextContent {
   type: "text";
   text: string;
@@ -35,7 +107,7 @@ export interface ToolUseContent {
   type: "tool_use";
   id: string;
   name: string;
-  input: Record<string, any>;
+  input: Record<string, unknown>;
 }
 
 export interface ToolResultContent {
@@ -44,41 +116,18 @@ export interface ToolResultContent {
   content: string;
 }
 
-export type MessageContent =
-  | string
-  | (TextContent | ImageContent | ToolUseContent | ToolResultContent)[];
-
-// Message structures
-export interface BedrockMessage {
-  role: "user" | "assistant";
-  content: MessageContent;
-}
-
-// Tool definitions
+// Tool definition for legacy InvokeModel API
 export interface ToolDefinition {
   name: string;
   description: string;
   input_schema: {
     type: "object";
-    properties: Record<string, any>;
+    properties: Record<string, unknown>;
     required: string[];
   };
 }
 
-// Request structures
-export interface InvokeModelRequestBody {
-  anthropic_version: string;
-  max_tokens: number;
-  messages: BedrockMessage[];
-  tools?: ToolDefinition[];
-  system?: string;
-  temperature?: number;
-  top_p?: number;
-  top_k?: number;
-  stop_sequences?: string[];
-}
-
-// Response structures
+// Usage information
 export interface UsageInfo {
   input_tokens: number;
   output_tokens: number;
@@ -86,76 +135,20 @@ export interface UsageInfo {
   cache_creation_input_tokens?: number;
 }
 
-export interface InvokeModelResponseBody {
-  id: string;
-  type: "message";
-  role: "assistant";
-  content: (TextContent | ToolUseContent)[];
-  model: string;
-  stop_reason: string;
-  stop_sequence?: string;
-  usage: UsageInfo;
-}
+// Converse API specific types that extend SDK types
 
-// Type guards for runtime validation
-export function isTextContent(content: any): content is TextContent {
-  return (
-    content &&
-    typeof content === "object" &&
-    content.type === "text" &&
-    typeof content.text === "string"
-  );
-}
-
-export function isImageContent(content: any): content is ImageContent {
-  return (
-    content &&
-    typeof content === "object" &&
-    content.type === "image" &&
-    content.source &&
-    content.source.type === "base64"
-  );
-}
-
-export function isToolUseContent(content: any): content is ToolUseContent {
-  return (
-    content &&
-    typeof content === "object" &&
-    content.type === "tool_use" &&
-    typeof content.name === "string"
-  );
-}
-
-export function isToolResultContent(
-  content: any,
-): content is ToolResultContent {
-  return (
-    content &&
-    typeof content === "object" &&
-    content.type === "tool_result" &&
-    typeof content.tool_use_id === "string"
-  );
-}
-
-// ========================================================================
-// CONVERSE API TYPES (NEW)
-// ========================================================================
-
-// Converse API specific types - properly typed following AWS SDK patterns
-
-// System prompt for Converse API (different from InvokeModel)
-// Note: AWS SDK types don't yet support cachePoint, but runtime does
+// System prompt for Converse API
 export interface SystemPrompt {
   text: string;
 }
 
-// Converse message format (extends AWS SDK Message but with our content types)
+// Converse message format (uses SDK ContentBlock but with role info)
 export interface ConverseMessage {
   role: "user" | "assistant" | "system";
   content: ConverseContentBlock[];
 }
 
-// Converse content blocks (similar to ContentBlock but our structured format)
+// Content blocks for Converse API (map to SDK ContentBlock structure)
 export type ConverseContentBlock =
   | ConverseTextContent
   | ConverseImageContent
@@ -179,7 +172,7 @@ export interface ConverseToolUseContent {
   toolUse: {
     toolUseId: string;
     name: string;
-    input: Record<string, any>;
+    input: Record<string, unknown>;
   };
 }
 
@@ -191,7 +184,7 @@ export interface ConverseToolResultContent {
   };
 }
 
-// Converse inference configuration (different parameter names from InvokeModel)
+// Converse inference configuration
 export interface ConverseInferenceConfig {
   maxTokens?: number;
   temperature?: number;
@@ -199,12 +192,12 @@ export interface ConverseInferenceConfig {
   stopSequences?: string[];
 }
 
-// Converse tool configuration (different structure from InvokeModel tools)
+// Converse tool configuration
 export interface ConverseToolConfig {
   tools?: ConverseToolDefinition[];
   toolChoice?: {
-    auto?: {};
-    any?: {};
+    auto?: Record<string, never>;
+    any?: Record<string, never>;
     tool?: {
       name: string;
     };
@@ -216,23 +209,22 @@ export interface ConverseToolDefinition {
     name: string;
     description: string;
     inputSchema: {
-      json: Record<string, any>;
+      json: Record<string, unknown>;
     };
   };
 }
 
-// Converse request body (properly typed with AWS SDK alignment)
+// Request/Response body types for our instrumentation
 export interface ConverseRequestBody {
   modelId: string;
   messages: ConverseMessage[];
   system?: SystemPrompt[];
   inferenceConfig?: ConverseInferenceConfig;
   toolConfig?: ConverseToolConfig;
-  additionalModelRequestFields?: Record<string, any>;
+  additionalModelRequestFields?: Record<string, unknown>;
   additionalModelResponseFieldPaths?: string[];
 }
 
-// Converse response body (properly typed following AWS SDK structure)
 export interface ConverseResponseBody {
   responseMetadata: {
     requestId: string;
@@ -260,46 +252,119 @@ export interface ConverseResponseBody {
   };
 }
 
+// Type guards for legacy InvokeModel content types
+export function isTextContent(content: unknown): content is TextContent {
+  return (
+    content !== null &&
+    typeof content === "object" &&
+    content !== null &&
+    "type" in content &&
+    content.type === "text" &&
+    "text" in content &&
+    typeof content.text === "string"
+  );
+}
+
+export function isImageContent(content: unknown): content is ImageContent {
+  return (
+    content !== null &&
+    typeof content === "object" &&
+    content !== null &&
+    "type" in content &&
+    content.type === "image" &&
+    "source" in content &&
+    content.source !== null &&
+    typeof content.source === "object" &&
+    "type" in content.source &&
+    content.source.type === "base64"
+  );
+}
+
+export function isToolUseContent(content: unknown): content is ToolUseContent {
+  return (
+    content !== null &&
+    typeof content === "object" &&
+    content !== null &&
+    "type" in content &&
+    content.type === "tool_use" &&
+    "name" in content &&
+    typeof content.name === "string"
+  );
+}
+
+export function isToolResultContent(
+  content: unknown,
+): content is ToolResultContent {
+  return (
+    content !== null &&
+    typeof content === "object" &&
+    content !== null &&
+    "type" in content &&
+    content.type === "tool_result" &&
+    "tool_use_id" in content &&
+    typeof content.tool_use_id === "string"
+  );
+}
+
 // Type guards for Converse content blocks
 export function isConverseTextContent(
-  content: any,
+  content: unknown,
 ): content is ConverseTextContent {
   return (
-    content && typeof content === "object" && typeof content.text === "string"
+    content !== null &&
+    typeof content === "object" && 
+    content !== null &&
+    "text" in content &&
+    typeof content.text === "string"
   );
 }
 
 export function isConverseImageContent(
-  content: any,
+  content: unknown,
 ): content is ConverseImageContent {
   return (
-    content &&
+    content !== null &&
     typeof content === "object" &&
-    content.image &&
-    content.image.source &&
+    content !== null &&
+    "image" in content &&
+    content.image !== null &&
+    typeof content.image === "object" &&
+    "source" in content.image &&
+    content.image.source !== null &&
+    typeof content.image.source === "object" &&
+    "bytes" in content.image.source &&
     content.image.source.bytes instanceof Uint8Array
   );
 }
 
 export function isConverseToolUseContent(
-  content: any,
+  content: unknown,
 ): content is ConverseToolUseContent {
   return (
-    content &&
+    content !== null &&
     typeof content === "object" &&
-    content.toolUse &&
+    content !== null &&
+    "toolUse" in content &&
+    content.toolUse !== null &&
+    typeof content.toolUse === "object" &&
+    "name" in content.toolUse &&
     typeof content.toolUse.name === "string" &&
+    "toolUseId" in content.toolUse &&
     typeof content.toolUse.toolUseId === "string"
   );
 }
 
 export function isConverseToolResultContent(
-  content: any,
+  content: unknown,
 ): content is ConverseToolResultContent {
   return (
-    content &&
+    content !== null &&
     typeof content === "object" &&
-    content.toolResult &&
-    typeof content.toolResult.toolUseId === "string"
+    content !== null &&
+    "toolResult" in content &&
+    content.toolResult !== null &&
+    typeof content.toolResult === "object" &&
+    "toolUseId" in content.toolResult &&
+    typeof (content.toolResult as Record<string, unknown>).toolUseId === "string"
   );
 }
