@@ -2,6 +2,7 @@ import datetime
 import functools
 import json
 import logging
+from collections.abc import Awaitable
 from typing import Any, Callable, ParamSpec, TypeVar
 
 from beeai_framework.utils.strings import to_json
@@ -50,9 +51,9 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 
-def exception_handler(func: Callable[P, T]) -> Callable[P, T]:
+def exception_handler(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T | None]]:
     @functools.wraps(func)
-    async def wrapped(*args: P.args, **kwargs: P.kwargs) -> T:
+    async def wrapped(*args: P.args, **kwargs: P.kwargs) -> T | None:
         try:
             await func(*args, **kwargs)
         except Exception as e:
