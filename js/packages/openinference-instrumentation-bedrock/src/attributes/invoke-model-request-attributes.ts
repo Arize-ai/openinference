@@ -37,7 +37,6 @@ export function extractBaseRequestAttributes({
   const modelId = command.input?.modelId || "unknown";
   const requestBody = parseRequestBody(command);
 
-  // Set base attributes individually with null checking
   setSpanAttribute(
     span,
     SemanticConventions.OPENINFERENCE_SPAN_KIND,
@@ -56,7 +55,6 @@ export function extractBaseRequestAttributes({
   setSpanAttribute(span, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
   setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, LLMProvider.AWS);
 
-  // Add invocation parameters for model configuration
   const invocationParams = extractInvocationParameters(requestBody);
   if (Object.keys(invocationParams).length > 0) {
     setSpanAttribute(
@@ -77,11 +75,9 @@ export function extractInputMessagesAttributes({
   span: Span;
   requestBody: InvokeModelRequestBody;
 }): void {
-  // Extract user's message text as primary input value
   const inputValue = extractPrimaryInputValue(requestBody);
   setSpanAttribute(span, SemanticConventions.INPUT_VALUE, inputValue);
 
-  // Add structured input message attributes
   if (requestBody.messages && Array.isArray(requestBody.messages)) {
     requestBody.messages.forEach((message, index) => {
       addMessageAttributes({ span, message, index });
@@ -99,22 +95,12 @@ export function extractInputToolAttributes({
   span: Span;
   requestBody: InvokeModelRequestBody;
 }): void {
-  // Add input tools from request if present
   if (requestBody.tools && Array.isArray(requestBody.tools)) {
     requestBody.tools.forEach((tool, index) => {
-      // Convert Bedrock tool format to function schema for consistent format
-      const toolFormat = {
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.input_schema,
-        },
-      };
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
-        JSON.stringify(toolFormat),
+        JSON.stringify(tool),
       );
     });
   }
@@ -132,13 +118,8 @@ export function extractInvokeModelRequestAttributes({
 }): void {
   const requestBody = parseRequestBody(command);
 
-  // Extract base attributes
   extractBaseRequestAttributes({ span, command });
-
-  // Add input messages attributes
   extractInputMessagesAttributes({ span, requestBody });
-
-  // Add input tool attributes
   extractInputToolAttributes({ span, requestBody });
 }
 
@@ -154,19 +135,16 @@ function getSystemFromModelId(modelId: string): string {
   if (modelId.includes("cohere")) return "cohere";
   if (modelId.includes("meta")) return "meta";
   if (modelId.includes("mistral")) return "mistral";
-  return "bedrock"; // fallback
+  return "bedrock";
 }
 
 /**
  * Extracts clean model name from full model ID
  */
 function extractModelName(modelId: string): string {
-  // "anthropic.claude-3-haiku-20240307-v1:0" -> "claude-3-haiku-20240307"
-  // "amazon.titan-text-express-v1" -> "titan-text-express-v1"
   const parts = modelId.split(".");
   if (parts.length > 1) {
     const modelPart = parts[1];
-    // For Anthropic models, remove version suffix like "-v1:0"
     if (modelId.includes("anthropic")) {
       const versionIndex = modelPart.indexOf("-v");
       if (versionIndex > 0) {
@@ -187,17 +165,18 @@ function parseRequestBody(command: InvokeModelCommand): InvokeModelRequestBody {
       return {} as InvokeModelRequestBody;
     }
 
-    // Handle both string (test format) and Uint8Array (SDK format)
     let bodyString: string;
     if (typeof command.input.body === "string") {
       bodyString = command.input.body;
     } else if (command.input.body instanceof Uint8Array) {
       bodyString = new TextDecoder().decode(command.input.body as Uint8Array);
+    } else if (command.input.body instanceof ArrayBuffer) {
+      bodyString = new TextDecoder().decode(new Uint8Array(command.input.body));
+    } else if (command.input.body instanceof Buffer) {
+      bodyString = command.input.body.toString('utf8');
     } else {
-      // Handle other blob types by converting to Uint8Array first
-      bodyString = new TextDecoder().decode(
-        new Uint8Array(command.input.body as ArrayBuffer),
-      );
+      // For other types, use a safer approach that doesn't assume the type
+      bodyString = String(command.input.body);
     }
 
     return JSON.parse(bodyString);
@@ -211,9 +190,8 @@ function parseRequestBody(command: InvokeModelCommand): InvokeModelRequestBody {
  * Uses AWS SDK's InferenceConfiguration for standard parameters across all model vendors
  */
 interface ExtractedInvocationParameters extends Partial<InferenceConfiguration> {
-  // Vendor-specific parameters currently supported in the existing codebase
-  top_k?: number;                    // Used by Anthropic and other models
-  anthropic_version?: string;        // Anthropic-specific API version
+  top_k?: number;
+  anthropic_version?: string;
 }
 
 /**
@@ -225,22 +203,20 @@ function extractInvocationParameters(
 ): ExtractedInvocationParameters {
   const invocationParams: ExtractedInvocationParameters = {};
 
-  // Standard AWS SDK parameters (using camelCase naming)
   if (requestBody.max_tokens) {
     invocationParams.maxTokens = requestBody.max_tokens;
   }
-  if (requestBody.temperature !== undefined) {
+  if (requestBody.temperature != null) {
     invocationParams.temperature = requestBody.temperature;
   }
-  if (requestBody.top_p !== undefined) {
+  if (requestBody.top_p != null) {
     invocationParams.topP = requestBody.top_p;
   }
   if (requestBody.stop_sequences) {
     invocationParams.stopSequences = requestBody.stop_sequences;
   }
 
-  // Vendor-specific parameters currently supported in the existing codebase
-  if (requestBody.top_k !== undefined) {
+  if (requestBody.top_k != null) {
     invocationParams.top_k = requestBody.top_k;
   }
   if (requestBody.anthropic_version) {
@@ -254,7 +230,6 @@ function extractInvocationParameters(
  * Extracts the primary input value as full request body JSON
  */
 function extractPrimaryInputValue(requestBody: InvokeModelRequestBody): string {
-  // Use full request body as JSON
   return JSON.stringify(requestBody);
 }
 
@@ -278,7 +253,6 @@ function addMessageAttributes({
     message.role,
   );
 
-  // Determine if this is a simple text message or complex multimodal message
   const isSimpleTextMessage =
     typeof message.content === "string" ||
     (Array.isArray(message.content) &&
@@ -286,7 +260,6 @@ function addMessageAttributes({
       message.content[0].type === "text");
 
   if (isSimpleTextMessage) {
-    // For simple text messages, use only the top-level message.content
     const messageContent = extractTextFromContent(message.content);
     if (messageContent) {
       setSpanAttribute(
@@ -295,16 +268,13 @@ function addMessageAttributes({
         messageContent,
       );
     }
-      } else {
-      // For complex multimodal messages, use only the detailed message.contents structure
-      addMessageContentAttributes({ span, message, messageIndex: index });
-    }
+  } else {
+    addMessageContentAttributes({ span, message, messageIndex: index });
+  }
 
-  // Handle complex content arrays (tool results, etc.)
   if (Array.isArray(message.content)) {
     const toolResultBlocks = extractToolResultBlocks(message.content);
     toolResultBlocks.forEach((contentBlock, contentIndex: number) => {
-      // Extract tool result attributes
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.${SemanticConventions.TOOL_CALL_ID}`,
@@ -334,7 +304,6 @@ function addMessageContentAttributes({
 }): void {
   if (!message.content) return;
 
-  // Handle string content
   if (typeof message.content === "string") {
     setSpanAttribute(
       span,
@@ -349,7 +318,6 @@ function addMessageContentAttributes({
     return;
   }
 
-  // Handle array content (multi-modal)
   if (Array.isArray(message.content)) {
     message.content.forEach((content, contentIndex) => {
       const contentPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
