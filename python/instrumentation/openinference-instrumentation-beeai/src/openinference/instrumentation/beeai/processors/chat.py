@@ -104,7 +104,7 @@ class ChatModelProcessor(Processor):
                     {
                         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: event.value.usage.total_tokens,
                         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: event.value.usage.prompt_tokens,
-                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: event.value.usage.completion_tokens,
+                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: event.value.usage.completion_tokens,  # noqa: E501
                         SpanAttributes.OPENINFERENCE_SPAN_KIND: type(self).kind,
                         SpanAttributes.OUTPUT_VALUE: event.value.get_text_content(),
                         SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,

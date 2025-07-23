@@ -5,7 +5,6 @@ import logging
 from collections.abc import Awaitable
 from typing import Any, Callable, ParamSpec, TypeVar
 
-from beeai_framework.utils.strings import to_json
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -20,6 +19,8 @@ def _datetime_to_span_time(dt: datetime.datetime) -> int:
 
 def _unpack_object(obj: dict[str, Any] | list[Any] | BaseModel, prefix: str = "") -> dict[str, Any]:
     if not isinstance(obj, dict) and not isinstance(obj, list):
+        from beeai_framework.utils.strings import to_json
+
         obj = json.loads(to_json(obj, exclude_none=True, sort_keys=False))
 
     if prefix and prefix.startswith("."):
@@ -44,6 +45,8 @@ def stringify(value: Any, pretty: bool = False) -> str:
     if is_primitive(value):
         return str(value)
 
+    from beeai_framework.utils.strings import to_json
+
     return to_json(value, sort_keys=False, indent=4 if pretty else None)
 
 
@@ -65,5 +68,5 @@ def exception_handler(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[
 def safe_dump_model_schema(model: type[BaseModel]) -> dict[str, Any]:
     try:
         return model.model_json_schema(mode="serialization")
-    except:
+    except:  # noqa: E722
         return {}

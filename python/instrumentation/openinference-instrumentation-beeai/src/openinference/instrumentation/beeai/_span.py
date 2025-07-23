@@ -1,13 +1,14 @@
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from beeai_framework.emitter import EventMeta
-from beeai_framework.utils.dicts import include_keys
-from beeai_framework.utils.strings import to_json
 from opentelemetry.sdk.trace import Event
 from opentelemetry.trace import StatusCode
 
 from instrumentation.beeai._utils import _datetime_to_span_time, _unpack_object
+
+if TYPE_CHECKING:
+    from beeai_framework.emitter import EventMeta
+
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -28,10 +29,13 @@ class SpanWrapper:
         self.kind = kind
 
     def child(
-        self, name: str | None = None, event: tuple[Any, EventMeta] | None = None
+        self, name: str | None = None, event: tuple[Any, "EventMeta"] | None = None
     ) -> "SpanWrapper":
         child = SpanWrapper(name=name or f"{self.name}_child", kind=self.kind)
         if event is not None:
+            from beeai_framework.utils.dicts import include_keys
+            from beeai_framework.utils.strings import to_json
+
             value, meta = event
 
             child.started_at = meta.created_at

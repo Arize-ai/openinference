@@ -19,7 +19,8 @@ from openinference.semconv.trace import (
 class EmbeddingModelProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.EMBEDDING
 
-    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
+    def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
+
         super().__init__(event, meta)
 
         assert isinstance(meta.creator, RunContext)
@@ -37,8 +38,9 @@ class EmbeddingModelProcessor(Processor):
     async def update(
         self,
         event: Any,
-        meta: EventMeta,
+        meta: "EventMeta",
     ) -> None:
+
         await super().update(event, meta)
 
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)
@@ -62,6 +64,6 @@ class EmbeddingModelProcessor(Processor):
                     {
                         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: event.value.usage.total_tokens,
                         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: event.value.usage.prompt_tokens,
-                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: event.value.usage.completion_tokens,
+                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: event.value.usage.completion_tokens,  # noqa: E501
                     }
                 )

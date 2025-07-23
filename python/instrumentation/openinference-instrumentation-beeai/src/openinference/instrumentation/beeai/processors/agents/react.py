@@ -1,23 +1,16 @@
-from typing import Any, override
-
-from beeai_framework.agents.react import (
-    ReActAgentErrorEvent,
-    ReActAgentRetryEvent,
-    ReActAgentStartEvent,
-    ReActAgentSuccessEvent,
-    ReActAgentUpdateEvent,
-)
-from beeai_framework.backend import UserMessage
-from beeai_framework.context import RunContextStartEvent
-from beeai_framework.emitter import EventMeta
+from typing import TYPE_CHECKING, Any, override
 
 from instrumentation.beeai._utils import _unpack_object, stringify
 from instrumentation.beeai.processors.agents.base import AgentProcessor
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
+if TYPE_CHECKING:
+    from beeai_framework.context import RunContextStartEvent
+    from beeai_framework.emitter import EventMeta
+
 
 class ReActAgentProcessor(AgentProcessor):
-    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
+    def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
         super().__init__(event, meta)
         self._last_chunk_index = 0
 
@@ -25,8 +18,17 @@ class ReActAgentProcessor(AgentProcessor):
     async def update(
         self,
         event: Any,
-        meta: EventMeta,
+        meta: "EventMeta",
     ) -> None:
+        from beeai_framework.agents.react import (
+            ReActAgentErrorEvent,
+            ReActAgentRetryEvent,
+            ReActAgentStartEvent,
+            ReActAgentSuccessEvent,
+            ReActAgentUpdateEvent,
+        )
+        from beeai_framework.backend import UserMessage
+
         await super().update(event, meta)
 
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)

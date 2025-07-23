@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "beeai-framework (==0.1.31)",
+    "beeai-framework[search] (==0.1.32)",
     "openinference-instrumentation>=0.1.34",
     "openinference-semantic-conventions>=0.1.21",
     "opentelemetry-api>=1.34.1",
@@ -33,10 +33,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "beeai-framework >= 0.1.31",
+  "beeai-framework >= 0.1.32",
 ]
 test = [
-  "beeai-framework >= 0.1.31",
+  "beeai-framework >= 0.1.32",
   "opentelemetry-sdk"
 ]
 

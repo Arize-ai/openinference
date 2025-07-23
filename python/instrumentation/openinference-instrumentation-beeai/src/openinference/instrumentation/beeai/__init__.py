@@ -14,12 +14,8 @@
 
 import logging
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any, Callable, Collection, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Collection
 
-from beeai_framework.context import (
-    RunContextFinishEvent,
-)
-from beeai_framework.emitter import Emitter, EmitterOptions, EventMeta
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 
@@ -28,6 +24,9 @@ from openinference.instrumentation import (
     TraceConfig,
 )
 
+if TYPE_CHECKING:
+    from beeai_framework.emitter import EventMeta
+
 from ._span import SpanWrapper
 from ._utils import _datetime_to_span_time, exception_handler
 from .processors.base import Processor
@@ -35,13 +34,11 @@ from .processors.locator import init_processor
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("beeai-framework >= 0.1.31",)
+_instruments = ("beeai-framework >= 0.1.32",)
 try:
     __version__ = version("beeai-framework")
 except PackageNotFoundError:
     __version__ = "unknown"
-
-EventPair = tuple[Any, EventMeta]
 
 
 class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
@@ -56,24 +53,28 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        self._uninstrument()
+        try:
+            if not (tracer_provider := kwargs.get("tracer_provider")):
+                tracer_provider = trace_api.get_tracer_provider()
+            if not (config := kwargs.get("config")):
+                config = TraceConfig()
+            else:
+                assert isinstance(config, TraceConfig)
 
-        if not (tracer_provider := kwargs.get("tracer_provider")):
-            tracer_provider = trace_api.get_tracer_provider()
-        if not (config := kwargs.get("config")):
-            config = TraceConfig()
-        else:
-            assert isinstance(config, TraceConfig)
+            self._tracer = OITracer(
+                trace_api.get_tracer(__name__, __version__, tracer_provider),
+                config=config,
+            )
 
-        self._tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
-        )
-        self._cleanup = Emitter.root().match(
-            "*.*",
-            self._handler,
-            EmitterOptions(match_nested=True, is_blocking=True),
-        )
+            from beeai_framework.emitter import Emitter, EmitterOptions
+
+            self._cleanup = Emitter.root().match(
+                "*.*",
+                self._handler,
+                EmitterOptions(match_nested=True, is_blocking=True),
+            )
+        except Exception as e:
+            logger.error("Instrumentation error", exc_info=e)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         self._cleanup()
@@ -102,7 +103,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
             current_span.end(_datetime_to_span_time(node.ended_at) if node.ended_at else None)
 
     @exception_handler
-    async def _handler(self, data: Any, event: EventMeta) -> None:
+    async def _handler(self, data: Any, event: "EventMeta") -> None:
         assert event.trace is not None, "Event must have a trace"
 
         if event.trace.run_id not in self._processes:
@@ -119,6 +120,8 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
                 parent.span.children.append(node.span)
         else:
             node = self._processes[event.trace.run_id]
+
+        from beeai_framework.context import RunContextFinishEvent
 
         if isinstance(data, RunContextFinishEvent):
             await node.end(data, event)

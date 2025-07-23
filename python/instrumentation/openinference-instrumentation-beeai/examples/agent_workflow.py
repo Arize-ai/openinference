@@ -2,17 +2,15 @@ import asyncio
 import sys
 import traceback
 
+from beeai_framework.backend import ChatModel
 from beeai_framework.errors import FrameworkError
+from beeai_framework.tools.search.wikipedia import WikipediaTool
+from beeai_framework.tools.weather import OpenMeteoTool
+from beeai_framework.workflows.agent import AgentWorkflow, AgentWorkflowInput
 
 from examples.setup import setup_observability
 
 setup_observability()
-
-
-from beeai_framework.backend import ChatModel
-from beeai_framework.tools.search.wikipedia import WikipediaTool
-from beeai_framework.tools.weather import OpenMeteoTool
-from beeai_framework.workflows.agent import AgentWorkflow, AgentWorkflowInput
 
 
 async def main() -> None:
@@ -47,11 +45,11 @@ async def main() -> None:
             AgentWorkflowInput(prompt="Provide a short history of the location.", context="Prague"),
             AgentWorkflowInput(
                 prompt="Provide a comprehensive weather summary for the location today.",
-                expected_output="Essential weather details such as chance of rain, temperature and wind. Only report information that is available.",
+                expected_output="Essential weather details such as chance of rain, temperature and wind. Only report information that is available.",  # noqa: E501
             ),
             AgentWorkflowInput(
                 prompt="Summarize the historical and weather data for the location.",
-                expected_output="A paragraph that describes the history of the location, followed by the current weather conditions.",
+                expected_output="A paragraph that describes the history of the location, followed by the current weather conditions.",  # noqa: E501
             ),
         ]
     )

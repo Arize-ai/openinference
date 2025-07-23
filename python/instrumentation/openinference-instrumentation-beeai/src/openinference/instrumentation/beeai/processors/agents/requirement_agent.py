@@ -1,20 +1,19 @@
-from typing import Any, override
-
-from beeai_framework.agents.experimental.events import (
-    RequirementAgentStartEvent,
-    RequirementAgentSuccessEvent,
-)
-from beeai_framework.agents.experimental.types import RequirementAgentRunStateStep
-from beeai_framework.context import RunContextStartEvent
-from beeai_framework.emitter import EventMeta
+from typing import TYPE_CHECKING, Any, override
 
 from instrumentation.beeai._utils import _unpack_object
 from instrumentation.beeai.processors.agents.base import AgentProcessor
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
+if TYPE_CHECKING:
+    from beeai_framework.agents.experimental.types import RequirementAgentRunStateStep
+    from beeai_framework.context import RunContextStartEvent
+    from beeai_framework.emitter import EventMeta
+
 
 class RequirementAgentProcessor(AgentProcessor):
-    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
+    def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
+        from beeai_framework.agents.experimental.types import RequirementAgentRunStateStep
+
         super().__init__(event, meta)
         self._steps: list[RequirementAgentRunStateStep] = []
 
@@ -22,8 +21,13 @@ class RequirementAgentProcessor(AgentProcessor):
     async def update(
         self,
         event: Any,
-        meta: EventMeta,
+        meta: "EventMeta",
     ) -> None:
+        from beeai_framework.agents.experimental.events import (
+            RequirementAgentStartEvent,
+            RequirementAgentSuccessEvent,
+        )
+
         await super().update(event, meta)
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)
 
@@ -49,7 +53,8 @@ class RequirementAgentProcessor(AgentProcessor):
             case _:
                 self.span.child(meta.name, event=[event, meta])
 
-    def _sync_steps(self, steps: list[RequirementAgentRunStateStep]) -> None:
+    def _sync_steps(self, steps: list["RequirementAgentRunStateStep"]) -> None:
+
         new_items = steps[len(self._steps) :]
         self._steps.extend(new_items)
 
