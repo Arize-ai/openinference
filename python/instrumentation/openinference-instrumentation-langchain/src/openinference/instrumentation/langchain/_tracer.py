@@ -424,6 +424,24 @@ class _OpenInferenceJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for OpenInference with comprehensive type support."""
 
     def default(self, obj: Any) -> Any:
+        # Handle Pydantic models
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            return obj.model_dump()
+
+        # Handle dataclasses
+        if dataclasses.is_dataclass(obj):
+            # Filter out None optional fields
+            result = {}
+            for field in dataclasses.fields(obj):
+                value = getattr(obj, field.name)
+                if not (
+                    value is None
+                    and get_origin(field.type) is Union
+                    and type(None) in get_args(field.type)
+                ):
+                    result[field.name] = value
+            return result
+
         # Handle date/time objects
         if isinstance(obj, (datetime.date, datetime.datetime, datetime.time)):
             return obj.isoformat()
@@ -443,24 +461,6 @@ class _OpenInferenceJSONEncoder(json.JSONEncoder):
         # Handle sets as lists
         if isinstance(obj, set):
             return list(obj)
-
-        # Handle dataclasses
-        if dataclasses.is_dataclass(obj):
-            # Filter out None optional fields
-            result = {}
-            for field in dataclasses.fields(obj):
-                value = getattr(obj, field.name)
-                if not (
-                    value is None
-                    and get_origin(field.type) is Union
-                    and type(None) in get_args(field.type)
-                ):
-                    result[field.name] = value
-            return result
-
-        # Handle Pydantic models
-        if hasattr(obj, "model_dump") and callable(obj.model_dump):
-            return obj.model_dump()
 
         # Let the base class handle everything else (will raise TypeError for unsupported types)
         return super().default(obj)
