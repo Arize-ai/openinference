@@ -143,12 +143,12 @@ export function extractUsageAttributes({
   // Add cache-related token attributes
   setSpanAttribute(
     span,
-    `${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}.cache_read`,
+    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
     responseBody.usage.cache_read_input_tokens,
   );
   setSpanAttribute(
     span,
-    `${SemanticConventions.LLM_TOKEN_COUNT_PROMPT}.cache_write`,
+    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
     responseBody.usage.cache_creation_input_tokens,
   );
 }
