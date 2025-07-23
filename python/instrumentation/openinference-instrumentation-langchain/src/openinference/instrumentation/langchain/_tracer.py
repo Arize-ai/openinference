@@ -1,13 +1,15 @@
+import dataclasses
+import datetime
 import json
 import logging
-import math
 import re
 import time
 import traceback
 from copy import deepcopy
-from datetime import datetime, timezone
+from decimal import Decimal
 from enum import Enum
 from itertools import chain
+from pathlib import PurePath
 from threading import RLock
 from typing import (
     TYPE_CHECKING,
@@ -24,7 +26,10 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
+    Union,
     cast,
+    get_args,
+    get_origin,
 )
 from uuid import UUID
 
@@ -356,23 +361,124 @@ def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
 
 
 def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
+    """
+    Convert input/output data to appropriate string representation for OpenInference spans.
+
+    This function handles different cases with increasing complexity:
+    1. Empty/None objects: return nothing
+    2. Single string values: return the string directly (performance optimization, no MIME type)
+    3. Single input/output key with non-string: use custom JSON formatting via _json_dumps
+       - Conditional MIME type: only for structured data (objects/arrays), not primitives
+    4. Multiple keys or other cases: use _json_dumps for consistent formatting
+       - Always includes JSON MIME type since these are always structured objects
+
+    Args:
+        obj: The input/output data mapping to convert
+
+    Yields:
+        str: The converted string representation
+        str: JSON MIME type (when applicable - see cases above)
+    """
     if not obj:
         return
     assert isinstance(obj, dict), f"expected dict, found {type(obj)}"
-    if len(obj) == 1 and isinstance(value := next(iter(obj.values())), str):
-        yield value
-    else:
-        obj = dict(_replace_nan(obj))
-        yield safe_json_dumps(obj)
-        yield OpenInferenceMimeTypeValues.JSON.value
+
+    # Handle single-key dictionaries (most common case)
+    if len(obj) == 1:
+        value = next(iter(obj.values()))
+
+        # Optimization: Single string values are returned as-is without processing
+        # This is the most common case in LangChain runs (e.g., {"input": "user message"})
+        if isinstance(value, str):
+            yield value
+            return
+
+        key = next(iter(obj.keys()))
+
+        # Special handling for input/output keys: use custom JSON formatting
+        # that preserves readability and handles edge cases like NaN values
+        if key in ("input", "output"):
+            json_value = _json_dumps(value)
+            yield json_value
+
+            # Conditional MIME type for input/output keys: only structured data gets MIME type
+            # This avoids cluttering simple primitive values with unnecessary MIME type metadata
+            if (
+                json_value.startswith("{")
+                and json_value.endswith("}")
+                or json_value.startswith("[")
+                and json_value.endswith("]")
+            ):
+                yield OpenInferenceMimeTypeValues.JSON.value
+            return
+
+    # Default case: multiple keys or non-input/output keys
+    # These are always complex structured objects, so always include JSON MIME type
+    # Use _json_dumps for consistent formatting across all paths
+    json_value = _json_dumps(obj)
+    yield json_value
+    yield OpenInferenceMimeTypeValues.JSON.value  # Always included for structured objects
 
 
-def _replace_nan(obj: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    for k, v in obj.items():
-        if isinstance(v, float) and not math.isfinite(v):
-            yield k, None
-        else:
-            yield k, v
+class _OpenInferenceJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for OpenInference with comprehensive type support."""
+
+    def default(self, obj: Any) -> Any:
+        # Handle Pydantic models
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            return obj.model_dump()
+
+        # Handle dataclasses
+        if dataclasses.is_dataclass(obj):
+            # Filter out None optional fields
+            result = {}
+            for field in dataclasses.fields(obj):
+                value = getattr(obj, field.name)
+                if not (
+                    value is None
+                    and get_origin(field.type) is Union
+                    and type(None) in get_args(field.type)
+                ):
+                    result[field.name] = value
+            return result
+
+        # Handle date/time objects
+        if isinstance(obj, (datetime.date, datetime.datetime, datetime.time)):
+            return obj.isoformat()
+
+        # Handle timedeltas as total seconds
+        if isinstance(obj, datetime.timedelta):
+            return obj.total_seconds()
+
+        # Handle UUID, Decimal, Path, complex as strings
+        if isinstance(obj, (UUID, Decimal, PurePath, complex)):
+            return str(obj)
+
+        # Handle Enums by their value
+        if isinstance(obj, Enum):
+            return obj.value
+
+        # Handle sets as lists
+        if isinstance(obj, set):
+            return list(obj)
+
+        # Let the base class handle everything else (will raise TypeError for unsupported types)
+        return super().default(obj)
+
+
+def _json_dumps(obj: Any) -> str:
+    """
+    Simple JSON serialization using standard library with custom encoder.
+
+    This approach is much simpler and more robust than manual recursive processing.
+    It handles most common types while falling back to safe_json_dumps for edge cases.
+    """
+    try:
+        # Use standard json.dumps with our custom encoder
+        return json.dumps(obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
+    except (TypeError, ValueError, OverflowError):
+        # Fallback to safe_json_dumps for any unsupported types or circular references
+        return safe_json_dumps(obj)
 
 
 @stop_on_exception
@@ -877,8 +983,8 @@ def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
         yield DOCUMENT_METADATA, safe_json_dumps(metadata)
 
 
-def _as_utc_nano(dt: datetime) -> int:
-    return int(dt.astimezone(timezone.utc).timestamp() * 1_000_000_000)
+def _as_utc_nano(dt: datetime.datetime) -> int:
+    return int(dt.astimezone(datetime.timezone.utc).timestamp() * 1_000_000_000)
 
 
 def _get_cls_name(serialized: Optional[Mapping[str, Any]]) -> str:
