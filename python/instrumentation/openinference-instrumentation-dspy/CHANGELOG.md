@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.25...python-openinference-instrumentation-dspy-v0.1.26) (2025-07-23)
+
+
+### Bug Fixes
+
+* **dspy:** mask api keys passed as arguments ([#1990](https://github.com/Arize-ai/openinference/issues/1990)) ([98218a1](https://github.com/Arize-ai/openinference/commit/98218a1bf710f860a93eb941194e2abcc2eec63f))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.24...python-openinference-instrumentation-dspy-v0.1.25) (2025-06-09)
 
 
