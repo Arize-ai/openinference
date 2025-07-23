@@ -634,6 +634,14 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                         message_tool_calls.append(message_tool_call)
                 if message_tool_calls:
                     yield MESSAGE_TOOL_CALLS, message_tool_calls
+        if tool_calls := kwargs.get("tool_calls"):
+            assert isinstance(tool_calls, Iterable), f"expected Iterable, found {type(tool_calls)}"
+            message_tool_calls = []
+            for tool_call in tool_calls:
+                if message_tool_call := dict(_get_tool_call(tool_call)):
+                    message_tool_calls.append(message_tool_call)
+            if message_tool_calls:
+                yield MESSAGE_TOOL_CALLS, message_tool_calls
 
 
 @stop_on_exception
@@ -641,12 +649,23 @@ def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str
     if not tool_call:
         return
     assert hasattr(tool_call, "get"), f"expected Mapping, found {type(tool_call)}"
+    if (id_ := tool_call.get("id")) is not None:
+        yield TOOL_CALL_ID, id_
     if function := tool_call.get("function"):
         assert hasattr(function, "get"), f"expected Mapping, found {type(function)}"
         if name := function.get("name"):
             assert isinstance(name, str), f"expected str, found {type(name)}"
             yield TOOL_CALL_FUNCTION_NAME, name
         if arguments := function.get("arguments"):
+            if isinstance(arguments, str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
+    else:
+        if name := tool_call.get("name"):
+            assert isinstance(name, str), f"expected str, found {type(name)}"
+            yield TOOL_CALL_FUNCTION_NAME, name
+        if arguments := tool_call.get("args"):
             if isinstance(arguments, str):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
             else:
@@ -1104,6 +1123,7 @@ RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 SESSION_ID = SpanAttributes.SESSION_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
