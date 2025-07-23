@@ -93,23 +93,13 @@ const extractInputToolAttributes = withSafety({
     if (!toolConfig?.tools) return;
 
     toolConfig.tools.forEach((tool, index: number) => {
-      if (tool.toolSpec) {
-        setSpanAttribute(
-          span,
-          `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
-          JSON.stringify(tool.toolSpec.inputSchema?.json || {}),
-        );
-        setSpanAttribute(
-          span,
-          `${SemanticConventions.LLM_TOOLS}.${index}.tool.name`,
-          tool.toolSpec.name,
-        );
-        setSpanAttribute(
-          span,
-          `${SemanticConventions.LLM_TOOLS}.${index}.tool.description`,
-          tool.toolSpec.description,
-        );
-      }
+      // Store the tool data as-is without normalization
+      // This avoids the complexity of tool format standardization across providers
+      setSpanAttribute(
+        span,
+        `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
+        JSON.stringify(tool),
+      );
     });
   },
   onError: (error) => {
