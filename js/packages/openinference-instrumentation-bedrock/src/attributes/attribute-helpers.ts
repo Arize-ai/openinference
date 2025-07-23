@@ -88,7 +88,7 @@ export function getAttributesFromMessage(
           value;
       }
 
-      // Handle tool calls and tool results using proper semantic conventions
+      // Handle tool calls at the message level using proper semantic conventions
       if (isConverseToolUseContent(content)) {
         const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
         attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
