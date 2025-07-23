@@ -38,9 +38,7 @@ class SpanWrapper:
             child.ended_at = meta.created_at
             child.attributes.update(
                 {
-                    SpanAttributes.INPUT_VALUE: (
-                        to_json(value) if value is not None or value is None else value
-                    ),
+                    SpanAttributes.INPUT_VALUE: to_json(value) if value is not None else value,
                     SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                     **_unpack_object(
                         include_keys(meta.model_dump(), {"id", "context", "path", "trace"}),
@@ -48,7 +46,6 @@ class SpanWrapper:
                     ),
                 }
             )
-            return child
 
         self.children.append(child)
         return child

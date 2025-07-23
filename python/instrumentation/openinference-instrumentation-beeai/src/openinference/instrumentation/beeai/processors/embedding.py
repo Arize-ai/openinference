@@ -40,7 +40,6 @@ class EmbeddingModelProcessor(Processor):
         meta: EventMeta,
     ) -> None:
         await super().update(event, meta)
-        assert isinstance(meta.creator, EmbeddingModel)
 
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)
         self.span.child(meta.name, event=[event, meta])

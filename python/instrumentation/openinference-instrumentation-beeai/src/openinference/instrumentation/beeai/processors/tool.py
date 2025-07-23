@@ -30,7 +30,6 @@ class ToolProcessor(Processor):
         self.span.set_attributes(
             {
                 SpanAttributes.TOOL_NAME: tool.name,
-                SpanAttributes.LLM_COST_TOTAL: tool.name,
                 SpanAttributes.TOOL_DESCRIPTION: tool.description,
                 # TODO: what's the difference?
                 SpanAttributes.TOOL_PARAMETERS: to_json(safe_dump_model_schema(tool.input_schema)),
