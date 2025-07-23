@@ -95,9 +95,6 @@ describe("BedrockInstrumentation", () => {
       // Replay mode: create mock from test-specific recording
       if (fs.existsSync(recordingsPath)) {
         const recordingData = JSON.parse(fs.readFileSync(recordingsPath, "utf8"));
-        console.log(
-          `Creating mocks from recording: ${path.basename(recordingsPath)} (${recordingData.length} requests)`,
-        );
         
         // Create mocks for all recorded requests
         recordingData.forEach((recording: any) => {
@@ -736,7 +733,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.token_count.prompt": 12,
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
-  "output.value": "{"id":"bedrock-streaming-response","type":"message","role":"assistant","model":"bedrock-streaming","content":[{"type":"text","text":"Here's a short story for you:\\n\\nThe Last Leaf\\n\\nElla gazed out her window at the ivy-covered wall across the courtyard. She had been bedridden with pneumonia for weeks, and her spirits were low. The doctor had told her that she needed the will to live to recover, but Ella felt herself slipping away.\\n\\nShe had been counting the ivy leaves as they fell, convinced that when the last leaf dropped, she too would die. Now"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":12,"output_tokens":100}}",
+  "output.value": "{"text":"Here's a short story for you:\\n\\nThe Last Leaf\\n\\nElla gazed out her window at the ivy-covered wall across the courtyard. She had been bedridden with pneumonia for weeks, and her spirits were low. The doctor had told her that she needed the will to live to recover, but Ella felt herself slipping away.\\n\\nShe had been counting the ivy leaves as they fell, convinced that when the last leaf dropped, she too would die. Now","tool_calls":[],"usage":{"input_tokens":12,"output_tokens":100},"streaming":true}",
 }
 `);
       });
@@ -782,7 +779,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.tools.0.tool.json_schema": "{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}",
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
-  "output.value": "{"id":"bedrock-streaming-response","type":"message","role":"assistant","model":"bedrock-streaming","content":[{"type":"text","text":"Okay, let's get the current weather for San Francisco:"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":273,"output_tokens":88}}",
+  "output.value": "{"text":"Okay, let's get the current weather for San Francisco:","tool_calls":[{"id":"toolu_bdrk_01SmuLWbQxzvE6WD3Th711eg","name":"get_weather","input":{}}],"usage":{"input_tokens":273,"output_tokens":88},"streaming":true}",
 }
 `);
       });
