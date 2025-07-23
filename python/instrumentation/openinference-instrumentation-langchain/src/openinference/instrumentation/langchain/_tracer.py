@@ -7,8 +7,10 @@ import re
 import time
 import traceback
 from copy import deepcopy
+from decimal import Decimal
 from enum import Enum
 from itertools import chain
+from pathlib import PurePath
 from threading import RLock
 from typing import (
     TYPE_CHECKING,
@@ -423,95 +425,183 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     yield OpenInferenceMimeTypeValues.JSON.value  # Always included for structured objects
 
 
-def _json_dumps(obj: Any) -> str:
+def _json_dumps(obj: Any, _seen: Optional[set[int]] = None) -> str:
     """
     Custom JSON serialization that produces valid JSON with comprehensive type support.
 
     This function provides valid JSON output with:
-    - Properly quoted keys in objects for JSON compliance
+    - Properly escaped strings and keys for JSON compliance
     - Spaces after colons and commas for readability
     - Special handling for NaN/infinity values (converted to null)
+    - Protection against circular references
+    - Robust exception handling for type conversions
     - Comprehensive data type support including:
       * Enums (serialized by value)
       * Dataclasses (field-based serialization with optional field handling)
       * Date/time objects (ISO format strings)
       * Timedeltas (total seconds as numbers)
+      * UUID objects (string representation)
+      * Decimal objects (string representation for precision)
+      * Path objects (string representation)
+      * Complex numbers (string representation)
       * Pydantic models (via model_dump_json())
-    - Recursive processing for nested structures
+    - Recursive processing for nested structures with depth protection
 
     Args:
         obj: The object to serialize
+        _seen: Internal parameter for circular reference detection
 
     Returns:
         str: Valid JSON string representation
     """
-    # Handle strings: always quote them for valid JSON
-    if isinstance(obj, str):
-        return f'"{obj}"'
+    # Initialize circular reference tracking
+    if _seen is None:
+        _seen = set()
 
-    # Handle floats: convert NaN/infinity to null for JSON compatibility
-    # This ensures valid JSON while maintaining a clear representation
-    if isinstance(obj, float):
-        if not math.isfinite(obj):
-            return "null"
-        return str(obj)
+    # Check for circular references (only for mutable objects)
+    obj_id = id(obj)
+    if isinstance(obj, (dict, list, set, tuple)) and obj_id in _seen:
+        return '"<circular_reference>"'
 
-    # Handle primitive types: convert to proper JSON representation
-    # CRITICAL: bool check must come before int since bool is a subclass of int in Python
-    # This ensures True/False become "true"/"false" for valid JSON compliance
-    if isinstance(obj, bool):
-        return "true" if obj else "false"
-    if isinstance(obj, int):
-        return str(obj)
+    # Add to seen set for mutable containers
+    is_container = isinstance(obj, (dict, list, set, tuple))
+    if is_container:
+        _seen.add(obj_id)
 
-    # Handle Enums: serialize by their underlying value
-    # This ensures enum values are represented as their actual data rather than enum names
-    if isinstance(obj, Enum):
-        return _json_dumps(obj.value)
+    try:
+        # Handle strings: use json.dumps for proper escaping of quotes, backslashes, etc.
+        if isinstance(obj, str):
+            return json.dumps(obj)
 
-    # Handle dataclasses: field-based JSON serialization with optional field filtering
-    # Skips optional fields that are None to avoid cluttering output with null values
-    if dataclasses.is_dataclass(obj):
-        parts = [
-            f'"{k}": {_json_dumps(v)}'
-            for field in dataclasses.fields(obj)
-            if not (
-                (v := getattr(obj, (k := field.name))) is None
-                and get_origin(field.type) is Union
-                and type(None) in get_args(field.type)
-            )
-        ]
-        return "{" + ", ".join(parts) + "}"
+        # Handle floats: convert NaN/infinity to null for JSON compatibility
+        # This ensures valid JSON while maintaining a clear representation
+        if isinstance(obj, float):
+            if not math.isfinite(obj):
+                return "null"
+            return str(obj)
 
-    # Handle date/time objects: use ISO format for standardized representation
-    # ISO format ensures consistent, parseable date/time strings across systems
-    if isinstance(obj, (datetime.date, datetime.datetime, datetime.time)):
-        return f'"{obj.isoformat()}"'
+        # Handle primitive types: convert to proper JSON representation
+        # CRITICAL: bool check must come before int since bool is a subclass of int in Python
+        # This ensures True/False become "true"/"false" for valid JSON compliance
+        if isinstance(obj, bool):
+            return "true" if obj else "false"
+        if isinstance(obj, int):
+            return str(obj)
 
-    # Handle timedeltas: convert to total seconds for numeric representation
-    # This provides a simple, universally understood duration format
-    if isinstance(obj, datetime.timedelta):
-        return str(obj.total_seconds())
+        # Handle UUID: convert to string representation with exception safety
+        # UUIDs are commonly used for unique identifiers in databases and APIs
+        if isinstance(obj, UUID):
+            try:
+                return json.dumps(str(obj))
+            except Exception:
+                return '"<uuid_conversion_error>"'
 
-    # Handle Pydantic models: use their built-in JSON serialization
-    # This preserves the model's custom serialization logic and field validation
-    if callable(getattr(obj, "model_dump_json", None)):
-        return cast(str, obj.model_dump_json())
+        # Handle Decimal: convert to string to preserve precision with exception safety
+        # Critical for financial calculations where floating-point precision matters
+        if isinstance(obj, Decimal):
+            try:
+                return json.dumps(str(obj))
+            except Exception:
+                return '"<decimal_conversion_error>"'
 
-    # Handle mappings (dicts): use quoted keys for valid JSON
-    # Format: {"key1": value1, "key2": value2}
-    if isinstance(obj, Mapping):
-        parts = [f'"{k}": {_json_dumps(v)}' for k, v in obj.items()]
-        return "{" + ", ".join(parts) + "}"
+        # Handle Path objects: convert to string representation with exception safety
+        # Supports pathlib.Path, PosixPath, WindowsPath, and other PurePath subclasses
+        if isinstance(obj, PurePath):
+            try:
+                return json.dumps(str(obj))
+            except Exception:
+                return '"<path_conversion_error>"'
 
-    # Handle iterables (lists, tuples, sets): convert to array format
-    # Exclude strings and bytes to prevent character-by-character iteration
-    if isinstance(obj, Iterable) and not isinstance(obj, (str, bytes)):
-        parts = [_json_dumps(v) for v in obj]
-        return "[" + ", ".join(parts) + "]"
+        # Handle complex numbers: convert to string representation with exception safety
+        # Python's standard complex number representation (e.g., "(3+4j)")
+        if isinstance(obj, complex):
+            try:
+                return json.dumps(str(obj))
+            except Exception:
+                return '"<complex_conversion_error>"'
 
-    # Fallback: use safe_json_dumps for any other types (bytes, custom objects, etc.)
-    return safe_json_dumps(obj)
+        # Handle Enums: serialize by their underlying value
+        # This ensures enum values are represented as their actual data rather than enum names
+        if isinstance(obj, Enum):
+            return _json_dumps(obj.value, _seen)
+
+        # Handle dataclasses: field-based JSON serialization with optional field filtering
+        # Skips optional fields that are None to avoid cluttering output with null values
+        if dataclasses.is_dataclass(obj):
+            parts = [
+                f"{json.dumps(k)}: {_json_dumps(v, _seen)}"
+                for field in dataclasses.fields(obj)
+                if not (
+                    (v := getattr(obj, (k := field.name))) is None
+                    and get_origin(field.type) is Union
+                    and type(None) in get_args(field.type)
+                )
+            ]
+            return "{" + ", ".join(parts) + "}"
+
+        # Handle date/time objects: use ISO format for standardized representation with exception
+        if isinstance(obj, (datetime.date, datetime.datetime, datetime.time)):
+            try:
+                return json.dumps(obj.isoformat())
+            except Exception:
+                return '"<datetime_conversion_error>"'
+
+        # Handle timedeltas: convert to total seconds for numeric representation
+        # This provides a simple, universally understood duration format
+        if isinstance(obj, datetime.timedelta):
+            try:
+                return str(obj.total_seconds())
+            except Exception:
+                return '"<timedelta_conversion_error>"'
+
+        # Handle Pydantic models: use their built-in JSON serialization with exception safety
+        # This preserves the model's custom serialization logic and field validation
+        if callable(getattr(obj, "model_dump", None)):
+            try:
+                return _json_dumps(cast(dict[str, Any], obj.model_dump()), _seen)
+            except Exception:
+                return '"<pydantic_conversion_error>"'
+
+        # Handle mappings (dicts): use properly escaped keys with collision detection
+        # Format: {"key1": value1, "key2": value2}
+        if isinstance(obj, Mapping):
+            parts = []
+            seen_keys = set()
+            for k, v in obj.items():
+                # Convert key to string safely
+                try:
+                    str_key = str(k)
+                except Exception:
+                    str_key = f"<key_conversion_error_{type(k).__name__}>"
+
+                # Handle key collisions by adding suffix
+                json_key = json.dumps(str_key)
+                if json_key in seen_keys:
+                    counter = 1
+                    original_key = str_key
+                    while json_key in seen_keys:
+                        str_key = f"{original_key}_collision_{counter}"
+                        json_key = json.dumps(str_key)
+                        counter += 1
+
+                seen_keys.add(json_key)
+                parts.append(f"{json_key}: {_json_dumps(v, _seen)}")
+
+            return "{" + ", ".join(parts) + "}"
+
+        # Handle iterables (lists, tuples, sets): convert to array format
+        # Exclude strings and bytes to prevent character-by-character iteration
+        if isinstance(obj, Iterable) and not isinstance(obj, (str, bytes)):
+            parts = [_json_dumps(v, _seen) for v in obj]
+            return "[" + ", ".join(parts) + "]"
+
+        # Fallback: use safe_json_dumps for any other types (bytes, custom objects, etc.)
+        return safe_json_dumps(obj)
+
+    finally:
+        # Clean up _seen set for this object to prevent memory leaks
+        if is_container and obj_id in _seen:
+            _seen.remove(obj_id)
 
 
 @stop_on_exception

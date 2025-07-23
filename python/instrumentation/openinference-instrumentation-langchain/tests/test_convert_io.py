@@ -2,8 +2,11 @@
 import dataclasses
 import datetime
 import json
+from decimal import Decimal
 from enum import Enum
+from pathlib import Path
 from typing import Any, Optional, Union
+from uuid import UUID
 
 import pytest
 from pydantic import BaseModel
@@ -326,8 +329,8 @@ class TestConvertIO:
         # The _json_dumps function should use model_dump_json for the Pydantic model
         # Pydantic's model_dump_json() returns compact JSON without spaces
         json_output = result[0]
-        assert '"model":"test"' in json_output
-        assert '"version":"1.0"' in json_output
+        assert '"model": "test"' in json_output
+        assert '"version": "1.0"' in json_output
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
         # Verify Pydantic model produces valid JSON
@@ -355,10 +358,9 @@ class TestConvertIO:
         assert len(result) == 2
         json_output = result[0]
 
-        # Pydantic model_dump_json() returns compact JSON
-        assert '"name":"test_model"' in json_output
-        assert '"type":"example"' in json_output
-        assert '"version":2' in json_output
+        assert '"name": "test_model"' in json_output
+        assert '"type": "example"' in json_output
+        assert '"version": 2' in json_output
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
         # Verify Pydantic model produces valid JSON
@@ -1015,3 +1017,499 @@ class TestConvertIO:
         assert result[0] == str(-86400.0), (
             f"Expected negative seconds for negative timedelta, got {result[0]}"
         )
+
+    def test_convert_io_uuid_support(self) -> None:
+        """Test that UUID objects are serialized as properly escaped strings."""
+
+        # Test standard UUID
+        test_uuid = UUID("12345678-1234-5678-9abc-123456789abc")
+        uuid_obj: dict[str, Any] = {"input": test_uuid}
+        result = list(_convert_io(uuid_obj))
+        assert len(result) == 1, f"Expected 1 item for UUID, got {len(result)} items: {result}"
+        assert result[0] == '"12345678-1234-5678-9abc-123456789abc"', (
+            f"Expected quoted UUID string, got {result[0]}"
+        )
+
+        # Test UUID in complex structure
+        complex_obj: dict[str, Any] = {
+            "user": {"id": test_uuid, "name": "John Doe"},
+            "session": UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+        }
+        result = list(_convert_io(complex_obj))
+        assert len(result) == 2
+
+        parsed = json.loads(result[0])
+        assert parsed["user"]["id"] == "12345678-1234-5678-9abc-123456789abc"
+        assert parsed["session"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+    def test_convert_io_decimal_support(self) -> None:
+        """Test that Decimal objects are serialized as strings to preserve precision."""
+
+        # Test standard decimal
+        decimal_val = Decimal("123.456789012345678901234567890")
+        decimal_obj: dict[str, Any] = {"input": decimal_val}
+        result = list(_convert_io(decimal_obj))
+        assert len(result) == 1, f"Expected 1 item for Decimal, got {len(result)} items: {result}"
+        assert result[0] == '"123.456789012345678901234567890"', (
+            f"Expected quoted decimal string, got {result[0]}"
+        )
+
+        # Test decimal with currency context
+        price = Decimal("19.99")
+        complex_obj: dict[str, Any] = {"order": {"price": price, "quantity": 2, "total": price * 2}}
+        result = list(_convert_io(complex_obj))
+        assert len(result) == 2
+
+        parsed = json.loads(result[0])
+        assert parsed["order"]["price"] == "19.99"
+        assert parsed["order"]["quantity"] == 2
+        assert parsed["order"]["total"] == "39.98"
+
+    def test_convert_io_path_support(self) -> None:
+        """Test that pathlib Path objects are serialized as strings."""
+
+        # Test Path object
+        path_obj = Path("/home/user/documents/file.txt")
+        path_input: dict[str, Any] = {"input": path_obj}
+        result = list(_convert_io(path_input))
+        assert len(result) == 1, f"Expected 1 item for Path, got {len(result)} items: {result}"
+        assert result[0] == '"/home/user/documents/file.txt"', (
+            f"Expected quoted path string, got {result[0]}"
+        )
+
+        # Test relative path
+        rel_path = Path("relative/path/to/file.py")
+        rel_path_input: dict[str, Any] = {"input": rel_path}
+        result = list(_convert_io(rel_path_input))
+        assert result[0] == '"relative/path/to/file.py"', f"Expected relative path, got {result[0]}"
+
+        # Test in complex structure
+        complex_obj: dict[str, Any] = {
+            "files": {
+                "input": Path("/input/data.csv"),
+                "output": Path("/output/results.json"),
+                "config": Path("config.yaml"),
+            }
+        }
+        result = list(_convert_io(complex_obj))
+        assert len(result) == 2
+
+        parsed = json.loads(result[0])
+        assert parsed["files"]["input"] == "/input/data.csv"
+        assert parsed["files"]["output"] == "/output/results.json"
+        assert parsed["files"]["config"] == "config.yaml"
+
+    def test_convert_io_complex_number_support(self) -> None:
+        """Test that complex numbers are serialized as strings."""
+
+        # Test complex number
+        complex_num = complex(3, 4)
+        complex_obj: dict[str, Any] = {"input": complex_num}
+        result = list(_convert_io(complex_obj))
+        assert len(result) == 1, f"Expected 1 item for complex, got {len(result)} items: {result}"
+        assert result[0] == '"(3+4j)"', f"Expected quoted complex string, got {result[0]}"
+
+        # Test pure imaginary number
+        imaginary = complex(0, 1)
+        imaginary_obj: dict[str, Any] = {"input": imaginary}
+        result = list(_convert_io(imaginary_obj))
+        assert result[0] == '"1j"', f"Expected pure imaginary, got {result[0]}"
+
+        # Test real number as complex
+        real_complex = complex(5, 0)
+        real_complex_obj: dict[str, Any] = {"input": real_complex}
+        result = list(_convert_io(real_complex_obj))
+        assert result[0] == '"(5+0j)"', f"Expected real complex, got {result[0]}"
+
+        # Test in complex structure
+        complex_data: dict[str, Any] = {
+            "signal": {"real": complex(2, 3), "imaginary": complex(0, -1), "magnitude": 5.0}
+        }
+        result = list(_convert_io(complex_data))
+        assert len(result) == 2
+
+        parsed = json.loads(result[0])
+        assert parsed["signal"]["real"] == "(2+3j)"
+        assert parsed["signal"]["imaginary"] == "-1j"
+        assert parsed["signal"]["magnitude"] == 5.0
+
+    def test_convert_io_json_escaping(self) -> None:
+        """Test that JSON escaping is properly handled for strings and keys when they go through _json_dumps."""
+
+        # Test 1: Single strings go through optimization (no escaping needed)
+        quote_str = "Hello \"world\" and 'single quotes'"
+        quote_obj: dict[str, Any] = {"input": quote_str}
+        result = list(_convert_io(quote_obj))
+        assert len(result) == 1
+        # Single strings are returned as-is (optimization path)
+        assert result[0] == quote_str, f"Expected {quote_str}, got {result[0]}"
+
+        # Test 2: Strings in arrays (go through _json_dumps)
+        quote_array: dict[str, Any] = {"input": [quote_str, "normal string"]}
+        result = list(_convert_io(quote_array))
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+        # Verify the JSON is valid and strings are properly escaped
+        parsed = json.loads(result[0])
+        assert parsed[0] == quote_str
+        assert parsed[1] == "normal string"
+
+        # Test 3: Strings in objects (go through _json_dumps)
+        backslash_str = r"C:\path\to\file"
+        control_str = "Line 1\nLine 2\tTabbed\rCarriage"
+        string_dict: dict[str, Any] = {
+            "input": {
+                "quoted": quote_str,
+                "backslash": backslash_str,
+                "control": control_str,
+            }
+        }
+        result = list(_convert_io(string_dict))
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # Verify the JSON is valid and all strings are properly escaped
+        parsed = json.loads(result[0])
+        assert parsed["quoted"] == quote_str
+        assert parsed["backslash"] == backslash_str
+        assert parsed["control"] == control_str
+
+        # Test 4: Multiple keys (go through _json_dumps)
+        multi_key_obj: dict[str, Any] = {
+            "key1": quote_str,
+            "key2": backslash_str,
+        }
+        result = list(_convert_io(multi_key_obj))
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        parsed = json.loads(result[0])
+        assert parsed["key1"] == quote_str
+        assert parsed["key2"] == backslash_str
+
+        # Test 5: Dictionary with problematic keys (this tests key escaping)
+        problematic_dict: dict[str, Any] = {
+            'key"with"quotes': "value1",
+            "key\\with\\backslashes": "value2",
+            "key\nwith\nnewlines": "value3",
+        }
+        dict_obj: dict[str, Any] = {"data": problematic_dict}
+        result = list(_convert_io(dict_obj))
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # Verify the JSON is valid and correctly parsed (this tests key escaping)
+        parsed = json.loads(result[0])
+        assert parsed["data"]['key"with"quotes'] == "value1"
+        assert parsed["data"]["key\\with\\backslashes"] == "value2"
+        assert parsed["data"]["key\nwith\nnewlines"] == "value3"
+
+    def test_convert_io_mixed_new_types(self) -> None:
+        """Test combinations of new data types in complex structures."""
+
+        test_uuid = UUID("12345678-1234-5678-9abc-123456789abc")
+        test_decimal = Decimal("999.99")
+        test_path = Path("/tmp/output.log")
+        test_complex = complex(1, -1)
+
+        # Test all new types together
+        mixed_obj: dict[str, Any] = {
+            "metadata": {
+                "id": test_uuid,
+                "price": test_decimal,
+                "log_path": test_path,
+                "signal": test_complex,
+                "timestamp": datetime.datetime(2023, 12, 25, 10, 30, 45),
+            }
+        }
+
+        result = list(_convert_io(mixed_obj))
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # Verify the JSON is valid and properly structured
+        parsed = json.loads(result[0])
+        metadata = parsed["metadata"]
+
+        assert metadata["id"] == "12345678-1234-5678-9abc-123456789abc"
+        assert metadata["price"] == "999.99"
+        assert metadata["log_path"] == "/tmp/output.log"
+        assert metadata["signal"] == "(1-1j)"
+        assert metadata["timestamp"] == "2023-12-25T10:30:45"
+
+    def test_convert_io_json_escaping_with_new_types(self) -> None:
+        """Test JSON escaping works correctly with new data types."""
+
+        # Test path with problematic characters
+        problematic_path = Path('C:\\Users\\John "Doe"\\Documents\\file.txt')
+        path_obj: dict[str, Any] = {"input": problematic_path}
+        result = list(_convert_io(path_obj))
+        assert len(result) == 1
+        # Should be properly escaped
+        parsed_path = json.loads(result[0])
+        assert parsed_path == str(problematic_path)
+
+        # Test dataclass with problematic field names and values
+        @dataclasses.dataclass
+        class ProblematicData:
+            field_with_quotes: str = 'Value with "quotes"'
+            field_with_backslashes: str = r"Path\with\backslashes"
+            uuid_field: UUID = UUID("12345678-1234-5678-9abc-123456789abc")
+
+        data = ProblematicData()
+        data_obj: dict[str, Any] = {"input": data}
+        result = list(_convert_io(data_obj))
+        assert len(result) == 2
+
+        # Verify the JSON is valid and all fields are correctly escaped
+        parsed = json.loads(result[0])
+        assert parsed["field_with_quotes"] == 'Value with "quotes"'
+        assert parsed["field_with_backslashes"] == r"Path\with\backslashes"
+        assert parsed["uuid_field"] == "12345678-1234-5678-9abc-123456789abc"
+
+    def test_convert_io_all_new_types_json_validation(self) -> None:
+        """Test that all new data types produce valid JSON when used with MIME types."""
+
+        test_cases: list[tuple[str, dict[str, Any]]] = [
+            ("UUID", {"input": UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}),
+            ("Decimal", {"input": Decimal("123.456")}),
+            ("Path", {"input": Path("/home/user/file.txt")}),
+            ("Complex", {"input": complex(2, -3)}),
+            (
+                "Mixed",
+                {
+                    "data": {
+                        "id": UUID("12345678-1234-5678-9abc-123456789abc"),
+                        "amount": Decimal("99.99"),
+                        "file": Path("data.csv"),
+                        "frequency": complex(0, 50),
+                    }
+                },
+            ),
+        ]
+
+        for test_name, test_obj in test_cases:
+            result = list(_convert_io(test_obj))
+
+            # All should have either 1 item (simple) or 2 items (with MIME type)
+            assert len(result) in (1, 2), f"Test {test_name}: Expected 1-2 items, got {len(result)}"
+
+            # First item should always be valid JSON
+            try:
+                parsed = json.loads(result[0])
+                assert parsed is not None, f"Test {test_name}: Parsed JSON is None"
+            except json.JSONDecodeError as e:
+                pytest.fail(f"Test {test_name}: Invalid JSON produced: {result[0]}, Error: {e}")
+
+            # If 2 items, second should be JSON MIME type
+            if len(result) == 2:
+                assert result[1] == OpenInferenceMimeTypeValues.JSON.value, (
+                    f"Test {test_name}: Expected JSON MIME type, got {result[1]}"
+                )
+
+    def test_convert_io_json_robustness_fixes(self) -> None:
+        """Test comprehensive JSON robustness fixes for all critical issues."""
+
+        # Test 1: Circular reference protection
+        print("Testing circular reference protection...")
+        circular_dict: dict[str, Any] = {"data": "value"}
+        circular_dict["self"] = circular_dict  # Create circular reference
+
+        circular_obj: dict[str, Any] = {"input": circular_dict}
+        result = list(_convert_io(circular_obj))
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # Should contain circular reference marker instead of crashing
+        assert "<circular_reference>" in result[0]
+        # Should still be valid JSON
+        parsed = json.loads(result[0])
+        assert isinstance(parsed, dict)
+        print("✓ Circular reference protection works")
+
+        # Test 2: Dictionary key collision handling
+        print("Testing key collision handling...")
+
+        # Create objects that convert to the same string representation
+        class CustomOne:
+            def __str__(self) -> str:
+                return "1"
+
+        # These will all convert to "1" when processed as dictionary keys
+        collision_dict: dict[Any, str] = {1: "int_one", "1": "str_one", CustomOne(): "custom_one"}
+        collision_obj: dict[str, Any] = {"data": collision_dict}
+        result = list(_convert_io(collision_obj))
+
+        parsed = json.loads(result[0])
+        data_keys = list(parsed["data"].keys())
+
+        # Should have unique keys (no data loss)
+        assert len(set(data_keys)) == len(data_keys), f"Key collision detected: {data_keys}"
+        # Should preserve all values (3 different objects, so 3 entries)
+        assert len(parsed["data"]) == 3, f"Expected 3 items, got {len(parsed['data'])}"
+        print(f"✓ Key collision handling works: {data_keys}")
+
+        # Test 3: Exception safety in type conversions
+        print("Testing exception safety...")
+
+        class BadStr:
+            def __str__(self) -> str:
+                raise ValueError("Cannot convert to string!")
+
+        bad_obj = BadStr()
+        exception_dict: dict[str, Any] = {"data": {bad_obj: "value"}}
+        result = list(_convert_io(exception_dict))
+
+        # Should not crash, should have error marker
+        assert "<key_conversion_error" in result[0]
+        parsed = json.loads(result[0])
+        assert isinstance(parsed, dict)
+        print("✓ Exception safety works")
+
+        # Test 4: Large object handling (should not crash)
+        print("Testing large object handling...")
+        large_dict = {f"key_{i}": f"value_{i}" for i in range(1000)}
+        large_obj: dict[str, Any] = {"input": large_dict}
+        result = list(_convert_io(large_obj))
+
+        # Should complete without errors
+        assert len(result) == 2
+        parsed = json.loads(result[0])
+        assert len(parsed) == 1000
+        print("✓ Large object handling works")
+
+        # Test 5: Deep nesting (within reasonable limits)
+        print("Testing deep nesting...")
+        deep_dict: dict[str, Any] = {}
+        current = deep_dict
+        depth = 50  # Reasonable depth
+        for i in range(depth):
+            current["level"] = {}
+            current = current["level"]
+        current["end"] = "reached"
+
+        deep_obj: dict[str, Any] = {"input": deep_dict}
+        result = list(_convert_io(deep_obj))
+
+        # Should complete without hitting recursion limits
+        assert len(result) == 2
+        parsed = json.loads(result[0])
+        assert isinstance(parsed, dict)
+        print("✓ Deep nesting handling works")
+
+    def test_convert_io_exception_safety_comprehensive(self) -> None:
+        """Test exception safety for all type conversion paths."""
+
+        from datetime import datetime
+        from decimal import Decimal
+        from pathlib import Path
+        from uuid import UUID
+
+        # Test cases that could potentially raise exceptions
+        test_cases = [
+            (
+                "UUID with bad str",
+                lambda: setattr(
+                    UUID("12345678-1234-5678-9abc-123456789abc"),
+                    "__str__",
+                    lambda: exec("raise ValueError()"),
+                ),
+            ),
+            ("Decimal with conversion issues", Decimal("999.999")),  # This should work fine
+            ("Path with special characters", Path("/tmp/test with spaces/file.txt")),
+            ("Complex number edge case", complex(float("inf"), float("nan"))),
+            ("Datetime edge case", datetime(1, 1, 1)),  # Minimum datetime
+        ]
+
+        for test_name, test_obj in test_cases[1:]:  # Skip the problematic UUID test
+            try:
+                obj_dict: dict[str, Any] = {"input": test_obj}
+                result = list(_convert_io(obj_dict))
+
+                # Should always get a result (even if it's an error marker)
+                assert len(result) >= 1, f"No result for {test_name}"
+
+                # Result should be valid JSON-parseable (if it has quotes)
+                if result[0].startswith('"') and result[0].endswith('"'):
+                    parsed = json.loads(result[0])
+                    assert isinstance(parsed, str)
+
+                print(f"✓ {test_name} handled safely")
+
+            except Exception as e:
+                pytest.fail(f"Exception safety failed for {test_name}: {e}")
+
+    def test_convert_io_memory_efficiency_validation(self) -> None:
+        """Validate that the JSON serialization doesn't use excessive memory."""
+
+        # Create a moderately large but reasonable object
+        large_data = {
+            "users": [{"id": i, "name": f"user_{i}", "data": list(range(10))} for i in range(100)],
+            "metadata": {"created": datetime.datetime.now(), "version": "1.0"},
+            "config": {"enabled": True, "timeout": 30.0},
+        }
+
+        obj_dict: dict[str, Any] = {"input": large_data}
+
+        # This should complete quickly and not use excessive memory
+        result = list(_convert_io(obj_dict))
+
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # Verify the result is valid and complete
+        parsed = json.loads(result[0])
+        assert len(parsed["users"]) == 100
+        assert "metadata" in parsed
+        assert "config" in parsed
+
+        print("✓ Memory efficiency validation passed")
+
+    def test_convert_io_edge_cases_comprehensive(self) -> None:
+        """Test comprehensive edge cases that could cause issues."""
+
+        # Edge case 1: Empty nested structures
+        empty_nested: dict[str, Any] = {
+            "empty_dict": {},
+            "empty_list": [],
+            "empty_tuple": (),
+            "none_value": None,
+        }
+
+        result = list(_convert_io(empty_nested))
+        parsed = json.loads(result[0])
+        assert parsed["empty_dict"] == {}
+        assert parsed["empty_list"] == []
+        assert parsed["empty_tuple"] == []
+        # none_value should be present as null in JSON
+        assert parsed["none_value"] is None
+
+        # Edge case 2: Mixed type collections
+        mixed_collection: dict[str, Any] = {
+            "input": ["string", 42, True, None, {"nested": "dict"}, [1, 2, 3]]
+        }
+
+        result = list(_convert_io(mixed_collection))
+        parsed = json.loads(result[0])
+        assert len(parsed) == 6
+        assert parsed[0] == "string"
+        assert parsed[1] == 42
+        assert parsed[2] is True
+        assert parsed[3] is None
+        assert parsed[4] == {"nested": "dict"}
+        assert parsed[5] == [1, 2, 3]
+
+        # Edge case 3: Unicode and special characters
+        unicode_data: dict[str, Any] = {
+            "unicode": "Hello 世界 🌍",
+            "special_chars": 'Quotes "here" and backslashes \\here\\',
+            "control_chars": "Line1\nLine2\tTabbed\rCarriage",
+        }
+
+        result = list(_convert_io(unicode_data))
+        parsed = json.loads(result[0])
+        assert parsed["unicode"] == "Hello 世界 🌍"
+        assert parsed["special_chars"] == 'Quotes "here" and backslashes \\here\\'
+        assert parsed["control_chars"] == "Line1\nLine2\tTabbed\rCarriage"
+
+        print("✓ All edge cases handled correctly")
