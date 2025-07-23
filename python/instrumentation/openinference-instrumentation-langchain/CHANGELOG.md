@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.47...python-openinference-instrumentation-langchain-v0.1.48) (2025-07-23)
+
+
+### Features
+
+* unwrap input output keys from io values ([#1993](https://github.com/Arize-ai/openinference/issues/1993)) ([534c727](https://github.com/Arize-ai/openinference/commit/534c72764a72cfd995ecf3d0f70ecaafc7cf359a))
+
 ## [0.1.47](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.46...python-openinference-instrumentation-langchain-v0.1.47) (2025-07-20)
 
 
