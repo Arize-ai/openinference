@@ -109,7 +109,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
         (original: any) => {
           return function patchedSend(this: unknown, command: any) {
             if (command?.constructor?.name === "InvokeModelCommand") {
-              return instrumentation._handleInvokeModelCommand(
+              return instrumentation.handleInvokeModelCommand(
                 command,
                 original,
                 this,
@@ -120,7 +120,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
               command?.constructor?.name ===
               "InvokeModelWithResponseStreamCommand"
             ) {
-              return instrumentation._handleInvokeModelWithResponseStreamCommand(
+              return instrumentation.handleInvokeModelWithResponseStreamCommand(
                 command,
                 original,
                 this,
@@ -147,7 +147,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     return moduleExports;
   }
 
-  private _handleInvokeModelCommand(
+  private handleInvokeModelCommand(
     command: InvokeModelCommand,
     original: any,
     client: any,
@@ -223,7 +223,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
   /**
    * Type guard to validate stream chunk structure
    */
-  private _isValidStreamChunk(chunk: unknown): chunk is { chunk: { bytes: Uint8Array } } {
+  private isValidStreamChunk(chunk: unknown): chunk is { chunk: { bytes: Uint8Array } } {
     return (
       chunk !== null &&
       typeof chunk === "object" &&
@@ -238,7 +238,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
   /**
    * Type guard to validate streaming event data structure
    */
-  private _isValidStreamEventData(data: unknown): data is StreamEventData {
+  private isValidStreamEventData(data: unknown): data is StreamEventData {
     return (
       data !== null &&
       typeof data === "object" &&
@@ -258,7 +258,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
 
     for await (const chunk of stream) {
       // Type guard for chunk structure
-      if (this._isValidStreamChunk(chunk)) {
+      if (this.isValidStreamChunk(chunk)) {
         const text = new TextDecoder().decode(chunk.chunk.bytes);
         const lines = text.split("\n").filter((line) => line.trim());
 
@@ -266,7 +266,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
           if (line.trim()) {
             try {
               const rawData = JSON.parse(line);
-              if (!this._isValidStreamEventData(rawData)) {
+              if (!this.isValidStreamEventData(rawData)) {
                 continue; // Skip invalid event data
               }
               const data: StreamEventData = rawData;
@@ -398,7 +398,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
    * @param client - The Bedrock client instance
    * @returns Promise resolving to the response with preserved user stream
    */
-  private _handleInvokeModelWithResponseStreamCommand(
+  private handleInvokeModelWithResponseStreamCommand(
     command: InvokeModelWithResponseStreamCommand,
     original: any,
     client: any,
