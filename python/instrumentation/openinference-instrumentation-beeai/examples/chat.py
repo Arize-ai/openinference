@@ -5,7 +5,7 @@ import traceback
 from beeai_framework.adapters.ollama import OllamaChatModel
 from beeai_framework.backend import UserMessage
 from beeai_framework.errors import FrameworkError
-from openinference_setup import setup_observability
+from setup import setup_observability
 
 setup_observability()
 
@@ -14,7 +14,7 @@ prompt = "Hello, How are you?"
 
 async def main() -> None:
     llm = OllamaChatModel("llama3.1")
-    response = await llm.create(messages=[UserMessage(prompt)])
+    response = await llm.create(messages=[UserMessage(prompt)], stream=True, max_tokens=10)
 
     print("LLM 🤖 : ", response.get_text_content())
 

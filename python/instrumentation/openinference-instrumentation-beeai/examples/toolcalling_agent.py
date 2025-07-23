@@ -11,12 +11,12 @@ from beeai_framework.memory import TokenMemory
 from beeai_framework.tools.search.duckduckgo import DuckDuckGoSearchTool
 from beeai_framework.tools.tool import AnyTool
 from beeai_framework.tools.weather.openmeteo import OpenMeteoTool
-from openinference_setup import setup_observability
+from setup import setup_observability
 
 setup_observability()
 
 llm = ChatModel.from_name(
-    "ollama:granite3.1-dense:8b",
+    "ollama:granite3.3:8b",
     ChatModelParameters(temperature=0),
 )
 
