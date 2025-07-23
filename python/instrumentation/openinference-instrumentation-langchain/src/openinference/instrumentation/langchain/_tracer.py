@@ -387,10 +387,6 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     if len(obj) == 1:
         value = next(iter(obj.values()))
 
-        # Skip None values entirely
-        if value is None:
-            return
-
         # Optimization: Single string values are returned as-is without processing
         # This is the most common case in LangChain runs (e.g., {"input": "user message"})
         if isinstance(value, str):
