@@ -128,7 +128,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
             }
 
             if (command?.constructor?.name === "ConverseCommand") {
-              return instrumentation._handleConverseCommand(
+              return instrumentation.handleConverseCommand(
                 command,
                 original,
                 this,
@@ -311,23 +311,23 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
       }
     }
 
-    // Create response body structure for consistency with non-streaming
-    const responseBody = {
-      id: "bedrock-streaming-response",
-      type: "message",
-      role: "assistant",
-      model: "bedrock-streaming", // This would need to be extracted from request
-      content: outputText ? [{ type: "text", text: outputText }] : [],
-      stop_reason: "end_turn",
-      stop_sequence: null,
-      usage: usage,
+    // Create simple output representation with only actual data we have
+    const outputValue = {
+      text: outputText || "",
+      tool_calls: contentBlocks.filter(isToolUseContent).map(content => ({
+        id: content.id,
+        name: content.name,
+        input: content.input
+      })),
+      usage: usage || {},
+      streaming: true
     };
 
     // Set output value as JSON
     setSpanAttribute(
       span,
       SemanticConventions.OUTPUT_VALUE,
-      JSON.stringify(responseBody),
+      JSON.stringify(outputValue),
     );
     setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
@@ -485,7 +485,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     }
   }
 
-  private _handleConverseCommand(
+  private handleConverseCommand(
     command: ConverseCommand,
     original: any,
     client: any,
