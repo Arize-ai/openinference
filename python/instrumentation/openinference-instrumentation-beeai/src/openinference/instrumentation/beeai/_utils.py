@@ -58,7 +58,7 @@ def exception_handler(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[
     @functools.wraps(func)
     async def wrapped(*args: P.args, **kwargs: P.kwargs) -> T | None:
         try:
-            await func(*args, **kwargs)
+            return await func(*args, **kwargs)
         except Exception as e:
             logger.error("Error has occurred in the telemetry package.", exc_info=e)
 
