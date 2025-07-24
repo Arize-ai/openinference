@@ -1,9 +1,12 @@
 import { Span, AttributeValue } from "@opentelemetry/api";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import { 
+  Message,
+  SystemContentBlock,
+  ContentBlock,
+  ConversationRole,
+} from "@aws-sdk/client-bedrock-runtime";
 import {
-  SystemPrompt,
-  ConverseMessage,
-  ConverseContentBlock,
   isConverseTextContent,
   isConverseImageContent,
   isConverseToolUseContent,
@@ -25,52 +28,41 @@ export function setSpanAttribute(
 }
 
 /**
- * Sets multiple span attributes with null checking
+ * Aggregates multiple system prompts into a single string
+ * Concatenates all text content from system prompts with proper formatting
  */
-export function setSpanAttributes(
-  span: Span,
-  attributes: Record<string, AttributeValue | null | undefined>,
-) {
-  Object.entries(attributes).forEach(([key, value]) => {
-    setSpanAttribute(span, key, value);
-  });
-}
-
-/**
- * Aggregates multiple system prompts into a single string with space separation
- */
-export function aggregateSystemPrompts(systemPrompts: SystemPrompt[]): string {
+export function aggregateSystemPrompts(systemPrompts: SystemContentBlock[]): string {
   return systemPrompts
-    .map((prompt) => prompt.text)
-    .join(" ")
-    .trim();
+    .map((prompt) => prompt.text || "")
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**
- * Aggregates system prompts and messages into a single message array
+ * Aggregates system prompts with messages into a unified message array
+ * System prompts are converted to a single system message at the beginning
  */
 export function aggregateMessages(
-  systemPrompts: SystemPrompt[] = [],
-  messages: ConverseMessage[] = [],
-): ConverseMessage[] {
-  const aggregated: ConverseMessage[] = [];
+  systemPrompts: SystemContentBlock[] = [],
+  messages: Message[] = [],
+): Message[] {
+  const aggregated: Message[] = [];
 
   if (systemPrompts.length > 0) {
     aggregated.push({
-      role: "system" as const,
+      role: "system" as ConversationRole,
       content: [{ text: aggregateSystemPrompts(systemPrompts) }],
     });
   }
 
-  aggregated.push(...messages);
-  return aggregated;
+  return [...aggregated, ...messages];
 }
 
 /**
  * Extracts attributes from a single message
  */
 export function getAttributesFromMessage(
-  message: ConverseMessage,
+  message: Message,
 ): Record<string, AttributeValue> {
   const attributes: Record<string, AttributeValue> = {};
 
@@ -82,6 +74,7 @@ export function getAttributesFromMessage(
     let toolCallIndex = 0;
 
     for (const [index, content] of message.content.entries()) {
+      // Process content as our custom types for attribute extraction
       const contentAttributes = getAttributesFromMessageContent(content);
       for (const [key, value] of Object.entries(contentAttributes)) {
         attributes[`${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`] =
@@ -114,9 +107,11 @@ export function getAttributesFromMessage(
 
 /**
  * Extracts attributes from message content
+ * Note: We still use our custom content type guards here since AWS SDK ContentBlock
+ * has complex union types that don't match our processing needs exactly
  */
 export function getAttributesFromMessageContent(
-  content: ConverseContentBlock,
+  content: ContentBlock,
 ): Record<string, AttributeValue> {
   const attributes: Record<string, AttributeValue> = {};
 
@@ -147,7 +142,7 @@ export function processMessages({
   baseKey,
 }: {
   span: Span;
-  messages: ConverseMessage[];
+  messages: Message[];
   baseKey: typeof SemanticConventions.LLM_INPUT_MESSAGES | typeof SemanticConventions.LLM_OUTPUT_MESSAGES;
 }): void {
   for (const [index, message] of messages.entries()) {

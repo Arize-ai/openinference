@@ -1,8 +1,16 @@
 import { Span, diag } from "@opentelemetry/api";
-import { ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
+import { 
+  ConverseCommand,
+  ConverseRequest,
+  ToolConfiguration,
+  SystemContentBlock,
+  Message,
+} from "@aws-sdk/client-bedrock-runtime";
 import {
   SemanticConventions,
+  OpenInferenceSpanKind,
   MimeType,
+  LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
 import { withSafety } from "@arizeai/openinference-core";
 import {
@@ -10,16 +18,11 @@ import {
   aggregateMessages,
   processMessages,
 } from "./attribute-helpers";
-import {
-  SystemPrompt,
-  ConverseMessage,
-  ConverseRequestBody,
-} from "../types/bedrock-types";
 
 /**
- * Type guard to safely validate ConverseRequestBody structure
+ * Type guard to safely validate ConverseRequest structure
  */
-function isConverseRequestBody(input: unknown): input is ConverseRequestBody {
+function isConverseRequest(input: unknown): input is ConverseRequest {
   if (!input || typeof input !== "object" || input === null) {
     return false;
   }
@@ -34,78 +37,127 @@ function isConverseRequestBody(input: unknown): input is ConverseRequestBody {
 }
 
 /**
+ * Extracts vendor-specific system name from model ID
+ */
+function getSystemFromModelId(modelId: string): string {
+  if (modelId.includes("anthropic")) return "anthropic";
+  if (modelId.includes("ai21")) return "ai21";
+  if (modelId.includes("amazon")) return "amazon";
+  if (modelId.includes("cohere")) return "cohere";
+  if (modelId.includes("meta")) return "meta";
+  if (modelId.includes("mistral")) return "mistral";
+  return "bedrock";
+}
+
+/**
+ * Extracts clean model name from full model ID
+ */
+function extractModelName(modelId: string): string {
+  const parts = modelId.split(".");
+  if (parts.length > 1) {
+    const modelPart = parts[1];
+    if (modelId.includes("anthropic")) {
+      const versionIndex = modelPart.indexOf("-v");
+      if (versionIndex > 0) {
+        return modelPart.substring(0, versionIndex);
+      }
+    }
+    return modelPart;
+  }
+  return modelId;
+}
+
+/**
  * Extracts base request attributes: model, system, provider, parameters
  */
-const extractBaseRequestAttributes = withSafety({
-  fn: ({ span, input }: { span: Span; input: ConverseRequestBody }): void => {
-    if (input.modelId) {
-      setSpanAttribute(span, SemanticConventions.LLM_MODEL_NAME, input.modelId);
-    }
+function extractBaseRequestAttributes({
+  span,
+  input,
+}: {
+  span: Span;
+  input: ConverseRequest;
+}): void {
+  const modelId = input.modelId || "unknown";
 
-    setSpanAttribute(span, SemanticConventions.LLM_SYSTEM, "bedrock");
+  setSpanAttribute(
+    span,
+    SemanticConventions.OPENINFERENCE_SPAN_KIND,
+    OpenInferenceSpanKind.LLM,
+  );
+  setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, LLMProvider.AWS);
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_SYSTEM,
+    getSystemFromModelId(modelId),
+  );
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_MODEL_NAME,
+    extractModelName(modelId),
+  );
 
-    const inferenceConfig = input.inferenceConfig || {};
+  // Use AWS SDK InferenceConfiguration directly - no conversion needed!
+  if (input.inferenceConfig && Object.keys(input.inferenceConfig).length > 0) {
     setSpanAttribute(
       span,
       SemanticConventions.LLM_INVOCATION_PARAMETERS,
-      JSON.stringify(inferenceConfig),
+      JSON.stringify(input.inferenceConfig),
     );
+  }
 
-    setSpanAttribute(
-      span,
-      SemanticConventions.INPUT_VALUE,
-      JSON.stringify(input),
-    );
-    setSpanAttribute(span, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
-  },
-  onError: (error) => {
-    diag.warn("Error extracting base request attributes:", error);
-  },
-});
+  setSpanAttribute(
+    span,
+    SemanticConventions.INPUT_VALUE,
+    JSON.stringify(input),
+  );
+  setSpanAttribute(span, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
+}
 
 /**
  * Extracts input messages attributes with system prompt aggregation
  */
-const extractInputMessagesAttributes = withSafety({
-  fn: ({ span, input }: { span: Span; input: ConverseRequestBody }): void => {
-    const systemPrompts: SystemPrompt[] = input.system || [];
-    const messages: ConverseMessage[] = input.messages || [];
+function extractInputMessagesAttributes({
+  span,
+  input,
+}: {
+  span: Span;
+  input: ConverseRequest;
+}): void {
+  const systemPrompts: SystemContentBlock[] = input.system || [];
+  const messages: Message[] = input.messages || [];
 
-    const aggregatedMessages = aggregateMessages(systemPrompts, messages);
+  const aggregatedMessages = aggregateMessages(systemPrompts, messages);
 
-    processMessages({
-      span,
-      messages: aggregatedMessages,
-      baseKey: SemanticConventions.LLM_INPUT_MESSAGES,
-    });
-  },
-  onError: (error) => {
-    diag.warn("Error extracting input messages attributes:", error);
-  },
-});
+  processMessages({
+    span,
+    messages: aggregatedMessages,
+    baseKey: SemanticConventions.LLM_INPUT_MESSAGES,
+  });
+}
 
 /**
  * Extracts tool configuration attributes
  */
-const extractInputToolAttributes = withSafety({
-  fn: ({ span, input }: { span: Span; input: ConverseRequestBody }): void => {
-    const toolConfig = input.toolConfig;
-    if (!toolConfig?.tools) return;
+function extractInputToolAttributes({
+  span,
+  input,
+}: {
+  span: Span;
+  input: ConverseRequest;
+}): void {
+  const toolConfig: ToolConfiguration | undefined = input.toolConfig;
+  if (!toolConfig?.tools) return;
 
-    toolConfig.tools.forEach((tool, index: number) => {
-      // Store the tool data as-is without normalization
-      // This avoids the complexity of tool format standardization across providers
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
-        JSON.stringify(tool),
-      );
-    });
-  },
-  onError: (error) => {
-    diag.warn("Error extracting tool configuration attributes:", error);
-  },
-});
+  toolConfig.tools.forEach((tool, index: number) => {
+    // Store the tool data as-is without normalization
+    // This avoids the complexity of tool format standardization across providers
+    setSpanAttribute(
+      span,
+      `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
+      JSON.stringify(tool),
+    );
+  });
+}
 
 /**
  * Extracts request attributes from Converse command and sets them on the span
@@ -113,7 +165,7 @@ const extractInputToolAttributes = withSafety({
 export const extractConverseRequestAttributes = withSafety({
   fn: ({ span, command }: { span: Span; command: ConverseCommand }): void => {
     const input = command.input;
-    if (!input || !isConverseRequestBody(input)) {
+    if (!input || !isConverseRequest(input)) {
       return;
     }
 
