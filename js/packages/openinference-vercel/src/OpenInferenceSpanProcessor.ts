@@ -36,7 +36,13 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
     exporter,
     spanFilter,
   }: {
+    /**
+     * The exporter to pass spans to.
+     */
     exporter: SpanExporter;
+    /**
+     * A filter to apply to spans before exporting. If it returns true for a given span, that span will be exported.
+     */
     spanFilter?: SpanFilter;
   }) {
     super(exporter);
