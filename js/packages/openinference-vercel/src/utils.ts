@@ -444,13 +444,11 @@ const shouldPromoteToRootSpan = (
     return false;
   }
 
-  // First check if it's one of the top-level AI operations we care about
   const isTopLevelOperation = TOP_LEVEL_AI_OPERATIONS.some(
     (op) =>
       operationName.startsWith(op) && !operationName.includes(".", op.length),
   );
 
-  // Only promote top-level AI operations that might genuinely be orphaned
   return isTopLevelOperation;
 };
 

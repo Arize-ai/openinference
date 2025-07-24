@@ -30,7 +30,7 @@ import { Context } from "@opentelemetry/api";
  * ```
  */
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
-  private spanFilter?: SpanFilter;
+  private readonly spanFilter?: SpanFilter;
 
   constructor({
     exporter,
