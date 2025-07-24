@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.48...python-openinference-instrumentation-langchain-v0.1.49) (2025-07-24)
+
+
+### Bug Fixes
+
+* tool call for anthropic bedrock invoke model ([#1995](https://github.com/Arize-ai/openinference/issues/1995)) ([c26ffe5](https://github.com/Arize-ai/openinference/commit/c26ffe57e696221cd82c32e262b4cc8fd32fbe8a))
+
 ## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.47...python-openinference-instrumentation-langchain-v0.1.48) (2025-07-23)
 
 
