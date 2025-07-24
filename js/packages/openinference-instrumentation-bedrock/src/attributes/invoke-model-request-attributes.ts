@@ -8,34 +8,80 @@
  * - Invocation parameters
  */
 
+import { Span, diag } from "@opentelemetry/api";
 import {
   SemanticConventions,
   OpenInferenceSpanKind,
   MimeType,
   LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
-import { InvokeModelCommand, InferenceConfiguration } from "@aws-sdk/client-bedrock-runtime";
-import { InvokeModelRequestBody, BedrockMessage } from "../types/bedrock-types";
+import { 
+  InvokeModelCommand, 
+  InferenceConfiguration 
+} from "@aws-sdk/client-bedrock-runtime";
+import { withSafety } from "@arizeai/openinference-core";
+import {
+  InvokeModelRequestBody,
+  BedrockMessage,
+  isTextContent,
+  isImageContent,
+  isToolUseContent,
+} from "../types/bedrock-types";
 import {
   extractTextFromContent,
   extractToolResultBlocks,
   formatImageUrl,
 } from "../utils/content-processing";
 import { setSpanAttribute } from "./attribute-helpers";
-import { Span } from "@opentelemetry/api";
+
+/**
+ * Safely parses the request body with proper error handling
+ */
+const parseRequestBody = withSafety({
+  fn: (command: InvokeModelCommand): InvokeModelRequestBody => {
+    if (!command.input?.body) {
+      throw new Error("Request body is missing");
+    }
+
+    let bodyString: string;
+    if (typeof command.input.body === "string") {
+      bodyString = command.input.body;
+    } else if (command.input.body instanceof Uint8Array) {
+      bodyString = new TextDecoder().decode(command.input.body);
+    } else if (command.input.body instanceof ArrayBuffer) {
+      bodyString = new TextDecoder().decode(new Uint8Array(command.input.body));
+    } else if (Buffer.isBuffer(command.input.body)) {
+      bodyString = command.input.body.toString('utf8');
+    } else {
+      // For other types, convert to string safely
+      bodyString = String(command.input.body);
+    }
+
+    return JSON.parse(bodyString) as InvokeModelRequestBody;
+  },
+  onError: (error) => {
+    diag.warn("Error parsing InvokeModel request body:", error);
+    return {
+      anthropic_version: "bedrock-2023-05-31",
+      max_tokens: 0,
+      messages: [],
+    } as InvokeModelRequestBody;
+  },
+});
 
 /**
  * Extracts base request attributes (model, system, provider, invocation parameters)
  */
-export function extractBaseRequestAttributes({
+function extractBaseRequestAttributes({
   span,
   command,
+  requestBody,
 }: {
   span: Span;
   command: InvokeModelCommand;
+  requestBody: InvokeModelRequestBody;
 }): void {
   const modelId = command.input?.modelId || "unknown";
-  const requestBody = parseRequestBody(command);
 
   setSpanAttribute(
     span,
@@ -68,14 +114,14 @@ export function extractBaseRequestAttributes({
 /**
  * Extracts input messages attributes from request body
  */
-export function extractInputMessagesAttributes({
+function extractInputMessagesAttributes({
   span,
   requestBody,
 }: {
   span: Span;
   requestBody: InvokeModelRequestBody;
 }): void {
-  const inputValue = extractPrimaryInputValue(requestBody);
+  const inputValue = JSON.stringify(requestBody);
   setSpanAttribute(span, SemanticConventions.INPUT_VALUE, inputValue);
 
   if (requestBody.messages && Array.isArray(requestBody.messages)) {
@@ -88,7 +134,7 @@ export function extractInputMessagesAttributes({
 /**
  * Extracts input tool attributes from request body
  */
-export function extractInputToolAttributes({
+function extractInputToolAttributes({
   span,
   requestBody,
 }: {
@@ -109,19 +155,27 @@ export function extractInputToolAttributes({
 /**
  * Extracts semantic convention attributes from InvokeModel request command
  */
-export function extractInvokeModelRequestAttributes({
-  span,
-  command,
-}: {
-  span: Span;
-  command: InvokeModelCommand;
-}): void {
-  const requestBody = parseRequestBody(command);
+export const extractInvokeModelRequestAttributes = withSafety({
+  fn: ({
+    span,
+    command,
+  }: {
+    span: Span;
+    command: InvokeModelCommand;
+  }): void => {
+    const requestBody = parseRequestBody(command);
+    if (!requestBody) {
+      return;
+    }
 
-  extractBaseRequestAttributes({ span, command });
-  extractInputMessagesAttributes({ span, requestBody });
-  extractInputToolAttributes({ span, requestBody });
-}
+    extractBaseRequestAttributes({ span, command, requestBody });
+    extractInputMessagesAttributes({ span, requestBody });
+    extractInputToolAttributes({ span, requestBody });
+  },
+  onError: (error) => {
+    diag.warn("Error extracting InvokeModel request attributes:", error);
+  },
+});
 
 // Helper functions
 
@@ -154,35 +208,6 @@ function extractModelName(modelId: string): string {
     return modelPart;
   }
   return modelId;
-}
-
-/**
- * Safely parses the request body JSON
- */
-function parseRequestBody(command: InvokeModelCommand): InvokeModelRequestBody {
-  try {
-    if (!command.input?.body) {
-      return {} as InvokeModelRequestBody;
-    }
-
-    let bodyString: string;
-    if (typeof command.input.body === "string") {
-      bodyString = command.input.body;
-    } else if (command.input.body instanceof Uint8Array) {
-      bodyString = new TextDecoder().decode(command.input.body as Uint8Array);
-    } else if (command.input.body instanceof ArrayBuffer) {
-      bodyString = new TextDecoder().decode(new Uint8Array(command.input.body));
-    } else if (command.input.body instanceof Buffer) {
-      bodyString = command.input.body.toString('utf8');
-    } else {
-      // For other types, use a safer approach that doesn't assume the type
-      bodyString = String(command.input.body);
-    }
-
-    return JSON.parse(bodyString);
-  } catch (error) {
-    return {} as InvokeModelRequestBody;
-  }
 }
 
 /**
@@ -227,13 +252,6 @@ function extractInvocationParameters(
 }
 
 /**
- * Extracts the primary input value as full request body JSON
- */
-function extractPrimaryInputValue(requestBody: InvokeModelRequestBody): string {
-  return JSON.stringify(requestBody);
-}
-
-/**
  * Adds message attributes to the span
  */
 function addMessageAttributes({
@@ -257,7 +275,7 @@ function addMessageAttributes({
     typeof message.content === "string" ||
     (Array.isArray(message.content) &&
       message.content.length === 1 &&
-      message.content[0].type === "text");
+      isTextContent(message.content[0]));
 
   if (isSimpleTextMessage) {
     const messageContent = extractTextFromContent(message.content);
@@ -272,48 +290,79 @@ function addMessageAttributes({
     addMessageContentAttributes({ span, message, messageIndex: index });
   }
 
-  // Handle tool calls at the message level using proper semantic conventions
+  // Handle tool calls and results at the message level
   if (Array.isArray(message.content)) {
-    let toolCallIndex = 0;
-    message.content.forEach((content) => {
-      if (content.type === "tool_use") {
-        const toolCallPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
-        setSpanAttribute(
-          span,
-          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
-          content.id,
-        );
-        setSpanAttribute(
-          span,
-          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
-          content.name,
-        );
-        if (content.input) {
-          setSpanAttribute(
-            span,
-            `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-            JSON.stringify(content.input),
-          );
-        }
-        toolCallIndex++;
-      }
-    });
-
-    // Handle tool results
-    const toolResultBlocks = extractToolResultBlocks(message.content);
-    toolResultBlocks.forEach((contentBlock) => {
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`,
-        contentBlock.tool_use_id,
-      );
-    });
+    handleToolCallsInMessage({ span, message, messageIndex: index });
+    handleToolResultsInMessage({ span, message, messageIndex: index });
   }
 }
 
 /**
+ * Handles tool calls within a message using semantic conventions
+ */
+function handleToolCallsInMessage({
+  span,
+  message,
+  messageIndex,
+}: {
+  span: Span;
+  message: BedrockMessage;
+  messageIndex: number;
+}): void {
+  if (!Array.isArray(message.content)) return;
+
+  let toolCallIndex = 0;
+  message.content.forEach((content) => {
+    if (isToolUseContent(content)) {
+      const toolCallPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
+      setSpanAttribute(
+        span,
+        `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
+        content.id,
+      );
+      setSpanAttribute(
+        span,
+        `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
+        content.name,
+      );
+      if (content.input) {
+        setSpanAttribute(
+          span,
+          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+          JSON.stringify(content.input),
+        );
+      }
+      toolCallIndex++;
+    }
+  });
+}
+
+/**
+ * Handles tool results within a message using semantic conventions
+ */
+function handleToolResultsInMessage({
+  span,
+  message,
+  messageIndex,
+}: {
+  span: Span;
+  message: BedrockMessage;
+  messageIndex: number;
+}): void {
+  if (!Array.isArray(message.content)) return;
+
+  const toolResultBlocks = extractToolResultBlocks(message.content);
+  toolResultBlocks.forEach((contentBlock) => {
+    setSpanAttribute(
+      span,
+      `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`,
+      contentBlock.tool_use_id,
+    );
+  });
+}
+
+/**
  * Adds detailed message content structure attributes
- * Message Content Structure Enhancement
  */
 function addMessageContentAttributes({
   span,
@@ -344,7 +393,7 @@ function addMessageContentAttributes({
     message.content.forEach((content, contentIndex) => {
       const contentPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
 
-      if (content.type === "text") {
+      if (isTextContent(content)) {
         setSpanAttribute(
           span,
           `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
@@ -355,7 +404,7 @@ function addMessageContentAttributes({
           `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
           content.text,
         );
-      } else if (content.type === "image") {
+      } else if (isImageContent(content)) {
         setSpanAttribute(
           span,
           `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
