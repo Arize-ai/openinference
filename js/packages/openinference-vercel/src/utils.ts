@@ -690,9 +690,6 @@ export const addOpenInferenceAttributesToSpan = (
     if (key === `${SemanticConventions.METADATA}._should_be_root_span`) {
       return;
     }
-    // Only set the attribute if the value is defined
-    if (value !== undefined) {
-      span.attributes[key] = value;
-    }
+    span.attributes[key] = value;
   });
 };
