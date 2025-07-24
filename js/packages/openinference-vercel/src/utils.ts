@@ -411,6 +411,19 @@ const safelyGetMetadataAttributes = withSafety({
 });
 
 /**
+ * Top-level AI operations that might genuinely be orphaned and should be promoted to root spans.
+ * These are operations that can have their parent spans filtered out.
+ */
+const TOP_LEVEL_AI_OPERATIONS = [
+  "ai.generateText",
+  "ai.streamText",
+  "ai.generateObject",
+  "ai.streamObject",
+  "ai.embed",
+  "ai.embedMany",
+] as const;
+
+/**
  * Determines if a span should be promoted to a root span based on heuristics
  * about Vercel AI SDK naming patterns and span relationships.
  *
@@ -426,37 +439,19 @@ const shouldPromoteToRootSpan = (
     return false;
   }
 
-  const operationName = span.attributes["operation.name"] as string;
-  if (!operationName || !operationName.startsWith("ai.")) {
+  const operationName = span.attributes["operation.name"];
+  if (typeof operationName !== "string") {
     return false;
   }
 
-  // Don't promote nested AI operations - their parents are likely also AI spans
-  // Examples: ai.generateText.doGenerate, ai.streamText.doStream, ai.embed.doEmbed
-  if (operationName.includes(".do") || operationName.includes(".stream")) {
-    return false;
-  }
-
-  // Don't promote tool calls - they're usually children of AI chains
-  if (operationName.startsWith("ai.toolCall")) {
-    return false;
-  }
-
-  // Only promote top-level AI operations that might genuinely be orphaned
-  // Examples: ai.generateText, ai.streamText, ai.generateObject, ai.streamObject, ai.embed, ai.embedMany
-  const topLevelAIOperations = [
-    "ai.generateText",
-    "ai.streamText",
-    "ai.generateObject",
-    "ai.streamObject",
-    "ai.embed",
-    "ai.embedMany",
-  ];
-
-  return topLevelAIOperations.some(
+  // First check if it's one of the top-level AI operations we care about
+  const isTopLevelOperation = TOP_LEVEL_AI_OPERATIONS.some(
     (op) =>
       operationName.startsWith(op) && !operationName.includes(".", op.length),
   );
+
+  // Only promote top-level AI operations that might genuinely be orphaned
+  return isTopLevelOperation;
 };
 
 /**
@@ -621,18 +616,10 @@ const getOpenInferenceAttributes = (
 /**
  * {@link getOpenInferenceAttributes} wrapped in {@link withSafety} which will return null if any error is thrown
  */
-export const safelyGetOpenInferenceAttributes = (
-  attributes: Attributes,
-  span?: ReadableSpan,
-  spanFilter?: SpanFilter,
-): Attributes | null => {
-  try {
-    return getOpenInferenceAttributes(attributes, span, spanFilter);
-  } catch (error) {
-    onErrorCallback("")(error);
-    return null;
-  }
-};
+export const safelyGetOpenInferenceAttributes = withSafety({
+  fn: getOpenInferenceAttributes,
+  onError: onErrorCallback("openinference attributes"),
+});
 
 export const isOpenInferenceSpan = (span: ReadableSpan) => {
   const maybeOpenInferenceSpanKind =
@@ -685,8 +672,15 @@ export const addOpenInferenceAttributesToSpan = (
     // Cast to ReadWriteSpan to allow modification
     const writableSpan = span as ReadWriteSpan;
 
-    // Clear the parent span ID to make this a root span
-    writableSpan.parentSpanId = undefined;
+    try {
+      // Clear the parent span ID to make this a root span
+      writableSpan.parentSpanId = undefined;
+    } catch (error) {
+      // In some environments, the span object might be read-only/frozen
+      // If we can't modify the parent span ID, we'll continue without it
+      // The span will still be exported but will maintain its parent relationship
+      // Silently continue - this is not a critical failure
+    }
   }
 
   // newer versions of opentelemetry will not allow you to reassign
@@ -696,6 +690,9 @@ export const addOpenInferenceAttributesToSpan = (
     if (key === `${SemanticConventions.METADATA}._should_be_root_span`) {
       return;
     }
-    span.attributes[key] = value as AttributeValue;
+    // Only set the attribute if the value is defined
+    if (value !== undefined) {
+      span.attributes[key] = value;
+    }
   });
 };
