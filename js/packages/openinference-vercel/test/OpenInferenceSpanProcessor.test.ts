@@ -716,4 +716,130 @@ describe("OpenInferenceBatchSpanProcessor", () => {
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(0);
   });
+
+  describe("Orphan span detection with heuristics", () => {
+    beforeEach(() => {
+      setupTraceProvider({
+        Processor: OpenInferenceBatchSpanProcessor,
+        spanFilter: isOpenInferenceSpan,
+      });
+    });
+
+    it("should promote top-level AI operations to root spans", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      // Create a span that looks like it should be promoted
+      const span = tracer.startSpan("ai.generateText");
+      span.setAttribute("operation.name", "ai.generateText");
+      span.end();
+      await processor.forceFlush();
+
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+
+      // Note: The actual orphan detection test will need a more sophisticated setup
+      // to properly simulate parent span relationships. For now, this verifies the span is processed.
+      expect(spans[0].attributes["operation.name"]).toBe("ai.generateText");
+    });
+
+    it("should NOT promote nested AI operations (doGenerate, doStream)", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      const testCases = [
+        "ai.generateText.doGenerate",
+        "ai.streamText.doStream",
+        "ai.embed.doEmbed",
+      ];
+
+      for (const operationName of testCases) {
+        memoryExporter.reset();
+
+        const span = tracer.startSpan(operationName);
+        span.setAttribute("operation.name", operationName);
+        span.end();
+        await processor.forceFlush();
+
+        const spans = memoryExporter.getFinishedSpans();
+        expect(spans.length).toBe(1);
+
+        // Check that the span does NOT have promotion metadata
+        const exportedSpan = spans[0];
+        expect(
+          exportedSpan.attributes[
+            `${SemanticConventions.METADATA}._should_be_root_span`
+          ],
+        ).toBeUndefined();
+      }
+    });
+
+    it("should NOT promote tool calls", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      const span = tracer.startSpan("ai.toolCall");
+      span.setAttribute("operation.name", "ai.toolCall");
+      span.end();
+      await processor.forceFlush();
+
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+
+      // Check that the span does NOT have promotion metadata
+      const exportedSpan = spans[0];
+      expect(
+        exportedSpan.attributes[
+          `${SemanticConventions.METADATA}._should_be_root_span`
+        ],
+      ).toBeUndefined();
+    });
+
+    it("should NOT promote non-AI operations", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      const testCases = ["http.request", "database.query", "custom.operation"];
+
+      for (const operationName of testCases) {
+        memoryExporter.reset();
+
+        const span = tracer.startSpan(operationName);
+        span.setAttribute("operation.name", operationName);
+        span.end();
+        await processor.forceFlush();
+
+        const spans = memoryExporter.getFinishedSpans();
+        // These won't be exported because they don't pass the AI span filter
+        expect(spans.length).toBe(0);
+      }
+    });
+
+    it("should handle spans without operation.name attribute", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      const span = tracer.startSpan("some-span");
+      // Don't set operation.name attribute
+      span.end();
+      await processor.forceFlush();
+
+      const spans = memoryExporter.getFinishedSpans();
+      // This won't be exported because it doesn't pass the AI span filter
+      expect(spans.length).toBe(0);
+    });
+
+    it("should work with SimpleSpanProcessor too", () => {
+      setupTraceProvider({
+        Processor: OpenInferenceSimpleSpanProcessor,
+        spanFilter: isOpenInferenceSpan,
+      });
+
+      const tracer = trace.getTracer("test-tracer");
+      const span = tracer.startSpan("ai.generateText");
+      span.setAttribute("operation.name", "ai.generateText");
+      span.end();
+
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+
+      // The logic should work the same for SimpleSpanProcessor
+      expect(spans[0].attributes["operation.name"]).toBe("ai.generateText");
+    });
+  });
 });

@@ -405,6 +405,55 @@ const safelyGetMetadataAttributes = withSafety({
 });
 
 /**
+ * Determines if a span should be promoted to a root span based on heuristics
+ * about Vercel AI SDK naming patterns and span relationships.
+ *
+ * @param span - The span to evaluate
+ * @param spanFilter - The span filter being used
+ * @returns true if the span should be promoted to root, false otherwise
+ */
+const shouldPromoteToRootSpan = (
+  span: ReadableSpan,
+  spanFilter?: SpanFilter,
+): boolean => {
+  if (!span.parentSpanId || !spanFilter) {
+    return false;
+  }
+
+  const operationName = span.attributes["operation.name"] as string;
+  if (!operationName || !operationName.startsWith("ai.")) {
+    return false;
+  }
+
+  // Don't promote nested AI operations - their parents are likely also AI spans
+  // Examples: ai.generateText.doGenerate, ai.streamText.doStream, ai.embed.doEmbed
+  if (operationName.includes(".do") || operationName.includes(".stream")) {
+    return false;
+  }
+
+  // Don't promote tool calls - they're usually children of AI chains
+  if (operationName.startsWith("ai.toolCall")) {
+    return false;
+  }
+
+  // Only promote top-level AI operations that might genuinely be orphaned
+  // Examples: ai.generateText, ai.streamText, ai.generateObject, ai.streamObject, ai.embed, ai.embedMany
+  const topLevelAIOperations = [
+    "ai.generateText",
+    "ai.streamText",
+    "ai.generateObject",
+    "ai.streamObject",
+    "ai.embed",
+    "ai.embedMany",
+  ];
+
+  return topLevelAIOperations.some(
+    (op) =>
+      operationName.startsWith(op) && !operationName.includes(".", op.length),
+  );
+};
+
+/**
  * Gets the OpenInference attributes associated with the span from the initial attributes
  * @param attributes the initial attributes of the span
  * @param span the span object (optional, for orphaned span detection)
@@ -422,7 +471,8 @@ const getOpenInferenceAttributes = (
   };
 
   // Handle orphaned spans when spanFilter is active
-  if (span && spanFilter && span.parentSpanId) {
+  // Use smarter heuristics to only promote spans that are likely truly orphaned
+  if (span && shouldPromoteToRootSpan(span, spanFilter)) {
     // Add metadata to indicate this span should become a root span
     openInferenceAttributes = {
       ...openInferenceAttributes,

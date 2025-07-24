@@ -41,16 +41,9 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   }) {
     super(exporter);
     this.spanFilter = spanFilter;
-    // eslint-disable-next-line no-console
-    console.error(
-      `🚨 PROCESSOR DEBUG: OpenInferenceSimpleSpanProcessor created with spanFilter: ${spanFilter ? "enabled" : "disabled"}`,
-    );
   }
 
   onEnd(span: ReadableSpan): void {
-    // eslint-disable-next-line no-console
-    console.error(`🚨 PROCESSOR DEBUG: onEnd called for span "${span.name}"`);
-
     addOpenInferenceAttributesToSpan(span, this.spanFilter);
 
     if (
@@ -59,14 +52,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
         spanFilter: this.spanFilter,
       })
     ) {
-      // eslint-disable-next-line no-console
-      console.error(`🚨 PROCESSOR DEBUG: Exporting span "${span.name}"`);
       super.onEnd(span);
-    } else {
-      // eslint-disable-next-line no-console
-      console.error(
-        `🚨 PROCESSOR DEBUG: NOT exporting span "${span.name}" (filtered out)`,
-      );
     }
   }
 }
