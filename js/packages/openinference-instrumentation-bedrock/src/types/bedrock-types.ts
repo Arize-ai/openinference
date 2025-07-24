@@ -135,20 +135,8 @@ export interface UsageInfo {
   cache_creation_input_tokens?: number;
 }
 
-// Converse API specific types that extend SDK types
-
-// System prompt for Converse API
-export interface SystemPrompt {
-  text: string;
-}
-
-// Converse message format (uses SDK ContentBlock but with role info)
-export interface ConverseMessage {
-  role: "user" | "assistant" | "system";
-  content: ConverseContentBlock[];
-}
-
 // Content blocks for Converse API (map to SDK ContentBlock structure)
+// These are used for type guards since AWS SDK ContentBlock has complex union types
 export type ConverseContentBlock =
   | ConverseTextContent
   | ConverseImageContent
@@ -181,74 +169,6 @@ export interface ConverseToolResultContent {
     toolUseId: string;
     content: ConverseContentBlock[];
     status?: "success" | "error";
-  };
-}
-
-// Converse inference configuration
-export interface ConverseInferenceConfig {
-  maxTokens?: number;
-  temperature?: number;
-  topP?: number;
-  stopSequences?: string[];
-}
-
-// Converse tool configuration
-export interface ConverseToolConfig {
-  tools?: ConverseToolDefinition[];
-  toolChoice?: {
-    auto?: Record<string, never>;
-    any?: Record<string, never>;
-    tool?: {
-      name: string;
-    };
-  };
-}
-
-export interface ConverseToolDefinition {
-  toolSpec: {
-    name: string;
-    description: string;
-    inputSchema: {
-      json: Record<string, unknown>;
-    };
-  };
-}
-
-// Request/Response body types for our instrumentation
-export interface ConverseRequestBody {
-  modelId: string;
-  messages: ConverseMessage[];
-  system?: SystemPrompt[];
-  inferenceConfig?: ConverseInferenceConfig;
-  toolConfig?: ConverseToolConfig;
-  additionalModelRequestFields?: Record<string, unknown>;
-  additionalModelResponseFieldPaths?: string[];
-}
-
-export interface ConverseResponseBody {
-  responseMetadata: {
-    requestId: string;
-    httpStatusCode: number;
-  };
-  output: {
-    message: {
-      role: "assistant";
-      content: ConverseContentBlock[];
-    };
-  };
-  stopReason:
-    | "end_turn"
-    | "tool_use"
-    | "max_tokens"
-    | "stop_sequence"
-    | "content_filtered";
-  usage: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-  };
-  metrics?: {
-    latencyMs: number;
   };
 }
 
@@ -307,6 +227,7 @@ export function isToolResultContent(
 }
 
 // Type guards for Converse content blocks
+// These are needed because AWS SDK ContentBlock has complex union types that don't match our processing needs
 export function isConverseTextContent(
   content: unknown,
 ): content is ConverseTextContent {
