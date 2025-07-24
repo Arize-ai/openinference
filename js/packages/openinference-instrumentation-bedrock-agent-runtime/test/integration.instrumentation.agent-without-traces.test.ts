@@ -12,6 +12,7 @@ import {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { BedrockAgentInstrumentation } from "../src";
 import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
+import { setModuleExportsForInstrumentation } from "./utils/test-utils";
 
 describe("BedrockAgentInstrumentation Integration - agent attributes and API recording", () => {
   let instrumentation: BedrockAgentInstrumentation;
@@ -23,16 +24,6 @@ describe("BedrockAgentInstrumentation Integration - agent attributes and API rec
   const cassettePrefix = "bedrock-agent-without-traces";
 
   let polly: Polly;
-
-  function setModuleExportsForInstrumentation(
-    instrumentation: BedrockAgentInstrumentation,
-    moduleExports: unknown,
-  ) {
-    // Use type assertion to access private property, but avoid 'any'.
-    (instrumentation as BedrockAgentInstrumentation)[
-      "_modules"
-    ][0].moduleExports = moduleExports;
-  }
 
   beforeAll(() => {
     // Setup instrumentation and tracer provider (following OpenAI pattern)

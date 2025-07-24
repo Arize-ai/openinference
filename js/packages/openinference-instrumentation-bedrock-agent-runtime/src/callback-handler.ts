@@ -1,11 +1,11 @@
-import * as console from "node:console";
-import { SpanStatusCode, Span } from "@opentelemetry/api";
+import { diag, SpanStatusCode, Span } from "@opentelemetry/api";
+
 import {
   MimeType,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-export class ResponseHandler {
+export class CallbackHandler {
   private outputChunks: string[] = [];
   private span: Span;
 
@@ -17,7 +17,9 @@ export class ResponseHandler {
     const text = Buffer.from(chunk).toString("utf8");
     this.outputChunks.push(text);
   }
-
+  consumeTrace(trace: object) {
+    diag.info(JSON.stringify(trace));
+  }
   onComplete(): void {
     const finalOutput = this.outputChunks.join("");
     this.span.setAttributes({
@@ -33,7 +35,6 @@ export class ResponseHandler {
   }
 
   onError(error: unknown): void {
-    console.error("Stream error:", error);
     this.span.recordException(error as Error);
     const message =
       error &&

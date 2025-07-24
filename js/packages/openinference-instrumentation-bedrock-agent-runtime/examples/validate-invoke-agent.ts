@@ -4,11 +4,11 @@ import {
   BedrockAgentRuntimeClient,
   InvokeAgentCommand,
 } from "@aws-sdk/client-bedrock-agent-runtime";
-import * as console from "node:console";
+import { diag } from "@opentelemetry/api";
 
 async function run() {
-  const agentId = "3EL4X42BSO";
-  const agentAliasId = "LSIZXQMZDN";
+  const agentId = "<AgentId>"; // Replace with your actual agent ID
+  const agentAliasId = "<AgentAliasId>"; // Replace with your actual agent alias ID
   const sessionId = `default-session1_${Math.floor(Date.now() / 1000)}`;
   const region = "ap-south-1";
 
@@ -19,7 +19,7 @@ async function run() {
     agentId,
     agentAliasId,
     sessionId,
-    enableTrace: false,
+    enableTrace: true,
   };
 
   try {
@@ -33,25 +33,18 @@ async function run() {
           const chunkData = (event as { chunk: { bytes?: Uint8Array } }).chunk;
           if (chunkData.bytes) {
             const outputText = Buffer.from(chunkData.bytes).toString("utf8");
-            // eslint-disable-next-line no-console
-            console.debug("Chunk output text:", outputText);
+            diag.info("Chunk output text:", outputText);
           }
-        } else {
-          // eslint-disable-next-line no-console
-          console.log("Other event:", event);
         }
       }
       if (!foundEvent) {
-        // eslint-disable-next-line no-console
-        console.error("No events found in completion stream.");
+        diag.error("No events found in completion stream.");
       }
     } else {
-      // eslint-disable-next-line no-console
-      console.error("No completion stream found.");
+      diag.error("No completion stream found.");
     }
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error("Error invoking agent:", err);
+    diag.error("Error invoking agent:", err);
   }
 }
 

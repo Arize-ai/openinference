@@ -1,10 +1,10 @@
-import { ResponseHandler } from "./response-handler";
+import { CallbackHandler } from "./callback-handler";
 
 export function interceptAgentResponse<
-  T extends { chunk?: { bytes?: Uint8Array } },
+  T extends { chunk?: { bytes?: Uint8Array }; trace?: object },
 >(
   originalStream: AsyncIterable<T>,
-  callback: ResponseHandler,
+  callback: CallbackHandler,
 ): AsyncIterable<T> {
   return {
     async *[Symbol.asyncIterator]() {
@@ -12,6 +12,8 @@ export function interceptAgentResponse<
         for await (const item of originalStream) {
           if (item.chunk?.bytes) {
             callback.consumeResponse(item.chunk.bytes);
+          } else if (item.trace) {
+            callback.consumeTrace(item.trace);
           }
           yield item;
         }

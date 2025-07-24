@@ -4,16 +4,25 @@ import {
   InstrumentationModuleDefinition,
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
-import { diag, SpanKind, SpanStatusCode } from "@opentelemetry/api";
+import {
+  diag,
+  SpanKind,
+  SpanStatusCode,
+  Tracer,
+  TracerProvider,
+} from "@opentelemetry/api";
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
 import { InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
 import { extractBaseRequestAttributes } from "./attributes/request-attributes";
 import { interceptAgentResponse } from "./stream-utils";
-import { ResponseHandler } from "./response-handler";
+import { CallbackHandler } from "./callback-handler";
 import { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-agent-runtime";
+
+const INSTRUMENTATION_NAME =
+  "@arizeai/openinference-instrumentation-bedrock-agent";
 
 let _isBedrockAgentPatched = false;
 
@@ -21,27 +30,45 @@ export function isPatched() {
   return _isBedrockAgentPatched;
 }
 
-export interface BedrockAgentInstrumentationConfig
-  extends InstrumentationConfig {
-  traceConfig?: TraceConfigOptions;
-}
-
-export class BedrockAgentInstrumentation extends InstrumentationBase<BedrockAgentInstrumentationConfig> {
-  static readonly COMPONENT =
-    "@arizeai/openinference-instrumentation-bedrock-agent";
-  static readonly VERSION = VERSION;
-
+export class BedrockAgentInstrumentation extends InstrumentationBase<InstrumentationConfig> {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
 
-  constructor(config: BedrockAgentInstrumentationConfig = {}) {
+  constructor({
+    instrumentationConfig,
+    traceConfig,
+    tracerProvider,
+  }: {
+    /**
+     * The config for the instrumentation
+     * @see {@link InstrumentationConfig}
+     */
+    instrumentationConfig?: InstrumentationConfig;
+    /**
+     * The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans.
+     * @see {@link TraceConfigOptions}
+     */
+    traceConfig?: TraceConfigOptions;
+    /**
+     * An optional custom trace provider to be used for tracing. If not provided, a tracer will be created using the global tracer provider.
+     * This is useful if you want to use a non-global tracer provider.
+     *
+     * @see {@link TracerProvider}
+     */
+    tracerProvider?: TracerProvider;
+  } = {}) {
     super(
-      BedrockAgentInstrumentation.COMPONENT,
-      BedrockAgentInstrumentation.VERSION,
-      config,
+      INSTRUMENTATION_NAME,
+      VERSION,
+      Object.assign({}, instrumentationConfig),
     );
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer: this.tracer,
-      traceConfig: config.traceConfig,
+      tracer:
+        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
+      traceConfig: traceConfig,
     });
   }
 
@@ -53,6 +80,22 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<BedrockAgen
       this.unpatch.bind(this),
     );
     return [module];
+  }
+
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(this.instrumentationName);
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
   }
 
   private getBedrockAgentModule(moduleExports: unknown):
@@ -127,13 +170,13 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<BedrockAgen
     client: unknown,
   ) {
     const span = this.oiTracer.startSpan("bedrock.invoke_agent", {
-      kind: SpanKind.CLIENT,
+      kind: SpanKind.INTERNAL,
       attributes: extractBaseRequestAttributes(command),
     });
     const result = original.apply(client, [command]);
     return result
       .then((response: InvokeAgentCommandOutput) => {
-        const callback = new ResponseHandler(span);
+        const callback = new CallbackHandler(span);
         if (
           response.completion &&
           Symbol.asyncIterator in response.completion
