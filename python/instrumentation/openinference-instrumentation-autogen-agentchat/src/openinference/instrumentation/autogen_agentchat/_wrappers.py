@@ -139,6 +139,35 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     )
 
 
+def _get_input_source(args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> Optional[str]:
+    last_message = None
+    if args:
+        if (
+            len(args) > 0
+            and isinstance(args[0], list)
+            and len(args[0]) > 0
+            and isinstance(args[0][-1], BaseChatMessage)
+        ):
+            last_message = args[0][-1]
+
+    if kwargs:
+        if (
+            "messages" in kwargs
+            and isinstance(kwargs["messages"], list)
+            and len(kwargs["messages"]) > 0
+            and isinstance(kwargs["messages"][-1], BaseChatMessage)
+        ):
+            last_message = kwargs["messages"][-1]
+
+    if last_message:
+        if last_message.source == "user":
+            return "start"
+        else:
+            return last_message.source
+
+    return None
+
+
 class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
     def __call__(
         self,
@@ -153,6 +182,7 @@ class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
 
         tracer = self._tracer
         agent_name = instance.name if instance else "AssistantAgent"
+        parent_agent_name = _get_input_source(args, kwargs)
 
         span_name = f"{agent_name}.on_messages_stream"
         attributes = dict(get_attributes_from_context())
@@ -162,6 +192,9 @@ class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
             *args,
             **kwargs,
         )
+        attributes[SpanAttributes.GRAPH_NODE_ID] = agent_name
+        if parent_agent_name:
+            attributes[SpanAttributes.GRAPH_NODE_PARENT_ID] = parent_agent_name
 
         async def wrapped_generator() -> AsyncGenerator[
             BaseAgentEvent | BaseChatMessage | Response, None

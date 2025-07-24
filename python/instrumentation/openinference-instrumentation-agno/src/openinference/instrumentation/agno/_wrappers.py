@@ -88,6 +88,9 @@ def _agent_run_attributes(
         if agent.session_id:
             yield SESSION_ID, agent.session_id
 
+        if agent.user_id:
+            yield USER_ID, agent.user_id
+
         if agent.knowledge:
             yield f"agno{key_suffix}.knowledge", agent.knowledge.__class__.__name__
 
@@ -674,6 +677,7 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+USER_ID = SpanAttributes.USER_ID
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
