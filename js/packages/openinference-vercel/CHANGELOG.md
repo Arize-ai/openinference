@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 2.3.1
+
+### Patch Changes
+
+- fc7f97b: do not override existing span kind on a span
+
 ## 2.3.0
 
 ### Minor Changes

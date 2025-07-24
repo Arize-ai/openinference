@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.1...python-openinference-instrumentation-llama-index-v4.3.2) (2025-07-23)
+
+
+### Bug Fixes
+
+* Bump llama index version for tests + fix tests ([#1992](https://github.com/Arize-ai/openinference/issues/1992)) ([a70bcd5](https://github.com/Arize-ai/openinference/commit/a70bcd5090568dcf48b56cc2feb081d33febf3de))
+
 ## [4.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.0...python-openinference-instrumentation-llama-index-v4.3.1) (2025-06-27)
 
 

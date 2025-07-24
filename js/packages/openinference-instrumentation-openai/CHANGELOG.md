@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 3.2.0
+
+### Minor Changes
+
+- e211094: add ability to use a non-global trace provider
+
 ## 3.1.1
 
 ### Patch Changes

@@ -110,6 +110,13 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     method_signature = signature(method)
     first_parameter_name = next(iter(method_signature.parameters), None)
     signature_contains_self_parameter = first_parameter_name in ["self"]
+
+    # Filter out kwargs that aren't in the method signature to prevent binding errors
+    valid_kwargs = {}
+    for param_name, param_value in kwargs.items():
+        if param_name in method_signature.parameters:
+            valid_kwargs[param_name] = param_value
+
     bound_arguments = method_signature.bind(
         *(
             [None]  # the value bound to the method's self argument is discarded below, so pass None
@@ -117,7 +124,7 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
             else []  # no self parameter, so no need to pass a value
         ),
         *args,
-        **kwargs,
+        **valid_kwargs,
     )
     return safe_json_dumps(
         {
@@ -130,6 +137,35 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         },
         cls=SafeJSONEncoder,
     )
+
+
+def _get_input_source(args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> Optional[str]:
+    last_message = None
+    if args:
+        if (
+            len(args) > 0
+            and isinstance(args[0], list)
+            and len(args[0]) > 0
+            and isinstance(args[0][-1], BaseChatMessage)
+        ):
+            last_message = args[0][-1]
+
+    if kwargs:
+        if (
+            "messages" in kwargs
+            and isinstance(kwargs["messages"], list)
+            and len(kwargs["messages"]) > 0
+            and isinstance(kwargs["messages"][-1], BaseChatMessage)
+        ):
+            last_message = kwargs["messages"][-1]
+
+    if last_message:
+        if last_message.source == "user":
+            return "start"
+        else:
+            return last_message.source
+
+    return None
 
 
 class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
@@ -146,6 +182,7 @@ class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
 
         tracer = self._tracer
         agent_name = instance.name if instance else "AssistantAgent"
+        parent_agent_name = _get_input_source(args, kwargs)
 
         span_name = f"{agent_name}.on_messages_stream"
         attributes = dict(get_attributes_from_context())
@@ -155,6 +192,9 @@ class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
             *args,
             **kwargs,
         )
+        attributes[SpanAttributes.GRAPH_NODE_ID] = agent_name
+        if parent_agent_name:
+            attributes[SpanAttributes.GRAPH_NODE_PARENT_ID] = parent_agent_name
 
         async def wrapped_generator() -> AsyncGenerator[
             BaseAgentEvent | BaseChatMessage | Response, None
@@ -303,13 +343,27 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
+            # Filter kwargs even when instrumentation is suppressed to prevent API errors
+            method_signature = signature(wrapped)
+            valid_kwargs = {}
+            for param_name, param_value in kwargs.items():
+                if param_name in method_signature.parameters:
+                    valid_kwargs[param_name] = param_value
+            return await wrapped(*args, **valid_kwargs)
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
         span_name = f"{instance.__class__.__name__}.create"
 
         messages = arguments.get("messages")
         tools = arguments.get("tools")
+
+        # Filter kwargs to only include valid parameters for the wrapped method
+        method_signature = signature(wrapped)
+        valid_kwargs = {}
+        for param_name, param_value in kwargs.items():
+            if param_name in method_signature.parameters:
+                valid_kwargs[param_name] = param_value
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -326,7 +380,7 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
             set_status_on_exception=False,
         ) as span:
             try:
-                result = await wrapped(*args, **kwargs)
+                result = await wrapped(*args, **valid_kwargs)
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attributes(
                     dict(
@@ -354,12 +408,26 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            async for res in wrapped(*args, **kwargs):
+            # Filter kwargs even when instrumentation is suppressed to prevent API errors
+            method_signature = signature(wrapped)
+            valid_kwargs = {}
+            for param_name, param_value in kwargs.items():
+                if param_name in method_signature.parameters:
+                    valid_kwargs[param_name] = param_value
+            async for res in wrapped(*args, **valid_kwargs):
                 yield res
             return
         arguments = _bind_arguments(wrapped, *args, **kwargs)
         messages = arguments.get("messages", None)
         tools = arguments.get("tools", None)
+
+        # Filter kwargs to only include valid parameters for the wrapped method
+        method_signature = signature(wrapped)
+        valid_kwargs = {}
+        for param_name, param_value in kwargs.items():
+            if param_name in method_signature.parameters:
+                valid_kwargs[param_name] = param_value
+
         span_name = f"{instance.__class__.__name__}.create_stream"
         with self._tracer.start_as_current_span(
             span_name,
@@ -377,7 +445,7 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
             set_status_on_exception=False,
         ) as span:
             try:
-                async for res in wrapped(*args, **kwargs):
+                async for res in wrapped(*args, **valid_kwargs):
                     if isinstance(res, CreateResult):
                         span.set_attributes(
                             dict(
@@ -397,8 +465,31 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
 
 
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> dict[str, Any]:
+    """
+    Bind arguments to a method signature, filtering out invalid kwargs.
+
+    This function is designed to be resilient against upstream API changes
+    where parameters are added or removed. It filters out any keyword arguments
+    that are not accepted by the method signature before attempting to bind.
+
+    Args:
+        method: The method whose signature to bind against
+        *args: Positional arguments to bind
+        **kwargs: Keyword arguments to bind (will be filtered)
+
+    Returns:
+        dict: Bound arguments with defaults applied
+    """
     method_signature = signature(method)
-    bound_args = method_signature.bind(*args, **kwargs)
+
+    # Filter out kwargs that aren't in the method signature to prevent
+    # "unexpected keyword argument" errors when upstream APIs change
+    valid_kwargs = {}
+    for param_name, param_value in kwargs.items():
+        if param_name in method_signature.parameters:
+            valid_kwargs[param_name] = param_value
+
+    bound_args = method_signature.bind(*args, **valid_kwargs)
     bound_args.apply_defaults()
     return bound_args.arguments
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.23...python-openinference-instrumentation-litellm-v0.1.24) (2025-07-15)
+
+
+### Features
+
+* **litellm:** track tool schemas from kwargs in litellm completion functions ([#1865](https://github.com/Arize-ai/openinference/issues/1865)) ([4df17c3](https://github.com/Arize-ai/openinference/commit/4df17c3562c1168db14af86fe5173b00e1ffadeb))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.22...python-openinference-instrumentation-litellm-v0.1.23) (2025-07-10)
+
+
+### Bug Fixes
+
+* **litellm:** Fixing Invocation Params, Output Messages ([#1838](https://github.com/Arize-ai/openinference/issues/1838)) ([9f15912](https://github.com/Arize-ai/openinference/commit/9f15912bc87e697e1021db0b63e9d2c8b3d1e377))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.21...python-openinference-instrumentation-litellm-v0.1.22) (2025-06-13)
 
 

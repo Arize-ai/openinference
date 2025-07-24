@@ -57,7 +57,13 @@ const getVercelFunctionNameFromOperationName = (
  */
 const getOISpanKindFromAttributes = (
   attributes: Attributes,
-): OpenInferenceSpanKind | undefined => {
+): OpenInferenceSpanKind | string | undefined => {
+  // If the span kind is already set, just use it
+  const existingOISpanKind =
+    attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
+  if (existingOISpanKind != null && typeof existingOISpanKind === "string") {
+    return existingOISpanKind;
+  }
   const maybeOperationName = attributes["operation.name"];
   if (maybeOperationName == null || typeof maybeOperationName !== "string") {
     return;
@@ -690,6 +696,6 @@ export const addOpenInferenceAttributesToSpan = (
     if (key === `${SemanticConventions.METADATA}._should_be_root_span`) {
       return;
     }
-    span.attributes[key] = value;
+    span.attributes[key] = value as AttributeValue;
   });
 };

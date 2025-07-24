@@ -23,8 +23,11 @@ from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
+
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 
 
 @pytest.fixture(scope="module")
@@ -124,7 +127,7 @@ def test_completion(
     ]
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps({"messages": input_values})
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
-    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
+    assert str(attributes.get(SpanAttributes.OUTPUT_VALUE)) == "Beijing"
     for i, choice in enumerate(response["choices"]):
         _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, choice.message)
 
@@ -252,14 +255,13 @@ def test_completion_with_parameters(
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {
             "model": "gpt-3.5-turbo",
-            "messages": [{"content": "What's the capital of China?", "role": "user"}],
             "mock_response": "Beijing",
             "temperature": 0.7,
             "top_p": 0.9,
         }
     )
 
-    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -321,9 +323,153 @@ def test_completion_with_tool_calls(
     assert attributes.get(tool_call_function_name) == "get_weather"
     assert attributes.get(tool_call_function_args) == '{"location": "New York", "unit": "celsius"}'
 
-    assert "The weather in New York is 22°C and sunny." in str(
-        attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert "The weather in New York is 22°C and sunny." == attributes.get(OUTPUT_VALUE)
+
+
+def test_completion_with_tool_schema_capture(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get current weather in a given location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                    },
+                    "required": ["location"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_forecast",
+                "description": "Get weather forecast for a location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {"type": "string"},
+                        "days": {"type": "integer", "minimum": 1, "maximum": 7},
+                    },
+                    "required": ["location", "days"],
+                },
+            },
+        },
+    ]
+
+    input_messages = [{"content": "What's the weather like in New York?", "role": "user"}]
+    litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        tools=tools,
+        tool_choice="auto",
+        mock_response="I'll check the weather for you.",
     )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify basic attributes
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    # Verify tool schemas are captured
+    tool1_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
+    tool2_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_JSON_SCHEMA}")
+
+    assert tool1_schema is not None
+    assert tool2_schema is not None
+    assert isinstance(tool1_schema, str)
+    assert isinstance(tool2_schema, str)
+
+    # Verify first tool schema
+    tool1_schema_dict = json.loads(tool1_schema)
+    assert tool1_schema_dict["type"] == "function"
+    assert tool1_schema_dict["function"]["name"] == "get_weather"
+    assert tool1_schema_dict["function"]["description"] == "Get current weather in a given location"
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["location"]["type"] == "string"
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["unit"]["enum"] == [
+        "celsius",
+        "fahrenheit",
+    ]
+    assert tool1_schema_dict["function"]["parameters"]["required"] == ["location"]
+
+    # Verify second tool schema
+    tool2_schema_dict = json.loads(tool2_schema)
+    assert tool2_schema_dict["type"] == "function"
+    assert tool2_schema_dict["function"]["name"] == "get_forecast"
+    assert tool2_schema_dict["function"]["description"] == "Get weather forecast for a location"
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["location"]["type"] == "string"
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["days"]["type"] == "integer"
+    assert tool2_schema_dict["function"]["parameters"]["required"] == ["location", "days"]
+
+    assert "I'll check the weather for you." == attributes.get(OUTPUT_VALUE)
+
+
+async def test_acompletion_with_tool_schema_capture(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Test that async completion captures tool schemas correctly"""
+    in_memory_span_exporter.clear()
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_time",
+                "description": "Get current time in a timezone",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "timezone": {"type": "string", "description": "Timezone name"},
+                    },
+                    "required": ["timezone"],
+                },
+            },
+        }
+    ]
+
+    input_messages = [{"content": "What time is it in Tokyo?", "role": "user"}]
+    await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        tools=tools,
+        mock_response="I'll check the time in Tokyo for you.",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify tool schema is captured
+    tool_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
+    assert tool_schema is not None
+
+    tool_schema_dict = json.loads(cast(str, tool_schema))
+    assert tool_schema_dict["function"]["name"] == "get_time"
+    assert tool_schema_dict["function"]["description"] == "Get current time in a timezone"
+
+    assert "I'll check the time in Tokyo for you." == attributes.get(OUTPUT_VALUE)
 
 
 def test_completion_with_multiple_messages(
@@ -358,18 +504,10 @@ def test_completion_with_multiple_messages(
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
         {
             "model": "gpt-3.5-turbo",
-            "messages": [
-                {"content": "Hello, I want to bake a cake", "role": "user"},
-                {"content": "Hello, I can pull up some recipes for cakes.", "role": "assistant"},
-                {"content": "No actually I want to make a pie", "role": "user"},
-            ],
             "mock_response": "Got it! What kind of pie would you like to make?",
         }
     )
-
-    assert "Got it! What kind of pie would you like to make?" in str(
-        attributes.get(SpanAttributes.OUTPUT_VALUE)
-    )
+    assert "Got it! What kind of pie would you like to make?" == attributes.get(OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -415,18 +553,9 @@ def test_completion_image_support(
     assert isinstance(params_str, str)  # Type narrowing for mypy
     assert json.loads(params_str) == {
         "model": "gpt-4o",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "What's in this image?"},
-                    {"type": "image_url", "image_url": {"url": "https://dummy_image.jpg"}},
-                ],
-            }
-        ],
         "mock_response": "That's an image of a pasture",
     }
-    assert "That's an image of a pasture" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
+    assert "That's an image of a pasture" == attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -510,7 +639,7 @@ async def test_acompletion(
     )
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
-    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
@@ -605,7 +734,7 @@ def test_completion_with_retries(
     )
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
-    assert "Beijing" in str(attributes.get(SpanAttributes.OUTPUT_VALUE))
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
