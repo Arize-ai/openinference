@@ -31,6 +31,7 @@ import { Context } from "@opentelemetry/api";
  */
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   private readonly spanFilter?: SpanFilter;
+
   constructor({
     exporter,
     spanFilter,
@@ -43,15 +44,14 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
      * A filter to apply to spans before exporting. If it returns true for a given span, that span will be exported.
      */
     readonly spanFilter?: SpanFilter;
-
-    config?: BufferConfig;
   }) {
     super(exporter);
     this.spanFilter = spanFilter;
   }
 
   onEnd(span: ReadableSpan): void {
-    addOpenInferenceAttributesToSpan(span);
+    addOpenInferenceAttributesToSpan(span, this.spanFilter);
+
     if (
       shouldExportSpan({
         span,
@@ -120,7 +120,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   }
 
   onEnd(span: ReadableSpan): void {
-    addOpenInferenceAttributesToSpan(span);
+    addOpenInferenceAttributesToSpan(span, this.spanFilter);
     if (
       shouldExportSpan({
         span,
