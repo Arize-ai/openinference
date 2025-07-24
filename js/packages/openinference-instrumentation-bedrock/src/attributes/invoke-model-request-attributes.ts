@@ -46,12 +46,12 @@ const parseRequestBody = withSafety({
     let bodyString: string;
     if (typeof command.input.body === "string") {
       bodyString = command.input.body;
+    } else if (Buffer.isBuffer(command.input.body)) {
+      bodyString = command.input.body.toString('utf8');
     } else if (command.input.body instanceof Uint8Array) {
       bodyString = new TextDecoder().decode(command.input.body);
     } else if (command.input.body instanceof ArrayBuffer) {
       bodyString = new TextDecoder().decode(new Uint8Array(command.input.body));
-    } else if (Buffer.isBuffer(command.input.body)) {
-      bodyString = command.input.body.toString('utf8');
     } else {
       // For other types, convert to string safely
       bodyString = String(command.input.body);
