@@ -13,18 +13,21 @@ import {
   MimeType,
 } from "@arizeai/openinference-semantic-conventions";
 import { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
+import { withSafety } from "@arizeai/openinference-core";
 import {
   InvokeModelResponseBody,
+  TextContent,
+  ToolUseContent,
+  UsageInfo,
   isTextContent,
   isToolUseContent,
 } from "../types/bedrock-types";
-import { TextDecoder } from "util";
 import { setSpanAttribute } from "./attribute-helpers";
 
 /**
  * Extracts output messages attributes from response body
  */
-export function extractOutputMessagesAttributes({
+function extractOutputMessagesAttributes({
   responseBody,
   span,
 }: {
@@ -32,13 +35,9 @@ export function extractOutputMessagesAttributes({
   span: Span;
 }): void {
   // Extract full response body as primary output value
-  const outputValue = extractPrimaryOutputValue(responseBody);
-
-  // Use JSON mime type for full response body
-  const mimeType = MimeType.JSON;
-
+  const outputValue = JSON.stringify(responseBody);
   setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, outputValue);
-  setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, mimeType);
+  setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
   // Determine if this is a simple text response or complex multimodal response
   const isSimpleTextResponse =
@@ -48,22 +47,20 @@ export function extractOutputMessagesAttributes({
     isTextContent(responseBody.content[0]);
 
   if (isSimpleTextResponse) {
-    // For simple text responses, use only the top-level message.content
-    const textBlock = responseBody.content[0];
-    if (isTextContent(textBlock)) {
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`,
-        "assistant",
-      );
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`,
-        textBlock.text,
-      );
-    }
+    // For simple text responses, use the message content
+    const textBlock = responseBody.content[0] as TextContent;
+    setSpanAttribute(
+      span,
+      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`,
+      "assistant",
+    );
+    setSpanAttribute(
+      span,
+      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`,
+      textBlock.text,
+    );
   } else {
-    // For complex multimodal responses, use only the detailed message.contents structure
+    // For complex multimodal responses, use the detailed message structure
     addOutputMessageContentAttributes({ responseBody, span });
   }
 }
@@ -71,7 +68,7 @@ export function extractOutputMessagesAttributes({
 /**
  * Extracts tool call attributes from response body
  */
-export function extractToolCallAttributes({
+function extractToolCallAttributes({
   responseBody,
   span,
 }: {
@@ -82,12 +79,11 @@ export function extractToolCallAttributes({
     return;
   }
 
-  let toolCallIndex = 0;
-  const toolUseBlocks = responseBody.content.filter(isToolUseContent);
-
-  toolUseBlocks.forEach((content) => {
-    // Extract tool call attributes at the message level using proper semantic conventions
+  const toolUseBlocks = responseBody.content.filter(isToolUseContent) as ToolUseContent[];
+  
+  toolUseBlocks.forEach((content, toolCallIndex) => {
     const toolCallPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
+    
     setSpanAttribute(
       span,
       `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
@@ -98,6 +94,7 @@ export function extractToolCallAttributes({
       `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
       content.name,
     );
+    
     if (content.input) {
       setSpanAttribute(
         span,
@@ -105,52 +102,58 @@ export function extractToolCallAttributes({
         JSON.stringify(content.input),
       );
     }
-
-    toolCallIndex++;
   });
 }
 
 /**
  * Extracts usage attributes from response body
  */
-export function extractUsageAttributes({
+function extractUsageAttributes({
   responseBody,
   span,
 }: {
   responseBody: InvokeModelResponseBody;
   span: Span;
 }): void {
-  // Add token usage metrics
   if (!responseBody.usage) {
     return;
   }
 
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-    responseBody.usage.input_tokens,
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-    responseBody.usage.output_tokens,
-  );
+  const usage = responseBody.usage as UsageInfo;
 
-  // Set only token counts provided in the response
-  // If the response includes total tokens, we could add:
-  // setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, responseBody.usage.total_tokens);
+  // Standard token counts
+  if (usage.input_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
+      usage.input_tokens,
+    );
+  }
 
-  // Add cache-related token attributes
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-    responseBody.usage.cache_read_input_tokens,
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-    responseBody.usage.cache_creation_input_tokens,
-  );
+  if (usage.output_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
+      usage.output_tokens,
+    );
+  }
+
+  // Cache-related token attributes (if present)
+  if (usage.cache_read_input_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+      usage.cache_read_input_tokens,
+    );
+  }
+
+  if (usage.cache_creation_input_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+      usage.cache_creation_input_tokens,
+    );
+  }
 }
 
 /**
@@ -172,6 +175,7 @@ function addOutputMessageContentAttributes({
     const contentPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
 
     if (isTextContent(content)) {
+      const textContent = content as TextContent;
       setSpanAttribute(
         span,
         `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
@@ -180,61 +184,65 @@ function addOutputMessageContentAttributes({
       setSpanAttribute(
         span,
         `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-        content.text,
+        textContent.text,
       );
     }
   });
 }
 
 /**
- * Extracts semantic convention attributes from InvokeModel response and adds them to the span
- */
-export function extractInvokeModelResponseAttributes({
-  span,
-  response,
-}: {
-  span: Span;
-  response: InvokeModelResponse;
-}): void {
-  try {
-    if (!response.body) return;
-
-    const responseBody = parseResponseBody(response);
-
-    // Extract output messages attributes
-    extractOutputMessagesAttributes({ responseBody, span });
-
-    // Extract tool call attributes
-    extractToolCallAttributes({ responseBody, span });
-
-    // Extract usage attributes
-    extractUsageAttributes({ responseBody, span });
-  } catch (error) {
-    diag.warn("Failed to extract InvokeModel response attributes:", error);
-  }
-}
-
-// Helper functions
-
-/**
  * Safely parses the response body
  */
-function parseResponseBody(
-  response: InvokeModelResponse,
-): InvokeModelResponseBody {
-  if (!response.body) {
-    throw new Error("Response body is missing");
-  }
-  const responseText = new TextDecoder().decode(response.body);
-  return JSON.parse(responseText);
-}
+const parseResponseBody = withSafety({
+  fn: (response: InvokeModelResponse): InvokeModelResponseBody => {
+    if (!response.body) {
+      throw new Error("Response body is missing");
+    }
+
+    let responseText: string;
+    if (typeof response.body === "string") {
+      responseText = response.body;
+    } else if (response.body instanceof Uint8Array) {
+      responseText = new TextDecoder().decode(response.body);
+    } else {
+      // Handle other potential types
+      responseText = new TextDecoder().decode(response.body as Uint8Array);
+    }
+
+    return JSON.parse(responseText) as InvokeModelResponseBody;
+  },
+  onError: (error) => {
+    diag.warn("Error parsing response body:", error);
+    return null;
+  },
+});
 
 /**
- * Extracts the primary output value as full response body JSON
+ * Extracts semantic convention attributes from InvokeModel response and adds them to the span
  */
-function extractPrimaryOutputValue(
-  responseBody: InvokeModelResponseBody,
-): string {
-  // Use full response body as JSON
-  return JSON.stringify(responseBody);
-}
+export const extractInvokeModelResponseAttributes = withSafety({
+  fn: ({
+    span,
+    response,
+  }: {
+    span: Span;
+    response: InvokeModelResponse;
+  }): void => {
+    if (!response.body) {
+      return;
+    }
+
+    const responseBody = parseResponseBody(response);
+    if (!responseBody) {
+      return;
+    }
+
+    // Extract all response attributes using named parameters
+    extractOutputMessagesAttributes({ responseBody, span });
+    extractToolCallAttributes({ responseBody, span });
+    extractUsageAttributes({ responseBody, span });
+  },
+  onError: (error) => {
+    diag.warn("Error extracting InvokeModel response attributes:", error);
+  },
+});
