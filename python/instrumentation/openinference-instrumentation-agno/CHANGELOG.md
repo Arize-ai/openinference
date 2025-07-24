@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.9...python-openinference-instrumentation-agno-v0.1.10) (2025-07-24)
+
+
+### Features
+
+* **agno:** enable user tracking ([#1997](https://github.com/Arize-ai/openinference/issues/1997)) ([d76f5f1](https://github.com/Arize-ai/openinference/commit/d76f5f1ef112658a8286d9becf8c9f114b7bc911))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.8...python-openinference-instrumentation-agno-v0.1.9) (2025-07-20)
 
 
