@@ -20,7 +20,6 @@ class EmbeddingModelProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.EMBEDDING
 
     def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
-
         super().__init__(event, meta)
 
         assert isinstance(meta.creator, RunContext)
@@ -40,7 +39,6 @@ class EmbeddingModelProcessor(Processor):
         event: Any,
         meta: "EventMeta",
     ) -> None:
-
         await super().update(event, meta)
 
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)

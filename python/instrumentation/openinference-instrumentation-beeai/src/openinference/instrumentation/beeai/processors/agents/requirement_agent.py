@@ -54,7 +54,6 @@ class RequirementAgentProcessor(AgentProcessor):
                 self.span.child(meta.name, event=[event, meta])
 
     def _sync_steps(self, steps: list["RequirementAgentRunStateStep"]) -> None:
-
         new_items = steps[len(self._steps) :]
         self._steps.extend(new_items)
 
