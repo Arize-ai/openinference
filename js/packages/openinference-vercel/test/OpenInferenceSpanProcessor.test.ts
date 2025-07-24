@@ -885,4 +885,3 @@ describe("OpenInferenceBatchSpanProcessor", () => {
     ).toBe(OpenInferenceSpanKind.CHAIN);
   });
 });
-
