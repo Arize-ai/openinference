@@ -19,6 +19,7 @@ interface ToolResultMessageOptions {
   initialPrompt?: string;
   toolUseId?: string;
   toolName?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toolInput?: Record<string, any>;
   toolResult?: string;
   followupPrompt?: string;
@@ -47,6 +48,7 @@ const defaults = {
 function generateToolDefinition(
   name: string,
   description: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   schema: { properties: Record<string, any>; required?: string[] },
 ): ToolDefinition {
   return {

@@ -20,8 +20,8 @@ export const loadRecordingData = (recordingPath: string) => {
     if (!recording) return null;
 
     // Extract model ID from the path (handle invoke, invoke-with-response-stream, and converse)
-    const invokeMatch = recording.path?.match(/\/model\/([^\/]+)\/invoke/);
-    const converseMatch = recording.path?.match(/\/model\/([^\/]+)\/converse/);
+    const invokeMatch = recording.path?.match(/\/model\/([^/]+)\/invoke/);
+    const converseMatch = recording.path?.match(/\/model\/([^/]+)\/converse/);
     const modelId = invokeMatch
       ? decodeURIComponent(invokeMatch[1])
       : converseMatch
@@ -41,6 +41,7 @@ export const loadRecordingData = (recordingPath: string) => {
       isConverse,
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.warn(`Failed to load recording from ${recordingPath}:`, error);
     return null;
   }
@@ -48,6 +49,7 @@ export const loadRecordingData = (recordingPath: string) => {
 
 // Helper function to create nock mock for Bedrock API
 export const createNockMock = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mockResponse: any,
   modelId?: string,
   status: number = 200,
