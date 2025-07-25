@@ -28,7 +28,7 @@ import { setSpanAttribute } from "./attribute-helpers";
  * Extracts output messages attributes from InvokeModel response body
  * Processes response content and sets OpenInference output message attributes
  * Handles both simple text responses and complex multi-modal responses
- * 
+ *
  * @param params Object containing extraction parameters
  * @param params.responseBody The parsed response body containing content and metadata
  * @param params.span The OpenTelemetry span to set attributes on
@@ -74,7 +74,7 @@ function extractOutputMessagesAttributes({
 /**
  * Extracts tool call attributes from InvokeModel response body
  * Identifies and processes tool use blocks in the response content
- * 
+ *
  * @param params Object containing extraction parameters
  * @param params.responseBody The parsed response body containing tool calls
  * @param params.span The OpenTelemetry span to set attributes on
@@ -90,11 +90,13 @@ function extractToolCallAttributes({
     return;
   }
 
-  const toolUseBlocks = responseBody.content.filter(isToolUseContent) as ToolUseContent[];
-  
+  const toolUseBlocks = responseBody.content.filter(
+    isToolUseContent,
+  ) as ToolUseContent[];
+
   toolUseBlocks.forEach((content, toolCallIndex) => {
     const toolCallPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
-    
+
     setSpanAttribute(
       span,
       `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
@@ -105,7 +107,7 @@ function extractToolCallAttributes({
       `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
       content.name,
     );
-    
+
     if (content.input) {
       setSpanAttribute(
         span,
@@ -119,7 +121,7 @@ function extractToolCallAttributes({
 /**
  * Extracts token usage attributes from InvokeModel response body
  * Processes standard and cache-related token counts following OpenInference conventions
- * 
+ *
  * @param params Object containing extraction parameters
  * @param params.responseBody The parsed response body containing usage statistics
  * @param params.span The OpenTelemetry span to set attributes on
@@ -175,7 +177,7 @@ function extractUsageAttributes({
 /**
  * Adds detailed output message content structure attributes for multi-modal responses
  * Processes individual content blocks and sets structured message attributes
- * 
+ *
  * @param params Object containing extraction parameters
  * @param params.responseBody The parsed response body containing structured content
  * @param params.span The OpenTelemetry span to set attributes on
@@ -214,7 +216,7 @@ function addOutputMessageContentAttributes({
 /**
  * Safely parses the InvokeModel response body with comprehensive error handling
  * Handles multiple response body formats and provides null fallback on error
- * 
+ *
  * @param response The InvokeModelResponse containing the response body to parse
  * @returns {InvokeModelResponseBody | null} Parsed response body or null on error
  */
@@ -245,13 +247,13 @@ const parseResponseBody = withSafety({
 /**
  * Extracts semantic convention attributes from InvokeModel response and sets them on the span
  * Main entry point for processing InvokeModel API responses with comprehensive error handling
- * 
+ *
  * Processes:
  * - Response body parsing from multiple formats
  * - Output messages with content structure
  * - Tool call attributes from response blocks
  * - Token usage statistics including cache metrics
- * 
+ *
  * @param params Object containing extraction parameters
  * @param params.span The OpenTelemetry span to set attributes on
  * @param params.response The InvokeModelResponse to extract attributes from
