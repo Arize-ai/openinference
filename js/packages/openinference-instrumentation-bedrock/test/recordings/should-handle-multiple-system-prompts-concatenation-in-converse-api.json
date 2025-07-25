@@ -1,0 +1,74 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What is TypeScript?"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "system": [
+        {
+          "text": "You are a helpful assistant."
+        },
+        {
+          "text": "Respond briefly."
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 1930
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "TypeScript is a superset of JavaScript developed by Microsoft. It adds optional static typing, classes, and other features to JavaScript, making it easier to develop and maintain large-scale applications. TypeScript code is transpiled into plain JavaScript, allowing it to run in any environment that supports JavaScript."
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 22,
+        "outputTokens": 62,
+        "totalTokens": 84
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 17 Jul 2025 03:54:50 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "503",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "abcc90c0-7a6c-4719-8362-eb164475f1cf"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "152",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "33b42f46-daf0-436d-b27a-de367a41467c",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "fb9351ea4d99ab6a509404c98134af0559b60bf015deca9b5c20c363b093c054",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

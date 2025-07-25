@@ -1,0 +1,91 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Tell me about yourself."
+            }
+          ],
+          "role": "user"
+        },
+        {
+          "content": [
+            {
+              "text": "I'm Claude, an AI assistant who loves to help and tell jokes!"
+            }
+          ],
+          "role": "assistant"
+        },
+        {
+          "content": [
+            {
+              "text": "Great! Tell me a joke then."
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "system": [
+        {
+          "text": "You are a helpful assistant that tells jokes."
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 2597
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "Alright, here's a joke for you:\n\nWhy don't scientists trust atoms?\nBecause they make up everything!\n\nBa dum tss! I hope that gave you a little chuckle. If not, don't worry - I've got plenty more where that came from. Just remember, if at first you don't succeed, skydiving is not for you!"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 50,
+        "outputTokens": 83,
+        "totalTokens": 133
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 17 Jul 2025 21:00:12 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "476",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "9da4481f-8530-40b3-961d-497239fdf7b1"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "372",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "2de08cd3-491b-45ec-a842-eb35748c7b8a",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "89dd177d7ff5de0d2be80a3b9464f5d2ae741f2c8024eb9706010b24369478e8",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]
