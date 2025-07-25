@@ -28,8 +28,7 @@ import { extractInvokeModelRequestAttributes } from "./attributes/invoke-model-r
 import { extractInvokeModelResponseAttributes } from "./attributes/invoke-model-response-attributes";
 import { extractConverseRequestAttributes } from "./attributes/converse-request-attributes";
 import { extractConverseResponseAttributes } from "./attributes/converse-response-attributes";
-import { consumeBedrockStreamChunks } from "./attributes/invoke-model-streaming-response-attributes";
-import { splitStream } from "@smithy/util-stream";
+import { consumeBedrockStreamChunks, safelySplitStream } from "./attributes/invoke-model-streaming-response-attributes";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
 
@@ -197,12 +196,11 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
   }
 
   /**
-   * Handles streaming InvokeModel commands with stream preservation.
+   * Handles streaming InvokeModel commands with guaranteed stream preservation.
    *
-   * Uses @smithy/util-stream splitStream to create two identical streams:
-   * one for instrumentation processing and one for user consumption.
-   * The instrumentation processing happens in the background while the
-   * user receives their stream immediately for optimal performance.
+   * This method ensures the original user stream is preserved regardless of 
+   * instrumentation success or failure. The user stream is returned immediately
+   * while instrumentation happens asynchronously in the background.
    *
    * @param command - The InvokeModelWithResponseStreamCommand
    * @param original - The original AWS SDK send method
@@ -231,109 +229,67 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     span.setAttributes(contextAttributes);
 
     // Extract request attributes directly onto the span
-    // Note: InvokeModelWithResponseStreamCommand has compatible input structure with InvokeModelCommand
     extractInvokeModelRequestAttributes({ 
       span, 
       command: command as unknown as InvokeModelCommand 
     });
 
-    try {
-      const result = original.apply(client, [command]) as Promise<{ body: AsyncIterable<unknown> }>;
+    // Execute AWS SDK call and handle stream splitting outside error boundaries
+    // This ensures the user stream is ALWAYS returned, regardless of instrumentation failures
+    const result = original.apply(client, [command]) as Promise<{ body: AsyncIterable<unknown> }>;
 
-      // AWS SDK v3 send() method always returns a Promise
-      return result
-        .then(async (response: { body: AsyncIterable<unknown> }) => {
-          try {
-            // Check if response.body exists before splitting
-            if (!response.body) {
-              span.setStatus({ code: SpanStatusCode.ERROR, message: "Response body is undefined" });
-              span.end();
-              return response;
-            }
-
-            // Split the stream for instrumentation and user consumption
-            // Note: splitStream expects a Node.js Readable or Web ReadableStream
-            const splitResult = await splitStream(
-              response.body as Parameters<typeof splitStream>[0],
-            ) as [AsyncIterable<unknown>, AsyncIterable<unknown>];
-            
-            // splitStream always returns [stream1, stream2], never null
-            const instrumentationStream = splitResult[0];
-            const userStream = splitResult[1];
-
-            // Process instrumentation stream in background (non-blocking)
-            if (instrumentationStream) {
-              // @ts-expect-error - splitStream from @smithy/util-stream always returns non-null streams
-              consumeBedrockStreamChunks({ 
-                stream: instrumentationStream, 
-                span 
-              })
-                .then(() => {
-                  span.end();
-                })
-                .catch((streamError: Error) => {
-                  span.recordException(streamError);
-                  span.setStatus({
-                    code: SpanStatusCode.ERROR,
-                    message: streamError.message,
-                  });
-                  span.end();
-                });
-            } else {
-              // Fallback: end span if no stream available
-              span.end();
-            }
-
-            // Return response with user stream immediately
-            return { ...response, body: userStream };
-          } catch (splitError) {
-            // If stream splitting fails, fall back to original behavior
-            const errorMessage = splitError instanceof Error ? splitError.message : String(splitError);
-            diag.warn(
-              "Stream splitting failed, falling back to direct consumption:",
-              errorMessage,
-            );
-            try {
-              if (response.body) {
-                await consumeBedrockStreamChunks({ 
-                  stream: response.body, 
-                  span 
-                });
-              }
-            } catch (streamError) {
-              const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError);
-              if (streamError instanceof Error) {
-                span.recordException(streamError);
-              }
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: streamErrorMessage,
-              });
-            }
-            span.end();
-            return response;
-          }
-        })
-        .catch((error: Error) => {
-          span.recordException(error);
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: error.message,
-          });
-          span.end();
-          throw error;
-        });
-    } catch (error) {
-      // Handle errors that occur before the Promise is returned (e.g. invalid parameters)
-      if (error instanceof Error) {
-        span.recordException(error);
-        span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-      } else {
-        span.setStatus({ code: SpanStatusCode.ERROR, message: String(error) });
+    return result.then((response: { body: AsyncIterable<unknown> }) => {
+      // Guard against missing response body - return original response
+      if (!response.body) {
+        span.recordException(new Error("Response body is undefined"));
+        span.setStatus({ code: SpanStatusCode.ERROR, message: "Response body is undefined" });
+        span.end();
+        return response;
       }
+
+      // Split the stream safely - this preserves the original stream if splitting fails
+      const { instrumentationStream, userStream } = safelySplitStream({
+        originalStream: response.body,
+      });
+
+      // Start background instrumentation processing (non-blocking)
+      // Only the instrumentation is wrapped in error handling - the user stream is protected
+      if (instrumentationStream) {
+        // @ts-expect-error - instrumentationStream is guaranteed non-null by the if check above
+        consumeBedrockStreamChunks({ 
+          stream: instrumentationStream, 
+          span 
+        })
+          .then(() => {
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.end();
+          })
+          .catch((error: Error) => {
+            span.recordException(error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
+            });
+            span.end();
+          });
+      } else {
+        // No instrumentation stream available, end span cleanly
+        span.setStatus({ code: SpanStatusCode.OK });
+        span.end();
+      }
+
+      // Return user stream immediately - instrumentation cannot interfere
+      return { ...response, body: userStream };
+    }).catch((error: Error) => {
+      // If the AWS SDK call itself fails, record error but still try to return original response
+      span.recordException(error);
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error.message,
+      });
       span.end();
-      throw error;
-    }
+      throw error; // Re-throw since we have no stream to return
+    });
   }
 
   private handleConverseCommand(
