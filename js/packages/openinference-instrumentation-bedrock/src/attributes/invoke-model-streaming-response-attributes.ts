@@ -6,6 +6,7 @@
  * - Tool call extraction from streams
  * - Token usage accumulation
  * - Real-time span attribute setting
+ * - Safe stream splitting with original stream preservation
  */
 
 import { Span, diag } from "@opentelemetry/api";
@@ -17,6 +18,7 @@ import {
   ContentBlockDelta,
 } from "@aws-sdk/client-bedrock-runtime";
 import { withSafety } from "@arizeai/openinference-core";
+import { ReadableStream } from "node:stream/web";
 import { isToolUseContent } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
 
@@ -161,6 +163,39 @@ function setStreamingOutputAttributes({
 }
 
 /**
+ * Safely splits a stream for instrumentation while preserving the original stream.
+ * Uses native Web Streams API for optimal performance and simplicity.
+ *
+ * @param originalStream - The original response stream to split
+ * @returns Object with instrumentationStream (for background processing) and userStream (original data for user)
+ *          If splitting fails, returns { userStream: originalStream } to ensure user always gets their stream back
+ */
+export function safelySplitStream({
+  originalStream,
+}: {
+  originalStream: AsyncIterable<unknown>;
+}): {
+  instrumentationStream?: AsyncIterable<unknown>;
+  userStream: AsyncIterable<unknown>;
+} {
+  try {
+    // Convert async iterable to ReadableStream and use native tee() - just like OpenAI!
+    const readableStream = ReadableStream.from(originalStream);
+    const [instrumentationStream, userStream] = readableStream.tee();
+    
+    return {
+      instrumentationStream,
+      userStream,
+    };
+  } catch (error) {
+    // Fallback: preserve original stream for user
+    return {
+      userStream: originalStream,
+    };
+  }
+}
+
+/**
  * Consumes AWS Bedrock streaming response chunks and extracts attributes for OpenTelemetry span.
  *
  * This function processes the Bedrock streaming format which consists of JSON lines
@@ -199,8 +234,10 @@ export const consumeBedrockStreamChunks = withSafety({
       input?: Record<string, unknown> 
     }> = [];
     let usage: Record<string, number> = {};
+    let chunkCount = 0;
 
     for await (const chunk of stream) {
+      chunkCount++;
       // Type guard for chunk structure
       if (isValidStreamChunk(chunk)) {
         const text = new TextDecoder().decode(chunk.chunk.bytes);

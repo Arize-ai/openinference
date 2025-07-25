@@ -44,6 +44,7 @@ import {
 import {
   verifyResponseStructure,
   verifySpanBasics,
+  consumeStreamResponse,
 } from "./helpers/test-helpers";
 import {
   TEST_MODEL_ID,
@@ -709,6 +710,9 @@ Honeybees can recognize human faces.",
 
         const result = await client.send(command);
         verifyResponseStructure(result);
+        
+        // Consume the stream to trigger instrumentation
+        await consumeStreamResponse(result);
 
         const span = verifySpanBasics(spanExporter);
         expect(span.attributes).toMatchInlineSnapshot(`
@@ -757,6 +761,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
         const result = await client.send(command);
         verifyResponseStructure(result);
+        
+        // Consume the stream to trigger instrumentation
+        await consumeStreamResponse(result);
 
         const span = verifySpanBasics(spanExporter);
         expect(span.attributes).toMatchInlineSnapshot(`
