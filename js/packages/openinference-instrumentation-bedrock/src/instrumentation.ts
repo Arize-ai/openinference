@@ -32,7 +32,10 @@ import { consumeBedrockStreamChunks, safelySplitStream } from "./attributes/invo
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
 
-// AWS SDK module interface for proper typing (following OpenAI pattern)
+/**
+ * AWS SDK module interface for proper typing
+ * Defines the structure of the @aws-sdk/client-bedrock-runtime module exports
+ */
 interface BedrockModuleExports {
   BedrockRuntimeClient: typeof BedrockRuntimeClient;
 }
@@ -43,13 +46,25 @@ interface BedrockModuleExports {
 let _isBedrockPatched = false;
 
 /**
- * Check if Bedrock instrumentation is enabled/disabled
+ * Type guard that checks if the Bedrock instrumentation is currently enabled
+ * @returns {boolean} True if instrumentation is active, false otherwise
  */
-export function isPatched() {
+export function isPatched(): boolean {
   return _isBedrockPatched;
 }
 
 
+/**
+ * An auto instrumentation class for AWS Bedrock that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for Bedrock API calls
+ * 
+ * Supports instrumentation of:
+ * - InvokeModel commands (synchronous)
+ * - InvokeModelWithResponseStream commands (streaming)
+ * - Converse commands (conversation API)
+ * 
+ * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
+ * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
+ */
 export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExports> {
   static readonly COMPONENT = "@arizeai/openinference-instrumentation-bedrock";
   static readonly VERSION = VERSION;
@@ -59,7 +74,15 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     instrumentationConfig,
     traceConfig,
   }: {
+    /**
+     * The config for the instrumentation
+     * @see {@link InstrumentationConfig}
+     */
     instrumentationConfig?: InstrumentationConfig;
+    /**
+     * The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans.
+     * @see {@link TraceConfigOptions}
+     */
     traceConfig?: TraceConfigOptions;
   } = {}) {
     super(
@@ -73,6 +96,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     });
   }
 
+  /**
+   * Initializes the instrumentation module definition for AWS SDK Bedrock Runtime
+   * @returns {InstrumentationModuleDefinition<BedrockModuleExports>[]} Array containing the module definition
+   */
   protected init(): InstrumentationModuleDefinition<BedrockModuleExports>[] {
     const module = new InstrumentationNodeModuleDefinition<BedrockModuleExports>(
       MODULE_NAME,
@@ -83,7 +110,15 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     return [module];
   }
 
-  private patch(moduleExports: BedrockModuleExports, moduleVersion?: string) {
+  /**
+   * Patches the BedrockRuntimeClient to intercept and instrument send() method calls
+   * Wraps the send method to capture InvokeModel, InvokeModelWithResponseStream, and Converse commands
+   * 
+   * @param moduleExports The module exports from @aws-sdk/client-bedrock-runtime
+   * @param moduleVersion The version of the module being patched
+   * @returns {BedrockModuleExports} The patched module exports
+   */
+  private patch(moduleExports: BedrockModuleExports, moduleVersion?: string): BedrockModuleExports {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
 
     if (moduleExports?.BedrockRuntimeClient) {
@@ -137,13 +172,22 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     return moduleExports;
   }
 
+  /**
+   * Handles instrumentation for synchronous InvokeModel commands
+   * Creates a span, extracts request attributes, executes the command, and processes the response
+   * 
+   * @param command The InvokeModelCommand to instrument
+   * @param original The original send method from the Bedrock client
+   * @param client The Bedrock client instance
+   * @returns {Promise<InvokeModelResponse>} The response from the InvokeModel call
+   */
   private handleInvokeModelCommand(
     command: InvokeModelCommand,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     original: any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     client: any,
-  ) {
+  ): Promise<InvokeModelResponse> {
     const span = this.oiTracer.startSpan("bedrock.invoke_model", {
       kind: SpanKind.INTERNAL,
     });
@@ -194,7 +238,14 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     }
   }
 
-  private unpatch(moduleExports: BedrockModuleExports, moduleVersion?: string) {
+  /**
+   * Removes the instrumentation patch from the BedrockRuntimeClient
+   * Unwraps the send method and resets the patched state
+   * 
+   * @param moduleExports The module exports from @aws-sdk/client-bedrock-runtime
+   * @param moduleVersion The version of the module being unpatched
+   */
+  private unpatch(moduleExports: BedrockModuleExports, moduleVersion?: string): void {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
 
     if (moduleExports?.BedrockRuntimeClient) {
@@ -204,16 +255,16 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
   }
 
   /**
-   * Handles streaming InvokeModel commands with guaranteed stream preservation.
+   * Handles instrumentation for streaming InvokeModel commands with guaranteed stream preservation
+   * 
+   * This method ensures the original user stream is preserved regardless of instrumentation 
+   * success or failure. The user stream is returned immediately while instrumentation 
+   * happens asynchronously in the background using stream splitting.
    *
-   * This method ensures the original user stream is preserved regardless of 
-   * instrumentation success or failure. The user stream is returned immediately
-   * while instrumentation happens asynchronously in the background.
-   *
-   * @param command - The InvokeModelWithResponseStreamCommand
-   * @param original - The original AWS SDK send method
-   * @param client - The Bedrock client instance
-   * @returns Promise resolving to the response with preserved user stream
+   * @param command The InvokeModelWithResponseStreamCommand to instrument
+   * @param original The original send method from the Bedrock client
+   * @param client The Bedrock client instance
+   * @returns {Promise<{body: AsyncIterable<unknown>}>} Promise resolving to the response with preserved user stream
    */
   private handleInvokeModelWithResponseStreamCommand(
     command: InvokeModelWithResponseStreamCommand,
@@ -300,13 +351,22 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     });
   }
 
+  /**
+   * Handles instrumentation for Converse API commands
+   * Creates a span, extracts request attributes, executes the command, and processes the response
+   * 
+   * @param command The ConverseCommand to instrument
+   * @param original The original send method from the Bedrock client
+   * @param client The Bedrock client instance
+   * @returns {Promise<ConverseResponse>} The response from the Converse call
+   */
   private handleConverseCommand(
     command: ConverseCommand,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     original: any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     client: any,
-  ) {
+  ): Promise<ConverseResponse> {
     const span = this.oiTracer.startSpan("bedrock.converse", {
       kind: SpanKind.INTERNAL,
     });

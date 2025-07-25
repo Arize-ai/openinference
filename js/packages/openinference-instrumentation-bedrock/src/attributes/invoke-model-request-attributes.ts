@@ -35,7 +35,11 @@ import {
 import { setSpanAttribute } from "./attribute-helpers";
 
 /**
- * Safely parses the request body with proper error handling
+ * Safely parses the InvokeModel request body with comprehensive error handling
+ * Handles multiple body formats (string, Buffer, Uint8Array, ArrayBuffer) and provides fallback
+ * 
+ * @param command The InvokeModelCommand containing the request body to parse
+ * @returns {InvokeModelRequestBody} Parsed request body or fallback structure on error
  */
 const parseRequestBody = withSafety({
   fn: (command: InvokeModelCommand): InvokeModelRequestBody => {
@@ -70,7 +74,13 @@ const parseRequestBody = withSafety({
 });
 
 /**
- * Extracts base request attributes (model, system, provider, invocation parameters)
+ * Extracts base request attributes for OpenInference semantic conventions
+ * Sets fundamental LLM attributes including model, system, provider, and invocation parameters
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.command The InvokeModelCommand containing model ID
+ * @param params.requestBody The parsed request body containing model parameters
  */
 function extractBaseRequestAttributes({
   span,
@@ -112,7 +122,12 @@ function extractBaseRequestAttributes({
 }
 
 /**
- * Extracts input messages attributes from request body
+ * Extracts input messages attributes from InvokeModel request body
+ * Processes message array and sets OpenInference input message attributes with proper indexing
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.requestBody The parsed request body containing messages array
  */
 function extractInputMessagesAttributes({
   span,
@@ -132,7 +147,12 @@ function extractInputMessagesAttributes({
 }
 
 /**
- * Extracts input tool attributes from request body
+ * Extracts input tool attributes from InvokeModel request body
+ * Processes tool definitions array and sets them as JSON schema attributes
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.requestBody The parsed request body containing tools array
  */
 function extractInputToolAttributes({
   span,
@@ -154,6 +174,17 @@ function extractInputToolAttributes({
 
 /**
  * Extracts semantic convention attributes from InvokeModel request command
+ * Main entry point for processing InvokeModel API requests with comprehensive error handling
+ * 
+ * Processes:
+ * - Request body parsing from multiple formats
+ * - Base model and system attributes
+ * - Input messages with multi-modal content
+ * - Tool definitions
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.command The InvokeModelCommand to extract attributes from
  */
 export const extractInvokeModelRequestAttributes = withSafety({
   fn: ({
@@ -180,7 +211,11 @@ export const extractInvokeModelRequestAttributes = withSafety({
 // Helper functions
 
 /**
- * Extracts vendor-specific system name from model ID
+ * Extracts vendor-specific system name from Bedrock model ID
+ * Maps model IDs to their corresponding AI system providers
+ * 
+ * @param modelId The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
+ * @returns {string} The system provider name (e.g., "anthropic", "meta", "mistral") or "bedrock" as fallback
  */
 function getSystemFromModelId(modelId: string): string {
   if (modelId.includes("anthropic")) return "anthropic";
@@ -193,7 +228,11 @@ function getSystemFromModelId(modelId: string): string {
 }
 
 /**
- * Extracts clean model name from full model ID
+ * Extracts clean model name from full Bedrock model ID
+ * Removes vendor prefix and version suffixes to get the base model name
+ * 
+ * @param modelId The full Bedrock model identifier
+ * @returns {string} The cleaned model name (e.g., "claude-3-sonnet" from "anthropic.claude-3-sonnet-20240229-v1:0")
  */
 function extractModelName(modelId: string): string {
   const parts = modelId.split(".");
@@ -222,6 +261,10 @@ interface ExtractedInvocationParameters extends Partial<InferenceConfiguration> 
 /**
  * Extracts invocation parameters from request body using AWS SDK standards
  * Maps snake_case parameter names to camelCase AWS SDK convention where applicable
+ * Combines standard AWS SDK InferenceConfiguration with vendor-specific parameters
+ * 
+ * @param requestBody The parsed request body containing model parameters
+ * @returns {ExtractedInvocationParameters} Object containing extracted parameters
  */
 function extractInvocationParameters(
   requestBody: InvokeModelRequestBody,
@@ -252,7 +295,13 @@ function extractInvocationParameters(
 }
 
 /**
- * Adds message attributes to the span
+ * Adds message attributes to the span following OpenInference conventions
+ * Processes role, content, tool calls, and tool results with proper indexing
+ * 
+ * @param params Object containing message processing parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.message The Bedrock message to process
+ * @param params.index The message index in the conversation
  */
 function addMessageAttributes({
   span,
@@ -298,7 +347,13 @@ function addMessageAttributes({
 }
 
 /**
- * Handles tool calls within a message using semantic conventions
+ * Handles tool calls within a message using OpenInference semantic conventions
+ * Extracts tool call information and sets appropriate attributes with indexing
+ * 
+ * @param params Object containing tool call processing parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.message The Bedrock message containing tool calls
+ * @param params.messageIndex The message index in the conversation
  */
 function handleToolCallsInMessage({
   span,
@@ -338,7 +393,13 @@ function handleToolCallsInMessage({
 }
 
 /**
- * Handles tool results within a message using semantic conventions
+ * Handles tool results within a message using OpenInference semantic conventions
+ * Extracts tool result information and sets tool call ID references
+ * 
+ * @param params Object containing tool result processing parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.message The Bedrock message containing tool results
+ * @param params.messageIndex The message index in the conversation
  */
 function handleToolResultsInMessage({
   span,
@@ -362,7 +423,13 @@ function handleToolResultsInMessage({
 }
 
 /**
- * Adds detailed message content structure attributes
+ * Adds detailed message content structure attributes for multi-modal content
+ * Processes text, image, and other content types with appropriate OpenInference attributes
+ * 
+ * @param params Object containing content processing parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.message The Bedrock message containing structured content
+ * @param params.messageIndex The message index in the conversation
  */
 function addMessageContentAttributes({
   span,

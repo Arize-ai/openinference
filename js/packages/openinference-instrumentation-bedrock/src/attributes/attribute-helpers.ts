@@ -15,7 +15,11 @@ import {
 
 /**
  * Sets a span attribute only if the value is not null, undefined, or empty string
- * Provides null-safe attribute setting for OpenTelemetry spans
+ * Provides null-safe attribute setting for OpenTelemetry spans to avoid polluting traces with empty values
+ * 
+ * @param span The OpenTelemetry span to set the attribute on
+ * @param key The attribute key following OpenInference semantic conventions
+ * @param value The attribute value to set, will be skipped if null/undefined/empty
  */
 export function setSpanAttribute(
   span: Span,
@@ -29,7 +33,10 @@ export function setSpanAttribute(
 
 /**
  * Aggregates multiple system prompts into a single string
- * Concatenates all text content from system prompts with proper formatting
+ * Concatenates all text content from system prompts with double newline separation
+ * 
+ * @param systemPrompts Array of system content blocks from Bedrock Converse API
+ * @returns {string} Combined system prompt text with proper formatting
  */
 export function aggregateSystemPrompts(systemPrompts: SystemContentBlock[]): string {
   return systemPrompts
@@ -40,7 +47,11 @@ export function aggregateSystemPrompts(systemPrompts: SystemContentBlock[]): str
 
 /**
  * Aggregates system prompts with messages into a unified message array
- * System prompts are converted to a single system message at the beginning
+ * System prompts are converted to a single system message at the beginning of the conversation
+ * 
+ * @param systemPrompts Array of system content blocks to convert to system message
+ * @param messages Array of conversation messages
+ * @returns {Message[]} Combined message array with system prompt as first message if present
  */
 export function aggregateMessages(
   systemPrompts: SystemContentBlock[] = [],
@@ -59,7 +70,11 @@ export function aggregateMessages(
 }
 
 /**
- * Extracts attributes from a single message
+ * Extracts OpenInference semantic convention attributes from a single Bedrock message
+ * Handles role, content, tool calls, and tool results following the OpenInference specification
+ * 
+ * @param message The Bedrock message to extract attributes from
+ * @returns {Record<string, AttributeValue>} Object containing semantic convention attributes
  */
 export function getAttributesFromMessage(
   message: Message,
@@ -106,9 +121,14 @@ export function getAttributesFromMessage(
 }
 
 /**
- * Extracts attributes from message content
- * Note: We still use our custom content type guards here since AWS SDK ContentBlock
- * has complex union types that don't match our processing needs exactly
+ * Extracts OpenInference semantic convention attributes from message content blocks
+ * Handles text, image, and tool content types with appropriate attribute mapping
+ * 
+ * Note: Uses custom content type guards since AWS SDK ContentBlock union types
+ * require additional processing for reliable type detection
+ * 
+ * @param content The content block to extract attributes from
+ * @returns {Record<string, AttributeValue>} Object containing content-specific attributes
  */
 export function getAttributesFromMessageContent(
   content: ContentBlock,
@@ -134,7 +154,13 @@ export function getAttributesFromMessageContent(
 }
 
 /**
- * Processes multiple messages and sets attributes on span with proper indexing
+ * Processes multiple messages and sets OpenInference attributes on span with proper indexing
+ * Iterates through messages array and applies semantic convention attributes with message index
+ * 
+ * @param params Object containing processing parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.messages Array of messages to process
+ * @param params.baseKey Base semantic convention key (either input or output messages)
  */
 export function processMessages({
   span,

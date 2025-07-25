@@ -35,7 +35,6 @@ import {
   commonTools,
 } from "./helpers/test-data-generators";
 import {
-  loadRecordingData,
   createNockMock,
   sanitizeAuthHeaders,
   createTestClient,
@@ -74,7 +73,9 @@ describe("BedrockInstrumentation", () => {
     instrumentation.setTracerProvider(provider);
 
     // Manually set module exports for testing
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const BedrockRuntime = require("@aws-sdk/client-bedrock-runtime");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (instrumentation as any)._modules[0].moduleExports = BedrockRuntime;
 
     // Enable instrumentation ONCE
@@ -98,10 +99,11 @@ describe("BedrockInstrumentation", () => {
         const recordingData = JSON.parse(fs.readFileSync(recordingsPath, "utf8"));
         
         // Create mocks for all recorded requests
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         recordingData.forEach((recording: any) => {
           // Extract model ID from the path
-          const invokeMatch = recording.path?.match(/\/model\/([^\/]+)\/invoke/);
-          const converseMatch = recording.path?.match(/\/model\/([^\/]+)\/converse/);
+          const invokeMatch = recording.path?.match(/\/model\/([^/]+)\/invoke/);
+          const converseMatch = recording.path?.match(/\/model\/([^/]+)\/converse/);
           const modelId = invokeMatch
             ? decodeURIComponent(invokeMatch[1])
             : converseMatch
@@ -122,6 +124,7 @@ describe("BedrockInstrumentation", () => {
           );
         });
       } else {
+        // eslint-disable-next-line no-console
         console.log(`No recordings found at ${recordingsPath}`);
       }
     }
@@ -157,6 +160,7 @@ describe("BedrockInstrumentation", () => {
     if (isRecordingMode) {
       // Save recordings before cleaning up
       const recordings = nock.recorder.play();
+      // eslint-disable-next-line no-console
       console.log(
         `Captured ${recordings.length} recordings for test: ${currentTestName}`,
       );
@@ -169,6 +173,7 @@ describe("BedrockInstrumentation", () => {
           fs.mkdirSync(recordingsDir, { recursive: true });
         }
         fs.writeFileSync(recordingsPath, JSON.stringify(recordings, null, 2));
+        // eslint-disable-next-line no-console
         console.log(
           `Saved sanitized recordings to ${path.basename(recordingsPath)}`,
         );

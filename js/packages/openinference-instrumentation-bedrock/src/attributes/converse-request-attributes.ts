@@ -21,6 +21,10 @@ import {
 
 /**
  * Type guard to safely validate ConverseRequest structure
+ * Ensures the input object has required modelId and messages properties for processing
+ * 
+ * @param input The input object to validate
+ * @returns {boolean} True if input is a valid ConverseRequest, false otherwise
  */
 function isConverseRequest(input: unknown): input is ConverseRequest {
   if (!input || typeof input !== "object" || input === null) {
@@ -37,7 +41,11 @@ function isConverseRequest(input: unknown): input is ConverseRequest {
 }
 
 /**
- * Extracts vendor-specific system name from model ID
+ * Extracts vendor-specific system name from Bedrock model ID
+ * Maps model IDs to their corresponding AI system providers
+ * 
+ * @param modelId The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
+ * @returns {string} The system provider name (e.g., "anthropic", "meta", "mistral") or "bedrock" as fallback
  */
 function getSystemFromModelId(modelId: string): string {
   if (modelId.includes("anthropic")) return "anthropic";
@@ -50,7 +58,11 @@ function getSystemFromModelId(modelId: string): string {
 }
 
 /**
- * Extracts clean model name from full model ID
+ * Extracts clean model name from full Bedrock model ID
+ * Removes vendor prefix and version suffixes to get the base model name
+ * 
+ * @param modelId The full Bedrock model identifier
+ * @returns {string} The cleaned model name (e.g., "claude-3-sonnet" from "anthropic.claude-3-sonnet-20240229-v1:0")
  */
 function extractModelName(modelId: string): string {
   const parts = modelId.split(".");
@@ -68,7 +80,12 @@ function extractModelName(modelId: string): string {
 }
 
 /**
- * Extracts base request attributes: model, system, provider, parameters
+ * Extracts base request attributes for OpenInference semantic conventions
+ * Sets fundamental LLM attributes including model, system, provider, and invocation parameters
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.input The validated ConverseRequest to extract attributes from
  */
 function extractBaseRequestAttributes({
   span,
@@ -115,6 +132,11 @@ function extractBaseRequestAttributes({
 
 /**
  * Extracts input messages attributes with system prompt aggregation
+ * Processes system prompts and conversation messages into OpenInference message format
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.input The ConverseRequest containing messages and system prompts
  */
 function extractInputMessagesAttributes({
   span,
@@ -136,7 +158,12 @@ function extractInputMessagesAttributes({
 }
 
 /**
- * Extracts tool configuration attributes
+ * Extracts tool configuration attributes from Converse request
+ * Processes tool definitions and sets them as JSON schema attributes
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.input The ConverseRequest containing tool configuration
  */
 function extractInputToolAttributes({
   span,
@@ -160,10 +187,23 @@ function extractInputToolAttributes({
 }
 
 /**
- * Extracts request attributes from Converse command and sets them on the span
+ * Extracts semantic convention attributes from Converse command and sets them on the span
+ * Main entry point for processing Converse API requests with comprehensive error handling
+ * 
+ * Processes:
+ * - Base model and system attributes
+ * - Input messages with system prompt aggregation
+ * - Tool configuration definitions
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.command The ConverseCommand to extract attributes from
  */
 export const extractConverseRequestAttributes = withSafety({
-  fn: ({ span, command }: { span: Span; command: ConverseCommand }): void => {
+  fn: ({ span, command }: { 
+    span: Span; 
+    command: ConverseCommand;
+  }): void => {
     const input = command.input;
     if (!input || !isConverseRequest(input)) {
       return;
