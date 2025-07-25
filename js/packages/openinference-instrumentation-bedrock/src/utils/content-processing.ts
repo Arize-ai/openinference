@@ -19,6 +19,11 @@ import {
   isToolResultContent,
 } from "../types/bedrock-types";
 
+// Content formatting constants
+const TOOL_RESULT_PREFIX = "[Tool Result: ";
+const TOOL_CALL_PREFIX = "[Tool Call: ";
+const CONTENT_SUFFIX = "]";
+
 /**
  * Extracts text content from various message content formats
  * Supports both string content and complex content arrays with multi-modal data
@@ -35,9 +40,9 @@ export function extractTextFromContent(content: MessageContent): string {
       if (isTextContent(block)) {
         textParts.push(block.text);
       } else if (isToolResultContent(block)) {
-        textParts.push(`[Tool Result: ${block.content}]`);
+        textParts.push(`${TOOL_RESULT_PREFIX}${block.content}${CONTENT_SUFFIX}`);
       } else if (isToolUseContent(block)) {
-        textParts.push(`[Tool Call: ${block.name}]`);
+        textParts.push(`${TOOL_CALL_PREFIX}${block.name}${CONTENT_SUFFIX}`);
       } else if (isImageContent(block)) {
         // Handle image content in OpenInference format: data:{media_type};base64,{data}
         const imageUrl = formatImageUrl(block.source);
