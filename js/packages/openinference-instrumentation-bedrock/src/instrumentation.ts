@@ -14,7 +14,7 @@ import {
   SemanticConventions,
   OpenInferenceSpanKind,
 } from "@arizeai/openinference-semantic-conventions";
-import { getAttributesFromContext } from "@arizeai/openinference-core";
+import { getAttributesFromContext, OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
 import {
   InvokeModelCommand,
@@ -49,20 +49,28 @@ export function isPatched() {
   return _isBedrockPatched;
 }
 
-export interface BedrockInstrumentationConfig extends InstrumentationConfig {
-  // Remove traceConfig since we'll use direct OpenTelemetry API
-}
 
-export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumentationConfig> {
+export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExports> {
   static readonly COMPONENT = "@arizeai/openinference-instrumentation-bedrock";
   static readonly VERSION = VERSION;
+  private oiTracer: OITracer;
 
-  constructor(config: BedrockInstrumentationConfig = {}) {
+  constructor({
+    instrumentationConfig,
+    traceConfig,
+  }: {
+    instrumentationConfig?: InstrumentationConfig;
+    traceConfig?: TraceConfigOptions;
+  } = {}) {
     super(
       BedrockInstrumentation.COMPONENT,
       BedrockInstrumentation.VERSION,
-      config,
+      Object.assign({}, instrumentationConfig),
     );
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig,
+    });
   }
 
   protected init(): InstrumentationModuleDefinition<BedrockModuleExports>[] {
@@ -136,7 +144,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     client: any,
   ) {
-    const span = this.tracer.startSpan("bedrock.invoke_model", {
+    const span = this.oiTracer.startSpan("bedrock.invoke_model", {
       kind: SpanKind.INTERNAL,
     });
 
@@ -214,7 +222,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     client: any,
   ) {
-    const span = this.tracer.startSpan("bedrock.invoke_model", {
+    const span = this.oiTracer.startSpan("bedrock.invoke_model", {
       kind: SpanKind.INTERNAL,
     });
 
@@ -299,7 +307,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockInstrumen
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     client: any,
   ) {
-    const span = this.tracer.startSpan("bedrock.converse", {
+    const span = this.oiTracer.startSpan("bedrock.converse", {
       kind: SpanKind.INTERNAL,
     });
 

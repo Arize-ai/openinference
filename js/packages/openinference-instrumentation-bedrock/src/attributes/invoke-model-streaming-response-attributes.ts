@@ -234,10 +234,8 @@ export const consumeBedrockStreamChunks = withSafety({
       input?: Record<string, unknown> 
     }> = [];
     let usage: Record<string, number> = {};
-    let chunkCount = 0;
 
     for await (const chunk of stream) {
-      chunkCount++;
       // Type guard for chunk structure
       if (isValidStreamChunk(chunk)) {
         const text = new TextDecoder().decode(chunk.chunk.bytes);
