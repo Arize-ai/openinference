@@ -96,14 +96,18 @@ describe("BedrockInstrumentation", () => {
     if (!isRecordingMode) {
       // Replay mode: create mock from test-specific recording
       if (fs.existsSync(recordingsPath)) {
-        const recordingData = JSON.parse(fs.readFileSync(recordingsPath, "utf8"));
-        
+        const recordingData = JSON.parse(
+          fs.readFileSync(recordingsPath, "utf8"),
+        );
+
         // Create mocks for all recorded requests
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         recordingData.forEach((recording: any) => {
           // Extract model ID from the path
           const invokeMatch = recording.path?.match(/\/model\/([^/]+)\/invoke/);
-          const converseMatch = recording.path?.match(/\/model\/([^/]+)\/converse/);
+          const converseMatch = recording.path?.match(
+            /\/model\/([^/]+)\/converse/,
+          );
           const modelId = invokeMatch
             ? decodeURIComponent(invokeMatch[1])
             : converseMatch
@@ -111,7 +115,9 @@ describe("BedrockInstrumentation", () => {
               : null;
 
           // Determine endpoint type
-          const isStreaming = recording.path?.includes("invoke-with-response-stream");
+          const isStreaming = recording.path?.includes(
+            "invoke-with-response-stream",
+          );
           const isConverse = recording.path?.includes("/converse");
 
           createNockMock(
@@ -715,7 +721,7 @@ Honeybees can recognize human faces.",
 
         const result = await client.send(command);
         verifyResponseStructure(result);
-        
+
         // Consume the stream to trigger instrumentation
         await consumeStreamResponse(result);
 
@@ -766,7 +772,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
         const result = await client.send(command);
         verifyResponseStructure(result);
-        
+
         // Consume the stream to trigger instrumentation
         await consumeStreamResponse(result);
 
@@ -2354,7 +2360,8 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         const client = createTestClient(isRecordingMode);
 
         // Define a substantial system prompt that should benefit from caching
-        const systemPrompt = "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant.";
+        const systemPrompt =
+          "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant.";
 
         // First call - structured for caching when AWS JS SDK fully supports it
         // NOTE: While caching works with LangChain wrappers (ChatBedrockConverse),
@@ -2387,35 +2394,43 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
         await client.send(firstCommand);
         spanExporter.reset();
 
-        await client.send(new ConverseCommand({
-          modelId: TEST_MODEL_ID,
-          system: [{ text: systemPrompt }],
-          messages: [{ 
-            role: "user", 
-            content: [{ text: "What is the capital of Italy?" }]
-          }],
-          inferenceConfig: { maxTokens: 100, temperature: 0.1 },
-        }));
+        await client.send(
+          new ConverseCommand({
+            modelId: TEST_MODEL_ID,
+            system: [{ text: systemPrompt }],
+            messages: [
+              {
+                role: "user",
+                content: [{ text: "What is the capital of Italy?" }],
+              },
+            ],
+            inferenceConfig: { maxTokens: 100, temperature: 0.1 },
+          }),
+        );
         spanExporter.reset();
 
-        await client.send(new ConverseCommand({
-          modelId: TEST_MODEL_ID,
-          system: [{ text: systemPrompt }],
-          messages: [{ 
-            role: "user", 
-            content: [{ text: "What is the capital of Germany?" }]
-          }],
-          inferenceConfig: { maxTokens: 100, temperature: 0.1 },
-        }));
+        await client.send(
+          new ConverseCommand({
+            modelId: TEST_MODEL_ID,
+            system: [{ text: systemPrompt }],
+            messages: [
+              {
+                role: "user",
+                content: [{ text: "What is the capital of Germany?" }],
+              },
+            ],
+            inferenceConfig: { maxTokens: 100, temperature: 0.1 },
+          }),
+        );
 
         // Get the span from the final call for comprehensive token analysis
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
 
         // This test is ready for caching but the direct AWS SDK doesn't support it yet:
-        // 
+        //
         // We should expect to see:
         // - cacheReadInputTokens and cacheWriteInputTokens in API responses
-        // - Corresponding llm.token_count.prompt.cache_read and llm.token_count.prompt.cache_write 
+        // - Corresponding llm.token_count.prompt.cache_read and llm.token_count.prompt.cache_write
         //   attributes in instrumentation spans
 
         // Comprehensive span attributes snapshot - captures current token counting behavior

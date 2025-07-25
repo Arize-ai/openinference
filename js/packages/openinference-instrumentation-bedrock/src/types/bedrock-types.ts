@@ -1,6 +1,6 @@
 /**
  * TypeScript type definitions for AWS Bedrock Runtime API structures
- * 
+ *
  * This file imports official AWS SDK types wherever possible and only defines
  * custom types for structures not exposed by the SDK.
  */
@@ -12,17 +12,17 @@ import {
   Message,
   SystemContentBlock,
   ConversationRole,
-  
+
   // Tool-related types
   Tool,
   ToolUseBlock,
   ToolResultBlock,
   ToolChoice,
   ToolInputSchema,
-  
+
   // Configuration types
   InferenceConfiguration,
-  
+
   // Streaming types
   ContentBlockStart,
   ContentBlockDelta,
@@ -233,7 +233,7 @@ export function isConverseTextContent(
 ): content is ConverseTextContent {
   return (
     content !== null &&
-    typeof content === "object" && 
+    typeof content === "object" &&
     content !== null &&
     "text" in content &&
     typeof content.text === "string"
@@ -286,6 +286,7 @@ export function isConverseToolResultContent(
     content.toolResult !== null &&
     typeof content.toolResult === "object" &&
     "toolUseId" in content.toolResult &&
-    typeof (content.toolResult as Record<string, unknown>).toolUseId === "string"
+    typeof (content.toolResult as Record<string, unknown>).toolUseId ===
+      "string"
   );
 }

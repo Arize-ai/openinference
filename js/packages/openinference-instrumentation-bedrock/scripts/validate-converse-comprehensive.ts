@@ -5,7 +5,7 @@
  *
  * This script tests the Bedrock Converse API instrumentation with 6 comprehensive scenarios:
  * 1. Basic Flow - Simple conversation with system prompt
- * 2. Multi-Turn Conversation - Complex conversation history  
+ * 2. Multi-Turn Conversation - Complex conversation history
  * 3. Tool Calling Flow - Tool configuration and usage
  * 4. Multi-Modal with Image - Text + image content
  * 5. Context Attributes - OpenInference context propagation
@@ -64,7 +64,7 @@ type TestScenario =
   | "multi-turn"
   | "tool-calling"
   | "multi-modal"
-  | "context-attributes" 
+  | "context-attributes"
   | "error-case"
   | "all";
 
@@ -216,7 +216,7 @@ class ConverseComprehensiveValidator {
       this.options.scenario === "all"
         ? ([
             "basic-flow",
-            "multi-turn", 
+            "multi-turn",
             "tool-calling",
             "multi-modal",
             "context-attributes",
@@ -607,12 +607,13 @@ class ConverseComprehensiveValidator {
           setMetadata(
             setTags(
               setPromptTemplate(context.active(), {
-                template:
-                  "System: {{system_prompt}}\n\nUser: {{user_message}}",
+                template: "System: {{system_prompt}}\n\nUser: {{user_message}}",
                 version: "2.1.0",
                 variables: {
-                  system_prompt: "You are a helpful assistant for testing context attributes.",
-                  user_message: "Hello! This is a test with comprehensive context attributes.",
+                  system_prompt:
+                    "You are a helpful assistant for testing context attributes.",
+                  user_message:
+                    "Hello! This is a test with comprehensive context attributes.",
                 },
               }),
               ["validation", "converse", "context", "comprehensive", "bedrock"],
@@ -649,8 +650,12 @@ class ConverseComprehensiveValidator {
     console.log("   📋 Context attributes configured:");
     console.log("      🆔 Session ID: comprehensive-validation-session-001");
     console.log("      👤 User ID: comprehensive-validation-user-001");
-    console.log("      📊 Metadata: experiment_name=converse-comprehensive-validation");
-    console.log("      🏷️ Tags: [validation, converse, context, comprehensive, bedrock]");
+    console.log(
+      "      📊 Metadata: experiment_name=converse-comprehensive-validation",
+    );
+    console.log(
+      "      🏷️ Tags: [validation, converse, context, comprehensive, bedrock]",
+    );
     console.log("      📝 Prompt Template: System: {{system_prompt}}...");
 
     // Check for text content in the response
@@ -701,16 +706,19 @@ class ConverseComprehensiveValidator {
       return false;
     } catch (error: any) {
       console.log("   ✅ Error handled correctly:", error.name);
-      
+
       // Additional error details
       if (error.message) {
-        console.log("   📝 Error message:", error.message.substring(0, 100) + "...");
+        console.log(
+          "   📝 Error message:",
+          error.message.substring(0, 100) + "...",
+        );
       }
-      
+
       if (error.$metadata?.httpStatusCode) {
         console.log("   🔢 HTTP status code:", error.$metadata.httpStatusCode);
       }
-      
+
       return true;
     }
   }

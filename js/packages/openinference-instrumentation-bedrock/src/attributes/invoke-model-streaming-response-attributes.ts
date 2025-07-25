@@ -14,9 +14,7 @@ import {
   SemanticConventions,
   MimeType,
 } from "@arizeai/openinference-semantic-conventions";
-import { 
-  ContentBlockDelta,
-} from "@aws-sdk/client-bedrock-runtime";
+import { ContentBlockDelta } from "@aws-sdk/client-bedrock-runtime";
 import { withSafety } from "@arizeai/openinference-core";
 import { ReadableStream } from "node:stream/web";
 import { isToolUseContent } from "../types/bedrock-types";
@@ -36,7 +34,11 @@ interface StreamChunk {
  * Using AWS SDK types where possible, extending for missing fields
  */
 interface StreamEventData {
-  type: "message_start" | "content_block_start" | "content_block_delta" | "message_delta";
+  type:
+    | "message_start"
+    | "content_block_start"
+    | "content_block_delta"
+    | "message_delta";
   message?: {
     usage?: Record<string, number>;
   };
@@ -54,7 +56,7 @@ interface StreamEventData {
 /**
  * Type guard to validate raw stream chunk structure from AWS SDK
  * Ensures chunk has the expected structure with bytes property
- * 
+ *
  * @param chunk The chunk object to validate
  * @returns {boolean} True if chunk is a valid StreamChunk with bytes, false otherwise
  */
@@ -73,7 +75,7 @@ function isValidStreamChunk(chunk: unknown): chunk is StreamChunk {
 /**
  * Type guard to validate streaming event data structure from Bedrock streams
  * Ensures event data has valid type property matching expected event types
- * 
+ *
  * @param data The event data object to validate
  * @returns {boolean} True if data is valid StreamEventData, false otherwise
  */
@@ -83,14 +85,19 @@ function isValidStreamEventData(data: unknown): data is StreamEventData {
     typeof data === "object" &&
     "type" in data &&
     typeof data.type === "string" &&
-    ["message_start", "content_block_start", "content_block_delta", "message_delta"].includes(data.type)
+    [
+      "message_start",
+      "content_block_start",
+      "content_block_delta",
+      "message_delta",
+    ].includes(data.type)
   );
 }
 
 /**
  * Processes accumulated streaming content and sets OpenInference span attributes
  * Creates structured output representation and sets semantic convention attributes
- * 
+ *
  * @param params Object containing accumulated streaming data
  * @param params.span The OpenTelemetry span to set attributes on
  * @param params.outputText Accumulated text content from streaming response
@@ -105,19 +112,25 @@ function setStreamingOutputAttributes({
 }: {
   span: Span;
   outputText: string;
-  contentBlocks: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }>;
+  contentBlocks: Array<{
+    type: string;
+    text?: string;
+    id?: string;
+    name?: string;
+    input?: Record<string, unknown>;
+  }>;
   usage: Record<string, number>;
 }): void {
   // Create simple output representation with only actual data we have
   const outputValue = {
     text: outputText || "",
-    tool_calls: contentBlocks.filter(isToolUseContent).map(content => ({
+    tool_calls: contentBlocks.filter(isToolUseContent).map((content) => ({
       id: content.id,
       name: content.name,
-      input: content.input
+      input: content.input,
     })),
     usage: usage || {},
-    streaming: true
+    streaming: true,
   };
 
   // Set output value as JSON
@@ -197,7 +210,7 @@ export function safelySplitStream({
     // Convert async iterable to ReadableStream and use native tee() - just like OpenAI!
     const readableStream = ReadableStream.from(originalStream);
     const [instrumentationStream, userStream] = readableStream.tee();
-    
+
     return {
       instrumentationStream,
       userStream,
@@ -241,12 +254,12 @@ export const consumeBedrockStreamChunks = withSafety({
     span: Span;
   }): Promise<void> => {
     let outputText = "";
-    const contentBlocks: Array<{ 
-      type: string; 
-      text?: string; 
-      id?: string; 
-      name?: string; 
-      input?: Record<string, unknown> 
+    const contentBlocks: Array<{
+      type: string;
+      text?: string;
+      id?: string;
+      name?: string;
+      input?: Record<string, unknown>;
     }> = [];
     let usage: Record<string, number> = {};
 
@@ -311,4 +324,4 @@ export const consumeBedrockStreamChunks = withSafety({
     diag.warn("Error consuming Bedrock stream chunks:", error);
     throw error;
   },
-}); 
+});
