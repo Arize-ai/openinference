@@ -17,6 +17,10 @@ import {
 
 /**
  * Type guard to safely validate ConverseResponse structure
+ * Ensures the response object has the expected output structure for processing
+ * 
+ * @param response The response object to validate
+ * @returns {boolean} True if response is a valid ConverseResponse, false otherwise
  */
 function isConverseResponse(response: unknown): response is ConverseResponse {
   if (!response || typeof response !== "object" || response === null) {
@@ -32,7 +36,12 @@ function isConverseResponse(response: unknown): response is ConverseResponse {
 }
 
 /**
- * Extracts base response attributes: output value, mime type
+ * Extracts base response attributes for OpenInference semantic conventions
+ * Sets output value, MIME type, and stop reason attributes
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.response The ConverseResponse to extract attributes from
  */
 function extractBaseResponseAttributes({
   span,
@@ -54,7 +63,12 @@ function extractBaseResponseAttributes({
 }
 
 /**
- * Extracts output message attributes from response
+ * Extracts output message attributes from Converse response
+ * Processes the response message and sets OpenInference message attributes
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.response The ConverseResponse containing output message
  */
 function extractOutputMessagesAttributes({
   span,
@@ -78,6 +92,11 @@ function extractOutputMessagesAttributes({
 
 /**
  * Extracts tool call attributes from response content blocks
+ * Identifies and processes tool use blocks in the response message
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.response The ConverseResponse containing tool calls
  */
 function extractToolCallAttributes({
   span,
@@ -117,7 +136,12 @@ function extractToolCallAttributes({
 }
 
 /**
- * Extracts usage statistics with null-safe handling for missing token counts
+ * Extracts token usage statistics with null-safe handling for missing token counts
+ * Sets input, output, and total token count attributes following OpenInference conventions
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.response The ConverseResponse containing usage statistics
  */
 function extractUsageAttributes({
   span,
@@ -147,10 +171,24 @@ function extractUsageAttributes({
 }
 
 /**
- * Extracts response attributes from Converse response and sets them on the span
+ * Extracts semantic convention attributes from Converse response and sets them on the span
+ * Main entry point for processing Converse API responses with comprehensive error handling
+ * 
+ * Processes:
+ * - Base response attributes (output value, MIME type, stop reason)
+ * - Output messages with content structure
+ * - Tool call attributes from response blocks
+ * - Token usage statistics
+ * 
+ * @param params Object containing extraction parameters
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.response The ConverseResponse to extract attributes from
  */
 export const extractConverseResponseAttributes = withSafety({
-  fn: ({ span, response }: { span: Span; response: ConverseResponse }): void => {
+  fn: ({ span, response }: { 
+    span: Span; 
+    response: ConverseResponse;
+  }): void => {
     if (!response || !isConverseResponse(response)) {
       return;
     }

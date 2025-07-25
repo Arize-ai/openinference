@@ -52,7 +52,11 @@ interface StreamEventData {
 }
 
 /**
- * Type guard to validate raw stream chunk structure
+ * Type guard to validate raw stream chunk structure from AWS SDK
+ * Ensures chunk has the expected structure with bytes property
+ * 
+ * @param chunk The chunk object to validate
+ * @returns {boolean} True if chunk is a valid StreamChunk with bytes, false otherwise
  */
 function isValidStreamChunk(chunk: unknown): chunk is StreamChunk {
   return (
@@ -67,7 +71,11 @@ function isValidStreamChunk(chunk: unknown): chunk is StreamChunk {
 }
 
 /**
- * Type guard to validate streaming event data structure
+ * Type guard to validate streaming event data structure from Bedrock streams
+ * Ensures event data has valid type property matching expected event types
+ * 
+ * @param data The event data object to validate
+ * @returns {boolean} True if data is valid StreamEventData, false otherwise
  */
 function isValidStreamEventData(data: unknown): data is StreamEventData {
   return (
@@ -80,7 +88,14 @@ function isValidStreamEventData(data: unknown): data is StreamEventData {
 }
 
 /**
- * Processes accumulated streaming content and sets span attributes
+ * Processes accumulated streaming content and sets OpenInference span attributes
+ * Creates structured output representation and sets semantic convention attributes
+ * 
+ * @param params Object containing accumulated streaming data
+ * @param params.span The OpenTelemetry span to set attributes on
+ * @param params.outputText Accumulated text content from streaming response
+ * @param params.contentBlocks Array of content blocks including tool calls
+ * @param params.usage Token usage statistics from the streaming response
  */
 function setStreamingOutputAttributes({
   span,
